@@ -194,7 +194,7 @@ time.</p>
 cd flux
 </code></pre>
 <p>To build the source you need a nightly version of <code>rustc</code>.
-We pin the version using a <a href="guide//rust-toolchain">toolchain file</a> (more info <a href="https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file">here</a>).
+We pin the version using a <a href="https://github.com/flux-rs/flux/blob/main/rust-toolchain">toolchain file</a> (more info <a href="https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file">here</a>).
 If you are using <code>rustup</code>, no special action is needed as it should install the correct <code>rustc</code> version and components based on the information on that file.</p>
 <p>Next, run the following to build and install <code>flux</code> binaries</p>
 <pre><code class="language-bash">cargo xtask install
@@ -870,7 +870,7 @@ we'll see how Flux melds refinements and Rust's ownership to make refinements
 happily coexist with imperative code.</p>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
 <p>These are not arbitrary Rust expressions but a subset of expressions
-from logics that can be efficiently decided by <a href="https://github.com/liquid-rust/flux/blob/main/README.md#grammar-of-refinements">SMT Solvers</a></p>
+from logics that can be efficiently decided by <a href="https://github.com/flux-rs/flux/blob/main/book/src/guide/specs.md#grammar-of-refinements">SMT Solvers</a></p>
 </div>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="ownership-in-flux"><a class="header" href="#ownership-in-flux">Ownership in Flux</a></h1>
 <p><a href="https://flux.programming.systems/?example=ownership.rs">Online demo</a></p>

@@ -439,6 +439,25 @@
 <a href="#439" id="439">439</a>
 <a href="#440" id="440">440</a>
 <a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
 </pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
@@ -449,6 +468,8 @@
 };
 <span class="kw">pub use </span>rustc_span::symbol::Ident;
 <span class="kw">use </span>rustc_span::{symbol::kw, Span};
+
+<span class="kw">use </span><span class="kw">crate</span>::surface::visit::Visitor;
 
 <span class="doccomment">/// A [`NodeId`] is a unique identifier we assign to some AST nodes to be able to attach information
 /// to them. For example, to assign a resolution to a [`Path`]. The [`NodeId`] is unique within a crate.
@@ -559,7 +580,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>VariantDef {
     <span class="kw">pub </span>fields: Vec&lt;Ty&gt;,
-    <span class="kw">pub </span>ret: VariantRet,
+    <span class="kw">pub </span>ret: <span class="prelude-ty">Option</span>&lt;VariantRet&gt;,
     <span class="kw">pub </span>node_id: NodeId,
     <span class="kw">pub </span>span: Span,
 }
@@ -631,7 +652,7 @@
     <span class="doccomment">/// example: `*x: i32{v. v = n+1}` or just `x &gt; 10`
     </span><span class="kw">pub </span>ensures: Vec&lt;Constraint&gt;,
     <span class="doccomment">/// example: `where I: Iterator&lt;Item = i32{v:0&lt;=v}&gt;`
-    </span><span class="kw">pub </span>predicates: Vec&lt;WhereBoundPredicate&gt;,
+    </span><span class="kw">pub </span>predicates: <span class="prelude-ty">Option</span>&lt;Vec&lt;WhereBoundPredicate&gt;&gt;,
     <span class="doccomment">/// source span
     </span><span class="kw">pub </span>span: Span,
     <span class="kw">pub </span>node_id: NodeId,
@@ -731,6 +752,23 @@
             | TyKind::Array(<span class="kw">_</span>, <span class="kw">_</span>)
             | TyKind::ImplTrait(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
         }
+    }
+
+    <span class="kw">pub fn </span>is_refined(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">struct </span>IsRefinedVisitor {
+            is_refined: bool,
+        }
+        <span class="kw">let </span><span class="kw-2">mut </span>vis = IsRefinedVisitor { is_refined: <span class="bool-val">false </span>};
+        <span class="kw">impl </span>visit::Visitor <span class="kw">for </span>IsRefinedVisitor {
+            <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) {
+                <span class="kw">if </span>!<span class="macro">matches!</span>(ty.kind, TyKind::Base(<span class="kw">_</span>)) {
+                    <span class="self">self</span>.is_refined = <span class="bool-val">true</span>;
+                }
+                visit::walk_ty(<span class="self">self</span>, ty);
+            }
+        }
+        vis.visit_ty(<span class="self">self</span>);
+        vis.is_refined
     }
 }
 <span class="attr">#[derive(Debug)]

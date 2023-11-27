@@ -533,8 +533,6 @@
 <a href="#533" id="533">533</a>
 <a href="#534" id="534">534</a>
 <a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Gathering is the process of building an [`Env`] for a surface item.
 //!
 //! # Explicit vs Implicit Scopes
@@ -574,7 +572,7 @@
 <span class="kw">use super</span>::{
     env::{<span class="self">self</span>, ScopeId},
     errors::{IllegalBinder, InvalidUnrefinedParam},
-    DesugarCtxt,
+    RustItemCtxt,
 };
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
@@ -618,13 +616,15 @@
     </span>Pound,
     <span class="doccomment">/// A parameter declared with `x: T` syntax.
     </span>Colon,
-    <span class="doccomment">/// A parameter which we know syntactically cannot be used, e.g., when writing
+    <span class="doccomment">/// A parameter that we know *syntactically* cannot be used inside a refinement. We track these
+    /// parameters to report errors at the use site. For example, consider the following function:
     ///
     /// ```ignore
     /// fn(x: {v. i32[v] | v &gt; 0}) -&gt; i32[x]
     /// ```
-    /// We know syntatically that `x` binds to a non-base type. We track the parameter to report
-    /// errors at the use site.
+    ///
+    /// In this definition, we know syntatically that `x` binds to a non-base type so it&#39;s an error
+    /// to use `x` as an index in the return type.
     </span>SyntaxError,
 }
 
@@ -637,7 +637,7 @@
     }
 }
 
-<span class="kw">impl </span>DesugarCtxt&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>RustItemCtxt&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
     <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>gather_params_type_alias(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         ty_alias: <span class="kw-2">&amp;</span>surface::TyAlias,
@@ -685,7 +685,9 @@
             <span class="self">self</span>.gather_params_ty(<span class="prelude-val">None</span>, ty, TypePos::Input, <span class="kw-2">&amp;mut </span>env)<span class="question-mark">?</span>;
         }
 
-        <span class="self">self</span>.gather_params_variant_ret(<span class="kw-2">&amp;</span>variant_def.ret, <span class="kw-2">&amp;mut </span>env)<span class="question-mark">?</span>;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(ret) = <span class="kw-2">&amp;</span>variant_def.ret {
+            <span class="self">self</span>.gather_params_variant_ret(ret, <span class="kw-2">&amp;mut </span>env)<span class="question-mark">?</span>;
+        }
 
         <span class="self">self</span>.check_param_uses(<span class="kw-2">&amp;mut </span>env, |vis| vis.visit_variant(variant_def))<span class="question-mark">?</span>;
 
@@ -720,7 +722,9 @@
         <span class="kw">for </span>arg <span class="kw">in </span><span class="kw-2">&amp;</span>fn_sig.args {
             <span class="self">self</span>.gather_params_fun_arg(arg, env)<span class="question-mark">?</span>;
         }
-        <span class="self">self</span>.gather_params_predicates(<span class="kw-2">&amp;</span>fn_sig.predicates, env)<span class="question-mark">?</span>;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(predicates) = <span class="kw-2">&amp;</span>fn_sig.predicates {
+            <span class="self">self</span>.gather_params_predicates(predicates, env)<span class="question-mark">?</span>;
+        }
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -943,30 +947,20 @@
     <span class="kw">fn </span>into_desugar_env(<span class="self">self</span>) -&gt; env::Env&lt;<span class="kw">super</span>::Param&gt; {
         <span class="kw">let </span>name_gen = IndexGen::default();
         <span class="self">self</span>.filter_map(|param, used| {
-            <span class="kw">match </span>param {
-                Param::Explicit(sort) =&gt; {
-                    <span class="prelude-val">Some</span>(<span class="kw">super</span>::Param { name: name_gen.fresh(), sort, implicit: <span class="bool-val">false </span>})
-                }
-                Param::At | Param::Pound =&gt; {
-                    <span class="prelude-val">Some</span>(<span class="kw">super</span>::Param {
-                        name: name_gen.fresh(),
-                        sort: fhir::Sort::Wildcard,
-                        implicit: <span class="bool-val">true</span>,
-                    })
-                }
+            <span class="kw">let </span>(sort, kind) = <span class="kw">match </span>param {
+                Param::Explicit(sort) =&gt; (sort, fhir::ParamKind::Explicit),
+                Param::At =&gt; (fhir::Sort::Wildcard, fhir::ParamKind::At),
+                Param::Pound =&gt; (fhir::Sort::Wildcard, fhir::ParamKind::Pound),
                 Param::Colon =&gt; {
                     <span class="kw">if </span>used {
-                        <span class="prelude-val">Some</span>(<span class="kw">super</span>::Param {
-                            name: name_gen.fresh(),
-                            sort: fhir::Sort::Wildcard,
-                            implicit: <span class="bool-val">true</span>,
-                        })
+                        (fhir::Sort::Wildcard, fhir::ParamKind::Colon)
                     } <span class="kw">else </span>{
-                        <span class="prelude-val">None
-                    </span>}
+                        <span class="kw">return </span><span class="prelude-val">None</span>;
+                    }
                 }
-                Param::SyntaxError =&gt; <span class="prelude-val">None</span>,
-            }
+                Param::SyntaxError =&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
+            };
+            <span class="prelude-val">Some</span>(<span class="kw">super</span>::Param { name: name_gen.fresh(), sort, kind })
         })
     }
 }
@@ -1018,7 +1012,9 @@
             node_id,
         } = fn_sig;
 
-        <span class="macro">walk_list!</span>(<span class="self">self</span>, visit_where_predicate, predicates);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(predicates) = predicates {
+            <span class="macro">walk_list!</span>(<span class="self">self</span>, visit_where_predicate, predicates);
+        }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(requires) = requires {
             <span class="self">self</span>.visit_expr(requires);
         }

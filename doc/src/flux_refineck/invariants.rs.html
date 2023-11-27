@@ -85,7 +85,6 @@
 <a href="#85" id="85">85</a>
 <a href="#86" id="86">86</a>
 <a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{cache::QueryCache, dbg, iter::IterExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::{ErrorGuaranteed, ResultExt};
@@ -143,8 +142,7 @@
             <span class="kw">let </span>ty = rcx.unpack(ty, <span class="kw">crate</span>::refine_tree::AssumeInvariants::No);
             rcx.assume_invariants(<span class="kw-2">&amp;</span>ty, checker_config.check_overflow);
         }
-        <span class="kw">let </span>(.., idx) = variant.ret.expect_adt();
-        <span class="kw">let </span>pred = invariant.pred.replace_bound_expr(<span class="kw-2">&amp;</span>idx.expr);
+        <span class="kw">let </span>pred = invariant.pred.replace_bound_expr(<span class="kw-2">&amp;</span>variant.idx);
         rcx.check_pred(pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
     <span class="kw">let </span><span class="kw-2">mut </span>fcx = FixpointCtxt::new(genv, def_id, KVarStore::default());

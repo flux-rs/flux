@@ -1220,7 +1220,7 @@
         </span><span class="kw">let </span>evars_sol = infcx.solve()<span class="question-mark">?</span>;
         rcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
 
-        <span class="prelude-val">Ok</span>(variant.ret.replace_evars(<span class="kw-2">&amp;</span>evars_sol))
+        <span class="prelude-val">Ok</span>(variant.ret().replace_evars(<span class="kw-2">&amp;</span>evars_sol))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_mk_array(

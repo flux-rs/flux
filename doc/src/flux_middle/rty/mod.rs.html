@@ -2127,6 +2127,17 @@
 <a href="#2127" id="2127">2127</a>
 <a href="#2128" id="2128">2128</a>
 <a href="#2129" id="2129">2129</a>
+<a href="#2130" id="2130">2130</a>
+<a href="#2131" id="2131">2131</a>
+<a href="#2132" id="2132">2132</a>
+<a href="#2133" id="2133">2133</a>
+<a href="#2134" id="2134">2134</a>
+<a href="#2135" id="2135">2135</a>
+<a href="#2136" id="2136">2136</a>
+<a href="#2137" id="2137">2137</a>
+<a href="#2138" id="2138">2138</a>
+<a href="#2139" id="2139">2139</a>
+<a href="#2140" id="2140">2140</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2273,7 +2284,7 @@
 </span><span class="kw">pub enum </span>SortCtor {
     Set,
     Map,
-    User { name: Symbol, arity: usize },
+    User { name: Symbol },
 }
 
 <span class="doccomment">/// [SortVar] are used for polymorphic sorts (Set, Map etc.) and they should occur
@@ -2363,8 +2374,10 @@
 
 <span class="attr">#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>VariantSig {
+    <span class="kw">pub </span>adt_def: AdtDef,
+    <span class="kw">pub </span>args: GenericArgs,
     <span class="kw">pub </span>fields: List&lt;Ty&gt;,
-    <span class="kw">pub </span>ret: Ty,
+    <span class="kw">pub </span>idx: Expr,
 }
 
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
@@ -2952,6 +2965,10 @@
         EarlyBinder(f(<span class="self">self</span>.<span class="number">0</span>))
     }
 
+    <span class="kw">pub fn </span>try_map&lt;U, E&gt;(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(T) -&gt; <span class="prelude-ty">Result</span>&lt;U, E&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;EarlyBinder&lt;U&gt;, E&gt; {
+        <span class="prelude-val">Ok</span>(EarlyBinder(f(<span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>))
+    }
+
     <span class="kw">pub fn </span>skip_binder(<span class="self">self</span>) -&gt; T {
         <span class="self">self</span>.<span class="number">0
     </span>}
@@ -3072,12 +3089,17 @@
 }
 
 <span class="kw">impl </span>VariantSig {
-    <span class="kw">pub fn </span>new(fields: Vec&lt;Ty&gt;, ret: Ty) -&gt; <span class="self">Self </span>{
-        VariantSig { fields: List::from_vec(fields), ret }
+    <span class="kw">pub fn </span>new(adt_def: AdtDef, args: GenericArgs, fields: List&lt;Ty&gt;, idx: Expr) -&gt; <span class="self">Self </span>{
+        VariantSig { adt_def, args, fields, idx }
     }
 
     <span class="kw">pub fn </span>fields(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Ty] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.fields
+    }
+
+    <span class="kw">pub fn </span>ret(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
+        <span class="kw">let </span>bty = BaseTy::Adt(<span class="self">self</span>.adt_def.clone(), <span class="self">self</span>.args.clone());
+        Ty::indexed(bty, <span class="self">self</span>.idx.clone())
     }
 }
 
@@ -3267,9 +3289,9 @@
 
 <span class="kw">impl </span>EarlyBinder&lt;PolyVariant&gt; {
     <span class="kw">pub fn </span>to_poly_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; EarlyBinder&lt;PolyFnSig&gt; {
-        <span class="self">self</span>.as_ref().map(|poly_fn_sig| {
-            poly_fn_sig.as_ref().map(|variant| {
-                <span class="kw">let </span>ret = variant.ret.shift_in_escaping(<span class="number">1</span>);
+        <span class="self">self</span>.as_ref().map(|poly_variant| {
+            poly_variant.as_ref().map(|variant| {
+                <span class="kw">let </span>ret = variant.ret().shift_in_escaping(<span class="number">1</span>);
                 <span class="kw">let </span>output = Binder::new(FnOutput::new(ret, <span class="macro">vec!</span>[]), List::empty());
                 FnSig::new(<span class="macro">vec!</span>[], variant.fields.clone(), output)
             })
@@ -4225,7 +4247,7 @@
     <span class="kw">impl </span>Pretty <span class="kw">for </span>VariantSig {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
-            <span class="macro">w!</span>(<span class="string">&quot;({:?}) -&gt; {:?}&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="self">self</span>.fields()), <span class="kw-2">&amp;</span><span class="self">self</span>.ret)
+            <span class="macro">w!</span>(<span class="string">&quot;({:?}) -&gt; {:?}&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="self">self</span>.fields()), <span class="kw-2">&amp;</span><span class="self">self</span>.idx)
         }
     }
 

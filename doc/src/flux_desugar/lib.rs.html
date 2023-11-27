@@ -198,7 +198,6 @@
 <a href="#198" id="198">198</a>
 <a href="#199" id="199">199</a>
 <a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 //!
 //! # Generics and Desugaring
@@ -219,7 +218,7 @@
 <span class="kw">extern crate </span>rustc_middle;
 <span class="kw">extern crate </span>rustc_span;
 
-<span class="kw">use </span>desugar::DesugarCtxt;
+<span class="kw">use </span>desugar::RustItemCtxt;
 <span class="kw">use </span>flux_common::dbg;
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_macros::fluent_messages;
@@ -229,7 +228,9 @@
 <span class="macro">fluent_messages! </span>{ <span class="string">&quot;../locales/en-US.ftl&quot; </span>}
 
 <span class="kw">mod </span>desugar;
+<span class="kw">mod </span>errors;
 <span class="kw">pub mod </span>resolver;
+<span class="kw">mod </span>sort_resolver;
 
 <span class="kw">pub use </span>desugar::{desugar_defn, desugar_qualifier, desugar_refined_by, func_def_to_func_decl};
 <span class="kw">use </span>flux_middle::{
@@ -251,10 +252,9 @@
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">let </span>def_id = owner_id.def_id;
 
-    <span class="kw">let </span><span class="kw-2">mut </span>cx = DesugarCtxt::new(genv, owner_id, resolver_output, <span class="prelude-val">None</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>cx = RustItemCtxt::new(genv, owner_id, resolver_output, <span class="prelude-val">None</span>);
 
-    <span class="comment">// Desugar and insert generics
-    </span><span class="kw">let </span>predicates = cx.as_lift_cx().lift_predicates()<span class="question-mark">?</span>;
+    <span class="kw">let </span>predicates = cx.as_lift_cx().lift_predicates()<span class="question-mark">?</span>;
 
     <span class="comment">// Desugar of struct_def needs to happen AFTER inserting generics. See #generics-and-desugaring
     </span><span class="kw">let </span>struct_def = cx.desugar_struct_def(struct_def)<span class="question-mark">?</span>;
@@ -275,13 +275,11 @@
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">let </span>def_id = owner_id.def_id;
 
-    <span class="kw">let </span><span class="kw-2">mut </span>cx = DesugarCtxt::new(genv, owner_id, resolver_output, <span class="prelude-val">None</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>cx = RustItemCtxt::new(genv, owner_id, resolver_output, <span class="prelude-val">None</span>);
 
-    <span class="comment">// Desugar and inserting generics
-    </span><span class="kw">let </span>(generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()<span class="question-mark">?</span>;
-    genv.map().insert_generics(def_id, generics);
+    <span class="kw">let </span>predicates = cx.as_lift_cx().lift_predicates()<span class="question-mark">?</span>;
 
-    <span class="comment">// Desugar of enum def needs to happen AFTER inserting generics. See crate level comment
+    <span class="comment">// Desugar of enum_def needs to happen AFTER inserting generics. See #generics-and-desugaring
     </span><span class="kw">let </span>enum_def = cx.desugar_enum_def(enum_def)<span class="question-mark">?</span>;
     <span class="kw">if </span>config::dump_fhir() {
         dbg::dump_item_info(genv.tcx, owner_id, <span class="string">&quot;fhir&quot;</span>, <span class="kw-2">&amp;</span>enum_def).unwrap();
@@ -301,7 +299,7 @@
     <span class="kw">let </span>def_id = owner_id.def_id;
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(ty_alias) = ty_alias {
-        <span class="kw">let </span><span class="kw-2">mut </span>cx = DesugarCtxt::new(genv, owner_id, resolver_output, <span class="prelude-val">None</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>cx = RustItemCtxt::new(genv, owner_id, resolver_output, <span class="prelude-val">None</span>);
 
         <span class="comment">// Desugar and insert generics
         </span><span class="kw">let </span>(generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()<span class="question-mark">?</span>;
@@ -337,7 +335,7 @@
     <span class="kw">let </span>def_id = owner_id.def_id;
     <span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = fn_sig {
         <span class="kw">let </span><span class="kw-2">mut </span>opaque_tys = Default::default();
-        <span class="kw">let </span><span class="kw-2">mut </span>cx = DesugarCtxt::new(genv, owner_id, resolver_output, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span>opaque_tys));
+        <span class="kw">let </span><span class="kw-2">mut </span>cx = RustItemCtxt::new(genv, owner_id, resolver_output, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span>opaque_tys));
 
         <span class="comment">// Desugar and insert generics
         </span><span class="kw">let </span>generics = <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = <span class="kw-2">&amp;</span>fn_sig.generics {
@@ -386,7 +384,7 @@
         LiftCtxt::new(genv.tcx, genv.sess, owner_id, <span class="prelude-val">None</span>).lift_generics_with_predicates()<span class="question-mark">?</span>;
 
     <span class="kw">let </span>generics = <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = generics {
-        <span class="kw">let </span>cx = DesugarCtxt::new(genv, owner_id, resolver_output, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>cx = RustItemCtxt::new(genv, owner_id, resolver_output, <span class="prelude-val">None</span>);
         cx.desugar_generics(generics)<span class="question-mark">?
     </span>} <span class="kw">else </span>{
         lifted_generics

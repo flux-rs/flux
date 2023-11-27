@@ -626,6 +626,11 @@
 <a href="#626" id="626">626</a>
 <a href="#627" id="627">627</a>
 <a href="#628" id="628">628</a>
+<a href="#629" id="629">629</a>
+<a href="#630" id="630">630</a>
+<a href="#631" id="631">631</a>
+<a href="#632" id="632">632</a>
+<a href="#633" id="633">633</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, iter::IterExt};
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_middle::fhir::Res;
@@ -717,10 +722,13 @@
             .iter()
             .try_for_each_exhaust(|cstr| item_resolver.resolve_constraint(cstr));
 
-        <span class="kw">let </span>predicates = fn_sig
-            .predicates
-            .iter()
-            .try_for_each_exhaust(|pred| item_resolver.resolve_where_bound_predicate(pred));
+        <span class="kw">let </span>predicates = <span class="kw">if let </span><span class="prelude-val">Some</span>(predicates) = <span class="kw-2">&amp;</span>fn_sig.predicates {
+            predicates
+                .iter()
+                .try_for_each_exhaust(|pred| item_resolver.resolve_where_bound_predicate(pred))
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Ok</span>(())
+        };
 
         <span class="kw">let </span>returns = item_resolver.resolve_fn_ret_ty(<span class="kw-2">&amp;</span>fn_sig.returns);
 
@@ -785,7 +793,9 @@
                 .fields
                 .iter()
                 .try_for_each_exhaust(|ty| <span class="self">self</span>.resolve_ty(ty))<span class="question-mark">?</span>;
-            <span class="self">self</span>.resolve_variant_ret(<span class="kw-2">&amp;</span>variant_def.ret)<span class="question-mark">?</span>;
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(ret) = <span class="kw-2">&amp;</span>variant_def.ret {
+                <span class="self">self</span>.resolve_variant_ret(ret)<span class="question-mark">?</span>;
+            }
         }
         <span class="prelude-val">Ok</span>(())
     }

@@ -959,7 +959,7 @@
     EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
 };
 <span class="kw">use </span>rustc_middle::ty::{ScalarInt, TyCtxt};
-<span class="kw">use </span>rustc_span::{Span, Symbol};
+<span class="kw">use </span>rustc_span::{Span, Symbol, SyntaxContext};
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>SpecCollector&lt;<span class="lifetime">&#39;tcx</span>, <span class="lifetime">&#39;a</span>&gt; {
     tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
@@ -1212,10 +1212,18 @@
         <span class="kw">let </span>attrs = <span class="self">self</span>.tcx.hir().attrs(field.hir_id);
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
-        <span class="kw">if </span>opaque &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(span) = attrs.contains(<span class="macro">attr_name!</span>(Field)) {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::AttrOnOpaque::new(span, field)));
+        <span class="kw">let </span>field_attr = attrs.field();
+
+        <span class="comment">// We warn if a struct marked as opaque has a refined type annotation. We allow unrefined
+        // annotations, because the `flux!` macro unconditionally adds a `#[flux_tool::field(..)]`
+        // annotation, even if the struct is opaque.
+        </span><span class="kw">if </span>opaque
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(ty) = field_attr.as_ref()
+            &amp;&amp; ty.is_refined()
+        {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::AttrOnOpaque::new(ty.span, field)));
         }
-        <span class="prelude-val">Ok</span>(attrs.field())
+        <span class="prelude-val">Ok</span>(field_attr)
     }
 
     <span class="kw">fn </span>parse_enum_def(
@@ -1432,7 +1440,8 @@
         parser: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>ParseSess, <span class="kw-2">&amp;</span>TokenStream, Span) -&gt; ParseResult&lt;T&gt;,
         ctor: <span class="kw">impl </span>FnOnce(T) -&gt; FluxAttrKind,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;FluxAttrKind, ErrorGuaranteed&gt; {
-        parser(<span class="kw-2">&amp;mut </span><span class="self">self</span>.parse_sess, <span class="kw-2">&amp;</span>dargs.tokens, dargs.dspan.entire())
+        <span class="kw">let </span>entire = dargs.dspan.entire().with_ctxt(SyntaxContext::root());
+        parser(<span class="kw-2">&amp;mut </span><span class="self">self</span>.parse_sess, <span class="kw-2">&amp;</span>dargs.tokens, entire)
             .map(ctor)
             .map_err(|err| <span class="self">self</span>.emit_err(errors::SyntaxErr::from(err)))
     }
@@ -1645,15 +1654,6 @@
 
     <span class="kw">fn </span>extern_spec(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
         <span class="macro">read_flag!</span>(<span class="self">self</span>, ExternSpec)
-    }
-
-    <span class="kw">fn </span>contains(<span class="kw-2">&amp;</span><span class="self">self</span>, attr: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Span&gt; {
-        <span class="self">self</span>.map.get(attr).and_then(|attrs| {
-            <span class="kw">match </span><span class="kw-2">&amp;</span>attrs[..] {
-                [attr] =&gt; <span class="prelude-val">Some</span>(attr.span),
-                <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-            }
-        })
     }
 }
 

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"static":["SORTS"],"struct":["SortResolver","Sorts"],"type":["Result"]};

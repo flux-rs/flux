@@ -638,6 +638,18 @@
 <a href="#638" id="638">638</a>
 <a href="#639" id="639">639</a>
 <a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! &quot;Lift&quot; HIR types into  FHIR types.
 //!
 </span><span class="kw">use </span>flux_common::{bug, iter::IterExt};
@@ -1004,9 +1016,7 @@
         variant: <span class="kw-2">&amp;</span>hir::Variant,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::VariantDef, ErrorGuaranteed&gt; {
         <span class="kw">let </span>item = <span class="self">self</span>.tcx.hir().expect_item(<span class="self">self</span>.owner.def_id);
-        <span class="kw">let </span>hir::ItemKind::Enum(<span class="kw">_</span>, generics) = <span class="kw-2">&amp;</span>item.kind <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">&quot;expected an enum or struct&quot;</span>)
-        };
+        <span class="kw">let </span>hir::ItemKind::Enum(<span class="kw">_</span>, generics) = <span class="kw-2">&amp;</span>item.kind <span class="kw">else </span>{ <span class="macro">bug!</span>(<span class="string">&quot;expected an enum&quot;</span>) };
 
         <span class="kw">let </span>fields = variant
             .data
@@ -1015,24 +1025,7 @@
             .map(|field| <span class="self">self</span>.lift_field_def(field))
             .try_collect_exhaust()<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>span = item.ident.span.to(generics.span);
-        <span class="kw">let </span>path = fhir::Path {
-            res: fhir::Res::SelfTyAlias { alias_to: <span class="self">self</span>.owner.to_def_id(), is_trait_impl: <span class="bool-val">false </span>},
-            args: <span class="macro">vec!</span>[],
-            bindings: <span class="macro">vec!</span>[],
-            refine: <span class="macro">vec!</span>[],
-            span,
-        };
-        <span class="kw">let </span>bty = fhir::BaseTy::from(fhir::QPath::Resolved(<span class="prelude-val">None</span>, path));
-        <span class="kw">let </span>ret = fhir::VariantRet {
-            bty,
-            idx: fhir::RefineArg::Record(
-                <span class="self">self</span>.owner.to_def_id(),
-                List::empty(), <span class="comment">// TODO:RJ: or should we use the generics and just make it T1,...Tn?
-                </span><span class="macro">vec!</span>[],
-                generics.span.shrink_to_hi(),
-            ),
-        };
+        <span class="kw">let </span>ret = <span class="self">self</span>.lift_variant_ret_inner(item, generics);
 
         <span class="prelude-val">Ok</span>(fhir::VariantDef {
             def_id: variant.def_id,
@@ -1042,6 +1035,37 @@
             span: variant.span,
             lifted: <span class="bool-val">true</span>,
         })
+    }
+
+    <span class="kw">pub fn </span>lift_variant_ret(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; fhir::VariantRet {
+        <span class="kw">let </span>item = <span class="self">self</span>.tcx.hir().expect_item(<span class="self">self</span>.owner.def_id);
+        <span class="kw">let </span>hir::ItemKind::Enum(<span class="kw">_</span>, generics) = <span class="kw-2">&amp;</span>item.kind <span class="kw">else </span>{ <span class="macro">bug!</span>(<span class="string">&quot;expected an enum&quot;</span>) };
+        <span class="self">self</span>.lift_variant_ret_inner(item, generics)
+    }
+
+    <span class="kw">fn </span>lift_variant_ret_inner(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        item: <span class="kw-2">&amp;</span>hir::Item,
+        generics: <span class="kw-2">&amp;</span>hir::Generics,
+    ) -&gt; fhir::VariantRet {
+        <span class="kw">let </span>span = item.ident.span.to(generics.span);
+        <span class="kw">let </span>path = fhir::Path {
+            res: fhir::Res::SelfTyAlias { alias_to: <span class="self">self</span>.owner.to_def_id(), is_trait_impl: <span class="bool-val">false </span>},
+            args: <span class="macro">vec!</span>[],
+            bindings: <span class="macro">vec!</span>[],
+            refine: <span class="macro">vec!</span>[],
+            span,
+        };
+        <span class="kw">let </span>bty = fhir::BaseTy::from(fhir::QPath::Resolved(<span class="prelude-val">None</span>, path));
+        fhir::VariantRet {
+            bty,
+            idx: fhir::RefineArg::Record(
+                <span class="self">self</span>.owner.to_def_id(),
+                List::empty(), <span class="comment">// TODO:RJ: or should we use the generics and just make it T1,...Tn?
+                </span><span class="macro">vec!</span>[],
+                generics.span.shrink_to_hi(),
+            ),
+        }
     }
 
     <span class="kw">fn </span>lift_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>hir::Ty) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty, ErrorGuaranteed&gt; {

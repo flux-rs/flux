@@ -436,8 +436,6 @@
 <a href="#436" id="436">436</a>
 <a href="#437" id="437">437</a>
 <a href="#438" id="438">438</a>
-<a href="#439" id="439">439</a>
-<a href="#440" id="440">440</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
@@ -616,19 +614,17 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_variant_def(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
+        adt_def_id: DefId,
         fields: <span class="kw-2">&amp;</span>[rustc::ty::Ty],
-        ret: <span class="kw-2">&amp;</span>rustc::ty::Ty,
     ) -&gt; QueryResult&lt;rty::PolyVariant&gt; {
+        <span class="kw">let </span>adt_def = <span class="self">self</span>.adt_def(adt_def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>fields = fields.iter().map(|ty| <span class="self">self</span>.refine_ty(ty)).try_collect()<span class="question-mark">?</span>;
-        <span class="kw">let </span>rustc::ty::TyKind::Adt(adt_def, args) = ret.kind() <span class="kw">else </span>{
-            <span class="macro">bug!</span>();
-        };
-        <span class="kw">let </span>args = <span class="self">self</span>.iter_with_generic_params(<span class="self">self</span>.generics, args, |param, arg| {
-            <span class="self">self</span>.refine_generic_arg(param, arg)
-        })<span class="question-mark">?</span>;
-        <span class="kw">let </span>bty = rty::BaseTy::adt(<span class="self">self</span>.adt_def(adt_def.did())<span class="question-mark">?</span>, args);
-        <span class="kw">let </span>ret = rty::Ty::indexed(bty, rty::Expr::unit());
-        <span class="kw">let </span>value = rty::VariantSig::new(fields, ret);
+        <span class="kw">let </span>value = rty::VariantSig::new(
+            adt_def,
+            rty::GenericArgs::identity_for_item(<span class="self">self</span>.genv, adt_def_id)<span class="question-mark">?</span>,
+            fields,
+            rty::Expr::unit(),
+        );
         <span class="prelude-val">Ok</span>(rty::Binder::new(value, List::empty()))
     }
 

@@ -389,7 +389,6 @@
 <a href="#389" id="389">389</a>
 <a href="#390" id="390">390</a>
 <a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -688,9 +687,8 @@
                             .iter()
                             .map(|field| <span class="prelude-val">Ok</span>(genv.lower_type_of(field.did)<span class="question-mark">?</span>.skip_binder()))
                             .try_collect_vec::&lt;<span class="kw">_</span>, QueryErr&gt;()<span class="question-mark">?</span>;
-                        <span class="kw">let </span>ret = genv.lower_type_of(def_id)<span class="question-mark">?</span>.skip_binder();
                         Refiner::default(genv, <span class="kw-2">&amp;</span>genv.generics_of(def_id)<span class="question-mark">?</span>)
-                            .refine_variant_def(<span class="kw-2">&amp;</span>fields, <span class="kw-2">&amp;</span>ret)
+                            .refine_variant_def(def_id, <span class="kw-2">&amp;</span>fields)
                     })
                     .try_collect()<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(rty::Opaqueness::Transparent(rty::EarlyBinder(variants)))

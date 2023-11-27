@@ -619,24 +619,6 @@
 <a href="#619" id="619">619</a>
 <a href="#620" id="620">620</a>
 <a href="#621" id="621">621</a>
-<a href="#622" id="622">622</a>
-<a href="#623" id="623">623</a>
-<a href="#624" id="624">624</a>
-<a href="#625" id="625">625</a>
-<a href="#626" id="626">626</a>
-<a href="#627" id="627">627</a>
-<a href="#628" id="628">628</a>
-<a href="#629" id="629">629</a>
-<a href="#630" id="630">630</a>
-<a href="#631" id="631">631</a>
-<a href="#632" id="632">632</a>
-<a href="#633" id="633">633</a>
-<a href="#634" id="634">634</a>
-<a href="#635" id="635">635</a>
-<a href="#636" id="636">636</a>
-<a href="#637" id="637">637</a>
-<a href="#638" id="638">638</a>
-<a href="#639" id="639">639</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
@@ -653,10 +635,7 @@
     global_env::GlobalEnv,
     rty::GenericParamDefKind,
 };
-<span class="kw">use </span>rustc_data_structures::{
-    snapshot_map::{<span class="self">self</span>, SnapshotMap},
-    unord::UnordMap,
-};
+<span class="kw">use </span>rustc_data_structures::snapshot_map::{<span class="self">self</span>, SnapshotMap};
 <span class="kw">use </span>rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 <span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
@@ -666,7 +645,6 @@
 
 <span class="kw">struct </span>Wf&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    modes: UnordMap&lt;fhir::Name, fhir::InferMode&gt;,
     xi: XiCtxt,
 }
 
@@ -786,7 +764,7 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(parent_local) = parent.as_local()
         &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(params) = genv.map().get_refine_params(genv.tcx, parent_local)
     {
-        wf.insert_refine_params(<span class="kw-2">&amp;mut </span>infcx, params);
+        infcx.push_layer(params);
     }
     wf.check_opaque_ty(<span class="kw-2">&amp;mut </span>infcx, opaque_ty)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(infcx.into_results())
@@ -800,7 +778,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner_id.into());
     <span class="kw">let </span><span class="kw-2">mut </span>wf = Wf::new(genv);
 
-    wf.insert_refine_params(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>fn_sig.params);
+    infcx.push_layer(<span class="kw-2">&amp;</span>fn_sig.params);
 
     <span class="kw">let </span>args = fn_sig
         .args
@@ -831,14 +809,7 @@
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; Wf&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">fn </span>new(genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;) -&gt; <span class="self">Self </span>{
-        Wf { genv, modes: Default::default(), xi: Default::default() }
-    }
-
-    <span class="kw">fn </span>insert_refine_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) {
-        <span class="kw">for </span>param <span class="kw">in </span>params {
-            <span class="self">self</span>.modes.insert(param.ident.name, param.infer_mode());
-        }
-        infcx.push_layer(params);
+        Wf { genv, xi: Default::default() }
     }
 
     <span class="kw">fn </span>check_params_are_determined(
@@ -848,7 +819,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         params.iter().try_for_each_exhaust(|param| {
             <span class="kw">let </span>determined = <span class="self">self</span>.xi.remove(param.name());
-            <span class="kw">if </span><span class="self">self</span>.infer_mode(infcx, param.name()) == fhir::InferMode::EVar &amp;&amp; !determined {
+            <span class="kw">if </span>infcx.infer_mode(param.ident) == fhir::InferMode::EVar &amp;&amp; !determined {
                 <span class="kw">return </span><span class="self">self</span>.emit_err(errors::ParamNotDetermined::new(param.ident));
             }
             <span class="prelude-val">Ok</span>(())
@@ -1211,7 +1182,7 @@
             fhir::ExprKind::App(func, args) =&gt; {
                 <span class="kw">if </span>!is_top_level_conj
                     &amp;&amp; <span class="kw">let </span>fhir::Func::Var(var, <span class="kw">_</span>) = func
-                    &amp;&amp; <span class="kw">let </span>fhir::InferMode::KVar = <span class="self">self</span>.modes[<span class="kw-2">&amp;</span>var.name]
+                    &amp;&amp; <span class="kw">let </span>fhir::InferMode::KVar = infcx.infer_mode(<span class="kw-2">*</span>var)
                 {
                     <span class="kw">return </span><span class="self">self
                         </span>.emit_err(errors::InvalidParamPos::new(var.span(), <span class="kw-2">&amp;</span>infcx[var.name]));
@@ -1238,13 +1209,6 @@
                 <span class="prelude-val">Ok</span>(())
             }
         }
-    }
-
-    <span class="kw">fn </span>infer_mode(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;</span>InferCtxt, name: fhir::Name) -&gt; fhir::InferMode {
-        <span class="self">self</span>.modes
-            .get(<span class="kw-2">&amp;</span>name)
-            .copied()
-            .unwrap_or_else(|| infcx[name].default_infer_mode())
     }
 
     <span class="kw">fn </span>sort_of_bty(<span class="kw-2">&amp;</span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>fhir::BaseTy) -&gt; fhir::Sort {

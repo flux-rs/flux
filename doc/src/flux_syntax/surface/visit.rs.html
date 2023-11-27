@@ -390,6 +390,10 @@
 <a href="#390" id="390">390</a>
 <a href="#391" id="391">391</a>
 <a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
 
 <span class="kw">use super</span>::{
@@ -588,7 +592,9 @@
 
 <span class="kw">pub fn </span>walk_variant&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, variant: <span class="kw-2">&amp;</span>VariantDef) {
     <span class="macro">walk_list!</span>(vis, visit_ty, <span class="kw-2">&amp;</span>variant.fields);
-    vis.visit_variant_ret(<span class="kw-2">&amp;</span>variant.ret);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(ret) = <span class="kw-2">&amp;</span>variant.ret {
+        vis.visit_variant_ret(ret);
+    }
 }
 
 <span class="kw">pub fn </span>walk_variant_ret&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, ret: <span class="kw-2">&amp;</span>VariantRet) {
@@ -613,7 +619,9 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = generics {
         vis.visit_generics(generics);
     }
-    <span class="macro">walk_list!</span>(vis, visit_where_predicate, predicates);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(predicates) = predicates {
+        <span class="macro">walk_list!</span>(vis, visit_where_predicate, predicates);
+    }
     <span class="kw">if let </span><span class="prelude-val">Some</span>(requires) = requires {
         vis.visit_expr(requires);
     }

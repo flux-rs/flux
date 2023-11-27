@@ -1237,6 +1237,23 @@
 <a href="#1237" id="1237">1237</a>
 <a href="#1238" id="1238">1238</a>
 <a href="#1239" id="1239">1239</a>
+<a href="#1240" id="1240">1240</a>
+<a href="#1241" id="1241">1241</a>
+<a href="#1242" id="1242">1242</a>
+<a href="#1243" id="1243">1243</a>
+<a href="#1244" id="1244">1244</a>
+<a href="#1245" id="1245">1245</a>
+<a href="#1246" id="1246">1246</a>
+<a href="#1247" id="1247">1247</a>
+<a href="#1248" id="1248">1248</a>
+<a href="#1249" id="1249">1249</a>
+<a href="#1250" id="1250">1250</a>
+<a href="#1251" id="1251">1251</a>
+<a href="#1252" id="1252">1252</a>
+<a href="#1253" id="1253">1253</a>
+<a href="#1254" id="1254">1254</a>
+<a href="#1255" id="1255">1255</a>
+<a href="#1256" id="1256">1256</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -1737,12 +1754,20 @@
         enum_def
             .variants
             .iter()
-            .map(|variant_def| ConvCtxt::conv_enum_variant(genv, variant_def, wfckresults))
+            .map(|variant_def| {
+                ConvCtxt::conv_enum_variant(
+                    genv,
+                    enum_def.owner_id.to_def_id(),
+                    variant_def,
+                    wfckresults,
+                )
+            })
             .try_collect()
     }
 
     <span class="kw">fn </span>conv_enum_variant(
         genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        adt_def_id: DefId,
         variant: <span class="kw-2">&amp;</span>fhir::VariantDef,
         wfckresults: <span class="kw-2">&amp;</span>fhir::WfckResults,
     ) -&gt; QueryResult&lt;rty::PolyVariant&gt; {
@@ -1751,14 +1776,19 @@
         <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(<span class="kw-2">&amp;</span>[]);
         env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, <span class="kw-2">&amp;</span>variant.params, <span class="bool-val">true</span>));
 
+        <span class="kw">let </span>adt_def = genv.adt_def(adt_def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>fields = variant
             .fields
             .iter()
             .map(|field| cx.conv_ty(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>field.ty))
             .try_collect()<span class="question-mark">?</span>;
-        <span class="kw">let </span>args = rty::Index::from(cx.conv_refine_arg(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>variant.ret.idx));
-        <span class="kw">let </span>ret = cx.conv_indexed_type(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>variant.ret.bty, args)<span class="question-mark">?</span>;
-        <span class="kw">let </span>variant = rty::VariantSig::new(fields, ret);
+        <span class="kw">let </span>idxs = cx.conv_refine_arg(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>variant.ret.idx).<span class="number">0</span>;
+        <span class="kw">let </span>variant = rty::VariantSig::new(
+            adt_def,
+            rty::GenericArgs::identity_for_item(genv, adt_def_id)<span class="question-mark">?</span>,
+            fields,
+            idxs,
+        );
 
         <span class="prelude-val">Ok</span>(rty::Binder::new(variant, env.pop_layer().into_bound_vars()))
     }
@@ -1774,12 +1804,12 @@
 
         <span class="kw">let </span>def_id = struct_def.owner_id.def_id;
         <span class="kw">if let </span>fhir::StructKind::Transparent { fields } = <span class="kw-2">&amp;</span>struct_def.kind {
+            <span class="kw">let </span>adt_def = genv.adt_def(def_id)<span class="question-mark">?</span>;
+
             <span class="kw">let </span>fields = fields
                 .iter()
                 .map(|field_def| cx.conv_ty(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>field_def.ty))
                 .try_collect()<span class="question-mark">?</span>;
-
-            <span class="kw">let </span>args = rty::GenericArgs::identity_for_item(genv, def_id)<span class="question-mark">?</span>;
 
             <span class="kw">let </span>vars = env.pop_layer().into_bound_vars();
             <span class="kw">let </span>idx = rty::Expr::tuple(
@@ -1787,8 +1817,12 @@
                     .map(|idx| rty::Expr::late_bvar(INNERMOST, idx <span class="kw">as </span>u32))
                     .collect_vec(),
             );
-            <span class="kw">let </span>ret = rty::Ty::indexed(rty::BaseTy::adt(genv.adt_def(def_id)<span class="question-mark">?</span>, args), idx);
-            <span class="kw">let </span>variant = rty::VariantSig::new(fields, ret);
+            <span class="kw">let </span>variant = rty::VariantSig::new(
+                adt_def,
+                rty::GenericArgs::identity_for_item(genv, def_id)<span class="question-mark">?</span>,
+                fields,
+                idx,
+            );
             <span class="prelude-val">Ok</span>(rty::Opaqueness::Transparent(rty::Binder::new(variant, vars)))
         } <span class="kw">else </span>{
             <span class="prelude-val">Ok</span>(rty::Opaqueness::Opaque)
@@ -2424,7 +2458,7 @@
     <span class="kw">match </span>ctor {
         fhir::SortCtor::Set =&gt; rty::SortCtor::Set,
         fhir::SortCtor::Map =&gt; rty::SortCtor::Map,
-        fhir::SortCtor::User { name, arity } =&gt; rty::SortCtor::User { name: <span class="kw-2">*</span>name, arity: <span class="kw-2">*</span>arity },
+        fhir::SortCtor::User { name } =&gt; rty::SortCtor::User { name: <span class="kw-2">*</span>name },
     }
 }
 

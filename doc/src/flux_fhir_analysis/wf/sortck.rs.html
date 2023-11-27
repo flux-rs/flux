@@ -599,6 +599,13 @@
 <a href="#599" id="599">599</a>
 <a href="#600" id="600">600</a>
 <a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{borrow::Borrow, collections::HashSet, iter};
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
@@ -618,7 +625,7 @@
 
 <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InferCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">pub </span>genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    sorts: UnordMap&lt;fhir::Name, fhir::Sort&gt;,
+    params: UnordMap&lt;fhir::Name, (fhir::Sort, fhir::ParamKind)&gt;,
     unification_table: InPlaceUnificationTable&lt;fhir::SortVid&gt;,
     wfckresults: fhir::WfckResults,
     <span class="doccomment">/// sort variables that can only be instantiated to sorts that support equality (i.e. non `FuncSort`)
@@ -631,7 +638,7 @@
             genv,
             wfckresults: fhir::WfckResults::new(owner),
             unification_table: InPlaceUnificationTable::new(),
-            sorts: Default::default(),
+            params: Default::default(),
             eq_vids: Default::default(),
         }
     }
@@ -955,7 +962,7 @@
             } <span class="kw">else </span>{
                 param.sort.clone()
             };
-            <span class="self">self</span>.sorts.insert(param.name(), sort);
+            <span class="self">self</span>.params.insert(param.name(), (sort, param.kind));
         }
     }
 
@@ -1084,7 +1091,7 @@
     }
 
     <span class="kw">fn </span>resolve_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-        <span class="kw">if let </span>fhir::Sort::Infer(vid) = <span class="self">self</span>.sorts[<span class="kw-2">&amp;</span>param.ident.name] {
+        <span class="kw">if let </span>fhir::Sort::Infer(vid) = <span class="self">self</span>.params[<span class="kw-2">&amp;</span>param.ident.name].<span class="number">0 </span>{
             <span class="self">self</span>.unification_table.probe_value(vid)
         } <span class="kw">else </span>{
             <span class="macro">span_bug!</span>(param.ident.span(), <span class="string">&quot;expected wildcard sort&quot;</span>)
@@ -1151,6 +1158,11 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_results(<span class="self">self</span>) -&gt; WfckResults {
         <span class="self">self</span>.wfckresults
     }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infer_mode(<span class="kw-2">&amp;</span><span class="self">self</span>, var: fhir::Ident) -&gt; fhir::InferMode {
+        <span class="kw">let </span>(sort, kind) = <span class="kw-2">&amp;</span><span class="self">self</span>.params[<span class="kw-2">&amp;</span>var.name];
+        kind.infer_mode(sort)
+    }
 }
 
 <span class="kw">impl </span>InferCtxt&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
@@ -1187,10 +1199,12 @@
     <span class="kw">type </span>Output = fhir::Sort;
 
     <span class="kw">fn </span>index(<span class="kw-2">&amp;</span><span class="self">self</span>, var: T) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Output {
-        <span class="self">self</span>.sorts
+        <span class="kw-2">&amp;</span><span class="self">self
+            </span>.params
             .get(var.borrow())
             .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">&quot;no enty found for key: `{:?}`&quot;</span>, var.borrow()))
-    }
+            .<span class="number">0
+    </span>}
 }
 
 <span class="kw">fn </span>synth_lit(lit: fhir::Lit) -&gt; fhir::Sort {

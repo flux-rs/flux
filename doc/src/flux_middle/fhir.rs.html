@@ -1740,6 +1740,38 @@
 <a href="#1740" id="1740">1740</a>
 <a href="#1741" id="1741">1741</a>
 <a href="#1742" id="1742">1742</a>
+<a href="#1743" id="1743">1743</a>
+<a href="#1744" id="1744">1744</a>
+<a href="#1745" id="1745">1745</a>
+<a href="#1746" id="1746">1746</a>
+<a href="#1747" id="1747">1747</a>
+<a href="#1748" id="1748">1748</a>
+<a href="#1749" id="1749">1749</a>
+<a href="#1750" id="1750">1750</a>
+<a href="#1751" id="1751">1751</a>
+<a href="#1752" id="1752">1752</a>
+<a href="#1753" id="1753">1753</a>
+<a href="#1754" id="1754">1754</a>
+<a href="#1755" id="1755">1755</a>
+<a href="#1756" id="1756">1756</a>
+<a href="#1757" id="1757">1757</a>
+<a href="#1758" id="1758">1758</a>
+<a href="#1759" id="1759">1759</a>
+<a href="#1760" id="1760">1760</a>
+<a href="#1761" id="1761">1761</a>
+<a href="#1762" id="1762">1762</a>
+<a href="#1763" id="1763">1763</a>
+<a href="#1764" id="1764">1764</a>
+<a href="#1765" id="1765">1765</a>
+<a href="#1766" id="1766">1766</a>
+<a href="#1767" id="1767">1767</a>
+<a href="#1768" id="1768">1768</a>
+<a href="#1769" id="1769">1769</a>
+<a href="#1770" id="1770">1770</a>
+<a href="#1771" id="1771">1771</a>
+<a href="#1772" id="1772">1772</a>
+<a href="#1773" id="1773">1773</a>
+<a href="#1774" id="1774">1774</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1759,6 +1791,7 @@
 //! than the surface syntax.
 
 </span><span class="kw">pub mod </span>lift;
+<span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::{
     borrow::{Borrow, Cow},
@@ -2010,8 +2043,15 @@
 
 <span class="attr">#[derive(Clone)]
 </span><span class="kw">pub enum </span>TyKind {
-    <span class="doccomment">/// As a base type `bty` without any refinements is equivalent to `bty{vs : true}` we don&#39;t
-    /// technically need this variant, but we keep it around to simplify desugaring.
+    <span class="doccomment">/// A type that parses as a [`BaseTy`] but was written without refinements. Most types in
+    /// this category are base types and will be converted into an [existential], e.g., `i32` is
+    /// converted into `∃v:int. i32[v]`. However, this category also contains generic variables
+    /// of kind [type] or [*special*]. We cannot distinguish these syntactially so we resolve them
+    /// later in the analysis.
+    ///
+    /// [existential]: crate::rty::TyKind::Exists
+    /// [type]: GenericParamKind::Type
+    /// [*special*]: GenericParamKind::SplTy
     </span>BaseTy(BaseTy),
     Indexed(BaseTy, RefineArg),
     Exists(Vec&lt;RefineParam&gt;, Box&lt;Ty&gt;),
@@ -2189,9 +2229,48 @@
 </span><span class="kw">pub struct </span>RefineParam {
     <span class="kw">pub </span>ident: Ident,
     <span class="kw">pub </span>sort: Sort,
-    <span class="doccomment">/// Whether the parameter was implicitly scoped with `@n`, `#n` or `x: T` syntax.
-    </span><span class="kw">pub </span>implicit: bool,
+    <span class="kw">pub </span>kind: ParamKind,
     <span class="kw">pub </span>fhir_id: FhirId,
+}
+
+<span class="kw">impl </span>RefineParam {
+    <span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Name {
+        <span class="self">self</span>.ident.name
+    }
+
+    <span class="kw">pub fn </span>infer_mode(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; InferMode {
+        <span class="self">self</span>.kind.infer_mode(<span class="kw-2">&amp;</span><span class="self">self</span>.sort)
+    }
+}
+
+<span class="doccomment">/// How the declared parameter in the surface syntax. This is used to adjust how errors are reported
+/// and to control the [inference mode].
+///
+/// [inference mode]: InferMode
+</span><span class="attr">#[derive(Debug, Clone, Copy)]
+</span><span class="kw">pub enum </span>ParamKind {
+    <span class="doccomment">/// A parameter declared in an explicit scope
+    </span>Explicit,
+    <span class="doccomment">/// An implicitly scoped parameter declared with `@a` syntax
+    </span>At,
+    <span class="doccomment">/// An implicitly scoped parameter declared with `#a` syntax
+    </span>Pound,
+    <span class="doccomment">/// An implicitly scoped parameter declared with `x: T` syntax
+    </span>Colon,
+}
+
+<span class="kw">impl </span>ParamKind {
+    <span class="kw">fn </span>is_implicit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, ParamKind::At | ParamKind::Pound | ParamKind::Colon)
+    }
+
+    <span class="kw">pub fn </span>infer_mode(<span class="kw-2">&amp;</span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; InferMode {
+        <span class="kw">if </span>sort.is_pred() &amp;&amp; !<span class="self">self</span>.is_implicit() {
+            InferMode::KVar
+        } <span class="kw">else </span>{
+            InferMode::EVar
+        }
+    }
 }
 
 <span class="doccomment">/// *Infer*ence *mode* for parameter at function calls
@@ -2220,7 +2299,6 @@
     <span class="doccomment">/// User defined opaque sort
     </span>User {
         name: Symbol,
-        arity: usize,
     },
 }
 
@@ -2368,7 +2446,7 @@
         <span class="kw">match </span><span class="self">self </span>{
             SortCtor::Set =&gt; <span class="number">1</span>,
             SortCtor::Map =&gt; <span class="number">2</span>,
-            SortCtor::User { arity, .. } =&gt; <span class="kw-2">*</span>arity,
+            SortCtor::User { .. } =&gt; <span class="number">0</span>,
         }
     }
 }
@@ -2688,20 +2766,6 @@
 }
 
 <span class="kw">impl </span>ena::unify::EqUnifyValue <span class="kw">for </span>Sort {}
-
-<span class="kw">impl </span>RefineParam {
-    <span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Name {
-        <span class="self">self</span>.ident.name
-    }
-
-    <span class="kw">pub fn </span>infer_mode(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; InferMode {
-        <span class="kw">if </span><span class="self">self</span>.sort.is_pred() &amp;&amp; !<span class="self">self</span>.implicit {
-            InferMode::KVar
-        } <span class="kw">else </span>{
-            InferMode::EVar
-        }
-    }
-}
 
 <span class="kw">impl </span>From&lt;PolyFuncSort&gt; <span class="kw">for </span>Sort {
     <span class="kw">fn </span>from(fsort: PolyFuncSort) -&gt; <span class="self">Self </span>{

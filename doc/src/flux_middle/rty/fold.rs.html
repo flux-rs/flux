@@ -1117,9 +1117,6 @@
 <a href="#1117" id="1117">1117</a>
 <a href="#1118" id="1118">1118</a>
 <a href="#1119" id="1119">1119</a>
-<a href="#1120" id="1120">1120</a>
-<a href="#1121" id="1121">1121</a>
-<a href="#1122" id="1122">1122</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1755,19 +1752,16 @@
         <span class="self">self</span>.fields
             .iter()
             .try_for_each(|ty| ty.visit_with(visitor))<span class="question-mark">?</span>;
-        <span class="self">self</span>.ret.visit_with(visitor)
+        <span class="self">self</span>.idx.visit_with(visitor)
     }
 }
 
 <span class="kw">impl </span>TypeFoldable <span class="kw">for </span>VariantSig {
     <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
-        <span class="kw">let </span>fields = <span class="self">self
-            </span>.fields
-            .iter()
-            .map(|ty| ty.try_fold_with(folder))
-            .try_collect()<span class="question-mark">?</span>;
-        <span class="kw">let </span>ret = <span class="self">self</span>.ret.try_fold_with(folder)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(VariantSig::new(fields, ret))
+        <span class="kw">let </span>args = <span class="self">self</span>.args.try_fold_with(folder)<span class="question-mark">?</span>;
+        <span class="kw">let </span>fields = <span class="self">self</span>.fields.try_fold_with(folder)<span class="question-mark">?</span>;
+        <span class="kw">let </span>idx = <span class="self">self</span>.idx.try_fold_with(folder)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(VariantSig::new(<span class="self">self</span>.adt_def.clone(), args, fields, idx))
     }
 }
 
