@@ -217,7 +217,7 @@ sharing and updates, without sacrificing thread- or memory-safety. Next time,
 we'll see how Flux melds refinements and Rust's ownership to make refinements
 happily coexist with imperative code.
 
-[flux-grammar]: https://github.com/liquid-rust/flux/blob/main/README.md#grammar-of-refinements
+[flux-grammar]: https://github.com/flux-rs/flux/blob/main/book/src/guide/specs.md#grammar-of-refinements
 [jhala-vazou]: https://arxiv.org/abs/2010.07763
 [flux-github]: https://github.com/liquid-rust/flux/
 
