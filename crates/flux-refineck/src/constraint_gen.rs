@@ -215,8 +215,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let refine_args = infcx.instantiate_refine_args(genv, callee_def_id)?;
 
         // Instantiate function signature and normalize it
-        let inst_fn_sig = fn_sig
-            .instantiate(&generic_args, &refine_args)
+        let inst_fn_sig = dbg!(fn_sig.instantiate(&generic_args, &refine_args))
             .replace_bound_vars(
                 |br| {
                     let re = infcx.region_infcx.next_region_var(LateBoundRegion(
@@ -281,10 +280,16 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                         callsite_def_id,
                         infcx.refparams,
                     )?;
+                let term = projection_pred.term.normalize_projections(
+                    infcx.genv,
+                    infcx.region_infcx,
+                    callsite_def_id,
+                    infcx.refparams,
+                )?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
-                infcx.subtyping(rcx, &impl_elem, &projection_pred.term)?;
-                infcx.subtyping(rcx, &projection_pred.term, &impl_elem)?;
+                infcx.subtyping(rcx, &impl_elem, &term)?;
+                infcx.subtyping(rcx, &term, &impl_elem)?;
             }
         }
         // Replace evars
