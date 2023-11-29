@@ -44,7 +44,7 @@ jobs:
         if: steps.cache-fixpoint.outputs.cache-hit != 'true'
         run: |
           cd liquid-fixpoint
-          stack install --fast --local-bin-path "$local_binaries_path"
+          stack install --fast --local-bin-path "$local_binaries_path" --flag liquid-fixpoint:-link-z3-as-a-library
 
       - name: Add Fixpoint to the path
         run: |
