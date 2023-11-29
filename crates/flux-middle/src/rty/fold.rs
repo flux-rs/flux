@@ -16,8 +16,9 @@ use super::{
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
     FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg, Index,
-    Invariant, KVar, Name, OpaqueArgsMap, Opaqueness, PolyFuncSort, ProjectionPredicate, PtrKind,
-    Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef, Ty, TyKind,
+    Invariant, KVar, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate, PolyFuncSort,
+    ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef,
+    Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -429,6 +430,7 @@ impl TypeVisitable for ClauseKind {
             ClauseKind::Trait(pred) => pred.visit_with(visitor),
             ClauseKind::Projection(pred) => pred.visit_with(visitor),
             ClauseKind::GeneratorOblig(pred) => pred.visit_with(visitor),
+            ClauseKind::TypeOutlives(pred) => pred.visit_with(visitor),
         }
     }
 }
@@ -442,7 +444,23 @@ impl TypeFoldable for ClauseKind {
             ClauseKind::GeneratorOblig(pred) => {
                 Ok(ClauseKind::GeneratorOblig(pred.try_fold_with(folder)?))
             }
+            ClauseKind::TypeOutlives(pred) => {
+                Ok(ClauseKind::TypeOutlives(pred.try_fold_with(folder)?))
+            }
         }
+    }
+}
+
+impl<T: TypeVisitable, U: TypeVisitable> TypeVisitable for OutlivesPredicate<T, U> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.0.visit_with(visitor)?;
+        self.1.visit_with(visitor)
+    }
+}
+
+impl<T: TypeFoldable, U: TypeFoldable> TypeFoldable for OutlivesPredicate<T, U> {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(OutlivesPredicate(self.0.try_fold_with(folder)?, self.1.try_fold_with(folder)?))
     }
 }
 

@@ -130,6 +130,10 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 };
                 rty::ClauseKind::Projection(pred)
             }
+            rustc::ty::ClauseKind::TypeOutlives(pred) => {
+                let pred = rty::OutlivesPredicate(self.as_default().refine_ty(&pred.0)?, pred.1);
+                rty::ClauseKind::TypeOutlives(pred)
+            }
         };
         let kind = rty::Binder::new(kind, List::empty());
         Ok(Some(rty::Clause { kind }))
@@ -282,6 +286,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             _ => Ok(rty::Ty::exists(ty)),
         }
     }
+
     fn refine_alias_kind(kind: &rustc::ty::AliasKind) -> rty::AliasKind {
         match kind {
             rustc::ty::AliasKind::Projection => rty::AliasKind::Projection,

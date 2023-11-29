@@ -215,7 +215,8 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let refine_args = infcx.instantiate_refine_args(genv, callee_def_id)?;
 
         // Instantiate function signature and normalize it
-        let inst_fn_sig = dbg!(fn_sig.instantiate(&generic_args, &refine_args))
+        let inst_fn_sig = fn_sig
+            .instantiate(&generic_args, &refine_args)
             .replace_bound_vars(
                 |br| {
                     let re = infcx.region_infcx.next_region_var(LateBoundRegion(
