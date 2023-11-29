@@ -1560,7 +1560,7 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
                     },
                     Invariant {
                         pred: Binder::with_sort(
-                            Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::uint_max(uint_ty), None),
+                            Expr::binary_op(BinOp::Le, Expr::nu(), Expr::uint_max(uint_ty), None),
                             Sort::Int,
                         ),
                     },
@@ -1592,7 +1592,7 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
                     },
                     Invariant {
                         pred: Binder::with_sort(
-                            Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::int_max(int_ty), None),
+                            Expr::binary_op(BinOp::Le, Expr::nu(), Expr::int_max(int_ty), None),
                             Sort::Int,
                         ),
                     },
