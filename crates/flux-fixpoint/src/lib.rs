@@ -1,6 +1,5 @@
 #![feature(rustc_private, min_specialization, lazy_cell, box_patterns, let_chains)]
 
-// extern crate rustc_index;
 extern crate rustc_macros;
 extern crate rustc_serialize;
 extern crate rustc_span;
@@ -29,25 +28,51 @@ use serde::{de, Deserialize};
 
 use crate::constraint::DEFAULT_QUALIFIERS;
 
+pub trait Symbol: fmt::Display + Hash {}
+
+impl<T: fmt::Display + Hash> Symbol for T {}
+
 pub trait Types {
-    type ConstName: fmt::Display + fmt::Debug + Hash;
-    type KVid: fmt::Display + fmt::Debug + Hash;
-    type Name: fmt::Display + fmt::Debug + Hash;
-    type Tag: fmt::Display + fmt::Debug + Hash + FromStr;
+    type KVar: Symbol;
+    type Var: Symbol;
+    type Tag: fmt::Display + Hash + FromStr;
+}
+
+#[macro_export]
+macro_rules! declare_types {
+    (type KVar = $kvar:ty; type Var = $var:ty; type Tag = $tag:ty;) => {
+        pub mod fixpoint_generated {
+            pub struct FixpointTypes;
+            pub type Expr = $crate::Expr<FixpointTypes>;
+            pub type Pred = $crate::Pred<FixpointTypes>;
+            pub type Func = $crate::Func<FixpointTypes>;
+            pub type Constraint = $crate::Constraint<FixpointTypes>;
+            pub type KVar = $crate::KVar<FixpointTypes>;
+            pub type ConstInfo = $crate::ConstInfo<FixpointTypes>;
+            pub type Task = $crate::Task<FixpointTypes>;
+            pub type Qualifier = $crate::Qualifier<FixpointTypes>;
+            pub use $crate::{PolyFuncSort, Proj, Sort, SortCtor};
+        }
+
+        impl $crate::Types for fixpoint_generated::FixpointTypes {
+            type KVar = $kvar;
+            type Var = $var;
+            type Tag = $tag;
+        }
+    };
 }
 
 struct StringTypes;
 
 impl Types for StringTypes {
-    type ConstName = &'static str;
-    type KVid = &'static str;
-    type Name = &'static str;
+    type KVar = &'static str;
+    type Var = &'static str;
     type Tag = String;
 }
 
-#[derive_where(Hash, Debug)]
+#[derive_where(Hash)]
 pub struct ConstInfo<T: Types> {
-    pub name: T::ConstName,
+    pub name: T::Var,
     pub orig: rustc_span::Symbol,
     pub sort: Sort,
 }
@@ -90,9 +115,9 @@ pub struct Stats {
 #[derive(Deserialize, Debug)]
 pub struct CrashInfo(Vec<serde_json::Value>);
 
-#[derive_where(Debug, Hash)]
+#[derive_where(Hash)]
 pub struct KVar<T: Types> {
-    kvid: T::KVid,
+    kvid: T::KVar,
     sorts: Vec<Sort>,
     comment: String,
 }
@@ -162,7 +187,7 @@ impl<T: Types> Task<T> {
 }
 
 impl<T: Types> KVar<T> {
-    pub fn new(kvid: T::KVid, sorts: Vec<Sort>, comment: String) -> Self {
+    pub fn new(kvid: T::KVar, sorts: Vec<Sort>, comment: String) -> Self {
         Self { kvid, sorts, comment }
     }
 }
@@ -219,7 +244,7 @@ impl<T: Types> fmt::Display for KVar<T> {
 
 impl<T: Types> fmt::Display for ConstInfo<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(constant {:?} {:?}) // orig: {}", self.name, self.sort, self.orig)
+        write!(f, "(constant {} {}) // orig: {}", self.name, self.sort, self.orig)
     }
 }
 

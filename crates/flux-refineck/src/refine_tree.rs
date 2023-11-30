@@ -17,7 +17,7 @@ use itertools::Itertools;
 
 use crate::{
     constraint_gen::Tag,
-    fixpoint_encoding::{fixpoint, sort_to_fixpoint, FixpointCtxt},
+    fixpoint_encoding::{fixpoint, sort_to_fixpoint, stitch, FixpointCtxt},
 };
 
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
@@ -536,7 +536,7 @@ impl Node {
             NodeKind::ForAll(name, sort) => {
                 cx.with_name_map(*name, |cx, fresh| {
                     Some(fixpoint::Constraint::ForAll(
-                        fresh,
+                        fixpoint::Var::Local(fresh),
                         sort_to_fixpoint(sort),
                         fixpoint::Pred::TRUE,
                         Box::new(children_to_fixpoint(cx, &self.children)?),
@@ -597,15 +597,6 @@ fn children_to_fixpoint(
         1 => children.pop(),
         _ => Some(fixpoint::Constraint::Conj(children)),
     }
-}
-
-fn stitch(
-    bindings: Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
-    c: fixpoint::Constraint,
-) -> fixpoint::Constraint {
-    bindings.into_iter().rev().fold(c, |c, (name, sort, e)| {
-        fixpoint::Constraint::ForAll(name, sort, fixpoint::Pred::Expr(e), Box::new(c))
-    })
 }
 
 struct ParentsIter {

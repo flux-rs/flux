@@ -16,7 +16,7 @@ pub enum Constraint<T: Types> {
     Pred(Pred<T>, #[derive_where(skip)] Option<T::Tag>),
     Conj(Vec<Self>),
     Guard(Pred<T>, Box<Self>),
-    ForAll(T::Name, Sort, Pred<T>, Box<Self>),
+    ForAll(T::Var, Sort, Pred<T>, Box<Self>),
 }
 
 #[derive(Clone, Hash)]
@@ -49,17 +49,16 @@ pub struct PolyFuncSort {
     fsort: FuncSort,
 }
 
-#[derive_where(Hash, Debug)]
+#[derive_where(Hash)]
 pub enum Pred<T: Types> {
     And(Vec<Self>),
-    KVar(T::KVid, Vec<T::Name>),
+    KVar(T::KVar, Vec<T::Var>),
     Expr(Expr<T>),
 }
 
-#[derive_where(Hash, Debug)]
+#[derive_where(Hash)]
 pub enum Expr<T: Types> {
-    Var(T::Name),
-    ConstVar(T::ConstName),
+    Var(T::Var),
     Constant(Constant),
     BinaryOp(BinOp, Box<[Self; 2]>),
     App(Func<T>, Vec<Self>),
@@ -70,16 +69,14 @@ pub enum Expr<T: Types> {
     Unit,
 }
 
-#[derive_where(Hash, Debug)]
+#[derive_where(Hash)]
 pub enum Func<T: Types> {
-    Var(T::Name),
-    /// uninterepreted function
-    Uif(T::ConstName),
+    Var(T::Var),
     /// interpreted (theory) function
     Itf(Symbol),
 }
 
-#[derive(Clone, Copy, Hash, Debug)]
+#[derive(Clone, Copy, Hash)]
 pub enum Proj {
     Fst,
     Snd,
@@ -88,14 +85,14 @@ pub enum Proj {
 #[derive_where(Hash)]
 pub struct Qualifier<T: Types> {
     pub name: String,
-    pub args: Vec<(T::Name, Sort)>,
+    pub args: Vec<(T::Var, Sort)>,
     pub body: Expr<T>,
     pub global: bool,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct Const<T: Types> {
-    pub name: T::ConstName,
+    pub name: T::Var,
     pub val: i128,
 }
 
@@ -124,7 +121,7 @@ pub enum UnOp {
     Neg,
 }
 
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum Constant {
     Int(BigInt),
     Real(i128),
@@ -198,7 +195,7 @@ impl<T: Types> fmt::Display for Constraint<T> {
                 write!(f, "\n)")
             }
             Constraint::ForAll(x, sort, body, head) => {
-                write!(f, "(forall (({x:?} {sort}) {body})")?;
+                write!(f, "(forall (({x} {sort}) {body})")?;
                 write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
                 write!(f, "\n)")
             }
@@ -255,31 +252,20 @@ impl fmt::Display for Sort {
             Sort::BitVec(size) => write!(f, "(BitVec Size{})", size),
             Sort::Pair(s1, s2) => write!(f, "(Pair {s1} {s2})"),
             Sort::Func(sort) => write!(f, "{sort}"),
-            Sort::App(ctor, ts) => write!(f, "({ctor} {:?})", ts.iter().format(" ")),
+            Sort::App(ctor, ts) => write!(f, "({ctor} {})", ts.iter().format(" ")),
         }
     }
 }
 
 impl fmt::Display for PolyFuncSort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "(func({}, [{:?}]))",
-            self.params,
-            self.fsort.inputs_and_output.iter().format("; ")
-        )
+        write!(f, "(func({}, [{}]))", self.params, self.fsort.inputs_and_output.iter().format("; "))
     }
 }
 
 impl fmt::Display for FuncSort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(func(0, [{:?}]))", self.inputs_and_output.iter().format("; "))
-    }
-}
-
-impl fmt::Debug for Sort {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
+        write!(f, "(func(0, [{}]))", self.inputs_and_output.iter().format("; "))
     }
 }
 
@@ -294,7 +280,7 @@ impl<T: Types> fmt::Display for Pred<T> {
                 }
             }
             Pred::KVar(kvid, vars) => {
-                write!(f, "(${kvid} {:?})", vars.iter().format(" "))
+                write!(f, "(${kvid} {})", vars.iter().format(" "))
             }
             Pred::Expr(expr) => write!(f, "({expr})"),
         }
@@ -329,7 +315,6 @@ impl<T: Types> fmt::Display for Expr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Var(x) => write!(f, "{x}"),
-            Expr::ConstVar(x) => write!(f, "{x}"),
             Expr::Constant(c) => write!(f, "{c}"),
             Expr::BinaryOp(op, box [e1, e2]) => {
                 write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))?;
@@ -359,8 +344,7 @@ impl<T: Types> fmt::Display for Expr<T> {
 impl<T: Types> fmt::Display for Func<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Func::Var(name) => write!(f, "{name:?}"),
-            Func::Uif(uif) => write!(f, "{uif:?}"),
+            Func::Var(name) => write!(f, "{name}"),
             Func::Itf(itf) => write!(f, "{itf}"),
         }
     }
