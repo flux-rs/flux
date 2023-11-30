@@ -1,6 +1,6 @@
 #![feature(rustc_private, min_specialization, lazy_cell, box_patterns, let_chains)]
 
-extern crate rustc_index;
+// extern crate rustc_index;
 extern crate rustc_macros;
 extern crate rustc_serialize;
 extern crate rustc_span;
@@ -18,8 +18,8 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, Const, ConstName, Constant, Constraint, Expr, Func, FuncSort, KVid, Name, PolyFuncSort,
-    Pred, Proj, Qualifier, Sort, SortCtor, UnOp,
+    BinOp, Const, Constant, Constraint, Expr, Func, FuncSort, PolyFuncSort, Pred, Proj, Qualifier,
+    Sort, SortCtor, UnOp,
 };
 use flux_common::{cache::QueryCache, format::PadAdapter};
 use flux_config as config;
@@ -28,24 +28,38 @@ use serde::{de, Deserialize};
 
 use crate::constraint::DEFAULT_QUALIFIERS;
 
+trait Types {
+    type ConstName: fmt::Display + fmt::Debug + Hash;
+    type KVid: fmt::Display + fmt::Debug + Hash;
+    type Name: fmt::Display + fmt::Debug + Hash;
+    type Tag: fmt::Display + fmt::Debug + Hash;
+}
+
+impl Types for () {
+    type ConstName = &'static str;
+    type KVid = &'static str;
+    type Name = &'static str;
+    type Tag = &'static str;
+}
+
 #[derive(Clone, Debug, Hash)]
-pub struct ConstInfo {
-    pub name: ConstName,
+pub struct ConstInfo<T: Types> {
+    pub name: T::ConstName,
     pub orig: rustc_span::Symbol,
     pub sort: Sort,
 }
 
-pub struct Task<Tag> {
+pub struct Task<T: Types> {
     pub comments: Vec<String>,
-    pub constants: Vec<ConstInfo>,
-    pub kvars: Vec<KVar>,
-    pub constraint: Constraint<Tag>,
-    pub qualifiers: Vec<Qualifier>,
+    pub constants: Vec<ConstInfo<T>>,
+    pub kvars: Vec<KVar<T>>,
+    pub constraint: Constraint<T>,
+    pub qualifiers: Vec<Qualifier<T>>,
     pub sorts: Vec<String>,
     pub scrape_quals: bool,
 }
 
-impl<Tag> Hash for Task<Tag> {
+impl<T: Types> Hash for Task<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.constants.hash(state);
         self.kvars.hash(state);
@@ -83,19 +97,19 @@ pub struct Stats {
 pub struct CrashInfo(Vec<serde_json::Value>);
 
 #[derive(Debug, Hash)]
-pub struct KVar {
-    kvid: KVid,
+pub struct KVar<T: Types> {
+    kvid: T::KVid,
     sorts: Vec<Sort>,
     comment: String,
 }
 
-impl<Tag: fmt::Display + FromStr> Task<Tag> {
+impl<T: Types> Task<T> {
     pub fn new(
         comments: Vec<String>,
-        constants: Vec<ConstInfo>,
-        kvars: Vec<KVar>,
-        constraint: Constraint<Tag>,
-        qualifiers: Vec<Qualifier>,
+        constants: Vec<ConstInfo<T>>,
+        kvars: Vec<KVar<T>>,
+        constraint: Constraint<T>,
+        qualifiers: Vec<Qualifier<T>>,
         sorts: Vec<String>,
         scrape_quals: bool,
     ) -> Self {
@@ -112,7 +126,7 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
         &self,
         key: String,
         cache: &mut QueryCache,
-    ) -> io::Result<FixpointResult<Tag>> {
+    ) -> io::Result<FixpointResult<T::Tag>> {
         let hash = self.hash_with_default();
 
         if config::is_cache_enabled() && cache.is_safe(&key, hash) {
@@ -129,7 +143,7 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
         result
     }
 
-    fn check(&self) -> io::Result<FixpointResult<Tag>> {
+    fn check(&self) -> io::Result<FixpointResult<T::Tag>> {
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
@@ -153,13 +167,13 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
     }
 }
 
-impl KVar {
-    pub fn new(kvid: KVid, sorts: Vec<Sort>, comment: String) -> Self {
+impl<T: Types> KVar<T> {
+    pub fn new(kvid: T::KVid, sorts: Vec<Sort>, comment: String) -> Self {
         Self { kvid, sorts, comment }
     }
 }
 
-impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
+impl<T: Types> fmt::Display for Task<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.scrape_quals {
             writeln!(f, "(fixpoint \"--scrape=both\")")?;
@@ -195,7 +209,7 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
     }
 }
 
-impl fmt::Display for KVar {
+impl<T: Types> fmt::Display for KVar<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -209,13 +223,13 @@ impl fmt::Display for KVar {
     }
 }
 
-impl fmt::Display for ConstInfo {
+impl<T: Types> fmt::Display for ConstInfo<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(constant {:?} {:?}) // orig: {}", self.name, self.sort, self.orig)
     }
 }
 
-impl<Tag: fmt::Display> fmt::Debug for Task<Tag> {
+impl<T: Types> fmt::Debug for Task<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }

@@ -6,17 +6,16 @@ use std::{
 
 use flux_common::format::PadAdapter;
 use itertools::Itertools;
-use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable};
 use rustc_span::Symbol;
 
-use crate::big_int::BigInt;
+use crate::{big_int::BigInt, Types};
 
-pub enum Constraint<Tag> {
-    Pred(Pred, Option<Tag>),
+pub enum Constraint<T: Types> {
+    Pred(Pred<T>, Option<T::Tag>),
     Conj(Vec<Self>),
-    Guard(Pred, Box<Self>),
-    ForAll(Name, Sort, Pred, Box<Self>),
+    Guard(Pred<T>, Box<Self>),
+    ForAll(T::Name, Sort, Pred<T>, Box<Self>),
 }
 
 #[derive(Clone, Hash)]
@@ -50,31 +49,31 @@ pub struct PolyFuncSort {
 }
 
 #[derive(Hash, Debug)]
-pub enum Pred {
+pub enum Pred<T: Types> {
     And(Vec<Self>),
-    KVar(KVid, Vec<Name>),
-    Expr(Expr),
+    KVar(T::KVid, Vec<T::Name>),
+    Expr(Expr<T>),
 }
 
 #[derive(Hash, Debug)]
-pub enum Expr {
-    Var(Name),
-    ConstVar(ConstName),
+pub enum Expr<T: Types> {
+    Var(T::Name),
+    ConstVar(T::ConstName),
     Constant(Constant),
-    BinaryOp(BinOp, Box<[Expr; 2]>),
-    App(Func, Vec<Expr>),
+    BinaryOp(BinOp, Box<[Self; 2]>),
+    App(Func<T>, Vec<Self>),
     UnaryOp(UnOp, Box<Self>),
-    Pair(Box<[Expr; 2]>),
-    Proj(Box<Expr>, Proj),
-    IfThenElse(Box<[Expr; 3]>),
+    Pair(Box<[Self; 2]>),
+    Proj(Box<Self>, Proj),
+    IfThenElse(Box<[Self; 3]>),
     Unit,
 }
 
 #[derive(Hash, Debug, Clone)]
-pub enum Func {
-    Var(Name),
+pub enum Func<T: Types> {
+    Var(T::Name),
     /// uninterepreted function
-    Uif(ConstName),
+    Uif(T::ConstName),
     /// interpreted (theory) function
     Itf(Symbol),
 }
@@ -86,16 +85,16 @@ pub enum Proj {
 }
 
 #[derive(Hash)]
-pub struct Qualifier {
+pub struct Qualifier<T: Types> {
     pub name: String,
-    pub args: Vec<(Name, Sort)>,
-    pub body: Expr,
+    pub args: Vec<(T::Name, Sort)>,
+    pub body: Expr<T>,
     pub global: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Const {
-    pub name: ConstName,
+pub struct Const<T: Types> {
+    pub name: T::ConstName,
     pub val: i128,
 }
 
@@ -131,26 +130,26 @@ pub enum Constant {
     Bool(bool),
 }
 
-newtype_index! {
-    #[debug_format = "$k{}"]
-    pub struct KVid {}
-}
+// newtype_index! {
+//     #[debug_format = "$k{}"]
+//     pub struct KVid {}
+// }
 
-newtype_index! {
-    #[debug_format = "a{}"]
-    pub struct Name {
-        const NAME0 = 0;
-        const NAME1 = 1;
-        const NAME2 = 2;
-    }
-}
+// newtype_index! {
+//     #[debug_format = "a{}"]
+//     pub struct Name {
+//         const NAME0 = 0;
+//         const NAME1 = 1;
+//         const NAME2 = 2;
+//     }
+// }
 
-newtype_index! {
-    #[debug_format = "c{}"]
-    pub struct ConstName {}
-}
+// newtype_index! {
+//     #[debug_format = "c{}"]
+//     pub struct ConstName {}
+// }
 
-impl<Tag> Constraint<Tag> {
+impl<T: Types> Constraint<T> {
     pub const TRUE: Self = Self::Pred(Pred::TRUE, None);
 
     /// Returns true if the constraint has at least one concrete RHS ("head") predicates.
@@ -164,7 +163,7 @@ impl<Tag> Constraint<Tag> {
     }
 }
 
-impl<Tag> Hash for Constraint<Tag> {
+impl<T: Types> Hash for Constraint<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let tag = std::mem::discriminant(self);
         tag.hash(state);
@@ -185,7 +184,7 @@ impl<Tag> Hash for Constraint<Tag> {
     }
 }
 
-impl Pred {
+impl<T: Types> Pred<T> {
     pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Bool(true)));
 
     pub fn is_trivially_true(&self) -> bool {
@@ -217,10 +216,7 @@ impl PolyFuncSort {
     }
 }
 
-impl<Tag> fmt::Display for Constraint<Tag>
-where
-    Tag: fmt::Display,
-{
+impl<T: Types> fmt::Display for Constraint<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Constraint::Pred(pred, tag) => write!(f, "{}", PredTag(pred, tag)),
@@ -249,12 +245,9 @@ where
     }
 }
 
-struct PredTag<'a, Tag>(&'a Pred, &'a Option<Tag>);
+struct PredTag<'a, T: Types>(&'a Pred<T>, &'a Option<T::Tag>);
 
-impl<Tag> fmt::Display for PredTag<'_, Tag>
-where
-    Tag: fmt::Display,
-{
+impl<T: Types> fmt::Display for PredTag<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let PredTag(pred, tag) = self;
         match pred {
@@ -329,7 +322,7 @@ impl fmt::Debug for Sort {
     }
 }
 
-impl fmt::Display for Pred {
+impl<T: Types> fmt::Display for Pred<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Pred::And(preds) => {
@@ -347,17 +340,17 @@ impl fmt::Display for Pred {
     }
 }
 
-impl Expr {
-    pub const ZERO: Expr = Expr::Constant(Constant::ZERO);
-    pub const ONE: Expr = Expr::Constant(Constant::ONE);
-    pub fn eq(self, other: Expr) -> Expr {
+impl<T: Types> Expr<T> {
+    pub const ZERO: Expr<T> = Expr::Constant(Constant::ZERO);
+    pub const ONE: Expr<T> = Expr::Constant(Constant::ONE);
+    pub fn eq(self, other: Self) -> Self {
         Expr::BinaryOp(BinOp::Eq, Box::new([self, other]))
     }
 }
 
-struct FmtParens<'a>(&'a Expr);
+struct FmtParens<'a, T: Types>(&'a Expr<T>);
 
-impl fmt::Display for FmtParens<'_> {
+impl<T: Types> fmt::Display for FmtParens<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Fixpoint parser has `=` at two different precedence levels depending on whether it is
         // used in a sequence of boolean expressions or not. To avoid complexity we parenthesize
@@ -371,7 +364,7 @@ impl fmt::Display for FmtParens<'_> {
     }
 }
 
-impl fmt::Display for Expr {
+impl<T: Types> fmt::Display for Expr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Var(x) => write!(f, "{x:?}"),
@@ -402,7 +395,7 @@ impl fmt::Display for Expr {
     }
 }
 
-impl fmt::Display for Func {
+impl<T: Types> fmt::Display for Func<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Func::Var(name) => write!(f, "{name:?}"),
@@ -412,141 +405,142 @@ impl fmt::Display for Func {
     }
 }
 
-pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier>> = LazyLock::new(|| {
-    // -----
-    // UNARY
-    // -----
+pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<()>>> = LazyLock::new(|| {
+    // // -----
+    // // UNARY
+    // // -----
 
-    // (qualif EqZero ((v int)) (v == 0))
-    let eqzero = Qualifier {
-        args: vec![(NAME0, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var(NAME0), Expr::ZERO])),
-        name: String::from("EqZero"),
-        global: true,
-    };
+    // // (qualif EqZero ((v int)) (v == 0))
+    // let eqzero = Qualifier {
+    //     args: vec![(NAME0, Sort::Int)],
+    //     body: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var(NAME0), Expr::ZERO])),
+    //     name: String::from("EqZero"),
+    //     global: true,
+    // };
 
-    // (qualif GtZero ((v int)) (v > 0))
-    let gtzero = Qualifier {
-        args: vec![(NAME0, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var(NAME0), Expr::ZERO])),
-        name: String::from("GtZero"),
-        global: true,
-    };
+    // // (qualif GtZero ((v int)) (v > 0))
+    // let gtzero = Qualifier {
+    //     args: vec![(NAME0, Sort::Int)],
+    //     body: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var(NAME0), Expr::ZERO])),
+    //     name: String::from("GtZero"),
+    //     global: true,
+    // };
 
-    // (qualif GeZero ((v int)) (v >= 0))
-    let gezero = Qualifier {
-        args: vec![(NAME0, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var(NAME0), Expr::ZERO])),
-        name: String::from("GeZero"),
-        global: true,
-    };
+    // // (qualif GeZero ((v int)) (v >= 0))
+    // let gezero = Qualifier {
+    //     args: vec![(NAME0, Sort::Int)],
+    //     body: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var(NAME0), Expr::ZERO])),
+    //     name: String::from("GeZero"),
+    //     global: true,
+    // };
 
-    // (qualif LtZero ((v int)) (v < 0))
-    let ltzero = Qualifier {
-        args: vec![(NAME0, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var(NAME0), Expr::ZERO])),
-        name: String::from("LtZero"),
-        global: true,
-    };
+    // // (qualif LtZero ((v int)) (v < 0))
+    // let ltzero = Qualifier {
+    //     args: vec![(NAME0, Sort::Int)],
+    //     body: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var(NAME0), Expr::ZERO])),
+    //     name: String::from("LtZero"),
+    //     global: true,
+    // };
 
-    // (qualif LeZero ((v int)) (v <= 0))
-    let lezero = Qualifier {
-        args: vec![(NAME0, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var(NAME0), Expr::ZERO])),
-        name: String::from("LeZero"),
-        global: true,
-    };
+    // // (qualif LeZero ((v int)) (v <= 0))
+    // let lezero = Qualifier {
+    //     args: vec![(NAME0, Sort::Int)],
+    //     body: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var(NAME0), Expr::ZERO])),
+    //     name: String::from("LeZero"),
+    //     global: true,
+    // };
 
-    // ------
-    // BINARY
-    // ------
+    // // ------
+    // // BINARY
+    // // ------
 
-    // (qualif Eq ((a int) (b int)) (a == b))
-    let eq = Qualifier {
-        args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
-        name: String::from("Eq"),
-        global: true,
-    };
+    // // (qualif Eq ((a int) (b int)) (a == b))
+    // let eq = Qualifier {
+    //     args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
+    //     body: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
+    //     name: String::from("Eq"),
+    //     global: true,
+    // };
 
-    // (qualif Gt ((a int) (b int)) (a > b))
-    let gt = Qualifier {
-        args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
-        name: String::from("Gt"),
-        global: true,
-    };
+    // // (qualif Gt ((a int) (b int)) (a > b))
+    // let gt = Qualifier {
+    //     args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
+    //     body: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
+    //     name: String::from("Gt"),
+    //     global: true,
+    // };
 
-    // (qualif Lt ((a int) (b int)) (a < b))
-    let ge = Qualifier {
-        args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
-        name: String::from("Ge"),
-        global: true,
-    };
+    // // (qualif Lt ((a int) (b int)) (a < b))
+    // let ge = Qualifier {
+    //     args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
+    //     body: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
+    //     name: String::from("Ge"),
+    //     global: true,
+    // };
 
-    // (qualif Ge ((a int) (b int)) (a >= b))
-    let lt = Qualifier {
-        args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
-        name: String::from("Lt"),
-        global: true,
-    };
+    // // (qualif Ge ((a int) (b int)) (a >= b))
+    // let lt = Qualifier {
+    //     args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
+    //     body: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
+    //     name: String::from("Lt"),
+    //     global: true,
+    // };
 
-    // (qualif Le ((a int) (b int)) (a <= b))
-    let le = Qualifier {
-        args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
-        name: String::from("Le"),
-        global: true,
-    };
+    // // (qualif Le ((a int) (b int)) (a <= b))
+    // let le = Qualifier {
+    //     args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
+    //     body: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var(NAME0), Expr::Var(NAME1)])),
+    //     name: String::from("Le"),
+    //     global: true,
+    // };
 
-    // (qualif Le1 ((a int) (b int)) (a < b - 1))
-    let le1 = Qualifier {
-        args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
-        body: Expr::BinaryOp(
-            BinOp::Le,
-            Box::new([
-                Expr::Var(NAME0),
-                Expr::BinaryOp(BinOp::Sub, Box::new([Expr::Var(NAME1), Expr::ONE])),
-            ]),
-        ),
-        name: String::from("Le1"),
-        global: true,
-    };
+    // // (qualif Le1 ((a int) (b int)) (a < b - 1))
+    // let le1 = Qualifier {
+    //     args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int)],
+    //     body: Expr::BinaryOp(
+    //         BinOp::Le,
+    //         Box::new([
+    //             Expr::Var(NAME0),
+    //             Expr::BinaryOp(BinOp::Sub, Box::new([Expr::Var(NAME1), Expr::ONE])),
+    //         ]),
+    //     ),
+    //     name: String::from("Le1"),
+    //     global: true,
+    // };
 
-    // (qualif Add2 ((a int) (b int) (c int)) (a == b + c))
-    let _add2 = Qualifier {
-        args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int), (NAME2, Sort::Int)],
-        body: Expr::BinaryOp(
-            BinOp::Eq,
-            Box::new([
-                Expr::Var(NAME0),
-                Expr::BinaryOp(BinOp::Add, Box::new([Expr::Var(NAME1), Expr::Var(NAME2)])),
-            ]),
-        ),
-        name: String::from("Add2"),
-        global: true,
-    };
+    // // (qualif Add2 ((a int) (b int) (c int)) (a == b + c))
+    // let _add2 = Qualifier {
+    //     args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int), (NAME2, Sort::Int)],
+    //     body: Expr::BinaryOp(
+    //         BinOp::Eq,
+    //         Box::new([
+    //             Expr::Var(NAME0),
+    //             Expr::BinaryOp(BinOp::Add, Box::new([Expr::Var(NAME1), Expr::Var(NAME2)])),
+    //         ]),
+    //     ),
+    //     name: String::from("Add2"),
+    //     global: true,
+    // };
 
-    // (qualif Sub2 ((a int) (b int) (c int)) (a == b - c))
-    let _sub2 = Qualifier {
-        args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int), (NAME2, Sort::Int)],
-        body: Expr::BinaryOp(
-            BinOp::Eq,
-            Box::new([
-                Expr::Var(NAME0),
-                Expr::BinaryOp(BinOp::Sub, Box::new([Expr::Var(NAME1), Expr::Var(NAME2)])),
-            ]),
-        ),
-        name: String::from("Sub2"),
-        global: true,
-    };
+    // // (qualif Sub2 ((a int) (b int) (c int)) (a == b - c))
+    // let _sub2 = Qualifier {
+    //     args: vec![(NAME0, Sort::Int), (NAME1, Sort::Int), (NAME2, Sort::Int)],
+    //     body: Expr::BinaryOp(
+    //         BinOp::Eq,
+    //         Box::new([
+    //             Expr::Var(NAME0),
+    //             Expr::BinaryOp(BinOp::Sub, Box::new([Expr::Var(NAME1), Expr::Var(NAME2)])),
+    //         ]),
+    //     ),
+    //     name: String::from("Sub2"),
+    //     global: true,
+    // };
 
-    vec![eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1] //, add2, sub2]
+    // vec![eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1] //, add2, sub2]
+    vec![]
 });
 
-impl fmt::Display for Qualifier {
+impl<T: Types> fmt::Display for Qualifier<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -721,14 +715,14 @@ impl From<bool> for Constant {
     }
 }
 
-impl From<Name> for Expr {
-    fn from(n: Name) -> Self {
-        Expr::Var(n)
-    }
-}
+// impl From<Name> for Expr {
+//     fn from(n: Name) -> Self {
+//         Expr::Var(n)
+//     }
+// }
 
-impl From<ConstName> for Expr {
-    fn from(c_n: ConstName) -> Self {
-        Expr::ConstVar(c_n)
-    }
-}
+// impl From<ConstName> for Expr {
+//     fn from(c_n: ConstName) -> Self {
+//         Expr::ConstVar(c_n)
+//     }
+// }
