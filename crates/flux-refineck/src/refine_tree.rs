@@ -535,8 +535,7 @@ impl Node {
                 children_to_fixpoint(cx, &self.children)
             }
             NodeKind::ForAll(name, sort) => {
-                let fresh = cx.fresh_name();
-                cx.with_name_map(*name, fresh, |cx| {
+                cx.with_name_map(*name, |cx, fresh| {
                     Some(fixpoint::Constraint::ForAll(
                         fresh,
                         sort_to_fixpoint(sort),

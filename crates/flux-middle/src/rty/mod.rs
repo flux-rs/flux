@@ -16,7 +16,7 @@ use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{ESpan, Expr, ExprKind, HoleKind, KVar, KVid, Loc, Name, Path, Var};
-use flux_common::{bug, index::IndexGen};
+use flux_common::bug;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 pub use normalize::Defns;
@@ -727,21 +727,6 @@ impl FuncSort {
     }
 }
 
-impl Qualifier {
-    pub fn with_fresh_fvars(&self) -> (Vec<(Name, Sort)>, Expr) {
-        let name_gen = IndexGen::new();
-        let mut params = vec![];
-        let body = self.body.replace_bound_exprs_with(|sort, _| {
-            Expr::fold_sort(sort, |s| {
-                let fresh = name_gen.fresh();
-                params.push((fresh, s.clone()));
-                Expr::fvar(fresh)
-            })
-        });
-        (params, body)
-    }
-}
-
 impl BoundVariableKind {
     fn expect_refine(&self) -> (&Sort, InferMode) {
         if let BoundVariableKind::Refine(sort, mode) = self {
@@ -749,6 +734,10 @@ impl BoundVariableKind {
         } else {
             bug!("expected `BoundVariableKind::Refine`")
         }
+    }
+
+    pub fn expect_sort(&self) -> &Sort {
+        self.expect_refine().0
     }
 }
 
