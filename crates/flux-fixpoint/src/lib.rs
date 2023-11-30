@@ -1,6 +1,5 @@
 #![feature(rustc_private, min_specialization, lazy_cell, box_patterns, let_chains)]
 
-extern crate rustc_index;
 extern crate rustc_macros;
 extern crate rustc_serialize;
 extern crate rustc_span;
@@ -18,9 +17,10 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, Const, ConstName, Constant, Constraint, Expr, Func, FuncSort, KVid, Name, PolyFuncSort,
-    Pred, Proj, Qualifier, Sort, SortCtor, UnOp,
+    BinOp, Const, Constant, Constraint, Expr, Func, FuncSort, PolyFuncSort, Pred, Proj, Qualifier,
+    Sort, SortCtor, UnOp,
 };
+use derive_where::derive_where;
 use flux_common::{cache::QueryCache, format::PadAdapter};
 use flux_config as config;
 use itertools::Itertools;
@@ -28,32 +28,65 @@ use serde::{de, Deserialize};
 
 use crate::constraint::DEFAULT_QUALIFIERS;
 
-#[derive(Clone, Debug, Hash)]
-pub struct ConstInfo {
-    pub name: ConstName,
+pub trait Symbol: fmt::Display + Hash {}
+
+impl<T: fmt::Display + Hash> Symbol for T {}
+
+pub trait Types {
+    type KVar: Symbol;
+    type Var: Symbol;
+    type Tag: fmt::Display + Hash + FromStr;
+}
+
+#[macro_export]
+macro_rules! declare_types {
+    (type KVar = $kvar:ty; type Var = $var:ty; type Tag = $tag:ty;) => {
+        pub mod fixpoint_generated {
+            pub struct FixpointTypes;
+            pub type Expr = $crate::Expr<FixpointTypes>;
+            pub type Pred = $crate::Pred<FixpointTypes>;
+            pub type Func = $crate::Func<FixpointTypes>;
+            pub type Constraint = $crate::Constraint<FixpointTypes>;
+            pub type KVar = $crate::KVar<FixpointTypes>;
+            pub type ConstInfo = $crate::ConstInfo<FixpointTypes>;
+            pub type Task = $crate::Task<FixpointTypes>;
+            pub type Qualifier = $crate::Qualifier<FixpointTypes>;
+            pub use $crate::{PolyFuncSort, Proj, Sort, SortCtor};
+        }
+
+        impl $crate::Types for fixpoint_generated::FixpointTypes {
+            type KVar = $kvar;
+            type Var = $var;
+            type Tag = $tag;
+        }
+    };
+}
+
+struct StringTypes;
+
+impl Types for StringTypes {
+    type KVar = &'static str;
+    type Var = &'static str;
+    type Tag = String;
+}
+
+#[derive_where(Hash)]
+pub struct ConstInfo<T: Types> {
+    pub name: T::Var,
     pub orig: rustc_span::Symbol,
     pub sort: Sort,
 }
 
-pub struct Task<Tag> {
+#[derive_where(Hash)]
+pub struct Task<T: Types> {
+    #[derive_where(skip)]
     pub comments: Vec<String>,
-    pub constants: Vec<ConstInfo>,
-    pub kvars: Vec<KVar>,
-    pub constraint: Constraint<Tag>,
-    pub qualifiers: Vec<Qualifier>,
+    pub constants: Vec<ConstInfo<T>>,
+    pub kvars: Vec<KVar<T>>,
+    pub constraint: Constraint<T>,
+    pub qualifiers: Vec<Qualifier<T>>,
     pub sorts: Vec<String>,
     pub scrape_quals: bool,
-}
-
-impl<Tag> Hash for Task<Tag> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.constants.hash(state);
-        self.kvars.hash(state);
-        self.constraint.hash(state);
-        self.qualifiers.hash(state);
-        self.sorts.hash(state);
-        self.scrape_quals.hash(state);
-    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -82,20 +115,20 @@ pub struct Stats {
 #[derive(Deserialize, Debug)]
 pub struct CrashInfo(Vec<serde_json::Value>);
 
-#[derive(Debug, Hash)]
-pub struct KVar {
-    kvid: KVid,
+#[derive_where(Hash)]
+pub struct KVar<T: Types> {
+    kvid: T::KVar,
     sorts: Vec<Sort>,
     comment: String,
 }
 
-impl<Tag: fmt::Display + FromStr> Task<Tag> {
+impl<T: Types> Task<T> {
     pub fn new(
         comments: Vec<String>,
-        constants: Vec<ConstInfo>,
-        kvars: Vec<KVar>,
-        constraint: Constraint<Tag>,
-        qualifiers: Vec<Qualifier>,
+        constants: Vec<ConstInfo<T>>,
+        kvars: Vec<KVar<T>>,
+        constraint: Constraint<T>,
+        qualifiers: Vec<Qualifier<T>>,
         sorts: Vec<String>,
         scrape_quals: bool,
     ) -> Self {
@@ -112,7 +145,7 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
         &self,
         key: String,
         cache: &mut QueryCache,
-    ) -> io::Result<FixpointResult<Tag>> {
+    ) -> io::Result<FixpointResult<T::Tag>> {
         let hash = self.hash_with_default();
 
         if config::is_cache_enabled() && cache.is_safe(&key, hash) {
@@ -129,7 +162,7 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
         result
     }
 
-    fn check(&self) -> io::Result<FixpointResult<Tag>> {
+    fn check(&self) -> io::Result<FixpointResult<T::Tag>> {
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
@@ -153,13 +186,13 @@ impl<Tag: fmt::Display + FromStr> Task<Tag> {
     }
 }
 
-impl KVar {
-    pub fn new(kvid: KVid, sorts: Vec<Sort>, comment: String) -> Self {
+impl<T: Types> KVar<T> {
+    pub fn new(kvid: T::KVar, sorts: Vec<Sort>, comment: String) -> Self {
         Self { kvid, sorts, comment }
     }
 }
 
-impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
+impl<T: Types> fmt::Display for Task<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.scrape_quals {
             writeln!(f, "(fixpoint \"--scrape=both\")")?;
@@ -195,11 +228,11 @@ impl<Tag: fmt::Display> fmt::Display for Task<Tag> {
     }
 }
 
-impl fmt::Display for KVar {
+impl<T: Types> fmt::Display for KVar<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(var {:?} ({})) // {}",
+            "(var ${} ({})) // {}",
             self.kvid,
             self.sorts
                 .iter()
@@ -209,13 +242,13 @@ impl fmt::Display for KVar {
     }
 }
 
-impl fmt::Display for ConstInfo {
+impl<T: Types> fmt::Display for ConstInfo<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(constant {:?} {:?}) // orig: {}", self.name, self.sort, self.orig)
+        write!(f, "(constant {} {}) // orig: {}", self.name, self.sort, self.orig)
     }
 }
 
-impl<Tag: fmt::Display> fmt::Debug for Task<Tag> {
+impl<T: Types> fmt::Debug for Task<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }

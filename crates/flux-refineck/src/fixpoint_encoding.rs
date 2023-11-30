@@ -2,7 +2,6 @@
 
 use std::{hash::Hash, iter};
 
-use fixpoint::FixpointResult;
 use flux_common::{
     bug,
     cache::QueryCache,
@@ -11,7 +10,8 @@ use flux_common::{
     span_bug,
 };
 use flux_config as config;
-use flux_fixpoint as fixpoint;
+use flux_fixpoint::FixpointResult;
+// use flux_fixpoint as fixpoint;
 use flux_middle::{
     fhir::FuncKind,
     global_env::GlobalEnv,
@@ -57,6 +57,64 @@ pub enum KVarEncoding {
     Conj,
 }
 
+pub mod fixpoint {
+    use std::fmt;
+
+    use rustc_index::newtype_index;
+
+    newtype_index! {
+        pub struct KVid {}
+    }
+
+    newtype_index! {
+        pub struct LocalVar {}
+    }
+
+    newtype_index! {
+        pub struct GlobalVar {}
+    }
+
+    #[derive(Hash, Debug, Copy, Clone)]
+    pub enum Var {
+        Global(GlobalVar),
+        Local(LocalVar),
+    }
+
+    impl From<GlobalVar> for Var {
+        fn from(v: GlobalVar) -> Self {
+            Self::Global(v)
+        }
+    }
+
+    impl From<LocalVar> for Var {
+        fn from(v: LocalVar) -> Self {
+            Self::Local(v)
+        }
+    }
+
+    impl fmt::Display for KVid {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "k{}", self.as_u32())
+        }
+    }
+
+    impl fmt::Display for Var {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Var::Global(v) => write!(f, "c{}", v.as_u32()),
+                Var::Local(v) => write!(f, "a{}", v.as_u32()),
+            }
+        }
+    }
+
+    flux_fixpoint::declare_types! {
+        type KVar = KVid;
+        type Var = Var;
+        type Tag = super::TagIdx;
+    }
+    pub use fixpoint_generated::*;
+}
+
 type KVidMap = UnordMap<rty::KVid, Vec<fixpoint::KVid>>;
 type ConstMap = FxIndexMap<Key, ConstInfo>;
 
@@ -89,22 +147,22 @@ struct FixpointKVar {
 /// Environment used to map [`rty::Var`] into [`fixpoint::Name`]. This only supports
 /// mapping of [`rty::Var::LateBound`] and [`rty::Var::Free`].
 struct Env {
-    name_gen: IndexGen<fixpoint::Name>,
-    fvars: UnordMap<rty::Name, fixpoint::Name>,
+    local_var_gen: IndexGen<fixpoint::LocalVar>,
+    fvars: UnordMap<rty::Name, fixpoint::LocalVar>,
     /// Layers of late bound variables
-    layers: Vec<Vec<fixpoint::Name>>,
+    layers: Vec<Vec<fixpoint::LocalVar>>,
 }
 
 impl Env {
     fn new() -> Self {
-        Self { name_gen: IndexGen::new(), fvars: Default::default(), layers: Vec::new() }
+        Self { local_var_gen: IndexGen::new(), fvars: Default::default(), layers: Vec::new() }
     }
 
-    fn fresh_name(&self) -> fixpoint::Name {
-        self.name_gen.fresh()
+    fn fresh_name(&self) -> fixpoint::LocalVar {
+        self.local_var_gen.fresh()
     }
 
-    fn insert_fvar_map(&mut self, name: rty::Name) -> fixpoint::Name {
+    fn insert_fvar_map(&mut self, name: rty::Name) -> fixpoint::LocalVar {
         let fresh = self.fresh_name();
         self.fvars.insert(name, fresh);
         fresh
@@ -114,11 +172,11 @@ impl Env {
         self.fvars.remove(&name);
     }
 
-    fn get_fvar(&self, name: rty::Name) -> Option<fixpoint::Name> {
+    fn get_fvar(&self, name: rty::Name) -> Option<fixpoint::LocalVar> {
         self.fvars.get(&name).copied()
     }
 
-    fn get_late_bvar(&self, debruijn: DebruijnIndex, idx: u32) -> Option<fixpoint::Name> {
+    fn get_late_bvar(&self, debruijn: DebruijnIndex, idx: u32) -> Option<fixpoint::LocalVar> {
         let depth = self.layers.len().checked_sub(debruijn.as_usize() + 1)?;
         self.layers[depth].get(idx as usize).copied()
     }
@@ -128,7 +186,7 @@ impl Env {
         self.layers.push(layer);
     }
 
-    fn last_layer(&self) -> &[fixpoint::Name] {
+    fn last_layer(&self) -> &[fixpoint::LocalVar] {
         self.layers.last().unwrap()
     }
 }
@@ -140,17 +198,27 @@ struct ExprCtxt<'a> {
     dbg_span: Span,
 }
 
-#[derive(Debug)]
 struct ConstInfo {
-    name: fixpoint::ConstName,
+    name: fixpoint::GlobalVar,
     sym: rustc_span::Symbol,
     sort: fixpoint::Sort,
     val: Option<Constant>,
 }
 
 /// An alias for additional bindings introduced when ANF-ing index expressions
-/// in the course of conversion to fixpoint.
-type Bindings = Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>;
+/// in the course of encoding into fixpoint.
+pub type Bindings = Vec<(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)>;
+
+pub fn stitch(bindings: Bindings, c: fixpoint::Constraint) -> fixpoint::Constraint {
+    bindings.into_iter().rev().fold(c, |c, (name, sort, e)| {
+        fixpoint::Constraint::ForAll(
+            fixpoint::Var::Local(name),
+            sort,
+            fixpoint::Pred::Expr(e),
+            Box::new(c),
+        )
+    })
+}
 
 /// An alias for a list of predicate (conjuncts) and their spans, used to give
 /// localized errors when refine checking fails.
@@ -179,7 +247,7 @@ where
     pub(crate) fn with_name_map<R>(
         &mut self,
         name: rty::Name,
-        f: impl FnOnce(&mut Self, fixpoint::Name) -> R,
+        f: impl FnOnce(&mut Self, fixpoint::LocalVar) -> R,
     ) -> R {
         let fresh = self.env.insert_fvar_map(name);
         let r = f(self, fresh);
@@ -188,11 +256,11 @@ where
     }
 
     fn assume_const_val(
-        cstr: fixpoint::Constraint<TagIdx>,
-        const_name: fixpoint::ConstName,
+        cstr: fixpoint::Constraint,
+        var: fixpoint::GlobalVar,
         const_val: Constant,
-    ) -> fixpoint::Constraint<TagIdx> {
-        let e1 = fixpoint::Expr::from(const_name);
+    ) -> fixpoint::Constraint {
+        let e1 = fixpoint::Expr::Var(fixpoint::Var::Global(var));
         let e2 = fixpoint::Expr::Constant(const_val);
         let pred = fixpoint::Pred::Expr(e1.eq(e2));
         fixpoint::Constraint::Guard(pred, Box::new(cstr))
@@ -201,7 +269,7 @@ where
     pub fn check(
         self,
         cache: &mut QueryCache,
-        constraint: fixpoint::Constraint<TagIdx>,
+        constraint: fixpoint::Constraint,
         config: &CheckerConfig,
     ) -> QueryResult<Vec<Tag>> {
         if !constraint.is_concrete() {
@@ -236,7 +304,7 @@ where
             .into_values()
             .map(|const_info| {
                 fixpoint::ConstInfo {
-                    name: const_info.name,
+                    name: fixpoint::Var::Global(const_info.name),
                     orig: const_info.sym,
                     sort: const_info.sort,
                 }
@@ -325,19 +393,20 @@ where
         let decl = self.kvars.get(kvar.kvid);
 
         let all_args = iter::zip(&kvar.args, &decl.sorts)
-            .map(|(arg, sort)| self.imm(arg, sort, bindings))
+            .map(|(arg, sort)| fixpoint::Var::Local(self.imm(arg, sort, bindings)))
             .collect_vec();
 
         let kvids = &self.kvid_map[&kvar.kvid];
 
         if all_args.is_empty() {
             let fresh = self.env.fresh_name();
+            let var = fixpoint::Var::Local(fresh);
             bindings.push((
                 fresh,
                 fixpoint::Sort::Unit,
-                fixpoint::Expr::eq(fixpoint::Expr::Var(fresh), fixpoint::Expr::Unit),
+                fixpoint::Expr::eq(fixpoint::Expr::Var(var), fixpoint::Expr::Unit),
             ));
-            return fixpoint::Pred::KVar(kvids[0], vec![fresh]);
+            return fixpoint::Pred::KVar(kvids[0], vec![var]);
         }
 
         let kvars = kvids
@@ -386,8 +455,8 @@ where
         &self,
         arg: &rty::Expr,
         sort: &rty::Sort,
-        bindings: &mut Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
-    ) -> fixpoint::Name {
+        bindings: &mut Vec<(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)>,
+    ) -> fixpoint::LocalVar {
         match arg.kind() {
             rty::ExprKind::Var(rty::Var::Free(name)) => {
                 self.env.get_fvar(*name).unwrap_or_else(|| {
@@ -400,7 +469,7 @@ where
             _ => {
                 let fresh = self.env.fresh_name();
                 let pred = fixpoint::Expr::eq(
-                    fixpoint::Expr::Var(fresh),
+                    fixpoint::Expr::Var(fresh.into()),
                     self.as_expr_cx().expr_to_fixpoint(arg),
                 );
                 bindings.push((fresh, sort_to_fixpoint(sort), pred));
@@ -606,7 +675,7 @@ impl<'a> ExprCtxt<'a> {
 
     fn expr_to_fixpoint(&self, expr: &rty::Expr) -> fixpoint::Expr {
         match expr.kind() {
-            rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var)),
+            rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var).into()),
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
             rty::ExprKind::BinaryOp(op, e1, e2) => {
                 fixpoint::Expr::BinaryOp(
@@ -629,7 +698,7 @@ impl<'a> ExprCtxt<'a> {
                 let const_info = self.const_map.get(&Key::Const(*did)).unwrap_or_else(|| {
                     span_bug!(self.dbg_span, "no entry found in const_map for def_id: `{did:?}`")
                 });
-                fixpoint::Expr::ConstVar(const_info.name)
+                fixpoint::Expr::Var(const_info.name.into())
             }
             rty::ExprKind::App(func, args) => {
                 let func = self.func_to_fixpoint(func);
@@ -654,7 +723,7 @@ impl<'a> ExprCtxt<'a> {
         }
     }
 
-    fn var_to_fixpoint(&self, var: &rty::Var) -> fixpoint::Name {
+    fn var_to_fixpoint(&self, var: &rty::Var) -> fixpoint::LocalVar {
         match var {
             rty::Var::Free(name) => {
                 self.env.get_fvar(*name).unwrap_or_else(|| {
@@ -696,7 +765,7 @@ impl<'a> ExprCtxt<'a> {
 
     fn func_to_fixpoint(&self, func: &rty::Expr) -> fixpoint::Func {
         match func.kind() {
-            rty::ExprKind::Var(var) => fixpoint::Func::Var(self.var_to_fixpoint(var)),
+            rty::ExprKind::Var(var) => fixpoint::Func::Var(self.var_to_fixpoint(var).into()),
             rty::ExprKind::GlobalFunc(_, FuncKind::Thy(sym)) => fixpoint::Func::Itf(*sym),
             rty::ExprKind::GlobalFunc(sym, FuncKind::Uif) => {
                 let cinfo = self.const_map.get(&Key::Uif(*sym)).unwrap_or_else(|| {
@@ -705,7 +774,7 @@ impl<'a> ExprCtxt<'a> {
                         "no constant found for uninterpreted function `{sym}` in `const_map`"
                     )
                 });
-                fixpoint::Func::Uif(cinfo.name)
+                fixpoint::Func::Var(cinfo.name.into())
             }
             rty::ExprKind::GlobalFunc(sym, FuncKind::Def) => {
                 span_bug!(self.dbg_span, "unexpected global function `{sym}`. Function must be normalized away at this point")
@@ -725,9 +794,9 @@ fn qualifier_to_fixpoint(
     let mut env = Env::new();
     env.push_layer_with_fresh_names(qualifier.body.vars().len());
 
-    let args: Vec<(fixpoint::Name, fixpoint::Sort)> =
+    let args: Vec<(fixpoint::Var, fixpoint::Sort)> =
         iter::zip(env.last_layer(), qualifier.body.vars())
-            .map(|(name, var)| (*name, sort_to_fixpoint(var.expect_sort())))
+            .map(|(name, var)| ((*name).into(), sort_to_fixpoint(var.expect_sort())))
             .collect();
 
     let cx = ExprCtxt::new(&env, const_map, dbg_span);
