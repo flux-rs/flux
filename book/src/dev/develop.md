@@ -151,3 +151,21 @@ check_crate
     total time:   16995.32ms
 total time: 17014.19ms
 ```
+
+
+## Macro expansion 
+
+For example if you have code like  in `path/to/file.rs` 
+
+```rust
+#[extern_spec]
+#[flux::refined_by(elems: Set<T>)]
+struct HashSet<T, S = RandomState>;
+```
+
+and you want to see what the `extern_spec` macro expands it out to, then run
+
+```
+cargo x run -- -Zunpretty=expanded path/to/file.rs 
+```
+
