@@ -284,6 +284,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive-where"
+version = "1.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "146398d62142a0f35248a608f17edf0dde57338354966d6e41d0eb2d16980ccb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.37",
+]
+
+[[package]]
 name = "diff"
 version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -542,6 +553,7 @@ dependencies = [
 name = "flux-fixpoint"
 version = "0.1.0"
 dependencies = [
+ "derive-where",
  "flux-common",
  "flux-config",
  "itertools",

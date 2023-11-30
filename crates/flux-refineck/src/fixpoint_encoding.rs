@@ -2,7 +2,6 @@
 
 use std::{hash::Hash, iter};
 
-use fixpoint::FixpointResult;
 use flux_common::{
     bug,
     cache::QueryCache,
@@ -11,7 +10,8 @@ use flux_common::{
     span_bug,
 };
 use flux_config as config;
-use flux_fixpoint as fixpoint;
+use flux_fixpoint::FixpointResult;
+// use flux_fixpoint as fixpoint;
 use flux_middle::{
     fhir::FuncKind,
     global_env::GlobalEnv,
@@ -55,6 +55,65 @@ pub enum KVarEncoding {
     /// Concretely, a kvar `$k(a0, a1, ..., an)[b0, ...]` becomes
     /// `$k0(a0, a1, ..., an, b0, ...) ∧ $k1(a1, ..., an, b0, ...) ∧ ... ∧ $kn(an, b0, ...)`
     Conj,
+}
+
+pub mod fixpoint {
+    use std::fmt;
+
+    use rustc_index::newtype_index;
+
+    newtype_index! {
+        #[debug_format = "k{}"]
+        pub struct KVid {}
+    }
+
+    newtype_index! {
+        #[debug_format = "a{}"]
+        pub struct Name {}
+    }
+
+    newtype_index! {
+        #[debug_format = "b{}"]
+        pub struct ConstName {}
+    }
+
+    impl fmt::Display for KVid {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fmt::Debug::fmt(self, f)
+        }
+    }
+
+    impl fmt::Display for Name {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fmt::Debug::fmt(self, f)
+        }
+    }
+
+    impl fmt::Display for ConstName {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fmt::Debug::fmt(self, f)
+        }
+    }
+
+    pub struct FixpointTypes;
+
+    impl flux_fixpoint::Types for FixpointTypes {
+        type ConstName = ConstName;
+        type KVid = KVid;
+        type Name = Name;
+        type Tag = super::TagIdx;
+    }
+
+    pub type Expr = flux_fixpoint::Expr<FixpointTypes>;
+    pub type Pred = flux_fixpoint::Pred<FixpointTypes>;
+    pub type Func = flux_fixpoint::Func<FixpointTypes>;
+    pub type Constraint = flux_fixpoint::Constraint<FixpointTypes>;
+    pub type KVar = flux_fixpoint::KVar<FixpointTypes>;
+    pub type ConstInfo = flux_fixpoint::ConstInfo<FixpointTypes>;
+    pub type Task = flux_fixpoint::Task<FixpointTypes>;
+    pub type Qualifier = flux_fixpoint::Qualifier<FixpointTypes>;
+
+    pub use flux_fixpoint::{PolyFuncSort, Proj, Sort, SortCtor};
 }
 
 type KVidMap = UnordMap<rty::KVid, Vec<fixpoint::KVid>>;
@@ -188,11 +247,11 @@ where
     }
 
     fn assume_const_val(
-        cstr: fixpoint::Constraint<TagIdx>,
+        cstr: fixpoint::Constraint,
         const_name: fixpoint::ConstName,
         const_val: Constant,
-    ) -> fixpoint::Constraint<TagIdx> {
-        let e1 = fixpoint::Expr::from(const_name);
+    ) -> fixpoint::Constraint {
+        let e1 = fixpoint::Expr::ConstVar(const_name);
         let e2 = fixpoint::Expr::Constant(const_val);
         let pred = fixpoint::Pred::Expr(e1.eq(e2));
         fixpoint::Constraint::Guard(pred, Box::new(cstr))
@@ -201,7 +260,7 @@ where
     pub fn check(
         self,
         cache: &mut QueryCache,
-        constraint: fixpoint::Constraint<TagIdx>,
+        constraint: fixpoint::Constraint,
         config: &CheckerConfig,
     ) -> QueryResult<Vec<Tag>> {
         if !constraint.is_concrete() {

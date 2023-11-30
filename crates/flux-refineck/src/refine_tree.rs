@@ -5,7 +5,6 @@ use std::{
 };
 
 use flux_common::index::{IndexGen, IndexVec};
-use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
     box_args,
     evars::EVarSol,
@@ -18,7 +17,7 @@ use itertools::Itertools;
 
 use crate::{
     constraint_gen::Tag,
-    fixpoint_encoding::{sort_to_fixpoint, FixpointCtxt, TagIdx},
+    fixpoint_encoding::{fixpoint, sort_to_fixpoint, FixpointCtxt},
 };
 
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
@@ -129,7 +128,7 @@ impl RefineTree {
         self.root.borrow_mut().simplify();
     }
 
-    pub(crate) fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> fixpoint::Constraint<TagIdx> {
+    pub(crate) fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> fixpoint::Constraint {
         self.root
             .borrow()
             .to_fixpoint(cx)
@@ -529,7 +528,7 @@ impl Node {
         }
     }
 
-    fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> Option<fixpoint::Constraint<TagIdx>> {
+    fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> Option<fixpoint::Constraint> {
         match &self.kind {
             NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(_, Sort::Loc) => {
                 children_to_fixpoint(cx, &self.children)
@@ -588,7 +587,7 @@ impl Node {
 fn children_to_fixpoint(
     cx: &mut FixpointCtxt<Tag>,
     children: &[NodePtr],
-) -> Option<fixpoint::Constraint<TagIdx>> {
+) -> Option<fixpoint::Constraint> {
     let mut children = children
         .iter()
         .filter_map(|node| node.borrow().to_fixpoint(cx))
@@ -602,8 +601,8 @@ fn children_to_fixpoint(
 
 fn stitch(
     bindings: Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
-    c: fixpoint::Constraint<TagIdx>,
-) -> fixpoint::Constraint<TagIdx> {
+    c: fixpoint::Constraint,
+) -> fixpoint::Constraint {
     bindings.into_iter().rev().fold(c, |c, (name, sort, e)| {
         fixpoint::Constraint::ForAll(name, sort, fixpoint::Pred::Expr(e), Box::new(c))
     })

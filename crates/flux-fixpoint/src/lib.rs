@@ -21,6 +21,7 @@ pub use constraint::{
     BinOp, Const, Constant, Constraint, Expr, Func, FuncSort, PolyFuncSort, Pred, Proj, Qualifier,
     Sort, SortCtor, UnOp,
 };
+use derive_where::derive_where;
 use flux_common::{cache::QueryCache, format::PadAdapter};
 use flux_config as config;
 use itertools::Itertools;
@@ -28,28 +29,32 @@ use serde::{de, Deserialize};
 
 use crate::constraint::DEFAULT_QUALIFIERS;
 
-trait Types {
+pub trait Types {
     type ConstName: fmt::Display + fmt::Debug + Hash;
     type KVid: fmt::Display + fmt::Debug + Hash;
     type Name: fmt::Display + fmt::Debug + Hash;
-    type Tag: fmt::Display + fmt::Debug + Hash;
+    type Tag: fmt::Display + fmt::Debug + Hash + FromStr;
 }
 
-impl Types for () {
+struct StringTypes;
+
+impl Types for StringTypes {
     type ConstName = &'static str;
     type KVid = &'static str;
     type Name = &'static str;
-    type Tag = &'static str;
+    type Tag = String;
 }
 
-#[derive(Clone, Debug, Hash)]
+#[derive_where(Hash, Debug)]
 pub struct ConstInfo<T: Types> {
     pub name: T::ConstName,
     pub orig: rustc_span::Symbol,
     pub sort: Sort,
 }
 
+#[derive_where(Hash)]
 pub struct Task<T: Types> {
+    #[derive_where(skip)]
     pub comments: Vec<String>,
     pub constants: Vec<ConstInfo<T>>,
     pub kvars: Vec<KVar<T>>,
@@ -57,17 +62,6 @@ pub struct Task<T: Types> {
     pub qualifiers: Vec<Qualifier<T>>,
     pub sorts: Vec<String>,
     pub scrape_quals: bool,
-}
-
-impl<T: Types> Hash for Task<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.constants.hash(state);
-        self.kvars.hash(state);
-        self.constraint.hash(state);
-        self.qualifiers.hash(state);
-        self.sorts.hash(state);
-        self.scrape_quals.hash(state);
-    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -96,7 +90,7 @@ pub struct Stats {
 #[derive(Deserialize, Debug)]
 pub struct CrashInfo(Vec<serde_json::Value>);
 
-#[derive(Debug, Hash)]
+#[derive_where(Debug, Hash)]
 pub struct KVar<T: Types> {
     kvid: T::KVid,
     sorts: Vec<Sort>,
@@ -213,7 +207,7 @@ impl<T: Types> fmt::Display for KVar<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(var {:?} ({})) // {}",
+            "(var ${} ({})) // {}",
             self.kvid,
             self.sorts
                 .iter()
