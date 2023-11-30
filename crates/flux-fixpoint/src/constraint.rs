@@ -453,35 +453,7 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
         global: true,
     };
 
-    // // (qualif Add2 ((a int) (b int) (c int)) (a == b + c))
-    // let _add2 = Qualifier {
-    //     args: vec![("a", Sort::Int), ("b", Sort::Int), ("c", Sort::Int)],
-    //     body: Expr::BinaryOp(
-    //         BinOp::Eq,
-    //         Box::new([
-    //             Expr::Var("a"),
-    //             Expr::BinaryOp(BinOp::Add, Box::new([Expr::Var("b"), Expr::Var("c")])),
-    //         ]),
-    //     ),
-    //     name: String::from("Add2"),
-    //     global: true,
-    // };
-
-    // // (qualif Sub2 ((a int) (b int) (c int)) (a == b - c))
-    // let _sub2 = Qualifier {
-    //     args: vec![("a", Sort::Int), ("b", Sort::Int), ("c", Sort::Int)],
-    //     body: Expr::BinaryOp(
-    //         BinOp::Eq,
-    //         Box::new([
-    //             Expr::Var("a"),
-    //             Expr::BinaryOp(BinOp::Sub, Box::new([Expr::Var("b"), Expr::Var("c")])),
-    //         ]),
-    //     ),
-    //     name: String::from("Sub2"),
-    //     global: true,
-    // };
-
-    vec![eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1] //, add2, sub2]
+    vec![eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
 });
 
 impl<T: Types> fmt::Display for Qualifier<T> {
