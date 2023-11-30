@@ -198,7 +198,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 .collect_vec();
 
         let genv = self.genv;
-        let callsite_def_id = self.def_id;
         let span = self.span;
 
         if let Some(did) = callee_def_id {
@@ -228,7 +227,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 },
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
             )
-            .normalize_projections(genv, infcx.region_infcx, callsite_def_id, infcx.refparams)?;
+            .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)?;
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &refine_args)?
@@ -278,13 +277,19 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     .normalize_projections(
                         infcx.genv,
                         infcx.region_infcx,
-                        callsite_def_id,
+                        infcx.def_id,
                         infcx.refparams,
                     )?;
+                let term = projection_pred.term.normalize_projections(
+                    infcx.genv,
+                    infcx.region_infcx,
+                    infcx.def_id,
+                    infcx.refparams,
+                )?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
-                infcx.subtyping(rcx, &impl_elem, &projection_pred.term)?;
-                infcx.subtyping(rcx, &projection_pred.term, &impl_elem)?;
+                infcx.subtyping(rcx, &impl_elem, &term)?;
+                infcx.subtyping(rcx, &term, &impl_elem)?;
             }
         }
         // Replace evars

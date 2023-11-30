@@ -610,8 +610,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 rty::ClauseKind::GeneratorOblig(gen_pred) => {
                     self.check_oblig_generator_pred(rcx, &obligs.snapshot, gen_pred)?;
                 }
-                rty::ClauseKind::Projection(_) => (),
-                rty::ClauseKind::Trait(_) => (),
+                rty::ClauseKind::Projection(_)
+                | rty::ClauseKind::Trait(_)
+                | rty::ClauseKind::TypeOutlives(_) => {}
             }
         }
         Ok(())

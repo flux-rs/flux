@@ -13,8 +13,8 @@ use rustc_middle::ty::{AdtFlags, ParamConst};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundRegionKind, BoundVar, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy, ParamTy,
-        RegionVid, ScalarInt, UintTy,
+        BoundRegionKind, BoundVar, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy,
+        OutlivesPredicate, ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
 use rustc_span::{symbol::kw, Symbol};
@@ -72,7 +72,10 @@ pub struct Clause {
 pub enum ClauseKind {
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
+    TypeOutlives(TypeOutlivesPredicate),
 }
+
+pub type TypeOutlivesPredicate = OutlivesPredicate<Ty, Region>;
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct TraitPredicate {

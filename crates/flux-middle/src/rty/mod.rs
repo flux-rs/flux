@@ -28,7 +28,7 @@ use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::ParamConst;
 pub use rustc_middle::{
     mir::Mutability,
-    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
+    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, OutlivesPredicate, ParamTy, ScalarInt, UintTy},
 };
 use rustc_span::Symbol;
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
@@ -105,8 +105,11 @@ pub enum ClauseKind {
     FnTrait(FnTraitPredicate),
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
+    TypeOutlives(TypeOutlivesPredicate),
     GeneratorOblig(GeneratorObligPredicate),
 }
+
+pub type TypeOutlivesPredicate = OutlivesPredicate<Ty, Region>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TraitPredicate {
@@ -1695,6 +1698,7 @@ mod pretty {
                 ClauseKind::Trait(pred) => w!("Trait ({pred:?})"),
                 ClauseKind::Projection(pred) => w!("Projection ({pred:?})"),
                 ClauseKind::GeneratorOblig(pred) => w!("Projection ({pred:?})"),
+                ClauseKind::TypeOutlives(pred) => w!("Outlives ({:?}, {:?})", &pred.0, &pred.1),
             }
         }
     }

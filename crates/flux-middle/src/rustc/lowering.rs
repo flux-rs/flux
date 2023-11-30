@@ -24,8 +24,8 @@ use super::{
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
         Const, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
-        GenericPredicates, Generics, PolyFnSig, TraitPredicate, TraitRef, Ty, ValueConst,
-        VariantDef,
+        GenericPredicates, Generics, PolyFnSig, TraitPredicate, TraitRef, Ty,
+        TypeOutlivesPredicate, ValueConst, VariantDef,
     },
 };
 use crate::{
@@ -849,6 +849,13 @@ fn lower_clause<'tcx>(
                 .emit(sess)?;
             ClauseKind::Projection(ProjectionPredicate { projection_ty, term })
         }
+        rustc_ty::ClauseKind::TypeOutlives(outlives_pred) => {
+            ClauseKind::TypeOutlives(
+                lower_type_outlives(tcx, outlives_pred)
+                    .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
+                    .emit(sess)?,
+            )
+        }
         _ => {
             return Err(sess.emit_err(errors::UnsupportedGenericBound::new(
                 span,
@@ -857,6 +864,13 @@ fn lower_clause<'tcx>(
         }
     };
     Ok(Clause::new(kind))
+}
+
+fn lower_type_outlives<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    pred: rustc_ty::TypeOutlivesPredicate<'tcx>,
+) -> Result<TypeOutlivesPredicate, UnsupportedReason> {
+    Ok(rustc_ty::OutlivesPredicate(lower_ty(tcx, pred.0)?, lower_region(&pred.1)?))
 }
 
 mod errors {
