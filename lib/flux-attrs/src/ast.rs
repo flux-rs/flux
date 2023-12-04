@@ -439,6 +439,24 @@ pub enum Type {
     Reference(TypeReference),
     Constraint(TypeConstraint),
     Array(TypeArray),
+    Tuple(TypeTuple),
+}
+
+#[derive(Debug)]
+pub struct TypeTuple {
+    pub paren_token: token::Paren,
+    pub elems: Punctuated<Type, Token![,]>,
+}
+
+impl TypeTuple {
+    fn to_tokens_inner(&self, tokens: &mut TokenStream, mode: Mode) {
+        self.paren_token.surround(tokens, |tokens| {
+            for elem in self.elems.pairs() {
+                elem.value().to_tokens_inner(tokens, mode);
+                elem.punct().to_tokens(tokens);
+            }
+        });
+    }
 }
 
 #[derive(Debug)]
@@ -1281,10 +1299,22 @@ impl Parse for Type {
             } else {
                 parse_rty(input, BaseType::Slice(TypeSlice { bracket_token, ty }))?
             }
+        } else if input.peek(token::Paren) {
+            input.parse().map(Type::Tuple)?
         } else {
             parse_rty(input, input.parse()?)?
         };
         Ok(ty)
+    }
+}
+
+impl Parse for TypeTuple {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let content;
+        Ok(TypeTuple {
+            paren_token: parenthesized!(content in input),
+            elems: content.parse_terminated(Type::parse, Token![,])?,
+        })
     }
 }
 
@@ -1901,6 +1931,7 @@ impl Type {
             Type::Reference(ty_reference) => ty_reference.to_tokens_inner(tokens, mode),
             Type::Constraint(ty_constraint) => ty_constraint.to_tokens_inner(tokens, mode),
             Type::Array(ty_array) => ty_array.to_tokens_inner(tokens, mode),
+            Type::Tuple(tuple) => tuple.to_tokens_inner(tokens, mode),
         }
     }
 }
