@@ -2131,13 +2131,6 @@
 <a href="#2131" id="2131">2131</a>
 <a href="#2132" id="2132">2132</a>
 <a href="#2133" id="2133">2133</a>
-<a href="#2134" id="2134">2134</a>
-<a href="#2135" id="2135">2135</a>
-<a href="#2136" id="2136">2136</a>
-<a href="#2137" id="2137">2137</a>
-<a href="#2138" id="2138">2138</a>
-<a href="#2139" id="2139">2139</a>
-<a href="#2140" id="2140">2140</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2156,7 +2149,7 @@
 
 <span class="kw">pub use </span>evars::{EVar, EVarGen};
 <span class="kw">pub use </span>expr::{ESpan, Expr, ExprKind, HoleKind, KVar, KVid, Loc, Name, Path, Var};
-<span class="kw">use </span>flux_common::{bug, index::IndexGen};
+<span class="kw">use </span>flux_common::bug;
 <span class="kw">pub use </span>flux_fixpoint::{BinOp, Constant, UnOp};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">pub use </span>normalize::Defns;
@@ -2168,7 +2161,7 @@
 <span class="kw">use </span>rustc_middle::ty::ParamConst;
 <span class="kw">pub use </span>rustc_middle::{
     mir::Mutability,
-    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
+    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, OutlivesPredicate, ParamTy, ScalarInt, UintTy},
 };
 <span class="kw">use </span>rustc_span::Symbol;
 <span class="kw">pub use </span>rustc_target::abi::{VariantIdx, FIRST_VARIANT};
@@ -2245,8 +2238,11 @@
     FnTrait(FnTraitPredicate),
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
+    TypeOutlives(TypeOutlivesPredicate),
     GeneratorOblig(GeneratorObligPredicate),
 }
+
+<span class="kw">pub type </span>TypeOutlivesPredicate = OutlivesPredicate&lt;Ty, Region&gt;;
 
 <span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 </span><span class="kw">pub struct </span>TraitPredicate {
@@ -2864,21 +2860,6 @@
     }
 }
 
-<span class="kw">impl </span>Qualifier {
-    <span class="kw">pub fn </span>with_fresh_fvars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (Vec&lt;(Name, Sort)&gt;, Expr) {
-        <span class="kw">let </span>name_gen = IndexGen::new();
-        <span class="kw">let </span><span class="kw-2">mut </span>params = <span class="macro">vec!</span>[];
-        <span class="kw">let </span>body = <span class="self">self</span>.body.replace_bound_exprs_with(|sort, <span class="kw">_</span>| {
-            Expr::fold_sort(sort, |s| {
-                <span class="kw">let </span>fresh = name_gen.fresh();
-                params.push((fresh, s.clone()));
-                Expr::fvar(fresh)
-            })
-        });
-        (params, body)
-    }
-}
-
 <span class="kw">impl </span>BoundVariableKind {
     <span class="kw">fn </span>expect_refine(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>Sort, InferMode) {
         <span class="kw">if let </span>BoundVariableKind::Refine(sort, mode) = <span class="self">self </span>{
@@ -2887,6 +2868,10 @@
             <span class="macro">bug!</span>(<span class="string">&quot;expected `BoundVariableKind::Refine`&quot;</span>)
         }
     }
+
+    <span class="kw">pub fn </span>expect_sort(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Sort {
+        <span class="self">self</span>.expect_refine().<span class="number">0
+    </span>}
 }
 
 <span class="kw">impl</span>&lt;T&gt; Binder&lt;T&gt; {
@@ -3700,7 +3685,7 @@
                     },
                     Invariant {
                         pred: Binder::with_sort(
-                            Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::uint_max(uint_ty), <span class="prelude-val">None</span>),
+                            Expr::binary_op(BinOp::Le, Expr::nu(), Expr::uint_max(uint_ty), <span class="prelude-val">None</span>),
                             Sort::Int,
                         ),
                     },
@@ -3732,7 +3717,7 @@
                     },
                     Invariant {
                         pred: Binder::with_sort(
-                            Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::int_max(int_ty), <span class="prelude-val">None</span>),
+                            Expr::binary_op(BinOp::Le, Expr::nu(), Expr::int_max(int_ty), <span class="prelude-val">None</span>),
                             Sort::Int,
                         ),
                     },
@@ -3835,6 +3820,7 @@
                 ClauseKind::Trait(pred) =&gt; <span class="macro">w!</span>(<span class="string">&quot;Trait ({pred:?})&quot;</span>),
                 ClauseKind::Projection(pred) =&gt; <span class="macro">w!</span>(<span class="string">&quot;Projection ({pred:?})&quot;</span>),
                 ClauseKind::GeneratorOblig(pred) =&gt; <span class="macro">w!</span>(<span class="string">&quot;Projection ({pred:?})&quot;</span>),
+                ClauseKind::TypeOutlives(pred) =&gt; <span class="macro">w!</span>(<span class="string">&quot;Outlives ({:?}, {:?})&quot;</span>, <span class="kw-2">&amp;</span>pred.<span class="number">0</span>, <span class="kw-2">&amp;</span>pred.<span class="number">1</span>),
             }
         }
     }

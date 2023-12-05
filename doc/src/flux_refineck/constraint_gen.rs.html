@@ -863,6 +863,11 @@
 <a href="#863" id="863">863</a>
 <a href="#864" id="864">864</a>
 <a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::tracked_span_bug;
@@ -1063,7 +1068,6 @@
                 .collect_vec();
 
         <span class="kw">let </span>genv = <span class="self">self</span>.genv;
-        <span class="kw">let </span>callsite_def_id = <span class="self">self</span>.def_id;
         <span class="kw">let </span>span = <span class="self">self</span>.span;
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(did) = callee_def_id {
@@ -1093,7 +1097,7 @@
                 },
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
             )
-            .normalize_projections(genv, infcx.region_infcx, callsite_def_id, infcx.refparams)<span class="question-mark">?</span>;
+            .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>obligs = <span class="kw">if let </span><span class="prelude-val">Some</span>(did) = callee_def_id {
             mk_obligations(genv, did, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)<span class="question-mark">?
@@ -1143,13 +1147,19 @@
                     .normalize_projections(
                         infcx.genv,
                         infcx.region_infcx,
-                        callsite_def_id,
+                        infcx.def_id,
                         infcx.refparams,
                     )<span class="question-mark">?</span>;
+                <span class="kw">let </span>term = projection_pred.term.normalize_projections(
+                    infcx.genv,
+                    infcx.region_infcx,
+                    infcx.def_id,
+                    infcx.refparams,
+                )<span class="question-mark">?</span>;
 
                 <span class="comment">// TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
-                </span>infcx.subtyping(rcx, <span class="kw-2">&amp;</span>impl_elem, <span class="kw-2">&amp;</span>projection_pred.term)<span class="question-mark">?</span>;
-                infcx.subtyping(rcx, <span class="kw-2">&amp;</span>projection_pred.term, <span class="kw-2">&amp;</span>impl_elem)<span class="question-mark">?</span>;
+                </span>infcx.subtyping(rcx, <span class="kw-2">&amp;</span>impl_elem, <span class="kw-2">&amp;</span>term)<span class="question-mark">?</span>;
+                infcx.subtyping(rcx, <span class="kw-2">&amp;</span>term, <span class="kw-2">&amp;</span>impl_elem)<span class="question-mark">?</span>;
             }
         }
         <span class="comment">// Replace evars

@@ -436,6 +436,11 @@
 <a href="#436" id="436">436</a>
 <a href="#437" id="437">437</a>
 <a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
@@ -567,6 +572,10 @@
                     term: <span class="self">self</span>.as_default().refine_ty(<span class="kw-2">&amp;</span>proj_pred.term)<span class="question-mark">?</span>,
                 };
                 rty::ClauseKind::Projection(pred)
+            }
+            rustc::ty::ClauseKind::TypeOutlives(pred) =&gt; {
+                <span class="kw">let </span>pred = rty::OutlivesPredicate(<span class="self">self</span>.as_default().refine_ty(<span class="kw-2">&amp;</span>pred.<span class="number">0</span>)<span class="question-mark">?</span>, pred.<span class="number">1</span>);
+                rty::ClauseKind::TypeOutlives(pred)
             }
         };
         <span class="kw">let </span>kind = rty::Binder::new(kind, List::empty());
@@ -720,6 +729,7 @@
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(rty::Ty::exists(ty)),
         }
     }
+
     <span class="kw">fn </span>refine_alias_kind(kind: <span class="kw-2">&amp;</span>rustc::ty::AliasKind) -&gt; rty::AliasKind {
         <span class="kw">match </span>kind {
             rustc::ty::AliasKind::Projection =&gt; rty::AliasKind::Projection,

@@ -947,6 +947,20 @@
 <a href="#947" id="947">947</a>
 <a href="#948" id="948">948</a>
 <a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_errors::{FluxSession, ResultExt};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_borrowck::consumers::BodyWithBorrowckFacts;
@@ -973,8 +987,8 @@
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
         Const, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
-        GenericPredicates, Generics, PolyFnSig, TraitPredicate, TraitRef, Ty, ValueConst,
-        VariantDef,
+        GenericPredicates, Generics, PolyFnSig, TraitPredicate, TraitRef, Ty,
+        TypeOutlivesPredicate, ValueConst, VariantDef,
     },
 };
 <span class="kw">use crate</span>::{
@@ -1798,6 +1812,13 @@
                 .emit(sess)<span class="question-mark">?</span>;
             ClauseKind::Projection(ProjectionPredicate { projection_ty, term })
         }
+        rustc_ty::ClauseKind::TypeOutlives(outlives_pred) =&gt; {
+            ClauseKind::TypeOutlives(
+                lower_type_outlives(tcx, outlives_pred)
+                    .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
+                    .emit(sess)<span class="question-mark">?</span>,
+            )
+        }
         <span class="kw">_ </span>=&gt; {
             <span class="kw">return </span><span class="prelude-val">Err</span>(sess.emit_err(errors::UnsupportedGenericBound::new(
                 span,
@@ -1806,6 +1827,13 @@
         }
     };
     <span class="prelude-val">Ok</span>(Clause::new(kind))
+}
+
+<span class="kw">fn </span>lower_type_outlives&lt;<span class="lifetime">&#39;tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    pred: rustc_ty::TypeOutlivesPredicate&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;TypeOutlivesPredicate, UnsupportedReason&gt; {
+    <span class="prelude-val">Ok</span>(rustc_ty::OutlivesPredicate(lower_ty(tcx, pred.<span class="number">0</span>)<span class="question-mark">?</span>, lower_region(<span class="kw-2">&amp;</span>pred.<span class="number">1</span>)<span class="question-mark">?</span>))
 }
 
 <span class="kw">mod </span>errors {

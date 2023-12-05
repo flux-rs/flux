@@ -715,6 +715,9 @@
 <a href="#715" id="715">715</a>
 <a href="#716" id="716">716</a>
 <a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
@@ -730,8 +733,8 @@
 <span class="kw">pub use </span>rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundRegionKind, BoundVar, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy, ParamTy,
-        RegionVid, ScalarInt, UintTy,
+        BoundRegionKind, BoundVar, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy,
+        OutlivesPredicate, ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
 <span class="kw">use </span>rustc_span::{symbol::kw, Symbol};
@@ -789,7 +792,10 @@
 </span><span class="kw">pub enum </span>ClauseKind {
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
+    TypeOutlives(TypeOutlivesPredicate),
 }
+
+<span class="kw">pub type </span>TypeOutlivesPredicate = OutlivesPredicate&lt;Ty, Region&gt;;
 
 <span class="attr">#[derive(PartialEq, Eq, Hash, Debug)]
 </span><span class="kw">pub struct </span>TraitPredicate {

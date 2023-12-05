@@ -1421,6 +1421,7 @@
 <a href="#1421" id="1421">1421</a>
 <a href="#1422" id="1422">1422</a>
 <a href="#1423" id="1423">1423</a>
+<a href="#1424" id="1424">1424</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
@@ -2033,8 +2034,9 @@
                 rty::ClauseKind::GeneratorOblig(gen_pred) =&gt; {
                     <span class="self">self</span>.check_oblig_generator_pred(rcx, <span class="kw-2">&amp;</span>obligs.snapshot, gen_pred)<span class="question-mark">?</span>;
                 }
-                rty::ClauseKind::Projection(<span class="kw">_</span>) =&gt; (),
-                rty::ClauseKind::Trait(<span class="kw">_</span>) =&gt; (),
+                rty::ClauseKind::Projection(<span class="kw">_</span>)
+                | rty::ClauseKind::Trait(<span class="kw">_</span>)
+                | rty::ClauseKind::TypeOutlives(<span class="kw">_</span>) =&gt; {}
             }
         }
         <span class="prelude-val">Ok</span>(())
