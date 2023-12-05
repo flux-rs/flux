@@ -873,7 +873,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let ty = self
                     .genv
                     .type_of(param.def_id)?
-                    .instantiate(&[], &[])
+                    .instantiate(&into, &[])
                     .into_ty();
                 into.push(rty::GenericArg::Ty(ty));
             } else {
