@@ -4,24 +4,22 @@ Flux is implemented as a compiler [driver](https://rustc-dev-guide.rust-lang.org
 
 ## Crates
 
-- `flux`: Contains the `flux-driver` binary.
-- `flux-attrs`: Implementation of user facing procedural macros for annotating programs with Flux specs.
-- `flux-attrs-proc-macros`: Procedural macro crate exporting the user facing procedural macros.
-- `flux-attrs-proc-macros-build`: Dummy crate used to pre-build the procedural macro crate with relevant features enabled. The main purpose of this crate is being able to use procedural macros in tests.
-- `flux-bin`: Contains the `cargo-flux` and `rustc-flux` binaries.
-- `flux-common`: Common utility definitions used across all crates.
-- `flux-config`: Crate containing logic associated with global configuration Flags that change the behavior of Flux, e.g, to enable or disable overflow checking.
-- `flux-desugar`: Implementation of name resolution and desugaring from Flux surface syntax into Flux high-level intermediate representation (`fhir`).
-- `flux-driver`: Main entry point to Flux. It contains the implementation of the [`Callbacks`](https://doc.rust-lang.org/nightly/nightly-rustc/rustc_driver/trait.Callbacks.html) trait.
-- `flux-errors`: Utility definitions for user facing error reporting.
-- `flux-fhir-analysis`: Implements the "analyses" performed in the `fhir`, most notably well-formedness checking and conversion from `fhir` into `rty`.
-- `flux-fixpoint`: Code to interact with the Liquid Fixpoint binary.
-- `flux-macros`: Procedural macros used internally to implement Flux.
-- `flux-metadata`: Logic for saving Flux crate metadata that can be used to import refined signatures from external crates.
-- `flux-middle`: This crate contains common type definitions that are used by the rest of Flux like the `rty` and `fhir` intermediate representations. Akin to [`rustc_middle`](https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/index.html).
-- `flux-refineck`: Implementation of refinement type checking.
-- `flux-syntax`: Definition of the surface syntax AST and parser.
-- `flux-tests`: Flux regression tests.
+- `crates/flux-bin`: Contains the `cargo-flux` and `rustc-flux` binaries used to launch the `flux-driver`.
+- `crates/flux-common`: Common utility definitions used across all crates.
+- `crates/flux-config`: Crate containing logic associated with global configuration flags that change the behavior of Flux, e.g, to enable or disable overflow checking.
+- `crates/flux-desugar`: Implementation of name resolution and desugaring from Flux surface syntax into Flux high-level intermediate representation (`fhir`). This includes name resolution.
+- `crates/flux-driver`: Main entry point to Flux. It contains the `flux-driver` binary and the implementation of the [`Callbacks`](https://doc.rust-lang.org/nightly/nightly-rustc/rustc_driver/trait.Callbacks.html) trait.
+- `crates/flux-errors`: Utility definitions for user facing error reporting.
+- `crates/flux-fhir-analysis`: Implements the "analyses" performed in the `fhir`, most notably well-formedness checking and conversion from `fhir` into `rty`.
+- `crates/flux-fixpoint`: Code to interact with the Liquid Fixpoint binary.
+- `crates/flux-macros`: Procedural macros used internally to implement Flux.
+- `crates/flux-metadata`: Logic for saving Flux crate metadata that can be used to import refined signatures from external crates.
+- `crates/flux-middle`: This crate contains common type definitions that are used by the rest of Flux like the `rty` and `fhir` intermediate representations. Akin to [`rustc_middle`](https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/index.html).
+- `crates/flux-refineck`: Implementation of refinement type checking.
+- `crates/flux-syntax`: Definition of the surface syntax AST and parser.
+- `crates/flux-tests`: Flux regression tests.
+- `lib/flux-attrs`: Implementation of user facing procedural macros for annotating programs with Flux specs.
+- `lib/flux-rs`: This is just a re-export of the macros implemented in `flux-attrs`. The intention is to eventually put Flux "standard library" here, i.e., a set of definitions that are useful when working with Flux.
 
 ## Intermediate Representations
 
