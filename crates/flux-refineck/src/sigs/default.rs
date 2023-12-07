@@ -4,7 +4,7 @@ use flux_middle::{
     rty::{BaseTy, BinOp, Expr, INT_TYS, UINT_TYS},
     rustc::mir,
 };
-use itertools::iproduct;
+use itertools::{chain, iproduct};
 
 use super::{Sig, SigTable};
 use crate::{
@@ -30,6 +30,7 @@ pub(super) static UN_OPS: LazyLock<SigTable<mir::UnOp, 1>> = LazyLock::new(|| {
 
     table.extend(mk_neg());
     table.extend([mk_not()]);
+    table.extend(mk_lnot());
 
     table
 });
@@ -165,4 +166,18 @@ fn mk_neg() -> impl Iterator<Item = (mir::UnOp, Sig<1>)> {
 pub(crate) fn mk_not() -> (mir::UnOp, Sig<1>) {
     define_btys! { let bool = BaseTy::Bool; }
     (mir::UnOp::Not, s!(fn(a: bool) -> bool[a.not()]))
+}
+
+pub(crate) fn mk_lnot() -> impl IntoIterator<Item = (mir::UnOp, Sig<1>)> {
+    let int_lnots = INT_TYS.map(|int_ty| {
+        define_btys! { let Int = BaseTy::Int(int_ty); };
+        (mir::UnOp::Not, s!(fn(a: Int) -> Int[E::tt()]))
+    });
+
+    let uint_lnots = UINT_TYS.map(|uint_ty| {
+        define_btys! { let Uint = BaseTy::Uint(uint_ty); };
+        (mir::UnOp::Not, s!(fn(a: Uint) -> Uint[E::tt()]))
+    });
+
+    chain!(int_lnots, uint_lnots)
 }
