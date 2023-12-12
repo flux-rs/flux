@@ -64,6 +64,18 @@ pub fn bitwise_shr_u32_u32(a: u32, b: u32) -> u32 {
     a >> b
 }
 
+// Bitwise UnOps
+#[flux::sig(fn(u32{v: v > 0}) -> u32)]
+pub fn bitwise_not_u32(a: u32) -> u32 {
+    !a
+}
+
+#[flux::sig(fn(i32{v: v > 0}) -> i32)]
+pub fn bitwise_not_i32(a: i32) -> i32 {
+    !a
+}
+
+
 // Logical BinOps
 #[flux::sig(fn(a: bool, b: bool) -> bool{v: v == a || v == b})]
 pub fn logical_or(a: bool, b: bool) -> bool {
@@ -79,3 +91,15 @@ pub fn logical_or_ft(a: bool, b: bool) -> bool {
 pub fn logical_or_ff(a: bool, b: bool) -> bool {
     a | b
 }
+
+// Logical UnOps
+#[flux::sig(fn(bool[true]) -> bool[false])]
+pub fn logical_not_t(a: bool) -> bool {
+    !a
+}
+
+#[flux::sig(fn(bool[false]) -> bool[true])]
+pub fn logical_not_f(a: bool) -> bool {
+    !a
+}
+

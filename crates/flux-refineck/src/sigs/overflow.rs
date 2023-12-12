@@ -29,6 +29,7 @@ pub(super) static UN_OPS: LazyLock<SigTable<mir::UnOp, 1>> = LazyLock::new(|| {
 
     table.extend(mk_neg());
     table.extend([super::default::mk_not()]);
+    table.extend(super::default::mk_lnot());
 
     table
 });
