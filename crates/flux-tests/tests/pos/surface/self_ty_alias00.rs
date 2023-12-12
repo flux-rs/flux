@@ -1,6 +1,6 @@
 #[flux::refined_by(n: int)]
 struct S<T> {
-    #[flux::field(i32[@n])]
+    #[flux::field(i32[n])]
     f1: i32,
     f2: T,
 }

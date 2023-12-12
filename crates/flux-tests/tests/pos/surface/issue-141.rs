@@ -5,7 +5,7 @@ use rvec::RVec;
 
 #[flux::refined_by(len: int)]
 pub struct Vecs {
-    #[flux::field(RVec<i32>[@len])]
+    #[flux::field(RVec<i32>[len])]
     pub my: RVec<i32>,
 }
 

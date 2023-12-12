@@ -18,16 +18,21 @@ You could for example check a file as a library instead of a binary like so
 rustc-flux --crate-type=lib path/to/test.rs
 ```
 
-## Running on a Crate: `cargo-flux`
+## Running on a package: `cargo-flux`
 
-You can use `cargo-flux` as you would use `cargo`. For the most part this means
-instead of running `cargo check`, you should run
+Flux is integrated with `cargo` and can be invoked in a package as follows:
 
-``` bash
-cargo-flux check
+```bash
+cargo flux
 ```
 
-in order to get `flux` to check your code.
+By default, Flux won't verify a package unless it's explicitly enabled in the manifest.
+To do so add the following to `Cargo.toml`:
+
+```toml
+[package.metadata.flux]
+enabled = true
+```
 
 ## A tiny example
 
@@ -88,8 +93,8 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
 ```json
 {
   "rust-analyzer.check.overrideCommand": [
-    "cargo-flux",
-    "check",
+    "cargo",
+    "flux",
     "--workspace",
     "--message-format=json-diagnostic-rendered-ansi"
   ]

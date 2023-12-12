@@ -407,7 +407,9 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     }
 
     fn unfold(&mut self, ty: &Ty) -> CheckerResult<Ty> {
-        if let TyKind::Indexed(BaseTy::Adt(adt, args), _) = ty.kind() && adt.is_box() {
+        if let TyKind::Indexed(BaseTy::Adt(adt, args), _) = ty.kind()
+            && adt.is_box()
+        {
             if self.in_ref.is_some() {
                 Ok(ty.clone())
             } else {
@@ -759,10 +761,9 @@ fn downcast_enum(
         .instantiate(args, &[])
         .replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
 
-    let (.., idx2) = variant_def.ret.expect_adt();
     // FIXME(nilehmann) flatten indices
     let exprs1 = idx1.expr.expect_tuple();
-    let exprs2 = idx2.expr.expect_tuple();
+    let exprs2 = variant_def.idx.expect_tuple();
     debug_assert_eq!(exprs1.len(), exprs2.len());
     let constr = Expr::and(iter::zip(exprs1, exprs2).filter_map(|(e1, e2)| {
         if !e1.is_abs() && !e2.is_abs() {

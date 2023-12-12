@@ -17,6 +17,7 @@
 //! than the surface syntax.
 
 pub mod lift;
+pub mod visit;
 
 use std::{
     borrow::{Borrow, Cow},
@@ -268,8 +269,15 @@ pub struct Ty {
 
 #[derive(Clone)]
 pub enum TyKind {
-    /// As a base type `bty` without any refinements is equivalent to `bty{vs : true}` we don't
-    /// technically need this variant, but we keep it around to simplify desugaring.
+    /// A type that parses as a [`BaseTy`] but was written without refinements. Most types in
+    /// this category are base types and will be converted into an [existential], e.g., `i32` is
+    /// converted into `∃v:int. i32[v]`. However, this category also contains generic variables
+    /// of kind [type] or [*special*]. We cannot distinguish these syntactially so we resolve them
+    /// later in the analysis.
+    ///
+    /// [existential]: crate::rty::TyKind::Exists
+    /// [type]: GenericParamKind::Type
+    /// [*special*]: GenericParamKind::SplTy
     BaseTy(BaseTy),
     Indexed(BaseTy, RefineArg),
     Exists(Vec<RefineParam>, Box<Ty>),
@@ -447,9 +455,48 @@ pub enum Res {
 pub struct RefineParam {
     pub ident: Ident,
     pub sort: Sort,
-    /// Whether the parameter was declared implicitly with `@` or `#` syntax
-    pub implicit: bool,
+    pub kind: ParamKind,
     pub fhir_id: FhirId,
+}
+
+impl RefineParam {
+    pub fn name(&self) -> Name {
+        self.ident.name
+    }
+
+    pub fn infer_mode(&self) -> InferMode {
+        self.kind.infer_mode(&self.sort)
+    }
+}
+
+/// How the declared parameter in the surface syntax. This is used to adjust how errors are reported
+/// and to control the [inference mode].
+///
+/// [inference mode]: InferMode
+#[derive(Debug, Clone, Copy)]
+pub enum ParamKind {
+    /// A parameter declared in an explicit scope
+    Explicit,
+    /// An implicitly scoped parameter declared with `@a` syntax
+    At,
+    /// An implicitly scoped parameter declared with `#a` syntax
+    Pound,
+    /// An implicitly scoped parameter declared with `x: T` syntax
+    Colon,
+}
+
+impl ParamKind {
+    fn is_implicit(&self) -> bool {
+        matches!(self, ParamKind::At | ParamKind::Pound | ParamKind::Colon)
+    }
+
+    pub fn infer_mode(&self, sort: &Sort) -> InferMode {
+        if sort.is_pred() && !self.is_implicit() {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
+        }
+    }
 }
 
 /// *Infer*ence *mode* for parameter at function calls
@@ -478,7 +525,6 @@ pub enum SortCtor {
     /// User defined opaque sort
     User {
         name: Symbol,
-        arity: usize,
     },
 }
 
@@ -497,7 +543,7 @@ pub enum Sort {
     Var(usize),
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
-    /// the List<Sort> is for the type parameters of (generic) record sorts
+    /// the `List<Sort>` is for the type parameters of (generic) record sorts
     Record(DefId, List<Sort>),
     /// The sort associated to a type variable
     Param(DefId),
@@ -505,6 +551,8 @@ pub enum Sort {
     Wildcard,
     /// Sort inference variable generated for a [Sort::Wildcard] during sort checking
     Infer(SortVid),
+    /// A sort that couldn't be generated because of an error.
+    Error,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -624,7 +672,7 @@ impl SortCtor {
         match self {
             SortCtor::Set => 1,
             SortCtor::Map => 2,
-            SortCtor::User { arity, .. } => *arity,
+            SortCtor::User { .. } => 0,
         }
     }
 }
@@ -731,16 +779,18 @@ impl Ident {
 /// in a definition.
 ///
 /// [early bound]: https://rustc-dev-guide.rust-lang.org/early-late-bound.html
-///
-/// Sort parameters e.g. #[flux::refined_by( elems: Set<T> )] tracks the mapping from
-/// bound Var -> Generic id. e.g. if we have RMap<K, V> refined_by(keys: Set<K>)
-/// then RMapIdx = forall #0. { keys: Set<#0> }
-/// and sort_params = vec![T]  i.e. maps Var(0) to T
-
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct RefinedBy {
     pub def_id: DefId,
     pub span: Span,
+    /// Tracks the mapping from bound var to generic def ids. e.g. if we have
+    ///
+    /// ```ignore
+    /// #[refined_by(keys: Set<K>)]
+    /// RMap<K, V> { ...}
+    /// ```
+    /// then the sort associated to `RMap` is of the form `forall #0. { keys: Set<#0> }`
+    /// and `sort_params` will be `vec![K]`,  i.e., it maps `Var(0)` to `K`.
     sort_params: Vec<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     index_params: FxIndexMap<Symbol, Sort>,
@@ -859,6 +909,14 @@ impl Sort {
         matches!(self, Self::Bool)
     }
 
+    /// Returns `true` if the sort is [`Wildcard`].
+    ///
+    /// [`Wildcard`]: Sort::Wildcard
+    #[must_use]
+    pub fn is_wildcard(&self) -> bool {
+        matches!(self, Self::Wildcard)
+    }
+
     pub fn is_numeric(&self) -> bool {
         matches!(self, Self::Int | Self::Real)
     }
@@ -887,16 +945,6 @@ impl Sort {
     /// replace all "sort-vars" (indexed 0...n-1) with the corresponding sort in `subst`
     fn subst(&self, subst: &[Sort]) -> Sort {
         match self {
-            Sort::Int
-            | Sort::Bool
-            | Sort::Real
-            | Sort::Loc
-            | Sort::Unit
-            | Sort::BitVec(_)
-            | Sort::Param(_)
-            | Sort::Wildcard
-            | Sort::Record(_, _)
-            | Sort::Infer(_) => self.clone(),
             Sort::Var(i) => subst[*i].clone(),
             Sort::App(c, args) => {
                 let args = args.iter().map(|arg| arg.subst(subst)).collect();
@@ -910,6 +958,17 @@ impl Sort {
                     bug!("unexpected subst in (nested) func-sort")
                 }
             }
+            Sort::Int
+            | Sort::Bool
+            | Sort::Real
+            | Sort::Loc
+            | Sort::Unit
+            | Sort::BitVec(_)
+            | Sort::Param(_)
+            | Sort::Wildcard
+            | Sort::Record(_, _)
+            | Sort::Infer(_)
+            | Sort::Error => self.clone(),
         }
     }
 }
@@ -933,20 +992,6 @@ impl ena::unify::UnifyKey for SortVid {
 }
 
 impl ena::unify::EqUnifyValue for Sort {}
-
-impl RefineParam {
-    pub fn name(&self) -> Name {
-        self.ident.name
-    }
-
-    pub fn infer_mode(&self) -> InferMode {
-        if self.sort.is_pred() && !self.implicit {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
-        }
-    }
-}
 
 impl From<PolyFuncSort> for Sort {
     fn from(fsort: PolyFuncSort) -> Self {
@@ -1694,6 +1739,7 @@ impl fmt::Debug for Sort {
             Sort::Wildcard => write!(f, "_"),
             Sort::Infer(vid) => write!(f, "{vid:?}"),
             Sort::App(ctor, args) => write!(f, "{ctor}<{}>", args.iter().join(", ")),
+            Sort::Error => write!(f, "err"),
         }
     }
 }

@@ -1,6 +1,6 @@
 #[flux::refined_by(a: int)]
 pub struct Range {
-    #[flux::field(i32[@a])]
+    #[flux::field(i32[a])]
     pub x: i32,
     #[flux::field(i32{v : a < v})]
     pub y: i32,

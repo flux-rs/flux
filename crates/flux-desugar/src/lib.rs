@@ -5,7 +5,7 @@
 //! Desugaring requires knowing the sort of each type so we can correctly resolve binders declared with
 //! @ syntax or arg syntax. In particular, to know the sort of a type parameter we need to know its
 //! kind because only type parameters of sort `base` can be refined. The essential function implementing
-//! this logic is [`GlobalEnv::sort_of_res`]. This function requires the generics for the item being
+//! this logic is [`GlobalEnv::sort_of_path`]. This function requires the generics for the item being
 //! desugared to be register in [`fhir::Map`], thus we need to make sure that when desugaring an item,
 //! generics are registered before desugaring the rest of the item.
 
@@ -18,7 +18,7 @@ extern crate rustc_hir;
 extern crate rustc_middle;
 extern crate rustc_span;
 
-use desugar::{Binders, DesugarCtxt};
+use desugar::RustItemCtxt;
 use flux_common::dbg;
 use flux_config as config;
 use flux_macros::fluent_messages;
@@ -28,7 +28,9 @@ use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 fluent_messages! { "../locales/en-US.ftl" }
 
 mod desugar;
+mod errors;
 pub mod resolver;
+mod sort_resolver;
 
 pub use desugar::{desugar_defn, desugar_qualifier, desugar_refined_by, func_def_to_func_decl};
 use flux_middle::{
@@ -50,13 +52,12 @@ pub fn desugar_struct_def(
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
-    let mut cx = DesugarCtxt::new(genv, owner_id, resolver_output, None);
+    let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
 
-    // Desugar and insert generics
     let predicates = cx.as_lift_cx().lift_predicates()?;
 
     // Desugar of struct_def needs to happen AFTER inserting generics. See #generics-and-desugaring
-    let struct_def = cx.desugar_struct_def(struct_def, &mut Binders::new())?;
+    let struct_def = cx.desugar_struct_def(struct_def)?;
     if config::dump_fhir() {
         dbg::dump_item_info(genv.tcx, owner_id, "fhir", &struct_def).unwrap();
     }
@@ -74,14 +75,12 @@ pub fn desugar_enum_def(
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
-    let mut cx = DesugarCtxt::new(genv, owner_id, resolver_output, None);
+    let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
 
-    // Desugar and inserting generics
-    let (generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
-    genv.map().insert_generics(def_id, generics);
+    let predicates = cx.as_lift_cx().lift_predicates()?;
 
-    // Desugar of enum def needs to happen AFTER inserting generics. See crate level comment
-    let enum_def = cx.desugar_enum_def(enum_def, &mut Binders::new())?;
+    // Desugar of enum_def needs to happen AFTER inserting generics. See #generics-and-desugaring
+    let enum_def = cx.desugar_enum_def(enum_def)?;
     if config::dump_fhir() {
         dbg::dump_item_info(genv.tcx, owner_id, "fhir", &enum_def).unwrap();
     }
@@ -100,14 +99,14 @@ pub fn desugar_type_alias(
     let def_id = owner_id.def_id;
 
     if let Some(ty_alias) = ty_alias {
-        let mut cx = DesugarCtxt::new(genv, owner_id, resolver_output, None);
+        let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
 
         // Desugar and insert generics
         let (generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
         genv.map().insert_generics(def_id, generics);
 
         // Desugar of type alias needs to happen AFTER desugaring generics. See crate level comment
-        let ty_alias = cx.desugar_type_alias(ty_alias, &mut Binders::new())?;
+        let ty_alias = cx.desugar_type_alias(ty_alias)?;
         if config::dump_fhir() {
             dbg::dump_item_info(genv.tcx, owner_id, "fhir", &ty_alias).unwrap();
         }
@@ -136,7 +135,7 @@ pub fn desugar_fn_sig(
     let def_id = owner_id.def_id;
     if let Some(fn_sig) = fn_sig {
         let mut opaque_tys = Default::default();
-        let mut cx = DesugarCtxt::new(genv, owner_id, resolver_output, Some(&mut opaque_tys));
+        let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, Some(&mut opaque_tys));
 
         // Desugar and insert generics
         let generics = if let Some(generics) = &fn_sig.generics {
@@ -147,7 +146,7 @@ pub fn desugar_fn_sig(
         genv.map().insert_generics(def_id, generics);
 
         // Desugar of fn_sig needs to happen AFTER inserting generics. See crate level comment
-        let (generic_preds, fn_sig) = cx.desugar_fn_sig(fn_sig, &mut Binders::new())?;
+        let (generic_preds, fn_sig) = cx.desugar_fn_sig(fn_sig)?;
 
         if config::dump_fhir() {
             dbg::dump_item_info(genv.tcx, def_id, "fhir", &fn_sig).unwrap();
@@ -185,7 +184,7 @@ pub fn desugar_generics_and_predicates(
         LiftCtxt::new(genv.tcx, genv.sess, owner_id, None).lift_generics_with_predicates()?;
 
     let generics = if let Some(generics) = generics {
-        let cx = DesugarCtxt::new(genv, owner_id, resolver_output, None);
+        let cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
         cx.desugar_generics(generics)?
     } else {
         lifted_generics

@@ -5,7 +5,6 @@ use std::{
 };
 
 use flux_common::index::{IndexGen, IndexVec};
-use flux_fixpoint as fixpoint;
 use flux_middle::rty::{
     box_args,
     evars::EVarSol,
@@ -18,7 +17,7 @@ use itertools::Itertools;
 
 use crate::{
     constraint_gen::Tag,
-    fixpoint_encoding::{sort_to_fixpoint, FixpointCtxt, TagIdx},
+    fixpoint_encoding::{fixpoint, sort_to_fixpoint, stitch, FixpointCtxt},
 };
 
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
@@ -129,7 +128,7 @@ impl RefineTree {
         self.root.borrow_mut().simplify();
     }
 
-    pub(crate) fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> fixpoint::Constraint<TagIdx> {
+    pub(crate) fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> fixpoint::Constraint {
         self.root
             .borrow()
             .to_fixpoint(cx)
@@ -249,7 +248,9 @@ impl<'rcx> RefineCtxt<'rcx> {
             }
 
             fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<!, ()> {
-                if let TyKind::Indexed(bty, idx) = ty.kind() && !idx.has_escaping_bvars() {
+                if let TyKind::Indexed(bty, idx) = ty.kind()
+                    && !idx.has_escaping_bvars()
+                {
                     for invariant in bty.invariants(self.overflow_checking) {
                         let invariant = invariant.pred.replace_bound_expr(&idx.expr);
                         self.rcx.assume_pred(invariant);
@@ -527,16 +528,15 @@ impl Node {
         }
     }
 
-    fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> Option<fixpoint::Constraint<TagIdx>> {
+    fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> Option<fixpoint::Constraint> {
         match &self.kind {
             NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(_, Sort::Loc) => {
                 children_to_fixpoint(cx, &self.children)
             }
             NodeKind::ForAll(name, sort) => {
-                let fresh = cx.fresh_name();
-                cx.with_name_map(*name, fresh, |cx| {
+                cx.with_name_map(*name, |cx, fresh| {
                     Some(fixpoint::Constraint::ForAll(
-                        fresh,
+                        fixpoint::Var::Local(fresh),
                         sort_to_fixpoint(sort),
                         fixpoint::Pred::TRUE,
                         Box::new(children_to_fixpoint(cx, &self.children)?),
@@ -587,7 +587,7 @@ impl Node {
 fn children_to_fixpoint(
     cx: &mut FixpointCtxt<Tag>,
     children: &[NodePtr],
-) -> Option<fixpoint::Constraint<TagIdx>> {
+) -> Option<fixpoint::Constraint> {
     let mut children = children
         .iter()
         .filter_map(|node| node.borrow().to_fixpoint(cx))
@@ -597,15 +597,6 @@ fn children_to_fixpoint(
         1 => children.pop(),
         _ => Some(fixpoint::Constraint::Conj(children)),
     }
-}
-
-fn stitch(
-    bindings: Vec<(fixpoint::Name, fixpoint::Sort, fixpoint::Expr)>,
-    c: fixpoint::Constraint<TagIdx>,
-) -> fixpoint::Constraint<TagIdx> {
-    bindings.into_iter().rev().fold(c, |c, (name, sort, e)| {
-        fixpoint::Constraint::ForAll(name, sort, fixpoint::Pred::Expr(e), Box::new(c))
-    })
 }
 
 struct ParentsIter {

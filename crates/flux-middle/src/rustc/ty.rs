@@ -6,7 +6,6 @@ use std::fmt;
 
 use flux_common::bug;
 use itertools::Itertools;
-use rustc_abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 use rustc_hir::def_id::DefId;
 use rustc_index::{IndexSlice, IndexVec};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -14,11 +13,12 @@ use rustc_middle::ty::{AdtFlags, ParamConst};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundVar, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy, ParamTy, RegionVid, ScalarInt,
-        UintTy,
+        BoundRegionKind, BoundVar, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy,
+        OutlivesPredicate, ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
 use rustc_span::{symbol::kw, Symbol};
+use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 
 use self::subst::Subst;
 use crate::{
@@ -37,27 +37,9 @@ pub struct EarlyBinder<T>(pub T);
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Binder<T>(T, List<BoundVariableKind>);
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub enum BoundVariableKind {
     Region(BoundRegionKind),
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
-pub enum BoundRegionKind {
-    BrAnon,
-    BrNamed(DefId, Symbol),
-    BrEnv,
-}
-
-impl BoundRegionKind {
-    pub fn to_rustc(self) -> rustc_middle::ty::BoundRegionKind {
-        use rustc_middle::ty;
-        match self {
-            BoundRegionKind::BrAnon => ty::BoundRegionKind::BrAnon(None),
-            BoundRegionKind::BrNamed(def_id, sym) => ty::BoundRegionKind::BrNamed(def_id, sym),
-            BoundRegionKind::BrEnv => ty::BoundRegionKind::BrEnv,
-        }
-    }
 }
 
 #[derive(Hash, Eq, PartialEq)]
@@ -90,7 +72,10 @@ pub struct Clause {
 pub enum ClauseKind {
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
+    TypeOutlives(TypeOutlivesPredicate),
 }
+
+pub type TypeOutlivesPredicate = OutlivesPredicate<Ty, Region>;
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct TraitPredicate {
@@ -163,8 +148,8 @@ pub enum TyKind {
     Slice(Ty),
     FnPtr(PolyFnSig),
     Closure(DefId, GenericArgs),
-    Generator(DefId, GenericArgs),
-    GeneratorWitness(Binder<List<Ty>>),
+    Coroutine(DefId, GenericArgs),
+    CoroutineWitness(DefId, GenericArgs),
     Alias(AliasKind, AliasTy),
     RawPtr(Ty, Mutability),
 }
@@ -257,7 +242,7 @@ pub struct FreeRegion {
     pub bound_region: BoundRegionKind,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct BoundRegion {
     pub var: BoundVar,
     pub kind: BoundRegionKind,
@@ -481,12 +466,12 @@ impl Ty {
         TyKind::Closure(def_id, args.into()).intern()
     }
 
-    pub fn mk_generator(def_id: DefId, args: impl Into<GenericArgs>) -> Ty {
-        TyKind::Generator(def_id, args.into()).intern()
+    pub fn mk_coroutine(def_id: DefId, args: impl Into<GenericArgs>) -> Ty {
+        TyKind::Coroutine(def_id, args.into()).intern()
     }
 
-    pub fn mk_generator_witness(args: Binder<List<Ty>>) -> Ty {
-        TyKind::GeneratorWitness(args).intern()
+    pub fn mk_generator_witness(def_id: DefId, args: GenericArgs) -> Ty {
+        TyKind::CoroutineWitness(def_id, args).intern()
     }
 
     pub fn mk_alias(kind: AliasKind, def_id: DefId, args: impl Into<GenericArgs>) -> Ty {
@@ -675,15 +660,19 @@ impl fmt::Debug for Ty {
                 }
                 Ok(())
             }
-            TyKind::Generator(did, args) => {
+            TyKind::Coroutine(did, args) => {
                 write!(f, "Generator {}", def_id_to_string(*did))?;
                 if !args.is_empty() {
                     write!(f, "<{:?}>", args.iter().format(", "))?;
                 }
                 Ok(())
             }
-            TyKind::GeneratorWitness(args) => {
-                write!(f, "GeneratorWitness {:?}", args)
+            TyKind::CoroutineWitness(did, args) => {
+                write!(f, "GeneratorWitness {}", def_id_to_string(*did))?;
+                if !args.is_empty() {
+                    write!(f, "<{:?}>", args.iter().format(", "))?;
+                }
+                Ok(())
             }
             TyKind::Alias(kind, alias_ty) => {
                 let def_id = alias_ty.def_id;

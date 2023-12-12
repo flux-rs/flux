@@ -33,6 +33,11 @@ pub unsafe fn test03_mut(p: *mut i32) -> &'static mut i32 {
     &mut *p
 }
 
+// Const to mut pointer
+pub unsafe fn test02_const_mut(p: *const i32) -> *mut i32 {
+    p as *mut i32
+}
+
 // `rustc` rejects the below code -- `p` is a `*const` pointer ... cannot be borrowed as mutable
 // Borrow from a pointer
 // unsafe fn test03_const(p: *const i32) -> &'static mut i32 {

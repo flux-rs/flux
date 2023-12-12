@@ -14,10 +14,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::GenericParamDefKind,
 };
-use rustc_data_structures::{
-    snapshot_map::{self, SnapshotMap},
-    unord::UnordMap,
-};
+use rustc_data_structures::snapshot_map::{self, SnapshotMap};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
 use rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
@@ -27,7 +24,6 @@ use self::sortck::InferCtxt;
 
 struct Wf<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
-    modes: UnordMap<fhir::Name, fhir::InferMode>,
     xi: XiCtxt,
 }
 
@@ -144,10 +140,10 @@ pub(crate) fn check_opaque_ty(
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
     let parent = genv.tcx.parent(owner_id.to_def_id());
-    if let Some(parent_local) = parent.as_local() &&
-       let Some(params) = genv.map().get_refine_params(genv.tcx, parent_local)
+    if let Some(parent_local) = parent.as_local()
+        && let Some(params) = genv.map().get_refine_params(genv.tcx, parent_local)
     {
-        wf.insert_refine_params(&mut infcx, params);
+        infcx.push_layer(params);
     }
     wf.check_opaque_ty(&mut infcx, opaque_ty)?;
     Ok(infcx.into_results())
@@ -161,7 +157,7 @@ pub(crate) fn check_fn_sig(
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
 
-    wf.insert_refine_params(&mut infcx, &fn_sig.params);
+    infcx.push_layer(&fn_sig.params);
 
     let args = fn_sig
         .args
@@ -192,14 +188,7 @@ pub(crate) fn check_fn_sig(
 
 impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn new(genv: &'a GlobalEnv<'a, 'tcx>) -> Self {
-        Wf { genv, modes: Default::default(), xi: Default::default() }
-    }
-
-    fn insert_refine_params(&mut self, infcx: &mut InferCtxt, params: &[fhir::RefineParam]) {
-        for param in params {
-            self.modes.insert(param.ident.name, param.infer_mode());
-        }
-        infcx.push_layer(params);
+        Wf { genv, xi: Default::default() }
     }
 
     fn check_params_are_determined(
@@ -209,7 +198,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         params.iter().try_for_each_exhaust(|param| {
             let determined = self.xi.remove(param.name());
-            if self.infer_mode(infcx, param.name()) == fhir::InferMode::EVar && !determined {
+            if infcx.infer_mode(param.ident) == fhir::InferMode::EVar && !determined {
                 return self.emit_err(errors::ParamNotDetermined::new(param.ident));
             }
             Ok(())
@@ -309,7 +298,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
         fn_sig.requires.iter().try_for_each_exhaust(|constr| {
             if let fhir::Constraint::Type(loc, _) = constr
-               && !output_locs.contains(&loc.name)
+                && !output_locs.contains(&loc.name)
             {
                 self.emit_err(errors::MissingEnsures::new(loc))
             } else {
@@ -337,8 +326,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => self.check_base_ty(infcx, bty),
             fhir::TyKind::Indexed(bty, idx) => {
-                let expected = self.sort_of_bty(bty);
-                self.check_refine_arg(infcx, idx, &expected)?;
+                if let Some(expected) = self.genv.sort_of_bty(bty) {
+                    self.check_refine_arg(infcx, idx, &expected)?;
+                }
                 self.check_base_ty(infcx, bty)
             }
             fhir::TyKind::Exists(params, ty) => {
@@ -498,7 +488,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
         let snapshot = self.xi.snapshot();
 
-        if let fhir::Res::Def(_kind, did) = &path.res /*&& !matches!(_kind, DefKind::TyParam) */ && !path.args.is_empty() {
+        if let fhir::Res::Def(_kind, did) = &path.res
+            && !path.args.is_empty()
+        {
             self.check_generic_args(infcx, *did, &path.args)?;
         }
         let bindings = self.check_type_bindings(infcx, &path.bindings);
@@ -568,10 +560,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::ExprKind::UnaryOp(_, e) => self.check_param_uses_expr(infcx, e, false),
             fhir::ExprKind::App(func, args) => {
                 if !is_top_level_conj
-                   && let fhir::Func::Var(var, _) = func
-                   && let fhir::InferMode::KVar = self.modes[&var.name]
+                    && let fhir::Func::Var(var, _) = func
+                    && let fhir::InferMode::KVar = infcx.infer_mode(*var)
                 {
-                    return self.emit_err(errors::InvalidParamPos::new(var.span(), &infcx[var.name]));
+                    return self
+                        .emit_err(errors::InvalidParamPos::new(var.span(), &infcx[var.name]));
                 }
                 args.iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses_expr(infcx, arg, false))
@@ -595,13 +588,6 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 Ok(())
             }
         }
-    }
-
-    fn infer_mode(&self, infcx: &InferCtxt, name: fhir::Name) -> fhir::InferMode {
-        self.modes
-            .get(&name)
-            .copied()
-            .unwrap_or_else(|| infcx[name].default_infer_mode())
     }
 
     fn sort_of_bty(&self, bty: &fhir::BaseTy) -> fhir::Sort {

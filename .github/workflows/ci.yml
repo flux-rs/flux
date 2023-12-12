@@ -31,13 +31,7 @@ jobs:
         with:
           enable-stack: true
           stack-version: "latest"
-
-      - name: Compile fixpoint
-        if: steps.cache-fixpoint.outputs.cache-hit != 'true'
-        run: |
-          cd liquid-fixpoint
-          stack install --fast --local-bin-path "$local_binaries_path"
-
+      
       - name: Install Z3
         uses: cda-tum/setup-z3@v1.0.9
         with:
@@ -45,6 +39,12 @@ jobs:
           platform: linux
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compile fixpoint
+        if: steps.cache-fixpoint.outputs.cache-hit != 'true'
+        run: |
+          cd liquid-fixpoint
+          stack install --fast --local-bin-path "$local_binaries_path" --flag liquid-fixpoint:-link-z3-as-a-library
 
       - name: Add Fixpoint to the path
         run: |

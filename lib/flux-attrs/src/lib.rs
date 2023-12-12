@@ -3,7 +3,7 @@ mod extern_spec;
 
 use proc_macro2::{Ident, TokenStream, TokenTree};
 use quote::{quote, quote_spanned, ToTokens};
-use syn::{parse_quote_spanned, spanned::Spanned, Attribute, ItemEnum, ItemStruct};
+use syn::{parse_quote, spanned::Spanned, Attribute, ItemEnum, ItemStruct};
 
 pub fn extern_spec(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     extern_spec::transform_extern_spec(attr, tokens).unwrap_or_else(|err| err.to_compile_error())
@@ -35,16 +35,8 @@ pub fn refined_by(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     match &mut item {
-        syn::Item::Enum(item_enum) => {
-            if let Err(err) = refined_by_enum(item_enum) {
-                return err.into_compile_error();
-            }
-        }
-        syn::Item::Struct(item_struct) => {
-            if let Err(err) = refined_by_struct(item_struct) {
-                return err.into_compile_error();
-            }
-        }
+        syn::Item::Enum(item_enum) => refined_by_enum(item_enum),
+        syn::Item::Struct(item_struct) => refined_by_struct(item_struct),
         _ => return syn::Error::new(span, "expected struct or enum").to_compile_error(),
     }
 
@@ -58,30 +50,28 @@ pub fn refined_by(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-fn refined_by_enum(item_enum: &mut ItemEnum) -> syn::Result<()> {
+fn refined_by_enum(item_enum: &mut ItemEnum) {
     for variant in &mut item_enum.variants {
-        flux_tool_attrs(&mut variant.attrs, "variant")?;
+        flux_tool_attrs(&mut variant.attrs, &["variant"]);
     }
-    Ok(())
 }
 
-fn refined_by_struct(item_struct: &mut ItemStruct) -> syn::Result<()> {
+fn refined_by_struct(item_struct: &mut ItemStruct) {
     for field in &mut item_struct.fields {
-        flux_tool_attrs(&mut field.attrs, "field")?;
+        flux_tool_attrs(&mut field.attrs, &["field"]);
     }
-    Ok(())
 }
 
-fn flux_tool_attrs(attrs: &mut Vec<Attribute>, name: &str) -> syn::Result<()> {
+fn flux_tool_attrs(attrs: &mut Vec<Attribute>, names: &[&str]) {
     let mut j = 0;
     for i in 0..attrs.len() {
         if cfg!(flux_sysroot) {
-            if attrs[i].meta.path().is_ident(name) {
-                attrs[i] = flux_tool_attr(&attrs[i])?;
+            if path_is_one_of(attrs[i].path(), names) {
+                flux_tool_attr(&mut attrs[i]);
                 attrs.swap(i, j);
                 j += 1;
             }
-        } else if !attrs[i].meta.path().is_ident(name) {
+        } else if !path_is_one_of(attrs[i].path(), names) {
             attrs.swap(i, j);
             j += 1;
         }
@@ -89,15 +79,19 @@ fn flux_tool_attrs(attrs: &mut Vec<Attribute>, name: &str) -> syn::Result<()> {
     if !cfg!(flux_sysroot) {
         attrs.truncate(j);
     }
-    Ok(())
 }
 
-fn flux_tool_attr(attr: &Attribute) -> syn::Result<Attribute> {
-    let metalist = &attr.meta.require_list()?;
-    let tokens = &metalist.tokens;
-    let path = &metalist.path;
-    let span = attr.span();
-    Ok(parse_quote_spanned!(span=>#[flux_tool::#path(#tokens)]))
+fn path_is_one_of(path: &syn::Path, idents: &[&str]) -> bool {
+    idents.iter().any(|ident| path.is_ident(ident))
+}
+
+fn flux_tool_attr(attr: &mut Attribute) {
+    let path = match &mut attr.meta {
+        syn::Meta::Path(path) => path,
+        syn::Meta::List(metalist) => &mut metalist.path,
+        syn::Meta::NameValue(namevalue) => &mut namevalue.path,
+    };
+    *path = parse_quote!(flux_tool::#path);
 }
 
 pub fn flux(tokens: TokenStream) -> TokenStream {

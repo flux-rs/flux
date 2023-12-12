@@ -6,9 +6,9 @@ pub struct Chair {
 
 #[flux::refined_by(x:int, y:int)]
 pub struct Pair {
-    #[flux::field(i32[@x])]
+    #[flux::field(i32[x])]
     pub x: i32,
-    #[flux::field(i32[@y])]
+    #[flux::field(i32[y])]
     pub y: i32,
 }
 
@@ -39,5 +39,11 @@ pub fn use_chair(c: Chair) -> i32 {
 
 #[flux::sig(fn(f32{v : v > 0}) -> i32[0])] //~ ERROR mismatched sorts
 fn ira(f: f32) -> i32 {
+    0
+}
+
+// We should improve this error message it currently says expected int but found err
+#[flux::sig(fn(x: T) -> i32[x])] //~ ERROR mismatched sorts
+fn generic<T>(x: T) -> i32 {
     0
 }

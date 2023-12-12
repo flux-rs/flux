@@ -244,7 +244,11 @@ fn into_rustc_alias_ty<'tcx>(
     tcx: TyCtxt<'tcx>,
     alias_ty: &AliasTy,
 ) -> rustc_middle::ty::AliasTy<'tcx> {
-    tcx.mk_alias_ty(alias_ty.def_id, into_rustc_generic_args(tcx, &alias_ty.args))
+    rustc_middle::ty::AliasTy::new(
+        tcx,
+        alias_ty.def_id,
+        into_rustc_generic_args(tcx, &alias_ty.args),
+    )
 }
 
 fn into_rustc_alias_kind(kind: &AliasKind) -> rustc_middle::ty::AliasKind {
@@ -289,13 +293,13 @@ fn into_rustc_bty<'tcx>(tcx: TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::Ty
         BaseTy::Array(_, _) => todo!(),
         BaseTy::Never => tcx.types.never,
         BaseTy::Closure(_, _) => todo!(),
-        BaseTy::Generator(def_id, args) => {
+        BaseTy::Coroutine(def_id, args) => {
             todo!("Generator {:?} {:?}", def_id, args)
             // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
             // let args = tcx.mk_args_from_iter(args);
             // ty::Ty::new_generator(*tcx, *def_id, args, mov)
         }
-        BaseTy::GeneratorWitness(_) => todo!(),
+        BaseTy::CoroutineWitness(..) => todo!(),
     }
 }
 
@@ -312,13 +316,13 @@ fn into_rustc_region(tcx: TyCtxt, re: Region) -> rustc_middle::ty::Region {
         Region::ReStatic => tcx.lifetimes.re_static,
         Region::ReVar(rvid) => rustc_middle::ty::Region::new_var(tcx, rvid),
         Region::ReFree(FreeRegion { scope, bound_region }) => {
-            rustc_middle::ty::Region::new_free(tcx, scope, bound_region.to_rustc())
+            rustc_middle::ty::Region::new_free(tcx, scope, bound_region)
         }
     }
 }
 
 fn into_rustc_bound_region(bound_region: BoundRegion) -> rustc_middle::ty::BoundRegion {
-    rustc_middle::ty::BoundRegion { var: bound_region.var, kind: bound_region.kind.to_rustc() }
+    rustc_middle::ty::BoundRegion { var: bound_region.var, kind: bound_region.kind }
 }
 
 #[derive(Debug)]

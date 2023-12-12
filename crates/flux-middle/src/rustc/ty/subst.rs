@@ -29,8 +29,10 @@ impl Subst for Ty {
             TyKind::Tuple(tys) => Ty::mk_tuple(tys.subst(args)),
             TyKind::Slice(ty) => Ty::mk_slice(ty.subst(args)),
             TyKind::Closure(def_id, args2) => Ty::mk_closure(*def_id, args2.subst(args)),
-            TyKind::Generator(def_id, args2) => Ty::mk_generator(*def_id, args2.subst(args)),
-            TyKind::GeneratorWitness(args2) => Ty::mk_generator_witness(args2.subst(args)),
+            TyKind::Coroutine(def_id, args2) => Ty::mk_coroutine(*def_id, args2.subst(args)),
+            TyKind::CoroutineWitness(def_id, args2) => {
+                Ty::mk_generator_witness(*def_id, args2.subst(args))
+            }
             TyKind::Alias(kind, alias_ty) => {
                 let def_id = alias_ty.def_id;
                 Ty::mk_alias(*kind, def_id, alias_ty.args.subst(args))

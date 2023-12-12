@@ -16,7 +16,7 @@ use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{ESpan, Expr, ExprKind, HoleKind, KVar, KVid, Loc, Name, Path, Var};
-use flux_common::{bug, index::IndexGen};
+use flux_common::bug;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 pub use normalize::Defns;
@@ -24,11 +24,11 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
-use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::ParamConst;
 pub use rustc_middle::{
     mir::Mutability,
-    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
+    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, OutlivesPredicate, ParamTy, ScalarInt, UintTy},
 };
 use rustc_span::Symbol;
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
@@ -105,8 +105,11 @@ pub enum ClauseKind {
     FnTrait(FnTraitPredicate),
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
+    TypeOutlives(TypeOutlivesPredicate),
     GeneratorOblig(GeneratorObligPredicate),
 }
+
+pub type TypeOutlivesPredicate = OutlivesPredicate<Ty, Region>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TraitPredicate {
@@ -144,7 +147,7 @@ pub struct GeneratorObligPredicate {
 pub enum SortCtor {
     Set,
     Map,
-    User { name: Symbol, arity: usize },
+    User { name: Symbol },
 }
 
 /// [SortVar] are used for polymorphic sorts (Set, Map etc.) and they should occur
@@ -234,8 +237,10 @@ pub type PolyVariant = Binder<VariantSig>;
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct VariantSig {
+    pub adt_def: AdtDef,
+    pub args: GenericArgs,
     pub fields: List<Ty>,
-    pub ret: Ty,
+    pub idx: Expr,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
@@ -253,7 +258,7 @@ pub struct Binder<T> {
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct EarlyBinder<T>(pub T);
 
-#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Encodable, Decodable)]
 pub enum TupleTree<T>
 where
     [TupleTree<T>]: Internable,
@@ -367,8 +372,8 @@ pub enum BaseTy {
     Array(Ty, Const),
     Never,
     Closure(DefId, List<Ty>),
-    Generator(DefId, GenericArgs),
-    GeneratorWitness(Binder<List<Ty>>),
+    Coroutine(DefId, GenericArgs),
+    CoroutineWitness(DefId, GenericArgs),
     Param(ParamTy),
 }
 
@@ -723,21 +728,6 @@ impl FuncSort {
     }
 }
 
-impl Qualifier {
-    pub fn with_fresh_fvars(&self) -> (Vec<(Name, Sort)>, Expr) {
-        let name_gen = IndexGen::new();
-        let mut params = vec![];
-        let body = self.body.replace_bound_exprs_with(|sort, _| {
-            Expr::fold_sort(sort, |s| {
-                let fresh = name_gen.fresh();
-                params.push((fresh, s.clone()));
-                Expr::fvar(fresh)
-            })
-        });
-        (params, body)
-    }
-}
-
 impl BoundVariableKind {
     fn expect_refine(&self) -> (&Sort, InferMode) {
         if let BoundVariableKind::Refine(sort, mode) = self {
@@ -745,6 +735,10 @@ impl BoundVariableKind {
         } else {
             bug!("expected `BoundVariableKind::Refine`")
         }
+    }
+
+    pub fn expect_sort(&self) -> &Sort {
+        self.expect_refine().0
     }
 }
 
@@ -822,6 +816,10 @@ impl<T> EarlyBinder<T> {
 
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> EarlyBinder<U> {
         EarlyBinder(f(self.0))
+    }
+
+    pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<EarlyBinder<U>, E> {
+        Ok(EarlyBinder(f(self.0)?))
     }
 
     pub fn skip_binder(self) -> T {
@@ -944,12 +942,17 @@ impl EarlyBinder<GenericPredicates> {
 }
 
 impl VariantSig {
-    pub fn new(fields: Vec<Ty>, ret: Ty) -> Self {
-        VariantSig { fields: List::from_vec(fields), ret }
+    pub fn new(adt_def: AdtDef, args: GenericArgs, fields: List<Ty>, idx: Expr) -> Self {
+        VariantSig { adt_def, args, fields, idx }
     }
 
     pub fn fields(&self) -> &[Ty] {
         &self.fields
+    }
+
+    pub fn ret(&self) -> Ty {
+        let bty = BaseTy::Adt(self.adt_def.clone(), self.args.clone());
+        Ty::indexed(bty, self.idx.clone())
     }
 }
 
@@ -1139,9 +1142,9 @@ impl<T, E> Opaqueness<Result<T, E>> {
 
 impl EarlyBinder<PolyVariant> {
     pub fn to_poly_fn_sig(&self) -> EarlyBinder<PolyFnSig> {
-        self.as_ref().map(|poly_fn_sig| {
-            poly_fn_sig.as_ref().map(|variant| {
-                let ret = variant.ret.shift_in_escaping(1);
+        self.as_ref().map(|poly_variant| {
+            poly_variant.as_ref().map(|variant| {
+                let ret = variant.ret().shift_in_escaping(1);
                 let output = Binder::new(FnOutput::new(ret, vec![]), List::empty());
                 FnSig::new(vec![], variant.fields.clone(), output)
             })
@@ -1273,7 +1276,7 @@ impl Ty {
     }
 
     pub fn generator(did: DefId, args: impl Into<List<GenericArg>>) -> Ty {
-        BaseTy::Generator(did, args.into()).into_ty()
+        BaseTy::Coroutine(did, args.into()).into_ty()
     }
 
     pub fn never() -> Ty {
@@ -1504,8 +1507,8 @@ impl BaseTy {
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
-            | BaseTy::Generator(_, _)
-            | BaseTy::GeneratorWitness(_)
+            | BaseTy::Coroutine(_, _)
+            | BaseTy::CoroutineWitness(_, _)
             | BaseTy::Never => Sort::unit(),
         }
     }
@@ -1550,7 +1553,7 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
                     },
                     Invariant {
                         pred: Binder::with_sort(
-                            Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::uint_max(uint_ty), None),
+                            Expr::binary_op(BinOp::Le, Expr::nu(), Expr::uint_max(uint_ty), None),
                             Sort::Int,
                         ),
                     },
@@ -1582,7 +1585,7 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
                     },
                     Invariant {
                         pred: Binder::with_sort(
-                            Expr::binary_op(BinOp::Lt, Expr::nu(), Expr::int_max(int_ty), None),
+                            Expr::binary_op(BinOp::Le, Expr::nu(), Expr::int_max(int_ty), None),
                             Sort::Int,
                         ),
                     },
@@ -1685,6 +1688,7 @@ mod pretty {
                 ClauseKind::Trait(pred) => w!("Trait ({pred:?})"),
                 ClauseKind::Projection(pred) => w!("Projection ({pred:?})"),
                 ClauseKind::GeneratorOblig(pred) => w!("Projection ({pred:?})"),
+                ClauseKind::TypeOutlives(pred) => w!("Outlives ({:?}, {:?})", &pred.0, &pred.1),
             }
         }
     }
@@ -1961,7 +1965,9 @@ mod pretty {
                         go(cx, f, is_binder, e)?;
                         w!(",")?;
                     }
-                } else if let Some(true) = is_binder.as_leaf() && !cx.hide_binder {
+                } else if let Some(true) = is_binder.as_leaf()
+                    && !cx.hide_binder
+                {
                     w!("@{:?}", expr)?;
                 } else {
                     w!("{:?}", expr)?;
@@ -2037,8 +2043,8 @@ mod pretty {
                 BaseTy::Closure(did, args) => {
                     w!("Closure {:?}<{:?}>", did, args)
                 }
-                BaseTy::Generator(did, args) => {
-                    w!("Generator {:?}", did)?;
+                BaseTy::Coroutine(did, args) => {
+                    w!("Coroutine({:?})", did)?;
                     let args = args
                         .iter()
                         .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
@@ -2048,8 +2054,16 @@ mod pretty {
                     }
                     Ok(())
                 }
-                BaseTy::GeneratorWitness(args) => {
-                    w!("GeneratorWitness<{:?}>", args)
+                BaseTy::CoroutineWitness(did, args) => {
+                    w!("CoroutineWitness({:?})", did)?;
+                    let args = args
+                        .iter()
+                        .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
+                        .collect_vec();
+                    if !args.is_empty() {
+                        w!("<{:?}>", join!(", ", args))?;
+                    }
+                    Ok(())
                 }
             }
         }
@@ -2087,7 +2101,7 @@ mod pretty {
     impl Pretty for VariantSig {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("({:?}) -> {:?}", join!(", ", self.fields()), &self.ret)
+            w!("({:?}) -> {:?}", join!(", ", self.fields()), &self.idx)
         }
     }
 

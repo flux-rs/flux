@@ -17,7 +17,7 @@ use rustc_hir::{
     EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
 };
 use rustc_middle::ty::{ScalarInt, TyCtxt};
-use rustc_span::{Span, Symbol};
+use rustc_span::{Span, Symbol, SyntaxContext};
 
 pub(crate) struct SpecCollector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
@@ -249,7 +249,14 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         self.specs.structs.insert(
             owner_id,
-            surface::StructDef { generics, refined_by, fields, opaque, invariants },
+            surface::StructDef {
+                generics,
+                refined_by,
+                fields,
+                opaque,
+                invariants,
+                node_id: self.parse_sess.next_node_id(),
+            },
         );
 
         Ok(())
@@ -263,10 +270,18 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let attrs = self.tcx.hir().attrs(field.hir_id);
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
-        if opaque && let Some(span) = attrs.contains(attr_name!(Field)) {
-            return Err(self.emit_err(errors::AttrOnOpaque::new(span, field)))
+        let field_attr = attrs.field();
+
+        // We warn if a struct marked as opaque has a refined type annotation. We allow unrefined
+        // annotations, because the `flux!` macro unconditionally adds a `#[flux_tool::field(..)]`
+        // annotation, even if the struct is opaque.
+        if opaque
+            && let Some(ty) = field_attr.as_ref()
+            && ty.is_refined()
+        {
+            return Err(self.emit_err(errors::AttrOnOpaque::new(ty.span, field)));
         }
-        Ok(attrs.field())
+        Ok(field_attr)
     }
 
     fn parse_enum_def(
@@ -286,9 +301,15 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let invariants = attrs.invariants();
 
-        self.specs
-            .enums
-            .insert(owner_id, surface::EnumDef { refined_by, variants, invariants });
+        self.specs.enums.insert(
+            owner_id,
+            surface::EnumDef {
+                refined_by,
+                variants,
+                invariants,
+                node_id: self.parse_sess.next_node_id(),
+            },
+        );
         Ok(())
     }
 
@@ -477,7 +498,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         parser: impl FnOnce(&mut ParseSess, &TokenStream, Span) -> ParseResult<T>,
         ctor: impl FnOnce(T) -> FluxAttrKind,
     ) -> Result<FluxAttrKind, ErrorGuaranteed> {
-        parser(&mut self.parse_sess, &dargs.tokens, dargs.dspan.entire())
+        let entire = dargs.dspan.entire().with_ctxt(SyntaxContext::root());
+        parser(&mut self.parse_sess, &dargs.tokens, entire)
             .map(ctor)
             .map_err(|err| self.emit_err(errors::SyntaxErr::from(err)))
     }
@@ -690,15 +712,6 @@ impl FluxAttrs {
 
     fn extern_spec(&mut self) -> bool {
         read_flag!(self, ExternSpec)
-    }
-
-    fn contains(&self, attr: &str) -> Option<Span> {
-        self.map.get(attr).and_then(|attrs| {
-            match &attrs[..] {
-                [attr] => Some(attr.span),
-                _ => None,
-            }
-        })
     }
 }
 

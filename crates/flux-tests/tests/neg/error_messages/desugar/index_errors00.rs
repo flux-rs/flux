@@ -1,8 +1,8 @@
 #[flux::refined_by(x:int, y:int)]
 pub struct Pair {
-    #[flux::field(i32[@x])]
+    #[flux::field(i32[x])]
     pub x: i32,
-    #[flux::field(i32[@y])]
+    #[flux::field(i32[y])]
     pub y: i32,
 }
 
@@ -38,9 +38,4 @@ pub struct Chair {
 #[flux::sig(fn () -> Chair[0])] //~ ERROR this type takes 0 refinement arguments but 1 was found
 pub fn mk_chair() -> Chair {
     Chair { x: 0 }
-}
-
-#[flux::sig(fn(x: T) -> i32[x])] //~ ERROR invalid use of refinement parameter
-fn generic<T>(x: T) -> i32 {
-    0
 }

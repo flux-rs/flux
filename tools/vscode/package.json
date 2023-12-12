@@ -1,6 +1,6 @@
 {
-  "name": "flux-dev",
-  "displayName": "flux-dev",
+  "name": "flux",
+  "displayName": "flux",
   "description": "",
   "version": "0.0.1",
   "repository": "https://github.com/flux/flux",
@@ -29,6 +29,13 @@
         "language": "fluxc",
         "scopeName": "source.fluxc",
         "path": "./syntaxes/fluxc.tmLanguage.json"
+      },
+      {
+        "injectTo": [
+          "source.rust"
+        ],
+        "scopeName": "flux-keywords.injection",
+        "path": "./syntaxes/flux-keywords.tmLanguage.json"
       }
     ]
   }

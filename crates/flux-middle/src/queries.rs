@@ -296,9 +296,8 @@ impl<'tcx> Queries<'tcx> {
                             .iter()
                             .map(|field| Ok(genv.lower_type_of(field.did)?.skip_binder()))
                             .try_collect_vec::<_, QueryErr>()?;
-                        let ret = genv.lower_type_of(def_id)?.skip_binder();
                         Refiner::default(genv, &genv.generics_of(def_id)?)
-                            .refine_variant_def(&fields, &ret)
+                            .refine_variant_def(def_id, &fields)
                     })
                     .try_collect()?;
                 Ok(rty::Opaqueness::Transparent(rty::EarlyBinder(variants)))

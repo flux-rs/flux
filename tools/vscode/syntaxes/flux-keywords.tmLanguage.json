@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Flux FKeywords",
+  "injectionSelector": "L:source.rust",
+  "patterns": [
+    {
+      "include": "#keywords"
+    }
+  ],
+  "repository": {
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.other.flux",
+          "match": "\\bstrg|requires|ensures|refined by\\b"
+        }
+      ]
+    }
+  },
+  "scopeName": "flux-keywords.injection"
+}

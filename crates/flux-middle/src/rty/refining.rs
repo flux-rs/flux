@@ -130,6 +130,10 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 };
                 rty::ClauseKind::Projection(pred)
             }
+            rustc::ty::ClauseKind::TypeOutlives(pred) => {
+                let pred = rty::OutlivesPredicate(self.as_default().refine_ty(&pred.0)?, pred.1);
+                rty::ClauseKind::TypeOutlives(pred)
+            }
         };
         let kind = rty::Binder::new(kind, List::empty());
         Ok(Some(rty::Clause { kind }))
@@ -176,19 +180,17 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
 
     pub(crate) fn refine_variant_def(
         &self,
+        adt_def_id: DefId,
         fields: &[rustc::ty::Ty],
-        ret: &rustc::ty::Ty,
     ) -> QueryResult<rty::PolyVariant> {
+        let adt_def = self.adt_def(adt_def_id)?;
         let fields = fields.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
-        let rustc::ty::TyKind::Adt(adt_def, args) = ret.kind() else {
-            bug!();
-        };
-        let args = self.iter_with_generic_params(self.generics, args, |param, arg| {
-            self.refine_generic_arg(param, arg)
-        })?;
-        let bty = rty::BaseTy::adt(self.adt_def(adt_def.did())?, args);
-        let ret = rty::Ty::indexed(bty, rty::Expr::unit());
-        let value = rty::VariantSig::new(fields, ret);
+        let value = rty::VariantSig::new(
+            adt_def,
+            rty::GenericArgs::identity_for_item(self.genv, adt_def_id)?,
+            fields,
+            rty::Expr::unit(),
+        );
         Ok(rty::Binder::new(value, List::empty()))
     }
 
@@ -284,6 +286,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             _ => Ok(rty::Ty::exists(ty)),
         }
     }
+
     fn refine_alias_kind(kind: &rustc::ty::AliasKind) -> rty::AliasKind {
         match kind {
             rustc::ty::AliasKind::Projection => rty::AliasKind::Projection,
@@ -302,12 +305,19 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                     .try_collect()?;
                 rty::BaseTy::Closure(*did, upvar_tys)
             }
-            rustc::ty::TyKind::Generator(did, args) => {
+            rustc::ty::TyKind::Coroutine(did, args) => {
                 let args = args
                     .iter()
                     .map(|arg| self.refine_generic_arg_raw(arg))
                     .try_collect()?;
-                rty::BaseTy::Generator(*did, args)
+                rty::BaseTy::Coroutine(*did, args)
+            }
+            rustc::ty::TyKind::CoroutineWitness(did, args) => {
+                let args = args
+                    .iter()
+                    .map(|arg| self.refine_generic_arg_raw(arg))
+                    .try_collect()?;
+                rty::BaseTy::CoroutineWitness(*did, args)
             }
             rustc::ty::TyKind::Never => rty::BaseTy::Never,
             rustc::ty::TyKind::Ref(r, ty, mutbl) => {
@@ -352,12 +362,6 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             rustc::ty::TyKind::FnPtr(_) => todo!("refine_ty: FnSig"),
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
-            }
-            rustc::ty::TyKind::GeneratorWitness(args) => {
-                let args = self.refine_binders(args, |tys| {
-                    Ok(List::from_vec(tys.iter().map(|ty| self.refine_ty(ty)).try_collect_vec()?))
-                })?;
-                rty::BaseTy::GeneratorWitness(args)
             }
         };
         Ok((self.refine)(bty))

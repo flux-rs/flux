@@ -25,13 +25,16 @@ use crate::{
 };
 
 #[derive(Default)]
-pub struct FluxCallbacks;
+pub struct FluxCallbacks {
+    pub full_compilation: bool,
+    pub verify: bool,
+}
 
 impl Callbacks for FluxCallbacks {
     fn config(&mut self, config: &mut rustc_interface::interface::Config) {
         assert!(config.override_queries.is_none());
 
-        config.override_queries = Some(|_, local, _| {
+        config.override_queries = Some(|_, local| {
             local.mir_borrowck = mir_borrowck;
         });
     }
@@ -41,19 +44,30 @@ impl Callbacks for FluxCallbacks {
         compiler: &Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
+        if self.verify {
+            self.verify(compiler, queries);
+        }
+
+        if self.full_compilation {
+            Compilation::Continue
+        } else {
+            Compilation::Stop
+        }
+    }
+}
+
+impl FluxCallbacks {
+    fn verify<'tcx>(&self, compiler: &Compiler, queries: &'tcx Queries<'tcx>) {
         if compiler
             .session()
             .diagnostic()
             .has_errors_or_lint_errors()
             .is_some()
         {
-            return Compilation::Stop;
+            return;
         }
 
         queries.global_ctxt().unwrap().enter(|tcx| {
-            if !is_tool_registered(tcx) {
-                return;
-            }
             let sess = FluxSession::new(
                 &tcx.sess.opts,
                 tcx.sess.parse_sess.clone_source_map(),
@@ -62,8 +76,6 @@ impl Callbacks for FluxCallbacks {
             let _ = check_crate(tcx, &sess);
             sess.finish_diagnostics();
         });
-
-        Compilation::Stop
     }
 }
 
@@ -181,23 +193,26 @@ fn resolve_crate(
     specs: &Specs,
 ) -> Result<ResolverOutput, ErrorGuaranteed> {
     let mut resolver = Resolver::new(tcx, sess);
-    for id in tcx.hir_crate_items(()).owners() {
-        match tcx.def_kind(id) {
-            DefKind::Struct => resolver.resolve_struct_def(id, &specs.structs[&id])?,
-            DefKind::Enum => resolver.resolve_enum_def(id, &specs.enums[&id])?,
-            DefKind::TyAlias { .. } => {
-                if let Some(type_alias) = &specs.ty_aliases[&id] {
-                    resolver.resolve_type_alias(id, type_alias)?;
+    tcx.hir_crate_items(())
+        .owners()
+        .try_for_each_exhaust(|id| {
+            match tcx.def_kind(id) {
+                DefKind::Struct => resolver.resolve_struct_def(id, &specs.structs[&id])?,
+                DefKind::Enum => resolver.resolve_enum_def(id, &specs.enums[&id])?,
+                DefKind::TyAlias { .. } => {
+                    if let Some(type_alias) = &specs.ty_aliases[&id] {
+                        resolver.resolve_type_alias(id, type_alias)?;
+                    }
                 }
-            }
-            DefKind::Fn | DefKind::AssocFn => {
-                if let Some(fn_sig) = specs.fn_sigs[&id].fn_sig.as_ref() {
-                    resolver.resolve_fn_sig(id, fn_sig)?;
+                DefKind::Fn | DefKind::AssocFn => {
+                    if let Some(fn_sig) = specs.fn_sigs[&id].fn_sig.as_ref() {
+                        resolver.resolve_fn_sig(id, fn_sig)?;
+                    }
                 }
+                _ => {}
             }
-            _ => {}
-        }
-    }
+            Ok(())
+        })?;
 
     Ok(resolver.into_output())
 }
@@ -481,13 +496,4 @@ fn mir_borrowck<'tcx>(
     rustc_borrowck::provide(&mut providers);
     let original_mir_borrowck = providers.mir_borrowck;
     original_mir_borrowck(tcx, def_id)
-}
-
-fn is_tool_registered(tcx: TyCtxt) -> bool {
-    for attr in tcx.hir().krate_attrs() {
-        if rustc_ast_pretty::pprust::attribute_to_string(attr) == "#![register_tool(flux)]" {
-            return true;
-        }
-    }
-    false
 }

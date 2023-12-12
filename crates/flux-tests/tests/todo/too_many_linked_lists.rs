@@ -3,7 +3,7 @@
 
 #[flux::refined_by(len: int)]
 pub struct List<T> {
-    #[flux::field(Link<T>[@len])]
+    #[flux::field(Link<T>[len])]
     head: Link<T>,
 }
 
@@ -18,7 +18,7 @@ enum Link<T> {
 #[flux::refined_by(len: int)]
 struct Node<T> {
     elem: T,
-    #[flux::field(Link<T>[@len])]
+    #[flux::field(Link<T>[len])]
     next: Link<T>,
 }
 

@@ -17,8 +17,8 @@ driver_invalid_alias_application =
     invalid alias application
 
 driver_attr_on_opaque =
-    opaque struct can't have field annotations
-    .label = this field has a refinement annotation
+    opaque struct can't have refined fields
+    .label = this field has a refinement type annotation
 
 driver_missing_variant =
     missing variant annotation

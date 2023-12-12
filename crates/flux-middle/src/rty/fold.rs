@@ -16,8 +16,9 @@ use super::{
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
     FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg, Index,
-    Invariant, KVar, Name, OpaqueArgsMap, Opaqueness, PolyFuncSort, ProjectionPredicate, PtrKind,
-    Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef, Ty, TyKind,
+    Invariant, KVar, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate, PolyFuncSort,
+    ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef,
+    Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -342,7 +343,9 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
-                if let ReLateBound(debruijn, br) = *re && debruijn >= self.current_index {
+                if let ReLateBound(debruijn, br) = *re
+                    && debruijn >= self.current_index
+                {
                     ReLateBound(debruijn.shifted_in(self.amount), br)
                 } else {
                     *re
@@ -377,7 +380,9 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
-                if let ReLateBound(debruijn, br) = *re && debruijn >= self.current_index {
+                if let ReLateBound(debruijn, br) = *re
+                    && debruijn >= self.current_index
+                {
                     ReLateBound(debruijn.shifted_out(self.amount), br)
                 } else {
                     *re
@@ -425,6 +430,7 @@ impl TypeVisitable for ClauseKind {
             ClauseKind::Trait(pred) => pred.visit_with(visitor),
             ClauseKind::Projection(pred) => pred.visit_with(visitor),
             ClauseKind::GeneratorOblig(pred) => pred.visit_with(visitor),
+            ClauseKind::TypeOutlives(pred) => pred.visit_with(visitor),
         }
     }
 }
@@ -438,7 +444,23 @@ impl TypeFoldable for ClauseKind {
             ClauseKind::GeneratorOblig(pred) => {
                 Ok(ClauseKind::GeneratorOblig(pred.try_fold_with(folder)?))
             }
+            ClauseKind::TypeOutlives(pred) => {
+                Ok(ClauseKind::TypeOutlives(pred.try_fold_with(folder)?))
+            }
         }
+    }
+}
+
+impl<T: TypeVisitable, U: TypeVisitable> TypeVisitable for OutlivesPredicate<T, U> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.0.visit_with(visitor)?;
+        self.1.visit_with(visitor)
+    }
+}
+
+impl<T: TypeFoldable, U: TypeFoldable> TypeFoldable for OutlivesPredicate<T, U> {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(OutlivesPredicate(self.0.try_fold_with(folder)?, self.1.try_fold_with(folder)?))
     }
 }
 
@@ -629,19 +651,16 @@ impl TypeVisitable for VariantSig {
         self.fields
             .iter()
             .try_for_each(|ty| ty.visit_with(visitor))?;
-        self.ret.visit_with(visitor)
+        self.idx.visit_with(visitor)
     }
 }
 
 impl TypeFoldable for VariantSig {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        let fields = self
-            .fields
-            .iter()
-            .map(|ty| ty.try_fold_with(folder))
-            .try_collect()?;
-        let ret = self.ret.try_fold_with(folder)?;
-        Ok(VariantSig::new(fields, ret))
+        let args = self.args.try_fold_with(folder)?;
+        let fields = self.fields.try_fold_with(folder)?;
+        let idx = self.idx.try_fold_with(folder)?;
+        Ok(VariantSig::new(self.adt_def.clone(), args, fields, idx))
     }
 }
 
@@ -858,8 +877,8 @@ impl TypeSuperVisitable for BaseTy {
             | BaseTy::Str
             | BaseTy::Char
             | BaseTy::Closure(_, _)
-            | BaseTy::Generator(_, _)
-            | BaseTy::GeneratorWitness(_)
+            | BaseTy::Coroutine(_, _)
+            | BaseTy::CoroutineWitness(_, _)
             | BaseTy::Never
             | BaseTy::Param(_) => ControlFlow::Continue(()),
         }
@@ -892,8 +911,10 @@ impl TypeSuperFoldable for BaseTy {
             | BaseTy::Char
             | BaseTy::Never => self.clone(),
             BaseTy::Closure(did, args) => BaseTy::Closure(*did, args.try_fold_with(folder)?),
-            BaseTy::Generator(did, args) => BaseTy::Generator(*did, args.try_fold_with(folder)?),
-            BaseTy::GeneratorWitness(args) => BaseTy::GeneratorWitness(args.try_fold_with(folder)?),
+            BaseTy::Coroutine(did, args) => BaseTy::Coroutine(*did, args.try_fold_with(folder)?),
+            BaseTy::CoroutineWitness(did, args) => {
+                BaseTy::CoroutineWitness(*did, args.try_fold_with(folder)?)
+            }
         };
         Ok(bty)
     }

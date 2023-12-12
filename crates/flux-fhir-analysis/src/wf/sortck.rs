@@ -17,7 +17,7 @@ use super::errors;
 
 pub(super) struct InferCtxt<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
-    sorts: UnordMap<fhir::Name, fhir::Sort>,
+    params: UnordMap<fhir::Name, (fhir::Sort, fhir::ParamKind)>,
     unification_table: InPlaceUnificationTable<fhir::SortVid>,
     wfckresults: fhir::WfckResults,
     /// sort variables that can only be instantiated to sorts that support equality (i.e. non `FuncSort`)
@@ -30,7 +30,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             genv,
             wfckresults: fhir::WfckResults::new(owner),
             unification_table: InPlaceUnificationTable::new(),
-            sorts: Default::default(),
+            params: Default::default(),
             eq_vids: Default::default(),
         }
     }
@@ -207,7 +207,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 Ok(sort)
             }
             fhir::ExprKind::Dot(var, fld) => {
-                let sort = self[var.name].clone();
+                let sort = self.ensure_resolved_var(*var)?;
                 match &sort {
                     fhir::Sort::Record(def_id, sort_args) => {
                         self.genv
@@ -354,7 +354,7 @@ impl<'a> InferCtxt<'a, '_> {
             } else {
                 param.sort.clone()
             };
-            self.sorts.insert(param.name(), sort);
+            self.params.insert(param.name(), (sort, param.kind));
         }
     }
 
@@ -392,7 +392,9 @@ impl<'a> InferCtxt<'a, '_> {
     ) -> Option<fhir::Sort> {
         if self.is_numeric(sort) {
             Some(sort.clone())
-        } else if let Some(sort) = self.is_single_field_record(sort) && sort.is_numeric() {
+        } else if let Some(sort) = self.is_single_field_record(sort)
+            && sort.is_numeric()
+        {
             self.wfckresults
                 .coercions_mut()
                 .insert(fhir_id, vec![fhir::Coercion::Project]);
@@ -481,10 +483,19 @@ impl<'a> InferCtxt<'a, '_> {
     }
 
     fn resolve_param(&mut self, param: &fhir::RefineParam) -> Option<fhir::Sort> {
-        if let fhir::Sort::Infer(vid) = self.sorts[&param.ident.name] {
+        if let fhir::Sort::Infer(vid) = self.params[&param.ident.name].0 {
             self.unification_table.probe_value(vid)
         } else {
             span_bug!(param.ident.span(), "expected wildcard sort")
+        }
+    }
+
+    fn ensure_resolved_var(&mut self, var: fhir::Ident) -> Result<fhir::Sort, ErrorGuaranteed> {
+        let sort = self[var.name].clone();
+        if let Some(sort) = self.resolve_sort(&sort) {
+            Ok(sort)
+        } else {
+            Err(self.emit_err(errors::CannotInferSort::new(var)))
         }
     }
 
@@ -521,8 +532,8 @@ impl<'a> InferCtxt<'a, '_> {
 
     fn is_single_field_record(&mut self, sort: &fhir::Sort) -> Option<fhir::Sort> {
         self.resolve_sort(sort).and_then(|s| {
-            if let fhir::Sort::Record(def_id, sort_args) = s &&
-               let [sort] = &self.genv.index_sorts_of(def_id, &sort_args)[..]
+            if let fhir::Sort::Record(def_id, sort_args) = s
+                && let [sort] = &self.genv.index_sorts_of(def_id, &sort_args)[..]
             {
                 Some(sort.clone())
             } else {
@@ -538,6 +549,11 @@ impl<'a> InferCtxt<'a, '_> {
 
     pub(crate) fn into_results(self) -> WfckResults {
         self.wfckresults
+    }
+
+    pub(crate) fn infer_mode(&self, var: fhir::Ident) -> fhir::InferMode {
+        let (sort, kind) = &self.params[&var.name];
+        kind.infer_mode(sort)
     }
 }
 
@@ -575,9 +591,11 @@ impl<T: Borrow<fhir::Name>> std::ops::Index<T> for InferCtxt<'_, '_> {
     type Output = fhir::Sort;
 
     fn index(&self, var: T) -> &Self::Output {
-        self.sorts
+        &self
+            .params
             .get(var.borrow())
             .unwrap_or_else(|| bug!("no enty found for key: `{:?}`", var.borrow()))
+            .0
     }
 }
 

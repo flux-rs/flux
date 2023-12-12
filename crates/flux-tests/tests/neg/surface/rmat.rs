@@ -5,9 +5,9 @@ use rvec::RVec;
 
 #[flux::refined_by(rows: int, cols: int)]
 pub struct RMat {
-    #[flux::field(usize[@cols])]
+    #[flux::field(usize[cols])]
     cols: usize,
-    #[flux::field(RVec<RVec<f32>[cols]>[@rows])]
+    #[flux::field(RVec<RVec<f32>[cols]>[rows])]
     inner: RVec<RVec<f32>>,
 }
 

@@ -47,6 +47,10 @@ impl<'a, 'tcx> Resolver<'a, 'tcx> {
         owner_id: OwnerId,
         struct_def: &surface::StructDef,
     ) -> Result {
+        if !struct_def.needs_resolving() {
+            return Ok(());
+        }
+
         let mut item_resolver =
             ItemLikeResolver::new(self.tcx, self.sess, owner_id, &mut self.output)?;
         struct_def.fields.iter().try_for_each_exhaust(|ty| {
@@ -58,6 +62,10 @@ impl<'a, 'tcx> Resolver<'a, 'tcx> {
     }
 
     pub fn resolve_enum_def(&mut self, owner_id: OwnerId, enum_def: &surface::EnumDef) -> Result {
+        if !enum_def.needs_resolving() {
+            return Ok(());
+        }
+
         let mut item_resolver =
             ItemLikeResolver::new(self.tcx, self.sess, owner_id, &mut self.output)?;
         enum_def
@@ -81,10 +89,13 @@ impl<'a, 'tcx> Resolver<'a, 'tcx> {
             .iter()
             .try_for_each_exhaust(|cstr| item_resolver.resolve_constraint(cstr));
 
-        let predicates = fn_sig
-            .predicates
-            .iter()
-            .try_for_each_exhaust(|pred| item_resolver.resolve_where_bound_predicate(pred));
+        let predicates = if let Some(predicates) = &fn_sig.predicates {
+            predicates
+                .iter()
+                .try_for_each_exhaust(|pred| item_resolver.resolve_where_bound_predicate(pred))
+        } else {
+            Ok(())
+        };
 
         let returns = item_resolver.resolve_fn_ret_ty(&fn_sig.returns);
 
@@ -149,7 +160,9 @@ impl<'a> ItemLikeResolver<'a> {
                 .fields
                 .iter()
                 .try_for_each_exhaust(|ty| self.resolve_ty(ty))?;
-            self.resolve_variant_ret(&variant_def.ret)?;
+            if let Some(ret) = &variant_def.ret {
+                self.resolve_variant_ret(ret)?;
+            }
         }
         Ok(())
     }
@@ -209,7 +222,9 @@ impl<'a> ItemLikeResolver<'a> {
                 // to `fhir::TyKind::Hole`. The path won't have an entry in `path_res_map` which we
                 // should consider during desugaring. Holes in other positions (e.g., _[10] or _{v: v > 0})
                 // will fail resolving so they don't show up in desugaring.
-                if let BaseTyKind::Path(path) = &bty.kind && path.is_hole() {
+                if let BaseTyKind::Path(path) = &bty.kind
+                    && path.is_hole()
+                {
                     Ok(())
                 } else {
                     self.resolve_bty(bty)
@@ -447,13 +462,19 @@ impl<'sess> NameResTable<'sess> {
             }
             hir::TyKind::Tup(tys) => tys.iter().try_for_each(|ty| self.collect_from_ty(ty)),
             hir::TyKind::Path(qpath) => {
-                let hir::QPath::Resolved(None, path) = qpath else {
-                    return Err(self.sess.emit_err(errors::UnsupportedSignature::new(
-                        qpath.span(),
-                        "unsupported type",
-                    )));
-                };
-                self.collect_from_path(path)
+                match qpath {
+                    hir::QPath::Resolved(self_ty, path) => {
+                        self.collect_from_path(path)?;
+                        if let Some(self_ty) = self_ty {
+                            self.collect_from_ty(self_ty)?;
+                        }
+                    }
+                    hir::QPath::TypeRelative(ty, _path_segment) => {
+                        self.collect_from_ty(ty)?;
+                    }
+                    hir::QPath::LangItem(..) => {}
+                }
+                Ok(())
             }
             hir::TyKind::OpaqueDef(item_id, ..) => {
                 assert!(self.opaque.is_none());
@@ -550,9 +571,9 @@ impl ResKey {
 
     fn from_hir_path(sess: &FluxSession, path: &rustc_hir::Path) -> Result<Self> {
         if let [prefix @ .., _] = path.segments
-           && prefix.iter().any(|segment| segment.args.is_some())
+            && prefix.iter().any(|segment| segment.args.is_some())
         {
-            return Err(sess.emit_err(errors::UnsupportedSignature::new (
+            return Err(sess.emit_err(errors::UnsupportedSignature::new(
                 path.span,
                 "path segments with generic arguments are not supported",
             )));

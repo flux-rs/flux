@@ -284,6 +284,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive-where"
+version = "1.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "146398d62142a0f35248a608f17edf0dde57338354966d6e41d0eb2d16980ccb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.37",
+]
+
+[[package]]
 name = "diff"
 version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -429,7 +440,7 @@ dependencies = [
  "intl-memoizer",
  "intl_pluralrules",
  "rustc-hash",
- "self_cell",
+ "self_cell 0.10.3",
  "smallvec",
  "unic-langid",
 ]
@@ -515,6 +526,7 @@ dependencies = [
  "flux-refineck",
  "flux-syntax",
  "itertools",
+ "toml 0.8.0",
  "tracing",
  "tracing-subscriber",
  "tracing-timing",
@@ -541,6 +553,7 @@ dependencies = [
 name = "flux-fixpoint"
 version = "0.1.0"
 dependencies = [
+ "derive-where",
  "flux-common",
  "flux-config",
  "itertools",
@@ -623,7 +636,6 @@ name = "flux-tests"
 version = "0.1.0"
 dependencies = [
  "compiletest_rs",
- "flux-bin",
  "itertools",
 ]
 
@@ -1208,9 +1220,18 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "self_cell"
-version = "0.10.2"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ef965a420fe14fdac7dd018862966a4c14094f900e1650bbc71ddd7d580c8af"
+checksum = "e14e4d63b804dc0c7ec4a1e52bcb63f02c7ac94476755aa579edac21e01f915d"
+dependencies = [
+ "self_cell 1.0.2",
+]
+
+[[package]]
+name = "self_cell"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e388332cd64eb80cd595a00941baf513caffae8dce9cfd0467fc9c66397dade6"
 
 [[package]]
 name = "serde"
@@ -1828,8 +1849,8 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "flux-bin",
  "flux-tests",
+ "home",
  "opener",
  "xflags",
  "xshell",

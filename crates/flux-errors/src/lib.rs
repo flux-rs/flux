@@ -5,7 +5,7 @@ extern crate rustc_errors;
 extern crate rustc_session;
 extern crate rustc_span;
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use rustc_data_structures::sync;
 pub use rustc_errors::ErrorGuaranteed;
@@ -33,7 +33,7 @@ pub fn diagnostic_id() -> DiagnosticId {
 impl FluxSession {
     pub fn new(
         opts: &config::Options,
-        source_map: Rc<SourceMap>,
+        source_map: Arc<SourceMap>,
         fallback_bundle: LazyFallbackBundle,
     ) -> Self {
         let emitter = emitter(opts, source_map.clone(), fallback_bundle);
@@ -69,7 +69,7 @@ impl FluxSession {
 
 fn emitter(
     opts: &config::Options,
-    source_map: Rc<SourceMap>,
+    source_map: Arc<SourceMap>,
     fallback_bundle: LazyFallbackBundle,
 ) -> Box<dyn Emitter + sync::DynSend> {
     let bundle = None;
