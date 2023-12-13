@@ -66,7 +66,7 @@ impl RegionSubst {
                 self.infer_from_region(*r1, *r2);
                 self.infer_from_ty(ty1, ty2);
             }
-            (BaseTy::Adt(_adt1, args1), ty::TyKind::Adt(_adt2, args2)) => {
+            (BaseTy::Adt(_, args1), ty::TyKind::Adt(_, args2)) => {
                 debug_assert_eq!(args1.len(), args2.len());
                 for (arg1, arg2) in iter::zip(args1, args2) {
                     match (arg1, arg2) {

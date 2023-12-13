@@ -463,14 +463,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .generics_of(*func_id)
                     .with_src_info(terminator.source_info)?;
 
-                // println!("TRACE: {func_id:?} {fn_generics:?} {call_args:?}");
-
                 let generic_args = call_args
                     .lowered
                     .iter()
                     .enumerate()
                     .map(|(idx, arg)| {
-                        // println!("TRACE: generic_args {idx:?} {arg:?}");
                         let param = fn_generics.param_at(idx, self.genv)?;
                         self.genv
                             .instantiate_arg_for_fun(&self.generics, &param, arg)
@@ -804,7 +801,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
                 let args = self.check_operands(rcx, env, stmt_span, operands)?;
-                let arr_ty: flux_middle::intern::Interned<rty::TyS> = self
+                let arr_ty = self
                     .genv
                     .refine_with_holes(&self.generics, arr_ty)
                     .with_span(stmt_span)?;
