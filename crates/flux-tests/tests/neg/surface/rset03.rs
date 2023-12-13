@@ -49,17 +49,6 @@ pub fn test() {
 
     let v1 = 667;
     s.insert(v0);
-
     assert(member(&s, &v0));
-
     assert(member(&s, &v1)); //~ ERROR refinement type
-
-    // TODO: CRASHES with some weird error...
-    // for v in &s {
-    //     assert(*v >= 666);
-    // }
-
-    // TODO: CRASHES because the "real" .contains has 3 type varaibles...
-    // assert(s.contains(&v0));
-    // assert(!s.contains(&v1));
 }
