@@ -1113,10 +1113,6 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
     fn desugar_lit(&self, span: Span, lit: surface::Lit) -> Result<fhir::Lit> {
         match lit.kind {
             surface::LitKind::Integer => {
-                // let int_str = lit.symbol.as_str();
-                // let Ok(n) = int_str.parse::<i128>() else {
-                //     return Err(self.emit_err(errors::IntTooLarge { span }));
-                // };
                 let n = self.try_parse_int_lit(span, lit.symbol.as_str())?;
                 let suffix = lit.suffix.unwrap_or(SORTS.int);
                 if suffix == SORTS.int {
