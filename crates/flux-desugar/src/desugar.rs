@@ -1091,12 +1091,33 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
             .try_collect_exhaust()
     }
 
+    fn try_parse_int_lit(&self, span: Span, s: &str) -> Result<i128> {
+        let parsed_int = if s.len() <= 2 {
+            s.parse::<i128>()
+        } else {
+            match &s[0..2] {
+                "0x" => i128::from_str_radix(&s[2..], 16), // hex
+                "0o" => i128::from_str_radix(&s[2..], 8),  // octal
+                "0b" => i128::from_str_radix(&s[2..], 2),  // binary
+                _ => s.parse::<i128>(),                    // must be decimal
+            }
+        };
+
+        if let Ok(n) = parsed_int {
+            Ok(n) // convert error types
+        } else {
+            Err(self.emit_err(errors::IntTooLarge { span }))
+        }
+    }
+
     fn desugar_lit(&self, span: Span, lit: surface::Lit) -> Result<fhir::Lit> {
         match lit.kind {
             surface::LitKind::Integer => {
-                let Ok(n) = lit.symbol.as_str().parse::<i128>() else {
-                    return Err(self.emit_err(errors::IntTooLarge { span }));
-                };
+                // let int_str = lit.symbol.as_str();
+                // let Ok(n) = int_str.parse::<i128>() else {
+                //     return Err(self.emit_err(errors::IntTooLarge { span }));
+                // };
+                let n = self.try_parse_int_lit(span, lit.symbol.as_str())?;
                 let suffix = lit.suffix.unwrap_or(SORTS.int);
                 if suffix == SORTS.int {
                     Ok(fhir::Lit::Int(n))
