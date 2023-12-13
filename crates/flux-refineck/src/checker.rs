@@ -463,11 +463,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     .generics_of(*func_id)
                     .with_src_info(terminator.source_info)?;
 
+                // println!("TRACE: {func_id:?} {fn_generics:?} {call_args:?}");
+
                 let generic_args = call_args
                     .lowered
                     .iter()
                     .enumerate()
                     .map(|(idx, arg)| {
+                        // println!("TRACE: generic_args {idx:?} {arg:?}");
                         let param = fn_generics.param_at(idx, self.genv)?;
                         self.genv
                             .instantiate_arg_for_fun(&self.generics, &param, arg)

@@ -1530,6 +1530,7 @@ impl ToTokens for ItemMod {
 
 impl ToTokens for ItemStruct {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        println!("ToTokens::ItemStruct");
         tokens.append_all(&self.attrs);
         #[cfg(flux_sysroot)]
         if let Some(refined_by) = &self.refined_by {

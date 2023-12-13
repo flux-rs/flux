@@ -240,6 +240,37 @@ fn create_dummy_ident_from_path(dummy_prefix: &str, path: &syn::Path) -> syn::Re
     }
 }
 
+/// Takes a `syn::Generics` (obtained from the *definition* of a struct or impl) and removes all the
+/// stuff that is not needed for *uses* i.e. in the anonymous field of the dummy struct.
+///
+/// Example:
+/// Given
+/// ```ignore
+/// #[extern_spec]
+/// struct HashSet<T, S = RandomState>;
+/// ```
+/// we want to remove the `S = RandomState` part from the generics of the dummy struct to generate
+/// ```ignore
+/// struct __FluxExternStructHashSet<T, S = RandomState>(HashSet<T, S>);
+/// ```
+fn strip_generics_eq_default(generics: &mut Generics) {
+    for param in generics.params.iter_mut() {
+        match param {
+            GenericParam::Type(type_param) => {
+                type_param.eq_token = None;
+                type_param.default = None;
+            }
+            GenericParam::Lifetime(lifetime_param) => {
+                lifetime_param.colon_token = None;
+            }
+            GenericParam::Const(const_param) => {
+                const_param.eq_token = None;
+                const_param.default = None;
+            }
+        }
+    }
+}
+
 /// Create a dummy struct with a single unnamed field that is the external struct.
 ///
 /// Example:
@@ -270,7 +301,9 @@ fn create_dummy_struct(
     };
     let mut dummy_struct = item_struct.clone();
     let ident = item_struct.ident;
-    let generics = item_struct.generics;
+    let mut generics = item_struct.generics;
+    strip_generics_eq_default(&mut generics);
+
     dummy_struct.ident = format_ident!("__FluxExternStruct{}", ident);
     dummy_struct.semi_token = None;
     let dummy_field: syn::FieldsUnnamed = if let Some(mod_path) = mod_path {
@@ -282,6 +315,7 @@ fn create_dummy_struct(
                               ( #ident #generics )
         }
     };
+
     dummy_struct.fields = syn::Fields::Unnamed(dummy_field);
     let dummy_struct_with_attrs: syn::ItemStruct = parse_quote_spanned! { item_struct_span =>
                                                                           #[flux::extern_spec]

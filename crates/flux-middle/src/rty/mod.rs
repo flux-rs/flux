@@ -604,6 +604,13 @@ impl GeneratorObligPredicate {
 impl Generics {
     pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> QueryResult<GenericParamDef> {
         if let Some(index) = param_index.checked_sub(self.parent_count) {
+            // if let Some(res) = self.params.get(index) {
+            //     Ok(res.clone())
+            // } else {
+            //     Err(crate::queries::QueryErr::from(
+            //         ErrorGuaranteed::unchecked_claim_error_was_emitted(),
+            //     ))
+            // }
             Ok(self.params[index].clone())
         } else {
             let parent = self.parent.expect("parent_count > 0 but no parent?");

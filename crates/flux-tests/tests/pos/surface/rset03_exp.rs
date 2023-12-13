@@ -1,11 +1,3 @@
-// #![feature(prelude_import)]
-// #![flux::cfg(scrape_quals = true)]
-// // #![feature(register_tool, custom_inner_attributes)]
-// #![register_tool(flux)]
-// #![register_tool(flux_tool)]
-// #[prelude_import]
-// use std::prelude::rust_2021::*;
-// #[macro_use]
 extern crate std;
 use std::{
     collections::{hash_map::RandomState, HashSet},
@@ -16,32 +8,23 @@ use std::{
 #[allow(unused, dead_code)]
 #[flux::refined_by(elems : Set < T >)]
 struct __FluxExternStructHashSet<T, S = RandomState>(HashSet<T, S>);
-struct __FluxExternImplStructHashSet<Tiger: Eq + Hash, S = RandomState>(HashSet<Tiger, S>);
-#[flux::generics(Tiger as base, S)]
-impl<Tiger: Eq + Hash, S> __FluxExternImplStructHashSet<Tiger, S> {
+struct __FluxExternImplStructHashSet<T: Eq + Hash, S = RandomState>(HashSet<T, S>);
+#[flux::generics(T as base, S)]
+impl<T: Eq + Hash, S> __FluxExternImplStructHashSet<T, S> {
     #[allow(dead_code)]
     #[flux::extern_spec]
     #[flux::trusted]
-    #[flux::sig(fn() -> HashSet < Tiger > [set_empty(0)])]
-    fn new() -> HashSet<Tiger> {
-        <HashSet<Tiger>>::new()
+    #[flux::sig(fn() -> HashSet < T > [set_empty(0)])]
+    fn new() -> HashSet<T> {
+        <HashSet<T>>::new()
     }
-
     #[allow(dead_code)]
     #[flux::extern_spec]
     #[flux::trusted]
-    #[flux::sig(fn(set: &strg HashSet<Tiger>[@s], elem:Tiger) -> bool ensures set: HashSet<Tiger>[set_union(set_singleton(elem), s)])]
-    fn insert(s: &mut HashSet<Tiger>, elem: Tiger) -> bool {
-        <HashSet<Tiger>>::insert(s, elem)
+    #[flux::sig(fn(set: &strg HashSet<T>[@s], elem:T) -> bool ensures set: HashSet<T>[set_union(set_singleton(elem), s)])]
+    fn insert(s: &mut HashSet<T>, elem: T) -> bool {
+        <HashSet<T>>::insert(s, elem)
     }
-
-    // // NASTY PROBLEM: `contains` takes a `&Q` where the hash must be the same (yuck).
-    // #[flux::extern_spec]
-    // #[flux::trusted]
-    // #[flux::sig(fn(set: &HashSet<Tiger>[@s], &Quux[@elem]) -> bool[set_is_in(elem, s.elems)])]
-    // fn contains<Quux>(set: &HashSet<Tiger>, elem: &Quux) -> bool {
-    //     <HashSet<Tiger>>::contains(set, elem)
-    // }
 }
 
 #[flux::trusted]
