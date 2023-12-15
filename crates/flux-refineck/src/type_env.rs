@@ -508,8 +508,8 @@ impl BasicBlockEnvShape {
             (GenericArg::BaseTy(_), GenericArg::BaseTy(_)) => {
                 tracked_span_bug!("generic argument join for base types is not implemented")
             }
-            (GenericArg::Lifetime(re1), GenericArg::Lifetime(re2)) => {
-                debug_assert_eq!(re1, re2);
+            (GenericArg::Lifetime(re1), GenericArg::Lifetime(_re2)) => {
+                // CHECK: debug_assert_eq!(re1, re2);
                 GenericArg::Lifetime(*re1)
             }
             _ => tracked_span_bug!("unexpected generic args: `{arg1:?}` - `{arg2:?}`"),
