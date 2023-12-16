@@ -49,9 +49,10 @@ impl ExternItem {
 impl ExternItemImpl {
     fn prepare(&mut self, mod_path: Option<syn::Path>) -> syn::Result<()> {
         self.mod_path = mod_path;
+        // TODO(RJ): need a unique-id instead of this hack (#generics), to generate distinct struct (names)
+        // for multiple impl blocks for the same type (see rset03.rs)
         let mut dummy_prefix = format!("__FluxExternImplStruct{:?}", self.generics.params.len());
         self.dummy_ident = Some(create_dummy_ident(&mut dummy_prefix, &self.self_ty)?);
-        // Some(create_dummy_ident(&mut "__FluxExternImplStruct".to_string(), &self.self_ty)?);
         for item in &mut self.items {
             item.prepare(&self.mod_path, Some(&self.self_ty), false);
         }
@@ -258,6 +259,7 @@ fn strip_generics_eq_default(generics: &mut Generics) {
     for param in generics.params.iter_mut() {
         match param {
             GenericParam::Type(type_param) => {
+                type_param.bounds = Punctuated::new();
                 type_param.eq_token = None;
                 type_param.default = None;
             }
