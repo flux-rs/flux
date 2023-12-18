@@ -13,7 +13,7 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{FallibleTypeFolder, TypeSuperFoldable},
-    AliasKind, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, GenericArg,
+    AliasKind, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, GenericArg, GenericArgs,
     ProjectionPredicate, Region, Ty, TyKind,
 };
 use crate::{
@@ -72,17 +72,17 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
                 //    to infer a substitution
                 //        IntoIter<{v. i32[v] | v > 0}, Global> against IntoIter<T, A>
                 //            => {T -> {v. i32[v] | v > 0}, A -> Global}
-                let rustc_self_ty = self
+                let impl_trait_ref = self
                     .tcx()
                     .impl_trait_ref(impl_def_id)
                     .unwrap()
-                    .skip_binder()
-                    .self_ty();
+                    .skip_binder();
 
                 let generics = self.tcx().generics_of(impl_def_id);
 
-                let args =
-                    TVarSubst::mk_subst(self.tcx(), generics, &rustc_self_ty, obligation.self_ty());
+                let mut subst = TVarSubst::new(generics);
+                subst.infer_from_args(impl_trait_ref.args, &obligation.args);
+                let args = subst.finish(self.tcx(), generics);
 
                 // 2. Get the associated type in the impl block and apply the substitution to it
                 let assoc_type_id = self
@@ -331,16 +331,16 @@ struct TVarSubst {
 }
 
 impl TVarSubst {
-    fn mk_subst<'tcx>(
+    fn new(generics: &rustc_middle::ty::Generics) -> Self {
+        Self { args: vec![None; generics.count()] }
+    }
+
+    fn finish<'tcx>(
+        self,
         tcx: TyCtxt<'tcx>,
         generics: &'tcx rustc_middle::ty::Generics,
-        src: &rustc_middle::ty::Ty,
-        dst: &Ty,
     ) -> Vec<GenericArg> {
-        let mut subst = TVarSubst { args: vec![None; generics.count()] };
-        subst.infer_from_ty(src, dst);
-        subst
-            .args
+        self.args
             .into_iter()
             .enumerate()
             .map(|(idx, arg)| {
@@ -368,7 +368,14 @@ impl TVarSubst {
         }
     }
 
-    fn infer_from_arg(&mut self, src: &rustc_middle::ty::GenericArg, dst: &GenericArg) {
+    fn infer_from_args(&mut self, src: rustc_middle::ty::GenericArgsRef, dst: &GenericArgs) {
+        debug_assert_eq!(src.len(), dst.len());
+        for (src, dst) in iter::zip(src, dst) {
+            self.infer_from_arg(src, dst);
+        }
+    }
+
+    fn infer_from_arg(&mut self, src: rustc_middle::ty::GenericArg, dst: &GenericArg) {
         match dst {
             GenericArg::Ty(dst) => {
                 self.infer_from_ty(&src.as_type().unwrap(), dst);
@@ -390,7 +397,7 @@ impl TVarSubst {
                 {
                     debug_assert_eq!(src_subst.len(), dst_subst.len());
                     for (src_arg, dst_arg) in iter::zip(*src_subst, dst_subst) {
-                        self.infer_from_arg(&src_arg, dst_arg);
+                        self.infer_from_arg(src_arg, dst_arg);
                     }
                 } else {
                     bug!("unexpected type {dst:?}");
