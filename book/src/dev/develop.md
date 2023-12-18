@@ -153,9 +153,9 @@ total time: 17014.19ms
 ```
 
 
-## Macro expansion 
+## Macro expansion
 
-For example if you have code like  in `path/to/file.rs` 
+For example if you have code like  in `path/to/file.rs`
 
 ```rust
 #[extern_spec]
@@ -166,6 +166,11 @@ struct HashSet<T, S = RandomState>;
 and you want to see what the `extern_spec` macro expands it out to, then run
 
 ```
-cargo x run -- -Zunpretty=expanded path/to/file.rs 
+cargo x run -- -Zunpretty=expanded path/to/file.rs
 ```
 
+Or you can run the `xtask` command directly
+
+```
+cargo x expand path/to/file.rs
+```

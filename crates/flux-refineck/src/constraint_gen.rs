@@ -207,14 +207,11 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let mut infcx = self.infcx(rcx, ConstrReason::Call);
         let snapshot = rcx.snapshot();
 
-        // println!("TRACE(1): {callee_def_id:?} {generic_args:?}");
         // Replace holes in generic arguments with fresh inference variables
         let generic_args = infcx.instantiate_generic_args(generic_args);
 
         // Generate fresh inference variables for refinement arguments
         let refine_args = infcx.instantiate_refine_args(genv, callee_def_id)?;
-
-        // println!("TRACE(2): {callee_def_id:?} {fn_sig:?} {generic_args:?} {refine_args:?}");
 
         // Instantiate function signature and normalize it
         let inst_fn_sig = fn_sig
@@ -231,8 +228,6 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
             )
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)?;
-
-        // println!("TRACE(3): {callee_def_id:?} {inst_fn_sig:?}");
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &refine_args)?
