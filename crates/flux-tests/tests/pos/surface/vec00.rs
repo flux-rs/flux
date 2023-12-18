@@ -63,3 +63,7 @@ pub fn test3(xs: Vec<i32>) {
         assert(0 <= *x)
     }
 }
+
+fn baz(v: &Vec<i32>) {
+    for x in v {}
+}
