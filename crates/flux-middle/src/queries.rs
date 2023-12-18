@@ -194,10 +194,10 @@ impl<'tcx> Queries<'tcx> {
     pub(crate) fn generics_of(
         &self,
         genv: &GlobalEnv,
-        def_id0: DefId,
+        def_id: DefId,
     ) -> QueryResult<rty::Generics> {
-        run_with_cache(&self.generics_of, def_id0, || {
-            let def_id = genv.lookup_extern(def_id0).unwrap_or(def_id0);
+        run_with_cache(&self.generics_of, def_id, || {
+            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.generics_of)(genv, local_id)
             } else {
