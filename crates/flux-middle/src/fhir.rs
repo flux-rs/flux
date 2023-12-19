@@ -483,6 +483,8 @@ pub enum ParamKind {
     Pound,
     /// An implicitly scoped parameter declared with `x: T` syntax
     Colon,
+    /// A location declared with `x: &strg T` syntax
+    Loc(usize),
 }
 
 impl ParamKind {

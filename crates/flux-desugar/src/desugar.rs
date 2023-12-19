@@ -2,7 +2,7 @@ mod env;
 mod gather;
 use std::iter;
 
-use flux_common::{bug, index::IndexGen, iter::IterExt};
+use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, lift::LiftCtxt, ExprKind, FhirId, FluxOwnerId, Res},
@@ -539,9 +539,9 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     ) -> Result<fhir::Constraint> {
         match cstr {
             surface::Constraint::Type(bind, ty) => {
-                let loc = self.resolve_loc(env, *bind);
-                let ty = self.desugar_ty(None, ty, env);
-                Ok(fhir::Constraint::Type(loc?, ty?))
+                let (idx, loc) = self.resolve_loc(env, *bind)?;
+                let ty = self.desugar_ty(None, ty, env)?;
+                Ok(fhir::Constraint::Type(loc, idx, ty))
             }
             surface::Constraint::Pred(e) => {
                 let pred = self.desugar_expr(env, e)?;
@@ -575,9 +575,9 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             }
             surface::Arg::StrgRef(loc, ty) => {
                 let span = loc.span;
-                let loc = self.resolve_loc(env, *loc)?;
+                let (idx, loc) = self.resolve_loc(env, *loc)?;
                 let ty = self.desugar_ty(None, ty, env)?;
-                requires.push(fhir::Constraint::Type(loc, ty));
+                requires.push(fhir::Constraint::Type(loc, idx, ty));
                 let kind = fhir::TyKind::Ptr(self.mk_lft_hole(), loc);
                 Ok(fhir::Ty { kind, span })
             }
@@ -1157,9 +1157,14 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
         }
     }
 
-    fn resolve_loc(&self, env: &Env, loc: surface::Ident) -> Result<fhir::Ident> {
+    fn resolve_loc(&self, env: &Env, loc: surface::Ident) -> Result<(usize, fhir::Ident)> {
         match env.get(loc) {
-            Some(param) => Ok(fhir::Ident::new(param.name, loc)),
+            Some(param) => {
+                let fhir::ParamKind::Loc(idx) = param.kind else {
+                    span_bug!(loc.span, "not a loc");
+                };
+                Ok((idx, fhir::Ident::new(param.name, loc)))
+            }
             None => Err(self.emit_err(errors::UnresolvedVar::from_ident(loc))),
         }
     }
