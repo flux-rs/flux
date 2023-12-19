@@ -262,7 +262,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
                     infcx.check_type_constr(rcx, env, path1, bound)?;
                 }
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
-                    let ty = env.block_with(path, bound.clone());
+                    let ty = env.block_with(genv, path, bound.clone())?;
                     infcx.subtyping(rcx, &ty, bound)?;
                 }
                 _ => infcx.subtyping(rcx, actual, &formal)?,
@@ -382,7 +382,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
-                    let ty = env.block_with(path, bound.clone());
+                    let ty = env.block_with(infcx.genv, path, bound.clone())?;
                     infcx.subtyping(rcx, &ty, bound)?;
                 }
                 _ => infcx.subtyping(rcx, ty, &arr_ty)?,

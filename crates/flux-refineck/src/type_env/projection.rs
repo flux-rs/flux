@@ -140,7 +140,7 @@ impl PlacesTree {
         key: &impl LookupKey,
         checker_conf: CheckerConfig,
     ) -> CheckerResult {
-        let cursor = self.cursor(key);
+        let cursor = self.cursor_for(key);
         Unfolder::new(genv, rcx, cursor, checker_conf).run(self)
     }
 
@@ -149,7 +149,7 @@ impl PlacesTree {
         key: &impl LookupKey,
         mut mode: M,
     ) -> Result<LookupResult, M::Error> {
-        let mut cursor = self.cursor(key);
+        let mut cursor = self.cursor_for(key);
         let mut ty = self.get_loc(&cursor.loc).ty.clone();
         let mut is_strg = true;
         while let Some(elem) = cursor.next() {
@@ -316,9 +316,15 @@ impl PlacesTree {
             .unwrap_or_else(|| tracked_span_bug!("loc not found {loc:?}"))
     }
 
-    fn cursor(&self, key: &impl LookupKey) -> Cursor {
+    fn cursor_for(&self, key: &impl LookupKey) -> Cursor {
         let place = self.loc_to_place[&key.loc()].clone();
         Cursor::new(key, place)
+    }
+
+    pub(crate) fn path_to_place(&self, path: &Path) -> Place {
+        let mut place = self.loc_to_place[&path.loc].clone();
+        place.projection.extend(path.proj());
+        place
     }
 }
 

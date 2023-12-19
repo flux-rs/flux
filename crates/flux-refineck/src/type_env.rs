@@ -206,8 +206,17 @@ impl TypeEnv<'_> {
         self.bindings.lookup(place).unblock(rcx, check_overflow);
     }
 
-    pub(crate) fn block_with(&mut self, path: &Path, new_ty: Ty) -> Ty {
-        self.bindings.lookup(path).block_with(new_ty)
+    pub(crate) fn block_with(
+        &mut self,
+        genv: &GlobalEnv,
+        path: &Path,
+        new_ty: Ty,
+    ) -> Result<Ty, CheckerErrKind> {
+        let place = self.bindings.path_to_place(path);
+        let rustc_ty = place.ty(genv, self.local_decls)?.ty;
+        let new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
+
+        Ok(self.bindings.lookup(path).block_with(new_ty))
     }
 
     pub(crate) fn check_goto(
