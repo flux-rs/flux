@@ -198,7 +198,7 @@ fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder
                     let wfckresults = genv.check_wf(def_id)?;
                     conv::conv_ty(genv, ty, &wfckresults)?
                 }
-                _ => bug!("non-type def"),
+                k => bug!("non-type def {k:?} {def_id:?}"),
             }
         }
         DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy => {

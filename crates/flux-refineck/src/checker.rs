@@ -6,10 +6,10 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        self, BaseTy, BinOp, Binder, Bool, Const, Constraint, EarlyBinder, Expr, Float, FnOutput,
-        FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate, GenericArg, Generics,
-        HoleKind, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty, TyKind, Uint,
-        UintTy, VariantIdx,
+        self, fold::TypeFoldable, BaseTy, BinOp, Binder, Bool, Const, Constraint, EarlyBinder,
+        Expr, Float, FnOutput, FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate,
+        GenericArg, Generics, HoleKind, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic,
+        Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -58,7 +58,7 @@ pub(crate) struct Checker<'ck, 'tcx, M> {
     /// [`Generics`] of the function being checked.
     generics: Generics,
     /// [`Expr`]s used to instantiate EarlyBinders for signature of function being checked
-    refparams: List<Expr>,
+    refine_params: List<Expr>,
     body: &'ck Body<'tcx>,
     /// The type used for the `resume` argument of a generator.
     resume_ty: Option<Ty>,
@@ -191,7 +191,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         ghost_stmts: &'a UnordMap<LocalDefId, GhostStatements>,
         mode: &'a mut M,
         poly_sig: EarlyBinder<PolyFnSig>,
-        refparams: Option<List<Expr>>,
+        refine_params: Option<List<Expr>>,
         config: CheckerConfig,
     ) -> Result<(), CheckerError> {
         let span = genv.tcx.def_span(def_id);
@@ -201,15 +201,18 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let exprs = if let Some(exprs) = refparams {
-            exprs
+        let refine_params = if let Some(refine_params) = refine_params {
+            refine_params
         } else {
             generics
                 .collect_all_refine_params(genv, |param| rcx.define_vars(&param.sort))
                 .with_span(span)?
         };
 
-        let poly_sig = poly_sig.instantiate_identity(&exprs);
+        let poly_sig = poly_sig
+            .instantiate_identity(&refine_params)
+            .normalize_projections(genv, &body.infcx, def_id.to_def_id(), &refine_params)
+            .with_span(span)?;
 
         let fn_sig = poly_sig.replace_bound_vars(
             |_| {
@@ -235,7 +238,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             def_id,
             genv,
             generics,
-            refparams: exprs,
+            refine_params,
             body: &body,
             resume_ty,
             ghost_stmts,
@@ -274,11 +277,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         for constr in fn_sig.requires() {
             match constr {
-                rty::Constraint::Type(path, ty) => {
+                rty::Constraint::Type(path, ty, local) => {
                     let loc = path.to_loc().unwrap();
                     let ty = rcx.unpack(ty, AssumeInvariants::No);
                     rcx.assume_invariants(&ty, config.check_overflow);
-                    env.alloc_universal_loc(loc, ty);
+                    env.alloc_universal_loc(loc, Place::new(*local, vec![]), ty);
                 }
                 rty::Constraint::Pred(e) => {
                     rcx.assume_pred(e.clone());
@@ -421,7 +424,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                         self.genv,
                         &self.body.infcx,
                         self.def_id,
-                        &self.refparams,
+                        &self.refine_params,
                         rcx,
                         span,
                     )
@@ -535,7 +538,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         for constr in &output.ensures {
             match constr {
-                Constraint::Type(path, updated_ty) => {
+                Constraint::Type(path, updated_ty, _) => {
                     let updated_ty = rcx.unpack(updated_ty, AssumeInvariants::No);
                     rcx.assume_invariants(&updated_ty, self.config.check_overflow);
                     env.update_path(path, updated_ty);
@@ -564,7 +567,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             self.ghost_stmts,
             self.mode,
             EarlyBinder(poly_sig),
-            Some(self.refparams.clone()),
+            Some(self.refine_params.clone()),
             self.config,
         )
     }
@@ -587,7 +590,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 self.ghost_stmts,
                 self.mode,
                 EarlyBinder(poly_sig),
-                Some(self.refparams.clone()),
+                Some(self.refine_params.clone()),
                 self.config,
             )?;
         } else {
@@ -741,7 +744,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
             let obligs = self
                 .mode
-                .constr_gen(self.genv, &self.body.infcx, self.def_id, &self.refparams, &rcx, span)
+                .constr_gen(
+                    self.genv,
+                    &self.body.infcx,
+                    self.def_id,
+                    &self.refine_params,
+                    &rcx,
+                    span,
+                )
                 .check_ret(&mut rcx, &mut env, &self.output)
                 .with_span(span)?;
             self.check_closure_obligs(&mut rcx, obligs)?;
@@ -1114,8 +1124,14 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     }
 
     fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'tcx> {
-        self.mode
-            .constr_gen(self.genv, &self.body.infcx, self.def_id, &self.refparams, rcx, span)
+        self.mode.constr_gen(
+            self.genv,
+            &self.body.infcx,
+            self.def_id,
+            &self.refine_params,
+            rcx,
+            span,
+        )
     }
 
     #[track_caller]
@@ -1241,7 +1257,7 @@ impl Mode for RefineMode {
             ck.genv,
             &ck.body.infcx,
             ck.def_id.into(),
-            &ck.refparams,
+            &ck.refine_params,
             |sorts: &_, encoding| ck.mode.kvars.fresh(sorts, bb_env.scope(), encoding),
             terminator_span,
         );

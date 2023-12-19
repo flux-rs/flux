@@ -27,6 +27,7 @@ use rustc_hir::{
 };
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
+    mir::Local,
     ty::{AssocItem, AssocKind, BoundVar, TyCtxt},
 };
 use rustc_span::symbol::kw;
@@ -579,8 +580,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         constr: &fhir::Constraint,
     ) -> QueryResult<rty::Constraint> {
         match constr {
-            fhir::Constraint::Type(loc, ty) => {
-                Ok(rty::Constraint::Type(env.lookup(*loc).to_path(), self.conv_ty(env, ty)?))
+            fhir::Constraint::Type(loc, ty, idx) => {
+                Ok(rty::Constraint::Type(
+                    env.lookup(*loc).to_path(),
+                    self.conv_ty(env, ty)?,
+                    Local::from_usize(*idx),
+                ))
             }
             fhir::Constraint::Pred(pred) => Ok(rty::Constraint::Pred(self.conv_expr(env, pred))),
         }
@@ -1143,7 +1148,7 @@ impl LookupResult<'_> {
         if let Some(def_id) = self.is_record() {
             let i = genv
                 .field_index(def_id, fld.name)
-                .unwrap_or_else(|| span_bug!(fld.span, "field not found `{fld:?}`"));
+                .unwrap_or_else(|| span_bug!(fld.span, "field `{fld:?}` not found in {def_id:?}"));
             rty::Expr::tuple_proj(self.to_expr(), i as u32, None)
         } else {
             span_bug!(fld.span, "expected record sort")

@@ -25,6 +25,7 @@ pub enum Item {
     Fn(ItemFn),
     Impl(ItemImpl),
     Mod(ItemMod),
+    Trait(syn::ItemTrait),
 }
 
 #[derive(Debug)]
@@ -607,6 +608,8 @@ impl Parse for Item {
             Item::Use(input.parse()?)
         } else if lookahead.peek(Token![type]) {
             Item::Type(input.parse()?)
+        } else if lookahead.peek(Token![trait]) {
+            Item::Trait(input.parse()?)
         } else {
             return Err(lookahead.error());
         };
@@ -1487,6 +1490,7 @@ impl Item {
             | Item::Enum(ItemEnum { attrs, .. })
             | Item::Struct(ItemStruct { attrs, .. })
             | Item::Use(syn::ItemUse { attrs, .. })
+            | Item::Trait(syn::ItemTrait { attrs, .. })
             | Item::Type(ItemType { attrs, .. }) => mem::replace(attrs, new),
         }
     }
@@ -1508,6 +1512,7 @@ impl ToTokens for Item {
             Item::Use(item_use) => item_use.to_tokens(tokens),
             Item::Type(item_type) => item_type.to_tokens(tokens),
             Item::Mod(item_mod) => item_mod.to_tokens(tokens),
+            Item::Trait(item_trait) => item_trait.to_tokens(tokens),
         }
     }
 }

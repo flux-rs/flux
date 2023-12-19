@@ -26,6 +26,7 @@ struct ExternFn {
 }
 
 struct ExternItemImpl {
+    attrs: Vec<Attribute>,
     impl_token: Token![impl],
     generics: Generics,
     self_ty: Box<Type>,
@@ -39,8 +40,8 @@ impl ExternItem {
     fn replace_attrs(&mut self, new: Vec<Attribute>) -> Vec<Attribute> {
         match self {
             ExternItem::Struct(ItemStruct { attrs, .. })
-            | ExternItem::Fn(ExternFn { attrs, .. }) => mem::replace(attrs, new),
-            ExternItem::Impl(ExternItemImpl { .. }) => vec![],
+            | ExternItem::Fn(ExternFn { attrs, .. })
+            | ExternItem::Impl(ExternItemImpl { attrs, .. }) => mem::replace(attrs, new),
         }
     }
 }
@@ -48,8 +49,10 @@ impl ExternItem {
 impl ExternItemImpl {
     fn prepare(&mut self, mod_path: Option<syn::Path>) -> syn::Result<()> {
         self.mod_path = mod_path;
-        self.dummy_ident =
-            Some(create_dummy_ident(&mut "__FluxExternImplStruct".to_string(), &self.self_ty)?);
+        // TODO(RJ): need a unique-id instead of this hack (#generics), to generate distinct struct (names)
+        // for multiple impl blocks for the same type (see rset03.rs)
+        let mut dummy_prefix = format!("__FluxExternImplStruct{:?}", self.generics.params.len());
+        self.dummy_ident = Some(create_dummy_ident(&mut dummy_prefix, &self.self_ty)?);
         for item in &mut self.items {
             item.prepare(&self.mod_path, Some(&self.self_ty), false);
         }
@@ -81,6 +84,7 @@ impl ToTokens for ExternItemImpl {
         let dummy_struct = self.dummy_struct();
         dummy_struct.to_tokens(tokens);
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
+        tokens.append_all(&self.attrs);
         self.impl_token.to_tokens(tokens);
         impl_generics.to_tokens(tokens);
         let dummy_ident = self.dummy_ident.as_ref().unwrap();
@@ -157,6 +161,7 @@ impl Parse for ExternFn {
 
 impl Parse for ExternItemImpl {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
         let impl_token = input.parse()?;
         let generics = input.parse()?;
         let self_ty = input.parse()?;
@@ -168,6 +173,7 @@ impl Parse for ExternItemImpl {
         }
 
         Ok(ExternItemImpl {
+            attrs,
             impl_token,
             generics,
             self_ty,
@@ -236,6 +242,38 @@ fn create_dummy_ident_from_path(dummy_prefix: &str, path: &syn::Path) -> syn::Re
     }
 }
 
+/// Takes a `syn::Generics` (obtained from the *definition* of a struct or impl) and removes all the
+/// stuff that is not needed for *uses* i.e. in the anonymous field of the dummy struct.
+///
+/// Example:
+/// Given
+/// ```ignore
+/// #[extern_spec]
+/// struct HashSet<T, S = RandomState>;
+/// ```
+/// we want to remove the `S = RandomState` part from the generics of the dummy struct to generate
+/// ```ignore
+/// struct __FluxExternStructHashSet<T, S = RandomState>(HashSet<T, S>);
+/// ```
+fn strip_generics_eq_default(generics: &mut Generics) {
+    for param in &mut generics.params {
+        match param {
+            GenericParam::Type(type_param) => {
+                type_param.bounds = Punctuated::new();
+                type_param.eq_token = None;
+                type_param.default = None;
+            }
+            GenericParam::Lifetime(lifetime_param) => {
+                lifetime_param.colon_token = None;
+            }
+            GenericParam::Const(const_param) => {
+                const_param.eq_token = None;
+                const_param.default = None;
+            }
+        }
+    }
+}
+
 /// Create a dummy struct with a single unnamed field that is the external struct.
 ///
 /// Example:
@@ -266,7 +304,9 @@ fn create_dummy_struct(
     };
     let mut dummy_struct = item_struct.clone();
     let ident = item_struct.ident;
-    let generics = item_struct.generics;
+    let mut generics = item_struct.generics;
+    strip_generics_eq_default(&mut generics);
+
     dummy_struct.ident = format_ident!("__FluxExternStruct{}", ident);
     dummy_struct.semi_token = None;
     let dummy_field: syn::FieldsUnnamed = if let Some(mod_path) = mod_path {
@@ -278,6 +318,7 @@ fn create_dummy_struct(
                               ( #ident #generics )
         }
     };
+
     dummy_struct.fields = syn::Fields::Unnamed(dummy_field);
     let dummy_struct_with_attrs: syn::ItemStruct = parse_quote_spanned! { item_struct_span =>
                                                                           #[flux::extern_spec]

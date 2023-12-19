@@ -56,18 +56,19 @@ impl TypeEnv<'_> {
         TypeEnv { bindings: PlacesTree::default(), local_decls }
     }
 
-    pub fn alloc_universal_loc(&mut self, loc: Loc, ty: Ty) {
-        self.bindings.insert(loc, LocKind::Universal, ty);
+    pub fn alloc_universal_loc(&mut self, loc: Loc, place: Place, ty: Ty) {
+        self.bindings.insert(loc, place, LocKind::Universal, ty);
     }
 
     pub fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
         let ty = RegionSubst::new(&ty, &self.local_decls[local].ty).apply(&ty);
-        self.bindings.insert(local.into(), LocKind::Local, ty);
+        self.bindings
+            .insert(local.into(), Place::new(local, vec![]), LocKind::Local, ty);
     }
 
     pub fn alloc(&mut self, local: Local) {
         self.bindings
-            .insert(local.into(), LocKind::Local, Ty::uninit());
+            .insert(local.into(), Place::new(local, vec![]), LocKind::Local, Ty::uninit());
     }
 
     pub(crate) fn into_infer(self, scope: Scope) -> Result<BasicBlockEnvShape, CheckerErrKind> {
@@ -205,8 +206,17 @@ impl TypeEnv<'_> {
         self.bindings.lookup(place).unblock(rcx, check_overflow);
     }
 
-    pub(crate) fn block_with(&mut self, path: &Path, new_ty: Ty) -> Ty {
-        self.bindings.lookup(path).block_with(new_ty)
+    pub(crate) fn block_with(
+        &mut self,
+        genv: &GlobalEnv,
+        path: &Path,
+        new_ty: Ty,
+    ) -> Result<Ty, CheckerErrKind> {
+        let place = self.bindings.path_to_place(path);
+        let rustc_ty = place.ty(genv, self.local_decls)?.ty;
+        let new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
+
+        Ok(self.bindings.lookup(path).block_with(new_ty))
     }
 
     pub(crate) fn check_goto(
