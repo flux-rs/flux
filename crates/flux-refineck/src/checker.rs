@@ -274,7 +274,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         for constr in fn_sig.requires() {
             match constr {
-                rty::Constraint::Type(path, local, ty) => {
+                rty::Constraint::Type(path, ty, local) => {
                     let loc = path.to_loc().unwrap();
                     let ty = rcx.unpack(ty, AssumeInvariants::No);
                     rcx.assume_invariants(&ty, config.check_overflow);
@@ -535,7 +535,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         for constr in &output.ensures {
             match constr {
-                Constraint::Type(path, _, updated_ty) => {
+                Constraint::Type(path, updated_ty, _) => {
                     let updated_ty = rcx.unpack(updated_ty, AssumeInvariants::No);
                     rcx.assume_invariants(&updated_ty, self.config.check_overflow);
                     env.update_path(path, updated_ty);

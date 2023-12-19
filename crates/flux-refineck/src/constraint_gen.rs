@@ -239,7 +239,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         let mut requires = FxHashMap::default();
         for constr in inst_fn_sig.requires() {
             match constr {
-                Constraint::Type(path, _, ty) => {
+                Constraint::Type(path, ty, _) => {
                     requires.insert(path.clone(), ty);
                 }
                 Constraint::Pred(pred) => {
@@ -524,7 +524,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     ) -> Result<(), CheckerErrKind> {
         let rcx = &mut rcx.branch();
         match constraint {
-            Constraint::Type(path, _, ty) => self.check_type_constr(rcx, env, path, ty),
+            Constraint::Type(path, ty, _) => self.check_type_constr(rcx, env, path, ty),
             Constraint::Pred(e) => {
                 rcx.check_pred(e, self.tag);
                 Ok(())

@@ -286,7 +286,12 @@ pub type Constraints = List<Constraint>;
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub enum Constraint {
-    Type(Path, Local, Ty),
+    Type(
+        Path,
+        Ty,
+        /// The local of the argument corresponding to the constraint.
+        Local,
+    ),
     Pred(Expr),
 }
 
@@ -1852,7 +1857,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Constraint::Type(loc, _, ty) => w!("{:?}: {:?}", ^loc, ty),
+                Constraint::Type(loc, ty, _) => w!("{:?}: {:?}", ^loc, ty),
                 Constraint::Pred(e) => w!("{:?}", e),
             }
         }

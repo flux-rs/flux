@@ -580,11 +580,11 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         constr: &fhir::Constraint,
     ) -> QueryResult<rty::Constraint> {
         match constr {
-            fhir::Constraint::Type(loc, idx, ty) => {
+            fhir::Constraint::Type(loc, ty, idx) => {
                 Ok(rty::Constraint::Type(
                     env.lookup(*loc).to_path(),
-                    Local::from_usize(*idx),
                     self.conv_ty(env, ty)?,
+                    Local::from_usize(*idx),
                 ))
             }
             fhir::Constraint::Pred(pred) => Ok(rty::Constraint::Pred(self.conv_expr(env, pred))),

@@ -313,7 +313,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         constr: &fhir::Constraint,
     ) -> Result<(), ErrorGuaranteed> {
         match constr {
-            fhir::Constraint::Type(loc, _, ty) => {
+            fhir::Constraint::Type(loc, ty, _) => {
                 [infcx.check_loc(*loc), self.check_type(infcx, ty)]
                     .into_iter()
                     .try_collect_exhaust()

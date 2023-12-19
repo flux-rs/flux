@@ -541,7 +541,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             surface::Constraint::Type(bind, ty) => {
                 let (idx, loc) = self.resolve_loc(env, *bind)?;
                 let ty = self.desugar_ty(None, ty, env)?;
-                Ok(fhir::Constraint::Type(loc, idx, ty))
+                Ok(fhir::Constraint::Type(loc, ty, idx))
             }
             surface::Constraint::Pred(e) => {
                 let pred = self.desugar_expr(env, e)?;
@@ -577,7 +577,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 let span = loc.span;
                 let (idx, loc) = self.resolve_loc(env, *loc)?;
                 let ty = self.desugar_ty(None, ty, env)?;
-                requires.push(fhir::Constraint::Type(loc, idx, ty));
+                requires.push(fhir::Constraint::Type(loc, ty, idx));
                 let kind = fhir::TyKind::Ptr(self.mk_lft_hole(), loc);
                 Ok(fhir::Ty { kind, span })
             }

@@ -256,7 +256,12 @@ pub struct FnOutput {
 
 pub enum Constraint {
     /// A type constraint on a location
-    Type(Ident, usize, Ty),
+    Type(
+        Ident,
+        Ty,
+        /// The index of the argument corresponding to the constraint.
+        usize,
+    ),
     /// A predicate that needs to hold
     Pred(Expr),
 }
