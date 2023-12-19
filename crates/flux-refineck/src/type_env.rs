@@ -56,18 +56,19 @@ impl TypeEnv<'_> {
         TypeEnv { bindings: PlacesTree::default(), local_decls }
     }
 
-    pub fn alloc_universal_loc(&mut self, loc: Loc, ty: Ty) {
-        self.bindings.insert(loc, LocKind::Universal, ty);
+    pub fn alloc_universal_loc(&mut self, loc: Loc, place: Place, ty: Ty) {
+        self.bindings.insert(loc, place, LocKind::Universal, ty);
     }
 
     pub fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
         let ty = RegionSubst::new(&ty, &self.local_decls[local].ty).apply(&ty);
-        self.bindings.insert(local.into(), LocKind::Local, ty);
+        self.bindings
+            .insert(local.into(), Place::new(local, vec![]), LocKind::Local, ty);
     }
 
     pub fn alloc(&mut self, local: Local) {
         self.bindings
-            .insert(local.into(), LocKind::Local, Ty::uninit());
+            .insert(local.into(), Place::new(local, vec![]), LocKind::Local, Ty::uninit());
     }
 
     pub(crate) fn into_infer(self, scope: Scope) -> Result<BasicBlockEnvShape, CheckerErrKind> {

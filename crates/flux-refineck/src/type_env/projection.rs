@@ -28,6 +28,7 @@ type CheckerResult<T = ()> = std::result::Result<T, CheckerErrKind>;
 #[derive(Clone, Default)]
 pub(crate) struct PlacesTree {
     map: FxHashMap<Loc, Binding>,
+    loc_to_place: FxHashMap<Loc, Place>,
 }
 
 #[derive(Clone)]
@@ -139,7 +140,8 @@ impl PlacesTree {
         key: &impl LookupKey,
         checker_conf: CheckerConfig,
     ) -> CheckerResult {
-        Unfolder::new(genv, rcx, key, checker_conf).run(self)
+        let cursor = self.cursor(key);
+        Unfolder::new(genv, rcx, cursor, checker_conf).run(self)
     }
 
     fn lookup_inner<M: LookupMode>(
@@ -147,7 +149,7 @@ impl PlacesTree {
         key: &impl LookupKey,
         mut mode: M,
     ) -> Result<LookupResult, M::Error> {
-        let mut cursor = Cursor::new(key);
+        let mut cursor = self.cursor(key);
         let mut ty = self.get_loc(&cursor.loc).ty.clone();
         let mut is_strg = true;
         while let Some(elem) = cursor.next() {
@@ -264,8 +266,9 @@ impl PlacesTree {
         bindings
     }
 
-    pub(crate) fn insert(&mut self, loc: Loc, kind: LocKind, ty: Ty) {
+    pub(crate) fn insert(&mut self, loc: Loc, place: Place, kind: LocKind, ty: Ty) {
         self.map.insert(loc, Binding { kind, ty });
+        self.loc_to_place.insert(loc, place);
     }
 
     fn remove(&mut self, loc: &Loc) -> Binding {
@@ -312,6 +315,11 @@ impl PlacesTree {
             .get_mut(loc)
             .unwrap_or_else(|| tracked_span_bug!("loc not found {loc:?}"))
     }
+
+    fn cursor(&self, key: &impl LookupKey) -> Cursor {
+        let place = self.loc_to_place[&key.loc()];
+        Cursor::new(key, place)
+    }
 }
 
 impl LookupResult<'_> {
@@ -350,7 +358,7 @@ impl LookupResult<'_> {
 struct Unfolder<'a, 'rcx, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
     rcx: &'a mut RefineCtxt<'rcx>,
-    insertions: Vec<(Loc, Binding)>,
+    insertions: Vec<(Loc, Place, Binding)>,
     cursor: Cursor,
     in_ref: Option<Mutability>,
     checker_conf: CheckerConfig,
@@ -381,13 +389,13 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
     fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
         rcx: &'a mut RefineCtxt<'rcx>,
-        key: &impl LookupKey,
+        cursor: Cursor,
         checker_conf: CheckerConfig,
     ) -> Self {
         Unfolder {
             genv,
             rcx,
-            cursor: Cursor::new(key),
+            cursor,
             insertions: vec![],
             in_ref: None,
             checker_conf,
@@ -399,8 +407,8 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
         while self.should_continue() {
             let binding = bindings.get_loc_mut(&self.cursor.loc);
             binding.ty = binding.ty.try_fold_with(&mut self)?;
-            for (loc, binding) in self.insertions.drain(..) {
-                bindings.insert(loc, binding.kind, binding.ty);
+            for (loc, place, binding) in self.insertions.drain(..) {
+                bindings.insert(loc, place, binding.kind, binding.ty);
             }
         }
         Ok(())
@@ -460,8 +468,11 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
 
     fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {
         let loc = Loc::from(self.rcx.define_var(&Sort::Loc));
+        let mut place = self.cursor.to_place();
+        place.projection.push(PlaceElem::Deref);
         self.insertions.push((
             loc.clone(),
+            place,
             Binding { kind: LocKind::Box(alloc.clone()), ty: deref_ty.clone() },
         ));
         loc
@@ -639,15 +650,16 @@ impl<'a> Updater<'a> {
 
 struct Cursor {
     loc: Loc,
+    place: Place,
     proj: Vec<PlaceElem>,
     pos: usize,
 }
 
 impl Cursor {
-    fn new(key: &impl LookupKey) -> Self {
+    fn new(key: &impl LookupKey, place: Place) -> Self {
         let proj = key.proj().rev().collect_vec();
         let pos = proj.len();
-        Self { loc: key.loc(), proj, pos }
+        Self { loc: key.loc(), place, proj, pos }
     }
 
     fn change_root(&mut self, path: &Path) {
@@ -661,6 +673,12 @@ impl Cursor {
         );
         self.loc = path.loc.clone();
         self.pos = self.proj.len();
+    }
+
+    fn to_place(&self) -> Place {
+        let mut place = self.place.clone();
+        place.projection.extend(self.proj.iter().copied());
+        place
     }
 
     fn to_path(&self) -> Path {
