@@ -350,7 +350,7 @@ impl RustItemCtxt<'_, '_> {
         Ok(())
     }
 
-    fn gather_params_path(&self, path: &surface::Path, pos: TypePos, params: &mut Env) -> Result {
+    fn gather_params_path(&self, path: &surface::Path, pos: TypePos, env: &mut Env) -> Result {
         // CODESYNC(type-holes, 3) type holes do not have a corresponding `Res`.
         if path.is_hole() {
             return Ok(());
@@ -366,9 +366,26 @@ impl RustItemCtxt<'_, '_> {
         // Check generic args
         let res = self.resolver_output.path_res_map[&path.node_id];
         let pos = if self.genv.is_box(res) { pos } else { TypePos::Generic };
-        path.generics
+        if let [segments @ .., last] = &path.segments[..] {
+            self.gather_params_path_segment(last, pos, env)?;
+            segments.iter().try_for_each_exhaust(|segment| {
+                self.gather_params_path_segment(segment, TypePos::Other, env)
+            })?;
+        }
+        Ok(())
+    }
+
+    fn gather_params_path_segment(
+        &self,
+        segment: &surface::PathSegment,
+        pos: TypePos,
+        env: &mut Env,
+    ) -> Result {
+        segment
+            .args
             .iter()
-            .try_for_each_exhaust(|arg| self.gather_params_generic_arg(arg, pos, params))
+            .flatten()
+            .try_for_each_exhaust(|arg| self.gather_params_generic_arg(arg, pos, env))
     }
 
     fn gather_params_generic_arg(

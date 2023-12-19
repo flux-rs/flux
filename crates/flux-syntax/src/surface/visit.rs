@@ -3,8 +3,8 @@ use rustc_span::symbol::Ident;
 use super::{
     Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind,
     FnRetTy, FnSig, GenericArg, GenericParam, GenericParamKind, Generics, Indices, Lit, Path,
-    QPathExpr, RefineArg, RefineParam, RefinedBy, Sort, StructDef, TraitRef, Ty, TyKind,
-    VariantDef, VariantRet, WhereBoundPredicate,
+    PathSegment, QPathExpr, RefineArg, RefineParam, RefinedBy, Sort, StructDef, TraitRef, Ty,
+    TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -118,6 +118,10 @@ pub trait Visitor: Sized {
 
     fn visit_qpath_expr(&mut self, qpath: &QPathExpr) {
         walk_qpath_expr(self, qpath);
+    }
+
+    fn visit_path_segment(&mut self, segment: &PathSegment) {
+        walk_path_segment(self, segment);
     }
 
     fn visit_ident(&mut self, _ident: Ident) {}
@@ -360,8 +364,7 @@ pub fn walk_bty<V: Visitor>(vis: &mut V, bty: &BaseTy) {
 }
 
 pub fn walk_path<V: Visitor>(vis: &mut V, path: &Path) {
-    walk_list!(vis, visit_ident, path.segments.iter().copied());
-    walk_list!(vis, visit_generic_arg, &path.generics);
+    walk_list!(vis, visit_path_segment, &path.segments);
     walk_list!(vis, visit_refine_arg, &path.refine);
 }
 
@@ -393,4 +396,11 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
 
 pub fn walk_qpath_expr<V: Visitor>(vis: &mut V, qpath: &QPathExpr) {
     walk_list!(vis, visit_ident, qpath.segments.iter().copied());
+}
+
+pub fn walk_path_segment<V: Visitor>(vis: &mut V, segment: &PathSegment) {
+    vis.visit_ident(segment.ident);
+    if let Some(args) = &segment.args {
+        walk_list!(vis, visit_generic_arg, args);
+    }
 }

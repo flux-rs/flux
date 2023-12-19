@@ -351,11 +351,16 @@ pub enum BindKind {
 
 #[derive(Debug)]
 pub struct Path {
-    pub segments: Vec<Ident>,
-    pub generics: Vec<GenericArg>,
+    pub segments: Vec<PathSegment>,
     pub refine: Vec<RefineArg>,
     pub span: Span,
     pub node_id: NodeId,
+}
+
+#[derive(Debug)]
+pub struct PathSegment {
+    pub ident: Ident,
+    pub args: Option<Vec<GenericArg>>,
 }
 
 #[derive(Debug)]
@@ -415,7 +420,9 @@ pub enum UnOp {
 impl Path {
     pub fn is_hole(&self) -> bool {
         if let [segment] = &self.segments[..] {
-            segment.name == kw::Underscore && self.generics.is_empty() && self.refine.is_empty()
+            segment.ident.name == kw::Underscore
+                && segment.args.as_deref().unwrap_or(&[]).is_empty()
+                && self.refine.is_empty()
         } else {
             false
         }

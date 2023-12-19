@@ -2,7 +2,7 @@ use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::fhir::Res;
 use flux_syntax::surface::{self, BaseTy, BaseTyKind, Ident, Path, Ty};
-use hir::{def::DefKind, ItemId, ItemKind, OwnerId, PathSegment};
+use hir::{def::DefKind, ItemId, ItemKind, OwnerId};
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
@@ -278,9 +278,9 @@ impl<'a> ItemLikeResolver<'a> {
         match res {
             &ResEntry::Res(res) => {
                 self.output.path_res_map.insert(path.node_id, res);
-                path.generics
+                path.segments
                     .iter()
-                    .try_for_each_exhaust(|arg| self.resolve_generic_arg(arg))
+                    .try_for_each_exhaust(|segment| self.resolve_segment(segment))
             }
             ResEntry::Unsupported { reason, span } => {
                 return Err(self
@@ -288,6 +288,14 @@ impl<'a> ItemLikeResolver<'a> {
                     .emit_err(errors::UnsupportedSignature::new(*span, reason)))
             }
         }
+    }
+
+    fn resolve_segment(&mut self, segment: &surface::PathSegment) -> Result {
+        segment
+            .args
+            .iter()
+            .flatten()
+            .try_for_each_exhaust(|arg| self.resolve_generic_arg(arg))
     }
 }
 
@@ -519,7 +527,7 @@ impl<'sess> NameResTable<'sess> {
             .map_or_else(|_| ResEntry::unsupported(*path), ResEntry::Res);
         self.insert(key, res);
 
-        if let [.., PathSegment { args: Some(args), .. }] = path.segments {
+        if let [.., hir::PathSegment { args: Some(args), .. }] = path.segments {
             self.collect_from_generic_args(args)?;
         }
         Ok(())
@@ -565,7 +573,8 @@ impl ResKey {
     }
 
     fn from_path(path: &Path) -> ResKey {
-        let s = path.segments.iter().join("::");
+        // FIXME(nilehmann) handle segments with generics
+        let s = path.segments.iter().map(|segment| segment.ident).join("::");
         ResKey { s }
     }
 
@@ -627,7 +636,11 @@ mod errors {
 
     impl UnresolvedPath {
         pub fn new(path: &surface::Path) -> Self {
-            Self { span: path.span, path: path.segments.iter().join("::") }
+            Self {
+                span: path.span,
+                // FIXME(nilehmann) print path with generics
+                path: path.segments.iter().map(|segment| segment.ident).join("::"),
+            }
         }
     }
 }
