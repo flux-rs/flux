@@ -347,6 +347,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         sort_args: List<fhir::Sort>,
         fld: Symbol,
     ) -> Option<fhir::Sort> {
+        let def_id = self.lookup_extern(def_id).unwrap_or(def_id);
         let poly_sort = if let Some(local_id) = def_id.as_local() {
             self.map().refined_by(local_id).field_sort(fld, &sort_args)
         } else {
@@ -358,6 +359,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     pub fn field_index(&self, def_id: DefId, fld: Symbol) -> Option<usize> {
+        let def_id = self.lookup_extern(def_id).unwrap_or(def_id);
         if let Some(local_id) = def_id.as_local() {
             self.map().refined_by(local_id).field_index(fld)
         } else {

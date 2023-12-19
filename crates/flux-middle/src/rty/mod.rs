@@ -606,8 +606,9 @@ impl Generics {
         if let Some(index) = param_index.checked_sub(self.parent_count) {
             Ok(self.params[index].clone())
         } else {
-            genv.generics_of(self.parent.expect("parent_count > 0 but no parent?"))?
-                .param_at(param_index, genv)
+            let parent = self.parent.expect("parent_count > 0 but no parent?");
+            let parent_generics = genv.generics_of(parent)?;
+            parent_generics.param_at(param_index, genv)
         }
     }
 

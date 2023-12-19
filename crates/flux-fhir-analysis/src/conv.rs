@@ -1143,7 +1143,7 @@ impl LookupResult<'_> {
         if let Some(def_id) = self.is_record() {
             let i = genv
                 .field_index(def_id, fld.name)
-                .unwrap_or_else(|| span_bug!(fld.span, "field not found `{fld:?}`"));
+                .unwrap_or_else(|| span_bug!(fld.span, "field `{fld:?}` not found in {def_id:?}"));
             rty::Expr::tuple_proj(self.to_expr(), i as u32, None)
         } else {
             span_bug!(fld.span, "expected record sort")

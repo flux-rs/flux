@@ -36,4 +36,9 @@ impl<T> RSet<T> {
     {
         self.inner.contains(elem)
     }
+
+    #[flux::trusted]
+    pub fn iter(self: &Self) -> std::collections::hash_set::Iter<T> {
+        self.inner.iter()
+    }
 }
