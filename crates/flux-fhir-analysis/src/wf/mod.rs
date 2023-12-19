@@ -287,7 +287,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .ensures
             .iter()
             .try_for_each_exhaust(|constr| {
-                if let fhir::Constraint::Type(loc, _) = constr
+                if let fhir::Constraint::Type(loc, ..) = constr
                     && !output_locs.insert(loc.name)
                 {
                     self.emit_err(errors::DuplicatedEnsures::new(loc))
@@ -297,7 +297,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             })?;
 
         fn_sig.requires.iter().try_for_each_exhaust(|constr| {
-            if let fhir::Constraint::Type(loc, _) = constr
+            if let fhir::Constraint::Type(loc, ..) = constr
                 && !output_locs.contains(&loc.name)
             {
                 self.emit_err(errors::MissingEnsures::new(loc))
@@ -313,7 +313,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         constr: &fhir::Constraint,
     ) -> Result<(), ErrorGuaranteed> {
         match constr {
-            fhir::Constraint::Type(loc, ty) => {
+            fhir::Constraint::Type(loc, ty, _) => {
                 [infcx.check_loc(*loc), self.check_type(infcx, ty)]
                     .into_iter()
                     .try_collect_exhaust()

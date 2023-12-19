@@ -81,6 +81,8 @@ enum Param {
     Pound,
     /// A parameter declared with `x: T` syntax.
     Colon,
+    /// A location declared with `x: &strg T` syntax.
+    Loc(usize),
     /// A parameter that we know *syntactically* cannot be used inside a refinement. We track these
     /// parameters to report errors at the use site. For example, consider the following function:
     ///
@@ -184,8 +186,8 @@ impl RustItemCtxt<'_, '_> {
             let sort = self.sort_resolver.resolve_sort(sort)?;
             env.insert(self.sess(), param.name, Param::Explicit(sort))?;
         }
-        for arg in &fn_sig.args {
-            self.gather_params_fun_arg(arg, env)?;
+        for (idx, arg) in fn_sig.args.iter().enumerate() {
+            self.gather_params_fun_arg(idx, arg, env)?;
         }
         if let Some(predicates) = &fn_sig.predicates {
             self.gather_params_predicates(predicates, env)?;
@@ -221,14 +223,14 @@ impl RustItemCtxt<'_, '_> {
         Ok(())
     }
 
-    fn gather_params_fun_arg(&self, arg: &surface::Arg, env: &mut Env) -> Result {
+    fn gather_params_fun_arg(&self, idx: usize, arg: &surface::Arg, env: &mut Env) -> Result {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
                 env.insert(self.sess(), *bind, Param::Colon)?;
                 self.gather_params_path(path, TypePos::Input, env)?;
             }
             surface::Arg::StrgRef(loc, ty) => {
-                env.insert(self.sess(), *loc, Param::Explicit(fhir::Sort::Loc))?;
+                env.insert(self.sess(), *loc, Param::Loc(idx))?;
                 self.gather_params_ty(None, ty, TypePos::Input, env)?;
             }
             surface::Arg::Ty(bind, ty) => {
@@ -423,6 +425,7 @@ impl Env {
                         return None;
                     }
                 }
+                Param::Loc(idx) => (fhir::Sort::Loc, fhir::ParamKind::Loc(idx)),
                 Param::SyntaxError => return None,
             };
             Some(super::Param { name: name_gen.fresh(), sort, kind })

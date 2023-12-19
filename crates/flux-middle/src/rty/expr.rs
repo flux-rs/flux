@@ -154,7 +154,7 @@ pub struct Path {
     projection: List<FieldIdx>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Loc {
     Local(Local),
     Var(Var),
@@ -660,7 +660,7 @@ impl Path {
 
     pub fn to_loc(&self) -> Option<Loc> {
         if self.projection.is_empty() {
-            Some(self.loc.clone())
+            Some(self.loc)
         } else {
             None
         }
