@@ -650,6 +650,20 @@ check_crate
     total time:   16995.32ms
 total time: 17014.19ms
 </code></pre>
+<h2 id="macro-expansion"><a class="header" href="#macro-expansion">Macro expansion</a></h2>
+<p>For example if you have code like  in <code>path/to/file.rs</code></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[extern_spec]
+#[flux::refined_by(elems: Set&lt;T&gt;)]
+struct HashSet&lt;T, S = RandomState&gt;;
+<span class="boring">}</span></code></pre></pre>
+<p>and you want to see what the <code>extern_spec</code> macro expands it out to, then run</p>
+<pre><code>cargo x run -- -Zunpretty=expanded path/to/file.rs
+</code></pre>
+<p>Or you can run the <code>xtask</code> command directly</p>
+<pre><code>cargo x expand path/to/file.rs
+</code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="high-level-architecture"><a class="header" href="#high-level-architecture">High-level Architecture</a></h1>
 <p>Flux is implemented as a compiler <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=Callbacks%5C#rustc_driver-and-rustc_interface">driver</a>. We hook into the compiler by implementing the <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_driver/trait.Callbacks.html"><code>Callbacks</code></a> trait. The implementation is located is in the <code>flux-driver</code> crate, and it is the main entry point to Flux.</p>
 <h2 id="crates"><a class="header" href="#crates">Crates</a></h2>

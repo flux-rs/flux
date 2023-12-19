@@ -2131,6 +2131,7 @@
 <a href="#2131" id="2131">2131</a>
 <a href="#2132" id="2132">2132</a>
 <a href="#2133" id="2133">2133</a>
+<a href="#2134" id="2134">2134</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2739,8 +2740,9 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = param_index.checked_sub(<span class="self">self</span>.parent_count) {
             <span class="prelude-val">Ok</span>(<span class="self">self</span>.params[index].clone())
         } <span class="kw">else </span>{
-            genv.generics_of(<span class="self">self</span>.parent.expect(<span class="string">&quot;parent_count &gt; 0 but no parent?&quot;</span>))<span class="question-mark">?
-                </span>.param_at(param_index, genv)
+            <span class="kw">let </span>parent = <span class="self">self</span>.parent.expect(<span class="string">&quot;parent_count &gt; 0 but no parent?&quot;</span>);
+            <span class="kw">let </span>parent_generics = genv.generics_of(parent)<span class="question-mark">?</span>;
+            parent_generics.param_at(param_index, genv)
         }
     }
 

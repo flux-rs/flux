@@ -440,6 +440,8 @@
 <a href="#440" id="440">440</a>
 <a href="#441" id="441">441</a>
 <a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{borrow::Borrow, rc::Rc};
 
 <span class="kw">use </span>flux_common::bug;
@@ -789,6 +791,7 @@
         sort_args: List&lt;fhir::Sort&gt;,
         fld: Symbol,
     ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
+        <span class="kw">let </span>def_id = <span class="self">self</span>.lookup_extern(def_id).unwrap_or(def_id);
         <span class="kw">let </span>poly_sort = <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
             <span class="self">self</span>.map().refined_by(local_id).field_sort(fld, <span class="kw-2">&amp;</span>sort_args)
         } <span class="kw">else </span>{
@@ -800,6 +803,7 @@
     }
 
     <span class="kw">pub fn </span>field_index(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId, fld: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+        <span class="kw">let </span>def_id = <span class="self">self</span>.lookup_extern(def_id).unwrap_or(def_id);
         <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
             <span class="self">self</span>.map().refined_by(local_id).field_index(fld)
         } <span class="kw">else </span>{

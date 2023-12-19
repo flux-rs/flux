@@ -2399,7 +2399,7 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = <span class="self">self</span>.is_record() {
             <span class="kw">let </span>i = genv
                 .field_index(def_id, fld.name)
-                .unwrap_or_else(|| <span class="macro">span_bug!</span>(fld.span, <span class="string">&quot;field not found `{fld:?}`&quot;</span>));
+                .unwrap_or_else(|| <span class="macro">span_bug!</span>(fld.span, <span class="string">&quot;field `{fld:?}` not found in {def_id:?}&quot;</span>));
             rty::Expr::tuple_proj(<span class="self">self</span>.to_expr(), i <span class="kw">as </span>u32, <span class="prelude-val">None</span>)
         } <span class="kw">else </span>{
             <span class="macro">span_bug!</span>(fld.span, <span class="string">&quot;expected record sort&quot;</span>)

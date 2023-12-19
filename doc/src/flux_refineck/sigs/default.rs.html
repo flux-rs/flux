@@ -166,13 +166,28 @@
 <a href="#166" id="166">166</a>
 <a href="#167" id="167">167</a>
 <a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::LazyLock;
 
 <span class="kw">use </span>flux_middle::{
     rty::{BaseTy, BinOp, Expr, INT_TYS, UINT_TYS},
     rustc::mir,
 };
-<span class="kw">use </span>itertools::iproduct;
+<span class="kw">use </span>itertools::{chain, iproduct};
 
 <span class="kw">use super</span>::{Sig, SigTable};
 <span class="kw">use crate</span>::{
@@ -198,6 +213,7 @@
 
     table.extend(mk_neg());
     table.extend([mk_not()]);
+    table.extend(mk_lnot());
 
     table
 });
@@ -333,5 +349,19 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>mk_not() -&gt; (mir::UnOp, Sig&lt;<span class="number">1</span>&gt;) {
     <span class="macro">define_btys! </span>{ <span class="kw">let </span>bool = BaseTy::Bool; }
     (mir::UnOp::Not, <span class="macro">s!</span>(<span class="kw">fn</span>(a: bool) -&gt; bool[a.not()]))
+}
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>mk_lnot() -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = (mir::UnOp, Sig&lt;<span class="number">1</span>&gt;)&gt; {
+    <span class="kw">let </span>int_lnots = INT_TYS.map(|int_ty| {
+        <span class="macro">define_btys! </span>{ <span class="kw">let </span>Int = BaseTy::Int(int_ty); };
+        (mir::UnOp::Not, <span class="macro">s!</span>(<span class="kw">fn</span>(a: Int) -&gt; Int{v: E::tt()}))
+    });
+
+    <span class="kw">let </span>uint_lnots = UINT_TYS.map(|uint_ty| {
+        <span class="macro">define_btys! </span>{ <span class="kw">let </span>Uint = BaseTy::Uint(uint_ty); };
+        (mir::UnOp::Not, <span class="macro">s!</span>(<span class="kw">fn</span>(a: Uint) -&gt; Uint{v: E::tt()}))
+    });
+
+    <span class="macro">chain!</span>(int_lnots, uint_lnots)
 }
 </code></pre></div></section></main></body></html>

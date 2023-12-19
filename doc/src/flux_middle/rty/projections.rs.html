@@ -437,6 +437,13 @@
 <a href="#437" id="437">437</a>
 <a href="#438" id="438">438</a>
 <a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="attr">#[allow(unused_imports)]
@@ -452,7 +459,7 @@
 
 <span class="kw">use super</span>::{
     fold::{FallibleTypeFolder, TypeSuperFoldable},
-    AliasKind, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, GenericArg,
+    AliasKind, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, GenericArg, GenericArgs,
     ProjectionPredicate, Region, Ty, TyKind,
 };
 <span class="kw">use crate</span>::{
@@ -511,17 +518,17 @@
                 //    to infer a substitution
                 //        IntoIter&lt;{v. i32[v] | v &gt; 0}, Global&gt; against IntoIter&lt;T, A&gt;
                 //            =&gt; {T -&gt; {v. i32[v] | v &gt; 0}, A -&gt; Global}
-                </span><span class="kw">let </span>rustc_self_ty = <span class="self">self
+                </span><span class="kw">let </span>impl_trait_ref = <span class="self">self
                     </span>.tcx()
                     .impl_trait_ref(impl_def_id)
                     .unwrap()
-                    .skip_binder()
-                    .self_ty();
+                    .skip_binder();
 
                 <span class="kw">let </span>generics = <span class="self">self</span>.tcx().generics_of(impl_def_id);
 
-                <span class="kw">let </span>args =
-                    TVarSubst::mk_subst(<span class="self">self</span>.tcx(), generics, <span class="kw-2">&amp;</span>rustc_self_ty, obligation.self_ty());
+                <span class="kw">let </span><span class="kw-2">mut </span>subst = TVarSubst::new(generics);
+                subst.infer_from_args(impl_trait_ref.args, <span class="kw-2">&amp;</span>obligation.args);
+                <span class="kw">let </span>args = subst.finish(<span class="self">self</span>.tcx(), generics);
 
                 <span class="comment">// 2. Get the associated type in the impl block and apply the substitution to it
                 </span><span class="kw">let </span>assoc_type_id = <span class="self">self
@@ -770,16 +777,16 @@
 }
 
 <span class="kw">impl </span>TVarSubst {
-    <span class="kw">fn </span>mk_subst&lt;<span class="lifetime">&#39;tcx</span>&gt;(
+    <span class="kw">fn </span>new(generics: <span class="kw-2">&amp;</span>rustc_middle::ty::Generics) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ args: <span class="macro">vec!</span>[<span class="prelude-val">None</span>; generics.count()] }
+    }
+
+    <span class="kw">fn </span>finish&lt;<span class="lifetime">&#39;tcx</span>&gt;(
+        <span class="self">self</span>,
         tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
         generics: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>rustc_middle::ty::Generics,
-        src: <span class="kw-2">&amp;</span>rustc_middle::ty::Ty,
-        dst: <span class="kw-2">&amp;</span>Ty,
     ) -&gt; Vec&lt;GenericArg&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>subst = TVarSubst { args: <span class="macro">vec!</span>[<span class="prelude-val">None</span>; generics.count()] };
-        subst.infer_from_ty(src, dst);
-        subst
-            .args
+        <span class="self">self</span>.args
             .into_iter()
             .enumerate()
             .map(|(idx, arg)| {
@@ -807,7 +814,14 @@
         }
     }
 
-    <span class="kw">fn </span>infer_from_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, src: <span class="kw-2">&amp;</span>rustc_middle::ty::GenericArg, dst: <span class="kw-2">&amp;</span>GenericArg) {
+    <span class="kw">fn </span>infer_from_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, src: rustc_middle::ty::GenericArgsRef, dst: <span class="kw-2">&amp;</span>GenericArgs) {
+        <span class="macro">debug_assert_eq!</span>(src.len(), dst.len());
+        <span class="kw">for </span>(src, dst) <span class="kw">in </span>iter::zip(src, dst) {
+            <span class="self">self</span>.infer_from_arg(src, dst);
+        }
+    }
+
+    <span class="kw">fn </span>infer_from_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, src: rustc_middle::ty::GenericArg, dst: <span class="kw-2">&amp;</span>GenericArg) {
         <span class="kw">match </span>dst {
             GenericArg::Ty(dst) =&gt; {
                 <span class="self">self</span>.infer_from_ty(<span class="kw-2">&amp;</span>src.as_type().unwrap(), dst);
@@ -829,7 +843,7 @@
                 {
                     <span class="macro">debug_assert_eq!</span>(src_subst.len(), dst_subst.len());
                     <span class="kw">for </span>(src_arg, dst_arg) <span class="kw">in </span>iter::zip(<span class="kw-2">*</span>src_subst, dst_subst) {
-                        <span class="self">self</span>.infer_from_arg(<span class="kw-2">&amp;</span>src_arg, dst_arg);
+                        <span class="self">self</span>.infer_from_arg(src_arg, dst_arg);
                     }
                 } <span class="kw">else </span>{
                     <span class="macro">bug!</span>(<span class="string">&quot;unexpected type {dst:?}&quot;</span>);

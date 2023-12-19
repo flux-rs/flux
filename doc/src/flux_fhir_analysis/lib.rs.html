@@ -590,7 +590,7 @@
                     <span class="kw">let </span>wfckresults = genv.check_wf(def_id)<span class="question-mark">?</span>;
                     conv::conv_ty(genv, ty, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
                 </span>}
-                <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;non-type def&quot;</span>),
+                k =&gt; <span class="macro">bug!</span>(<span class="string">&quot;non-type def {k:?} {def_id:?}&quot;</span>),
             }
         }
         DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy =&gt; {
