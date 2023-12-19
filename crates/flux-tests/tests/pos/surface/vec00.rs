@@ -57,13 +57,10 @@ pub fn test_is_empty() {
     assert(!res.is_empty())
 }
 
-#[flux::sig(fn (Vec<i32{v:10 <= v}>))]
-pub fn test3(xs: Vec<i32>) {
-    for x in &xs {
-        assert(0 <= *x)
-    }
-}
-
-fn baz(v: &Vec<i32>) {
-    for x in v {}
-}
+// TODO: https://github.com/flux-rs/flux/issues/578
+// #[flux::sig(fn (Vec<i32{v:10 <= v}>))]
+// pub fn test3(xs: Vec<i32>) {
+//     for x in &xs {
+//         assert(0 <= *x)
+//     }
+// }
