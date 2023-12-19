@@ -70,7 +70,7 @@ impl LookupKey for Path {
     type Iter<'a> = impl DoubleEndedIterator<Item = PlaceElem> + 'a;
 
     fn loc(&self) -> Loc {
-        self.loc.clone()
+        self.loc
     }
 
     fn proj(&self) -> Self::Iter<'_> {
@@ -296,7 +296,7 @@ impl PlacesTree {
                         proj.pop();
                     }
                 }
-                _ => f(Path::new(loc.clone(), proj.as_slice()), kind, ty),
+                _ => f(Path::new(*loc, proj.as_slice()), kind, ty),
             }
         }
         for (loc, binding) in &self.map {
@@ -317,7 +317,7 @@ impl PlacesTree {
     }
 
     fn cursor(&self, key: &impl LookupKey) -> Cursor {
-        let place = self.loc_to_place[&key.loc()];
+        let place = self.loc_to_place[&key.loc()].clone();
         Cursor::new(key, place)
     }
 }
@@ -471,7 +471,7 @@ impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
         let mut place = self.cursor.to_place();
         place.projection.push(PlaceElem::Deref);
         self.insertions.push((
-            loc.clone(),
+            loc,
             place,
             Binding { kind: LocKind::Box(alloc.clone()), ty: deref_ty.clone() },
         ));
@@ -671,7 +671,7 @@ impl Cursor {
                 .copied()
                 .map(PlaceElem::Field),
         );
-        self.loc = path.loc.clone();
+        self.loc = path.loc;
         self.pos = self.proj.len();
     }
 
@@ -692,7 +692,7 @@ impl Cursor {
                 }
             }
         }
-        Path::new(self.loc.clone(), List::from_vec(proj))
+        Path::new(self.loc, List::from_vec(proj))
     }
 
     fn next(&mut self) -> Option<PlaceElem> {

@@ -723,7 +723,7 @@ impl TypeFoldable for FnOutput {
 impl TypeVisitable for Constraint {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
         match self {
-            Constraint::Type(path, ty) => {
+            Constraint::Type(path, _, ty) => {
                 path.to_expr().visit_with(visitor)?;
                 ty.visit_with(visitor)
             }
@@ -735,7 +735,7 @@ impl TypeVisitable for Constraint {
 impl TypeFoldable for Constraint {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let c = match self {
-            Constraint::Type(path, ty) => {
+            Constraint::Type(path, local, ty) => {
                 let path_expr = path
                     .to_expr()
                     .try_fold_with(folder)?
@@ -744,6 +744,7 @@ impl TypeFoldable for Constraint {
                     path_expr.to_path().unwrap_or_else(|| {
                         bug!("invalid path `{path_expr:?}` produced when folding `{self:?}`",)
                     }),
+                    *local,
                     ty.try_fold_with(folder)?,
                 )
             }

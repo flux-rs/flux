@@ -256,7 +256,7 @@ fn create_dummy_ident_from_path(dummy_prefix: &str, path: &syn::Path) -> syn::Re
 /// struct __FluxExternStructHashSet<T, S = RandomState>(HashSet<T, S>);
 /// ```
 fn strip_generics_eq_default(generics: &mut Generics) {
-    for param in generics.params.iter_mut() {
+    for param in &mut generics.params {
         match param {
             GenericParam::Type(type_param) => {
                 type_param.bounds = Punctuated::new();

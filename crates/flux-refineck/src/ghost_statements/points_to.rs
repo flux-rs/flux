@@ -744,7 +744,7 @@ impl State {
 
     fn flood_with(&mut self, place: mir::PlaceRef<'_>, map: &Map, value: FlatSet<Loc>) {
         map.for_each_aliasing_place(place, &mut |vi| {
-            self.values[vi] = value.clone();
+            self.values[vi] = value;
         });
     }
 
@@ -780,7 +780,7 @@ impl State {
         // already been performed.
         if let Some(target_value) = map.places[target].value_index {
             if let Some(source_value) = map.places[source].value_index {
-                self.values[target_value] = self.values[source_value].clone();
+                self.values[target_value] = self.values[source_value];
             }
         }
         for target_child in map.children(target) {
@@ -815,9 +815,7 @@ impl State {
 
     /// Retrieve the value stored for a place index if tracked
     fn get_tracked_idx(&self, place: PlaceIndex, map: &Map) -> Option<FlatSet<Loc>> {
-        map.places[place]
-            .value_index
-            .map(|v| self.values[v].clone())
+        map.places[place].value_index.map(|v| self.values[v])
     }
 }
 

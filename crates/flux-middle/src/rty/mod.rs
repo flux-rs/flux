@@ -45,7 +45,7 @@ use crate::{
     queries::QueryResult,
     rustc::{
         self,
-        mir::Place,
+        mir::{Local, Place},
         ty::{GeneratorArgsParts, ValueConst, VariantDef},
     },
 };
@@ -286,7 +286,7 @@ pub type Constraints = List<Constraint>;
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub enum Constraint {
-    Type(Path, Ty),
+    Type(Path, Local, Ty),
     Pred(Expr),
 }
 
@@ -1852,7 +1852,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Constraint::Type(loc, ty) => w!("{:?}: {:?}", ^loc, ty),
+                Constraint::Type(loc, _, ty) => w!("{:?}: {:?}", ^loc, ty),
                 Constraint::Pred(e) => w!("{:?}", e),
             }
         }

@@ -138,7 +138,7 @@ impl<'zip> Zipper<'zip> {
 
     fn zip_constraints(&mut self, constrs: &[fhir::Constraint]) -> Result<(), ErrorGuaranteed> {
         constrs.iter().try_for_each_exhaust(|constr| {
-            if let fhir::Constraint::Type(loc, ty) = constr {
+            if let fhir::Constraint::Type(loc, _, ty) = constr {
                 self.zip_ty(ty, self.locs[&loc.name])
             } else {
                 Ok(())

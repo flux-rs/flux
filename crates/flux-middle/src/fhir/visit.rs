@@ -147,7 +147,7 @@ pub fn walk_refine_param<V: Visitor>(vis: &mut V, param: &RefineParam) {
 
 pub fn walk_constraint<V: Visitor>(vis: &mut V, constraint: &Constraint) {
     match constraint {
-        Constraint::Type(loc, ty) => {
+        Constraint::Type(loc, _, ty) => {
             vis.visit_ident(*loc);
             vis.visit_ty(ty);
         }

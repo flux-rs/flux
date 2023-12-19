@@ -27,6 +27,7 @@ use rustc_hir::{
 };
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
+    mir::Local,
     ty::{AssocItem, AssocKind, BoundVar, TyCtxt},
 };
 use rustc_span::symbol::kw;
@@ -579,8 +580,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         constr: &fhir::Constraint,
     ) -> QueryResult<rty::Constraint> {
         match constr {
-            fhir::Constraint::Type(loc, ty) => {
-                Ok(rty::Constraint::Type(env.lookup(*loc).to_path(), self.conv_ty(env, ty)?))
+            fhir::Constraint::Type(loc, idx, ty) => {
+                Ok(rty::Constraint::Type(
+                    env.lookup(*loc).to_path(),
+                    Local::from_usize(*idx),
+                    self.conv_ty(env, ty)?,
+                ))
             }
             fhir::Constraint::Pred(pred) => Ok(rty::Constraint::Pred(self.conv_expr(env, pred))),
         }

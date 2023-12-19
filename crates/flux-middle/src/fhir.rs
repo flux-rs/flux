@@ -256,7 +256,7 @@ pub struct FnOutput {
 
 pub enum Constraint {
     /// A type constraint on a location
-    Type(Ident, Ty),
+    Type(Ident, usize, Ty),
     /// A predicate that needs to hold
     Pred(Expr),
 }
@@ -1482,7 +1482,7 @@ impl fmt::Debug for FnOutput {
 impl fmt::Debug for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constraint::Type(loc, ty) => write!(f, "{loc:?}: {ty:?}"),
+            Constraint::Type(loc, _, ty) => write!(f, "{loc:?}: {ty:?}"),
             Constraint::Pred(e) => write!(f, "{e:?}"),
         }
     }

@@ -274,11 +274,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         for constr in fn_sig.requires() {
             match constr {
-                rty::Constraint::Type(path, ty) => {
+                rty::Constraint::Type(path, local, ty) => {
                     let loc = path.to_loc().unwrap();
                     let ty = rcx.unpack(ty, AssumeInvariants::No);
                     rcx.assume_invariants(&ty, config.check_overflow);
-                    env.alloc_universal_loc(loc, ty);
+                    env.alloc_universal_loc(loc, Place::new(*local, vec![]), ty);
                 }
                 rty::Constraint::Pred(e) => {
                     rcx.assume_pred(e.clone());
@@ -535,7 +535,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         for constr in &output.ensures {
             match constr {
-                Constraint::Type(path, updated_ty) => {
+                Constraint::Type(path, _, updated_ty) => {
                     let updated_ty = rcx.unpack(updated_ty, AssumeInvariants::No);
                     rcx.assume_invariants(&updated_ty, self.config.check_overflow);
                     env.update_path(path, updated_ty);
