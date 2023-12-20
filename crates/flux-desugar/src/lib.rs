@@ -139,7 +139,7 @@ pub fn desugar_fn_sig(
 
         // Desugar and insert generics
         let generics = if let Some(generics) = &fn_sig.generics {
-            cx.desugar_generics(generics)?
+            cx.desugar_generics_params(generics)?
         } else {
             cx.as_lift_cx().lift_generics()?
         };
@@ -185,7 +185,7 @@ pub fn desugar_generics_and_predicates(
 
     let generics = if let Some(generics) = generics {
         let cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
-        cx.desugar_generics(generics)?
+        cx.desugar_generics_params(generics)?
     } else {
         lifted_generics
     };

@@ -1,7 +1,7 @@
 use super::{
     BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnOutput, FnSig, FuncSort,
-    GenericArg, Ident, Lifetime, Lit, Path, PolyFuncSort, QPath, RefineArg, RefineParam, Sort,
-    StructDef, Ty, TyKind, TypeBinding, VariantDef, VariantRet,
+    GenericArg, Ident, Lifetime, Lit, Path, PathSegment, PolyFuncSort, QPath, RefineArg,
+    RefineParam, Sort, StructDef, Ty, TyKind, TypeBinding, VariantDef, VariantRet,
 };
 
 #[macro_export]
@@ -69,6 +69,10 @@ pub trait Visitor: Sized {
 
     fn visit_qpath(&mut self, qpath: &QPath) {
         walk_qpath(self, qpath);
+    }
+
+    fn visit_path_segment(&mut self, segment: &PathSegment) {
+        walk_path_segment(self, segment);
     }
 
     fn visit_type_binding(&mut self, binding: &TypeBinding) {
@@ -223,12 +227,16 @@ pub fn walk_qpath<V: Visitor>(vis: &mut V, qpath: &QPath) {
             if let Some(self_ty) = self_ty {
                 vis.visit_ty(self_ty);
             }
-            let Path { res: _, args, bindings, refine, span: _ } = path;
-            walk_list!(vis, visit_generic_arg, args);
-            walk_list!(vis, visit_type_binding, bindings);
+            let Path { res: _, segments, refine, span: _ } = path;
+            walk_list!(vis, visit_path_segment, segments);
             walk_list!(vis, visit_refine_arg, refine);
         }
     }
+}
+
+pub fn walk_path_segment<V: Visitor>(vis: &mut V, segment: &PathSegment) {
+    walk_list!(vis, visit_generic_arg, &segment.args);
+    walk_list!(vis, visit_type_binding, &segment.bindings);
 }
 
 pub fn walk_type_binding<V: Visitor>(vis: &mut V, binding: &TypeBinding) {

@@ -255,11 +255,10 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         LiftCtxt::new(self.genv.tcx, self.genv.sess, self.owner, self.opaque_tys.as_deref_mut())
     }
 
-    // fn as_expr_ctxt<'b>(&'b self) -> ExprCtxt<'b, 'tcx> {
-    //     ExprCtxt::new(self.genv, FluxOwnerId::Rust(self.owner), &self.local_id_gen)
-    // }
-
-    pub(crate) fn desugar_generics(&self, generics: &surface::Generics) -> Result<fhir::Generics> {
+    pub(crate) fn desugar_generics_params(
+        &self,
+        generics: &surface::Generics,
+    ) -> Result<fhir::Generics> {
         let hir_generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
 
         let generics_map: FxHashMap<_, _> = hir_generics
@@ -843,13 +842,28 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
     fn desugar_path(&mut self, path: &surface::Path, env: &mut Env) -> Result<fhir::Path> {
         let res = self.resolver_output.path_res_map[&path.node_id];
-        let (args, bindings) = self.desugar_generic_args(res, &path.generics, env)?;
+        let segments = path
+            .segments
+            .iter()
+            .map(|segment| self.desugar_path_segment(res, segment, env))
+            .try_collect_exhaust()?;
         let refine = path
             .refine
             .iter()
             .map(|arg| self.desugar_refine_arg(arg, None, env))
             .try_collect_exhaust()?;
-        Ok(fhir::Path { res, args, bindings, refine, span: path.span })
+        Ok(fhir::Path { res, segments, refine, span: path.span })
+    }
+
+    fn desugar_path_segment(
+        &mut self,
+        res: Res,
+        segment: &surface::PathSegment,
+        env: &mut Env,
+    ) -> Result<fhir::PathSegment> {
+        let args = segment.args.as_deref().unwrap_or(&[]);
+        let (args, bindings) = self.desugar_generic_args(res, args, env)?;
+        Ok(fhir::PathSegment { ident: segment.ident, args, bindings })
     }
 
     fn desugar_path_to_bty(&mut self, path: &surface::Path, env: &mut Env) -> Result<fhir::BaseTy> {

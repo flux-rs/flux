@@ -344,9 +344,23 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     self.conv_fn_bound(env, bounded_ty, trait_ref, closure_kind, clauses)
                 } else {
                     let path = &trait_ref.trait_ref;
+                    let item_segment = path.segments.last().unwrap();
                     let params = &trait_ref.bound_generic_params;
-                    self.conv_trait_bound(env, bounded_ty, trait_id, &path.args, params, clauses)?;
-                    self.conv_type_bindings(env, bounded_ty, trait_id, &path.bindings, clauses)
+                    self.conv_trait_bound(
+                        env,
+                        bounded_ty,
+                        trait_id,
+                        &item_segment.args,
+                        params,
+                        clauses,
+                    )?;
+                    self.conv_type_bindings(
+                        env,
+                        bounded_ty,
+                        trait_id,
+                        &item_segment.bindings,
+                        clauses,
+                    )
                 }
             }
             // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
@@ -414,11 +428,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         let path = &trait_ref.trait_ref;
         let layer = Layer::list(self, trait_ref.bound_generic_params.len() as u32, &[], true);
         env.push_layer(layer);
+        let item_segment = path.segments.last().unwrap();
 
         let pred = rty::FnTraitPredicate {
             self_ty: self_ty.clone(),
-            tupled_args: self.conv_ty(env, path.args[0].expect_type())?,
-            output: self.conv_ty(env, &path.bindings[0].term)?,
+            tupled_args: self.conv_ty(env, item_segment.args[0].expect_type())?,
+            output: self.conv_ty(env, &item_segment.bindings[0].term)?,
             kind,
         };
         // FIXME(nilehmann) We should use `tcx.late_bound_vars` here instead of trusting our lowering
@@ -662,7 +677,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 
         if let fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) = &bty.kind {
             if let fhir::Res::Def(DefKind::AssocTy, def_id) = path.res {
-                assert!(path.args.is_empty(), "generic associated types are not supported");
+                let item_segment = path.segments.last().unwrap();
+                assert!(item_segment.args.is_empty(), "generic associated types are not supported");
                 let self_ty = self.conv_ty(env, self_ty.as_deref().unwrap())?;
                 let args = List::singleton(rty::GenericArg::Ty(self_ty));
                 let refine_args = List::empty();
@@ -801,8 +817,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 rty::BaseTy::Float(rustc_middle::ty::float_ty(*float_ty))
             }
             fhir::Res::Def(DefKind::Struct | DefKind::Enum, did) => {
+                let item_segment = path.segments.last().unwrap();
                 let adt_def = self.genv.adt_def(*did)?;
-                let args = self.conv_generic_args(env, *did, &path.args)?;
+                let args = self.conv_generic_args(env, *did, &item_segment.args)?;
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) => {
@@ -816,7 +833,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .replace_bound_expr(&idx.expr));
             }
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
-                let generics = self.conv_generic_args(env, *def_id, &path.args)?;
+                let item_segment = path.segments.last().unwrap();
+                let generics = self.conv_generic_args(env, *def_id, &item_segment.args)?;
                 let refine = path
                     .refine
                     .iter()

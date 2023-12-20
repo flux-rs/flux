@@ -10,7 +10,9 @@ use rustc_errors::IntoDiagnostic;
 use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
+use rustc_span::symbol::kw;
 
+use super::SurfaceIdent;
 use crate::{fhir, intern::List};
 
 pub struct LiftCtxt<'a, 'tcx> {
@@ -119,10 +121,15 @@ pub fn lift_self_ty(
         let cx = LiftCtxt::new(tcx, sess, owner_id, None);
 
         let span = item.ident.span.to(generics.span);
-        let path = fhir::Path {
-            res: fhir::Res::Def(def_kind, owner_id.to_def_id()),
+        let ident = SurfaceIdent { name: kw::SelfUpper, span };
+        let segment = fhir::PathSegment {
+            ident,
             args: cx.generic_params_into_args(generics)?,
             bindings: vec![],
+        };
+        let path = fhir::Path {
+            res: fhir::Res::Def(def_kind, owner_id.to_def_id()),
+            segments: vec![segment],
             refine: vec![],
             span,
         };
@@ -397,10 +404,10 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         generics: &hir::Generics,
     ) -> fhir::VariantRet {
         let span = item.ident.span.to(generics.span);
+        let segment = fhir::PathSegment { ident: item.ident, args: vec![], bindings: vec![] };
         let path = fhir::Path {
             res: fhir::Res::SelfTyAlias { alias_to: self.owner.to_def_id(), is_trait_impl: false },
-            args: vec![],
-            bindings: vec![],
+            segments: vec![segment],
             refine: vec![],
             span,
         };
@@ -487,14 +494,25 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         let Ok(res) = path.res.try_into() else {
             return self.emit_unsupported(&format!("unsupported res: `{:?}`", path.res));
         };
-        let (args, bindings) = match path.segments.last().unwrap().args {
-            Some(args) => {
-                (self.lift_generic_args(args.args)?, self.lift_type_bindings(args.bindings)?)
-            }
-            None => (vec![], vec![]),
-        };
+        let segments = path
+            .segments
+            .iter()
+            .map(|s| self.lift_path_segment(s))
+            .try_collect_exhaust()?;
 
-        Ok(fhir::Path { res, args, bindings, refine: vec![], span: path.span })
+        Ok(fhir::Path { res, segments, refine: vec![], span: path.span })
+    }
+
+    fn lift_path_segment(
+        &mut self,
+        segment: &hir::PathSegment,
+    ) -> Result<fhir::PathSegment, ErrorGuaranteed> {
+        let (args, bindings) = if let Some(args) = &segment.args {
+            (self.lift_generic_args(args.args)?, self.lift_type_bindings(args.bindings)?)
+        } else {
+            (vec![], vec![])
+        };
+        Ok(fhir::PathSegment { ident: segment.ident, args, bindings })
     }
 
     fn lift_path_to_ty(
@@ -580,10 +598,14 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             match param.kind {
                 hir::GenericParamKind::Type { .. } => {
                     let res = fhir::Res::Def(DefKind::TyParam, param.def_id.to_def_id());
-                    let path = fhir::Path {
-                        res,
+                    let segment = fhir::PathSegment {
+                        ident: param.name.ident(),
                         args: vec![],
                         bindings: vec![],
+                    };
+                    let path = fhir::Path {
+                        res,
+                        segments: vec![segment],
                         refine: vec![],
                         span: param.span,
                     };

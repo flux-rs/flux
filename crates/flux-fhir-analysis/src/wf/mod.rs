@@ -487,17 +487,30 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             | fhir::Res::PrimTy(..) => {}
         }
         let snapshot = self.xi.snapshot();
-
-        if let fhir::Res::Def(_kind, did) = &path.res
-            && !path.args.is_empty()
-        {
-            self.check_generic_args(infcx, *did, &path.args)?;
-        }
-        let bindings = self.check_type_bindings(infcx, &path.bindings);
+        let segments = if let fhir::Res::Def(_, did) = &path.res {
+            path.segments
+                .iter()
+                .try_for_each_exhaust(|segment| self.check_path_segment(infcx, *did, segment))
+        } else {
+            Ok(())
+        };
         if !self.genv.is_box(path.res) {
             self.xi.rollback_to(snapshot);
         }
-        bindings?;
+        segments?;
+        Ok(())
+    }
+
+    fn check_path_segment(
+        &mut self,
+        infcx: &mut InferCtxt,
+        def_id: DefId,
+        segment: &fhir::PathSegment,
+    ) -> Result<(), ErrorGuaranteed> {
+        if !segment.args.is_empty() {
+            self.check_generic_args(infcx, def_id, &segment.args)?;
+        }
+        self.check_type_bindings(infcx, &segment.bindings)?;
         Ok(())
     }
 

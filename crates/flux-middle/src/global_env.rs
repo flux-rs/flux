@@ -212,7 +212,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
                 let mut sort_args = vec![];
                 if let Ok(generics) = self.generics_of(def_id) {
-                    for (param, arg) in generics.params.iter().zip(&path.args) {
+                    let args = &path.segments.last().unwrap().args;
+                    for (param, arg) in generics.params.iter().zip(args) {
                         if let GenericParamDefKind::SplTy = param.kind {
                             let fhir::GenericArg::Type(ty) = arg else { return None };
                             let sort = self.sort_of_ty(ty)?;

@@ -332,11 +332,37 @@ impl<'zip> Zipper<'zip> {
 
             return Err(self.emit_err(errors::InvalidRefinement::from_paths(path, expected_path)));
         }
-        if path.args.len() != expected_path.args.len() {
-            return Err(self.emit_err(errors::GenericArgCountMismatch::new(path, expected_path)));
+        iter::zip(&path.segments, &expected_path.segments).try_for_each_exhaust(
+            |(segment, expected)| self.zip_path_segment(path.res, segment, expected),
+        )
+    }
+
+    fn zip_path_segment(
+        &mut self,
+        res: fhir::Res,
+        segment: &fhir::PathSegment,
+        expected_segment: &'zip fhir::PathSegment,
+    ) -> Result<(), ErrorGuaranteed> {
+        if segment.args.len() != expected_segment.args.len() {
+            return Err(self.emit_err(errors::GenericArgCountMismatch::new(
+                res,
+                segment.ident.span,
+                segment.args.len(),
+                expected_segment.ident.span,
+                expected_segment.args.len(),
+            )));
+        }
+        if segment.bindings.len() != expected_segment.bindings.len() {
+            return Err(self.emit_err(errors::GenericArgCountMismatch::new(
+                res,
+                segment.ident.span,
+                segment.bindings.len(),
+                expected_segment.ident.span,
+                expected_segment.bindings.len(),
+            )));
         }
 
-        iter::zip(&path.args, &expected_path.args)
+        iter::zip(&segment.args, &expected_segment.args)
             .try_for_each_exhaust(|(arg, expected)| self.zip_generic_arg(arg, expected))
     }
 
@@ -448,14 +474,14 @@ mod errors {
     }
 
     impl GenericArgCountMismatch {
-        pub(super) fn new(path: &fhir::Path, expected_path: &fhir::Path) -> Self {
-            GenericArgCountMismatch {
-                span: path.span,
-                found: path.args.len(),
-                expected: expected_path.args.len(),
-                def_descr: path.res.descr(),
-                expected_span: expected_path.span,
-            }
+        pub(super) fn new(
+            res: fhir::Res,
+            span: Span,
+            found: usize,
+            expected_span: Span,
+            expected: usize,
+        ) -> Self {
+            GenericArgCountMismatch { span, found, expected, def_descr: res.descr(), expected_span }
         }
     }
 
