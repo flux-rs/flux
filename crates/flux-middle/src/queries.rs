@@ -9,7 +9,10 @@ use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
 use rustc_hash::FxHashMap;
-use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::{
+    def::DefKind,
+    def_id::{DefId, LocalDefId},
+};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
@@ -266,7 +269,12 @@ impl<'tcx> Queries<'tcx> {
             } else if let Some(ty) = genv.cstore().type_of(def_id) {
                 Ok(ty.clone())
             } else {
-                let generics = genv.generics_of(def_id)?;
+                // If we're given a type parameter, provide the generics of the parent container.
+                let generics_def_id = match genv.tcx.def_kind(def_id) {
+                    DefKind::TyParam => genv.tcx.parent(def_id),
+                    _ => def_id,
+                };
+                let generics = genv.generics_of(generics_def_id)?;
                 let ty = genv.lower_type_of(def_id)?.skip_binder();
                 let ty = Refiner::default(genv, &generics).refine_ty(&ty)?;
                 Ok(rty::EarlyBinder(rty::Binder::with_sort(ty, rty::Sort::unit())))
