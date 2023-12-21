@@ -46,7 +46,7 @@ use crate::{
     rustc::{
         self,
         mir::{Local, Place},
-        ty::{GeneratorArgsParts, ValueConst, VariantDef},
+        ty::{ConstKind, GeneratorArgsParts, VariantDef},
     },
 };
 pub use crate::{
@@ -414,7 +414,7 @@ impl GenericArgs {
         let mut args = vec![];
         let generics = genv.generics_of(def_id)?;
         Self::fill_item(genv, &mut args, &generics, &mut |param, _| {
-            GenericArg::from_param_def(param)
+            GenericArg::from_param_def(genv, param)
         })?;
         Ok(List::from_vec(args))
     }
@@ -426,14 +426,14 @@ impl GenericArgs {
         mk_kind: &mut F,
     ) -> QueryResult<()>
     where
-        F: FnMut(&GenericParamDef, &[GenericArg]) -> GenericArg,
+        F: FnMut(&GenericParamDef, &[GenericArg]) -> QueryResult<GenericArg>,
     {
         if let Some(def_id) = generics.parent {
             let parent_generics = genv.generics_of(def_id)?;
             Self::fill_item(genv, args, &parent_generics, mk_kind)?;
         }
         for param in &generics.params {
-            let kind = mk_kind(param, args);
+            let kind = mk_kind(param, args)?;
             assert_eq!(param.index as usize, args.len(), "{args:#?}, {generics:#?}");
             args.push(kind);
         }
@@ -457,20 +457,22 @@ impl GenericArg {
         }
     }
 
-    fn from_param_def(param: &GenericParamDef) -> Self {
+    fn from_param_def(genv: &GlobalEnv, param: &GenericParamDef) -> QueryResult<Self> {
         match param.kind {
             GenericParamDefKind::Type { .. } | GenericParamDefKind::SplTy => {
                 let param_ty = ParamTy { index: param.index, name: param.name };
-                GenericArg::Ty(Ty::param(param_ty))
+                Ok(GenericArg::Ty(Ty::param(param_ty)))
             }
             GenericParamDefKind::Lifetime => {
                 let region =
                     EarlyBoundRegion { index: param.index, name: param.name, def_id: param.def_id };
-                GenericArg::Lifetime(Region::ReEarlyBound(region))
+                Ok(GenericArg::Lifetime(Region::ReEarlyBound(region)))
             }
             GenericParamDefKind::Const { .. } => {
                 let param_const = ParamConst { index: param.index, name: param.name };
-                GenericArg::Const(Const::Param(param_const))
+                let kind = ConstKind::Param(param_const);
+                let ty = genv.lower_type_of(param.def_id)?.skip_binder();
+                Ok(GenericArg::Const(Const { kind, ty }))
             }
             GenericParamDefKind::BaseTy => {
                 bug!("")
@@ -995,14 +997,6 @@ where
 impl Index {
     pub(crate) fn unit() -> Self {
         Index { expr: Expr::unit(), is_binder: TupleTree::unit() }
-    }
-}
-
-impl From<ValueConst> for Index {
-    fn from(value: ValueConst) -> Self {
-        let c = Constant::from(value.val);
-        let expr = Expr::constant(c);
-        Index { expr, is_binder: TupleTree::Leaf(false) }
     }
 }
 
@@ -2077,9 +2071,9 @@ mod pretty {
     impl Pretty for Const {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            match self {
-                Const::Param(p) => w!("{}", ^p.name.as_str()),
-                Const::Value(v) => w!("^{}", ^v.val),
+            match &self.kind {
+                ConstKind::Param(p) => w!("{}", ^p.name.as_str()),
+                ConstKind::Value(v) => w!("{}", ^v),
             }
         }
     }

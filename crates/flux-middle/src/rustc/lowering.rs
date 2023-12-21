@@ -9,7 +9,7 @@ use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::{
         self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamConst, ParamEnv,
-        TyCtxt,
+        TyCtxt, ValTree,
     },
 };
 use rustc_span::Span;
@@ -23,9 +23,9 @@ use super::{
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
-        Const, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
+        Const, ConstKind, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
         GenericPredicates, Generics, PolyFnSig, TraitPredicate, TraitRef, Ty,
-        TypeOutlivesPredicate, ValueConst, VariantDef,
+        TypeOutlivesPredicate, VariantDef,
     },
 };
 use crate::{
@@ -611,18 +611,14 @@ fn lower_const<'tcx>(
     tcx: TyCtxt<'tcx>,
     c: rustc_ty::Const<'tcx>,
 ) -> Result<Const, UnsupportedReason> {
-    match c.kind() {
+    let kind = match c.kind() {
         rustc_type_ir::ConstKind::Param(param_const) => {
-            Ok(Const::Param(ParamConst { name: param_const.name, index: param_const.index }))
+            ConstKind::Param(ParamConst { name: param_const.name, index: param_const.index })
         }
-        rustc_type_ir::ConstKind::Value(value_const) => {
-            let val = value_const.try_to_target_usize(tcx).ok_or_else(|| {
-                UnsupportedReason::new(format!("unsupported const value {value_const:?}"))
-            })?;
-            Ok(Const::Value(ValueConst { val: val as usize }))
-        }
-        _ => Err(UnsupportedReason::new(format!("unsupported const {c:?}"))),
-    }
+        rustc_type_ir::ConstKind::Value(ValTree::Leaf(scalar_int)) => ConstKind::Value(scalar_int),
+        _ => return Err(UnsupportedReason::new(format!("unsupported const {c:?}"))),
+    };
+    Ok(Const { kind, ty: lower_ty(tcx, c.ty())? })
 }
 
 pub(crate) fn lower_ty<'tcx>(

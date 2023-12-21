@@ -623,7 +623,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 Ok(rty::Ty::tuple(tys))
             }
             fhir::TyKind::Array(ty, len) => {
-                Ok(rty::Ty::array(self.conv_ty(env, ty)?, rty::Const::from(len.val)))
+                Ok(rty::Ty::array(
+                    self.conv_ty(env, ty)?,
+                    rty::Const::from_array_len(self.genv.tcx, len.val),
+                ))
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
             fhir::TyKind::Constr(pred, ty) => {
@@ -878,7 +881,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let ty = self
                     .genv
                     .type_of(param.def_id)?
-                    .instantiate(&into, &[])
+                    .instantiate(into, &[])
                     .into_ty();
                 into.push(rty::GenericArg::Ty(ty));
             } else {
