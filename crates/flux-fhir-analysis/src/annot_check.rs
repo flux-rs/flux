@@ -9,10 +9,13 @@ use std::iter;
 
 use flux_common::{bug, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
-use flux_middle::fhir::{
-    self,
-    lift::{self, LiftCtxt},
-    WfckResults,
+use flux_middle::{
+    fhir::{
+        self,
+        lift::{self, LiftCtxt},
+        WfckResults,
+    },
+    global_env::GlobalEnv,
 };
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
@@ -70,19 +73,23 @@ pub fn check_struct_def(
 }
 
 pub fn check_enum_def(
-    tcx: TyCtxt,
-    sess: &FluxSession,
+    genv: &GlobalEnv,
     wfckresults: &mut WfckResults,
     enum_def: &fhir::EnumDef,
 ) -> Result<(), ErrorGuaranteed> {
+    let tcx = genv.tcx;
+    let sess = genv.sess;
     let mut liftcx = LiftCtxt::new(tcx, sess, enum_def.owner_id, None);
     enum_def.variants.iter().try_for_each_exhaust(|variant| {
         if variant.lifted {
             return Ok(());
         }
-        let self_ty = lift::lift_self_ty(tcx, sess, enum_def.owner_id)?;
-        Zipper::new(sess, wfckresults, self_ty.as_ref())
-            .zip_enum_variant(variant, &liftcx.lift_enum_variant_id(variant.def_id)?)
+        let self_ty = lift::lift_self_ty(genv.tcx, sess, enum_def.owner_id)?;
+        Zipper::new(sess, wfckresults, self_ty.as_ref()).zip_enum_variant(
+            genv,
+            variant,
+            &liftcx.lift_enum_variant_id(variant.def_id)?,
+        )
     })
 }
 
@@ -106,6 +113,7 @@ impl<'zip> Zipper<'zip> {
 
     fn zip_enum_variant(
         &mut self,
+        genv: &GlobalEnv,
         variant: &fhir::VariantDef,
         expected_variant: &'zip fhir::VariantDef,
     ) -> Result<(), ErrorGuaranteed> {
@@ -329,8 +337,8 @@ impl<'zip> Zipper<'zip> {
             {
                 return self.zip_path(path, expected_path);
             }
-
-            return Err(self.emit_err(errors::InvalidRefinement::from_paths(path, expected_path)));
+            panic!("TRACE: zip_path {:?} {:?}\n", path.res, expected_path.res);
+            // return Err(self.emit_err(errors::InvalidRefinement::from_paths(path, expected_path)));
         }
         if path.args.len() != expected_path.args.len() {
             return Err(self.emit_err(errors::GenericArgCountMismatch::new(path, expected_path)));

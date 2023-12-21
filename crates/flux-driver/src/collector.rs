@@ -293,13 +293,27 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
         let refined_by = attrs.refined_by();
-        let variants = enum_def
-            .variants
+
+        let enum_variants = if attrs.extern_spec() {
+            enum_def.variants.split_last().unwrap().1
+        } else {
+            enum_def.variants
+        };
+
+        let variants = enum_variants
             .iter()
             .map(|variant| self.parse_variant(variant, refined_by.is_some()))
             .try_collect_exhaust()?;
 
         let invariants = attrs.invariants();
+
+        if attrs.extern_spec() {
+            let extern_def_id =
+                self.extract_extern_def_id_from_extern_spec_enum(owner_id.def_id, enum_def)?;
+            self.specs
+                .extern_specs
+                .insert(extern_def_id, owner_id.def_id);
+        }
 
         self.specs.enums.insert(
             owner_id,
@@ -488,6 +502,19 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             if let Some(adt_def) = ty.skip_binder().ty_adt_def() {
                 return Ok(adt_def.did());
             }
+        }
+        Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
+    }
+
+    fn extract_extern_def_id_from_extern_spec_enum(
+        &mut self,
+        def_id: LocalDefId,
+        enum_def: &EnumDef,
+    ) -> Result<DefId, ErrorGuaranteed> {
+        if let Some(fake) = enum_def.variants.last() {
+            let zog = self.extract_extern_def_id_from_extern_spec_struct(def_id, &fake.data)?;
+            println!("TRACE: extract_extern_def_id_from_extern_spec_enum {def_id:?} => {zog:?}");
+            return Ok(zog);
         }
         Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
     }

@@ -177,6 +177,7 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaran
         .extern_specs
         .iter()
         .for_each(|(extern_def_id, local_def_id)| {
+            println!("TRACE: insert_extern {extern_def_id:?} ==> {local_def_id:?}");
             map.insert_extern(*extern_def_id, *local_def_id);
         });
 

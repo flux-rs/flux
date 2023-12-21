@@ -289,7 +289,7 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fh
         DefKind::Enum => {
             let enum_def = genv.map().get_enum(def_id);
             let mut wfckresults = wf::check_enum_def(genv, enum_def)?;
-            annot_check::check_enum_def(genv.tcx, genv.sess, &mut wfckresults, enum_def)?;
+            annot_check::check_enum_def(genv, &mut wfckresults, enum_def)?;
             wfckresults
         }
         DefKind::Fn | DefKind::AssocFn => {
