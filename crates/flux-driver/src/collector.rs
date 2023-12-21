@@ -513,7 +513,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result<DefId, ErrorGuaranteed> {
         if let Some(fake) = enum_def.variants.last() {
             let zog = self.extract_extern_def_id_from_extern_spec_struct(def_id, &fake.data)?;
-            println!("TRACE: extract_extern_def_id_from_extern_spec_enum {def_id:?} => {zog:?}");
             return Ok(zog);
         }
         Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
