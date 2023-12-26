@@ -280,6 +280,10 @@ impl<'tcx> Queries<'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
         run_with_cache(&self.variants_of, def_id, || {
+            let (def_id, _is_extern) = match genv.lookup_extern(def_id) {
+                Some(def_id) => (def_id, true),
+                None => (def_id, false),
+            };
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.variants_of)(genv, local_id)
             } else if let Some(variants) = genv.cstore().variants(def_id) {
