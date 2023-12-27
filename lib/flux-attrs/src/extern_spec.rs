@@ -281,7 +281,7 @@ fn strip_generics_eq_default(generics: &mut Generics) {
 }
 
 /// Create a dummy enum with the same variants and an extra `Fake` variant that contains the original type
-/// Also see the note in [adt_def_num_variants]
+/// Also see the note in [lower_adt_def]
 /// Example:
 ///
 /// ```ignore

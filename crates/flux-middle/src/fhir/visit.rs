@@ -107,7 +107,7 @@ pub fn walk_struct_def<V: Visitor>(vis: &mut V, struct_def: &StructDef) {
 }
 
 pub fn walk_enum_def<V: Visitor>(vis: &mut V, enum_def: &EnumDef) {
-    let EnumDef { owner_id: _, params, variants, invariants } = enum_def;
+    let EnumDef { owner_id: _, params, variants, invariants, .. } = enum_def;
     walk_list!(vis, visit_refine_param, params);
     walk_list!(vis, visit_variant, variants);
     walk_list!(vis, visit_expr, invariants);

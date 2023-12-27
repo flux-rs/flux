@@ -420,6 +420,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             params: env.into_root().into_params(self),
             variants,
             invariants,
+            extern_id: enum_def.extern_id,
         })
     }
 
