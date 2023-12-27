@@ -15,6 +15,7 @@ use syn::{
 
 enum ExternItem {
     Struct(syn::ItemStruct),
+    Enum(syn::ItemEnum),
     Fn(ExternFn),
     Impl(ExternItemImpl),
 }
@@ -40,6 +41,7 @@ impl ExternItem {
     fn replace_attrs(&mut self, new: Vec<Attribute>) -> Vec<Attribute> {
         match self {
             ExternItem::Struct(ItemStruct { attrs, .. })
+            | ExternItem::Enum(syn::ItemEnum { attrs, .. })
             | ExternItem::Fn(ExternFn { attrs, .. })
             | ExternItem::Impl(ExternItemImpl { attrs, .. }) => mem::replace(attrs, new),
         }
@@ -142,6 +144,9 @@ impl Parse for ExternItem {
             ExternItem::Impl(input.parse()?)
         } else if lookahead.peek(Token![struct]) {
             ExternItem::Struct(input.parse()?)
+        } else if lookahead.peek(Token![enum]) {
+            let enm = input.parse();
+            ExternItem::Enum(enm?)
         } else {
             return Err(lookahead.error());
         };
@@ -193,6 +198,7 @@ pub(crate) fn transform_extern_spec(
         if !attr.is_empty() { Some(syn::parse2(attr)?) } else { None };
     match syn::parse2::<ExternItem>(tokens)? {
         ExternItem::Struct(item_struct) => create_dummy_struct(mod_path, item_struct),
+        ExternItem::Enum(item_enum) => create_dummy_enum(mod_path, item_enum),
         ExternItem::Fn(mut extern_fn) => {
             extern_fn.prepare(&mod_path, None, true);
             Ok(extern_fn.into_token_stream())
@@ -272,6 +278,68 @@ fn strip_generics_eq_default(generics: &mut Generics) {
             }
         }
     }
+}
+
+/// Create a dummy enum with the same variants and an extra `Fake` variant that contains the original type
+///
+/// Example:
+///
+/// ```ignore
+/// #[extern_spec]
+/// enum Option<T> {
+///     #[flux::variant(Option<T>[false])]
+///     None,
+///     #[flux::variant({T} -> Option<T>[true])]
+///     Some(T),
+/// }
+/// ```
+///
+/// =>
+///
+/// ```ignore
+/// #[flux::extern_spec]
+/// #[allow(unused, dead_code)]
+/// #[flux::refined_by(b:bool)]
+/// pub enum __FluxExternEnumOption<T> {
+///     #[flux::variant(Option<T>[false])]
+///     None,
+///     #[flux::variant({T} -> Option<T>[true])]
+///     Some(T),
+///     // this fellow is here just so we can get a hold of the original `Option` ....
+///     FluxExternEnumFake(Option<T>),
+/// }
+/// ```
+fn create_dummy_enum(
+    mod_path: Option<syn::Path>,
+    item_enum: syn::ItemEnum,
+) -> syn::Result<TokenStream> {
+    let item_enum_span = item_enum.span();
+    let mut dummy_enum = item_enum.clone();
+    let ident = item_enum.ident;
+    let mut generics = item_enum.generics;
+    strip_generics_eq_default(&mut generics);
+
+    dummy_enum.ident = format_ident!("__FluxExternEnum{}", ident);
+    let dummy_variant_name = format_ident!("FluxExternEnumFake");
+
+    let dummy_variant: syn::Variant = if let Some(mod_path) = mod_path {
+        parse_quote_spanned! {item_enum_span =>
+                              #dummy_variant_name ( #mod_path :: #ident #generics )
+        }
+    } else {
+        parse_quote_spanned! {item_enum_span =>
+                              #dummy_variant_name ( #ident #generics )
+        }
+    };
+
+    dummy_enum.variants.push(dummy_variant);
+
+    let dummy_enum_with_attrs: syn::ItemEnum = parse_quote_spanned! { item_enum_span =>
+                                                                          #[flux::extern_spec]
+                                                                          #[allow(unused, dead_code)]
+                                                                          #dummy_enum
+    };
+    Ok(dummy_enum_with_attrs.to_token_stream())
 }
 
 /// Create a dummy struct with a single unnamed field that is the external struct.
