@@ -281,7 +281,7 @@ fn strip_generics_eq_default(generics: &mut Generics) {
 }
 
 /// Create a dummy enum with the same variants and an extra `Fake` variant that contains the original type
-///
+/// Also see the note in [adt_def_num_variants]
 /// Example:
 ///
 /// ```ignore
@@ -305,7 +305,7 @@ fn strip_generics_eq_default(generics: &mut Generics) {
 ///     None,
 ///     #[flux::variant({T} -> Option<T>[true])]
 ///     Some(T),
-///     // this fellow is here just so we can get a hold of the original `Option` ....
+///     // this fellow is here just so we can get a hold of the original `Option` ...
 ///     FluxExternEnumFake(Option<T>),
 /// }
 /// ```
