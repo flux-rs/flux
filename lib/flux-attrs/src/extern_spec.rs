@@ -280,7 +280,6 @@ fn strip_generics_eq_default(generics: &mut Generics) {
     }
 }
 
-// CODESYNC(fake-variant, 2) skip the fake-variant for extern-spec enums
 /// Create a dummy enum with the same variants and an extra `Fake` variant that contains the original type
 /// Also see the note in [lower_adt_def]
 /// Example:

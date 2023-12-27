@@ -213,7 +213,7 @@ pub(crate) fn adt_def_for_struct(
     let def_id = struct_def.owner_id;
     let sort_args = sort_args_for_adt(genv, def_id);
     let sort = rty::Sort::tuple(conv_sorts(genv, &genv.index_sorts_of(def_id, &sort_args)));
-    let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(struct_def.owner_id), false);
+    let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(struct_def.owner_id));
     rty::AdtDef::new(adt_def, sort, invariants, struct_def.is_opaque())
 }
 
@@ -225,8 +225,11 @@ pub(crate) fn adt_def_for_enum(
     let def_id = enum_def.owner_id;
     let sort_args = sort_args_for_adt(genv, def_id);
     let sort = rty::Sort::tuple(conv_sorts(genv, &genv.index_sorts_of(def_id, &sort_args)));
-    let is_extern = enum_def.extern_id.is_some();
-    let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(enum_def.owner_id), is_extern);
+    let adt_def = if let Some(extern_id) = enum_def.extern_id {
+        lowering::lower_adt_def(&genv.tcx.adt_def(extern_id))
+    } else {
+        lowering::lower_adt_def(&genv.tcx.adt_def(enum_def.owner_id))
+    };
     rty::AdtDef::new(adt_def, sort, invariants, false)
 }
 

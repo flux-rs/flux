@@ -3,7 +3,6 @@ use itertools::Itertools;
 use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
-use rustc_index::IndexVec;
 use rustc_infer::traits::Obligation;
 use rustc_middle::{
     mir::{self as rustc_mir, ConstValue},
@@ -637,7 +636,7 @@ pub(crate) fn lower_ty<'tcx>(
         rustc_ty::Param(param_ty) => Ok(Ty::mk_param(*param_ty)),
         rustc_ty::Adt(adt_def, args) => {
             let args = lower_generic_args(tcx, args)?;
-            Ok(Ty::mk_adt(lower_adt_def(adt_def, false), args))
+            Ok(Ty::mk_adt(lower_adt_def(adt_def), args))
         }
         rustc_ty::Never => Ok(Ty::mk_never()),
         rustc_ty::Str => Ok(Ty::mk_str()),
@@ -687,18 +686,12 @@ fn lower_alias_kind(kind: &rustc_ty::AliasKind) -> Result<AliasKind, Unsupported
     }
 }
 
-// CODESYNC(fake-variant, 2) skip the fake-variant for extern-spec enums
-/// [lower_adt_def] prunes (cf. `variants.pop()`) the "fake" variant for
-/// `FluxExternEnum` (see option00.rs) which would, otherwise, generate a
-/// spurious `match` arm (i.e. `successor`) for the `FluxExternEnumFake` variant.
-/// see the note for [create_dummy_enum]
-pub fn lower_adt_def(adt_def: &rustc_ty::AdtDef, is_extern: bool) -> AdtDef {
-    let mut variants: IndexVec<_, _> = adt_def.variants().iter().map(lower_variant).collect();
-
-    if is_extern {
-        variants.pop();
-    };
-    AdtDef::new(AdtDefData::new(adt_def.did(), variants, adt_def.flags()))
+pub fn lower_adt_def(adt_def: &rustc_ty::AdtDef) -> AdtDef {
+    AdtDef::new(AdtDefData::new(
+        adt_def.did(),
+        adt_def.variants().iter().map(lower_variant).collect(),
+        adt_def.flags(),
+    ))
 }
 
 fn lower_variant(variant: &rustc_ty::VariantDef) -> VariantDef {
