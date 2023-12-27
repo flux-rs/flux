@@ -687,7 +687,7 @@ fn lower_alias_kind(kind: &rustc_ty::AliasKind) -> Result<AliasKind, Unsupported
     }
 }
 
-/// CODESYNC(fake-variant, 2) skip the fake-variant for extern-spec enums
+// CODESYNC(fake-variant, 2) skip the fake-variant for extern-spec enums
 /// [lower_adt_def] prunes (cf. `variants.pop()`) the "fake" variant for
 /// `FluxExternEnum` (see option00.rs) which would, otherwise, generate a
 /// spurious `match` arm (i.e. `successor`) for the `FluxExternEnumFake` variant.
