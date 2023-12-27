@@ -688,8 +688,9 @@ fn lower_alias_kind(kind: &rustc_ty::AliasKind) -> Result<AliasKind, Unsupported
 }
 
 /// CODESYNC(fake-variant, 2) skip the fake-variant for extern-spec enums
-/// The code for [lower_adt_def] prunes the "extra" variant for `FluxExternEnum` (see option00.rs) which would, otherwise,
-/// generate a spurious `match` arm (i.e. `successor`) for the `FluxExternEnumFake` variant.
+/// [lower_adt_def] prunes (cf. `variants.pop()`) the "fake" variant for
+/// `FluxExternEnum` (see option00.rs) which would, otherwise, generate a
+/// spurious `match` arm (i.e. `successor`) for the `FluxExternEnumFake` variant.
 /// see the note for [create_dummy_enum]
 pub fn lower_adt_def(adt_def: &rustc_ty::AdtDef, is_extern: bool) -> AdtDef {
     let mut variants: IndexVec<_, _> = adt_def.variants().iter().map(lower_variant).collect();
