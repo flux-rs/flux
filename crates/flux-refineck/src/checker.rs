@@ -6,8 +6,8 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        self, fold::TypeFoldable, AdtDef, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder,
-        Expr, Float, FnOutput, FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate,
+        self, fold::TypeFoldable, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr,
+        Float, FnOutput, FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate,
         GenericArg, Generics, HoleKind, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
     },
@@ -120,19 +120,6 @@ enum Guard {
     Pred(Expr),
     /// The corresponding place was found to be of a particular variant.
     Match(Place, VariantIdx),
-}
-
-/// TODO: hack to prune the "extra" arm for `FluxExternEnum` (see option00.rs) which would, otherwise,
-/// generate a spurious `match` arm (i.e. `successor`) for the `FluxExternEnumFake` variant.
-fn adt_def_num_variants(adt_def: &AdtDef) -> usize {
-    let def_id = adt_def.did();
-    let is_extern_enum = format!("{def_id:?}").contains("__FluxExternEnum");
-    let num_variants = adt_def.variants().len();
-    if is_extern_enum {
-        num_variants - 1
-    } else {
-        num_variants
-    }
 }
 
 impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
@@ -696,10 +683,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     fn check_match(discr_ty: &Ty, targets: &SwitchTargets) -> Vec<(BasicBlock, Guard)> {
         let (adt_def, place) = discr_ty.expect_discr();
 
-        // See the note for [adt_def]
-        let num_variants = adt_def_num_variants(adt_def);
         let mut successors = vec![];
-        let mut remaining = BitSet::new_filled(num_variants);
+        let mut remaining = BitSet::new_filled(adt_def.variants().len());
         for (bits, bb) in targets.iter() {
             let i = bits as usize;
             remaining.remove(i);

@@ -434,9 +434,15 @@ impl AdtDef {
 impl AdtDefData {
     pub(crate) fn new(
         did: DefId,
-        variants: IndexVec<VariantIdx, VariantDef>,
+        mut variants: IndexVec<VariantIdx, VariantDef>,
         flags: AdtFlags,
     ) -> Self {
+        // TODO: hack to prune the "extra" arm for `FluxExternEnum` (see option00.rs) which would, otherwise,
+        // generate a spurious `match` arm (i.e. `successor`) for the `FluxExternEnumFake` variant.
+        let is_extern_enum = format!("{did:?}").contains("__FluxExternEnum");
+        if is_extern_enum {
+            variants.pop();
+        }
         Self { did, variants, flags }
     }
 }
