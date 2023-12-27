@@ -6,10 +6,10 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        self, fold::TypeFoldable, AdtDef, BaseTy, BinOp, Binder, Bool, Const, Constraint,
-        EarlyBinder, Expr, Float, FnOutput, FnSig, FnTraitPredicate, GeneratorArgs,
-        GeneratorObligPredicate, GenericArg, Generics, HoleKind, Index, Int, IntTy, Mutability,
-        PolyFnSig, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
+        self, fold::TypeFoldable, AdtDef, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder,
+        Expr, Float, FnOutput, FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate,
+        GenericArg, Generics, HoleKind, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic,
+        Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -18,7 +18,7 @@ use flux_middle::{
             Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
             RETURN_PLACE, START_BLOCK,
         },
-        ty::GeneratorArgsParts,
+        ty::{ConstKind, GeneratorArgsParts},
     },
 };
 use itertools::Itertools;
@@ -900,8 +900,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
 
         let idx = match ty.kind() {
             TyKind::Indexed(BaseTy::Array(_, len), _) => {
-                if let Const::Value(value) = len {
-                    Index::from(Expr::constant(rty::Constant::from(value.val)))
+                if let ConstKind::Value(value) = &len.kind {
+                    let value = value.try_to_target_usize(self.genv.tcx).unwrap() as u128;
+                    Index::from(Expr::constant(rty::Constant::from(value)))
                 } else {
                     tracked_span_bug!("unexpected array length")
                 }
@@ -1017,13 +1018,15 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             // &mut [T; n] -> &mut [T][n] and &[T; n] -> &[T][n]
             CastKind::Pointer(mir::PointerCast::Unsize) => {
                 if let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind()
-                    && let TyKind::Indexed(BaseTy::Array(src_arr_ty, Const::Value(src_n)), _) =
-                        src_ty.kind()
+                    && let TyKind::Indexed(BaseTy::Array(src_arr_ty, src_n), _) = src_ty.kind()
+                    && let ConstKind::Value(src_n) = &src_n.kind
                     && let rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
                     && let rustc::ty::TyKind::Slice(_) = dst_ty.kind()
                     && src_mut == dst_mut
                 {
-                    let dst_ix = Index::from(src_n.clone());
+                    let v = src_n.try_to_target_usize(self.genv.tcx).unwrap() as u128;
+                    let expr = Expr::constant(rty::Constant::from(v));
+                    let dst_ix = Index::from(expr);
                     let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), dst_ix);
                     Ty::mk_ref(*dst_re, dst_slice, *dst_mut)
                 } else {

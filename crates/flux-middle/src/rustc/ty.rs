@@ -8,8 +8,8 @@ use flux_common::bug;
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_index::{IndexSlice, IndexVec};
-use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::ty::{AdtFlags, ParamConst};
+use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_middle::ty::{AdtFlags, ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
@@ -34,7 +34,7 @@ pub struct Generics<'tcx> {
 #[derive(Clone)]
 pub struct EarlyBinder<T>(pub T);
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct Binder<T>(T, List<BoundVariableKind>);
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
@@ -93,14 +93,14 @@ pub struct ProjectionPredicate {
     pub projection_ty: AliasTy,
     pub term: Ty,
 }
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, TyEncodable, TyDecodable)]
 pub struct FnSig {
     pub(crate) inputs_and_output: List<Ty>,
 }
 
 pub type PolyFnSig = Binder<FnSig>;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct Ty(Interned<TyS>);
 
 #[derive(Debug, Eq, PartialEq, Hash, Clone, TyEncodable, TyDecodable)]
@@ -126,12 +126,12 @@ pub struct FieldDef {
     pub name: Symbol,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 struct TyS {
     kind: TyKind,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum TyKind {
     Adt(AdtDef, GenericArgs),
     Array(Ty, Const),
@@ -154,36 +154,40 @@ pub enum TyKind {
     RawPtr(Ty, Mutability),
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct AliasTy {
     pub args: GenericArgs,
     pub def_id: DefId,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum AliasKind {
     Projection,
     Opaque,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable, Debug)]
-pub struct ValueConst {
-    pub val: usize,
-}
-
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub enum Const {
-    Param(ParamConst),
-    Value(ValueConst),
+pub struct Const {
+    pub kind: ConstKind,
+    pub ty: Ty,
 }
 
-impl From<usize> for Const {
-    fn from(val: usize) -> Self {
-        Const::Value(ValueConst { val })
+impl Const {
+    pub fn from_array_len(tcx: TyCtxt, len: usize) -> Const {
+        Const {
+            kind: ConstKind::Value(ScalarInt::try_from_target_usize(len as u128, tcx).unwrap()),
+            ty: Ty::mk_uint(UintTy::Usize),
+        }
     }
 }
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum ConstKind {
+    Param(ParamConst),
+    Value(ScalarInt),
+}
+
+#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
     Ty(Ty),
     Lifetime(Region),
@@ -690,9 +694,9 @@ impl fmt::Debug for Ty {
 
 impl fmt::Debug for Const {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Const::Param(param_const) => write!(f, "{:?}", param_const),
-            Const::Value(value_const) => write!(f, "{:?}", value_const),
+        match &self.kind {
+            ConstKind::Param(param) => write!(f, "{:?}", param),
+            ConstKind::Value(scalar_int) => write!(f, "{}", scalar_int),
         }
     }
 }

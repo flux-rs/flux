@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 
 #[cfg(target_os = "windows")]
 pub const LIB_PATH: &str = "PATH";
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
 pub const LIB_PATH: &str = "LD_LIBRARY_PATH";
 #[cfg(target_os = "macos")]
 pub const LIB_PATH: &str = "DYLD_FALLBACK_LIBRARY_PATH";

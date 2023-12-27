@@ -8,10 +8,10 @@ use flux_middle::{
         self,
         evars::{EVarCxId, EVarSol, UnsolvedEvar},
         fold::TypeFoldable,
-        AliasTy, BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr,
-        ExprKind, FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, GenericParamDefKind,
-        HoleKind, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort,
-        TupleTree, Ty, TyKind, Var,
+        AliasTy, BaseTy, BinOp, Binder, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
+        FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, GenericParamDefKind, HoleKind,
+        InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty,
+        TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -390,7 +390,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         }
         rcx.replace_evars(&infcx.solve()?);
 
-        Ok(Ty::array(arr_ty, Const::from(args.len())))
+        Ok(Ty::array(arr_ty, rty::Const::from_array_len(self.genv.tcx, args.len())))
     }
 
     pub(crate) fn infcx(&mut self, rcx: &RefineCtxt, reason: ConstrReason) -> InferCtxt<'_, 'tcx> {
