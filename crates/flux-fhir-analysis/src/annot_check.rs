@@ -8,7 +8,7 @@
 use std::iter;
 
 use flux_common::{bug, iter::IterExt};
-use flux_errors::{ErrorGuaranteed, FluxSession};
+use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     fhir::{
         self,
@@ -23,7 +23,6 @@ use rustc_hir::OwnerId;
 
 pub fn check_fn_sig(
     genv: &GlobalEnv,
-    sess: &FluxSession,
     wfckresults: &mut WfckResults,
     owner_id: OwnerId,
     fn_sig: &fhir::FnSig,
@@ -31,38 +30,36 @@ pub fn check_fn_sig(
     if fn_sig.lifted {
         return Ok(());
     }
-    let self_ty = lift::lift_self_ty(genv.tcx, sess, owner_id)?;
-    let expected_fn_sig = &lift::lift_fn(genv.tcx, sess, owner_id)?.1.fn_sig;
+    let self_ty = lift::lift_self_ty(genv.tcx, genv.sess, owner_id)?;
+    let expected_fn_sig = &lift::lift_fn(genv.tcx, genv.sess, owner_id)?.1.fn_sig;
     Zipper::new(genv, wfckresults, self_ty.as_ref()).zip_fn_sig(fn_sig, expected_fn_sig)
 }
 
 pub fn check_alias(
     genv: &GlobalEnv,
-    sess: &FluxSession,
     wfckresults: &mut WfckResults,
     ty_alias: &fhir::TyAlias,
 ) -> Result<(), ErrorGuaranteed> {
     if ty_alias.lifted {
         return Ok(());
     }
-    let (.., expected_ty_alias) = lift::lift_type_alias(genv.tcx, sess, ty_alias.owner_id)?;
+    let (.., expected_ty_alias) = lift::lift_type_alias(genv.tcx, genv.sess, ty_alias.owner_id)?;
     Zipper::new(genv, wfckresults, None).zip_ty(&ty_alias.ty, &expected_ty_alias.ty)
 }
 
 pub fn check_struct_def(
     genv: &GlobalEnv,
-    sess: &FluxSession,
     wfckresults: &mut WfckResults,
     struct_def: &fhir::StructDef,
 ) -> Result<(), ErrorGuaranteed> {
     match &struct_def.kind {
         fhir::StructKind::Transparent { fields } => {
-            let mut liftcx = LiftCtxt::new(genv.tcx, sess, struct_def.owner_id, None);
+            let mut liftcx = LiftCtxt::new(genv.tcx, genv.sess, struct_def.owner_id, None);
             fields.iter().try_for_each_exhaust(|field| {
                 if field.lifted {
                     return Ok(());
                 }
-                let self_ty = lift::lift_self_ty(genv.tcx, sess, struct_def.owner_id)?;
+                let self_ty = lift::lift_self_ty(genv.tcx, genv.sess, struct_def.owner_id)?;
                 Zipper::new(genv, wfckresults, self_ty.as_ref())
                     .zip_ty(&field.ty, &liftcx.lift_field_def_id(field.def_id)?.ty)
             })

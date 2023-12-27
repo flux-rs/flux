@@ -277,13 +277,13 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fh
         DefKind::TyAlias { .. } => {
             let alias = genv.map().get_type_alias(def_id);
             let mut wfckresults = wf::check_ty_alias(genv, alias)?;
-            annot_check::check_alias(genv, genv.sess, &mut wfckresults, alias)?;
+            annot_check::check_alias(genv, &mut wfckresults, alias)?;
             wfckresults
         }
         DefKind::Struct => {
             let struct_def = genv.map().get_struct(def_id);
             let mut wfckresults = wf::check_struct_def(genv, struct_def)?;
-            annot_check::check_struct_def(genv, genv.sess, &mut wfckresults, struct_def)?;
+            annot_check::check_struct_def(genv, &mut wfckresults, struct_def)?;
             wfckresults
         }
         DefKind::Enum => {
@@ -296,7 +296,7 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fh
             let owner_id = OwnerId { def_id };
             let fn_sig = genv.map().get_fn_sig(def_id);
             let mut wfckresults = wf::check_fn_sig(genv, fn_sig, owner_id)?;
-            annot_check::check_fn_sig(genv, genv.sess, &mut wfckresults, owner_id, fn_sig)?;
+            annot_check::check_fn_sig(genv, &mut wfckresults, owner_id, fn_sig)?;
             wfckresults
         }
         DefKind::OpaqueTy => {
