@@ -7,7 +7,7 @@ pub use rustc_ast::{
     Mutability,
 };
 pub use rustc_span::symbol::Ident;
-use rustc_span::{symbol::kw, Span};
+use rustc_span::{def_id::DefId, symbol::kw, Span};
 
 use crate::surface::visit::Visitor;
 
@@ -108,6 +108,8 @@ pub struct EnumDef {
     pub variants: Vec<Option<VariantDef>>,
     pub invariants: Vec<Expr>,
     pub node_id: NodeId,
+    /// whether the enum is an extern spec for some [DefId]
+    pub extern_id: Option<DefId>,
 }
 
 impl EnumDef {

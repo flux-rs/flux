@@ -182,13 +182,18 @@ impl<'tcx> Queries<'tcx> {
 
     pub(crate) fn adt_def(&self, genv: &GlobalEnv, def_id: DefId) -> QueryResult<rty::AdtDef> {
         run_with_cache(&self.adt_def, def_id, || {
-            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
+            let extern_id = genv.lookup_extern(def_id);
+            let def_id = extern_id.unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_def)(genv, local_id)
             } else if let Some(adt_def) = genv.cstore().adt_def(def_id) {
                 Ok(adt_def.clone())
             } else {
-                let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(def_id));
+                let adt_def = if let Some(extern_id) = extern_id {
+                    lowering::lower_adt_def(&genv.tcx.adt_def(extern_id))
+                } else {
+                    lowering::lower_adt_def(&genv.tcx.adt_def(def_id))
+                };
                 Ok(rty::AdtDef::new(adt_def, rty::Sort::unit(), vec![], false))
             }
         })
@@ -288,6 +293,10 @@ impl<'tcx> Queries<'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
         run_with_cache(&self.variants_of, def_id, || {
+            let (def_id, _is_extern) = match genv.lookup_extern(def_id) {
+                Some(def_id) => (def_id, true),
+                None => (def_id, false),
+            };
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.variants_of)(genv, local_id)
             } else if let Some(variants) = genv.cstore().variants(def_id) {

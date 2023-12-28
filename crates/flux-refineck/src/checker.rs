@@ -405,7 +405,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
     /// For `check_terminator`, the output `Vec<BasicBlock, Guard>` denotes,
     /// - `BasicBlock` "successors" of the current terminator, and
     /// - `Guard` are extra control information from, e.g. the `SwitchInt` (or `Assert`)
-    ///    you can assume when checking the correspondnig successor.
+    ///    you can assume when checking the corresponding successor.
     fn check_terminator(
         &mut self,
         rcx: &mut RefineCtxt,

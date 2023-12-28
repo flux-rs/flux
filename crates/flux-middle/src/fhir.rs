@@ -205,6 +205,8 @@ pub struct EnumDef {
     pub params: Vec<RefineParam>,
     pub variants: Vec<VariantDef>,
     pub invariants: Vec<Expr>,
+    /// Whether this is an extern_spec for some other enum
+    pub extern_id: Option<DefId>,
 }
 
 #[derive(Debug)]

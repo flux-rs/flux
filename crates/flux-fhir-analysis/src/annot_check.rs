@@ -8,20 +8,21 @@
 use std::iter;
 
 use flux_common::{bug, iter::IterExt};
-use flux_errors::{ErrorGuaranteed, FluxSession};
-use flux_middle::fhir::{
-    self,
-    lift::{self, LiftCtxt},
-    WfckResults,
+use flux_errors::ErrorGuaranteed;
+use flux_middle::{
+    fhir::{
+        self,
+        lift::{self, LiftCtxt},
+        Res, WfckResults,
+    },
+    global_env::GlobalEnv,
 };
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
 use rustc_hir::OwnerId;
-use rustc_middle::ty::TyCtxt;
 
 pub fn check_fn_sig(
-    tcx: TyCtxt,
-    sess: &FluxSession,
+    genv: &GlobalEnv,
     wfckresults: &mut WfckResults,
     owner_id: OwnerId,
     fn_sig: &fhir::FnSig,
@@ -29,39 +30,37 @@ pub fn check_fn_sig(
     if fn_sig.lifted {
         return Ok(());
     }
-    let self_ty = lift::lift_self_ty(tcx, sess, owner_id)?;
-    let expected_fn_sig = &lift::lift_fn(tcx, sess, owner_id)?.1.fn_sig;
-    Zipper::new(sess, wfckresults, self_ty.as_ref()).zip_fn_sig(fn_sig, expected_fn_sig)
+    let self_ty = lift::lift_self_ty(genv.tcx, genv.sess, owner_id)?;
+    let expected_fn_sig = &lift::lift_fn(genv.tcx, genv.sess, owner_id)?.1.fn_sig;
+    Zipper::new(genv, wfckresults, self_ty.as_ref()).zip_fn_sig(fn_sig, expected_fn_sig)
 }
 
 pub fn check_alias(
-    tcx: TyCtxt,
-    sess: &FluxSession,
+    genv: &GlobalEnv,
     wfckresults: &mut WfckResults,
     ty_alias: &fhir::TyAlias,
 ) -> Result<(), ErrorGuaranteed> {
     if ty_alias.lifted {
         return Ok(());
     }
-    let (.., expected_ty_alias) = lift::lift_type_alias(tcx, sess, ty_alias.owner_id)?;
-    Zipper::new(sess, wfckresults, None).zip_ty(&ty_alias.ty, &expected_ty_alias.ty)
+    let (.., expected_ty_alias) = lift::lift_type_alias(genv.tcx, genv.sess, ty_alias.owner_id)?;
+    Zipper::new(genv, wfckresults, None).zip_ty(&ty_alias.ty, &expected_ty_alias.ty)
 }
 
 pub fn check_struct_def(
-    tcx: TyCtxt,
-    sess: &FluxSession,
+    genv: &GlobalEnv,
     wfckresults: &mut WfckResults,
     struct_def: &fhir::StructDef,
 ) -> Result<(), ErrorGuaranteed> {
     match &struct_def.kind {
         fhir::StructKind::Transparent { fields } => {
-            let mut liftcx = LiftCtxt::new(tcx, sess, struct_def.owner_id, None);
+            let mut liftcx = LiftCtxt::new(genv.tcx, genv.sess, struct_def.owner_id, None);
             fields.iter().try_for_each_exhaust(|field| {
                 if field.lifted {
                     return Ok(());
                 }
-                let self_ty = lift::lift_self_ty(tcx, sess, struct_def.owner_id)?;
-                Zipper::new(sess, wfckresults, self_ty.as_ref())
+                let self_ty = lift::lift_self_ty(genv.tcx, genv.sess, struct_def.owner_id)?;
+                Zipper::new(genv, wfckresults, self_ty.as_ref())
                     .zip_ty(&field.ty, &liftcx.lift_field_def_id(field.def_id)?.ty)
             })
         }
@@ -70,24 +69,25 @@ pub fn check_struct_def(
 }
 
 pub fn check_enum_def(
-    tcx: TyCtxt,
-    sess: &FluxSession,
+    genv: &GlobalEnv,
     wfckresults: &mut WfckResults,
     enum_def: &fhir::EnumDef,
 ) -> Result<(), ErrorGuaranteed> {
+    let tcx = genv.tcx;
+    let sess = genv.sess;
     let mut liftcx = LiftCtxt::new(tcx, sess, enum_def.owner_id, None);
     enum_def.variants.iter().try_for_each_exhaust(|variant| {
         if variant.lifted {
             return Ok(());
         }
-        let self_ty = lift::lift_self_ty(tcx, sess, enum_def.owner_id)?;
-        Zipper::new(sess, wfckresults, self_ty.as_ref())
+        let self_ty = lift::lift_self_ty(genv.tcx, sess, enum_def.owner_id)?;
+        Zipper::new(genv, wfckresults, self_ty.as_ref())
             .zip_enum_variant(variant, &liftcx.lift_enum_variant_id(variant.def_id)?)
     })
 }
 
-struct Zipper<'zip> {
-    sess: &'zip FluxSession,
+struct Zipper<'zip, 'tcx> {
+    genv: &'zip GlobalEnv<'zip, 'tcx>,
     wfckresults: &'zip mut WfckResults,
     locs: LocsMap<'zip>,
     self_ty: Option<&'zip fhir::Ty>,
@@ -95,13 +95,13 @@ struct Zipper<'zip> {
 
 type LocsMap<'a> = UnordMap<fhir::Name, &'a fhir::Ty>;
 
-impl<'zip> Zipper<'zip> {
+impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
     fn new(
-        sess: &'zip FluxSession,
+        genv: &'zip GlobalEnv<'zip, 'tcx>,
         wfckresults: &'zip mut WfckResults,
         self_ty: Option<&'zip fhir::Ty>,
     ) -> Self {
-        Self { sess, wfckresults, locs: LocsMap::default(), self_ty }
+        Self { genv, wfckresults, locs: LocsMap::default(), self_ty }
     }
 
     fn zip_enum_variant(
@@ -317,19 +317,33 @@ impl<'zip> Zipper<'zip> {
         }
     }
 
+    fn is_same_res(&self, res: Res, expected: Res) -> bool {
+        if res == expected {
+            return true;
+        };
+        if let Res::Def(res_kind, res_did) = res
+            && let Res::Def(expected_kind, expected_did) = expected
+            && let Some(extern_id) = self.genv.map().get_extern(res_did)
+            && res_kind == expected_kind
+            && extern_id.to_def_id() == expected_did
+        {
+            return true;
+        }
+        false
+    }
+
     fn zip_path(
         &mut self,
         path: &fhir::Path,
         expected_path: &'zip fhir::Path,
     ) -> Result<(), ErrorGuaranteed> {
-        if path.res != expected_path.res {
+        if !self.is_same_res(path.res, expected_path.res) {
             if let fhir::Res::SelfTyAlias { .. } = expected_path.res
                 && let Some(self_ty) = self.self_ty
                 && let Some(expected_path) = self_ty.as_path()
             {
                 return self.zip_path(path, expected_path);
             }
-
             return Err(self.emit_err(errors::InvalidRefinement::from_paths(path, expected_path)));
         }
         if path.args.len() != expected_path.args.len() {
@@ -342,7 +356,7 @@ impl<'zip> Zipper<'zip> {
 
     #[track_caller]
     fn emit_err<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
-        self.sess.emit_err(err)
+        self.genv.sess.emit_err(err)
     }
 }
 
