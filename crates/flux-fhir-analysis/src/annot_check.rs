@@ -317,13 +317,13 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
         }
     }
 
-    fn is_same_res(genv: &GlobalEnv, res: Res, expected: Res) -> bool {
+    fn is_same_res(&self, res: Res, expected: Res) -> bool {
         if res == expected {
             return true;
         };
         if let Res::Def(res_kind, res_did) = res
             && let Res::Def(expected_kind, expected_did) = expected
-            && let Some(extern_id) = genv.map().get_extern(res_did)
+            && let Some(extern_id) = self.genv.map().get_extern(res_did)
             && res_kind == expected_kind
             && extern_id.to_def_id() == expected_did
         {
@@ -337,7 +337,7 @@ impl<'zip, 'tcx> Zipper<'zip, 'tcx> {
         path: &fhir::Path,
         expected_path: &'zip fhir::Path,
     ) -> Result<(), ErrorGuaranteed> {
-        if !Self::is_same_res(self.genv, path.res, expected_path.res) {
+        if !self.is_same_res(path.res, expected_path.res) {
             if let fhir::Res::SelfTyAlias { .. } = expected_path.res
                 && let Some(self_ty) = self.self_ty
                 && let Some(expected_path) = self_ty.as_path()
