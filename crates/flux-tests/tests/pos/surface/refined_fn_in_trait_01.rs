@@ -23,7 +23,7 @@ impl MyTrait for i32 {
     // #[flux::sig(fn<refine p: int -> bool>(&i32{v: p(v)}) -> i32{v: p(v)})]      // WORKS
     // #[flux::sig(fn<refine p: Self -> bool>(&Self{v: p(v)}) -> Self{v: p(v)})]
     fn foo1(&self) -> Self {
-        12 // REJECT
+        12 //~ ERROR refinement type
            // *self // OK
     }
 
