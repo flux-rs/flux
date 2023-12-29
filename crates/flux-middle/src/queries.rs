@@ -28,7 +28,7 @@ use crate::{
     },
     rustc::{
         self,
-        lowering::{self, UnsupportedReason},
+        lowering::{self, UnsupportedErr, UnsupportedReason},
         ty,
     },
 };
@@ -39,7 +39,7 @@ pub type QueryResult<T = ()> = Result<T, QueryErr>;
 
 #[derive(Debug, Clone)]
 pub enum QueryErr {
-    UnsupportedType { def_id: DefId, def_span: Span, reason: UnsupportedReason },
+    Unsupported { def_id: DefId, def_span: Span, err: UnsupportedErr },
     Emitted(ErrorGuaranteed),
 }
 
@@ -89,6 +89,8 @@ impl Default for Providers {
 pub struct Queries<'tcx> {
     pub(crate) providers: Providers,
     mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
+    lower_generics_of: Cache<DefId, QueryResult<ty::Generics<'tcx>>>,
+    lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
     defns: OnceCell<QueryResult<rty::Defns>>,
@@ -118,6 +120,31 @@ impl<'tcx> Queries<'tcx> {
         })
     }
 
+    pub(crate) fn lower_generics_of(
+        &self,
+        genv: &GlobalEnv<'_, 'tcx>,
+        def_id: DefId,
+    ) -> QueryResult<ty::Generics<'tcx>> {
+        run_with_cache(&self.lower_generics_of, def_id, || {
+            let generics = genv.tcx.generics_of(def_id);
+            lowering::lower_generics(generics)
+                .map_err(UnsupportedReason::to_err)
+                .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))
+        })
+    }
+
+    pub(crate) fn lower_predicates_of(
+        &self,
+        genv: &GlobalEnv,
+        def_id: DefId,
+    ) -> QueryResult<ty::GenericPredicates> {
+        run_with_cache(&self.lower_predicates_of, def_id, || {
+            let predicates = genv.tcx.predicates_of(def_id);
+            lowering::lower_generic_predicates(genv.tcx, predicates)
+                .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))
+        })
+    }
+
     pub(crate) fn lower_type_of(
         &self,
         genv: &GlobalEnv,
@@ -127,7 +154,8 @@ impl<'tcx> Queries<'tcx> {
             let ty = genv.tcx.type_of(def_id).instantiate_identity();
             Ok(ty::EarlyBinder(
                 lowering::lower_ty(genv.tcx, ty)
-                    .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))?,
+                    .map_err(UnsupportedReason::to_err)
+                    .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?,
             ))
         })
     }
@@ -148,7 +176,8 @@ impl<'tcx> Queries<'tcx> {
                 .normalize(fn_sig.instantiate_identity());
             Ok(ty::EarlyBinder(
                 lowering::lower_fn_sig(genv.tcx, result.value)
-                    .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))?,
+                    .map_err(UnsupportedReason::to_err)
+                    .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?,
             ))
         })
     }
@@ -209,9 +238,7 @@ impl<'tcx> Queries<'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.generics_of)(genv, local_id)
             } else {
-                let generics = genv.tcx.generics_of(def_id);
-                let generics = lowering::lower_generics(generics)
-                    .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id, reason))?;
+                let generics = genv.lower_generics_of(def_id)?;
                 refining::refine_generics(genv, &generics)
             }
         })
@@ -228,11 +255,9 @@ impl<'tcx> Queries<'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.item_bounds)(genv, local_id)
             } else {
-                // If there's any error during lowering we blame the span of the definition of
-                // the opaque type, i.e. the span of the `impl Trait`
-                let span = genv.tcx.def_span(def_id);
                 let bounds = genv.tcx.item_bounds(def_id).skip_binder();
-                let clauses = lowering::lower_item_bounds(genv.tcx, genv.sess, bounds, span)?;
+                let clauses = lowering::lower_item_bounds(genv.tcx, bounds)
+                    .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?;
 
                 let clauses =
                     Refiner::default(genv, &genv.generics_of(def_id)?).refine_clauses(&clauses)?;
@@ -252,10 +277,7 @@ impl<'tcx> Queries<'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.predicates_of)(genv, local_id)
             } else {
-                let predicates = genv.tcx.predicates_of(def_id);
-                let predicates =
-                    lowering::lower_generic_predicates(genv.tcx, genv.sess, predicates)?;
-
+                let predicates = genv.lower_predicates_of(def_id)?;
                 let predicates = Refiner::default(genv, &genv.generics_of(def_id)?)
                     .refine_generic_predicates(&predicates)?;
                 Ok(rty::EarlyBinder(predicates))
@@ -353,7 +375,8 @@ impl<'tcx> Queries<'tcx> {
             let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
             let bound_vars = genv.tcx.late_bound_vars(hir_id);
             lowering::lower_bound_vars(bound_vars)
-                .map_err(|reason| QueryErr::unsupported(genv.tcx, def_id.to_def_id(), reason))
+                .map_err(UnsupportedReason::to_err)
+                .map_err(|err| QueryErr::unsupported(genv.tcx, def_id.to_def_id(), err))
         })
     }
 }
@@ -372,8 +395,8 @@ where
 }
 
 impl QueryErr {
-    pub fn unsupported(tcx: TyCtxt, def_id: DefId, reason: UnsupportedReason) -> Self {
-        QueryErr::UnsupportedType { def_id, def_span: tcx.def_span(def_id), reason }
+    pub fn unsupported(tcx: TyCtxt, def_id: DefId, err: UnsupportedErr) -> Self {
+        QueryErr::Unsupported { def_id, def_span: tcx.def_span(def_id), err }
     }
 }
 
@@ -384,12 +407,14 @@ impl<'a> IntoDiagnostic<'a> for QueryErr {
     ) -> rustc_errors::DiagnosticBuilder<'a, ErrorGuaranteed> {
         use crate::fluent_generated as fluent;
         match self {
-            QueryErr::UnsupportedType { reason, .. } => {
-                let mut builder = handler.struct_err_with_code(
-                    fluent::middle_query_unsupported_type,
+            QueryErr::Unsupported { err, def_span, .. } => {
+                let span = err.span.unwrap_or(def_span);
+                let mut builder = handler.struct_span_err_with_code(
+                    span,
+                    fluent::middle_query_unsupported,
                     flux_errors::diagnostic_id(),
                 );
-                builder.note(reason.descr);
+                builder.note(err.descr);
                 builder
             }
             QueryErr::Emitted(_) => {
