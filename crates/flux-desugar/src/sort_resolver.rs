@@ -9,7 +9,9 @@ use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_middle::ty::Generics;
 use rustc_span::{
+    def_id::DefId,
     sym::{self},
+    symbol::kw::SelfUpper,
     Symbol,
 };
 
@@ -20,8 +22,9 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 pub(crate) struct SortResolver<'a> {
     sess: &'a FluxSession,
     sort_decls: &'a fhir::SortDecls,
-    generic_params: FxHashMap<Symbol, rustc_span::def_id::DefId>,
+    generic_params: FxHashMap<Symbol, DefId>,
     sort_params: FxHashMap<Symbol, usize>,
+    parent_id: Option<DefId>,
 }
 
 impl<'a> SortResolver<'a> {
@@ -30,21 +33,26 @@ impl<'a> SortResolver<'a> {
         sort_decls: &'a fhir::SortDecls,
         sort_params: &[Symbol],
     ) -> Self {
-        let sort_params = sort_params
+        let sort_params: std::collections::HashMap<
+            Symbol,
+            usize,
+            std::hash::BuildHasherDefault<rustc_hash::FxHasher>,
+        > = sort_params
             .iter()
             .enumerate()
             .map(|(i, v)| (*v, i))
             .collect();
-        Self { sess, sort_decls, generic_params: Default::default(), sort_params }
+        Self { sess, sort_decls, generic_params: Default::default(), sort_params, parent_id: None }
     }
 
     pub(crate) fn with_generics(
         sess: &'a FluxSession,
         sort_decls: &'a fhir::SortDecls,
         generics: &'a Generics,
+        parent_id: Option<DefId>,
     ) -> Self {
         let generic_params = generics.params.iter().map(|p| (p.name, p.def_id)).collect();
-        Self { sess, sort_decls, sort_params: Default::default(), generic_params }
+        Self { sess, sort_decls, sort_params: Default::default(), generic_params, parent_id }
     }
 
     pub(crate) fn resolve_sort(&self, sort: &surface::Sort) -> Result<fhir::Sort> {
@@ -115,6 +123,10 @@ impl<'a> SortResolver<'a> {
             Ok(fhir::Sort::Bool)
         } else if ident.name == SORTS.real {
             Ok(fhir::Sort::Real)
+        } else if let Some(def_id) = self.parent_id
+            && ident.name == SelfUpper
+        {
+            Ok(fhir::Sort::SelfParam(def_id))
         } else if let Some(def_id) = self.generic_params.get(&ident.name) {
             Ok(fhir::Sort::Param(*def_id))
         } else if let Some(idx) = self.sort_params.get(&ident.name) {

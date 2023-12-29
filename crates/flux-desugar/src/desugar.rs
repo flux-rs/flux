@@ -235,8 +235,11 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     ) -> RustItemCtxt<'a, 'tcx> {
         let generics = genv.tcx.generics_of(owner);
+
+        let parent_id = genv.tcx.opt_parent(owner.def_id.to_def_id());
+
         let sort_resolver =
-            SortResolver::with_generics(genv.sess, genv.map().sort_decls(), generics);
+            SortResolver::with_generics(genv.sess, genv.map().sort_decls(), generics, parent_id);
         RustItemCtxt {
             genv,
             owner,

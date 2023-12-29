@@ -225,11 +225,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             }
             fhir::Res::SelfTyAlias { alias_to, .. } => self.sort_of_self_ty_alias(alias_to),
             fhir::Res::Def(DefKind::TyParam, def_id) => self.sort_of_generic_param(def_id),
-            fhir::Res::SelfTyParam { trait_ } => {
-                self.sort_of_self_param(trait_)
-                // println!("TRACE: sort_of_path {:?}", path.res);
-                // None
-            }
+            fhir::Res::SelfTyParam { trait_ } => self.sort_of_self_param(trait_),
             fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _) => None,
             fhir::Res::Def(..) => bug!("unexpected res `{:?}`", path.res),
         }
@@ -260,17 +256,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
         }
     }
-
-    // pub fn sort_of_self_param(&self, trait_: DefId) -> Option<fhir::Sort> {
-    //     let generics = self.generics_of(trait_).ok()?;
-    //     let self_kind = generics.self_kind.as_ref()?;
-    //     match self_kind {
-    //         fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy => {
-    //             Some(fhir::Sort::SelfParam(trait_))
-    //         }
-    //         fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
-    //     }
-    // }
 
     fn sort_of_ty(&self, ty: &fhir::Ty) -> Option<fhir::Sort> {
         match &ty.kind {
