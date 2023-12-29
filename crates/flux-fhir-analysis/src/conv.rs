@@ -1203,6 +1203,9 @@ fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Param(def_id) => {
             rty::Sort::Param(def_id_to_param_ty(genv.tcx, def_id.expect_local()))
         }
+        fhir::Sort::SelfParam(def_id) => {
+            rty::Sort::Param(def_id_to_self_ty(genv.tcx, def_id.expect_local()))
+        }
         fhir::Sort::Var(n) => rty::Sort::Var(rty::SortVar::from(*n)),
         fhir::Sort::Error | fhir::Sort::Wildcard | fhir::Sort::Infer(_) => {
             bug!("unexpected sort `{sort:?}`")
@@ -1238,6 +1241,10 @@ fn def_id_to_param_ty(tcx: TyCtxt, def_id: LocalDefId) -> rty::ParamTy {
         index: def_id_to_param_index(tcx, def_id),
         name: tcx.hir().ty_param_name(def_id),
     }
+}
+
+fn def_id_to_self_ty(tcx: TyCtxt, def_id: LocalDefId) -> rty::ParamTy {
+    rty::ParamTy { index: def_id_to_param_index(tcx, def_id), name: kw::SelfUpper }
 }
 
 fn def_id_to_param_index(tcx: TyCtxt, def_id: LocalDefId) -> u32 {

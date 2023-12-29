@@ -193,7 +193,10 @@ fn type_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder
             conv::expand_type_alias(genv, alias, &wfckresults)?
         }
         DefKind::TyParam => {
-            match &genv.get_generic_param(def_id).kind {
+            let generic_param = genv
+                .get_generic_param(def_id)
+                .unwrap_or_else(|| bug!("no generic param for {:?}", def_id));
+            match &generic_param.kind {
                 fhir::GenericParamKind::Type { default: Some(ty) } => {
                     let wfckresults = genv.check_wf(def_id)?;
                     conv::conv_ty(genv, ty, &wfckresults)?

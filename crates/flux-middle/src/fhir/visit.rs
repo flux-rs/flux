@@ -248,6 +248,7 @@ pub fn walk_sort<V: Visitor>(vis: &mut V, sort: &Sort) {
         Sort::BitVec(_)
         | Sort::Int
         | Sort::Param(_)
+        | Sort::SelfParam(_)
         | Sort::Var(_)
         | Sort::Bool
         | Sort::Real

@@ -275,6 +275,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             .collect();
 
         let mut params = vec![];
+        let mut self_kind = None;
         for param in &generics.params {
             let kind = match &param.kind {
                 surface::GenericParamKind::Type => fhir::GenericParamKind::Type { default: None },
@@ -285,13 +286,16 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 }
             };
 
-            let def_id = *generics_map
-                .get(&param.name)
-                .ok_or_else(|| self.emit_err(errors::UnresolvedGenericParam::new(param.name)))?;
-
-            params.push(fhir::GenericParam { def_id, kind });
+            if &param.name.name == &kw::SelfUpper {
+                self_kind = Some(kind);
+            } else {
+                let def_id = *generics_map.get(&param.name).ok_or_else(|| {
+                    self.emit_err(errors::UnresolvedGenericParam::new(param.name))
+                })?;
+                params.push(fhir::GenericParam { def_id, kind });
+            }
         }
-        Ok(fhir::Generics { params })
+        Ok(fhir::Generics { params, self_kind })
     }
 
     fn desugar_predicates(

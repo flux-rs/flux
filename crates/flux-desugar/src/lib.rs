@@ -180,6 +180,8 @@ pub fn desugar_generics_and_predicates(
     resolver_output: &ResolverOutput,
     generics: Option<&surface::Generics>,
 ) -> Result<(), ErrorGuaranteed> {
+    println!("TRACE: desugar_generics_and_predicates {owner_id:?} {generics:?}");
+
     let (lifted_generics, predicates) =
         LiftCtxt::new(genv.tcx, genv.sess, owner_id, None).lift_generics_with_predicates()?;
 
