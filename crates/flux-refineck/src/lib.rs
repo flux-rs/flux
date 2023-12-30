@@ -83,7 +83,6 @@ pub fn check_fn(
         tracing::info!("check_fn::shape");
 
         // PHASE 2: generate refinement tree constraint
-        println!("TRACE: check_fn::refine {def_id:?}");
         let (mut refine_tree, kvars) =
             Checker::run_in_refine_mode(genv, def_id, &ghost_stmts, shape_result, config)
                 .emit(genv.sess)?;

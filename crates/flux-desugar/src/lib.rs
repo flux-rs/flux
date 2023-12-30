@@ -158,6 +158,7 @@ pub fn desugar_fn_sig(
         genv.map_mut().insert_opaque_tys(opaque_tys);
     } else {
         let (generics, fn_info) = lift::lift_fn(genv.tcx, genv.sess, owner_id)?;
+
         if config::dump_fhir() {
             dbg::dump_item_info(genv.tcx, def_id, "fhir", &fn_info.fn_sig).unwrap();
         }

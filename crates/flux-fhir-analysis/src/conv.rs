@@ -306,7 +306,7 @@ pub(crate) fn conv_fn_sig(
         .cloned()
         .collect();
 
-    let res = rty::PolyFnSig::new(rty::FnSig::new(requires, args, output), vars);
+    let res = rty::PolyFnSig::new(rty::FnSig::new(requires, args, output, fn_sig.lifted), vars);
     Ok(rty::EarlyBinder(res))
 }
 
