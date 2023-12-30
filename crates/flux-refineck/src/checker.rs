@@ -150,36 +150,39 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
     }
 }
 
-/// This function returns the trait_method corresponding to an impl_method defined by `def_id` (if such a method exists).
-fn impl_trait_method(genv: &GlobalEnv, def_id: DefId) -> Option<DefId> {
-    let impl_id = genv.tcx.impl_of_method(def_id)?;
-    let trait_id = genv.tcx.trait_id_of_impl(impl_id)?;
-    let impl_ids = genv.tcx.impl_item_implementor_ids(impl_id);
-    for trait_f in genv.tcx.associated_item_def_ids(trait_id) {
-        if impl_ids.get(trait_f) == Some(&def_id) {
-            return Some(*trait_f);
-        }
-    }
-    None
-}
+// DEAD/FROZEN CODE for TODO(check-trait-impl)
+// /// This function returns the trait_method corresponding to an impl_method defined by `def_id` (if such a method exists).
+// fn impl_trait_method(genv: &GlobalEnv, def_id: DefId) -> Option<DefId> {
+//     let impl_id = genv.tcx.impl_of_method(def_id)?;
+//     let trait_ref = genv.tcx.impl_trait_ref(impl_id);
+//     println!("TRACE: impl_trait_method {def_id:?} ==> {trait_ref:?}");
+//     let trait_id = genv.tcx.trait_id_of_impl(impl_id)?;
+//     let impl_ids = genv.tcx.impl_item_implementor_ids(impl_id);
+//     for trait_f in genv.tcx.associated_item_def_ids(trait_id) {
+//         if impl_ids.get(trait_f) == Some(&def_id) {
+//             return Some(*trait_f);
+//         }
+//     }
+//     None
+// }
 
-fn checker_sig(
-    genv: &GlobalEnv,
-    def_id: LocalDefId,
-) -> Result<EarlyBinder<PolyFnSig>, CheckerError> {
-    let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
-    let is_lifted = fn_sig.0.as_ref().skip_binder().lifted();
-    if let Some(trait_method_id) = impl_trait_method(genv, def_id.to_def_id())
-        && is_lifted
-    {
-        let method_sig = genv
-            .fn_sig(trait_method_id)
-            .with_span(genv.tcx.def_span(trait_method_id))?;
-        println!("TRACE: checker_sig {def_id:?} ==> {fn_sig:?} ==> {method_sig:?}");
-        next_how_to_instantiate_method_sig()
-    }
-    Ok(fn_sig)
-}
+// fn checker_sig(
+//     genv: &GlobalEnv,
+//     def_id: LocalDefId,
+// ) -> Result<EarlyBinder<PolyFnSig>, CheckerError> {
+//     let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
+//     let is_lifted = fn_sig.0.as_ref().skip_binder().lifted();
+//     if let Some(trait_method_id) = impl_trait_method(genv, def_id.to_def_id())
+//         && is_lifted
+//     {
+//         let method_sig = genv
+//             .fn_sig(trait_method_id)
+//             .with_span(genv.tcx.def_span(trait_method_id))?;
+//         println!("TRACE: checker_sig {def_id:?} ==> {fn_sig:?} ==> {method_sig:?}");
+//         // next_how_to_instantiate_method_sig()
+//     }
+//     Ok(fn_sig)
+// }
 
 impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
     pub(crate) fn run_in_refine_mode(
@@ -189,8 +192,8 @@ impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore), CheckerError> {
-        // let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
-        let fn_sig = checker_sig(genv, def_id)?;
+        // TODO(check-trait-impl) let fn_sig = checker_sig(genv, def_id)?;
+        let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx.def_span(def_id))?;
 
         let mut kvars = fixpoint_encoding::KVarStore::new();
         let mut refine_tree = RefineTree::new();
