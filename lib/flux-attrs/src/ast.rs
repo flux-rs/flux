@@ -1620,25 +1620,15 @@ impl ToTokens for ItemFn {
 
 impl ToTokens for ItemType {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let flux_type = ToTokensFlux(self);
-        let rust_type = ToTokensRust(self);
-        quote! {
-            #[flux_tool::alias(#flux_type)]
-            #rust_type
-        }
-        .to_tokens(tokens);
+        #[cfg(flux_sysroot)]
+        self.flux_tool_attr().to_tokens(tokens);
+        self.to_tokens_inner(tokens, Mode::Rust);
     }
 }
 
 impl ToTokens for ToTokensFlux<&ItemType> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.0.to_tokens_inner(tokens, Mode::Flux);
-    }
-}
-
-impl ToTokens for ToTokensRust<&ItemType> {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        self.0.to_tokens_inner(tokens, Mode::Rust);
     }
 }
 
@@ -1664,6 +1654,14 @@ impl ItemType {
         self.ty.to_tokens_inner(tokens, mode);
         if mode == Mode::Rust {
             self.semi_token.to_tokens(tokens);
+        }
+    }
+
+    #[cfg(flux_sysroot)]
+    fn flux_tool_attr(&self) -> TokenStream {
+        let flux_type = ToTokensFlux(self);
+        quote! {
+            #[flux_tool::alias(#flux_type)]
         }
     }
 }
