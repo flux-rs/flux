@@ -47,6 +47,33 @@ pub struct UnsupportedReason {
     pub(crate) descr: String,
 }
 
+impl UnsupportedReason {
+    fn new(reason: impl ToString) -> Self {
+        UnsupportedReason { descr: reason.to_string() }
+    }
+
+    pub(crate) fn to_err(self) -> UnsupportedErr {
+        UnsupportedErr { descr: self.descr, span: None }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct UnsupportedErr {
+    pub(crate) descr: String,
+    pub(crate) span: Option<Span>,
+}
+
+impl UnsupportedErr {
+    fn new(reason: UnsupportedReason) -> Self {
+        UnsupportedErr { descr: reason.descr, span: None }
+    }
+
+    fn with_span(mut self, span: Span) -> Self {
+        self.span = Some(span);
+        self
+    }
+}
+
 impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
     pub fn lower_mir_body(
         tcx: TyCtxt<'tcx>,
@@ -558,12 +585,6 @@ pub fn lower_place(place: &rustc_mir::Place) -> Result<Place, UnsupportedReason>
     Ok(Place { local: place.local, projection })
 }
 
-impl UnsupportedReason {
-    fn new(reason: impl ToString) -> Self {
-        UnsupportedReason { descr: reason.to_string() }
-    }
-}
-
 pub(crate) fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
     fn_sig: rustc_ty::PolyFnSig<'tcx>,
@@ -752,7 +773,7 @@ fn lower_bound_region(
     Ok(BoundRegion { kind: bregion.kind, var: bregion.var })
 }
 
-pub fn lower_generics(generics: &rustc_ty::Generics) -> Result<Generics, UnsupportedReason> {
+pub(crate) fn lower_generics(generics: &rustc_ty::Generics) -> Result<Generics, UnsupportedReason> {
     let params = List::from_vec(
         generics
             .params
@@ -781,82 +802,62 @@ fn lower_generic_param_def(
 
 pub(crate) fn lower_generic_predicates<'tcx>(
     tcx: TyCtxt<'tcx>,
-    sess: &FluxSession,
     generics: rustc_ty::GenericPredicates<'tcx>,
-) -> Result<GenericPredicates, ErrorGuaranteed> {
+) -> Result<GenericPredicates, UnsupportedErr> {
     let predicates = generics
         .predicates
         .iter()
-        .map(|(clause, span)| lower_clause(tcx, sess, clause, *span))
+        .map(|(clause, span)| {
+            lower_clause(tcx, clause).map_err(|reason| UnsupportedErr::new(reason).with_span(*span))
+        })
         .try_collect()?;
     Ok(GenericPredicates { parent: generics.parent, predicates })
 }
 
 pub(crate) fn lower_item_bounds<'tcx>(
     tcx: TyCtxt<'tcx>,
-    sess: &FluxSession,
     bounds: &[rustc_ty::Clause<'tcx>],
-    span: Span,
-) -> Result<List<Clause>, ErrorGuaranteed> {
+) -> Result<List<Clause>, UnsupportedErr> {
     bounds
         .iter()
-        .map(|clause| lower_clause(tcx, sess, clause, span))
+        .map(|clause| lower_clause(tcx, clause).map_err(UnsupportedErr::new))
         .try_collect()
 }
 
 fn lower_clause<'tcx>(
     tcx: TyCtxt<'tcx>,
-    sess: &FluxSession,
     clause: &rustc_ty::Clause<'tcx>,
-    span: Span,
-) -> Result<Clause, ErrorGuaranteed> {
+) -> Result<Clause, UnsupportedReason> {
     let Some(kind) = clause.kind().no_bound_vars() else {
-        return Err(sess.emit_err(errors::UnsupportedGenericBound::new(
-            span,
-            "higher-rank trait bounds are not supported",
-        )));
+        return Err(UnsupportedReason::new("higher-rank trait bounds are not supported"));
     };
     let kind = match kind {
         rustc_ty::ClauseKind::Trait(trait_pred) => {
             ClauseKind::Trait(TraitPredicate {
                 trait_ref: TraitRef {
                     def_id: trait_pred.trait_ref.def_id,
-                    args: lower_generic_args(tcx, trait_pred.trait_ref.args)
-                        .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
-                        .emit(sess)?,
+                    args: lower_generic_args(tcx, trait_pred.trait_ref.args)?,
                 },
             })
         }
         rustc_ty::ClauseKind::Projection(proj_pred) => {
             let Some(term) = proj_pred.term.ty() else {
-                return Err(sess.emit_err(errors::UnsupportedGenericBound::new(
-                    span,
-                    format!("unsupported projection predicate `{proj_pred:?}`"),
+                return Err(UnsupportedReason::new(format!(
+                    "unsupported projection predicate `{proj_pred:?}`"
                 )));
             };
             let proj_ty = proj_pred.projection_ty;
-            let args = lower_generic_args(tcx, proj_ty.args)
-                .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
-                .emit(sess)?;
+            let args = lower_generic_args(tcx, proj_ty.args)?;
 
             let projection_ty = AliasTy { args, def_id: proj_ty.def_id };
-            let term = lower_ty(tcx, term)
-                .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
-                .emit(sess)?;
+            let term = lower_ty(tcx, term)?;
             ClauseKind::Projection(ProjectionPredicate { projection_ty, term })
         }
         rustc_ty::ClauseKind::TypeOutlives(outlives_pred) => {
-            ClauseKind::TypeOutlives(
-                lower_type_outlives(tcx, outlives_pred)
-                    .map_err(|err| errors::UnsupportedGenericBound::new(span, err.descr))
-                    .emit(sess)?,
-            )
+            ClauseKind::TypeOutlives(lower_type_outlives(tcx, outlives_pred)?)
         }
         _ => {
-            return Err(sess.emit_err(errors::UnsupportedGenericBound::new(
-                span,
-                format!("unsupported clause kind `{kind:?}`"),
-            )));
+            return Err(UnsupportedReason::new(format!("unsupported clause kind `{kind:?}`")));
         }
     };
     Ok(Clause::new(kind))
@@ -939,21 +940,6 @@ mod errors {
                 statement.source_info.span,
                 UnsupportedReason::new(format!("{statement:?}")),
             )
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(middle_unsupported_generic_bound, code = "FLUX")]
-    #[note]
-    pub struct UnsupportedGenericBound {
-        #[primary_span]
-        span: Span,
-        reason: String,
-    }
-
-    impl UnsupportedGenericBound {
-        pub fn new(span: Span, reason: impl ToString) -> Self {
-            Self { span, reason: reason.to_string() }
         }
     }
 }

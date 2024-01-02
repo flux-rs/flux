@@ -26,6 +26,7 @@ use crate::{
     pretty::def_id_to_string,
 };
 
+#[derive(Clone)]
 pub struct Generics<'tcx> {
     pub params: List<GenericParamDef>,
     pub orig: &'tcx rustc_middle::ty::Generics,
@@ -57,7 +58,7 @@ pub enum GenericParamDefKind {
     Const { has_default: bool },
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct GenericPredicates {
     pub parent: Option<DefId>,
     pub predicates: List<Clause>,
