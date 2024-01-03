@@ -33,11 +33,7 @@ impl<'a> SortResolver<'a> {
         sort_decls: &'a fhir::SortDecls,
         sort_params: &[Symbol],
     ) -> Self {
-        let sort_params: std::collections::HashMap<
-            Symbol,
-            usize,
-            std::hash::BuildHasherDefault<rustc_hash::FxHasher>,
-        > = sort_params
+        let sort_params = sort_params
             .iter()
             .enumerate()
             .map(|(i, v)| (*v, i))
@@ -124,7 +120,7 @@ impl<'a> SortResolver<'a> {
         } else if ident.name == SORTS.real {
             Ok(fhir::Sort::Real)
         } else if let Some(def_id) = self.parent_id
-            && ident.name == SelfUpper
+            && ident.name == kw::SelfUpper
         {
             Ok(fhir::Sort::SelfParam(def_id))
         } else if let Some(def_id) = self.generic_params.get(&ident.name) {
