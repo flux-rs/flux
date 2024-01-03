@@ -124,7 +124,7 @@ impl<'a> SortResolver<'a> {
         } else if ident.name == SORTS.real {
             Ok(fhir::Sort::Real)
         } else if let Some(def_id) = self.parent_id
-            && ident.name == SelfUpper
+            && ident.name == kw::SelfUpper
         {
             Ok(fhir::Sort::SelfParam(def_id))
         } else if let Some(def_id) = self.generic_params.get(&ident.name) {
