@@ -52,7 +52,7 @@ impl UnsupportedReason {
         UnsupportedReason { descr: reason.to_string() }
     }
 
-    pub(crate) fn to_err(self) -> UnsupportedErr {
+    pub(crate) fn into_err(self) -> UnsupportedErr {
         UnsupportedErr { descr: self.descr, span: None }
     }
 }

@@ -128,7 +128,7 @@ impl<'tcx> Queries<'tcx> {
         run_with_cache(&self.lower_generics_of, def_id, || {
             let generics = genv.tcx.generics_of(def_id);
             lowering::lower_generics(generics)
-                .map_err(UnsupportedReason::to_err)
+                .map_err(UnsupportedReason::into_err)
                 .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))
         })
     }
@@ -154,7 +154,7 @@ impl<'tcx> Queries<'tcx> {
             let ty = genv.tcx.type_of(def_id).instantiate_identity();
             Ok(ty::EarlyBinder(
                 lowering::lower_ty(genv.tcx, ty)
-                    .map_err(UnsupportedReason::to_err)
+                    .map_err(UnsupportedReason::into_err)
                     .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?,
             ))
         })
@@ -176,7 +176,7 @@ impl<'tcx> Queries<'tcx> {
                 .normalize(fn_sig.instantiate_identity());
             Ok(ty::EarlyBinder(
                 lowering::lower_fn_sig(genv.tcx, result.value)
-                    .map_err(UnsupportedReason::to_err)
+                    .map_err(UnsupportedReason::into_err)
                     .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?,
             ))
         })
@@ -375,7 +375,7 @@ impl<'tcx> Queries<'tcx> {
             let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
             let bound_vars = genv.tcx.late_bound_vars(hir_id);
             lowering::lower_bound_vars(bound_vars)
-                .map_err(UnsupportedReason::to_err)
+                .map_err(UnsupportedReason::into_err)
                 .map_err(|err| QueryErr::unsupported(genv.tcx, def_id.to_def_id(), err))
         })
     }

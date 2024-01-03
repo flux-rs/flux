@@ -143,7 +143,7 @@ pub struct GeneratorObligPredicate {
     pub output: Ty,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum SortCtor {
     Set,
     Map,
@@ -153,7 +153,7 @@ pub enum SortCtor {
 /// [SortVar] are used for polymorphic sorts (Set, Map etc.) and they should occur
 /// "bound" under a PolyFuncSort; i.e. should be < than the number of params in the
 /// PolyFuncSort.
-#[derive(Clone, PartialEq, Eq, Debug, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash, Encodable, Decodable)]
 pub struct SortVar {
     pub index: usize,
 }
