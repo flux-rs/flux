@@ -11,7 +11,7 @@ use rustc_middle::ty::Generics;
 use rustc_span::{
     def_id::DefId,
     sym::{self},
-    symbol::kw::SelfUpper,
+    symbol::kw::{self},
     Symbol,
 };
 
