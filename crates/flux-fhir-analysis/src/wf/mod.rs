@@ -527,7 +527,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         arg: &fhir::RefineArg,
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
-            fhir::RefineArg::Expr { expr, .. } => {
+            fhir::RefineArg::Expr(expr) => {
                 if let fhir::ExprKind::Var(var) = &expr.kind {
                     self.xi.insert(var.name);
                 } else {

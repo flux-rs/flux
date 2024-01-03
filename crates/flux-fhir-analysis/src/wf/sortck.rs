@@ -41,7 +41,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         match arg {
-            fhir::RefineArg::Expr { expr, .. } => self.check_expr(expr, expected),
+            fhir::RefineArg::Expr(expr) => self.check_expr(expr, expected),
             fhir::RefineArg::Abs(params, body, span, fhir_id) => {
                 self.check_abs(params, body, span, fhir_id, expected)
             }

@@ -81,7 +81,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
         let bty =
             rty::BaseTy::adt(adt_def, vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)]);
-        rty::Ty::indexed(bty, rty::Index::unit())
+        rty::Ty::indexed(bty, rty::Expr::unit())
     }
 
     pub fn mir(&self, def_id: LocalDefId) -> QueryResult<Rc<rustc::mir::Body<'tcx>>> {

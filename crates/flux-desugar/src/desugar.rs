@@ -681,14 +681,11 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 let pred = self.desugar_expr(env, pred)?;
                 let params = env.pop().into_params(self);
 
-                let idx = fhir::RefineArg::Expr {
-                    expr: fhir::Expr {
-                        kind: fhir::ExprKind::Var(params[0].ident),
-                        span: ex_bind.span,
-                        fhir_id: self.next_fhir_id(),
-                    },
-                    is_binder: false,
-                };
+                let idx = fhir::RefineArg::Expr(fhir::Expr {
+                    kind: fhir::ExprKind::Var(params[0].ident),
+                    span: ex_bind.span,
+                    fhir_id: self.next_fhir_id(),
+                });
                 let indexed = fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: bty_span };
                 let constr =
                     fhir::Ty { kind: fhir::TyKind::Constr(pred, Box::new(indexed)), span: ty_span };
@@ -800,7 +797,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 Ok(self.bind_into_refine_arg(*ident, sort, env)?.unwrap())
             }
             surface::RefineArg::Expr(expr) => {
-                Ok(fhir::RefineArg::Expr { expr: self.desugar_expr(env, expr)?, is_binder: false })
+                Ok(fhir::RefineArg::Expr(self.desugar_expr(env, expr)?))
             }
             surface::RefineArg::Abs(_, body, node_id, span) => {
                 env.enter(ScopeId::Abs(*node_id));
@@ -826,7 +823,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 }
                 let kind = fhir::ExprKind::Var(fhir::Ident::new(param.name, ident));
                 let expr = fhir::Expr { kind, span: ident.span, fhir_id: self.next_fhir_id() };
-                Ok(Some(fhir::RefineArg::Expr { expr, is_binder: true }))
+                Ok(Some(fhir::RefineArg::Expr(expr)))
             }
             None => Ok(None),
         }
@@ -1006,7 +1003,7 @@ impl Scope<Param> {
             let kind = ExprKind::Var(ident);
             let fhir_id = cx.next_fhir_id();
             let expr = fhir::Expr { kind, span, fhir_id };
-            refine_args.push(fhir::RefineArg::Expr { expr, is_binder: false });
+            refine_args.push(fhir::RefineArg::Expr(expr));
         }
         refine_args
     }
