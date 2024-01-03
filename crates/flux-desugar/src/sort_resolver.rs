@@ -25,6 +25,8 @@ pub(crate) struct SortResolver<'a> {
     generic_params: FxHashMap<Symbol, DefId>,
     sort_params: FxHashMap<Symbol, usize>,
     parent_id: Option<DefId>,
+    /// the sort of `Self` in an `impl` block
+    self_sort: Option<fhir::Sort>,
 }
 
 impl<'a> SortResolver<'a> {
@@ -38,7 +40,14 @@ impl<'a> SortResolver<'a> {
             .enumerate()
             .map(|(i, v)| (*v, i))
             .collect();
-        Self { sess, sort_decls, generic_params: Default::default(), sort_params, parent_id: None }
+        Self {
+            sess,
+            sort_decls,
+            generic_params: Default::default(),
+            sort_params,
+            parent_id: None,
+            self_sort: None,
+        }
     }
 
     pub(crate) fn with_generics(
@@ -46,9 +55,17 @@ impl<'a> SortResolver<'a> {
         sort_decls: &'a fhir::SortDecls,
         generics: &'a Generics,
         parent_id: Option<DefId>,
+        self_sort: Option<fhir::Sort>,
     ) -> Self {
         let generic_params = generics.params.iter().map(|p| (p.name, p.def_id)).collect();
-        Self { sess, sort_decls, sort_params: Default::default(), generic_params, parent_id }
+        Self {
+            sess,
+            sort_decls,
+            sort_params: Default::default(),
+            generic_params,
+            parent_id,
+            self_sort,
+        }
     }
 
     pub(crate) fn resolve_sort(&self, sort: &surface::Sort) -> Result<fhir::Sort> {
@@ -121,9 +138,12 @@ impl<'a> SortResolver<'a> {
             Ok(fhir::Sort::Real)
         } else if let Some(def_id) = self.parent_id
             && ident.name == kw::SelfUpper
-        // && self.is_impl_trait(def_id)
         {
-            Ok(fhir::Sort::SelfParam(def_id))
+            if let Some(sort) = &self.self_sort {
+                Ok(sort.clone())
+            } else {
+                Ok(fhir::Sort::SelfParam(def_id))
+            }
         } else if let Some(def_id) = self.generic_params.get(&ident.name) {
             Ok(fhir::Sort::Param(*def_id))
         } else if let Some(idx) = self.sort_params.get(&ident.name) {

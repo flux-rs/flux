@@ -231,6 +231,16 @@ fn super_hack_is_impl(def_id: DefId) -> bool {
     format!("{def_id:?}").contains("::{impl#")
 }
 
+fn self_sort(genv: &GlobalEnv, parent_id: Option<DefId>) -> Option<fhir::Sort> {
+    if let Some(alias_to) = parent_id
+        && super_hack_is_impl(alias_to)
+    {
+        genv.sort_of_self_ty_alias(alias_to)
+    } else {
+        None
+    }
+}
+
 impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     pub(crate) fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
@@ -242,19 +252,14 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
         let owner_id = owner.def_id.to_def_id();
         let parent_id = genv.tcx.opt_parent(owner_id);
-
-        let self_sort: Option<fhir::Sort> = if let Some(alias_to) = parent_id
-            && super_hack_is_impl(alias_to)
-        {
-            println!("TRACE: sort-shenanigans (2) {alias_to:?} ==> {alias_to:?}");
-            genv.sort_of_self_ty_alias(alias_to)
-        } else {
-            None
-        };
-
-        println!("TRACE: RustItemCtxt::new: {owner:?} with {self_sort:?}");
-        let sort_resolver =
-            SortResolver::with_generics(genv.sess, genv.map().sort_decls(), generics, parent_id);
+        let self_sort = self_sort(genv, parent_id);
+        let sort_resolver = SortResolver::with_generics(
+            genv.sess,
+            genv.map().sort_decls(),
+            generics,
+            parent_id,
+            self_sort,
+        );
         RustItemCtxt {
             genv,
             owner,
@@ -691,7 +696,6 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 let bty = self.desugar_bty(bty, env)?;
 
                 if let Some(sort) = self.genv.sort_of_bty(&bty) {
-                    println!("TRACE: sort_of_bty {bty:?} => {sort:?}");
                     env.get_mut(*ex_bind).unwrap().sort = sort;
                 } else {
                     return Err(self.emit_err(errors::RefinedUnrefinableType::new(bty.span)));
