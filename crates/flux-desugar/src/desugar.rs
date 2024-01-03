@@ -17,7 +17,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{
-    def_id::LocalDefId,
+    def_id::{DefId, LocalDefId},
     sym::{self},
     symbol::kw,
     Span, Symbol,
@@ -227,6 +227,10 @@ enum QPathRes<'a> {
     NumConst(i128),
 }
 
+fn super_hack_is_impl(def_id: DefId) -> bool {
+    format!("{def_id:?}").contains("::{impl#")
+}
+
 impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     pub(crate) fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
@@ -236,8 +240,19 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     ) -> RustItemCtxt<'a, 'tcx> {
         let generics = genv.tcx.generics_of(owner);
 
-        let parent_id = genv.tcx.opt_parent(owner.def_id.to_def_id());
+        let owner_id = owner.def_id.to_def_id();
+        let parent_id = genv.tcx.opt_parent(owner_id);
 
+        let self_sort: Option<fhir::Sort> = if let Some(alias_to) = parent_id
+            && super_hack_is_impl(alias_to)
+        {
+            println!("TRACE: sort-shenanigans (2) {alias_to:?} ==> {alias_to:?}");
+            genv.sort_of_self_ty_alias(alias_to)
+        } else {
+            None
+        };
+
+        println!("TRACE: RustItemCtxt::new: {owner:?} with {self_sort:?}");
         let sort_resolver =
             SortResolver::with_generics(genv.sess, genv.map().sort_decls(), generics, parent_id);
         RustItemCtxt {
@@ -257,10 +272,6 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     pub(crate) fn as_lift_cx<'b>(&'b mut self) -> LiftCtxt<'b, 'tcx> {
         LiftCtxt::new(self.genv.tcx, self.genv.sess, self.owner, self.opaque_tys.as_deref_mut())
     }
-
-    // fn as_expr_ctxt<'b>(&'b self) -> ExprCtxt<'b, 'tcx> {
-    //     ExprCtxt::new(self.genv, FluxOwnerId::Rust(self.owner), &self.local_id_gen)
-    // }
 
     pub(crate) fn desugar_generics(&self, generics: &surface::Generics) -> Result<fhir::Generics> {
         let hir_generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
@@ -680,6 +691,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 let bty = self.desugar_bty(bty, env)?;
 
                 if let Some(sort) = self.genv.sort_of_bty(&bty) {
+                    println!("TRACE: sort_of_bty {bty:?} => {sort:?}");
                     env.get_mut(*ex_bind).unwrap().sort = sort;
                 } else {
                     return Err(self.emit_err(errors::RefinedUnrefinableType::new(bty.span)));
