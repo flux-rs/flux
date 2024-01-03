@@ -599,8 +599,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => self.conv_base_ty(env, bty),
             fhir::TyKind::Indexed(bty, idx) => {
-                let idxs = rty::Index::from(self.conv_refine_arg(env, idx));
-                self.conv_indexed_type(env, bty, idxs)
+                let idx = self.conv_refine_arg(env, idx);
+                self.conv_indexed_type(env, bty, idx)
             }
             fhir::TyKind::Exists(params, ty) => {
                 let layer = Layer::list(self, 0, params, false);
@@ -691,11 +691,11 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
         let sort = conv_sort(self.genv, &sort.unwrap());
         if sort.is_unit() {
-            let idx = rty::Index::from(rty::Expr::unit());
+            let idx = rty::Expr::unit();
             self.conv_indexed_type(env, bty, idx)
         } else {
             env.push_layer(Layer::empty());
-            let idx = rty::Index::from(rty::Expr::nu());
+            let idx = rty::Expr::nu();
             let ty = self.conv_indexed_type(env, bty, idx)?;
             env.pop_layer();
             Ok(rty::Ty::exists(rty::Binder::with_sort(ty, sort)))
@@ -765,7 +765,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         &self,
         env: &mut Env,
         bty: &fhir::BaseTy,
-        idx: rty::Index,
+        idx: rty::Expr,
     ) -> QueryResult<rty::Ty> {
         match &bty.kind {
             fhir::BaseTyKind::Path(fhir::QPath::Resolved(_, path)) => {
@@ -782,7 +782,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         &self,
         env: &mut Env,
         path: &fhir::Path,
-        idx: rty::Index,
+        idx: rty::Expr,
     ) -> QueryResult<rty::Ty> {
         let bty = match &path.res {
             fhir::Res::PrimTy(PrimTy::Bool) => rty::BaseTy::Bool,
@@ -810,7 +810,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .genv
                     .type_of(*alias_to)?
                     .instantiate_identity(&[])
-                    .replace_bound_expr(&idx.expr));
+                    .replace_bound_expr(&idx));
             }
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
                 let generics = self.conv_generic_args(env, *def_id, &path.args)?;
@@ -823,7 +823,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .genv
                     .type_of(*def_id)?
                     .instantiate(&generics, &refine)
-                    .replace_bound_expr(&idx.expr));
+                    .replace_bound_expr(&idx));
             }
             fhir::Res::Def(..) | fhir::Res::SelfTyParam { .. } => {
                 span_bug!(path.span, "unexpected resolution in conv_indexed_path: {:?}", path.res)

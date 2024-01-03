@@ -7,8 +7,8 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
-        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Index, Loc, Mutability, Path,
-        PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
+        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Loc, Mutability, Path, PtrKind, Ref,
+        Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
     rustc::mir::{FieldIdx, Place, PlaceElem},
 };
@@ -94,7 +94,7 @@ pub(crate) trait LookupMode {
         &mut self,
         adt: &AdtDef,
         args: &[GenericArg],
-        idx: &Index,
+        idx: &Expr,
     ) -> Result<Vec<Ty>, Self::Error>;
 }
 
@@ -114,7 +114,7 @@ impl LookupMode for Unfold<'_, '_, '_> {
         &mut self,
         adt: &AdtDef,
         args: &[GenericArg],
-        idx: &Index,
+        idx: &Expr,
     ) -> Result<Vec<Ty>, Self::Error> {
         downcast_struct(self.0, adt, args, idx)
     }
@@ -123,7 +123,7 @@ impl LookupMode for Unfold<'_, '_, '_> {
 struct NoUnfold;
 
 impl LookupMode for NoUnfold {
-    fn downcast_struct(&mut self, _: &AdtDef, _: &[GenericArg], _: &Index) -> Result<Vec<Ty>, !> {
+    fn downcast_struct(&mut self, _: &AdtDef, _: &[GenericArg], _: &Expr) -> Result<Vec<Ty>, !> {
         tracked_span_bug!("cannot unfold in `NoUnfold` mode")
     }
 
@@ -721,7 +721,7 @@ fn downcast(
     adt: &AdtDef,
     args: &[GenericArg],
     variant_idx: VariantIdx,
-    idx: &Index,
+    idx: &Expr,
 ) -> CheckerResult<Vec<Ty>> {
     if adt.is_struct() {
         debug_assert_eq!(variant_idx.as_u32(), 0);
@@ -745,11 +745,11 @@ fn downcast_struct(
     genv: &GlobalEnv,
     adt: &AdtDef,
     args: &[GenericArg],
-    idx: &Index,
+    idx: &Expr,
 ) -> CheckerResult<Vec<Ty>> {
     Ok(struct_variant(genv, adt.did())?
         .instantiate(args, &[])
-        .replace_bound_exprs(idx.expr.expect_tuple())
+        .replace_bound_exprs(idx.expect_tuple())
         .fields
         .to_vec())
 }
@@ -777,7 +777,7 @@ fn downcast_enum(
     adt: &AdtDef,
     variant_idx: VariantIdx,
     args: &[GenericArg],
-    idx1: &Index,
+    idx1: &Expr,
 ) -> CheckerResult<Vec<Ty>> {
     let variant_def = genv
         .variant_sig(adt.did(), variant_idx)?
@@ -786,7 +786,7 @@ fn downcast_enum(
         .replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
 
     // FIXME(nilehmann) flatten indices
-    let exprs1 = idx1.expr.expect_tuple();
+    let exprs1 = idx1.expect_tuple();
     let exprs2 = variant_def.idx.expect_tuple();
     debug_assert_eq!(exprs1.len(), exprs2.len());
     let constr = Expr::and(iter::zip(exprs1, exprs2).filter_map(|(e1, e2)| {
@@ -848,7 +848,7 @@ fn fold(
             }
         }
         TyKind::Indexed(BaseTy::Tuple(fields), idx) => {
-            debug_assert_eq!(idx.expr, Expr::unit());
+            debug_assert_eq!(idx, &Expr::unit());
 
             let fields = fields
                 .iter()

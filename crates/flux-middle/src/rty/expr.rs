@@ -1,4 +1,4 @@
-use std::{fmt, iter, slice, sync::OnceLock};
+use std::{fmt, slice, sync::OnceLock};
 
 use flux_common::bug;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
@@ -567,36 +567,6 @@ impl Expr {
             .map(|idx| Expr::late_bvar(INNERMOST, idx as u32))
             .collect_vec();
         Binder::with_sorts(Expr::app(self, args, None), sorts.iter().cloned())
-    }
-
-    pub fn eta_expand_tuple(&self, sort: &Sort) -> Expr {
-        fn go(sort: &Sort, projs: &mut Vec<u32>, f: &impl Fn(&[u32]) -> Expr) -> Expr {
-            if let Sort::Tuple(sorts) = sort {
-                Expr::tuple(
-                    sorts
-                        .iter()
-                        .enumerate()
-                        .map(|(i, sort)| {
-                            projs.push(i as u32);
-                            let e = go(sort, projs, f);
-                            projs.pop();
-                            e
-                        })
-                        .collect_vec(),
-                )
-            } else {
-                f(projs)
-            }
-        }
-        if let (ExprKind::Tuple(exprs), Sort::Tuple(sorts)) = (self.kind(), sort) {
-            Expr::tuple(
-                iter::zip(exprs, sorts)
-                    .map(|(e, s)| e.eta_expand_tuple(s))
-                    .collect_vec(),
-            )
-        } else {
-            go(sort, &mut vec![], &|projs| Expr::tuple_projs(self, projs))
-        }
     }
 
     pub fn fold_sort(sort: &Sort, mut f: impl FnMut(&Sort) -> Expr) -> Expr {

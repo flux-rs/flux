@@ -348,12 +348,10 @@ impl GenericsSubstFolder<'_> {
         }
     }
 
-    fn bty_for_param(&self, param_ty: ParamTy, idx: &Index) -> Ty {
+    fn bty_for_param(&self, param_ty: ParamTy, idx: &Expr) -> Ty {
         if let Some(generics) = self.generics {
             match generics.get(param_ty.index as usize) {
-                Some(GenericArg::BaseTy(arg)) => {
-                    arg.replace_bound_exprs(slice::from_ref(&idx.expr))
-                }
+                Some(GenericArg::BaseTy(arg)) => arg.replace_bound_exprs(slice::from_ref(idx)),
                 Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
                 None => bug!("type parameter out of range"),
             }

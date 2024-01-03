@@ -558,7 +558,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 self.bty_subtyping(rcx, bty1, bty2)?;
-                self.idx_subtyping(rcx, &idx1.expr, &idx2.expr);
+                self.idx_subtyping(rcx, idx1, idx2);
                 Ok(())
             }
             (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) => {

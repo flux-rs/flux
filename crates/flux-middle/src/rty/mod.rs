@@ -321,7 +321,7 @@ pub struct TyS {
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum TyKind {
-    Indexed(BaseTy, Index),
+    Indexed(BaseTy, Expr),
     Exists(Binder<Ty>),
     Constr(Expr, Ty),
     Uninit,
@@ -344,17 +344,6 @@ pub enum PtrKind {
     Shr(Region),
     Mut(Region),
     Box,
-}
-
-#[derive(Clone, Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
-pub struct Index {
-    pub expr: Expr,
-}
-
-impl Index {
-    pub fn unit() -> Self {
-        Index { expr: Expr::unit() }
-    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -959,12 +948,6 @@ impl VariantSig {
     }
 }
 
-impl From<Expr> for Index {
-    fn from(expr: Expr) -> Self {
-        Self { expr }
-    }
-}
-
 impl FnSig {
     pub fn new(
         requires: impl Into<List<Constraint>>,
@@ -1138,7 +1121,7 @@ impl Ty {
         TyKind::Uninit.intern()
     }
 
-    pub fn indexed(bty: BaseTy, idx: impl Into<Index>) -> Ty {
+    pub fn indexed(bty: BaseTy, idx: impl Into<Expr>) -> Ty {
         TyKind::Indexed(bty, idx.into()).intern()
     }
 
@@ -1289,7 +1272,7 @@ impl TyS {
     }
 
     #[track_caller]
-    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Index) {
+    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Expr) {
         if let TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = self.kind() {
             (adt_def, args, idx)
         } else {
@@ -1437,7 +1420,7 @@ impl BaseTy {
     fn into_ty(self) -> Ty {
         let sort = self.sort();
         if sort.is_unit() {
-            Ty::indexed(self, Index::unit())
+            Ty::indexed(self, Expr::unit())
         } else {
             Ty::exists(Binder::with_sort(Ty::indexed(self, Expr::nu()), sort))
         }
@@ -1898,12 +1881,6 @@ mod pretty {
         }
     }
 
-    impl Pretty for Index {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            Pretty::fmt(&self.expr, cx, f)
-        }
-    }
-
     impl Pretty for AliasKind {
         fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(_cx, f);
@@ -2052,7 +2029,6 @@ mod pretty {
         BaseTy,
         FnSig,
         GenericArg,
-        Index,
         VariantSig,
         PtrKind,
         FuncSort,

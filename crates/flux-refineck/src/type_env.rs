@@ -416,7 +416,7 @@ impl BasicBlockEnvShape {
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 let bty = self.join_bty(bty1, bty2);
                 let mut sorts = vec![];
-                let idx = self.join_idx(&idx1.expr, &idx2.expr, &bty.sort(), &mut sorts);
+                let idx = self.join_idx(idx1, idx2, &bty.sort(), &mut sorts);
                 if sorts.is_empty() {
                     Ty::indexed(bty, idx)
                 } else {
