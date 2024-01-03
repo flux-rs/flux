@@ -740,18 +740,18 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn conv_refine_arg(&self, env: &mut Env, arg: &fhir::RefineArg) -> rty::Expr {
-        match arg {
-            fhir::RefineArg::Expr(expr) => self.conv_expr(env, expr),
-            fhir::RefineArg::Abs(params, body, _, fhir_id) => {
+        match &arg.kind {
+            fhir::RefineArgKind::Expr(expr) => self.conv_expr(env, expr),
+            fhir::RefineArgKind::Abs(params, body) => {
                 let layer = Layer::list(self, 0, params, false);
 
                 env.push_layer(layer);
                 let pred = self.conv_expr(env, body);
                 let vars = env.pop_layer().into_bound_vars();
                 let body = rty::Binder::new(pred, vars);
-                self.add_coercions(rty::Expr::abs(body), *fhir_id)
+                self.add_coercions(rty::Expr::abs(body), arg.fhir_id)
             }
-            fhir::RefineArg::Record(_, _, flds, ..) => {
+            fhir::RefineArgKind::Record(_, _, flds) => {
                 let exprs: List<_> = flds
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))

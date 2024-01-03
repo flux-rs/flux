@@ -1,6 +1,6 @@
 //! "Lift" HIR types into  FHIR types.
 //!
-use flux_common::{bug, iter::IterExt};
+use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::{ErrorGuaranteed, FluxSession};
 use hir::{def::DefKind, OwnerId};
 use itertools::Itertools;
@@ -11,12 +11,14 @@ use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 
+use super::{FhirId, FluxOwnerId};
 use crate::{fhir, intern::List};
 
 pub struct LiftCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
     opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
+    local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
 }
 
@@ -38,7 +40,7 @@ pub fn lift_generics(
     sess: &FluxSession,
     owner_id: OwnerId,
 ) -> Result<fhir::Generics, ErrorGuaranteed> {
-    LiftCtxt::new(tcx, sess, owner_id, None).lift_generics()
+    LiftCtxt::new(tcx, sess, owner_id, &IndexGen::new(), None).lift_generics()
 }
 
 pub fn lift_type_alias(
@@ -51,7 +53,8 @@ pub fn lift_type_alias(
     let hir::ItemKind::TyAlias(ty, hir_generics) = item.kind else {
         bug!("expected type alias");
     };
-    let mut cx = LiftCtxt::new(tcx, sess, owner_id, None);
+    let local_id_gen = IndexGen::new();
+    let mut cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, None);
 
     let generics = cx.lift_generics_inner(hir_generics)?;
     let predicates = cx.lift_generic_predicates(hir_generics)?;
@@ -74,7 +77,8 @@ pub fn lift_fn(
     owner_id: OwnerId,
 ) -> Result<(fhir::Generics, fhir::FnInfo), ErrorGuaranteed> {
     let mut opaque_tys = Default::default();
-    let mut cx = LiftCtxt::new(tcx, sess, owner_id, Some(&mut opaque_tys));
+    let local_id_gen = IndexGen::new();
+    let mut cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, Some(&mut opaque_tys));
 
     let def_id = owner_id.def_id;
     let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
@@ -105,7 +109,8 @@ pub fn lift_self_ty(
 ) -> Result<Option<fhir::Ty>, ErrorGuaranteed> {
     if let Some(def_id) = tcx.impl_of_method(owner_id.to_def_id()) {
         let owner_id = OwnerId { def_id: def_id.expect_local() };
-        let mut cx = LiftCtxt::new(tcx, sess, owner_id, None);
+        let local_id_gen = IndexGen::new();
+        let mut cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, None);
         let local_id = def_id.expect_local();
         let hir::Item { kind: hir::ItemKind::Impl(impl_), .. } = tcx.hir().expect_item(local_id)
         else {
@@ -116,7 +121,8 @@ pub fn lift_self_ty(
     } else if let def_kind @ (DefKind::Struct | DefKind::Enum) = tcx.def_kind(owner_id) {
         let generics = tcx.hir().get_generics(owner_id.def_id).unwrap();
         let item = tcx.hir().expect_item(owner_id.def_id);
-        let cx = LiftCtxt::new(tcx, sess, owner_id, None);
+        let local_id_gen = IndexGen::new();
+        let cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, None);
 
         let span = item.ident.span.to(generics.span);
         let path = fhir::Path {
@@ -138,13 +144,18 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         tcx: TyCtxt<'tcx>,
         sess: &'a FluxSession,
         owner: OwnerId,
+        local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     ) -> Self {
-        Self { tcx, sess, opaque_tys, owner }
+        Self { tcx, sess, opaque_tys, local_id_gen, owner }
     }
 
-    fn with_new_owner<'b>(&'b mut self, owner: OwnerId) -> LiftCtxt<'b, 'tcx> {
-        LiftCtxt::new(self.tcx, self.sess, owner, self.opaque_tys.as_deref_mut())
+    fn with_new_owner<'b>(
+        &'b mut self,
+        owner: OwnerId,
+        local_id_gen: &'b IndexGen<fhir::ItemLocalId>,
+    ) -> LiftCtxt<'b, 'tcx> {
+        LiftCtxt::new(self.tcx, self.sess, owner, local_id_gen, self.opaque_tys.as_deref_mut())
     }
 
     pub fn lift_generics_with_predicates(
@@ -405,14 +416,18 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             span,
         };
         let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
+        let kind = fhir::RefineArgKind::Record(
+            self.owner.to_def_id(),
+            List::empty(), // TODO:RJ: or should we use the generics and just make it T1,...Tn?
+            vec![],
+        );
         fhir::VariantRet {
             bty,
-            idx: fhir::RefineArg::Record(
-                self.owner.to_def_id(),
-                List::empty(), // TODO:RJ: or should we use the generics and just make it T1,...Tn?
-                vec![],
-                generics.span.shrink_to_hi(),
-            ),
+            idx: fhir::RefineArg {
+                kind,
+                fhir_id: self.next_fhir_id(),
+                span: generics.span.shrink_to_hi(),
+            },
         }
     }
 
@@ -439,7 +454,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             }
             hir::TyKind::OpaqueDef(item_id, args, in_trait_def) => {
                 let opaque_ty = self
-                    .with_new_owner(item_id.owner_id)
+                    .with_new_owner(item_id.owner_id, &IndexGen::new())
                     .lift_opaque_ty(item_id)?;
                 self.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
 
@@ -619,6 +634,10 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     #[track_caller]
     fn emit_err<'b, T>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<T, ErrorGuaranteed> {
         Err(self.sess.emit_err(err))
+    }
+
+    fn next_fhir_id(&self) -> FhirId {
+        FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
     }
 }
 

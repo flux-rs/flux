@@ -400,10 +400,17 @@ newtype_index! {
 }
 
 #[derive(Clone)]
-pub enum RefineArg {
+pub struct RefineArg {
+    pub kind: RefineArgKind,
+    pub fhir_id: FhirId,
+    pub span: Span,
+}
+
+#[derive(Clone)]
+pub enum RefineArgKind {
     Expr(Expr),
-    Abs(Vec<RefineParam>, Expr, Span, FhirId),
-    Record(DefId, List<Sort>, Vec<RefineArg>, Span),
+    Abs(Vec<RefineParam>, Expr),
+    Record(DefId, List<Sort>, Vec<RefineArg>),
 }
 
 /// These are types of things that may be refined with indices or existentials
@@ -1620,11 +1627,11 @@ impl fmt::Debug for TypeBinding {
 
 impl fmt::Debug for RefineArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RefineArg::Expr(expr) => {
+        match &self.kind {
+            RefineArgKind::Expr(expr) => {
                 write!(f, "{expr:?}")
             }
-            RefineArg::Abs(params, body, ..) => {
+            RefineArgKind::Abs(params, body) => {
                 write!(
                     f,
                     "|{}| {body:?}",
@@ -1633,7 +1640,7 @@ impl fmt::Debug for RefineArg {
                     })
                 )
             }
-            RefineArg::Record(def_id, flds, ..) => {
+            RefineArgKind::Record(def_id, _, flds) => {
                 write!(
                     f,
                     "{} {{ {:?} }}",

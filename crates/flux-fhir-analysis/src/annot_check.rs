@@ -7,7 +7,7 @@
 //! [`fhir`]: flux_middle::fhir
 use std::iter;
 
-use flux_common::{bug, iter::IterExt};
+use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     fhir::{
@@ -54,7 +54,9 @@ pub fn check_struct_def(
 ) -> Result<(), ErrorGuaranteed> {
     match &struct_def.kind {
         fhir::StructKind::Transparent { fields } => {
-            let mut liftcx = LiftCtxt::new(genv.tcx, genv.sess, struct_def.owner_id, None);
+            let local_id_gen = IndexGen::new();
+            let mut liftcx =
+                LiftCtxt::new(genv.tcx, genv.sess, struct_def.owner_id, &local_id_gen, None);
             fields.iter().try_for_each_exhaust(|field| {
                 if field.lifted {
                     return Ok(());
@@ -75,7 +77,8 @@ pub fn check_enum_def(
 ) -> Result<(), ErrorGuaranteed> {
     let tcx = genv.tcx;
     let sess = genv.sess;
-    let mut liftcx = LiftCtxt::new(tcx, sess, enum_def.owner_id, None);
+    let local_id_gen = IndexGen::new();
+    let mut liftcx = LiftCtxt::new(tcx, sess, enum_def.owner_id, &local_id_gen, None);
     enum_def.variants.iter().try_for_each_exhaust(|variant| {
         if variant.lifted {
             return Ok(());

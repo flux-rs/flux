@@ -19,7 +19,7 @@ extern crate rustc_middle;
 extern crate rustc_span;
 
 use desugar::RustItemCtxt;
-use flux_common::dbg;
+use flux_common::{dbg, index::IndexGen};
 use flux_config as config;
 use flux_macros::fluent_messages;
 use resolver::ResolverOutput;
@@ -180,8 +180,10 @@ pub fn desugar_generics_and_predicates(
     resolver_output: &ResolverOutput,
     generics: Option<&surface::Generics>,
 ) -> Result<(), ErrorGuaranteed> {
+    let local_id_gen = IndexGen::new();
     let (lifted_generics, predicates) =
-        LiftCtxt::new(genv.tcx, genv.sess, owner_id, None).lift_generics_with_predicates()?;
+        LiftCtxt::new(genv.tcx, genv.sess, owner_id, &local_id_gen, None)
+            .lift_generics_with_predicates()?;
 
     let generics = if let Some(generics) = generics {
         let cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);

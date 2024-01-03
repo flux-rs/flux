@@ -526,8 +526,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         infcx: &InferCtxt,
         arg: &fhir::RefineArg,
     ) -> Result<(), ErrorGuaranteed> {
-        match arg {
-            fhir::RefineArg::Expr(expr) => {
+        match &arg.kind {
+            fhir::RefineArgKind::Expr(expr) => {
                 if let fhir::ExprKind::Var(var) = &expr.kind {
                     self.xi.insert(var.name);
                 } else {
@@ -535,8 +535,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 }
                 Ok(())
             }
-            fhir::RefineArg::Abs(_, body, ..) => self.check_param_uses_expr(infcx, body, true),
-            fhir::RefineArg::Record(_, _, flds, ..) => {
+            fhir::RefineArgKind::Abs(_, body) => self.check_param_uses_expr(infcx, body, true),
+            fhir::RefineArgKind::Record(_, _, flds) => {
                 flds.iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses_refine_arg(infcx, arg))
             }
