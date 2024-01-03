@@ -33,11 +33,7 @@ impl<'a> SortResolver<'a> {
         sort_decls: &'a fhir::SortDecls,
         sort_params: &[Symbol],
     ) -> Self {
-        let sort_params: std::collections::HashMap<
-            Symbol,
-            usize,
-            std::hash::BuildHasherDefault<rustc_hash::FxHasher>,
-        > = sort_params
+        let sort_params = sort_params
             .iter()
             .enumerate()
             .map(|(i, v)| (*v, i))
