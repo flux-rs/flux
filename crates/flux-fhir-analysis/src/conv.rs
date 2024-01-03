@@ -1253,9 +1253,6 @@ fn self_param_ty() -> rty::ParamTy {
     rty::ParamTy { index: 0, name: kw::SelfUpper }
 }
 
-fn _def_id_to_self_ty(tcx: TyCtxt, def_id: LocalDefId) -> rty::ParamTy {
-    rty::ParamTy { index: def_id_to_param_index(tcx, def_id), name: kw::SelfUpper }
-}
 
 fn def_id_to_param_index(tcx: TyCtxt, def_id: LocalDefId) -> u32 {
     let item_def_id = tcx.hir().ty_param_owner(def_id);
