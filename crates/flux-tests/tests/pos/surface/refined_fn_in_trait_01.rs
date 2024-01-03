@@ -4,7 +4,7 @@ pub trait MyTrait {
     fn foo1(&self) -> Self;
 }
 
-#[flux::sig(fn<T as base, refine q: T -> bool> (&T{v:q(v)}) -> T{v: q(v)})]
+#[flux::sig(fn<T, refine q: T -> bool> (&T{v:q(v)}) -> T{v: q(v)})]
 pub fn bar1<T: MyTrait>(x: &T) -> T {
     x.foo1()
 }
