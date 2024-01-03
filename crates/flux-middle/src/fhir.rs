@@ -401,12 +401,7 @@ newtype_index! {
 
 #[derive(Clone)]
 pub enum RefineArg {
-    Expr {
-        expr: Expr,
-        /// Whether this arg was used as a binder in the surface syntax. Used as a hint for
-        /// inferring parameters at function calls.
-        is_binder: bool,
-    },
+    Expr(Expr),
     Abs(Vec<RefineParam>, Expr, Span, FhirId),
     Record(DefId, List<Sort>, Vec<RefineArg>, Span),
 }
@@ -1626,10 +1621,7 @@ impl fmt::Debug for TypeBinding {
 impl fmt::Debug for RefineArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RefineArg::Expr { expr, is_binder, .. } => {
-                if *is_binder {
-                    write!(f, "@")?;
-                }
+            RefineArg::Expr(expr) => {
                 write!(f, "{expr:?}")
             }
             RefineArg::Abs(params, body, ..) => {

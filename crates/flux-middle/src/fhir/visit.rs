@@ -271,7 +271,7 @@ pub fn walk_func_sort<V: Visitor>(vis: &mut V, func: &FuncSort) {
 
 pub fn walk_refine_arg<V: Visitor>(vis: &mut V, arg: &RefineArg) {
     match arg {
-        RefineArg::Expr { expr, is_binder: _ } => vis.visit_expr(expr),
+        RefineArg::Expr(expr) => vis.visit_expr(expr),
         RefineArg::Abs(params, body, _span, _fhir_id) => {
             walk_list!(vis, visit_refine_param, params);
             vis.visit_expr(body);

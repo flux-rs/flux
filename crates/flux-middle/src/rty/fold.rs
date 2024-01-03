@@ -852,7 +852,7 @@ impl TypeVisitable for Index {
 
 impl TypeFoldable for Index {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(Index { expr: self.expr.try_fold_with(folder)?, is_binder: self.is_binder.clone() })
+        Ok(Index { expr: self.expr.try_fold_with(folder)? })
     }
 }
 

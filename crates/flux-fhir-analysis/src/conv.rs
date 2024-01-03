@@ -531,7 +531,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             .iter()
             .map(|field| cx.conv_ty(&mut env, &field.ty))
             .try_collect()?;
-        let idxs = cx.conv_refine_arg(&mut env, &variant.ret.idx).0;
+        let idxs = cx.conv_refine_arg(&mut env, &variant.ret.idx);
         let variant = rty::VariantSig::new(
             adt_def,
             rty::GenericArgs::identity_for_item(genv, adt_def_id)?,
@@ -656,7 +656,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let args = self.conv_generic_args(env, def_id, args0)?;
                 let refine_args = refine_args
                     .iter()
-                    .map(|arg| self.conv_refine_arg(env, arg).0)
+                    .map(|arg| self.conv_refine_arg(env, arg))
                     .collect_vec();
                 let alias_ty = rty::AliasTy::new(def_id, args, refine_args);
                 Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
@@ -739,15 +739,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
     }
 
-    fn conv_refine_arg(
-        &self,
-        env: &mut Env,
-        arg: &fhir::RefineArg,
-    ) -> (rty::Expr, rty::TupleTree<bool>) {
+    fn conv_refine_arg(&self, env: &mut Env, arg: &fhir::RefineArg) -> rty::Expr {
         match arg {
-            fhir::RefineArg::Expr { expr, is_binder, .. } => {
-                (self.conv_expr(env, expr), rty::TupleTree::Leaf(*is_binder))
-            }
+            fhir::RefineArg::Expr(expr) => self.conv_expr(env, expr),
             fhir::RefineArg::Abs(params, body, _, fhir_id) => {
                 let layer = Layer::list(self, 0, params, false);
 
@@ -755,18 +749,14 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let pred = self.conv_expr(env, body);
                 let vars = env.pop_layer().into_bound_vars();
                 let body = rty::Binder::new(pred, vars);
-                let expr = self.add_coercions(rty::Expr::abs(body), *fhir_id);
-                (expr, rty::TupleTree::Leaf(false))
+                self.add_coercions(rty::Expr::abs(body), *fhir_id)
             }
             fhir::RefineArg::Record(_, _, flds, ..) => {
-                let mut exprs = vec![];
-                let mut is_binder = vec![];
-                for arg in flds {
-                    let (e, i) = self.conv_refine_arg(env, arg);
-                    exprs.push(e);
-                    is_binder.push(i);
-                }
-                (rty::Expr::tuple(exprs), rty::TupleTree::Tuple(List::from_vec(is_binder)))
+                let exprs: List<_> = flds
+                    .iter()
+                    .map(|arg| self.conv_refine_arg(env, arg))
+                    .collect();
+                rty::Expr::tuple(exprs)
             }
         }
     }
@@ -827,7 +817,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let refine = path
                     .refine
                     .iter()
-                    .map(|arg| self.conv_refine_arg(env, arg).0)
+                    .map(|arg| self.conv_refine_arg(env, arg))
                     .collect_vec();
                 return Ok(self
                     .genv

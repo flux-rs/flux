@@ -41,7 +41,7 @@ use self::{
 use crate::{
     fhir::FuncKind,
     global_env::GlobalEnv,
-    intern::{impl_internable, impl_slice_internable, Internable, Interned, List},
+    intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
     rustc::{
         self,
@@ -258,15 +258,6 @@ pub struct Binder<T> {
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct EarlyBinder<T>(pub T);
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Encodable, Decodable)]
-pub enum TupleTree<T>
-where
-    [TupleTree<T>]: Internable,
-{
-    Tuple(List<TupleTree<T>>),
-    Leaf(T),
-}
-
 pub type PolyFnSig = Binder<FnSig>;
 
 #[derive(Clone, TyEncodable, TyDecodable)]
@@ -358,7 +349,12 @@ pub enum PtrKind {
 #[derive(Clone, Eq, Hash, PartialEq, TyEncodable, TyDecodable)]
 pub struct Index {
     pub expr: Expr,
-    pub is_binder: TupleTree<bool>,
+}
+
+impl Index {
+    pub fn unit() -> Self {
+        Index { expr: Expr::unit() }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -963,53 +959,9 @@ impl VariantSig {
     }
 }
 
-impl<T> TupleTree<T>
-where
-    [TupleTree<T>]: Internable,
-{
-    fn unit() -> Self {
-        TupleTree::Tuple(List::empty())
-    }
-
-    pub fn split(&self) -> impl Iterator<Item = &TupleTree<T>> {
-        match self {
-            TupleTree::Tuple(values) => values.iter().cycle(),
-            TupleTree::Leaf(_) => slice::from_ref(self).iter().cycle(),
-        }
-    }
-
-    #[track_caller]
-    pub fn expect_leaf(&self) -> &T {
-        match self {
-            TupleTree::Leaf(value) => value,
-            _ => bug!("expected leaf"),
-        }
-    }
-
-    pub fn as_leaf(&self) -> Option<&T> {
-        match self {
-            TupleTree::Leaf(value) => Some(value),
-            _ => None,
-        }
-    }
-}
-
-impl Index {
-    pub(crate) fn unit() -> Self {
-        Index { expr: Expr::unit(), is_binder: TupleTree::unit() }
-    }
-}
-
 impl From<Expr> for Index {
     fn from(expr: Expr) -> Self {
-        let is_binder = TupleTree::Leaf(false);
-        Self { expr, is_binder }
-    }
-}
-
-impl From<(Expr, TupleTree<bool>)> for Index {
-    fn from((expr, is_binder): (Expr, TupleTree<bool>)) -> Self {
-        Self { expr, is_binder }
+        Self { expr }
     }
 }
 
@@ -1606,7 +1558,6 @@ impl_slice_internable!(
     GenericArg,
     Constraint,
     InferMode,
-    TupleTree<bool>,
     Sort,
     GenericParamDef,
     Clause,
@@ -1949,31 +1900,7 @@ mod pretty {
 
     impl Pretty for Index {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            fn go(
-                cx: &PPrintCx,
-                f: &mut fmt::Formatter<'_>,
-                is_binder: &TupleTree<bool>,
-                expr: &Expr,
-            ) -> fmt::Result {
-                define_scoped!(cx, f);
-                if let ExprKind::Tuple(es) = expr.kind() {
-                    for (i, (is_binder, e)) in iter::zip(is_binder.split(), es).enumerate() {
-                        if i > 0 {
-                            w!(" ")?;
-                        }
-                        go(cx, f, is_binder, e)?;
-                        w!(",")?;
-                    }
-                } else if let Some(true) = is_binder.as_leaf()
-                    && !cx.hide_binder
-                {
-                    w!("@{:?}", expr)?;
-                } else {
-                    w!("{:?}", expr)?;
-                }
-                Ok(())
-            }
-            go(cx, f, &self.is_binder, &self.expr)
+            Pretty::fmt(&self.expr, cx, f)
         }
     }
 
