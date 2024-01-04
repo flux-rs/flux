@@ -157,10 +157,15 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.lower_late_bound_vars(self, def_id)
     }
 
-    pub fn get_generic_param(&self, def_id: LocalDefId) -> Option<&fhir::GenericParam> {
+    // pub fn get_generic_param(&self, def_id: LocalDefId) -> Option<&fhir::GenericParam> {
+    //     let owner = self.hir().ty_param_owner(def_id);
+    //     let generics = self.map().get_generics(owner)?;
+    //     generics.get_param(def_id)
+    // }
+
+    pub fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParam {
         let owner = self.hir().ty_param_owner(def_id);
-        let generics = self.map().get_generics(owner)?;
-        generics.get_param(def_id)
+        self.map().get_generics(owner).unwrap().get_param(def_id)
     }
 
     pub fn is_box(&self, res: fhir::Res) -> bool {
@@ -237,7 +242,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     pub fn sort_of_generic_param(&self, def_id: DefId) -> Option<fhir::Sort> {
-        let param = self.get_generic_param(def_id.expect_local())?;
+        let param = self.get_generic_param(def_id.expect_local());
         match &param.kind {
             fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy => {
                 Some(fhir::Sort::Param(def_id))
