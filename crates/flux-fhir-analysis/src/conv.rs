@@ -751,7 +751,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 let body = rty::Binder::new(pred, vars);
                 self.add_coercions(rty::Expr::abs(body), arg.fhir_id)
             }
-            fhir::RefineArgKind::Record(_, _, flds) => {
+            fhir::RefineArgKind::Record(flds) => {
                 let exprs: List<_> = flds
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))

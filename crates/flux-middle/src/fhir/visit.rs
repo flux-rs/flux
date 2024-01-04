@@ -276,9 +276,8 @@ pub fn walk_refine_arg<V: Visitor>(vis: &mut V, arg: &RefineArg) {
             walk_list!(vis, visit_refine_param, params);
             vis.visit_expr(body);
         }
-        RefineArgKind::Record(_def_id, vars, args) => {
-            walk_list!(vis, visit_sort, vars);
-            walk_list!(vis, visit_refine_arg, args);
+        RefineArgKind::Record(flds) => {
+            walk_list!(vis, visit_refine_arg, flds);
         }
     }
 }

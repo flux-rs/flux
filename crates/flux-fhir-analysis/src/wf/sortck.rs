@@ -10,7 +10,7 @@ use flux_middle::{
 use itertools::izip;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
-use rustc_span::{def_id::DefId, Span};
+use rustc_span::Span;
 
 use super::errors;
 
@@ -44,14 +44,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             fhir::RefineArgKind::Abs(params, body) => {
                 self.check_abs(params, body, arg.span, arg.fhir_id, expected)
             }
-            fhir::RefineArgKind::Record(def_id, sort_args, flds) => {
-                self.check_record(*def_id, sort_args, flds, arg.span)?;
-                let found = fhir::Sort::Record(*def_id, sort_args.clone());
-                if &found != expected {
-                    return Err(self.emit_sort_mismatch(arg.span, expected, &found));
-                }
-                Ok(())
-            }
+            fhir::RefineArgKind::Record(flds) => self.check_record(flds, arg.span, expected),
         }
     }
 
@@ -90,23 +83,26 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn check_record(
         &mut self,
-        def_id: DefId,
-        sort_args: &[fhir::Sort],
         args: &[fhir::RefineArg],
         span: Span,
+        expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
-        let sorts = self.genv.index_sorts_of(def_id, sort_args);
-        if args.len() != sorts.len() {
-            return Err(self.emit_err(errors::ArgCountMismatch::new(
-                Some(span),
-                String::from("type"),
-                sorts.len(),
-                args.len(),
-            )));
+        if let fhir::Sort::Record(def_id, sort_args) = expected {
+            let sorts = self.genv.index_sorts_of(*def_id, sort_args);
+            if args.len() != sorts.len() {
+                return Err(self.emit_err(errors::ArgCountMismatch::new(
+                    Some(span),
+                    String::from("type"),
+                    sorts.len(),
+                    args.len(),
+                )));
+            }
+            izip!(args, sorts)
+                .map(|(arg, expected)| self.check_refine_arg(arg, &expected))
+                .try_collect_exhaust()
+        } else {
+            todo!()
         }
-        izip!(args, sorts)
-            .map(|(arg, expected)| self.check_refine_arg(arg, &expected))
-            .try_collect_exhaust()
     }
 
     pub(super) fn check_expr(

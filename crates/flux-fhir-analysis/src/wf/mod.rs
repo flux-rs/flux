@@ -536,7 +536,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 Ok(())
             }
             fhir::RefineArgKind::Abs(_, body) => self.check_param_uses_expr(infcx, body, true),
-            fhir::RefineArgKind::Record(_, _, flds) => {
+            fhir::RefineArgKind::Record(flds) => {
                 flds.iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses_refine_arg(infcx, arg))
             }

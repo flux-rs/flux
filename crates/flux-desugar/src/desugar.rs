@@ -755,7 +755,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                     .map(|(arg, sort)| self.desugar_refine_arg(arg, Some(sort), env))
                     .try_collect_exhaust()?;
                 Ok(fhir::RefineArg {
-                    kind: fhir::RefineArgKind::Record(def_id, sort_args, flds),
+                    kind: fhir::RefineArgKind::Record(flds),
                     fhir_id: self.next_fhir_id(),
                     span: idxs.span,
                 })

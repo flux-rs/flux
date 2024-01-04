@@ -12,7 +12,7 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 
 use super::{FhirId, FluxOwnerId};
-use crate::{fhir, intern::List};
+use crate::fhir;
 
 pub struct LiftCtxt<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -416,11 +416,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             span,
         };
         let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
-        let kind = fhir::RefineArgKind::Record(
-            self.owner.to_def_id(),
-            List::empty(), // TODO:RJ: or should we use the generics and just make it T1,...Tn?
-            vec![],
-        );
+        let kind = fhir::RefineArgKind::Record(vec![]);
         fhir::VariantRet {
             bty,
             idx: fhir::RefineArg {

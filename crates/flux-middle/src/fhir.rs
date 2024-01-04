@@ -410,7 +410,7 @@ pub struct RefineArg {
 pub enum RefineArgKind {
     Expr(Expr),
     Abs(Vec<RefineParam>, Expr),
-    Record(DefId, List<Sort>, Vec<RefineArg>),
+    Record(Vec<RefineArg>),
 }
 
 /// These are types of things that may be refined with indices or existentials
@@ -1612,13 +1612,8 @@ impl fmt::Debug for RefineArg {
                     })
                 )
             }
-            RefineArgKind::Record(def_id, _, flds) => {
-                write!(
-                    f,
-                    "{} {{ {:?} }}",
-                    pretty::def_id_to_string(*def_id),
-                    flds.iter().format(", ")
-                )
+            RefineArgKind::Record(flds) => {
+                write!(f, "{{ {:?} }}", flds.iter().format(", "))
             }
         }
     }
