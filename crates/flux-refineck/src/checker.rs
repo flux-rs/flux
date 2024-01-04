@@ -8,8 +8,8 @@ use flux_middle::{
     rty::{
         self, fold::TypeFoldable, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr,
         Float, FnOutput, FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate,
-        GenericArg, Generics, HoleKind, Index, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic,
-        Ty, TyKind, Uint, UintTy, VariantIdx,
+        GenericArg, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty,
+        TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -669,7 +669,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let TyKind::Indexed(BaseTy::Bool, idx) = ty.kind() else {
             tracked_span_bug!("unexpected ty `{ty:?}`");
         };
-        let pred = if expected { idx.expr.clone() } else { idx.expr.not() };
+        let pred = if expected { idx.clone() } else { idx.not() };
 
         let msg = match msg {
             AssertKind::DivisionByZero => "possible division by zero",
@@ -692,13 +692,13 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             match discr_ty.kind() {
                 TyKind::Indexed(BaseTy::Bool, idx) => {
                     if bits == 0 {
-                        idx.expr.not()
+                        idx.not()
                     } else {
-                        idx.expr.clone()
+                        idx.clone()
                     }
                 }
                 TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), idx) => {
-                    Expr::binary_op(BinOp::Eq, idx.expr.clone(), Expr::from_bits(bty, bits), None)
+                    Expr::binary_op(BinOp::Eq, idx.clone(), Expr::from_bits(bty, bits), None)
                 }
                 _ => tracked_span_bug!("unexpected discr_ty {:?}", discr_ty),
             }
@@ -922,7 +922,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             TyKind::Indexed(BaseTy::Array(_, len), _) => {
                 if let ConstKind::Value(value) = &len.kind {
                     let value = value.try_to_target_usize(self.genv.tcx).unwrap() as u128;
-                    Index::from(Expr::constant(rty::Constant::from(value)))
+                    Expr::constant(rty::Constant::from(value))
                 } else {
                     tracked_span_bug!("unexpected array length")
                 }
@@ -969,7 +969,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 let sig = sigs::get_bin_op_sig(bin_op, bty1, bty2, self.config.check_overflow);
-                let (e1, e2) = (idx1.expr.clone(), idx2.expr.clone());
+                let (e1, e2) = (idx1.clone(), idx2.clone());
                 if let sigs::Pre::Some(reason, constr) = &sig.pre {
                     self.constr_gen(rcx, source_span).check_pred(
                         rcx,
@@ -997,7 +997,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             Float!(float_ty) => Ok(Ty::float(*float_ty)),
             TyKind::Indexed(bty, idx) => {
                 let sig = sigs::get_un_op_sig(un_op, bty, self.config.check_overflow);
-                let e = idx.expr.clone();
+                let e = idx.clone();
                 if let sigs::Pre::Some(reason, constr) = &sig.pre {
                     self.constr_gen(rcx, source_span)
                         .check_pred(rcx, constr([e.clone()]), *reason);
@@ -1018,16 +1018,16 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let ty = match kind {
             CastKind::IntToInt => {
                 match (from.kind(), to.kind()) {
-                    (Bool!(idx), RustTy::Int(int_ty)) => bool_int_cast(&idx.expr, *int_ty),
-                    (Bool!(idx), RustTy::Uint(uint_ty)) => bool_uint_cast(&idx.expr, *uint_ty),
+                    (Bool!(idx), RustTy::Int(int_ty)) => bool_int_cast(idx, *int_ty),
+                    (Bool!(idx), RustTy::Uint(uint_ty)) => bool_uint_cast(idx, *uint_ty),
                     (Int!(int_ty1, idx), RustTy::Int(int_ty2)) => {
-                        int_int_cast(&idx.expr, *int_ty1, *int_ty2)
+                        int_int_cast(idx, *int_ty1, *int_ty2)
                     }
                     (Uint!(uint_ty1, idx), RustTy::Uint(uint_ty2)) => {
-                        uint_uint_cast(&idx.expr, *uint_ty1, *uint_ty2)
+                        uint_uint_cast(idx, *uint_ty1, *uint_ty2)
                     }
                     (Uint!(uint_ty, idx), RustTy::Int(int_ty)) => {
-                        uint_int_cast(&idx.expr, *uint_ty, *int_ty)
+                        uint_int_cast(idx, *uint_ty, *int_ty)
                     }
                     (Int!(_, _), RustTy::Uint(uint_ty)) => Ty::uint(*uint_ty),
                     _ => {
@@ -1046,8 +1046,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 {
                     let v = src_n.try_to_target_usize(self.genv.tcx).unwrap() as u128;
                     let expr = Expr::constant(rty::Constant::from(v));
-                    let dst_ix = Index::from(expr);
-                    let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), dst_ix);
+                    let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), expr);
                     Ty::mk_ref(*dst_re, dst_slice, *dst_mut)
                 } else {
                     tracked_span_bug!("unsupported Unsize cast")

@@ -15,10 +15,9 @@ use super::{
     projections,
     subst::EVarSubstFolder,
     AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr, ExprKind,
-    FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg, Index,
-    Invariant, KVar, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate, PolyFuncSort,
-    ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef,
-    Ty, TyKind,
+    FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg, Invariant,
+    KVar, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate, PolyFuncSort, ProjectionPredicate,
+    PtrKind, Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -841,18 +840,6 @@ impl TypeVisitable for Region {
 impl TypeFoldable for Region {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         folder.try_fold_region(self)
-    }
-}
-
-impl TypeVisitable for Index {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
-        self.expr.visit_with(visitor)
-    }
-}
-
-impl TypeFoldable for Index {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(Index { expr: self.expr.try_fold_with(folder)?, is_binder: self.is_binder.clone() })
     }
 }
 

@@ -10,8 +10,7 @@ use flux_middle::{
 use itertools::izip;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
-use rustc_hir::def_id::DefId;
-use rustc_span::Span;
+use rustc_span::{def_id::DefId, Span};
 
 use super::errors;
 
@@ -40,16 +39,16 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         arg: &fhir::RefineArg,
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
-        match arg {
-            fhir::RefineArg::Expr { expr, .. } => self.check_expr(expr, expected),
-            fhir::RefineArg::Abs(params, body, span, fhir_id) => {
-                self.check_abs(params, body, span, fhir_id, expected)
+        match &arg.kind {
+            fhir::RefineArgKind::Expr(expr) => self.check_expr(expr, expected),
+            fhir::RefineArgKind::Abs(params, body) => {
+                self.check_abs(params, body, arg.span, arg.fhir_id, expected)
             }
-            fhir::RefineArg::Record(def_id, sort_args, flds, span) => {
-                self.check_record(*def_id, sort_args, flds, *span)?;
+            fhir::RefineArgKind::Record(def_id, sort_args, flds) => {
+                self.check_record(*def_id, sort_args, flds, arg.span)?;
                 let found = fhir::Sort::Record(*def_id, sort_args.clone());
                 if &found != expected {
-                    return Err(self.emit_sort_mismatch(*span, expected, &found));
+                    return Err(self.emit_sort_mismatch(arg.span, expected, &found));
                 }
                 Ok(())
             }
@@ -60,17 +59,17 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         &mut self,
         params: &Vec<fhir::RefineParam>,
         body: &fhir::Expr,
-        span: &Span,
-        fhir_id: &FhirId,
+        span: Span,
+        fhir_id: FhirId,
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
-        if let Some(fsort) = self.is_coercible_to_func(expected, *fhir_id) {
+        if let Some(fsort) = self.is_coercible_to_func(expected, fhir_id) {
             let fsort = fsort.skip_binders();
             self.push_layer(params);
 
             if params.len() != fsort.inputs().len() {
                 return Err(self.emit_err(errors::ParamCountMismatch::new(
-                    *span,
+                    span,
                     fsort.inputs().len(),
                     params.len(),
                 )));
@@ -85,7 +84,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             self.check_expr(body, fsort.output())?;
             self.resolve_params_sorts(params)
         } else {
-            Err(self.emit_err(errors::UnexpectedFun::new(*span, expected)))
+            Err(self.emit_err(errors::UnexpectedFun::new(span, expected)))
         }
     }
 

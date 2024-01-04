@@ -1,4 +1,4 @@
-use std::{fmt, iter, slice, sync::OnceLock};
+use std::{fmt, sync::OnceLock};
 
 use flux_common::bug;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
@@ -16,7 +16,6 @@ use crate::{
     fhir::FuncKind,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     rty::fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-    rustc::mir::{Place, PlaceElem},
 };
 
 pub type Expr = Interned<ExprS>;
@@ -229,12 +228,6 @@ impl Expr {
             .clone()
     }
 
-    pub fn one() -> Expr {
-        static ONE: OnceLock<Expr> = OnceLock::new();
-        ONE.get_or_init(|| ExprKind::Constant(Constant::ONE).intern())
-            .clone()
-    }
-
     pub fn int_max(int_ty: IntTy) -> Expr {
         let bit_width: u64 = int_ty
             .bit_width()
@@ -258,14 +251,6 @@ impl Expr {
 
     pub fn nu() -> Expr {
         Expr::late_bvar(INNERMOST, 0)
-    }
-
-    pub fn as_tuple(&self) -> &[Expr] {
-        if let ExprKind::Tuple(tup) = self.kind() {
-            tup
-        } else {
-            slice::from_ref(self)
-        }
     }
 
     pub fn expect_tuple(&self) -> &[Expr] {
@@ -527,14 +512,6 @@ impl Expr {
         self.fold_with(&mut Simplify)
     }
 
-    pub fn to_var(&self) -> Option<Var> {
-        if let ExprKind::Var(var) = self.kind() {
-            Some(*var)
-        } else {
-            None
-        }
-    }
-
     pub fn to_loc(&self) -> Option<Loc> {
         match self.kind() {
             ExprKind::Local(local) => Some(Loc::Local(*local)),
@@ -558,45 +535,11 @@ impl Expr {
         matches!(self.kind(), ExprKind::Abs(..))
     }
 
-    pub fn is_tuple(&self) -> bool {
-        matches!(self.kind(), ExprKind::Tuple(..))
-    }
-
     pub fn eta_expand_abs(&self, sorts: &[Sort]) -> Binder<Expr> {
         let args = (0..sorts.len())
             .map(|idx| Expr::late_bvar(INNERMOST, idx as u32))
             .collect_vec();
         Binder::with_sorts(Expr::app(self, args, None), sorts.iter().cloned())
-    }
-
-    pub fn eta_expand_tuple(&self, sort: &Sort) -> Expr {
-        fn go(sort: &Sort, projs: &mut Vec<u32>, f: &impl Fn(&[u32]) -> Expr) -> Expr {
-            if let Sort::Tuple(sorts) = sort {
-                Expr::tuple(
-                    sorts
-                        .iter()
-                        .enumerate()
-                        .map(|(i, sort)| {
-                            projs.push(i as u32);
-                            let e = go(sort, projs, f);
-                            projs.pop();
-                            e
-                        })
-                        .collect_vec(),
-                )
-            } else {
-                f(projs)
-            }
-        }
-        if let (ExprKind::Tuple(exprs), Sort::Tuple(sorts)) = (self.kind(), sort) {
-            Expr::tuple(
-                iter::zip(exprs, sorts)
-                    .map(|(e, s)| e.eta_expand_tuple(s))
-                    .collect_vec(),
-            )
-        } else {
-            go(sort, &mut vec![], &|projs| Expr::tuple_projs(self, projs))
-        }
     }
 
     pub fn fold_sort(sort: &Sort, mut f: impl FnMut(&Sort) -> Expr) -> Expr {
@@ -634,18 +577,6 @@ impl Var {
 impl Path {
     pub fn new(loc: Loc, projection: impl Into<List<FieldIdx>>) -> Path {
         Path { loc, projection: projection.into() }
-    }
-
-    pub fn from_place(place: &Place) -> Option<Path> {
-        let mut proj = vec![];
-        for elem in &place.projection {
-            if let PlaceElem::Field(field) = elem {
-                proj.push(*field);
-            } else {
-                return None;
-            }
-        }
-        Some(Path::new(Loc::Local(place.local), proj))
     }
 
     pub fn projection(&self) -> &[FieldIdx] {

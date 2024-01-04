@@ -401,15 +401,17 @@ newtype_index! {
 }
 
 #[derive(Clone)]
-pub enum RefineArg {
-    Expr {
-        expr: Expr,
-        /// Whether this arg was used as a binder in the surface syntax. Used as a hint for
-        /// inferring parameters at function calls.
-        is_binder: bool,
-    },
-    Abs(Vec<RefineParam>, Expr, Span, FhirId),
-    Record(DefId, List<Sort>, Vec<RefineArg>, Span),
+pub struct RefineArg {
+    pub kind: RefineArgKind,
+    pub fhir_id: FhirId,
+    pub span: Span,
+}
+
+#[derive(Clone)]
+pub enum RefineArgKind {
+    Expr(Expr),
+    Abs(Vec<RefineParam>, Expr),
+    Record(DefId, List<Sort>, Vec<RefineArg>),
 }
 
 /// These are types of things that may be refined with indices or existentials
@@ -921,14 +923,6 @@ impl Sort {
         matches!(self, Self::Bool)
     }
 
-    /// Returns `true` if the sort is [`Wildcard`].
-    ///
-    /// [`Wildcard`]: Sort::Wildcard
-    #[must_use]
-    pub fn is_wildcard(&self) -> bool {
-        matches!(self, Self::Wildcard)
-    }
-
     pub fn is_numeric(&self) -> bool {
         matches!(self, Self::Int | Self::Real)
     }
@@ -1125,10 +1119,6 @@ impl Map {
         self.trusted.insert(def_id);
     }
 
-    pub fn fn_sigs(&self) -> impl Iterator<Item = (LocalDefId, &FnSig)> {
-        self.fns.iter().map(|(def_id, fn_sig)| (*def_id, fn_sig))
-    }
-
     pub fn get_fn_sig(&self, def_id: LocalDefId) -> &FnSig {
         self.fns
             .get(&def_id)
@@ -1175,10 +1165,6 @@ impl Map {
         self.type_aliases.insert(def_id, alias);
     }
 
-    pub fn type_aliases(&self) -> impl Iterator<Item = &TyAlias> {
-        self.type_aliases.values()
-    }
-
     pub fn get_type_alias(&self, def_id: impl Borrow<LocalDefId>) -> &TyAlias {
         &self.type_aliases[def_id.borrow()]
     }
@@ -1189,10 +1175,6 @@ impl Map {
         self.structs.insert(def_id, struct_def);
     }
 
-    pub fn structs(&self) -> impl Iterator<Item = &StructDef> {
-        self.structs.values()
-    }
-
     pub fn get_struct(&self, def_id: impl Borrow<LocalDefId>) -> &StructDef {
         &self.structs[def_id.borrow()]
     }
@@ -1201,10 +1183,6 @@ impl Map {
 
     pub fn insert_enum(&mut self, def_id: LocalDefId, enum_def: EnumDef) {
         self.enums.insert(def_id, enum_def);
-    }
-
-    pub fn enums(&self) -> impl Iterator<Item = &EnumDef> {
-        self.enums.values()
     }
 
     pub fn get_enum(&self, def_id: impl Borrow<LocalDefId>) -> &EnumDef {
@@ -1371,10 +1349,6 @@ impl Map {
 
     pub fn sort_decls(&self) -> &SortDecls {
         &self.sort_decls
-    }
-
-    pub fn sort_decl(&self, name: impl Borrow<Symbol>) -> Option<&SortDecl> {
-        self.sort_decls.get(name.borrow())
     }
 
     pub fn get_flux_item(&self, name: impl Borrow<Symbol>) -> Option<&FluxItem> {
@@ -1629,14 +1603,11 @@ impl fmt::Debug for TypeBinding {
 
 impl fmt::Debug for RefineArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RefineArg::Expr { expr, is_binder, .. } => {
-                if *is_binder {
-                    write!(f, "@")?;
-                }
+        match &self.kind {
+            RefineArgKind::Expr(expr) => {
                 write!(f, "{expr:?}")
             }
-            RefineArg::Abs(params, body, ..) => {
+            RefineArgKind::Abs(params, body) => {
                 write!(
                     f,
                     "|{}| {body:?}",
@@ -1645,7 +1616,7 @@ impl fmt::Debug for RefineArg {
                     })
                 )
             }
-            RefineArg::Record(def_id, flds, ..) => {
+            RefineArgKind::Record(def_id, _, flds) => {
                 write!(
                     f,
                     "{} {{ {:?} }}",

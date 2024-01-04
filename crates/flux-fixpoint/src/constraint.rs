@@ -7,7 +7,6 @@ use derive_where::derive_where;
 use flux_common::format::PadAdapter;
 use itertools::Itertools;
 use rustc_macros::{Decodable, Encodable};
-use rustc_span::Symbol;
 
 use crate::{big_int::BigInt, StringTypes, Types};
 
@@ -73,7 +72,7 @@ pub enum Expr<T: Types> {
 pub enum Func<T: Types> {
     Var(T::Var),
     /// interpreted (theory) function
-    Itf(Symbol),
+    Itf(String),
 }
 
 #[derive(Clone, Copy, Hash)]

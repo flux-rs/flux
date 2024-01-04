@@ -81,11 +81,22 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
         let bty =
             rty::BaseTy::adt(adt_def, vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)]);
-        rty::Ty::indexed(bty, rty::Index::unit())
+        rty::Ty::indexed(bty, rty::Expr::unit())
     }
 
     pub fn mir(&self, def_id: LocalDefId) -> QueryResult<Rc<rustc::mir::Body<'tcx>>> {
         self.queries.mir(self, def_id)
+    }
+
+    pub fn lower_generics_of(&self, def_id: impl Into<DefId>) -> QueryResult<ty::Generics<'tcx>> {
+        self.queries.lower_generics_of(self, def_id.into())
+    }
+
+    pub fn lower_predicates_of(
+        &self,
+        def_id: impl Into<DefId>,
+    ) -> QueryResult<ty::GenericPredicates> {
+        self.queries.lower_predicates_of(self, def_id.into())
     }
 
     pub fn lower_type_of(&self, def_id: impl Into<DefId>) -> QueryResult<ty::EarlyBinder<ty::Ty>> {

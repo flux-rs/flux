@@ -10,8 +10,7 @@ use flux_middle::{
         fold::TypeFoldable,
         AliasTy, BaseTy, BinOp, Binder, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
         FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, GenericParamDefKind, HoleKind,
-        InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, TupleTree, Ty,
-        TyKind, Var,
+        InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -258,7 +257,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             match (actual.kind(), formal.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::Ptr(PtrKind::Mut(_), path2)) => {
                     let bound = requires[path2];
-                    infcx.unify_exprs(&path1.to_expr(), &path2.to_expr(), false);
+                    infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
                     infcx.check_type_constr(rcx, env, path1, bound)?;
                 }
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
@@ -559,7 +558,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 self.bty_subtyping(rcx, bty1, bty2)?;
-                self.idx_subtyping(rcx, &idx1.expr, &idx2.expr, &idx2.is_binder);
+                self.idx_subtyping(rcx, idx1, idx2);
                 Ok(())
             }
             (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) => {
@@ -590,7 +589,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 if let TyKind::Alias(rty::AliasKind::Opaque, alias_ty1) = ty1.kind() {
                     debug_assert_eq!(alias_ty1.refine_args.len(), alias_ty.refine_args.len());
                     iter::zip(alias_ty1.refine_args.iter(), alias_ty.refine_args.iter())
-                        .for_each(|(e1, e2)| self.unify_exprs(e1, e2, false));
+                        .for_each(|(e1, e2)| self.unify_exprs(e1, e2));
                 }
 
                 self.opaque_subtyping(rcx, ty1, alias_ty)
@@ -731,13 +730,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
     }
 
-    fn idx_subtyping(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        e1: &Expr,
-        e2: &Expr,
-        is_binder: &TupleTree<bool>,
-    ) {
+    fn idx_subtyping(&mut self, rcx: &mut RefineCtxt, e1: &Expr, e2: &Expr) {
         if e1 == e2 {
             return;
         }
@@ -746,8 +739,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             (ExprKind::Tuple(tup1), ExprKind::Tuple(tup2)) => {
                 debug_assert_eq!(tup1.len(), tup2.len());
 
-                for (e1, e2, is_binder) in izip!(tup1, tup2, is_binder.split()) {
-                    self.idx_subtyping(rcx, e1, e2, is_binder);
+                for (e1, e2) in iter::zip(tup1, tup2) {
+                    self.idx_subtyping(rcx, e1, e2);
                 }
             }
             (ExprKind::Abs(p1), ExprKind::Abs(p2)) => {
@@ -757,11 +750,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 self.pred_subtyping(rcx, &e1.eta_expand_abs(&p.vars().to_sort_list()), p);
             }
             (ExprKind::Abs(p), _) => {
-                self.unify_exprs(e1, e2, *is_binder.expect_leaf());
+                self.unify_exprs(e1, e2);
                 self.pred_subtyping(rcx, p, &e2.eta_expand_abs(&p.vars().to_sort_list()));
             }
             _ => {
-                self.unify_exprs(e1, e2, *is_binder.expect_leaf());
+                self.unify_exprs(e1, e2);
                 let span = e2.span();
                 rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2, span), self.tag);
             }
@@ -782,12 +775,12 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         rcx.check_impl(&p2, &p1, self.tag);
     }
 
-    fn unify_exprs(&mut self, e1: &Expr, e2: &Expr, replace: bool) {
+    fn unify_exprs(&mut self, e1: &Expr, e2: &Expr) {
         if let ExprKind::Var(Var::EVar(evar)) = e2.kind()
             && let scope = &self.scopes[&evar.cx()]
             && !scope.has_free_vars(e1)
         {
-            self.evar_gen.unify(*evar, e1, replace);
+            self.evar_gen.unify(*evar, e1, false);
         }
     }
 

@@ -22,9 +22,8 @@ use flux_middle::{
     fhir::{self, FluxLocalDefId, WfckResults},
     global_env::GlobalEnv,
     intern::List,
-    queries::{Providers, QueryErr, QueryResult},
+    queries::{Providers, QueryResult},
     rty::{self, fold::TypeFoldable, refining::Refiner},
-    rustc::lowering,
 };
 use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
@@ -143,8 +142,7 @@ fn item_bounds(
 
 fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
     let def_id = local_id.to_def_id();
-    let rustc_generics = lowering::lower_generics(genv.tcx.generics_of(def_id))
-        .map_err(|err| QueryErr::unsupported(genv.tcx, def_id, err))?;
+    let rustc_generics = genv.lower_generics_of(local_id)?;
 
     let def_kind = genv.tcx.def_kind(def_id);
     match def_kind {

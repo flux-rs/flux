@@ -1,7 +1,7 @@
 use super::{
     BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnOutput, FnSig, FuncSort,
-    GenericArg, Ident, Lifetime, Lit, Path, PolyFuncSort, QPath, RefineArg, RefineParam, Sort,
-    StructDef, Ty, TyKind, TypeBinding, VariantDef, VariantRet,
+    GenericArg, Ident, Lifetime, Lit, Path, PolyFuncSort, QPath, RefineArg, RefineArgKind,
+    RefineParam, Sort, StructDef, Ty, TyKind, TypeBinding, VariantDef, VariantRet,
 };
 
 #[macro_export]
@@ -271,13 +271,13 @@ pub fn walk_func_sort<V: Visitor>(vis: &mut V, func: &FuncSort) {
 }
 
 pub fn walk_refine_arg<V: Visitor>(vis: &mut V, arg: &RefineArg) {
-    match arg {
-        RefineArg::Expr { expr, is_binder: _ } => vis.visit_expr(expr),
-        RefineArg::Abs(params, body, _span, _fhir_id) => {
+    match &arg.kind {
+        RefineArgKind::Expr(expr) => vis.visit_expr(expr),
+        RefineArgKind::Abs(params, body) => {
             walk_list!(vis, visit_refine_param, params);
             vis.visit_expr(body);
         }
-        RefineArg::Record(_def_id, vars, args, _span) => {
+        RefineArgKind::Record(_def_id, vars, args) => {
             walk_list!(vis, visit_sort, vars);
             walk_list!(vis, visit_refine_arg, args);
         }

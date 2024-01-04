@@ -21,6 +21,6 @@ middle_unsupported_generic_bound =
 
 # Query Errors
 
-middle_query_unsupported_type =
-    unsupported type
+middle_query_unsupported =
+    unsupported signature
     .note = {$reason}

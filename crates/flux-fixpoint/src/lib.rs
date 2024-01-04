@@ -1,8 +1,7 @@
-#![feature(rustc_private, min_specialization, lazy_cell, box_patterns, let_chains)]
+#![feature(rustc_private, lazy_cell, box_patterns)]
 
 extern crate rustc_macros;
 extern crate rustc_serialize;
-extern crate rustc_span;
 
 pub mod big_int;
 mod constraint;
@@ -73,7 +72,7 @@ impl Types for StringTypes {
 #[derive_where(Hash)]
 pub struct ConstInfo<T: Types> {
     pub name: T::Var,
-    pub orig: rustc_span::Symbol,
+    pub orig: String,
     pub sort: Sort,
 }
 
@@ -154,10 +153,10 @@ impl<T: Types> Task<T> {
 
         let result = self.check();
 
-        if config::is_cache_enabled()
-            && let Ok(FixpointResult::Safe(_)) = result
-        {
-            cache.insert(key, hash);
+        if config::is_cache_enabled() {
+            if let Ok(FixpointResult::Safe(_)) = result {
+                cache.insert(key, hash);
+            }
         }
         result
     }

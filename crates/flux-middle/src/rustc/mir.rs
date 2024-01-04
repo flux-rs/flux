@@ -8,7 +8,7 @@ use flux_common::{
 };
 use itertools::Itertools;
 pub use rustc_borrowck::borrow_set::BorrowData;
-use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex, RegionInferenceContext};
+use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex};
 use rustc_data_structures::{fx::FxIndexMap, graph::dominators::Dominators};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::IndexSlice;
@@ -321,11 +321,6 @@ impl<'tcx> Body<'tcx> {
         &self.body_with_facts.body
     }
 
-    /// see (NOTE:YIELD)
-    pub fn resume_local(&self) -> Option<Local> {
-        self.args_iter().nth(1)
-    }
-
     #[inline]
     pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
         (1..self.body_with_facts.body.arg_count + 1).map(Local::new)
@@ -362,10 +357,6 @@ impl<'tcx> Body<'tcx> {
             &self.body_with_facts.region_inference_context,
             &self.body_with_facts.borrow_set,
         )
-    }
-
-    pub fn region_inference_context(&self) -> &RegionInferenceContext<'tcx> {
-        &self.body_with_facts.region_inference_context
     }
 
     pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
@@ -455,15 +446,6 @@ impl PlaceTy {
             }
             TyKind::Tuple(tys) => Ok(tys[f.index()].clone()),
             _ => bug!("extracting field of non-tuple non-adt: {self:?}"),
-        }
-    }
-}
-
-impl PlaceElem {
-    pub fn as_field(&self) -> Option<FieldIdx> {
-        match self {
-            PlaceElem::Field(field) => Some(*field),
-            _ => None,
         }
     }
 }

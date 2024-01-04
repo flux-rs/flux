@@ -305,7 +305,7 @@ where
             .map(|const_info| {
                 fixpoint::ConstInfo {
                     name: fixpoint::Var::Global(const_info.name),
-                    orig: const_info.sym,
+                    orig: const_info.sym.to_string(),
                     sort: const_info.sort,
                 }
             })
@@ -766,7 +766,9 @@ impl<'a> ExprCtxt<'a> {
     fn func_to_fixpoint(&self, func: &rty::Expr) -> fixpoint::Func {
         match func.kind() {
             rty::ExprKind::Var(var) => fixpoint::Func::Var(self.var_to_fixpoint(var).into()),
-            rty::ExprKind::GlobalFunc(_, FuncKind::Thy(sym)) => fixpoint::Func::Itf(*sym),
+            rty::ExprKind::GlobalFunc(_, FuncKind::Thy(sym)) => {
+                fixpoint::Func::Itf(sym.to_string())
+            }
             rty::ExprKind::GlobalFunc(sym, FuncKind::Uif) => {
                 let cinfo = self.const_map.get(&Key::Uif(*sym)).unwrap_or_else(|| {
                     span_bug!(

@@ -92,56 +92,27 @@ pub fn func_def_to_func_decl(
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
 }
 
-fn gather_base_sort_vars(
-    generics: &FxHashSet<Symbol>,
-    base_sort: &surface::BaseSort,
-    sort_vars: &mut FxHashSet<Symbol>,
-) {
-    match base_sort {
-        surface::BaseSort::Ident(x) => {
-            if generics.contains(&x.name) {
-                sort_vars.insert(x.name);
-            }
-        }
-        surface::BaseSort::BitVec(_) => {}
-        surface::BaseSort::App(_, base_sorts) => {
-            for base_sort in base_sorts {
-                gather_base_sort_vars(generics, base_sort, sort_vars);
-            }
-        }
-    }
-}
-
-fn gather_sort_vars(
-    generics: &FxHashSet<Symbol>,
-    sort: &surface::Sort,
-    sort_vars: &mut FxHashSet<Symbol>,
-) {
-    match sort {
-        surface::Sort::Base(base_sort) => gather_base_sort_vars(generics, base_sort, sort_vars),
-        surface::Sort::Func { inputs, output } => {
-            for base_sort in inputs {
-                gather_base_sort_vars(generics, base_sort, sort_vars);
-            }
-            gather_base_sort_vars(generics, output, sort_vars);
-        }
-        surface::Sort::Infer => {}
-    }
-}
-
 fn gather_refined_by_sort_vars(
     generics: &rustc_middle::ty::Generics,
     refined_by: &surface::RefinedBy,
 ) -> Vec<Symbol> {
-    let generics_syms: FxHashSet<Symbol> = generics.params.iter().map(|param| param.name).collect();
-    let mut sort_idents = FxHashSet::default();
-    for refine_param in &refined_by.index_params {
-        gather_sort_vars(&generics_syms, &refine_param.sort, &mut sort_idents);
+    struct IdentCollector {
+        found: FxHashSet<Symbol>,
     }
+    impl surface::visit::Visitor for IdentCollector {
+        fn visit_base_sort(&mut self, bsort: &surface::BaseSort) {
+            if let surface::BaseSort::Ident(x) = bsort {
+                self.found.insert(x.name);
+            }
+            surface::visit::walk_base_sort(self, bsort);
+        }
+    }
+    let mut vis = IdentCollector { found: FxHashSet::default() };
+    surface::visit::Visitor::visit_refined_by(&mut vis, refined_by);
     generics
         .params
         .iter()
-        .filter_map(|param| if sort_idents.contains(&param.name) { Some(param.name) } else { None })
+        .filter_map(|param| if vis.found.contains(&param.name) { Some(param.name) } else { None })
         .collect()
 }
 
@@ -274,7 +245,13 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     }
 
     pub(crate) fn as_lift_cx<'b>(&'b mut self) -> LiftCtxt<'b, 'tcx> {
-        LiftCtxt::new(self.genv.tcx, self.genv.sess, self.owner, self.opaque_tys.as_deref_mut())
+        LiftCtxt::new(
+            self.genv.tcx,
+            self.genv.sess,
+            self.owner,
+            &self.local_id_gen,
+            self.opaque_tys.as_deref_mut(),
+        )
     }
 
     /// [desugar_generics] starts with the `lifted_generics` and "updates" it with the surface `generics`
@@ -732,13 +709,14 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 let pred = self.desugar_expr(env, pred)?;
                 let params = env.pop().into_params(self);
 
-                let idx = fhir::RefineArg::Expr {
-                    expr: fhir::Expr {
+                let idx = fhir::RefineArg {
+                    kind: fhir::RefineArgKind::Expr(fhir::Expr {
                         kind: fhir::ExprKind::Var(params[0].ident),
                         span: ex_bind.span,
                         fhir_id: self.next_fhir_id(),
-                    },
-                    is_binder: false,
+                    }),
+                    span: ex_bind.span,
+                    fhir_id: self.next_fhir_id(),
                 };
                 let indexed = fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: bty_span };
                 let constr =
@@ -831,7 +809,11 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 let flds = iter::zip(&idxs.indices, sorts)
                     .map(|(arg, sort)| self.desugar_refine_arg(arg, Some(sort), env))
                     .try_collect_exhaust()?;
-                Ok(fhir::RefineArg::Record(def_id, sort_args, flds, idxs.span))
+                Ok(fhir::RefineArg {
+                    kind: fhir::RefineArgKind::Record(def_id, sort_args, flds),
+                    fhir_id: self.next_fhir_id(),
+                    span: idxs.span,
+                })
             }
         } else if let [arg] = &idxs.indices[..] {
             self.desugar_refine_arg(arg, Some(sort), env)
@@ -851,13 +833,21 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 Ok(self.bind_into_refine_arg(*ident, sort, env)?.unwrap())
             }
             surface::RefineArg::Expr(expr) => {
-                Ok(fhir::RefineArg::Expr { expr: self.desugar_expr(env, expr)?, is_binder: false })
+                Ok(fhir::RefineArg {
+                    kind: fhir::RefineArgKind::Expr(self.desugar_expr(env, expr)?),
+                    fhir_id: self.next_fhir_id(),
+                    span: expr.span,
+                })
             }
             surface::RefineArg::Abs(_, body, node_id, span) => {
                 env.enter(ScopeId::Abs(*node_id));
                 let body = self.desugar_expr(env, body)?;
                 let params = env.pop().into_params(self);
-                Ok(fhir::RefineArg::Abs(params, body, *span, self.next_fhir_id()))
+                Ok(fhir::RefineArg {
+                    kind: fhir::RefineArgKind::Abs(params, body),
+                    fhir_id: self.next_fhir_id(),
+                    span: *span,
+                })
             }
         }
     }
@@ -875,9 +865,15 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 } else {
                     param.sort = fhir::Sort::Error;
                 }
-                let kind = fhir::ExprKind::Var(fhir::Ident::new(param.name, ident));
-                let expr = fhir::Expr { kind, span: ident.span, fhir_id: self.next_fhir_id() };
-                Ok(Some(fhir::RefineArg::Expr { expr, is_binder: true }))
+                Ok(Some(fhir::RefineArg {
+                    kind: fhir::RefineArgKind::Expr(fhir::Expr {
+                        kind: fhir::ExprKind::Var(fhir::Ident::new(param.name, ident)),
+                        span: ident.span,
+                        fhir_id: self.next_fhir_id(),
+                    }),
+                    fhir_id: self.next_fhir_id(),
+                    span: ident.span,
+                }))
             }
             None => Ok(None),
         }
@@ -1055,9 +1051,15 @@ impl Scope<Param> {
         for (ident, param) in self.iter() {
             let ident = fhir::Ident::new(param.name, *ident);
             let kind = ExprKind::Var(ident);
-            let fhir_id = cx.next_fhir_id();
-            let expr = fhir::Expr { kind, span, fhir_id };
-            refine_args.push(fhir::RefineArg::Expr { expr, is_binder: false });
+            refine_args.push(fhir::RefineArg {
+                kind: fhir::RefineArgKind::Expr(fhir::Expr {
+                    kind,
+                    span,
+                    fhir_id: cx.next_fhir_id(),
+                }),
+                fhir_id: cx.next_fhir_id(),
+                span,
+            });
         }
         refine_args
     }
