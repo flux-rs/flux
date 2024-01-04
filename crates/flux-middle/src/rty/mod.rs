@@ -1173,10 +1173,6 @@ impl Ty {
         TyKind::Blocked(ty).intern()
     }
 
-    pub fn usize() -> Ty {
-        Ty::uint(UintTy::Usize)
-    }
-
     pub fn str() -> Ty {
         BaseTy::Str.into_ty()
     }
@@ -1318,18 +1314,6 @@ impl TyS {
             .unwrap_or_default()
     }
 
-    pub fn is_closure(&self) -> bool {
-        self.as_bty_skipping_existentials()
-            .map(BaseTy::is_closure)
-            .unwrap_or_default()
-    }
-
-    pub fn is_tuple(&self) -> bool {
-        self.as_bty_skipping_existentials()
-            .map(BaseTy::is_tuple)
-            .unwrap_or_default()
-    }
-
     pub fn is_array(&self) -> bool {
         self.as_bty_skipping_existentials()
             .map(BaseTy::is_array)
@@ -1386,14 +1370,6 @@ impl BaseTy {
 
     fn is_struct(&self) -> bool {
         matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_struct())
-    }
-
-    fn is_closure(&self) -> bool {
-        matches!(self, BaseTy::Closure(..))
-    }
-
-    fn is_tuple(&self) -> bool {
-        matches!(self, BaseTy::Tuple(..))
     }
 
     fn is_array(&self) -> bool {

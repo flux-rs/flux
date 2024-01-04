@@ -1,4 +1,4 @@
-use std::{fmt, slice, sync::OnceLock};
+use std::{fmt, sync::OnceLock};
 
 use flux_common::bug;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
@@ -16,7 +16,6 @@ use crate::{
     fhir::FuncKind,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     rty::fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-    rustc::mir::{Place, PlaceElem},
 };
 
 pub type Expr = Interned<ExprS>;
@@ -229,12 +228,6 @@ impl Expr {
             .clone()
     }
 
-    pub fn one() -> Expr {
-        static ONE: OnceLock<Expr> = OnceLock::new();
-        ONE.get_or_init(|| ExprKind::Constant(Constant::ONE).intern())
-            .clone()
-    }
-
     pub fn int_max(int_ty: IntTy) -> Expr {
         let bit_width: u64 = int_ty
             .bit_width()
@@ -258,14 +251,6 @@ impl Expr {
 
     pub fn nu() -> Expr {
         Expr::late_bvar(INNERMOST, 0)
-    }
-
-    pub fn as_tuple(&self) -> &[Expr] {
-        if let ExprKind::Tuple(tup) = self.kind() {
-            tup
-        } else {
-            slice::from_ref(self)
-        }
     }
 
     pub fn expect_tuple(&self) -> &[Expr] {
@@ -527,14 +512,6 @@ impl Expr {
         self.fold_with(&mut Simplify)
     }
 
-    pub fn to_var(&self) -> Option<Var> {
-        if let ExprKind::Var(var) = self.kind() {
-            Some(*var)
-        } else {
-            None
-        }
-    }
-
     pub fn to_loc(&self) -> Option<Loc> {
         match self.kind() {
             ExprKind::Local(local) => Some(Loc::Local(*local)),
@@ -556,10 +533,6 @@ impl Expr {
 
     pub fn is_abs(&self) -> bool {
         matches!(self.kind(), ExprKind::Abs(..))
-    }
-
-    pub fn is_tuple(&self) -> bool {
-        matches!(self.kind(), ExprKind::Tuple(..))
     }
 
     pub fn eta_expand_abs(&self, sorts: &[Sort]) -> Binder<Expr> {
@@ -604,18 +577,6 @@ impl Var {
 impl Path {
     pub fn new(loc: Loc, projection: impl Into<List<FieldIdx>>) -> Path {
         Path { loc, projection: projection.into() }
-    }
-
-    pub fn from_place(place: &Place) -> Option<Path> {
-        let mut proj = vec![];
-        for elem in &place.projection {
-            if let PlaceElem::Field(field) = elem {
-                proj.push(*field);
-            } else {
-                return None;
-            }
-        }
-        Some(Path::new(Loc::Local(place.local), proj))
     }
 
     pub fn projection(&self) -> &[FieldIdx] {

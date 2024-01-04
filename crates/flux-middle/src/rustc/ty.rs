@@ -540,10 +540,6 @@ impl Ty {
         TyKind::Char.intern()
     }
 
-    pub fn mk_usize() -> Ty {
-        TyKind::Uint(UintTy::Usize).intern()
-    }
-
     pub fn deref(&self) -> Ty {
         match self.kind() {
             TyKind::Adt(adt_def, args) if adt_def.is_box() => args[0].expect_type().clone(),

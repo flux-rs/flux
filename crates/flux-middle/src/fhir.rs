@@ -920,14 +920,6 @@ impl Sort {
         matches!(self, Self::Bool)
     }
 
-    /// Returns `true` if the sort is [`Wildcard`].
-    ///
-    /// [`Wildcard`]: Sort::Wildcard
-    #[must_use]
-    pub fn is_wildcard(&self) -> bool {
-        matches!(self, Self::Wildcard)
-    }
-
     pub fn is_numeric(&self) -> bool {
         matches!(self, Self::Int | Self::Real)
     }
@@ -1123,10 +1115,6 @@ impl Map {
         self.trusted.insert(def_id);
     }
 
-    pub fn fn_sigs(&self) -> impl Iterator<Item = (LocalDefId, &FnSig)> {
-        self.fns.iter().map(|(def_id, fn_sig)| (*def_id, fn_sig))
-    }
-
     pub fn get_fn_sig(&self, def_id: LocalDefId) -> &FnSig {
         self.fns
             .get(&def_id)
@@ -1173,10 +1161,6 @@ impl Map {
         self.type_aliases.insert(def_id, alias);
     }
 
-    pub fn type_aliases(&self) -> impl Iterator<Item = &TyAlias> {
-        self.type_aliases.values()
-    }
-
     pub fn get_type_alias(&self, def_id: impl Borrow<LocalDefId>) -> &TyAlias {
         &self.type_aliases[def_id.borrow()]
     }
@@ -1187,10 +1171,6 @@ impl Map {
         self.structs.insert(def_id, struct_def);
     }
 
-    pub fn structs(&self) -> impl Iterator<Item = &StructDef> {
-        self.structs.values()
-    }
-
     pub fn get_struct(&self, def_id: impl Borrow<LocalDefId>) -> &StructDef {
         &self.structs[def_id.borrow()]
     }
@@ -1199,10 +1179,6 @@ impl Map {
 
     pub fn insert_enum(&mut self, def_id: LocalDefId, enum_def: EnumDef) {
         self.enums.insert(def_id, enum_def);
-    }
-
-    pub fn enums(&self) -> impl Iterator<Item = &EnumDef> {
-        self.enums.values()
     }
 
     pub fn get_enum(&self, def_id: impl Borrow<LocalDefId>) -> &EnumDef {
@@ -1369,10 +1345,6 @@ impl Map {
 
     pub fn sort_decls(&self) -> &SortDecls {
         &self.sort_decls
-    }
-
-    pub fn sort_decl(&self, name: impl Borrow<Symbol>) -> Option<&SortDecl> {
-        self.sort_decls.get(name.borrow())
     }
 
     pub fn get_flux_item(&self, name: impl Borrow<Symbol>) -> Option<&FluxItem> {
