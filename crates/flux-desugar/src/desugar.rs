@@ -92,56 +92,27 @@ pub fn func_def_to_func_decl(
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
 }
 
-fn gather_base_sort_vars(
-    generics: &FxHashSet<Symbol>,
-    base_sort: &surface::BaseSort,
-    sort_vars: &mut FxHashSet<Symbol>,
-) {
-    match base_sort {
-        surface::BaseSort::Ident(x) => {
-            if generics.contains(&x.name) {
-                sort_vars.insert(x.name);
-            }
-        }
-        surface::BaseSort::BitVec(_) => {}
-        surface::BaseSort::App(_, base_sorts) => {
-            for base_sort in base_sorts {
-                gather_base_sort_vars(generics, base_sort, sort_vars);
-            }
-        }
-    }
-}
-
-fn gather_sort_vars(
-    generics: &FxHashSet<Symbol>,
-    sort: &surface::Sort,
-    sort_vars: &mut FxHashSet<Symbol>,
-) {
-    match sort {
-        surface::Sort::Base(base_sort) => gather_base_sort_vars(generics, base_sort, sort_vars),
-        surface::Sort::Func { inputs, output } => {
-            for base_sort in inputs {
-                gather_base_sort_vars(generics, base_sort, sort_vars);
-            }
-            gather_base_sort_vars(generics, output, sort_vars);
-        }
-        surface::Sort::Infer => {}
-    }
-}
-
 fn gather_refined_by_sort_vars(
     generics: &rustc_middle::ty::Generics,
     refined_by: &surface::RefinedBy,
 ) -> Vec<Symbol> {
-    let generics_syms: FxHashSet<Symbol> = generics.params.iter().map(|param| param.name).collect();
-    let mut sort_idents = FxHashSet::default();
-    for refine_param in &refined_by.index_params {
-        gather_sort_vars(&generics_syms, &refine_param.sort, &mut sort_idents);
+    struct IdentCollector {
+        found: FxHashSet<Symbol>,
     }
+    impl surface::visit::Visitor for IdentCollector {
+        fn visit_base_sort(&mut self, bsort: &surface::BaseSort) {
+            if let surface::BaseSort::Ident(x) = bsort {
+                self.found.insert(x.name);
+            }
+            surface::visit::walk_base_sort(self, bsort);
+        }
+    }
+    let mut vis = IdentCollector { found: FxHashSet::default() };
+    surface::visit::Visitor::visit_refined_by(&mut vis, refined_by);
     generics
         .params
         .iter()
-        .filter_map(|param| if sort_idents.contains(&param.name) { Some(param.name) } else { None })
+        .filter_map(|param| if vis.found.contains(&param.name) { Some(param.name) } else { None })
         .collect()
 }
 

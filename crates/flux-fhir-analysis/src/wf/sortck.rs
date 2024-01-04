@@ -10,7 +10,6 @@ use flux_middle::{
 use itertools::izip;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
-use rustc_hir::def_id::DefId;
 use rustc_span::Span;
 
 use super::errors;
