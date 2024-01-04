@@ -338,7 +338,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 }
             };
 
-            if &param.name.name == &kw::SelfUpper {
+            if param.name.name == kw::SelfUpper {
                 self_kind = Some(kind);
             } else {
                 let def_id = *generics_map.get(&param.name).ok_or_else(|| {

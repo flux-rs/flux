@@ -158,7 +158,7 @@ pub(crate) fn conv_generics(
         let kind = generics
             .self_kind
             .as_ref()
-            .map(|kind| conv_generic_param_kind(&kind))
+            .map(conv_generic_param_kind)
             .unwrap_or(rty::GenericParamDefKind::Type { has_default: false });
         rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.to_def_id(), kind }
     });
@@ -1208,9 +1208,7 @@ fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Param(def_id) => {
             rty::Sort::Param(def_id_to_param_ty(genv.tcx, def_id.expect_local()))
         }
-        fhir::Sort::SelfParam(_def_id) => {
-            rty::Sort::Param(self_param_ty())
-        }
+        fhir::Sort::SelfParam(_def_id) => rty::Sort::Param(self_param_ty()),
         fhir::Sort::Var(n) => rty::Sort::Var(rty::SortVar::from(*n)),
         fhir::Sort::Error | fhir::Sort::Wildcard | fhir::Sort::Infer(_) => {
             bug!("unexpected sort `{sort:?}`")
@@ -1251,7 +1249,6 @@ fn def_id_to_param_ty(tcx: TyCtxt, def_id: LocalDefId) -> rty::ParamTy {
 fn self_param_ty() -> rty::ParamTy {
     rty::ParamTy { index: 0, name: kw::SelfUpper }
 }
-
 
 fn def_id_to_param_index(tcx: TyCtxt, def_id: LocalDefId) -> u32 {
     let item_def_id = tcx.hir().ty_param_owner(def_id);
