@@ -839,8 +839,8 @@ pub struct Defn {
 }
 
 impl Generics {
-    pub(crate) fn get_param(&self, def_id: LocalDefId) -> Option<&GenericParam> {
-        self.params.iter().find(|p| p.def_id == def_id)
+    pub(crate) fn get_param(&self, def_id: LocalDefId) -> &GenericParam {
+        self.params.iter().find(|p| p.def_id == def_id).unwrap()
     }
 
     pub fn with_refined_by(self, refined_by: &RefinedBy) -> Self {
