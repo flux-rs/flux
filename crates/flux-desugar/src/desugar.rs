@@ -200,20 +200,21 @@ enum QPathRes<'a> {
 
 fn self_res(genv: &GlobalEnv, owner: OwnerId) -> SelfRes {
     let def_id = owner.def_id;
-    let kind = genv.tcx.def_kind(def_id);
-    match kind {
-        DefKind::Trait => SelfRes::Param(def_id.to_def_id()),
-        DefKind::Impl { .. } => {
-            if let Some(alias_to) = genv.tcx.opt_parent(def_id.to_def_id())
-                && let Some(sort) = genv.sort_of_self_ty_alias(alias_to)
-            {
-                SelfRes::Alias(sort)
-            } else {
-                SelfRes::None
+    let parent_id = genv.tcx.opt_parent(def_id.to_def_id());
+    if let Some(alias_to) = parent_id {
+        match genv.tcx.def_kind(alias_to) {
+            DefKind::Trait => return SelfRes::Param(alias_to),
+            DefKind::Impl { .. } => {
+                if let Some(sort) = genv.sort_of_self_ty_alias(alias_to) {
+                    return SelfRes::Alias(sort);
+                } else {
+                    return SelfRes::None;
+                }
             }
+            _ => return SelfRes::None,
         }
-        _ => SelfRes::None,
     }
+    return SelfRes::None;
 }
 
 impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
