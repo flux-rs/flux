@@ -181,6 +181,7 @@ pub(crate) fn check_fn_sig(
     requires?;
     constrs?;
 
+    infcx.resolve_params_sorts(&fn_sig.params)?;
     wf.check_params_are_determined(&infcx, &fn_sig.params)?;
 
     Ok(infcx.into_results())

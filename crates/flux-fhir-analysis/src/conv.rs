@@ -86,7 +86,7 @@ pub(crate) fn expand_type_alias(
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
-    let mut env = Env::new(&alias.early_bound_params);
+    let mut env = Env::new(&alias.early_bound_params, None);
     env.push_layer(Layer::collapse(&cx, &alias.index_params));
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
@@ -103,7 +103,7 @@ pub(crate) fn conv_generic_predicates(
 
     let refparams = genv.map().get_refine_params(genv.tcx, def_id);
 
-    let env = &mut Env::new(refparams.unwrap_or(&[]));
+    let env = &mut Env::new(refparams.unwrap_or(&[]), Some(wfckresults));
 
     let mut clauses = vec![];
     for pred in &predicates.predicates {
@@ -126,7 +126,7 @@ pub(crate) fn conv_opaque_ty(
     let parent = genv.tcx.parent(def_id).expect_local();
     let refparams = genv.map().get_refine_params(genv.tcx, parent);
 
-    let env = &mut Env::new(refparams.unwrap_or(&[]));
+    let env = &mut Env::new(refparams.unwrap_or(&[]), Some(wfckresults));
 
     let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
     let self_ty = rty::Ty::opaque(def_id, args, env.to_early_bound_vars());
@@ -138,10 +138,11 @@ pub(crate) fn conv_opaque_ty(
 
 pub(crate) fn conv_generics(
     genv: &GlobalEnv,
-    rust_generics: &rustc::ty::Generics,
+    rustc_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
     refine_params: &[fhir::RefineParam],
     is_trait: Option<LocalDefId>,
+    wfckresults: Option<&fhir::WfckResults>,
 ) -> QueryResult<rty::Generics> {
     let opt_self = is_trait.map(|def_id| {
         rty::GenericParamDef {
@@ -153,23 +154,15 @@ pub(crate) fn conv_generics(
     });
     let params = opt_self
         .into_iter()
-        .chain(rust_generics.params.iter().flat_map(|rust_param| {
+        .chain(rustc_generics.params.iter().flat_map(|rust_param| {
             // We have to filter out late bound parameters
             let param = generics
                 .params
                 .iter()
                 .find(|param| param.def_id.to_def_id() == rust_param.def_id)?;
-            let kind = match &param.kind {
-                fhir::GenericParamKind::Type { default } => {
-                    rty::GenericParamDefKind::Type { has_default: default.is_some() }
-                }
-                fhir::GenericParamKind::SplTy => rty::GenericParamDefKind::SplTy,
-                fhir::GenericParamKind::BaseTy => rty::GenericParamDefKind::BaseTy,
-                fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
-            };
             let def_id = param.def_id.to_def_id();
             Some(rty::GenericParamDef {
-                kind,
+                kind: conv_generic_param_kind(&param.kind),
                 def_id,
                 index: rust_param.index,
                 name: rust_param.name,
@@ -179,20 +172,40 @@ pub(crate) fn conv_generics(
 
     let refine_params = refine_params
         .iter()
-        .map(|param| conv_refine_param(genv, param))
+        .map(|param| conv_refine_param(genv, param, wfckresults))
         .collect();
 
+    mk_generics(genv, rustc_generics, params, refine_params)
+}
+
+pub(crate) fn mk_generics(
+    genv: &GlobalEnv,
+    rustc_generics: &rustc::ty::Generics,
+    params: List<rty::GenericParamDef>,
+    refine_params: List<rty::RefineParam>,
+) -> QueryResult<rty::Generics> {
     Ok(rty::Generics {
         params,
         refine_params,
-        parent: rust_generics.parent(),
-        parent_count: rust_generics.parent_count(),
-        parent_refine_count: rust_generics
+        parent: rustc_generics.parent(),
+        parent_count: rustc_generics.parent_count(),
+        parent_refine_count: rustc_generics
             .parent()
             .map(|parent| genv.generics_of(parent))
             .transpose()?
             .map_or(0, |g| g.refine_count()),
     })
+}
+
+fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDefKind {
+    match kind {
+        fhir::GenericParamKind::Type { default } => {
+            rty::GenericParamDefKind::Type { has_default: default.is_some() }
+        }
+        fhir::GenericParamKind::SplTy => rty::GenericParamDefKind::SplTy,
+        fhir::GenericParamKind::BaseTy => rty::GenericParamDefKind::BaseTy,
+        fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
+    }
 }
 
 fn sort_args_for_adt(genv: &GlobalEnv, def_id: impl Into<DefId>) -> List<fhir::Sort> {
@@ -240,7 +253,7 @@ pub(crate) fn conv_invariants(
     wfckresults: &fhir::WfckResults,
 ) -> Vec<rty::Invariant> {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let mut env = Env::new(&[]);
+    let mut env = Env::new(&[], Some(wfckresults));
     env.push_layer(Layer::collapse(&cx, params));
     cx.conv_invariants(&env, invariants)
 }
@@ -251,7 +264,7 @@ pub(crate) fn conv_defn(
     wfckresults: &fhir::WfckResults,
 ) -> rty::Defn {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let mut env = Env::new(&[]);
+    let mut env = Env::new(&[], Some(wfckresults));
     env.push_layer(Layer::list(&cx, 0, &defn.args, false));
     let expr = cx.conv_expr(&env, &defn.expr);
     let expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars());
@@ -264,7 +277,7 @@ pub(crate) fn conv_qualifier(
     wfckresults: &fhir::WfckResults,
 ) -> rty::Qualifier {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let mut env = Env::new(&[]);
+    let mut env = Env::new(&[], Some(wfckresults));
     env.push_layer(Layer::list(&cx, 0, &qualifier.args, false));
     let body = cx.conv_expr(&env, &qualifier.expr);
     let body = rty::Binder::new(body, env.pop_layer().into_bound_vars());
@@ -281,7 +294,7 @@ pub(crate) fn conv_fn_sig(
 
     let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
 
-    let mut env = Env::new(&fn_sig.params);
+    let mut env = Env::new(&fn_sig.params, Some(wfckresults));
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[], true));
 
     let mut requires = vec![];
@@ -311,7 +324,7 @@ pub(crate) fn conv_ty(
     ty: &fhir::Ty,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
-    let mut env = Env::new(&[]);
+    let mut env = Env::new(&[], Some(wfckresults));
     let ty = ConvCtxt::new(genv, wfckresults).conv_ty(&mut env, ty)?;
     Ok(rty::Binder::new(ty, List::empty()))
 }
@@ -522,7 +535,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     ) -> QueryResult<rty::PolyVariant> {
         let cx = ConvCtxt::new(genv, wfckresults);
 
-        let mut env = Env::new(&[]);
+        let mut env = Env::new(&[], Some(wfckresults));
         env.push_layer(Layer::list(&cx, 0, &variant.params, true));
 
         let adt_def = genv.adt_def(adt_def_id)?;
@@ -548,7 +561,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         wfckresults: &fhir::WfckResults,
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
         let cx = ConvCtxt::new(genv, wfckresults);
-        let mut env = Env::new(&[]);
+        let mut env = Env::new(&[], Some(wfckresults));
         env.push_layer(Layer::list(&cx, 0, &struct_def.params, false));
 
         let def_id = struct_def.owner_id.def_id;
@@ -887,23 +900,15 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn resolve_param_sort(&self, param: &fhir::RefineParam) -> fhir::Sort {
-        if fhir::Sort::Wildcard == param.sort {
-            self.node_sort(param.fhir_id).clone()
-        } else {
-            param.sort.clone()
-        }
-    }
-
-    fn node_sort(&self, fhir_id: FhirId) -> &fhir::Sort {
-        self.wfckresults.node_sorts().get(fhir_id).unwrap()
+        resolve_param_sort(param, Some(self.wfckresults)).clone()
     }
 }
 
 impl Env {
-    fn new(early_bound: &[fhir::RefineParam]) -> Self {
+    fn new(early_bound: &[fhir::RefineParam], wfckresults: Option<&fhir::WfckResults>) -> Self {
         let early_bound = early_bound
             .iter()
-            .map(|param| (param.name(), param.sort.clone()))
+            .map(|param| (param.name(), resolve_param_sort(param, wfckresults).clone()))
             .collect();
         Self { layers: vec![], early_bound }
     }
@@ -1167,10 +1172,27 @@ fn conv_sorts<'a>(
         .collect()
 }
 
-fn conv_refine_param(genv: &GlobalEnv, param: &fhir::RefineParam) -> rty::RefineParam {
-    let sort = conv_sort(genv, &param.sort);
+fn conv_refine_param(
+    genv: &GlobalEnv,
+    param: &fhir::RefineParam,
+    wfckresults: Option<&fhir::WfckResults>,
+) -> rty::RefineParam {
+    let sort = conv_sort(genv, resolve_param_sort(param, wfckresults));
     let mode = param.infer_mode();
     rty::RefineParam { sort, mode }
+}
+
+fn resolve_param_sort<'a>(
+    param: &'a fhir::RefineParam,
+    wfckresults: Option<&'a fhir::WfckResults>,
+) -> &'a fhir::Sort {
+    if fhir::Sort::Wildcard == param.sort
+        && let Some(wfckresults) = wfckresults
+    {
+        wfckresults.node_sorts().get(param.fhir_id).unwrap()
+    } else {
+        &param.sort
+    }
 }
 
 fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {

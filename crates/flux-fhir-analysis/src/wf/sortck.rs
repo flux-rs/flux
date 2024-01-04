@@ -503,7 +503,9 @@ impl<'a> InferCtxt<'a, '_> {
     }
 
     fn is_numeric(&mut self, sort: &fhir::Sort) -> bool {
-        self.resolve_sort(sort).map_or(false, |s| s.is_numeric())
+        let b = self.resolve_sort(sort).map_or(false, |s| s.is_numeric());
+        println!("{sort:?} {b:?}");
+        b
     }
 
     fn is_bool(&mut self, sort: &fhir::Sort) -> bool {
