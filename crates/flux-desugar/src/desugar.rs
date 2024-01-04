@@ -17,7 +17,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{
-    def_id::{DefId, LocalDefId},
+    def_id::LocalDefId,
     sym::{self},
     symbol::kw,
     Span, Symbol,
@@ -29,7 +29,7 @@ use self::env::{Scope, ScopeId};
 use crate::{
     errors,
     resolver::ResolverOutput,
-    sort_resolver::{SortResolver, SORTS},
+    sort_resolver::{SelfRes, SortResolver, SORTS},
 };
 
 pub fn desugar_qualifier(
@@ -198,17 +198,21 @@ enum QPathRes<'a> {
     NumConst(i128),
 }
 
-fn is_impl_item(genv: &GlobalEnv, owner_id: OwnerId) -> bool {
-    let hir_id = genv.tcx.hir().local_def_id_to_hir_id(owner_id.def_id);
-    let node = genv.tcx.hir().get(hir_id);
-    matches!(node, hir::Node::ImplItem { .. })
-}
-
-fn self_sort(genv: &GlobalEnv, parent_id: Option<DefId>, is_impl: bool) -> Option<fhir::Sort> {
-    if is_impl && let Some(alias_to) = parent_id {
-        genv.sort_of_self_ty_alias(alias_to)
-    } else {
-        None
+fn self_res(genv: &GlobalEnv, owner: OwnerId) -> SelfRes {
+    let def_id = owner.def_id;
+    let kind = genv.tcx.def_kind(def_id);
+    match kind {
+        DefKind::Trait => SelfRes::Param(def_id.to_def_id()),
+        DefKind::Impl { .. } => {
+            if let Some(alias_to) = genv.tcx.opt_parent(def_id.to_def_id())
+                && let Some(sort) = genv.sort_of_self_ty_alias(alias_to)
+            {
+                SelfRes::Alias(sort)
+            } else {
+                SelfRes::None
+            }
+        }
+        _ => SelfRes::None,
     }
 }
 
@@ -220,16 +224,9 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     ) -> RustItemCtxt<'a, 'tcx> {
         let generics = genv.tcx.generics_of(owner);
-        let is_impl = is_impl_item(genv, owner);
-        let parent_id = genv.tcx.opt_parent(owner.def_id.to_def_id());
-        let self_sort = self_sort(genv, parent_id, is_impl);
-        let sort_resolver = SortResolver::with_generics(
-            genv.sess,
-            genv.map().sort_decls(),
-            generics,
-            parent_id,
-            self_sort,
-        );
+        let self_res = self_res(genv, owner);
+        let sort_resolver =
+            SortResolver::with_generics(genv.sess, genv.map().sort_decls(), generics, self_res);
         RustItemCtxt {
             genv,
             owner,
