@@ -536,8 +536,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
                 let pred = self.desugar_expr(env, pred)?;
 
-                let sort = self.genv.sort_of_bty(&bty);
-                let ty = if let Some(idx) = self.bind_into_refine_arg(*bind, sort, env)? {
+                let ty = if let Some(idx) = self.bind_into_refine_arg(*bind, env)? {
                     fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: path.span }
                 } else {
                     fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: path.span }
@@ -634,7 +633,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             }
             surface::TyKind::Indexed { bty, indices } => {
                 let bty = self.desugar_bty(bty, env)?;
-                let idx = self.desugar_indices(&bty, indices, env)?;
+                let idx = self.desugar_indices(indices, env)?;
                 fhir::TyKind::Indexed(bty, idx)
             }
             surface::TyKind::Exists { bind: ex_bind, bty, pred } => {
@@ -644,13 +643,6 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 env.enter(ScopeId::Exists(node_id));
 
                 let bty = self.desugar_bty(bty, env)?;
-
-                if let Some(sort) = self.genv.sort_of_bty(&bty) {
-                    env.get_mut(*ex_bind).unwrap().sort = sort;
-                } else {
-                    return Err(self.emit_err(errors::RefinedUnrefinableType::new(bty.span)));
-                };
-
                 let pred = self.desugar_expr(env, pred)?;
                 let params = env.pop().into_params(self);
 
@@ -734,48 +726,33 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
     fn desugar_indices(
         &mut self,
-        bty: &fhir::BaseTy,
         idxs: &surface::Indices,
         env: &mut Env,
     ) -> Result<fhir::RefineArg> {
-        let Some(sort) = self.genv.sort_of_bty(bty) else {
-            return Err(self.emit_err(errors::RefinedUnrefinableType::new(bty.span)));
-        };
-        if let fhir::Sort::Record(def_id, sort_args) = sort.clone() {
-            if let [surface::RefineArg::Bind(ident, ..)] = &idxs.indices[..] {
-                Ok(self.bind_into_refine_arg(*ident, Some(sort), env)?.unwrap())
-            } else {
-                let sorts = self.genv.index_sorts_of(def_id, &sort_args);
-                if sorts.len() != idxs.indices.len() {
-                    return Err(
-                        self.emit_err(errors::RefineArgCountMismatch::new(idxs, sorts.len()))
-                    );
-                }
-                let flds = iter::zip(&idxs.indices, sorts)
-                    .map(|(arg, sort)| self.desugar_refine_arg(arg, Some(sort), env))
-                    .try_collect_exhaust()?;
-                Ok(fhir::RefineArg {
-                    kind: fhir::RefineArgKind::Record(flds),
-                    fhir_id: self.next_fhir_id(),
-                    span: idxs.span,
-                })
-            }
-        } else if let [arg] = &idxs.indices[..] {
-            self.desugar_refine_arg(arg, Some(sort), env)
+        if let [arg] = &idxs.indices[..] {
+            self.desugar_refine_arg(arg, env)
         } else {
-            Err(self.emit_err(errors::RefineArgCountMismatch::new(idxs, 1)))
+            let flds = idxs
+                .indices
+                .iter()
+                .map(|arg| self.desugar_refine_arg(arg, env))
+                .try_collect_exhaust()?;
+            Ok(fhir::RefineArg {
+                kind: fhir::RefineArgKind::Record(flds),
+                fhir_id: self.next_fhir_id(),
+                span: idxs.span,
+            })
         }
     }
 
     fn desugar_refine_arg(
         &mut self,
         arg: &surface::RefineArg,
-        sort: Option<fhir::Sort>,
         env: &mut Env,
     ) -> Result<fhir::RefineArg> {
         match arg {
             surface::RefineArg::Bind(ident, ..) => {
-                Ok(self.bind_into_refine_arg(*ident, sort, env)?.unwrap())
+                Ok(self.bind_into_refine_arg(*ident, env)?.unwrap())
             }
             surface::RefineArg::Expr(expr) => {
                 Ok(fhir::RefineArg {
@@ -800,16 +777,10 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     fn bind_into_refine_arg(
         &self,
         ident: surface::Ident,
-        sort: Option<fhir::Sort>,
         env: &mut Env,
     ) -> Result<Option<fhir::RefineArg>> {
         match env.get_mut(ident) {
             Some(param) => {
-                if let Some(sort) = sort {
-                    param.sort = sort;
-                } else {
-                    param.sort = fhir::Sort::Error;
-                }
                 Ok(Some(fhir::RefineArg {
                     kind: fhir::RefineArgKind::Expr(fhir::Expr {
                         kind: fhir::ExprKind::Var(fhir::Ident::new(param.name, ident)),
@@ -840,7 +811,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         let refine = path
             .refine
             .iter()
-            .map(|arg| self.desugar_refine_arg(arg, None, env))
+            .map(|arg| self.desugar_refine_arg(arg, env))
             .try_collect_exhaust()?;
         Ok(fhir::Path { res, args, bindings, refine, span: path.span })
     }
@@ -895,8 +866,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
         let span = bty.span;
         let kind = if let Some(bind) = bind
-            && let sort = self.genv.sort_of_bty(&bty)
-            && let Some(idx) = self.bind_into_refine_arg(bind, sort, env)?
+            && let Some(idx) = self.bind_into_refine_arg(bind, env)?
         {
             fhir::TyKind::Indexed(bty, idx)
         } else {
@@ -911,7 +881,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         env: &mut Env,
     ) -> Result<fhir::VariantRet> {
         let bty = self.desugar_path_to_bty(&ret.path, env)?;
-        let idx = self.desugar_indices(&bty, &ret.indices, env)?;
+        let idx = self.desugar_indices(&ret.indices, env)?;
         Ok(fhir::VariantRet { bty, idx })
     }
 

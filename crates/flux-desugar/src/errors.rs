@@ -1,5 +1,5 @@
 use flux_macros::Diagnostic;
-use flux_syntax::surface::{self, BindKind, QPathExpr};
+use flux_syntax::surface::{BindKind, QPathExpr};
 use itertools::Itertools;
 use rustc_span::{symbol::Ident, Span, Symbol};
 
@@ -96,22 +96,6 @@ impl SortArityMismatch {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_refine_arg_count_mismatch, code = "FLUX")]
-pub(super) struct RefineArgCountMismatch {
-    #[primary_span]
-    #[label]
-    span: Span,
-    expected: usize,
-    found: usize,
-}
-
-impl RefineArgCountMismatch {
-    pub(super) fn new(idxs: &surface::Indices, expected: usize) -> Self {
-        Self { span: idxs.span, expected, found: idxs.indices.len() }
-    }
-}
-
-#[derive(Diagnostic)]
 #[diag(desugar_invalid_unrefined_param, code = "FLUX")]
 pub(super) struct InvalidUnrefinedParam {
     #[primary_span]
@@ -138,19 +122,6 @@ pub(super) struct InvalidNumericSuffix {
 impl InvalidNumericSuffix {
     pub(super) fn new(span: Span, suffix: Symbol) -> Self {
         Self { span, suffix }
-    }
-}
-
-#[derive(Diagnostic)]
-#[diag(desugar_refined_unrefinable_type, code = "FLUX")]
-pub(super) struct RefinedUnrefinableType {
-    #[primary_span]
-    span: Span,
-}
-
-impl RefinedUnrefinableType {
-    pub(super) fn new(span: Span) -> Self {
-        Self { span }
     }
 }
 
