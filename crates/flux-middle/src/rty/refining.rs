@@ -220,8 +220,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 .try_collect_vec()?;
             let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
             let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty());
-            // TODO(RJ): check if `lifted` should be true here
-            Ok(rty::FnSig::new(vec![], args, output, true))
+            Ok(rty::FnSig::new(vec![], args, output))
         })
     }
 

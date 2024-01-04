@@ -274,7 +274,6 @@ pub struct FnSig {
     requires: List<Constraint>,
     args: List<Ty>,
     output: Binder<FnOutput>,
-    lifted: bool,
 }
 
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
@@ -579,7 +578,6 @@ impl FnTraitPredicate {
             vec![],
             inputs,
             Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
-            false,
         );
 
         PolyFnSig::new(fn_sig, List::from(vars))
@@ -606,7 +604,7 @@ impl GeneratorObligPredicate {
 
         let output = Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
-        PolyFnSig::new(FnSig::new(requires, inputs, output, false), List::from(vars))
+        PolyFnSig::new(FnSig::new(requires, inputs, output), List::from(vars))
     }
 }
 
@@ -1020,9 +1018,8 @@ impl FnSig {
         requires: impl Into<List<Constraint>>,
         args: impl Into<List<Ty>>,
         output: Binder<FnOutput>,
-        lifted: bool,
     ) -> Self {
-        FnSig { requires: requires.into(), args: args.into(), output, lifted }
+        FnSig { requires: requires.into(), args: args.into(), output }
     }
 
     pub fn requires(&self) -> &Constraints {
@@ -1035,10 +1032,6 @@ impl FnSig {
 
     pub fn output(&self) -> &Binder<FnOutput> {
         &self.output
-    }
-
-    pub fn lifted(&self) -> bool {
-        self.lifted
     }
 }
 
@@ -1152,7 +1145,7 @@ impl EarlyBinder<PolyVariant> {
             poly_variant.as_ref().map(|variant| {
                 let ret = variant.ret().shift_in_escaping(1);
                 let output = Binder::new(FnOutput::new(ret, vec![]), List::empty());
-                FnSig::new(vec![], variant.fields.clone(), output, false)
+                FnSig::new(vec![], variant.fields.clone(), output)
             })
         })
     }

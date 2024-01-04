@@ -17,3 +17,14 @@ pub fn test() {
     let x = 42;
     assert(x.foo2() == 42);
 }
+
+pub trait Silly {
+    #[flux::sig(fn(&Self) -> i32{v:100 < v})]
+    fn bloop(&self) -> i32;
+}
+
+impl Silly for i32 {
+    fn bloop(&self) -> i32 {
+        0
+    }
+}

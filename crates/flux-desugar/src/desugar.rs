@@ -227,14 +227,14 @@ enum QPathRes<'a> {
     NumConst(i128),
 }
 
-fn super_hack_is_impl(def_id: DefId) -> bool {
-    format!("{def_id:?}").contains("::{impl#")
+fn is_impl_item(genv: &GlobalEnv, owner_id: OwnerId) -> bool {
+    let hir_id = genv.tcx.hir().local_def_id_to_hir_id(owner_id.def_id);
+    let node = genv.tcx.hir().get(hir_id);
+    matches!(node, hir::Node::ImplItem { .. })
 }
 
-fn self_sort(genv: &GlobalEnv, parent_id: Option<DefId>) -> Option<fhir::Sort> {
-    if let Some(alias_to) = parent_id
-        && super_hack_is_impl(alias_to)
-    {
+fn self_sort(genv: &GlobalEnv, parent_id: Option<DefId>, is_impl: bool) -> Option<fhir::Sort> {
+    if is_impl && let Some(alias_to) = parent_id {
         genv.sort_of_self_ty_alias(alias_to)
     } else {
         None
@@ -249,10 +249,9 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     ) -> RustItemCtxt<'a, 'tcx> {
         let generics = genv.tcx.generics_of(owner);
-
-        let owner_id = owner.def_id.to_def_id();
-        let parent_id = genv.tcx.opt_parent(owner_id);
-        let self_sort = self_sort(genv, parent_id);
+        let is_impl = is_impl_item(genv, owner);
+        let parent_id = genv.tcx.opt_parent(owner.def_id.to_def_id());
+        let self_sort = self_sort(genv, parent_id, is_impl);
         let sort_resolver = SortResolver::with_generics(
             genv.sess,
             genv.map().sort_decls(),
@@ -284,14 +283,17 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         lifted_generics: fhir::Generics,
         generics: &surface::Generics,
     ) -> Result<fhir::Generics> {
+        // Step 1: desugar the surface generics by themselves
         let generics = self.desugar_surface_generics(generics)?;
 
+        // Step 2: map each (surface) generic to its specified kind
         let generic_kinds: FxHashMap<_, _> = generics
             .params
             .into_iter()
             .map(|param| (param.def_id, param.kind))
             .collect();
 
+        // Step 3: traverse lifted_generics, using the surface-kind, if specified, and lifted kind otherwise
         let params = lifted_generics
             .params
             .iter()
