@@ -138,11 +138,13 @@ pub fn desugar_fn_sig(
         let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, Some(&mut opaque_tys));
 
         // Desugar and insert generics
+        let lifted_generics = cx.as_lift_cx().lift_generics()?;
         let generics = if let Some(generics) = &fn_sig.generics {
-            cx.desugar_generics(generics)?
+            cx.desugar_generics(lifted_generics, generics)?
         } else {
-            cx.as_lift_cx().lift_generics()?
+            lifted_generics
         };
+
         genv.map().insert_generics(def_id, generics);
 
         // Desugar of fn_sig needs to happen AFTER inserting generics. See crate level comment
@@ -186,7 +188,7 @@ pub fn desugar_generics_and_predicates(
 
     let generics = if let Some(generics) = generics {
         let cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
-        cx.desugar_generics(generics)?
+        cx.desugar_generics(lifted_generics, generics)?
     } else {
         lifted_generics
     };

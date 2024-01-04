@@ -278,9 +278,42 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         LiftCtxt::new(self.genv.tcx, self.genv.sess, self.owner, self.opaque_tys.as_deref_mut())
     }
 
-    pub(crate) fn desugar_generics(&self, generics: &surface::Generics) -> Result<fhir::Generics> {
-        let hir_generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
+    /// [desugar_generics] starts with the `lifted_generics` and "updates" it with the surface `generics`
+    pub(crate) fn desugar_generics(
+        &self,
+        lifted_generics: fhir::Generics,
+        generics: &surface::Generics,
+    ) -> Result<fhir::Generics> {
+        let generics = self.desugar_generics_inner(generics)?;
+        self.with_desugared_generics(lifted_generics, generics)
+    }
 
+    pub(crate) fn with_desugared_generics(
+        &self,
+        lifted_generics: fhir::Generics,
+        generics: fhir::Generics,
+    ) -> Result<fhir::Generics> {
+        let generics_map: FxHashMap<_, _> = generics
+            .params
+            .into_iter()
+            .map(|param| (param.def_id, param.kind))
+            .collect();
+
+        let params = lifted_generics
+            .params
+            .iter()
+            .map(|lifted_param| {
+                let def_id = lifted_param.def_id;
+                let kind = generics_map.get(&def_id).unwrap_or(&lifted_param.kind);
+                fhir::GenericParam { def_id, kind: kind.clone() }
+            })
+            .collect();
+
+        Ok(fhir::Generics { params, self_kind: generics.self_kind.clone() })
+    }
+
+    fn desugar_generics_inner(&self, generics: &surface::Generics) -> Result<fhir::Generics> {
+        let hir_generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
         let generics_map: FxHashMap<_, _> = hir_generics
             .params
             .iter()
