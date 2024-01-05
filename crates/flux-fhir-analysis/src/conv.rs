@@ -137,10 +137,8 @@ pub(crate) fn conv_opaque_ty(
 }
 
 pub(crate) fn conv_generics(
-    genv: &GlobalEnv,
     rust_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
-    refine_params: &[fhir::RefineParam],
     is_trait: Option<LocalDefId>,
 ) -> QueryResult<rty::Generics> {
     let opt_self = is_trait.map(|def_id| {
@@ -177,22 +175,21 @@ pub(crate) fn conv_generics(
         }))
         .collect();
 
-    let refine_params = refine_params
-        .iter()
-        .map(|param| conv_refine_param(genv, param))
-        .collect();
-
     Ok(rty::Generics {
         params,
-        refine_params,
         parent: rust_generics.parent(),
         parent_count: rust_generics.parent_count(),
-        parent_refine_count: rust_generics
-            .parent()
-            .map(|parent| genv.generics_of(parent))
-            .transpose()?
-            .map_or(0, |g| g.refine_count()),
     })
+}
+
+pub(crate) fn conv_refinement_generics(
+    genv: &GlobalEnv,
+    params: &[fhir::RefineParam],
+) -> List<rty::RefineParam> {
+    params
+        .iter()
+        .map(|param| conv_refine_param(genv, param))
+        .collect()
 }
 
 fn sort_args_for_adt(genv: &GlobalEnv, def_id: impl Into<DefId>) -> List<fhir::Sort> {

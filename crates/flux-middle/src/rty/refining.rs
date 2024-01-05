@@ -9,10 +9,7 @@ use rustc_middle::ty::{ClosureKind, ParamTy};
 use super::fold::TypeFoldable;
 use crate::{global_env::GlobalEnv, intern::List, queries::QueryResult, rty, rustc};
 
-pub(crate) fn refine_generics(
-    genv: &GlobalEnv,
-    generics: &rustc::ty::Generics,
-) -> QueryResult<rty::Generics> {
+pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> QueryResult<rty::Generics> {
     let params = generics
         .params
         .iter()
@@ -35,17 +32,7 @@ pub(crate) fn refine_generics(
         })
         .collect();
 
-    Ok(rty::Generics {
-        params,
-        refine_params: List::empty(),
-        parent: generics.parent(),
-        parent_count: generics.parent_count(),
-        parent_refine_count: generics
-            .parent()
-            .map(|parent| genv.generics_of(parent))
-            .transpose()?
-            .map_or(0, |g| g.refine_count()),
-    })
+    Ok(rty::Generics { params, parent: generics.parent(), parent_count: generics.parent_count() })
 }
 
 pub struct Refiner<'a, 'tcx> {
@@ -386,8 +373,8 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     ) -> QueryResult<rty::RefineArgs> {
         if let rustc::ty::AliasKind::Opaque = alias_kind {
             self.genv
-                .generics_of(def_id)?
-                .collect_all_refine_params(self.genv, |param| {
+                .refinement_generics_of(def_id)?
+                .collect_all_params(self.genv, |param| {
                     rty::Expr::hole(rty::HoleKind::Expr(param.sort.clone()))
                 })
         } else {
