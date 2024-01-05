@@ -292,6 +292,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
+
+        let generics = attrs.generics();
+
         let refined_by = attrs.refined_by();
 
         let enum_variants = if attrs.extern_spec() {
@@ -321,6 +324,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.specs.enums.insert(
             owner_id,
             surface::EnumDef {
+                generics,
                 refined_by,
                 variants,
                 invariants,
@@ -609,6 +613,16 @@ impl Specs {
             .iter()
             .map(|(owner_id, alias)| (*owner_id, alias.as_ref().map(|alias| &alias.refined_by)));
         itertools::chain!(structs, enums, aliases)
+    }
+
+    pub fn generics_of_adt(&self, owner_id: OwnerId) -> Option<&surface::Generics> {
+        if let Some(struct_def) = self.structs.get(&owner_id) {
+            return struct_def.generics.as_ref();
+        }
+        if let Some(enum_def) = self.enums.get(&owner_id) {
+            return enum_def.generics.as_ref();
+        }
+        None
     }
 }
 

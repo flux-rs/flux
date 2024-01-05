@@ -842,9 +842,9 @@ impl Generics {
         self.params.iter().find(|p| p.def_id == def_id).unwrap()
     }
 
-    pub fn with_refined_by(self, refined_by: &RefinedBy) -> Self {
+    pub fn with_refined_by(&self, refined_by: &RefinedBy) -> Self {
         let mut params = vec![];
-        for param in self.params {
+        for param in &self.params {
             let kind = if refined_by.is_base_generic(param.def_id.to_def_id()) {
                 GenericParamKind::SplTy
             } else {

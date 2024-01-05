@@ -19,7 +19,7 @@ extern crate rustc_middle;
 extern crate rustc_span;
 
 use desugar::RustItemCtxt;
-use flux_common::{dbg, index::IndexGen};
+use flux_common::dbg;
 use flux_config as config;
 use flux_macros::fluent_messages;
 use resolver::ResolverOutput;
@@ -34,10 +34,7 @@ mod sort_resolver;
 
 pub use desugar::{desugar_defn, desugar_qualifier, desugar_refined_by, func_def_to_func_decl};
 use flux_middle::{
-    fhir::{
-        self,
-        lift::{self, LiftCtxt},
-    },
+    fhir::{self, lift},
     global_env::GlobalEnv,
 };
 use flux_syntax::surface;
@@ -170,6 +167,20 @@ pub fn desugar_fn_sig(
     Ok(())
 }
 
+pub fn desugar_generics_for_adt(
+    genv: &mut GlobalEnv,
+    owner_id: OwnerId,
+    resolver_output: &ResolverOutput,
+    generics: Option<&surface::Generics>,
+) -> Result<fhir::Generics, ErrorGuaranteed> {
+    let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
+    if let Some(generics) = generics {
+        cx.desugar_generics(generics)
+    } else {
+        cx.as_lift_cx().lift_generics()
+    }
+}
+
 /// HACK(nilehmann) this is a bit of a hack. We use it to properly register generics and predicates
 /// for items that don't have surface syntax (impl blocks, traits, ...), or for `impl` blocks with
 /// explicit `generics` annotations. In the former case, we use `desugar`; in the latter cases we
@@ -180,13 +191,10 @@ pub fn desugar_generics_and_predicates(
     resolver_output: &ResolverOutput,
     generics: Option<&surface::Generics>,
 ) -> Result<(), ErrorGuaranteed> {
-    let local_id_gen = IndexGen::new();
-    let (lifted_generics, predicates) =
-        LiftCtxt::new(genv.tcx, genv.sess, owner_id, &local_id_gen, None)
-            .lift_generics_with_predicates()?;
+    let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
+    let (lifted_generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
 
     let generics = if let Some(generics) = generics {
-        let cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
         cx.desugar_generics(generics)?
     } else {
         lifted_generics

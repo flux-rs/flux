@@ -93,8 +93,8 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
         flux_fhir_analysis::provide(genv.providers());
 
-        stage1_desugar(&mut genv, &specs)?;
         let resolver_output = resolve_crate(tcx, sess, &specs)?;
+        stage1_desugar(&mut genv, &specs, &resolver_output)?;
         stage2_desugar(&mut genv, &mut specs, &resolver_output)?;
 
         flux_fhir_analysis::check_crate_wf(&genv)?;
@@ -123,22 +123,27 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     })
 }
 
-fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaranteed> {
+fn stage1_desugar(
+    genv: &mut GlobalEnv,
+    specs: &Specs,
+    resolver_output: &ResolverOutput,
+) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
     let tcx = genv.tcx;
     let sess = genv.sess;
-    let map = genv.map_mut();
 
     // Register Sorts
     for sort_decl in &specs.sort_decls {
-        map.insert_sort_decl(desugar::desugar_sort_decl(sort_decl));
+        genv.map_mut()
+            .insert_sort_decl(desugar::desugar_sort_decl(sort_decl));
     }
 
     // Register Consts
     for (def_id, const_sig) in &specs.consts {
         let did = def_id.to_def_id();
         let sym = def_id_symbol(tcx, *def_id);
-        map.insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
+        genv.map_mut()
+            .insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
     }
 
     // Register FnDecls
@@ -147,8 +152,8 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaran
         .iter()
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
-            let func_decl = desugar::func_def_to_func_decl(sess, map.sort_decls(), defn)?;
-            map.insert_func_decl(name.name, func_decl);
+            let func_decl = desugar::func_def_to_func_decl(sess, genv.map().sort_decls(), defn)?;
+            genv.map_mut().insert_func_decl(name.name, func_decl);
             Ok(())
         })
         .err()
@@ -158,15 +163,28 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaran
     err = specs
         .refined_bys()
         .try_for_each_exhaust(|(owner_id, refined_by)| {
-            let generics = lift::lift_generics(tcx, sess, owner_id)?;
             let refined_by = if let Some(refined_by) = refined_by {
                 let generics = tcx.generics_of(owner_id);
-                desugar::desugar_refined_by(sess, map.sort_decls(), owner_id, generics, refined_by)?
+                desugar::desugar_refined_by(
+                    sess,
+                    genv.map().sort_decls(),
+                    owner_id,
+                    generics,
+                    refined_by,
+                )?
             } else {
                 lift::lift_refined_by(tcx, owner_id)
             };
-            map.insert_generics(owner_id.def_id, generics.with_refined_by(&refined_by));
-            map.insert_refined_by(owner_id.def_id, refined_by);
+            let generics = desugar::desugar_generics_for_adt(
+                genv,
+                owner_id,
+                resolver_output,
+                specs.generics_of_adt(owner_id),
+            )?
+            .with_refined_by(&refined_by);
+            genv.map_mut().insert_generics(owner_id.def_id, generics);
+            genv.map_mut()
+                .insert_refined_by(owner_id.def_id, refined_by);
             Ok(())
         })
         .err()
@@ -177,7 +195,7 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaran
         .extern_specs
         .iter()
         .for_each(|(extern_def_id, local_def_id)| {
-            map.insert_extern(*extern_def_id, *local_def_id);
+            genv.map_mut().insert_extern(*extern_def_id, *local_def_id);
         });
 
     if let Some(err) = err {

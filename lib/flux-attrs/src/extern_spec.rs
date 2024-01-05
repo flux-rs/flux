@@ -61,6 +61,16 @@ impl ExternItemImpl {
         Ok(())
     }
 
+    fn find_generics_attr(&self) -> Option<&Attribute> {
+        self.attrs.iter().find(|attr| {
+            let segments = &attr.path().segments;
+            if segments.len() != 2 {
+                return false;
+            }
+            segments[0].ident == "flux" && segments[1].ident == "generics"
+        })
+    }
+
     fn dummy_struct(&self) -> syn::ItemStruct {
         let self_ty = &self.self_ty;
         let struct_field: syn::FieldsUnnamed = if let Some(mod_path) = &self.mod_path {
@@ -70,7 +80,7 @@ impl ExternItemImpl {
         };
 
         syn::ItemStruct {
-            attrs: vec![],
+            attrs: self.find_generics_attr().into_iter().cloned().collect(),
             vis: syn::Visibility::Inherited,
             struct_token: syn::token::Struct { span: self.impl_token.span },
             ident: self.dummy_ident.as_ref().unwrap().clone(),
