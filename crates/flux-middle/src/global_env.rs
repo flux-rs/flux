@@ -122,6 +122,13 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.generics_of(self, def_id.into())
     }
 
+    pub fn refinement_generics_of(
+        &self,
+        def_id: impl Into<DefId>,
+    ) -> QueryResult<rty::RefinementGenerics> {
+        self.queries.refinement_generics_of(self, def_id.into())
+    }
+
     pub fn predicates_of(
         &self,
         def_id: impl Into<DefId>,

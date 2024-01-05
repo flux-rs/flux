@@ -59,11 +59,16 @@ pub use crate::{
 
 #[derive(Debug, Clone)]
 pub struct Generics {
-    pub params: List<GenericParamDef>,
-    pub refine_params: List<RefineParam>,
     pub parent: Option<DefId>,
     pub parent_count: usize,
-    pub parent_refine_count: usize,
+    pub params: List<GenericParamDef>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RefinementGenerics {
+    pub parent: Option<DefId>,
+    pub parent_count: usize,
+    pub params: List<RefineParam>,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
@@ -599,30 +604,28 @@ impl Generics {
             Ok(self.params[index].clone())
         } else {
             let parent = self.parent.expect("parent_count > 0 but no parent?");
-            let parent_generics = genv.generics_of(parent)?;
-            parent_generics.param_at(param_index, genv)
+            genv.generics_of(parent)?.param_at(param_index, genv)
         }
     }
+}
 
-    pub fn refine_count(&self) -> usize {
-        self.parent_refine_count + self.refine_params.len()
+impl RefinementGenerics {
+    pub fn count(&self) -> usize {
+        self.parent_count + self.params.len()
     }
 
-    pub fn refine_param_at(
-        &self,
-        param_index: usize,
-        genv: &GlobalEnv,
-    ) -> QueryResult<RefineParam> {
-        if let Some(index) = param_index.checked_sub(self.parent_refine_count) {
-            Ok(self.refine_params[index].clone())
+    pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> QueryResult<RefineParam> {
+        if let Some(index) = param_index.checked_sub(self.parent_count) {
+            Ok(self.params[index].clone())
         } else {
-            genv.generics_of(self.parent.expect("parent_count > 0 but no parent?"))?
-                .refine_param_at(param_index, genv)
+            let parent = self.parent.expect("parent_count > 0 but no parent?");
+            genv.refinement_generics_of(parent)?
+                .param_at(param_index, genv)
         }
     }
 
-    /// Iterate and collect all refinement parameters in this item including parents
-    pub fn collect_all_refine_params<T, S>(
+    /// Iterate and collect all parameters in this item including parents
+    pub fn collect_all_params<T, S>(
         &self,
         genv: &GlobalEnv,
         mut f: impl FnMut(RefineParam) -> T,
@@ -630,8 +633,8 @@ impl Generics {
     where
         S: FromIterator<T>,
     {
-        (0..self.refine_count())
-            .map(|i| Ok(f(self.refine_param_at(i, genv)?)))
+        (0..self.count())
+            .map(|i| Ok(f(self.param_at(i, genv)?)))
             .try_collect()
     }
 }

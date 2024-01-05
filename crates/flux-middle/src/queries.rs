@@ -56,6 +56,7 @@ pub struct Providers {
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>,
     pub fn_sig: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>>,
     pub generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
+    pub refinement_generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::RefinementGenerics>,
     pub predicates_of:
         fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>>,
     pub item_bounds: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
@@ -79,6 +80,7 @@ impl Default for Providers {
             variants_of: |_, _| empty_query!(),
             fn_sig: |_, _| empty_query!(),
             generics_of: |_, _| empty_query!(),
+            refinement_generics_of: |_, _| empty_query!(),
             predicates_of: |_, _| empty_query!(),
             item_bounds: |_, _| empty_query!(),
         }
@@ -99,6 +101,7 @@ pub struct Queries<'tcx> {
     check_wf: Cache<FluxLocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
+    refinement_generics_of: Cache<DefId, QueryResult<rty::RefinementGenerics>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
@@ -239,7 +242,23 @@ impl<'tcx> Queries<'tcx> {
                 (self.providers.generics_of)(genv, local_id)
             } else {
                 let generics = genv.lower_generics_of(def_id)?;
-                refining::refine_generics(genv, &generics)
+                refining::refine_generics(&generics)
+            }
+        })
+    }
+
+    pub(crate) fn refinement_generics_of(
+        &self,
+        genv: &GlobalEnv,
+        def_id: DefId,
+    ) -> QueryResult<rty::RefinementGenerics> {
+        run_with_cache(&self.refinement_generics_of, def_id, || {
+            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
+            if let Some(local_id) = def_id.as_local() {
+                (self.providers.refinement_generics_of)(genv, local_id)
+            } else {
+                let parent = genv.tcx.generics_of(def_id).parent;
+                Ok(rty::RefinementGenerics { parent, parent_count: 0, params: List::empty() })
             }
         })
     }
