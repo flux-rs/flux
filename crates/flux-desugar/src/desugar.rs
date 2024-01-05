@@ -648,7 +648,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
                 let idx = fhir::RefineArg {
                     kind: fhir::RefineArgKind::Expr(fhir::Expr {
-                        kind: fhir::ExprKind::Var(params[0].ident, false),
+                        kind: fhir::ExprKind::Var(params[0].ident, None),
                         span: ex_bind.span,
                         fhir_id: self.next_fhir_id(),
                     }),
@@ -777,13 +777,16 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     fn bind_into_refine_arg(
         &self,
         ident: surface::Ident,
-        env: &mut Env,
+        env: &Env,
     ) -> Result<Option<fhir::RefineArg>> {
-        match env.get_mut(ident) {
+        match env.get(ident) {
             Some(param) => {
                 Ok(Some(fhir::RefineArg {
                     kind: fhir::RefineArgKind::Expr(fhir::Expr {
-                        kind: fhir::ExprKind::Var(fhir::Ident::new(param.name, ident), true),
+                        kind: fhir::ExprKind::Var(
+                            fhir::Ident::new(param.name, ident),
+                            Some(param.kind),
+                        ),
                         span: ident.span,
                         fhir_id: self.next_fhir_id(),
                     }),
@@ -967,7 +970,7 @@ impl Scope<Param> {
             let ident = fhir::Ident::new(param.name, *ident);
             refine_args.push(fhir::RefineArg {
                 kind: fhir::RefineArgKind::Expr(fhir::Expr {
-                    kind: ExprKind::Var(ident, false),
+                    kind: ExprKind::Var(ident, None),
                     span,
                     fhir_id: cx.next_fhir_id(),
                 }),
@@ -997,7 +1000,7 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
         let kind = match &expr.kind {
             surface::ExprKind::QPath(qpath) => {
                 match self.resolve_qpath(env, qpath)? {
-                    QPathRes::Param(ident) => fhir::ExprKind::Var(ident, false),
+                    QPathRes::Param(ident) => fhir::ExprKind::Var(ident, None),
                     QPathRes::Const(const_info) => {
                         fhir::ExprKind::Const(const_info.def_id, qpath.span)
                     }

@@ -21,7 +21,7 @@ use rustc_hash::FxHashSet;
 use rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
 use rustc_span::Symbol;
 
-use self::sortck::{InferCtxt, S};
+use self::sortck::InferCtxt;
 
 struct Wf<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
@@ -168,12 +168,11 @@ pub(crate) fn check_fn_sig(
 
     infcx.push_layer(&fn_sig.params);
 
-    let mut vis = S::new(&mut infcx);
     for arg in &fn_sig.args {
-        fhir::visit::Visitor::visit_ty(&mut vis, arg);
+        infcx.infer_implicit_params_ty(arg)?;
     }
     for constr in &fn_sig.requires {
-        fhir::visit::Visitor::visit_constraint(&mut vis, constr);
+        infcx.infer_implicit_params_constraint(constr)?;
     }
 
     let args = fn_sig
@@ -267,6 +266,10 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         variant: &fhir::VariantDef,
     ) -> Result<(), ErrorGuaranteed> {
         infcx.push_layer(&variant.params);
+        for field in &variant.fields {
+            infcx.infer_implicit_params_ty(&field.ty)?;
+        }
+
         let fields = variant
             .fields
             .iter()
@@ -290,8 +293,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         let snapshot = self.xi.snapshot();
         infcx.push_layer(&fn_output.params);
-        let mut vis = S::new(infcx);
-        fhir::visit::Visitor::visit_ty(&mut vis, &fn_output.ret);
+        infcx.infer_implicit_params_ty(&fn_output.ret)?;
 
         self.check_type(infcx, &fn_output.ret)?;
         fn_output
@@ -355,6 +357,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::TyKind::Indexed(bty, idx) => {
                 if let Some(expected) = self.genv.sort_of_bty(bty) {
                     self.check_refine_arg(infcx, idx, &expected)?;
+                } else {
+                    return self.emit_err(errors::RefinedUnrefinableType::new(bty.span));
                 }
                 self.check_base_ty(infcx, bty)
             }
@@ -402,16 +406,21 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .try_collect_exhaust()
     }
 
-    fn check_ty_is_base(&self, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
+    fn check_ty_is_spl(&self, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
         match &ty.kind {
-            fhir::TyKind::BaseTy(_) | fhir::TyKind::Indexed(_, _) => Ok(()),
-            fhir::TyKind::Tuple(tys) => {
-                for ty in tys {
-                    self.check_ty_is_base(ty)?;
+            fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, _) => {
+                if self.genv.sort_of_bty(bty).is_none() {
+                    return self.emit_err(errors::InvalidBaseInstance::new(ty));
                 }
                 Ok(())
             }
-            fhir::TyKind::Constr(_, ty) | fhir::TyKind::Exists(_, ty) => self.check_ty_is_base(ty),
+            fhir::TyKind::Tuple(tys) => {
+                for ty in tys {
+                    self.check_ty_is_spl(ty)?;
+                }
+                Ok(())
+            }
+            fhir::TyKind::Constr(_, ty) | fhir::TyKind::Exists(_, ty) => self.check_ty_is_spl(ty),
 
             fhir::TyKind::Ptr(_, _)
             | fhir::TyKind::Ref(_, _)
@@ -432,7 +441,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         for (arg, param) in iter::zip(args, &generics.params) {
             if param.kind == GenericParamDefKind::SplTy {
                 if let fhir::GenericArg::Type(ty) = arg {
-                    self.check_ty_is_base(ty)?;
+                    self.check_ty_is_spl(ty)?;
                 } else {
                     bug!("expected type argument got `{arg:?}`");
                 }

@@ -12,6 +12,11 @@ pub struct Pair {
     pub y: i32,
 }
 
+#[flux::sig(fn(Pair[@p,@q,@r]) -> i32[p])] //~ ERROR this type takes 1 or 2 refinement arguments but 3 were found
+pub fn mytuple1(p: Pair) -> i32 {
+    p.x
+}
+
 #[flux::sig(fn(Pair[@p]) -> i32[p])] //~ ERROR mismatched sorts
 pub fn mytuple2(p: Pair) -> i32 {
     p.x
@@ -30,6 +35,11 @@ fn ris(f: f32) -> i32 {
 #[flux::sig(fn(f: f32) -> i32[f])] //~ ERROR mismatched sorts
 fn ipa(f: f32) -> i32 {
     0
+}
+
+#[flux::sig(fn () -> Chair[0])] //~ ERROR this type takes 0 refinement arguments but 1 was found
+pub fn mk_chair() -> Chair {
+    Chair { x: 0 }
 }
 
 #[flux::sig(fn(c: Chair) -> i32[c.a])] //~ ERROR no field `a` on sort `Chair`

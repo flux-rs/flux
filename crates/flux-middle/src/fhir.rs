@@ -609,7 +609,7 @@ pub struct Expr {
 #[derive(Clone)]
 pub enum ExprKind {
     Const(DefId, Span),
-    Var(Ident, /* is_binder */ bool),
+    Var(Ident, Option<ParamKind>),
     Dot(Ident, SurfaceIdent),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),

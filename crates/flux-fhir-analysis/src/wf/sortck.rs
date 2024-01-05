@@ -101,7 +101,12 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 .map(|(arg, expected)| self.check_refine_arg(arg, &expected))
                 .try_collect_exhaust()
         } else {
-            todo!()
+            Err(self.emit_err(errors::ArgCountMismatch::new(
+                Some(span),
+                String::from("type"),
+                1,
+                args.len(),
+            )))
         }
     }
 
@@ -552,6 +557,24 @@ impl<'a> InferCtxt<'a, '_> {
         })
     }
 
+    pub(crate) fn infer_implicit_params_ty(
+        &mut self,
+        ty: &fhir::Ty,
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut vis = S::new(self);
+        fhir::visit::Visitor::visit_ty(&mut vis, ty);
+        vis.into_result()
+    }
+
+    pub(crate) fn infer_implicit_params_constraint(
+        &mut self,
+        constr: &fhir::Constraint,
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut vis = S::new(self);
+        fhir::visit::Visitor::visit_constraint(&mut vis, constr);
+        vis.into_result()
+    }
+
     fn has_equality(&mut self, sort: &fhir::Sort) -> bool {
         self.resolve_sort(sort)
             .map_or(false, |s| self.genv.has_equality(&s))
@@ -567,19 +590,28 @@ impl<'a> InferCtxt<'a, '_> {
     }
 }
 
-pub(super) struct S<'a, 'b, 'tcx> {
+struct S<'a, 'b, 'tcx> {
     infcx: &'a mut InferCtxt<'b, 'tcx>,
+    err: Option<ErrorGuaranteed>,
 }
 
 impl<'a, 'b, 'tcx> S<'a, 'b, 'tcx> {
-    pub(super) fn new(infcx: &'a mut InferCtxt<'b, 'tcx>) -> Self {
-        Self { infcx }
+    fn new(infcx: &'a mut InferCtxt<'b, 'tcx>) -> Self {
+        Self { infcx, err: None }
     }
 
-    fn foo(&mut self, idx: &fhir::RefineArg, expected: &fhir::Sort) {
+    fn into_result(self) -> Result<(), ErrorGuaranteed> {
+        if let Some(err) = self.err {
+            Err(err)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn foo(&mut self, idx: &fhir::RefineArg, expected: &fhir::Sort) -> Result<(), ErrorGuaranteed> {
         match &idx.kind {
             fhir::RefineArgKind::Expr(expr) => {
-                if let fhir::ExprKind::Var(var, true) = &expr.kind {
+                if let fhir::ExprKind::Var(var, Some(_)) = &expr.kind {
                     let found = self.infcx[var.name].clone();
                     self.infcx.equate(&found, expected);
                 }
@@ -589,16 +621,29 @@ impl<'a, 'b, 'tcx> S<'a, 'b, 'tcx> {
                 if let fhir::Sort::Record(def_id, sort_args) = expected {
                     let sorts = self.infcx.genv.index_sorts_of(*def_id, sort_args);
                     if flds.len() != sorts.len() {
-                        todo!()
+                        return Err(self.emit_err(errors::ArgCountMismatch::new(
+                            Some(idx.span),
+                            String::from("type"),
+                            sorts.len(),
+                            flds.len(),
+                        )));
                     }
                     for (f, sort) in iter::zip(flds, sorts) {
-                        self.foo(f, &sort);
+                        self.foo(f, &sort)?;
                     }
                 } else {
                     todo!()
                 }
             }
         }
+        Ok(())
+    }
+
+    #[track_caller]
+    fn emit_err<'c>(&'c mut self, err: impl IntoDiagnostic<'c>) -> ErrorGuaranteed {
+        let err = self.infcx.emit_err(err);
+        self.err = Some(err);
+        err
     }
 }
 
@@ -606,9 +651,14 @@ impl fhir::visit::Visitor for S<'_, '_, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty) {
         if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
             if let Some(expected) = self.infcx.genv.sort_of_bty(bty) {
-                self.foo(idx, &expected);
-            } else {
+                let _ = self.foo(idx, &expected);
+            } else if let fhir::RefineArgKind::Expr(expr) = &idx.kind
+                && let fhir::ExprKind::Var(_var, Some(param)) = &expr.kind
+                && let fhir::ParamKind::Colon = param
+            {
                 todo!()
+            } else {
+                let _ = self.emit_err(errors::RefinedUnrefinableType::new(bty.span));
             }
         }
         fhir::visit::walk_ty(self, ty);
