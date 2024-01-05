@@ -169,7 +169,12 @@ pub(crate) fn check_fn_sig(
     infcx.push_layer(&fn_sig.params);
 
     let mut vis = S::new(&mut infcx);
-    fhir::visit::Visitor::visit_fn_sig(&mut vis, fn_sig);
+    for arg in &fn_sig.args {
+        fhir::visit::Visitor::visit_ty(&mut vis, arg);
+    }
+    for constr in &fn_sig.requires {
+        fhir::visit::Visitor::visit_constraint(&mut vis, constr);
+    }
 
     let args = fn_sig
         .args
@@ -280,20 +285,24 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
 
     fn check_fn_output(
         &mut self,
-        env: &mut InferCtxt,
+        infcx: &mut InferCtxt,
         fn_output: &fhir::FnOutput,
     ) -> Result<(), ErrorGuaranteed> {
         let snapshot = self.xi.snapshot();
-        env.push_layer(&fn_output.params);
-        self.check_type(env, &fn_output.ret)?;
+        infcx.push_layer(&fn_output.params);
+        let mut vis = S::new(infcx);
+        fhir::visit::Visitor::visit_ty(&mut vis, &fn_output.ret);
+
+        self.check_type(infcx, &fn_output.ret)?;
         fn_output
             .ensures
             .iter()
-            .try_for_each_exhaust(|constr| self.check_constraint(env, constr))?;
+            .try_for_each_exhaust(|constr| self.check_constraint(infcx, constr))?;
 
-        let params = self.check_params_are_determined(env, &fn_output.params);
+        let params = self.check_params_are_determined(infcx, &fn_output.params);
 
         self.xi.rollback_to(snapshot);
+        infcx.resolve_params_sorts(&fn_output.params)?;
 
         params
     }

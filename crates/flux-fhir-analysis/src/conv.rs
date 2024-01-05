@@ -1181,7 +1181,7 @@ fn resolve_param_sort<'a>(
         wfckresults
             .node_sorts()
             .get(param.fhir_id)
-            .unwrap_or_else(|| bug!("{param:?}"))
+            .unwrap_or_else(|| bug!("unresolved sort for param: `{param:?}`"))
     } else {
         &param.sort
     }
