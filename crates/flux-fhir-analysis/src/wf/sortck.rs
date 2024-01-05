@@ -561,7 +561,7 @@ impl<'a> InferCtxt<'a, '_> {
         &mut self,
         ty: &fhir::Ty,
     ) -> Result<(), ErrorGuaranteed> {
-        let mut vis = S::new(self);
+        let mut vis = ImplicitParamInferer::new(self);
         fhir::visit::Visitor::visit_ty(&mut vis, ty);
         vis.into_result()
     }
@@ -570,7 +570,7 @@ impl<'a> InferCtxt<'a, '_> {
         &mut self,
         constr: &fhir::Constraint,
     ) -> Result<(), ErrorGuaranteed> {
-        let mut vis = S::new(self);
+        let mut vis = ImplicitParamInferer::new(self);
         fhir::visit::Visitor::visit_constraint(&mut vis, constr);
         vis.into_result()
     }
@@ -590,12 +590,12 @@ impl<'a> InferCtxt<'a, '_> {
     }
 }
 
-struct S<'a, 'b, 'tcx> {
+struct ImplicitParamInferer<'a, 'b, 'tcx> {
     infcx: &'a mut InferCtxt<'b, 'tcx>,
     err: Option<ErrorGuaranteed>,
 }
 
-impl<'a, 'b, 'tcx> S<'a, 'b, 'tcx> {
+impl<'a, 'b, 'tcx> ImplicitParamInferer<'a, 'b, 'tcx> {
     fn new(infcx: &'a mut InferCtxt<'b, 'tcx>) -> Self {
         Self { infcx, err: None }
     }
@@ -632,7 +632,12 @@ impl<'a, 'b, 'tcx> S<'a, 'b, 'tcx> {
                         self.foo(f, &sort)?;
                     }
                 } else {
-                    todo!()
+                    return Err(self.emit_err(errors::ArgCountMismatch::new(
+                        Some(idx.span),
+                        String::from("type"),
+                        1,
+                        flds.len(),
+                    )));
                 }
             }
         }
@@ -647,7 +652,7 @@ impl<'a, 'b, 'tcx> S<'a, 'b, 'tcx> {
     }
 }
 
-impl fhir::visit::Visitor for S<'_, '_, '_> {
+impl fhir::visit::Visitor for ImplicitParamInferer<'_, '_, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty) {
         if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
             if let Some(expected) = self.infcx.genv.sort_of_bty(bty) {
