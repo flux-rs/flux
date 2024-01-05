@@ -20,7 +20,7 @@ use rustc_hash::FxHashSet;
 use rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
 use rustc_span::Symbol;
 
-use self::sortck::InferCtxt;
+use self::sortck::{InferCtxt, S};
 
 struct Wf<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
@@ -158,6 +158,9 @@ pub(crate) fn check_fn_sig(
     let mut wf = Wf::new(genv);
 
     infcx.push_layer(&fn_sig.params);
+
+    let mut vis = S::new(&mut infcx);
+    fhir::visit::Visitor::visit_fn_sig(&mut vis, fn_sig);
 
     let args = fn_sig
         .args
@@ -534,7 +537,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         match &arg.kind {
             fhir::RefineArgKind::Expr(expr) => {
-                if let fhir::ExprKind::Var(var) = &expr.kind {
+                if let fhir::ExprKind::Var(var, _) = &expr.kind {
                     self.xi.insert(var.name);
                 } else {
                     self.check_param_uses_expr(infcx, expr, false)?;
@@ -575,7 +578,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 args.iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses_expr(infcx, arg, false))
             }
-            fhir::ExprKind::Var(var) => {
+            fhir::ExprKind::Var(var, _) => {
                 if let sort @ fhir::Sort::Func(_) = &infcx[var.name] {
                     return self.emit_err(errors::InvalidParamPos::new(var.span(), sort));
                 }

@@ -56,7 +56,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         fhir_id: FhirId,
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
-        if let Some(fsort) = self.is_coercible_to_func(expected, fhir_id) {
+        if let Some(fsort) = self.is_coercible_to_func(expected, fhir_id, fhir::Coercion::Inject) {
             let fsort = fsort.skip_binders();
             self.push_layer(params);
 
@@ -123,7 +123,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             | fhir::ExprKind::Dot(_, _)
             | fhir::ExprKind::App(_, _)
             | fhir::ExprKind::Const(_, _)
-            | fhir::ExprKind::Var(_)
+            | fhir::ExprKind::Var(..)
             | fhir::ExprKind::Literal(_) => {
                 let found = self.synth_expr(expr)?;
                 if !self.is_coercible(&found, expected, expr.fhir_id) {
@@ -174,7 +174,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             | fhir::BinOp::Ge => {}
         }
         let found = self.synth_binary_op(expr, op, e1, e2)?;
-        if &found != expected {
+        if !self.is_coercible(&found, expected, expr.fhir_id) {
             return Err(self.emit_sort_mismatch(expr.span, expected, &found));
         }
         Ok(())
@@ -191,7 +191,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn synth_expr(&mut self, expr: &fhir::Expr) -> Result<fhir::Sort, ErrorGuaranteed> {
         match &expr.kind {
-            fhir::ExprKind::Var(var) => Ok(self[var.name].clone()),
+            fhir::ExprKind::Var(var, _) => Ok(self[var.name].clone()),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => self.synth_binary_op(expr, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
@@ -314,7 +314,9 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let func_sort = match func {
             fhir::Func::Var(var, fhir_id) => {
                 let sort = self[&var.name].clone();
-                if let Some(fsort) = self.is_coercible_to_func(&sort, *fhir_id) {
+                if let Some(fsort) =
+                    self.is_coercible_to_func(&sort, *fhir_id, fhir::Coercion::Project)
+                {
                     Ok(fsort)
                 } else {
                     Err(self.emit_err(errors::ExpectedFun::new(var.span(), &sort)))
@@ -410,13 +412,14 @@ impl<'a> InferCtxt<'a, '_> {
         &mut self,
         sort: &fhir::Sort,
         fhir_id: FhirId,
+        coercion: fhir::Coercion,
     ) -> Option<fhir::PolyFuncSort> {
         if let Some(fsort) = self.is_func(sort) {
             Some(fsort)
         } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_field_record(sort) {
             self.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, vec![fhir::Coercion::Project]);
+                .insert(fhir_id, vec![coercion]);
             Some(fsort.clone())
         } else {
             None
@@ -450,6 +453,11 @@ impl<'a> InferCtxt<'a, '_> {
             _ if sort1 == sort2 => Some(sort1.clone()),
             _ => None,
         }
+    }
+
+    fn equate(&mut self, sort1: &fhir::Sort, sort2: &fhir::Sort) -> fhir::Sort {
+        self.try_equate(sort1, sort2)
+            .unwrap_or_else(|| bug!("failed to equate sorts: `{sort1:?}` `{sort2:?}`"))
     }
 
     fn next_sort_vid(&mut self) -> fhir::SortVid {
@@ -556,6 +564,54 @@ impl<'a> InferCtxt<'a, '_> {
     pub(crate) fn infer_mode(&self, var: fhir::Ident) -> fhir::InferMode {
         let (sort, kind) = &self.params[&var.name];
         kind.infer_mode(sort)
+    }
+}
+
+pub(super) struct S<'a, 'b, 'tcx> {
+    infcx: &'a mut InferCtxt<'b, 'tcx>,
+}
+
+impl<'a, 'b, 'tcx> S<'a, 'b, 'tcx> {
+    pub(super) fn new(infcx: &'a mut InferCtxt<'b, 'tcx>) -> Self {
+        Self { infcx }
+    }
+
+    fn foo(&mut self, idx: &fhir::RefineArg, expected: &fhir::Sort) {
+        match &idx.kind {
+            fhir::RefineArgKind::Expr(expr) => {
+                if let fhir::ExprKind::Var(var, true) = &expr.kind {
+                    let found = self.infcx[var.name].clone();
+                    self.infcx.equate(&found, expected);
+                }
+            }
+            fhir::RefineArgKind::Abs(_, _) => {}
+            fhir::RefineArgKind::Record(flds) => {
+                if let fhir::Sort::Record(def_id, sort_args) = expected {
+                    let sorts = self.infcx.genv.index_sorts_of(*def_id, sort_args);
+                    if flds.len() != sorts.len() {
+                        todo!()
+                    }
+                    for (f, sort) in iter::zip(flds, sorts) {
+                        self.foo(f, &sort);
+                    }
+                } else {
+                    todo!()
+                }
+            }
+        }
+    }
+}
+
+impl fhir::visit::Visitor for S<'_, '_, '_> {
+    fn visit_ty(&mut self, ty: &fhir::Ty) {
+        if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
+            if let Some(expected) = self.infcx.genv.sort_of_bty(bty) {
+                self.foo(idx, &expected);
+            } else {
+                todo!()
+            }
+        }
+        fhir::visit::walk_ty(self, ty);
     }
 }
 

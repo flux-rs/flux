@@ -24,7 +24,7 @@ pub fn dump_item_info<T: fmt::Debug>(
     tcx: TyCtxt,
     def_id: impl Into<DefId>,
     ext: impl AsRef<str>,
-    val: &T,
+    val: T,
 ) -> io::Result<()> {
     let mut writer = writer_for_item(tcx, def_id.into(), ext)?;
     write!(writer, "{val:#?}")

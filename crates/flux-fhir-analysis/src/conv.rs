@@ -955,7 +955,7 @@ impl ConvCtxt<'_, '_> {
         let espan = Some(ESpan::new(expr.span));
         let expr = match &expr.kind {
             fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did, espan),
-            fhir::ExprKind::Var(var) => env.lookup(*var).to_expr(),
+            fhir::ExprKind::Var(var, _) => env.lookup(*var).to_expr(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant_at(conv_lit(*lit), espan),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 rty::Expr::binary_op(*op, self.conv_expr(env, e1), self.conv_expr(env, e2), espan)

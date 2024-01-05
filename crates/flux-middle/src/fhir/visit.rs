@@ -285,7 +285,7 @@ pub fn walk_refine_arg<V: Visitor>(vis: &mut V, arg: &RefineArg) {
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
     match &expr.kind {
         ExprKind::Const(_def_id, _span) => {}
-        ExprKind::Var(var) => vis.visit_ident(*var),
+        ExprKind::Var(var, _) => vis.visit_ident(*var),
         ExprKind::Dot(base, _fld) => {
             vis.visit_ident(*base);
         }

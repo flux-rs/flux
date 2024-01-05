@@ -648,7 +648,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
                 let idx = fhir::RefineArg {
                     kind: fhir::RefineArgKind::Expr(fhir::Expr {
-                        kind: fhir::ExprKind::Var(params[0].ident),
+                        kind: fhir::ExprKind::Var(params[0].ident, false),
                         span: ex_bind.span,
                         fhir_id: self.next_fhir_id(),
                     }),
@@ -783,7 +783,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             Some(param) => {
                 Ok(Some(fhir::RefineArg {
                     kind: fhir::RefineArgKind::Expr(fhir::Expr {
-                        kind: fhir::ExprKind::Var(fhir::Ident::new(param.name, ident)),
+                        kind: fhir::ExprKind::Var(fhir::Ident::new(param.name, ident), true),
                         span: ident.span,
                         fhir_id: self.next_fhir_id(),
                     }),
@@ -965,10 +965,9 @@ impl Scope<Param> {
         let mut refine_args = vec![];
         for (ident, param) in self.iter() {
             let ident = fhir::Ident::new(param.name, *ident);
-            let kind = ExprKind::Var(ident);
             refine_args.push(fhir::RefineArg {
                 kind: fhir::RefineArgKind::Expr(fhir::Expr {
-                    kind,
+                    kind: ExprKind::Var(ident, false),
                     span,
                     fhir_id: cx.next_fhir_id(),
                 }),
@@ -998,7 +997,7 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
         let kind = match &expr.kind {
             surface::ExprKind::QPath(qpath) => {
                 match self.resolve_qpath(env, qpath)? {
-                    QPathRes::Param(ident) => fhir::ExprKind::Var(ident),
+                    QPathRes::Param(ident) => fhir::ExprKind::Var(ident, false),
                     QPathRes::Const(const_info) => {
                         fhir::ExprKind::Const(const_info.def_id, qpath.span)
                     }

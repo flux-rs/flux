@@ -141,6 +141,11 @@ fn item_bounds(
 }
 
 fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
+    static A: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    println!("{local_id:?}");
+    if A.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 2 {
+        panic!();
+    }
     let def_id = local_id.to_def_id();
     let rustc_generics = genv.lower_generics_of(local_id)?;
 
@@ -252,7 +257,8 @@ fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
         .map(|fn_sig| fn_sig.normalize(defns));
 
     if config::dump_rty() {
-        dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
+        let generics = genv.generics_of(def_id)?;
+        dbg::dump_item_info(genv.tcx, def_id, "rty", (generics, &fn_sig)).unwrap();
     }
     Ok(fn_sig)
 }
