@@ -406,6 +406,18 @@ pub struct RefineArg {
     pub span: Span,
 }
 
+impl RefineArg {
+    pub fn is_colon_param(&self) -> Option<Ident> {
+        if let RefineArgKind::Expr(expr) = &self.kind
+            && let ExprKind::Var(var, Some(ParamKind::Colon)) = &expr.kind
+        {
+            Some(*var)
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum RefineArgKind {
     Expr(Expr),

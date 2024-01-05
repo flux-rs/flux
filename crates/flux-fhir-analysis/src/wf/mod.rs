@@ -357,7 +357,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             fhir::TyKind::Indexed(bty, idx) => {
                 if let Some(expected) = self.genv.sort_of_bty(bty) {
                     self.check_refine_arg(infcx, idx, &expected)?;
-                } else {
+                } else if idx.is_colon_param().is_none() {
                     return self.emit_err(errors::RefinedUnrefinableType::new(bty.span));
                 }
                 self.check_base_ty(infcx, bty)
@@ -559,7 +559,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     /// Checks that refinement parameters of function sort are used in allowed positions.
     fn check_param_uses_refine_arg(
         &mut self,
-        infcx: &InferCtxt,
+        infcx: &mut InferCtxt,
         arg: &fhir::RefineArg,
     ) -> Result<(), ErrorGuaranteed> {
         match &arg.kind {
@@ -582,7 +582,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     /// Checks that refinement parameters of function sort are used in allowed positions.
     fn check_param_uses_expr(
         &self,
-        infcx: &InferCtxt,
+        infcx: &mut InferCtxt,
         expr: &fhir::Expr,
         is_top_level_conj: bool,
     ) -> Result<(), ErrorGuaranteed> {
@@ -599,14 +599,16 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     && let fhir::Func::Var(var, _) = func
                     && let fhir::InferMode::KVar = infcx.infer_mode(*var)
                 {
-                    return self
-                        .emit_err(errors::InvalidParamPos::new(var.span(), &infcx[var.name]));
+                    return self.emit_err(errors::InvalidParamPos::new(
+                        var.span(),
+                        &infcx.lookup_var(*var),
+                    ));
                 }
                 args.iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses_expr(infcx, arg, false))
             }
             fhir::ExprKind::Var(var, _) => {
-                if let sort @ fhir::Sort::Func(_) = &infcx[var.name] {
+                if let sort @ fhir::Sort::Func(_) = &infcx.lookup_var(*var) {
                     return self.emit_err(errors::InvalidParamPos::new(var.span(), sort));
                 }
                 Ok(())
@@ -618,7 +620,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             }
             fhir::ExprKind::Literal(_) | fhir::ExprKind::Const(_, _) => Ok(()),
             fhir::ExprKind::Dot(var, _) => {
-                if let sort @ fhir::Sort::Func(_) = &infcx[var.name] {
+                if let sort @ fhir::Sort::Func(_) = &infcx.lookup_var(*var) {
                     return self.emit_err(errors::InvalidParamPos::new(var.span(), sort));
                 }
                 Ok(())

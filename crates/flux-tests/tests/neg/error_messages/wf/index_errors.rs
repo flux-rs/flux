@@ -12,7 +12,7 @@ pub struct Pair {
     pub y: i32,
 }
 
-#[flux::sig(fn(Pair[@p,@q,@r]) -> i32[p])] //~ ERROR this type takes 1 or 2 refinement arguments but 3 were found
+#[flux::sig(fn(Pair[@p,@q,@r]) -> i32[p])] //~ ERROR this type takes 2 refinement arguments but 3 were found
 pub fn mytuple1(p: Pair) -> i32 {
     p.x
 }
@@ -37,7 +37,8 @@ fn ipa(f: f32) -> i32 {
     0
 }
 
-#[flux::sig(fn () -> Chair[0])] //~ ERROR this type takes 0 refinement arguments but 1 was found
+// We should improve this error message. Mismatched sorts is a bit confusing here
+#[flux::sig(fn () -> Chair[0])] //~ ERROR mismatched sorts
 pub fn mk_chair() -> Chair {
     Chair { x: 0 }
 }
