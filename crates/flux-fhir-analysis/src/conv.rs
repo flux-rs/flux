@@ -137,12 +137,9 @@ pub(crate) fn conv_opaque_ty(
 }
 
 pub(crate) fn conv_generics(
-    genv: &GlobalEnv,
-    rustc_generics: &rustc::ty::Generics,
+    rust_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
-    refine_params: &[fhir::RefineParam],
     is_trait: Option<LocalDefId>,
-    wfckresults: Option<&fhir::WfckResults>,
 ) -> QueryResult<rty::Generics> {
     let opt_self = is_trait.map(|def_id| {
         rty::GenericParamDef {
@@ -154,7 +151,7 @@ pub(crate) fn conv_generics(
     });
     let params = opt_self
         .into_iter()
-        .chain(rustc_generics.params.iter().flat_map(|rust_param| {
+        .chain(rust_generics.params.iter().flat_map(|rust_param| {
             // We have to filter out late bound parameters
             let param = generics
                 .params
@@ -170,31 +167,22 @@ pub(crate) fn conv_generics(
         }))
         .collect();
 
-    let refine_params = refine_params
-        .iter()
-        .map(|param| conv_refine_param(genv, param, wfckresults))
-        .collect();
-
-    mk_generics(genv, rustc_generics, params, refine_params)
-}
-
-pub(crate) fn mk_generics(
-    genv: &GlobalEnv,
-    rustc_generics: &rustc::ty::Generics,
-    params: List<rty::GenericParamDef>,
-    refine_params: List<rty::RefineParam>,
-) -> QueryResult<rty::Generics> {
     Ok(rty::Generics {
         params,
-        refine_params,
-        parent: rustc_generics.parent(),
-        parent_count: rustc_generics.parent_count(),
-        parent_refine_count: rustc_generics
-            .parent()
-            .map(|parent| genv.generics_of(parent))
-            .transpose()?
-            .map_or(0, |g| g.refine_count()),
+        parent: rust_generics.parent(),
+        parent_count: rust_generics.parent_count(),
     })
+}
+
+pub(crate) fn conv_refinement_generics(
+    genv: &GlobalEnv,
+    params: &[fhir::RefineParam],
+    wfckresults: Option<&fhir::WfckResults>,
+) -> List<rty::RefineParam> {
+    params
+        .iter()
+        .map(|param| conv_refine_param(genv, param, wfckresults))
+        .collect()
 }
 
 fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDefKind {

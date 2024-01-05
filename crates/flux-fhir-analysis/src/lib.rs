@@ -44,6 +44,7 @@ pub fn provide(providers: &mut Providers) {
         variants_of,
         fn_sig,
         generics_of,
+        refinement_generics_of,
         predicates_of,
         item_bounds,
     };
@@ -161,32 +162,38 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
         | DefKind::Trait
         | DefKind::Fn => {
             let is_trait = (def_kind == DefKind::Trait).then_some(local_id);
-            let wfckresults = if matches!(def_kind, DefKind::Fn | DefKind::AssocFn) {
-                Some(genv.check_wf(local_id)?)
-            } else {
-                None
-            };
             let generics = genv
                 .map()
                 .get_generics(local_id)
                 .unwrap_or_else(|| bug!("no generics for {:?}", def_id));
-            let refine_params = genv
-                .map()
-                .get_refine_params(genv.tcx, local_id)
-                .unwrap_or(&[]);
-            conv::conv_generics(
-                genv,
-                &rustc_generics,
-                generics,
-                refine_params,
-                is_trait,
-                wfckresults.as_deref(),
-            )
+            conv::conv_generics(&rustc_generics, generics, is_trait)
         }
         DefKind::Closure | DefKind::Coroutine => {
-            conv::mk_generics(genv, &rustc_generics, List::empty(), List::empty())
+            Ok(rty::Generics {
+                params: List::empty(),
+                parent: rustc_generics.parent(),
+                parent_count: rustc_generics.parent_count(),
+            })
         }
         kind => bug!("generics_of called on `{def_id:?}` with kind `{kind:?}`"),
+    }
+}
+
+fn refinement_generics_of(
+    genv: &GlobalEnv,
+    local_id: LocalDefId,
+) -> QueryResult<rty::RefinementGenerics> {
+    let parent = genv.tcx.generics_of(local_id).parent;
+    let parent_count =
+        if let Some(def_id) = parent { genv.refinement_generics_of(def_id)?.count() } else { 0 };
+    match genv.tcx.def_kind(local_id) {
+        DefKind::Fn | DefKind::AssocFn => {
+            let fn_sig = genv.map().get_fn_sig(local_id);
+            let wfckresults = genv.check_wf(local_id)?;
+            let params = conv::conv_refinement_generics(genv, &fn_sig.params, Some(&wfckresults));
+            Ok(rty::RefinementGenerics { parent, parent_count, params })
+        }
+        _ => Ok(rty::RefinementGenerics { parent, parent_count, params: List::empty() }),
     }
 }
 

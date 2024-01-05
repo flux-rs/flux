@@ -204,8 +204,9 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
         let refine_params = if let Some(refine_params) = refine_params {
             refine_params
         } else {
-            generics
-                .collect_all_refine_params(genv, |param| rcx.define_vars(&param.sort))
+            genv.refinement_generics_of(def_id)
+                .with_span(span)?
+                .collect_all_params(genv, |param| rcx.define_vars(&param.sort))
                 .with_span(span)?
         };
 
