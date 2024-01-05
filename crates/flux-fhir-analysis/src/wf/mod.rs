@@ -14,6 +14,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::GenericParamDefKind,
 };
+use itertools::Itertools;
 use rustc_data_structures::snapshot_map::{self, SnapshotMap};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
@@ -139,11 +140,19 @@ pub(crate) fn check_opaque_ty(
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
-    let parent = genv.tcx.parent(owner_id.to_def_id());
-    if let Some(parent_local) = parent.as_local()
-        && let Some(params) = genv.map().get_refine_params(genv.tcx, parent_local)
-    {
-        infcx.push_layer(params);
+    let parent = genv.tcx.local_parent(owner_id.def_id);
+    if let Some(params) = genv.map().get_refine_params(genv.tcx, parent) {
+        let wfckresults = genv.check_wf(parent).emit(genv.sess)?;
+        let params = params
+            .iter()
+            .map(|param| {
+                fhir::RefineParam {
+                    sort: wfckresults.node_sorts().get(param.fhir_id).unwrap().clone(),
+                    ..*param
+                }
+            })
+            .collect_vec();
+        infcx.push_layer(&params);
     }
     wf.check_opaque_ty(&mut infcx, opaque_ty)?;
     Ok(infcx.into_results())

@@ -118,15 +118,16 @@ pub(crate) fn conv_generic_predicates(
 
 pub(crate) fn conv_opaque_ty(
     genv: &GlobalEnv,
-    def_id: DefId,
+    def_id: LocalDefId,
     opaque_ty: &fhir::OpaqueTy,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<List<rty::Clause>> {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let parent = genv.tcx.parent(def_id).expect_local();
+    let parent = genv.tcx.local_parent(def_id);
     let refparams = genv.map().get_refine_params(genv.tcx, parent);
+    let parent_wfckresults = genv.check_wf(parent)?;
 
-    let env = &mut Env::new(refparams.unwrap_or(&[]), Some(wfckresults));
+    let env = &mut Env::new(refparams.unwrap_or(&[]), Some(&parent_wfckresults));
 
     let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
     let self_ty = rty::Ty::opaque(def_id, args, env.to_early_bound_vars());
