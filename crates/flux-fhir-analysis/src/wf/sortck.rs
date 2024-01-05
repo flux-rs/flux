@@ -17,7 +17,7 @@ use super::errors;
 pub(super) struct InferCtxt<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     params: UnordMap<fhir::Name, (fhir::Sort, fhir::ParamKind)>,
-    unification_table: InPlaceUnificationTable<fhir::SortVid>,
+    pub(super) unification_table: InPlaceUnificationTable<fhir::SortVid>,
     wfckresults: fhir::WfckResults,
     /// sort variables that can only be instantiated to sorts that support equality (i.e. non `FuncSort`)
     eq_vids: HashSet<fhir::SortVid>,
@@ -158,9 +158,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 }
             }
             fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div => {
-                if self.is_numeric(expected) {
-                    self.check_expr(e1, expected)?;
-                    self.check_expr(e2, expected)?;
+                if let Some(expected) =
+                    self.is_coercible_to_numeric(expected, expr.fhir_id, fhir::Coercion::Inject)
+                {
+                    self.check_expr(e1, &expected)?;
+                    self.check_expr(e2, &expected)?;
                     return Ok(());
                 }
             }
@@ -245,21 +247,25 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 Ok(fhir::Sort::Int)
             }
             fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge => {
-                let sort = self.synth_expr(e1)?;
-                if let Some(sort) = self.is_coercible_to_numeric(&sort, e1.fhir_id) {
-                    self.check_expr(e2, &sort)?;
+                let found = self.synth_expr(e1)?;
+                if let Some(found) =
+                    self.is_coercible_to_numeric(&found, e1.fhir_id, fhir::Coercion::Project)
+                {
+                    self.check_expr(e2, &found)?;
                     Ok(fhir::Sort::Bool)
                 } else {
-                    Err(self.emit_err(errors::ExpectedNumeric::new(e1.span, &sort)))
+                    Err(self.emit_err(errors::ExpectedNumeric::new(e1.span, &found)))
                 }
             }
             fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div => {
-                let sort = self.synth_expr(e1)?;
-                if let Some(sort) = self.is_coercible_to_numeric(&sort, e1.fhir_id) {
-                    self.check_expr(e2, &sort)?;
-                    Ok(sort)
+                let found = self.synth_expr(e1)?;
+                if let Some(found) =
+                    self.is_coercible_to_numeric(&found, e1.fhir_id, fhir::Coercion::Project)
+                {
+                    self.check_expr(e2, &found)?;
+                    Ok(found)
                 } else {
-                    Err(self.emit_err(errors::ExpectedNumeric::new(e1.span, &sort)))
+                    Err(self.emit_err(errors::ExpectedNumeric::new(e1.span, &found)))
                 }
             }
         }
@@ -384,6 +390,7 @@ impl<'a> InferCtxt<'a, '_> {
         &mut self,
         sort: &fhir::Sort,
         fhir_id: FhirId,
+        coercion: fhir::Coercion,
     ) -> Option<fhir::Sort> {
         if self.is_numeric(sort) {
             Some(sort.clone())
@@ -392,7 +399,7 @@ impl<'a> InferCtxt<'a, '_> {
         {
             self.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, vec![fhir::Coercion::Project]);
+                .insert(fhir_id, vec![coercion]);
             Some(sort.clone())
         } else {
             None
@@ -419,7 +426,7 @@ impl<'a> InferCtxt<'a, '_> {
     fn try_equate(&mut self, sort1: &fhir::Sort, sort2: &fhir::Sort) -> Option<fhir::Sort> {
         match (sort1, sort2) {
             (fhir::Sort::Infer(vid1), fhir::Sort::Infer(vid2)) => {
-                self.unification_table.unify_var_var(*vid2, *vid2).ok()?;
+                self.unification_table.unify_var_var(*vid1, *vid2).ok()?;
                 Some(fhir::Sort::Infer(*vid1))
             }
             (fhir::Sort::Infer(vid), sort) | (sort, fhir::Sort::Infer(vid))
@@ -503,9 +510,7 @@ impl<'a> InferCtxt<'a, '_> {
     }
 
     fn is_numeric(&mut self, sort: &fhir::Sort) -> bool {
-        let b = self.resolve_sort(sort).map_or(false, |s| s.is_numeric());
-        println!("{sort:?} {b:?}");
-        b
+        self.resolve_sort(sort).map_or(false, |s| s.is_numeric())
     }
 
     fn is_bool(&mut self, sort: &fhir::Sort) -> bool {

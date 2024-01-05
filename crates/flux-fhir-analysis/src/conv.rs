@@ -1189,7 +1189,10 @@ fn resolve_param_sort<'a>(
     if fhir::Sort::Wildcard == param.sort
         && let Some(wfckresults) = wfckresults
     {
-        wfckresults.node_sorts().get(param.fhir_id).unwrap()
+        wfckresults
+            .node_sorts()
+            .get(param.fhir_id)
+            .unwrap_or_else(|| bug!("{param:?}"))
     } else {
         &param.sort
     }

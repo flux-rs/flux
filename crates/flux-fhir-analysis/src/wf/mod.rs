@@ -256,8 +256,13 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .try_for_each_exhaust(|field| self.check_type(infcx, &field.ty));
         let expected = self.sort_of_bty(&variant.ret.bty);
         let indices = self.check_refine_arg(infcx, &variant.ret.idx, &expected);
+
         fields?;
         indices?;
+
+        infcx.resolve_params_sorts(&variant.params)?;
+        self.check_params_are_determined(infcx, &variant.params)?;
+
         Ok(())
     }
 

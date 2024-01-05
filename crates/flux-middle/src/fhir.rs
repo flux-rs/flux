@@ -1573,7 +1573,7 @@ impl fmt::Debug for Path {
             .chain(self.bindings.iter().map(|b| b as &dyn std::fmt::Debug))
             .collect();
         if !args.is_empty() {
-            write!(f, "{:?}", args)?;
+            write!(f, "<{:?}>", args.iter().format(", "))?;
         }
         if !self.refine.is_empty() {
             write!(f, "({:?})", self.refine.iter().format(", "))?;
