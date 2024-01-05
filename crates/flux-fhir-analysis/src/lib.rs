@@ -142,11 +142,6 @@ fn item_bounds(
 }
 
 fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
-    static A: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-    println!("{local_id:?}");
-    if A.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 2 {
-        panic!();
-    }
     let def_id = local_id.to_def_id();
     let rustc_generics = genv.lower_generics_of(local_id)?;
 
