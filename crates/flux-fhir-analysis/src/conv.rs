@@ -136,18 +136,29 @@ pub(crate) fn conv_opaque_ty(
         .collect())
 }
 
+fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDefKind {
+    match kind {
+        fhir::GenericParamKind::Type { default } => {
+            rty::GenericParamDefKind::Type { has_default: default.is_some() }
+        }
+        fhir::GenericParamKind::SplTy => rty::GenericParamDefKind::SplTy,
+        fhir::GenericParamKind::BaseTy => rty::GenericParamDefKind::BaseTy,
+        fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
+    }
+}
+
 pub(crate) fn conv_generics(
     rust_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
     is_trait: Option<LocalDefId>,
 ) -> QueryResult<rty::Generics> {
     let opt_self = is_trait.map(|def_id| {
-        rty::GenericParamDef {
-            index: 0,
-            name: kw::SelfUpper,
-            def_id: def_id.to_def_id(),
-            kind: rty::GenericParamDefKind::Type { has_default: false },
-        }
+        let kind = generics
+            .self_kind
+            .as_ref()
+            .map(conv_generic_param_kind)
+            .unwrap_or(rty::GenericParamDefKind::Type { has_default: false });
+        rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.to_def_id(), kind }
     });
     let params = opt_self
         .into_iter()
@@ -157,14 +168,7 @@ pub(crate) fn conv_generics(
                 .params
                 .iter()
                 .find(|param| param.def_id.to_def_id() == rust_param.def_id)?;
-            let kind = match &param.kind {
-                fhir::GenericParamKind::Type { default } => {
-                    rty::GenericParamDefKind::Type { has_default: default.is_some() }
-                }
-                fhir::GenericParamKind::SplTy => rty::GenericParamDefKind::SplTy,
-                fhir::GenericParamKind::BaseTy => rty::GenericParamDefKind::BaseTy,
-                fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
-            };
+            let kind = conv_generic_param_kind(&param.kind);
             let def_id = param.def_id.to_def_id();
             Some(rty::GenericParamDef {
                 kind,
@@ -677,7 +681,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             if let fhir::Res::SelfTyParam { .. } = path.res
                 && sort.is_none()
             {
-                return Ok(rty::Ty::param(rty::ParamTy { index: 0, name: kw::SelfUpper }));
+                return Ok(rty::Ty::param(self_param_ty()));
             }
             if let fhir::Res::Def(DefKind::TyParam, def_id) = path.res
                 && sort.is_none()
@@ -802,6 +806,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::Res::Def(DefKind::TyParam, def_id) => {
                 rty::BaseTy::Param(def_id_to_param_ty(self.genv.tcx, def_id.expect_local()))
             }
+            fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(self_param_ty()),
             fhir::Res::SelfTyAlias { alias_to, .. } => {
                 return Ok(self
                     .genv
@@ -822,7 +827,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                     .instantiate(&generics, &refine)
                     .replace_bound_expr(&idx));
             }
-            fhir::Res::Def(..) | fhir::Res::SelfTyParam { .. } => {
+            fhir::Res::Def(..) => {
                 span_bug!(path.span, "unexpected resolution in conv_indexed_path: {:?}", path.res)
             }
         };
@@ -1190,6 +1195,7 @@ fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Param(def_id) => {
             rty::Sort::Param(def_id_to_param_ty(genv.tcx, def_id.expect_local()))
         }
+        fhir::Sort::SelfParam(_def_id) => rty::Sort::Param(self_param_ty()),
         fhir::Sort::Var(n) => rty::Sort::Var(rty::SortVar::from(*n)),
         fhir::Sort::Error | fhir::Sort::Wildcard | fhir::Sort::Infer(_) => {
             bug!("unexpected sort `{sort:?}`")
@@ -1225,6 +1231,10 @@ fn def_id_to_param_ty(tcx: TyCtxt, def_id: LocalDefId) -> rty::ParamTy {
         index: def_id_to_param_index(tcx, def_id),
         name: tcx.hir().ty_param_name(def_id),
     }
+}
+
+fn self_param_ty() -> rty::ParamTy {
+    rty::ParamTy { index: 0, name: kw::SelfUpper }
 }
 
 fn def_id_to_param_index(tcx: TyCtxt, def_id: LocalDefId) -> u32 {

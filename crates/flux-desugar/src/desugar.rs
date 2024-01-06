@@ -29,7 +29,7 @@ use self::env::{Scope, ScopeId};
 use crate::{
     errors,
     resolver::ResolverOutput,
-    sort_resolver::{SortResolver, SORTS},
+    sort_resolver::{SelfRes, SortResolver, SORTS},
 };
 
 pub fn desugar_qualifier(
@@ -198,6 +198,25 @@ enum QPathRes<'a> {
     NumConst(i128),
 }
 
+fn self_res(genv: &GlobalEnv, owner: OwnerId) -> SelfRes {
+    let def_id = owner.def_id;
+    let parent_id = genv.tcx.opt_parent(def_id.to_def_id());
+    if let Some(alias_to) = parent_id {
+        match genv.tcx.def_kind(alias_to) {
+            DefKind::Trait => return SelfRes::Param(alias_to),
+            DefKind::Impl { .. } => {
+                if let Some(sort) = genv.sort_of_self_ty_alias(alias_to) {
+                    return SelfRes::Alias(sort);
+                } else {
+                    return SelfRes::None;
+                }
+            }
+            _ => return SelfRes::None,
+        }
+    }
+    return SelfRes::None;
+}
+
 impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     pub(crate) fn new(
         genv: &'a GlobalEnv<'a, 'tcx>,
@@ -206,8 +225,9 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     ) -> RustItemCtxt<'a, 'tcx> {
         let generics = genv.tcx.generics_of(owner);
+        let self_res = self_res(genv, owner);
         let sort_resolver =
-            SortResolver::with_generics(genv.sess, genv.map().sort_decls(), generics);
+            SortResolver::with_generics(genv.sess, genv.map().sort_decls(), generics, self_res);
         RustItemCtxt {
             genv,
             owner,
@@ -232,9 +252,38 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         )
     }
 
-    pub(crate) fn desugar_generics(&self, generics: &surface::Generics) -> Result<fhir::Generics> {
-        let hir_generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
+    /// [desugar_generics] starts with the `lifted_generics` and "updates" it with the surface `generics`
+    pub(crate) fn desugar_generics(
+        &self,
+        lifted_generics: fhir::Generics,
+        generics: &surface::Generics,
+    ) -> Result<fhir::Generics> {
+        // Step 1: desugar the surface generics by themselves
+        let generics = self.desugar_surface_generics(generics)?;
 
+        // Step 2: map each (surface) generic to its specified kind
+        let generic_kinds: FxHashMap<_, _> = generics
+            .params
+            .into_iter()
+            .map(|param| (param.def_id, param.kind))
+            .collect();
+
+        // Step 3: traverse lifted_generics, using the surface-kind, if specified, and lifted kind otherwise
+        let params = lifted_generics
+            .params
+            .iter()
+            .map(|lifted_param| {
+                let def_id = lifted_param.def_id;
+                let kind = generic_kinds.get(&def_id).unwrap_or(&lifted_param.kind);
+                fhir::GenericParam { def_id, kind: kind.clone() }
+            })
+            .collect();
+
+        Ok(fhir::Generics { params, self_kind: generics.self_kind.clone() })
+    }
+
+    fn desugar_surface_generics(&self, generics: &surface::Generics) -> Result<fhir::Generics> {
+        let hir_generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
         let generics_map: FxHashMap<_, _> = hir_generics
             .params
             .iter()
@@ -248,6 +297,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             .collect();
 
         let mut params = vec![];
+        let mut self_kind = None;
         for param in &generics.params {
             let kind = match &param.kind {
                 surface::GenericParamKind::Type => fhir::GenericParamKind::Type { default: None },
@@ -258,13 +308,16 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 }
             };
 
-            let def_id = *generics_map
-                .get(&param.name)
-                .ok_or_else(|| self.emit_err(errors::UnresolvedGenericParam::new(param.name)))?;
-
-            params.push(fhir::GenericParam { def_id, kind });
+            if param.name.name == kw::SelfUpper {
+                self_kind = Some(kind);
+            } else {
+                let def_id = *generics_map.get(&param.name).ok_or_else(|| {
+                    self.emit_err(errors::UnresolvedGenericParam::new(param.name))
+                })?;
+                params.push(fhir::GenericParam { def_id, kind });
+            }
         }
-        Ok(fhir::Generics { params })
+        Ok(fhir::Generics { params, self_kind })
     }
 
     fn desugar_predicates(
