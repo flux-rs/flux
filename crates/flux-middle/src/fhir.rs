@@ -970,9 +970,9 @@ impl Sort {
     fn subst(&self, subst: &[Sort]) -> Sort {
         match self {
             Sort::Var(i) => subst[*i].clone(),
-            Sort::App(c, args) => {
+            Sort::App(ctor, args) => {
                 let args = args.iter().map(|arg| arg.subst(subst)).collect();
-                Sort::App(c.clone(), args)
+                Sort::App(*ctor, args)
             }
             Sort::Func(fsort) => {
                 if fsort.params == 0 {

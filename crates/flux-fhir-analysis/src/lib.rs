@@ -185,7 +185,7 @@ fn refinement_generics_of(
         DefKind::Fn | DefKind::AssocFn => {
             let fn_sig = genv.map().get_fn_sig(local_id);
             let wfckresults = genv.check_wf(local_id)?;
-            let params = conv::conv_refinement_generics(genv, &fn_sig.params, Some(&wfckresults));
+            let params = conv::conv_refinement_generics(genv, &fn_sig.params, &wfckresults);
             Ok(rty::RefinementGenerics { parent, parent_count, params })
         }
         _ => Ok(rty::RefinementGenerics { parent, parent_count, params: List::empty() }),
