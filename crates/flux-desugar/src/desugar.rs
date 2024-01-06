@@ -202,14 +202,8 @@ fn self_res(genv: &GlobalEnv, owner: OwnerId) -> SelfRes {
     let def_id = owner.def_id;
     if let Some(alias_to) = genv.tcx.opt_parent(def_id.to_def_id()) {
         match genv.tcx.def_kind(alias_to) {
-            DefKind::Trait => SelfRes::Param(alias_to),
-            DefKind::Impl { .. } => {
-                if let Some(sort) = genv.sort_of_self_ty_alias(alias_to) {
-                    SelfRes::Alias(sort)
-                } else {
-                    SelfRes::None
-                }
-            }
+            DefKind::Trait => SelfRes::Param { trait_id: alias_to },
+            DefKind::Impl { .. } => SelfRes::Alias { alias_to },
             _ => SelfRes::None,
         }
     } else {

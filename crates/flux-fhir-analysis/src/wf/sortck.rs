@@ -357,10 +357,10 @@ impl<'a> InferCtxt<'a, '_> {
         params: impl IntoIterator<Item = &'b fhir::RefineParam>,
     ) {
         for param in params {
-            let sort = if param.sort == fhir::Sort::Wildcard {
+            let sort = if let fhir::Sort::Wildcard = param.sort {
                 fhir::Sort::Infer(self.next_sort_vid())
             } else {
-                param.sort.clone()
+                replace_sort_self_alias(self.genv, &param.sort)
             };
             self.params.insert(param.name(), (sort, param.kind));
         }
@@ -445,15 +445,15 @@ impl<'a> InferCtxt<'a, '_> {
                     .ok()?;
                 Some(sort.clone())
             }
-            (fhir::Sort::App(c1, args1), fhir::Sort::App(c2, args2)) => {
-                if c1 != c2 || args1.len() != args2.len() {
+            (fhir::Sort::App(ctor1, args1), fhir::Sort::App(ctor2, args2)) => {
+                if ctor1 != ctor2 || args1.len() != args2.len() {
                     return None;
                 }
                 let mut args = vec![];
                 for (t1, t2) in args1.iter().zip(args2.iter()) {
                     args.push(self.try_equate(t1, t2)?);
                 }
-                Some(fhir::Sort::App(c1.clone(), args.into()))
+                Some(fhir::Sort::App(*ctor1, args.into()))
             }
             _ if sort1 == sort2 => Some(sort1.clone()),
             _ => None,
@@ -592,6 +592,45 @@ impl<'a> InferCtxt<'a, '_> {
     pub(crate) fn infer_mode(&self, var: fhir::Ident) -> fhir::InferMode {
         let (sort, kind) = &self.params[&var.name];
         kind.infer_mode(sort)
+    }
+}
+
+fn replace_sort_self_alias(genv: &GlobalEnv, sort: &fhir::Sort) -> fhir::Sort {
+    match sort {
+        fhir::Sort::SelfAlias { alias_to } => {
+            genv.sort_of_self_ty_alias(*alias_to)
+                .unwrap_or(fhir::Sort::Error)
+        }
+        fhir::Sort::App(ctor, args) => {
+            fhir::Sort::App(
+                *ctor,
+                args.iter()
+                    .map(|sort| replace_sort_self_alias(genv, sort))
+                    .collect(),
+            )
+        }
+        fhir::Sort::Record(def_id, args) => {
+            fhir::Sort::Record(
+                *def_id,
+                args.iter()
+                    .map(|sort| replace_sort_self_alias(genv, sort))
+                    .collect(),
+            )
+        }
+        fhir::Sort::Func(poly_func_sort) => {
+            fhir::Sort::Func(fhir::PolyFuncSort {
+                params: poly_func_sort.params,
+                fsort: fhir::FuncSort {
+                    inputs_and_output: poly_func_sort
+                        .fsort
+                        .inputs_and_output
+                        .iter()
+                        .map(|sort| replace_sort_self_alias(genv, sort))
+                        .collect(),
+                },
+            })
+        }
+        _ => sort.clone(),
     }
 }
 

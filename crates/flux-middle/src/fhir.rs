@@ -540,7 +540,7 @@ newtype_index! {
     pub struct SortVid {}
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum SortCtor {
     Set,
     Map,
@@ -569,8 +569,16 @@ pub enum Sort {
     Record(DefId, List<Sort>),
     /// The sort associated to a type variable
     Param(DefId),
-    /// The sort associated to the `Self` type variable for a trait [DefId]
-    SelfParam(DefId),
+    /// The sort of the `Self` type, as used within a trait.
+    SelfParam {
+        /// The trait this `Self` is a generic parameter for.
+        trait_id: DefId,
+    },
+    /// The sort of a `Self` type, as used somewhere other than within a trait.
+    SelfAlias {
+        /// The item introducing the `Self` type alias, e.g., an impl block
+        alias_to: DefId,
+    },
     /// A sort that needs to be inferred
     Wildcard,
     /// Sort inference variable generated for a [Sort::Wildcard] during sort checking
@@ -981,7 +989,8 @@ impl Sort {
             | Sort::Unit
             | Sort::BitVec(_)
             | Sort::Param(_)
-            | Sort::SelfParam(_)
+            | Sort::SelfParam { .. }
+            | Sort::SelfAlias { .. }
             | Sort::Wildcard
             | Sort::Record(_, _)
             | Sort::Infer(_)
@@ -1725,8 +1734,11 @@ impl fmt::Debug for Sort {
                 }
             }
             Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
-            Sort::SelfParam(def_id) => {
-                write!(f, "sortof({}::Self)", pretty::def_id_to_string(*def_id))
+            Sort::SelfParam { trait_id } => {
+                write!(f, "sortof({}::Self)", pretty::def_id_to_string(*trait_id))
+            }
+            Sort::SelfAlias { alias_to } => {
+                write!(f, "sortof({}::Self)", pretty::def_id_to_string(*alias_to))
             }
             Sort::Wildcard => write!(f, "_"),
             Sort::Infer(vid) => write!(f, "{vid:?}"),

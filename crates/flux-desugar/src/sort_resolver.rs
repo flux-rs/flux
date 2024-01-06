@@ -19,12 +19,12 @@ use crate::errors;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum SelfRes {
     /// A `Self` parameter in a trait definition.
-    Param(DefId),
+    Param { trait_id: DefId },
     /// An alias to another sort, e.g., when used inside an impl block
-    Alias(fhir::Sort),
+    Alias { alias_to: DefId },
     /// It is not valid to use `Self`, e.g., when used in a free function
     None,
 }
@@ -136,9 +136,9 @@ impl<'a> SortResolver<'a> {
         } else if ident.name == SORTS.real {
             Ok(fhir::Sort::Real)
         } else if ident.name == kw::SelfUpper {
-            match &self.self_res {
-                SelfRes::Param(def_id) => Ok(fhir::Sort::SelfParam(*def_id)),
-                SelfRes::Alias(sort) => Ok(sort.clone()),
+            match self.self_res {
+                SelfRes::Param { trait_id } => Ok(fhir::Sort::SelfParam { trait_id }),
+                SelfRes::Alias { alias_to } => Ok(fhir::Sort::SelfAlias { alias_to }),
                 SelfRes::None => Err(self.sess.emit_err(errors::UnresolvedSort::new(*ident))),
             }
         } else if let Some(def_id) = self.generic_params.get(&ident.name) {
