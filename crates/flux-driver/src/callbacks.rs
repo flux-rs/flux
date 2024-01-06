@@ -158,14 +158,12 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaran
     err = specs
         .refined_bys()
         .try_for_each_exhaust(|(owner_id, refined_by)| {
-            let generics = lift::lift_generics(tcx, sess, owner_id)?;
             let refined_by = if let Some(refined_by) = refined_by {
                 let generics = tcx.generics_of(owner_id);
                 desugar::desugar_refined_by(sess, map.sort_decls(), owner_id, generics, refined_by)?
             } else {
                 lift::lift_refined_by(tcx, owner_id)
             };
-            map.insert_generics(owner_id.def_id, generics.with_refined_by(&refined_by));
             map.insert_refined_by(owner_id.def_id, refined_by);
             Ok(())
         })
@@ -177,7 +175,7 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaran
         .extern_specs
         .iter()
         .for_each(|(extern_def_id, local_def_id)| {
-            map.insert_extern(*extern_def_id, *local_def_id);
+            genv.map_mut().insert_extern(*extern_def_id, *local_def_id);
         });
 
     if let Some(err) = err {

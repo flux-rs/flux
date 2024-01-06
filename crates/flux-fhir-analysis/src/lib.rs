@@ -138,7 +138,7 @@ fn item_bounds(
 ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
     let wfckresults = genv.check_wf(local_id)?;
     let opaque_ty = genv.map().get_opaque_ty(local_id).unwrap();
-    Ok(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id.to_def_id(), opaque_ty, &wfckresults)?))
+    Ok(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id, opaque_ty, &wfckresults)?))
 }
 
 fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
@@ -184,7 +184,8 @@ fn refinement_generics_of(
     match genv.tcx.def_kind(local_id) {
         DefKind::Fn | DefKind::AssocFn => {
             let fn_sig = genv.map().get_fn_sig(local_id);
-            let params = conv::conv_refinement_generics(genv, &fn_sig.params);
+            let wfckresults = genv.check_wf(local_id)?;
+            let params = conv::conv_refinement_generics(genv, &fn_sig.params, &wfckresults);
             Ok(rty::RefinementGenerics { parent, parent_count, params })
         }
         _ => Ok(rty::RefinementGenerics { parent, parent_count, params: List::empty() }),
@@ -258,7 +259,8 @@ fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
         .map(|fn_sig| fn_sig.normalize(defns));
 
     if config::dump_rty() {
-        dbg::dump_item_info(genv.tcx, def_id, "rty", &fn_sig).unwrap();
+        let generics = genv.generics_of(def_id)?;
+        dbg::dump_item_info(genv.tcx, def_id, "rty", (generics, &fn_sig)).unwrap();
     }
     Ok(fn_sig)
 }

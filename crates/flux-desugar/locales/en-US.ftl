@@ -37,21 +37,6 @@ desugar_sort_arity_mismatch =
         *[other] 1 or {$expected} arguments
     }, found {$found}
 
-desugar_refine_arg_count_mismatch =
-    this type takes {$expected ->
-        [0] 0 refinement arguments
-        [one] 1 refinement argument
-        *[other] 1 or {$expected} refinement arguments
-    } but {$found ->
-        [one] {$found} was found
-        *[other] {$found} were found
-    }
-    .label = expected {$expected ->
-        [0] 0 refinement arguments
-        [one] {$expected} argument
-        *[other] 1 or {$expected} arguments
-    }, found {$found}
-
 desugar_invalid_unrefined_param =
     invalid use of refinement parameter
     .label = parameter `{$var}` refers to a type with no indices
@@ -63,9 +48,6 @@ desugar_illegal_binder =
 desugar_invalid_numeric_suffix =
     invalid suffix `{$suffix}` for number literal
     .label = the suffix must be one of the numeric sorts `int` or `real`
-
-desugar_refined_unrefinable_type =
-    type cannot be refined
 
 # Resolve errors
 

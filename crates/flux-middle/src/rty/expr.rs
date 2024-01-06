@@ -422,7 +422,7 @@ impl Expr {
     /// An expression is an *atom* if it is "self-delimiting", i.e., it has a clear boundary
     /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
     pub fn is_atom(&self) -> bool {
-        !self.is_binary_op()
+        !matches!(self.kind, ExprKind::Abs(..) | ExprKind::BinaryOp(..))
     }
 
     /// Simple syntactic check to see if the expression is a trivially true predicate. This is used
@@ -751,17 +751,17 @@ mod pretty {
                     Ok(())
                 }
                 ExprKind::UnaryOp(op, e) => {
-                    if e.is_binary_op() {
-                        w!("{:?}({:?})", op, e)
-                    } else {
+                    if e.is_atom() {
                         w!("{:?}{:?}", op, e)
+                    } else {
+                        w!("{:?}({:?})", op, e)
                     }
                 }
                 ExprKind::TupleProj(e, field) => {
-                    if e.is_binary_op() {
-                        w!("({:?}).{:?}", e, ^field)
-                    } else {
+                    if e.is_atom() {
                         w!("{:?}.{:?}", e, ^field)
+                    } else {
+                        w!("({:?}).{:?}", e, ^field)
                     }
                 }
                 ExprKind::Tuple(exprs) => {
@@ -772,10 +772,10 @@ mod pretty {
                     }
                 }
                 ExprKind::PathProj(e, field) => {
-                    if e.is_binary_op() {
-                        w!("({:?}).{:?}", e, field)
-                    } else {
+                    if e.is_atom() {
                         w!("{:?}.{:?}", e, field)
+                    } else {
+                        w!("({:?}).{:?}", e, field)
                     }
                 }
                 ExprKind::App(func, args) => {

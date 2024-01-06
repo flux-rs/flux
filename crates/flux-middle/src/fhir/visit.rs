@@ -248,7 +248,8 @@ pub fn walk_sort<V: Visitor>(vis: &mut V, sort: &Sort) {
         Sort::BitVec(_)
         | Sort::Int
         | Sort::Param(_)
-        | Sort::SelfParam(_)
+        | Sort::SelfParam { .. }
+        | Sort::SelfAlias { .. }
         | Sort::Var(_)
         | Sort::Bool
         | Sort::Real
@@ -277,9 +278,8 @@ pub fn walk_refine_arg<V: Visitor>(vis: &mut V, arg: &RefineArg) {
             walk_list!(vis, visit_refine_param, params);
             vis.visit_expr(body);
         }
-        RefineArgKind::Record(_def_id, vars, args) => {
-            walk_list!(vis, visit_sort, vars);
-            walk_list!(vis, visit_refine_arg, args);
+        RefineArgKind::Record(flds) => {
+            walk_list!(vis, visit_refine_arg, flds);
         }
     }
 }
@@ -287,7 +287,7 @@ pub fn walk_refine_arg<V: Visitor>(vis: &mut V, arg: &RefineArg) {
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
     match &expr.kind {
         ExprKind::Const(_def_id, _span) => {}
-        ExprKind::Var(var) => vis.visit_ident(*var),
+        ExprKind::Var(var, _) => vis.visit_ident(*var),
         ExprKind::Dot(base, _fld) => {
             vis.visit_ident(*base);
         }

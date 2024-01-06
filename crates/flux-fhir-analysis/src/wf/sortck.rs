@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, collections::HashSet, iter};
+use std::{collections::HashSet, iter};
 
 use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt, span_bug};
@@ -10,14 +10,14 @@ use flux_middle::{
 use itertools::izip;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
-use rustc_span::{def_id::DefId, Span};
+use rustc_span::Span;
 
 use super::errors;
 
 pub(super) struct InferCtxt<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     params: UnordMap<fhir::Name, (fhir::Sort, fhir::ParamKind)>,
-    unification_table: InPlaceUnificationTable<fhir::SortVid>,
+    pub(super) unification_table: InPlaceUnificationTable<fhir::SortVid>,
     wfckresults: fhir::WfckResults,
     /// sort variables that can only be instantiated to sorts that support equality (i.e. non `FuncSort`)
     eq_vids: HashSet<fhir::SortVid>,
@@ -44,14 +44,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             fhir::RefineArgKind::Abs(params, body) => {
                 self.check_abs(params, body, arg.span, arg.fhir_id, expected)
             }
-            fhir::RefineArgKind::Record(def_id, sort_args, flds) => {
-                self.check_record(*def_id, sort_args, flds, arg.span)?;
-                let found = fhir::Sort::Record(*def_id, sort_args.clone());
-                if &found != expected {
-                    return Err(self.emit_sort_mismatch(arg.span, expected, &found));
-                }
-                Ok(())
-            }
+            fhir::RefineArgKind::Record(flds) => self.check_record(flds, arg.span, expected),
         }
     }
 
@@ -63,7 +56,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         fhir_id: FhirId,
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
-        if let Some(fsort) = self.is_coercible_to_func(expected, fhir_id) {
+        if let Some(fsort) = self.is_coercible_to_func(expected, fhir_id, fhir::Coercion::Inject) {
             let fsort = fsort.skip_binders();
             self.push_layer(params);
 
@@ -75,7 +68,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 )));
             }
             iter::zip(params, fsort.inputs()).try_for_each_exhaust(|(param, expected)| {
-                let found = self[&param.ident.name].clone();
+                let found = self.lookup_var(param.ident);
                 if self.try_equate(&found, expected).is_none() {
                     return Err(self.emit_sort_mismatch(param.ident.span(), expected, &found));
                 }
@@ -90,23 +83,31 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn check_record(
         &mut self,
-        def_id: DefId,
-        sort_args: &[fhir::Sort],
         args: &[fhir::RefineArg],
         span: Span,
+        expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
-        let sorts = self.genv.index_sorts_of(def_id, sort_args);
-        if args.len() != sorts.len() {
-            return Err(self.emit_err(errors::ArgCountMismatch::new(
+        if let fhir::Sort::Record(def_id, sort_args) = expected {
+            let sorts = self.genv.index_sorts_of(*def_id, sort_args);
+            if args.len() != sorts.len() {
+                return Err(self.emit_err(errors::ArgCountMismatch::new(
+                    Some(span),
+                    String::from("type"),
+                    sorts.len(),
+                    args.len(),
+                )));
+            }
+            izip!(args, sorts)
+                .map(|(arg, expected)| self.check_refine_arg(arg, &expected))
+                .try_collect_exhaust()
+        } else {
+            Err(self.emit_err(errors::ArgCountMismatch::new(
                 Some(span),
                 String::from("type"),
-                sorts.len(),
+                1,
                 args.len(),
-            )));
+            )))
         }
-        izip!(args, sorts)
-            .map(|(arg, expected)| self.check_refine_arg(arg, &expected))
-            .try_collect_exhaust()
     }
 
     pub(super) fn check_expr(
@@ -127,7 +128,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             | fhir::ExprKind::Dot(_, _)
             | fhir::ExprKind::App(_, _)
             | fhir::ExprKind::Const(_, _)
-            | fhir::ExprKind::Var(_)
+            | fhir::ExprKind::Var(..)
             | fhir::ExprKind::Literal(_) => {
                 let found = self.synth_expr(expr)?;
                 if !self.is_coercible(&found, expected, expr.fhir_id) {
@@ -162,9 +163,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 }
             }
             fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div => {
-                if self.is_numeric(expected) {
-                    self.check_expr(e1, expected)?;
-                    self.check_expr(e2, expected)?;
+                if let Some(expected) =
+                    self.is_coercible_to_numeric(expected, expr.fhir_id, fhir::Coercion::Inject)
+                {
+                    self.check_expr(e1, &expected)?;
+                    self.check_expr(e2, &expected)?;
                     return Ok(());
                 }
             }
@@ -176,14 +179,14 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             | fhir::BinOp::Ge => {}
         }
         let found = self.synth_binary_op(expr, op, e1, e2)?;
-        if &found != expected {
+        if !self.is_coercible(&found, expected, expr.fhir_id) {
             return Err(self.emit_sort_mismatch(expr.span, expected, &found));
         }
         Ok(())
     }
 
     pub(super) fn check_loc(&mut self, loc: fhir::Ident) -> Result<(), ErrorGuaranteed> {
-        let found = self[&loc.name].clone();
+        let found = self.lookup_var(loc);
         if found == fhir::Sort::Loc {
             Ok(())
         } else {
@@ -193,7 +196,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn synth_expr(&mut self, expr: &fhir::Expr) -> Result<fhir::Sort, ErrorGuaranteed> {
         match &expr.kind {
-            fhir::ExprKind::Var(var) => Ok(self[var.name].clone()),
+            fhir::ExprKind::Var(var, _) => Ok(self.lookup_var(*var)),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, box [e1, e2]) => self.synth_binary_op(expr, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
@@ -249,21 +252,25 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 Ok(fhir::Sort::Int)
             }
             fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge => {
-                let sort = self.synth_expr(e1)?;
-                if let Some(sort) = self.is_coercible_to_numeric(&sort, e1.fhir_id) {
-                    self.check_expr(e2, &sort)?;
+                let found = self.synth_expr(e1)?;
+                if let Some(found) =
+                    self.is_coercible_to_numeric(&found, e1.fhir_id, fhir::Coercion::Project)
+                {
+                    self.check_expr(e2, &found)?;
                     Ok(fhir::Sort::Bool)
                 } else {
-                    Err(self.emit_err(errors::ExpectedNumeric::new(e1.span, &sort)))
+                    Err(self.emit_err(errors::ExpectedNumeric::new(e1.span, &found)))
                 }
             }
             fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div => {
-                let sort = self.synth_expr(e1)?;
-                if let Some(sort) = self.is_coercible_to_numeric(&sort, e1.fhir_id) {
-                    self.check_expr(e2, &sort)?;
-                    Ok(sort)
+                let found = self.synth_expr(e1)?;
+                if let Some(found) =
+                    self.is_coercible_to_numeric(&found, e1.fhir_id, fhir::Coercion::Project)
+                {
+                    self.check_expr(e2, &found)?;
+                    Ok(found)
                 } else {
-                    Err(self.emit_err(errors::ExpectedNumeric::new(e1.span, &sort)))
+                    Err(self.emit_err(errors::ExpectedNumeric::new(e1.span, &found)))
                 }
             }
         }
@@ -311,8 +318,10 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn synth_func(&mut self, func: &fhir::Func) -> Result<fhir::FuncSort, ErrorGuaranteed> {
         let func_sort = match func {
             fhir::Func::Var(var, fhir_id) => {
-                let sort = self[&var.name].clone();
-                if let Some(fsort) = self.is_coercible_to_func(&sort, *fhir_id) {
+                let sort = self.lookup_var(*var);
+                if let Some(fsort) =
+                    self.is_coercible_to_func(&sort, *fhir_id, fhir::Coercion::Project)
+                {
                     Ok(fsort)
                 } else {
                     Err(self.emit_err(errors::ExpectedFun::new(var.span(), &sort)))
@@ -348,10 +357,10 @@ impl<'a> InferCtxt<'a, '_> {
         params: impl IntoIterator<Item = &'b fhir::RefineParam>,
     ) {
         for param in params {
-            let sort = if param.sort == fhir::Sort::Wildcard {
+            let sort = if let fhir::Sort::Wildcard = param.sort {
                 fhir::Sort::Infer(self.next_sort_vid())
             } else {
-                param.sort.clone()
+                replace_sort_self_alias(self.genv, &param.sort)
             };
             self.params.insert(param.name(), (sort, param.kind));
         }
@@ -388,6 +397,7 @@ impl<'a> InferCtxt<'a, '_> {
         &mut self,
         sort: &fhir::Sort,
         fhir_id: FhirId,
+        coercion: fhir::Coercion,
     ) -> Option<fhir::Sort> {
         if self.is_numeric(sort) {
             Some(sort.clone())
@@ -396,7 +406,7 @@ impl<'a> InferCtxt<'a, '_> {
         {
             self.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, vec![fhir::Coercion::Project]);
+                .insert(fhir_id, vec![coercion]);
             Some(sort.clone())
         } else {
             None
@@ -407,13 +417,14 @@ impl<'a> InferCtxt<'a, '_> {
         &mut self,
         sort: &fhir::Sort,
         fhir_id: FhirId,
+        coercion: fhir::Coercion,
     ) -> Option<fhir::PolyFuncSort> {
         if let Some(fsort) = self.is_func(sort) {
             Some(fsort)
         } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_field_record(sort) {
             self.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, vec![fhir::Coercion::Project]);
+                .insert(fhir_id, vec![coercion]);
             Some(fsort.clone())
         } else {
             None
@@ -423,7 +434,7 @@ impl<'a> InferCtxt<'a, '_> {
     fn try_equate(&mut self, sort1: &fhir::Sort, sort2: &fhir::Sort) -> Option<fhir::Sort> {
         match (sort1, sort2) {
             (fhir::Sort::Infer(vid1), fhir::Sort::Infer(vid2)) => {
-                self.unification_table.unify_var_var(*vid2, *vid2).ok()?;
+                self.unification_table.unify_var_var(*vid1, *vid2).ok()?;
                 Some(fhir::Sort::Infer(*vid1))
             }
             (fhir::Sort::Infer(vid), sort) | (sort, fhir::Sort::Infer(vid))
@@ -434,19 +445,24 @@ impl<'a> InferCtxt<'a, '_> {
                     .ok()?;
                 Some(sort.clone())
             }
-            (fhir::Sort::App(c1, args1), fhir::Sort::App(c2, args2)) => {
-                if c1 != c2 || args1.len() != args2.len() {
+            (fhir::Sort::App(ctor1, args1), fhir::Sort::App(ctor2, args2)) => {
+                if ctor1 != ctor2 || args1.len() != args2.len() {
                     return None;
                 }
                 let mut args = vec![];
                 for (t1, t2) in args1.iter().zip(args2.iter()) {
                     args.push(self.try_equate(t1, t2)?);
                 }
-                Some(fhir::Sort::App(c1.clone(), args.into()))
+                Some(fhir::Sort::App(*ctor1, args.into()))
             }
             _ if sort1 == sort2 => Some(sort1.clone()),
             _ => None,
         }
+    }
+
+    fn equate(&mut self, sort1: &fhir::Sort, sort2: &fhir::Sort) -> fhir::Sort {
+        self.try_equate(sort1, sort2)
+            .unwrap_or_else(|| bug!("failed to equate sorts: `{sort1:?}` `{sort2:?}`"))
     }
 
     fn next_sort_vid(&mut self) -> fhir::SortVid {
@@ -489,8 +505,13 @@ impl<'a> InferCtxt<'a, '_> {
         }
     }
 
+    pub(crate) fn lookup_var(&mut self, var: fhir::Ident) -> fhir::Sort {
+        let sort = self.params[&var.name].0.clone();
+        self.resolve_sort(&sort).unwrap_or(sort)
+    }
+
     fn ensure_resolved_var(&mut self, var: fhir::Ident) -> Result<fhir::Sort, ErrorGuaranteed> {
-        let sort = self[var.name].clone();
+        let sort = self.params[&var.name].0.clone();
         if let Some(sort) = self.resolve_sort(&sort) {
             Ok(sort)
         } else {
@@ -541,6 +562,24 @@ impl<'a> InferCtxt<'a, '_> {
         })
     }
 
+    pub(crate) fn infer_implicit_params_ty(
+        &mut self,
+        ty: &fhir::Ty,
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut vis = ImplicitParamInferer::new(self);
+        fhir::visit::Visitor::visit_ty(&mut vis, ty);
+        vis.into_result()
+    }
+
+    pub(crate) fn infer_implicit_params_constraint(
+        &mut self,
+        constr: &fhir::Constraint,
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut vis = ImplicitParamInferer::new(self);
+        fhir::visit::Visitor::visit_constraint(&mut vis, constr);
+        vis.into_result()
+    }
+
     fn has_equality(&mut self, sort: &fhir::Sort) -> bool {
         self.resolve_sort(sort)
             .map_or(false, |s| self.genv.has_equality(&s))
@@ -553,6 +592,127 @@ impl<'a> InferCtxt<'a, '_> {
     pub(crate) fn infer_mode(&self, var: fhir::Ident) -> fhir::InferMode {
         let (sort, kind) = &self.params[&var.name];
         kind.infer_mode(sort)
+    }
+}
+
+fn replace_sort_self_alias(genv: &GlobalEnv, sort: &fhir::Sort) -> fhir::Sort {
+    match sort {
+        fhir::Sort::SelfAlias { alias_to } => {
+            genv.sort_of_self_ty_alias(*alias_to)
+                .unwrap_or(fhir::Sort::Error)
+        }
+        fhir::Sort::App(ctor, args) => {
+            fhir::Sort::App(
+                *ctor,
+                args.iter()
+                    .map(|sort| replace_sort_self_alias(genv, sort))
+                    .collect(),
+            )
+        }
+        fhir::Sort::Record(def_id, args) => {
+            fhir::Sort::Record(
+                *def_id,
+                args.iter()
+                    .map(|sort| replace_sort_self_alias(genv, sort))
+                    .collect(),
+            )
+        }
+        fhir::Sort::Func(poly_func_sort) => {
+            fhir::Sort::Func(fhir::PolyFuncSort {
+                params: poly_func_sort.params,
+                fsort: fhir::FuncSort {
+                    inputs_and_output: poly_func_sort
+                        .fsort
+                        .inputs_and_output
+                        .iter()
+                        .map(|sort| replace_sort_self_alias(genv, sort))
+                        .collect(),
+                },
+            })
+        }
+        _ => sort.clone(),
+    }
+}
+
+struct ImplicitParamInferer<'a, 'b, 'tcx> {
+    infcx: &'a mut InferCtxt<'b, 'tcx>,
+    err: Option<ErrorGuaranteed>,
+}
+
+impl<'a, 'b, 'tcx> ImplicitParamInferer<'a, 'b, 'tcx> {
+    fn new(infcx: &'a mut InferCtxt<'b, 'tcx>) -> Self {
+        Self { infcx, err: None }
+    }
+
+    fn into_result(self) -> Result<(), ErrorGuaranteed> {
+        if let Some(err) = self.err {
+            Err(err)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn infer_implicit_params(
+        &mut self,
+        idx: &fhir::RefineArg,
+        expected: &fhir::Sort,
+    ) -> Result<(), ErrorGuaranteed> {
+        match &idx.kind {
+            fhir::RefineArgKind::Expr(expr) => {
+                if let fhir::ExprKind::Var(var, Some(_)) = &expr.kind {
+                    let found = self.infcx.lookup_var(*var);
+                    self.infcx.equate(&found, expected);
+                }
+            }
+            fhir::RefineArgKind::Abs(_, _) => {}
+            fhir::RefineArgKind::Record(flds) => {
+                if let fhir::Sort::Record(def_id, sort_args) = expected {
+                    let sorts = self.infcx.genv.index_sorts_of(*def_id, sort_args);
+                    if flds.len() != sorts.len() {
+                        return Err(self.emit_err(errors::ArgCountMismatch::new(
+                            Some(idx.span),
+                            String::from("type"),
+                            sorts.len(),
+                            flds.len(),
+                        )));
+                    }
+                    for (f, sort) in iter::zip(flds, sorts) {
+                        self.infer_implicit_params(f, &sort)?;
+                    }
+                } else {
+                    return Err(self.emit_err(errors::ArgCountMismatch::new(
+                        Some(idx.span),
+                        String::from("type"),
+                        1,
+                        flds.len(),
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[track_caller]
+    fn emit_err<'c>(&'c mut self, err: impl IntoDiagnostic<'c>) -> ErrorGuaranteed {
+        let err = self.infcx.emit_err(err);
+        self.err = Some(err);
+        err
+    }
+}
+
+impl fhir::visit::Visitor for ImplicitParamInferer<'_, '_, '_> {
+    fn visit_ty(&mut self, ty: &fhir::Ty) {
+        if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
+            if let Some(expected) = self.infcx.genv.sort_of_bty(bty) {
+                let _ = self.infer_implicit_params(idx, &expected);
+            } else if let Some(var) = idx.is_colon_param() {
+                let found = self.infcx.lookup_var(var);
+                self.infcx.equate(&found, &fhir::Sort::Error);
+            } else {
+                let _ = self.emit_err(errors::RefinedUnrefinableType::new(bty.span));
+            }
+        }
+        fhir::visit::walk_ty(self, ty);
     }
 }
 
@@ -583,18 +743,6 @@ impl InferCtxt<'_, '_> {
     #[track_caller]
     fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
         self.genv.sess.emit_err(err)
-    }
-}
-
-impl<T: Borrow<fhir::Name>> std::ops::Index<T> for InferCtxt<'_, '_> {
-    type Output = fhir::Sort;
-
-    fn index(&self, var: T) -> &Self::Output {
-        &self
-            .params
-            .get(var.borrow())
-            .unwrap_or_else(|| bug!("no enty found for key: `{:?}`", var.borrow()))
-            .0
     }
 }
 

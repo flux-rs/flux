@@ -97,6 +97,10 @@ fhir_analysis_cannot_infer_sort =
     .label = cannot infer sort
     .note = sort must be known at this point
 
+
+fhir_analysis_refined_unrefinable_type =
+    type cannot be refined
+
 # Annot check
 
 fhir_analysis_invalid_refinement =

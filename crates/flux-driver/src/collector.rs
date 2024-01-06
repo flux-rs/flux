@@ -293,6 +293,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result<(), ErrorGuaranteed> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
+
+        let generics = attrs.generics();
+
         let refined_by = attrs.refined_by();
 
         let enum_variants = if attrs.extern_spec() {
@@ -322,6 +325,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.specs.enums.insert(
             owner_id,
             surface::EnumDef {
+                generics,
                 refined_by,
                 variants,
                 invariants,

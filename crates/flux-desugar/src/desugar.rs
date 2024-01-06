@@ -200,21 +200,15 @@ enum QPathRes<'a> {
 
 fn self_res(genv: &GlobalEnv, owner: OwnerId) -> SelfRes {
     let def_id = owner.def_id;
-    let parent_id = genv.tcx.opt_parent(def_id.to_def_id());
-    if let Some(alias_to) = parent_id {
+    if let Some(alias_to) = genv.tcx.opt_parent(def_id.to_def_id()) {
         match genv.tcx.def_kind(alias_to) {
-            DefKind::Trait => return SelfRes::Param(alias_to),
-            DefKind::Impl { .. } => {
-                if let Some(sort) = genv.sort_of_self_ty_alias(alias_to) {
-                    return SelfRes::Alias(sort);
-                } else {
-                    return SelfRes::None;
-                }
-            }
-            _ => return SelfRes::None,
+            DefKind::Trait => SelfRes::Param { trait_id: alias_to },
+            DefKind::Impl { .. } => SelfRes::Alias { alias_to },
+            _ => SelfRes::None,
         }
+    } else {
+        SelfRes::None
     }
-    return SelfRes::None;
 }
 
 impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
@@ -254,8 +248,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
     /// [desugar_generics] starts with the `lifted_generics` and "updates" it with the surface `generics`
     pub(crate) fn desugar_generics(
-        &self,
-        lifted_generics: fhir::Generics,
+        &mut self,
         generics: &surface::Generics,
     ) -> Result<fhir::Generics> {
         // Step 1: desugar the surface generics by themselves
@@ -269,6 +262,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             .collect();
 
         // Step 3: traverse lifted_generics, using the surface-kind, if specified, and lifted kind otherwise
+        let lifted_generics = self.as_lift_cx().lift_generics()?;
         let params = lifted_generics
             .params
             .iter()
@@ -487,6 +481,18 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         }
     }
 
+    pub(crate) fn desugar_generics_for_adt(
+        &mut self,
+        generics: Option<&surface::Generics>,
+    ) -> Result<fhir::Generics> {
+        Ok(if let Some(generics) = generics {
+            self.desugar_generics(generics)?
+        } else {
+            self.as_lift_cx().lift_generics()?
+        }
+        .with_refined_by(self.genv.map().refined_by(self.owner.def_id)))
+    }
+
     pub(crate) fn desugar_type_alias(
         &mut self,
         ty_alias: &surface::TyAlias,
@@ -521,7 +527,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         let generic_preds = if let Some(predicates) = &fn_sig.predicates {
             self.desugar_predicates(predicates, &mut env)?
         } else {
-            self.as_lift_cx().lift_predicates()?
+            self.as_lift_cx().lift_generic_predicates()?
         };
 
         if let Some(e) = &fn_sig.requires {
@@ -589,8 +595,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
                 let pred = self.desugar_expr(env, pred)?;
 
-                let sort = self.genv.sort_of_bty(&bty);
-                let ty = if let Some(idx) = self.bind_into_refine_arg(*bind, sort, env)? {
+                let ty = if let Some(idx) = self.bind_into_refine_arg(*bind, env)? {
                     fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: path.span }
                 } else {
                     fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: path.span }
@@ -687,7 +692,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             }
             surface::TyKind::Indexed { bty, indices } => {
                 let bty = self.desugar_bty(bty, env)?;
-                let idx = self.desugar_indices(&bty, indices, env)?;
+                let idx = self.desugar_indices(indices, env)?;
                 fhir::TyKind::Indexed(bty, idx)
             }
             surface::TyKind::Exists { bind: ex_bind, bty, pred } => {
@@ -697,19 +702,12 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 env.enter(ScopeId::Exists(node_id));
 
                 let bty = self.desugar_bty(bty, env)?;
-
-                if let Some(sort) = self.genv.sort_of_bty(&bty) {
-                    env.get_mut(*ex_bind).unwrap().sort = sort;
-                } else {
-                    return Err(self.emit_err(errors::RefinedUnrefinableType::new(bty.span)));
-                };
-
                 let pred = self.desugar_expr(env, pred)?;
                 let params = env.pop().into_params(self);
 
                 let idx = fhir::RefineArg {
                     kind: fhir::RefineArgKind::Expr(fhir::Expr {
-                        kind: fhir::ExprKind::Var(params[0].ident),
+                        kind: fhir::ExprKind::Var(params[0].ident, None),
                         span: ex_bind.span,
                         fhir_id: self.next_fhir_id(),
                     }),
@@ -787,48 +785,33 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
     fn desugar_indices(
         &mut self,
-        bty: &fhir::BaseTy,
         idxs: &surface::Indices,
         env: &mut Env,
     ) -> Result<fhir::RefineArg> {
-        let Some(sort) = self.genv.sort_of_bty(bty) else {
-            return Err(self.emit_err(errors::RefinedUnrefinableType::new(bty.span)));
-        };
-        if let fhir::Sort::Record(def_id, sort_args) = sort.clone() {
-            if let [surface::RefineArg::Bind(ident, ..)] = &idxs.indices[..] {
-                Ok(self.bind_into_refine_arg(*ident, Some(sort), env)?.unwrap())
-            } else {
-                let sorts = self.genv.index_sorts_of(def_id, &sort_args);
-                if sorts.len() != idxs.indices.len() {
-                    return Err(
-                        self.emit_err(errors::RefineArgCountMismatch::new(idxs, sorts.len()))
-                    );
-                }
-                let flds = iter::zip(&idxs.indices, sorts)
-                    .map(|(arg, sort)| self.desugar_refine_arg(arg, Some(sort), env))
-                    .try_collect_exhaust()?;
-                Ok(fhir::RefineArg {
-                    kind: fhir::RefineArgKind::Record(def_id, sort_args, flds),
-                    fhir_id: self.next_fhir_id(),
-                    span: idxs.span,
-                })
-            }
-        } else if let [arg] = &idxs.indices[..] {
-            self.desugar_refine_arg(arg, Some(sort), env)
+        if let [arg] = &idxs.indices[..] {
+            self.desugar_refine_arg(arg, env)
         } else {
-            Err(self.emit_err(errors::RefineArgCountMismatch::new(idxs, 1)))
+            let flds = idxs
+                .indices
+                .iter()
+                .map(|arg| self.desugar_refine_arg(arg, env))
+                .try_collect_exhaust()?;
+            Ok(fhir::RefineArg {
+                kind: fhir::RefineArgKind::Record(flds),
+                fhir_id: self.next_fhir_id(),
+                span: idxs.span,
+            })
         }
     }
 
     fn desugar_refine_arg(
         &mut self,
         arg: &surface::RefineArg,
-        sort: Option<fhir::Sort>,
         env: &mut Env,
     ) -> Result<fhir::RefineArg> {
         match arg {
             surface::RefineArg::Bind(ident, ..) => {
-                Ok(self.bind_into_refine_arg(*ident, sort, env)?.unwrap())
+                Ok(self.bind_into_refine_arg(*ident, env)?.unwrap())
             }
             surface::RefineArg::Expr(expr) => {
                 Ok(fhir::RefineArg {
@@ -853,19 +836,16 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     fn bind_into_refine_arg(
         &self,
         ident: surface::Ident,
-        sort: Option<fhir::Sort>,
-        env: &mut Env,
+        env: &Env,
     ) -> Result<Option<fhir::RefineArg>> {
-        match env.get_mut(ident) {
+        match env.get(ident) {
             Some(param) => {
-                if let Some(sort) = sort {
-                    param.sort = sort;
-                } else {
-                    param.sort = fhir::Sort::Error;
-                }
                 Ok(Some(fhir::RefineArg {
                     kind: fhir::RefineArgKind::Expr(fhir::Expr {
-                        kind: fhir::ExprKind::Var(fhir::Ident::new(param.name, ident)),
+                        kind: fhir::ExprKind::Var(
+                            fhir::Ident::new(param.name, ident),
+                            Some(param.kind),
+                        ),
                         span: ident.span,
                         fhir_id: self.next_fhir_id(),
                     }),
@@ -893,7 +873,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         let refine = path
             .refine
             .iter()
-            .map(|arg| self.desugar_refine_arg(arg, None, env))
+            .map(|arg| self.desugar_refine_arg(arg, env))
             .try_collect_exhaust()?;
         Ok(fhir::Path { res, args, bindings, refine, span: path.span })
     }
@@ -948,8 +928,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
         let span = bty.span;
         let kind = if let Some(bind) = bind
-            && let sort = self.genv.sort_of_bty(&bty)
-            && let Some(idx) = self.bind_into_refine_arg(bind, sort, env)?
+            && let Some(idx) = self.bind_into_refine_arg(bind, env)?
         {
             fhir::TyKind::Indexed(bty, idx)
         } else {
@@ -964,7 +943,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         env: &mut Env,
     ) -> Result<fhir::VariantRet> {
         let bty = self.desugar_path_to_bty(&ret.path, env)?;
-        let idx = self.desugar_indices(&bty, &ret.indices, env)?;
+        let idx = self.desugar_indices(&ret.indices, env)?;
         Ok(fhir::VariantRet { bty, idx })
     }
 
@@ -1048,10 +1027,9 @@ impl Scope<Param> {
         let mut refine_args = vec![];
         for (ident, param) in self.iter() {
             let ident = fhir::Ident::new(param.name, *ident);
-            let kind = ExprKind::Var(ident);
             refine_args.push(fhir::RefineArg {
                 kind: fhir::RefineArgKind::Expr(fhir::Expr {
-                    kind,
+                    kind: ExprKind::Var(ident, None),
                     span,
                     fhir_id: cx.next_fhir_id(),
                 }),
@@ -1081,7 +1059,7 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
         let kind = match &expr.kind {
             surface::ExprKind::QPath(qpath) => {
                 match self.resolve_qpath(env, qpath)? {
-                    QPathRes::Param(ident) => fhir::ExprKind::Var(ident),
+                    QPathRes::Param(ident) => fhir::ExprKind::Var(ident, None),
                     QPathRes::Const(const_info) => {
                         fhir::ExprKind::Const(const_info.def_id, qpath.span)
                     }

@@ -104,6 +104,7 @@ impl StructDef {
 
 #[derive(Debug)]
 pub struct EnumDef {
+    pub generics: Option<Generics>,
     pub refined_by: Option<RefinedBy>,
     pub variants: Vec<Option<VariantDef>>,
     pub invariants: Vec<Expr>,

@@ -139,14 +139,12 @@ pub struct OpaqueTy {
     pub bounds: GenericBounds,
 }
 
-type Cache<K, V> = elsa::FrozenMap<K, V, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
-
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default)]
 pub struct Map {
-    generics: Cache<LocalDefId, Box<Generics>>,
+    generics: UnordMap<LocalDefId, Generics>,
     predicates: ItemPredicates,
     opaque_tys: UnordMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
@@ -407,11 +405,23 @@ pub struct RefineArg {
     pub span: Span,
 }
 
+impl RefineArg {
+    pub fn is_colon_param(&self) -> Option<Ident> {
+        if let RefineArgKind::Expr(expr) = &self.kind
+            && let ExprKind::Var(var, Some(ParamKind::Colon)) = &expr.kind
+        {
+            Some(*var)
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum RefineArgKind {
     Expr(Expr),
     Abs(Vec<RefineParam>, Expr),
-    Record(DefId, List<Sort>, Vec<RefineArg>),
+    Record(Vec<RefineArg>),
 }
 
 /// These are types of things that may be refined with indices or existentials
@@ -530,7 +540,7 @@ newtype_index! {
     pub struct SortVid {}
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum SortCtor {
     Set,
     Map,
@@ -559,8 +569,16 @@ pub enum Sort {
     Record(DefId, List<Sort>),
     /// The sort associated to a type variable
     Param(DefId),
-    /// The sort associated to the `Self` type variable for a trait [DefId]
-    SelfParam(DefId),
+    /// The sort of the `Self` type, as used within a trait.
+    SelfParam {
+        /// The trait this `Self` is a generic parameter for.
+        trait_id: DefId,
+    },
+    /// The sort of a `Self` type, as used somewhere other than within a trait.
+    SelfAlias {
+        /// The item introducing the `Self` type alias, e.g., an impl block
+        alias_to: DefId,
+    },
     /// A sort that needs to be inferred
     Wildcard,
     /// Sort inference variable generated for a [Sort::Wildcard] during sort checking
@@ -612,7 +630,7 @@ pub struct Expr {
 #[derive(Clone)]
 pub enum ExprKind {
     Const(DefId, Span),
-    Var(Ident),
+    Var(Ident, Option<ParamKind>),
     Dot(Ident, SurfaceIdent),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
@@ -847,7 +865,7 @@ impl Generics {
 
     pub fn with_refined_by(self, refined_by: &RefinedBy) -> Self {
         let mut params = vec![];
-        for param in self.params {
+        for param in &self.params {
             let kind = if refined_by.is_base_generic(param.def_id.to_def_id()) {
                 GenericParamKind::SplTy
             } else {
@@ -952,9 +970,9 @@ impl Sort {
     fn subst(&self, subst: &[Sort]) -> Sort {
         match self {
             Sort::Var(i) => subst[*i].clone(),
-            Sort::App(c, args) => {
+            Sort::App(ctor, args) => {
                 let args = args.iter().map(|arg| arg.subst(subst)).collect();
-                Sort::App(c.clone(), args)
+                Sort::App(*ctor, args)
             }
             Sort::Func(fsort) => {
                 if fsort.params == 0 {
@@ -971,7 +989,8 @@ impl Sort {
             | Sort::Unit
             | Sort::BitVec(_)
             | Sort::Param(_)
-            | Sort::SelfParam(_)
+            | Sort::SelfParam { .. }
+            | Sort::SelfAlias { .. }
             | Sort::Wildcard
             | Sort::Record(_, _)
             | Sort::Infer(_)
@@ -1056,8 +1075,8 @@ impl Map {
         me
     }
 
-    pub fn insert_generics(&self, def_id: LocalDefId, generics: Generics) {
-        self.generics.insert(def_id, Box::new(generics));
+    pub fn insert_generics(&mut self, def_id: LocalDefId, generics: Generics) {
+        self.generics.insert(def_id, generics);
     }
 
     pub fn insert_generic_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
@@ -1577,7 +1596,7 @@ impl fmt::Debug for Path {
             .chain(self.bindings.iter().map(|b| b as &dyn std::fmt::Debug))
             .collect();
         if !args.is_empty() {
-            write!(f, "{:?}", args)?;
+            write!(f, "<{:?}>", args.iter().format(", "))?;
         }
         if !self.refine.is_empty() {
             write!(f, "({:?})", self.refine.iter().format(", "))?;
@@ -1616,13 +1635,8 @@ impl fmt::Debug for RefineArg {
                     })
                 )
             }
-            RefineArgKind::Record(def_id, _, flds) => {
-                write!(
-                    f,
-                    "{} {{ {:?} }}",
-                    pretty::def_id_to_string(*def_id),
-                    flds.iter().format(", ")
-                )
+            RefineArgKind::Record(flds) => {
+                write!(f, "{{ {:?} }}", flds.iter().format(", "))
             }
         }
     }
@@ -1720,8 +1734,11 @@ impl fmt::Debug for Sort {
                 }
             }
             Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
-            Sort::SelfParam(def_id) => {
-                write!(f, "sortof({}::Self)", pretty::def_id_to_string(*def_id))
+            Sort::SelfParam { trait_id } => {
+                write!(f, "sortof({}::Self)", pretty::def_id_to_string(*trait_id))
+            }
+            Sort::SelfAlias { alias_to } => {
+                write!(f, "sortof({}::Self)", pretty::def_id_to_string(*alias_to))
             }
             Sort::Wildcard => write!(f, "_"),
             Sort::Infer(vid) => write!(f, "{vid:?}"),

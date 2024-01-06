@@ -69,11 +69,6 @@ impl<P> Env<P> {
         }
     }
 
-    pub(crate) fn get_mut(&mut self, ident: Ident) -> Option<&mut P> {
-        let (scope_id, _) = self.get_with_scope(ident)?;
-        self.scopes.get_mut(&scope_id).unwrap().map.get_mut(&ident)
-    }
-
     pub(crate) fn scope(&mut self, id: ScopeId) -> &mut Scope<P> {
         self.scopes.get_mut(&id).unwrap()
     }

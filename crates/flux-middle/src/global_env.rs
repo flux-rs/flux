@@ -268,7 +268,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let kind = generics.self_kind.as_ref()?;
         match kind {
             fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy => {
-                Some(fhir::Sort::SelfParam(owner))
+                Some(fhir::Sort::SelfParam { trait_id: owner })
             }
             fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
         }
@@ -349,8 +349,12 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             | fhir::Sort::Unit
             | fhir::Sort::BitVec(_)
             | fhir::Sort::Param(_)
-            | fhir::Sort::SelfParam(_)
+            | fhir::Sort::SelfParam { trait_id: _ }
             | fhir::Sort::Var(_) => true,
+            fhir::Sort::SelfAlias { alias_to } => {
+                self.sort_of_self_ty_alias(*alias_to)
+                    .map_or(false, |sort| self.has_equality(&sort))
+            }
             fhir::Sort::Record(def_id, sort_args) => {
                 self.index_sorts_of(*def_id, sort_args)
                     .iter()

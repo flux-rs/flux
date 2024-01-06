@@ -268,3 +268,16 @@ impl CannotInferSort {
         Self { span: ident.span() }
     }
 }
+
+#[derive(Diagnostic)]
+#[diag(fhir_analysis_refined_unrefinable_type, code = "FLUX")]
+pub(super) struct RefinedUnrefinableType {
+    #[primary_span]
+    span: Span,
+}
+
+impl RefinedUnrefinableType {
+    pub(super) fn new(span: Span) -> Self {
+        Self { span }
+    }
+}
