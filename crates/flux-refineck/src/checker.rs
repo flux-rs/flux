@@ -150,7 +150,6 @@ impl<'a, 'tcx> Checker<'a, 'tcx, ShapeMode> {
     }
 }
 
-
 impl<'a, 'tcx> Checker<'a, 'tcx, RefineMode> {
     pub(crate) fn run_in_refine_mode(
         genv: &GlobalEnv<'a, 'tcx>,

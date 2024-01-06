@@ -168,7 +168,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.lower_late_bound_vars(self, def_id)
     }
 
-
     pub fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParam {
         let owner = self.hir().ty_param_owner(def_id);
         self.map().get_generics(owner).unwrap().get_param(def_id)
