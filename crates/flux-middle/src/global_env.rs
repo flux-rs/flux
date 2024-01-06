@@ -168,11 +168,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.lower_late_bound_vars(self, def_id)
     }
 
-    // pub fn get_generic_param(&self, def_id: LocalDefId) -> Option<&fhir::GenericParam> {
-    //     let owner = self.hir().ty_param_owner(def_id);
-    //     let generics = self.map().get_generics(owner)?;
-    //     generics.get_param(def_id)
-    // }
 
     pub fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParam {
         let owner = self.hir().ty_param_owner(def_id);
@@ -262,7 +257,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    pub fn sort_of_self_param(&self, owner: DefId) -> Option<fhir::Sort> {
+    fn sort_of_self_param(&self, owner: DefId) -> Option<fhir::Sort> {
         let generics = self.map().get_generics(owner.expect_local())?;
         let kind = generics.self_kind.as_ref()?;
         match kind {

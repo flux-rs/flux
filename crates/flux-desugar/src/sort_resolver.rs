@@ -35,9 +35,6 @@ pub(crate) struct SortResolver<'a> {
     generic_params: FxHashMap<Symbol, DefId>,
     sort_params: FxHashMap<Symbol, usize>,
     self_res: SelfRes,
-    // parent_id: Option<DefId>,
-    // /// the sort of `Self` in an `impl` block, None otherwise
-    // self_sort: Option<fhir::Sort>,
 }
 
 impl<'a> SortResolver<'a> {
