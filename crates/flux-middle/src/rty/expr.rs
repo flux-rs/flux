@@ -83,6 +83,7 @@ pub enum ExprKind {
     UnaryOp(UnOp, Expr),
     TupleProj(Expr, u32),
     Tuple(List<Expr>),
+    Record(DefId, List<Sort>, List<Expr>),
     PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
@@ -346,6 +347,10 @@ impl Expr {
         espan: Option<ESpan>,
     ) -> Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern_at(espan)
+    }
+
+    pub fn record(def_id: DefId, sorts: List<Sort>, flds: List<Expr>) -> Expr {
+        ExprKind::Record(def_id, sorts, flds).intern()
     }
 
     pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>, espan: Option<ESpan>) -> Expr {
@@ -799,6 +804,9 @@ mod pretty {
                     w!("{:?}", body)
                 }
                 ExprKind::GlobalFunc(func, _) => w!("{}", ^func),
+                ExprKind::Record(def_id, sorts, flds) => {
+                    w!("{:?}<{:?}>{{ {:?} }}", def_id, join!(", ", sorts), join!(", ", flds))
+                }
             }
         }
     }

@@ -549,6 +549,7 @@ impl TypeVisitable for Sort {
             | Sort::BitVec(_)
             | Sort::Loc
             | Sort::Param(_)
+            | Sort::Record(..)
             | Sort::Var(_) => ControlFlow::Continue(()),
         }
     }
@@ -576,6 +577,7 @@ impl TypeSuperFoldable for Sort {
                 };
                 Sort::Func(PolyFuncSort { params, fsort })
             }
+            Sort::Record(def_id, sorts) => Sort::Record(*def_id, sorts.try_fold_with(folder)?),
             Sort::Int
             | Sort::Bool
             | Sort::Real
@@ -977,6 +979,10 @@ impl TypeSuperVisitable for Expr {
                 e1.visit_with(visitor)?;
                 e2.visit_with(visitor)
             }
+            ExprKind::Record(_, sorts, flds) => {
+                sorts.visit_with(visitor)?;
+                flds.visit_with(visitor)
+            }
             ExprKind::Tuple(exprs) => exprs.iter().try_for_each(|e| e.visit_with(visitor)),
             ExprKind::PathProj(e, _) | ExprKind::UnaryOp(_, e) | ExprKind::TupleProj(e, _) => {
                 e.visit_with(visitor)
@@ -1035,6 +1041,9 @@ impl TypeSuperFoldable for Expr {
                     .map(|e| e.try_fold_with(folder))
                     .try_collect_vec()?;
                 Expr::tuple(exprs)
+            }
+            ExprKind::Record(def_id, sorts, flds) => {
+                Expr::record(*def_id, sorts.try_fold_with(folder)?, flds.try_fold_with(folder)?)
             }
             ExprKind::PathProj(e, field) => Expr::path_proj(e.try_fold_with(folder)?, *field),
             ExprKind::App(func, arg) => {

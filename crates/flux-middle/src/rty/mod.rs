@@ -180,6 +180,7 @@ pub enum Sort {
     Tuple(List<Sort>),
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
+    Record(DefId, List<Sort>),
     Var(SortVar),
 }
 
@@ -1689,6 +1690,13 @@ mod pretty {
                 Sort::Loc => w!("loc"),
                 Sort::Var(n) => w!("@{}", ^n.index),
                 Sort::Func(sort) => w!("{:?}", sort),
+                Sort::Record(def_id, sorts) => {
+                    if sorts.is_empty() {
+                        w!("{:?}", *def_id)
+                    } else {
+                        w!("{:?}<{:?}>", *def_id, join!(", ", sorts))
+                    }
+                }
                 Sort::Tuple(sorts) => {
                     if let [sort] = &sorts[..] {
                         w!("({:?},)", sort)
@@ -1697,8 +1705,8 @@ mod pretty {
                     }
                 }
                 Sort::App(ctor, sorts) => {
-                    if let [sort] = &sorts[..] {
-                        w!("{:?}<{:?}>", ctor, sort)
+                    if sorts.is_empty() {
+                        w!("{:?}", ctor)
                     } else {
                         w!("{:?}<{:?}>", ctor, join!(", ", sorts))
                     }

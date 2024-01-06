@@ -636,6 +636,7 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
             let sorts = sorts.iter().map(sort_to_fixpoint).collect_vec();
             fixpoint::Sort::App(ctor, sorts)
         }
+        rty::Sort::Record(_, _) => todo!(),
         rty::Sort::Tuple(sorts) => {
             match &sorts[..] {
                 [] => fixpoint::Sort::Unit,
@@ -693,6 +694,7 @@ impl<'a> ExprCtxt<'a> {
                         fixpoint::Expr::Proj(Box::new(e), proj)
                     })
             }
+            rty::ExprKind::Record(_, _, _) => todo!(),
             rty::ExprKind::Tuple(exprs) => self.tuple_to_fixpoint(exprs),
             rty::ExprKind::ConstDefId(did) => {
                 let const_info = self.const_map.get(&Key::Const(*did)).unwrap_or_else(|| {
