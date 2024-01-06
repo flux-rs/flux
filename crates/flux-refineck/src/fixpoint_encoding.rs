@@ -694,6 +694,7 @@ impl<'a> ExprCtxt<'a> {
                         fixpoint::Expr::Proj(Box::new(e), proj)
                     })
             }
+            rty::ExprKind::FieldProj(_, _, _) => todo!(),
             rty::ExprKind::Record(_, _, _) => todo!(),
             rty::ExprKind::Tuple(exprs) => self.tuple_to_fixpoint(exprs),
             rty::ExprKind::ConstDefId(did) => {

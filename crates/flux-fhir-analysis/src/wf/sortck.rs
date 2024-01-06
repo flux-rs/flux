@@ -375,8 +375,8 @@ impl<'a> InferCtxt<'a, '_> {
         let mut sort2 = sort2.clone();
 
         let mut coercions = vec![];
-        if let Some((_def_id, _sort_args, sort)) = self.is_single_field_record(&sort1) {
-            coercions.push(fhir::Coercion::Project);
+        if let Some((def_id, _sort_args, sort)) = self.is_single_field_record(&sort1) {
+            coercions.push(fhir::Coercion::Project(def_id));
             sort1 = sort.clone();
         }
         if let Some((def_id, sort_args, sort)) = self.is_single_field_record(&sort2) {
@@ -413,12 +413,12 @@ impl<'a> InferCtxt<'a, '_> {
     ) -> Option<fhir::Sort> {
         if self.is_numeric(sort) {
             Some(sort.clone())
-        } else if let Some((_def_id, _sort_args, sort)) = self.is_single_field_record(sort)
+        } else if let Some((def_id, _sort_args, sort)) = self.is_single_field_record(sort)
             && sort.is_numeric()
         {
             self.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, vec![fhir::Coercion::Project]);
+                .insert(fhir_id, vec![fhir::Coercion::Project(def_id)]);
             Some(sort.clone())
         } else {
             None
@@ -451,12 +451,12 @@ impl<'a> InferCtxt<'a, '_> {
     ) -> Option<fhir::PolyFuncSort> {
         if let Some(fsort) = self.is_func(sort) {
             Some(fsort)
-        } else if let Some((_def_id, _sort_args, fhir::Sort::Func(fsort))) =
+        } else if let Some((def_id, _sort_args, fhir::Sort::Func(fsort))) =
             self.is_single_field_record(sort)
         {
             self.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, vec![fhir::Coercion::Project]);
+                .insert(fhir_id, vec![fhir::Coercion::Project(def_id)]);
             Some(fsort.clone())
         } else {
             None

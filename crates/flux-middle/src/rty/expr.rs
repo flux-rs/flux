@@ -82,6 +82,7 @@ pub enum ExprKind {
     GlobalFunc(Symbol, FuncKind),
     UnaryOp(UnOp, Expr),
     TupleProj(Expr, u32),
+    FieldProj(Expr, DefId, u32),
     Tuple(List<Expr>),
     Record(DefId, List<Sort>, List<Expr>),
     PathProj(Expr, FieldIdx),
@@ -407,6 +408,10 @@ impl Expr {
             .iter()
             .copied()
             .fold(e.into(), |e, p| Expr::tuple_proj(e, p, None))
+    }
+
+    pub fn field_proj(e: impl Into<Expr>, def_id: DefId, proj: u32, espan: Option<ESpan>) -> Expr {
+        ExprKind::FieldProj(e.into(), def_id, proj).intern_at(espan)
     }
 
     pub fn path_proj(base: Expr, field: FieldIdx) -> Expr {
@@ -764,6 +769,13 @@ mod pretty {
                     }
                 }
                 ExprKind::TupleProj(e, field) => {
+                    if e.is_atom() {
+                        w!("{:?}.{:?}", e, ^field)
+                    } else {
+                        w!("({:?}).{:?}", e, ^field)
+                    }
+                }
+                ExprKind::FieldProj(e, _, field) => {
                     if e.is_atom() {
                         w!("{:?}.{:?}", e, ^field)
                     } else {

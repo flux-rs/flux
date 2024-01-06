@@ -341,7 +341,7 @@ pub struct WfckResults {
 #[derive(Debug)]
 pub enum Coercion {
     Inject(DefId, List<Sort>),
-    Project,
+    Project(DefId),
 }
 
 pub type ItemLocalMap<T> = FxHashMap<ItemLocalId, T>;

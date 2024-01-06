@@ -1014,7 +1014,9 @@ impl ConvCtxt<'_, '_> {
                         let sorts = conv_sorts(self.genv, sorts);
                         rty::Expr::record(*def_id, List::from_vec(sorts), List::singleton(expr))
                     }
-                    fhir::Coercion::Project => rty::Expr::tuple_proj(expr, 0, span),
+                    fhir::Coercion::Project(def_id) => {
+                        rty::Expr::field_proj(expr, *def_id, 0, span)
+                    }
                 };
             }
         }
@@ -1155,7 +1157,7 @@ impl LookupResult<'_> {
             let i = genv
                 .field_index(def_id, fld.name)
                 .unwrap_or_else(|| span_bug!(fld.span, "field `{fld:?}` not found in {def_id:?}"));
-            rty::Expr::tuple_proj(self.to_expr(), i as u32, None)
+            rty::Expr::field_proj(self.to_expr(), def_id, i as u32, None)
         } else {
             span_bug!(fld.span, "expected record sort")
         }
