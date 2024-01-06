@@ -196,14 +196,11 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
     }
 }
 
-fn sort_args_for_adt(genv: &GlobalEnv, def_id: impl Into<DefId>) -> List<fhir::Sort> {
-    let mut sort_args = vec![];
-    for param in &genv.tcx.generics_of(def_id.into()).params {
-        if let rustc_middle::ty::GenericParamDefKind::Type { .. } = param.kind {
-            sort_args.push(fhir::Sort::Param(param.def_id));
-        }
-    }
-    List::from_vec(sort_args)
+fn identity_sort_args_for_adt(genv: &GlobalEnv, def_id: LocalDefId) -> List<rty::Sort> {
+    let refined_by = genv.map().refined_by(def_id);
+    (0..refined_by.param_count())
+        .map(|i| rty::Sort::Var(rty::SortVar::from(i)))
+        .collect()
 }
 
 pub(crate) fn adt_def_for_struct(
@@ -211,9 +208,9 @@ pub(crate) fn adt_def_for_struct(
     invariants: Vec<rty::Invariant>,
     struct_def: &fhir::StructDef,
 ) -> rty::AdtDef {
-    let def_id = struct_def.owner_id;
-    let sort_args = sort_args_for_adt(genv, def_id);
-    let sort = rty::Sort::tuple(conv_sorts(genv, &genv.index_sorts_of(def_id, &sort_args)));
+    let def_id = struct_def.owner_id.to_def_id();
+    let sort_args = identity_sort_args_for_adt(genv, struct_def.owner_id.def_id);
+    let sort = rty::Sort::Record(def_id, sort_args);
     let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(struct_def.owner_id));
     rty::AdtDef::new(adt_def, sort, invariants, struct_def.is_opaque())
 }
@@ -223,9 +220,9 @@ pub(crate) fn adt_def_for_enum(
     invariants: Vec<rty::Invariant>,
     enum_def: &fhir::EnumDef,
 ) -> rty::AdtDef {
-    let def_id = enum_def.owner_id;
-    let sort_args = sort_args_for_adt(genv, def_id);
-    let sort = rty::Sort::tuple(conv_sorts(genv, &genv.index_sorts_of(def_id, &sort_args)));
+    let def_id = enum_def.owner_id.to_def_id();
+    let sort_args = identity_sort_args_for_adt(genv, enum_def.owner_id.def_id);
+    let sort = rty::Sort::Record(def_id, sort_args);
     let adt_def = if let Some(extern_id) = enum_def.extern_id {
         lowering::lower_adt_def(&genv.tcx.adt_def(extern_id))
     } else {
@@ -1195,7 +1192,7 @@ fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Unit => rty::Sort::unit(),
         fhir::Sort::Func(fsort) => rty::Sort::Func(conv_func_sort(genv, fsort)),
         fhir::Sort::Record(def_id, sort_args) => {
-            rty::Sort::tuple(conv_sorts(genv, &genv.index_sorts_of(*def_id, sort_args)))
+            rty::Sort::Record(*def_id, List::from_vec(conv_sorts(genv, sort_args)))
         }
         fhir::Sort::App(ctor, args) => {
             let ctor = conv_sort_ctor(ctor);

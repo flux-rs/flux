@@ -927,6 +927,10 @@ impl RefinedBy {
             .collect()
     }
 
+    pub fn param_count(&self) -> usize {
+        self.sort_params.len()
+    }
+
     fn is_base_generic(&self, def_id: DefId) -> bool {
         self.sort_params.contains(&def_id)
     }
