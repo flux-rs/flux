@@ -93,8 +93,8 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
 
         flux_fhir_analysis::provide(genv.providers());
 
+        stage1_desugar(&mut genv, &specs)?;
         let resolver_output = resolve_crate(tcx, sess, &specs)?;
-        stage1_desugar(&mut genv, &specs, &resolver_output)?;
         stage2_desugar(&mut genv, &mut specs, &resolver_output)?;
 
         flux_fhir_analysis::check_crate_wf(&genv)?;
@@ -123,11 +123,7 @@ fn check_crate(tcx: TyCtxt, sess: &FluxSession) -> Result<(), ErrorGuaranteed> {
     })
 }
 
-fn stage1_desugar(
-    genv: &mut GlobalEnv,
-    specs: &Specs,
-    resolver_output: &ResolverOutput,
-) -> Result<(), ErrorGuaranteed> {
+fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
     let tcx = genv.tcx;
     let sess = genv.sess;
@@ -175,14 +171,14 @@ fn stage1_desugar(
             } else {
                 lift::lift_refined_by(tcx, owner_id)
             };
-            let generics = desugar::desugar_generics_for_adt(
-                genv,
-                owner_id,
-                resolver_output,
-                specs.generics_of_adt(owner_id),
-            )?
-            .with_refined_by(&refined_by);
-            genv.map_mut().insert_generics(owner_id.def_id, generics);
+            // let generics = desugar::desugar_generics_for_adt(
+            //     genv,
+            //     owner_id,
+            //     resolver_output,
+            //     specs.generics_of_adt(owner_id),
+            // )?
+            // .with_refined_by(&refined_by);
+            // genv.map_mut().insert_generics(owner_id.def_id, generics);
             genv.map_mut()
                 .insert_refined_by(owner_id.def_id, refined_by);
             Ok(())

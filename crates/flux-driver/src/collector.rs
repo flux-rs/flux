@@ -614,16 +614,6 @@ impl Specs {
             .map(|(owner_id, alias)| (*owner_id, alias.as_ref().map(|alias| &alias.refined_by)));
         itertools::chain!(structs, enums, aliases)
     }
-
-    pub fn generics_of_adt(&self, owner_id: OwnerId) -> Option<&surface::Generics> {
-        if let Some(struct_def) = self.structs.get(&owner_id) {
-            return struct_def.generics.as_ref();
-        }
-        if let Some(enum_def) = self.enums.get(&owner_id) {
-            return enum_def.generics.as_ref();
-        }
-        None
-    }
 }
 
 #[derive(Debug)]

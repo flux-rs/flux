@@ -138,14 +138,12 @@ pub struct OpaqueTy {
     pub bounds: GenericBounds,
 }
 
-type Cache<K, V> = elsa::FrozenMap<K, V, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
-
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default)]
 pub struct Map {
-    generics: Cache<LocalDefId, Box<Generics>>,
+    generics: UnordMap<LocalDefId, Generics>,
     predicates: ItemPredicates,
     opaque_tys: UnordMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
@@ -1064,8 +1062,8 @@ impl Map {
         me
     }
 
-    pub fn insert_generics(&self, def_id: LocalDefId, generics: Generics) {
-        self.generics.insert(def_id, Box::new(generics));
+    pub fn insert_generics(&mut self, def_id: LocalDefId, generics: Generics) {
+        self.generics.insert(def_id, generics);
     }
 
     pub fn insert_generic_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
