@@ -79,6 +79,11 @@ enum LookupResultKind<'a> {
     EarlyBound { idx: u32, sort: &'a fhir::Sort },
 }
 
+pub(crate) fn conv_adt_sort_def(genv: &GlobalEnv, refined_by: &fhir::RefinedBy) -> rty::AdtSortDef {
+    let sorts = conv_sorts(genv, &refined_by.sorts);
+    rty::AdtSortDef::new(refined_by.def_id, refined_by.sort_params.clone(), List::from_vec(sorts))
+}
+
 pub(crate) fn expand_type_alias(
     genv: &GlobalEnv,
     alias: &fhir::TyAlias,
@@ -221,7 +226,7 @@ pub(crate) fn adt_def_for_struct(
 ) -> rty::AdtDef {
     let def_id = struct_def.owner_id.def_id;
     let sort_args = identity_sort_args_for_adt(genv, def_id);
-    let sort = rty::Sort::Record(def_id.to_def_id(), sort_args);
+    let sort = rty::Sort::Adt(genv.adt_sort_def_of(def_id), sort_args);
     let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(struct_def.owner_id));
     rty::AdtDef::new(adt_def, sort, invariants, struct_def.is_opaque())
 }
@@ -233,7 +238,7 @@ pub(crate) fn adt_def_for_enum(
 ) -> rty::AdtDef {
     let def_id = enum_def.owner_id.def_id;
     let sort_args = identity_sort_args_for_adt(genv, def_id);
-    let sort = rty::Sort::Record(def_id.to_def_id(), sort_args);
+    let sort = rty::Sort::Adt(genv.adt_sort_def_of(def_id), sort_args);
     let adt_def = if let Some(extern_id) = enum_def.extern_id {
         lowering::lower_adt_def(&genv.tcx.adt_def(extern_id))
     } else {
@@ -1212,7 +1217,10 @@ fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {
         fhir::Sort::Unit => rty::Sort::unit(),
         fhir::Sort::Func(fsort) => rty::Sort::Func(conv_func_sort(genv, fsort)),
         fhir::Sort::Record(def_id, sort_args) => {
-            rty::Sort::Record(*def_id, List::from_vec(conv_sorts(genv, sort_args)))
+            rty::Sort::Adt(
+                genv.adt_sort_def_of(*def_id),
+                List::from_vec(conv_sorts(genv, sort_args)),
+            )
         }
         fhir::Sort::App(ctor, args) => {
             let ctor = conv_sort_ctor(ctor);

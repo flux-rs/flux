@@ -555,10 +555,19 @@ impl Expr {
 
     pub fn fold_sort(sort: &Sort, mut f: impl FnMut(&Sort) -> Expr) -> Expr {
         fn go(sort: &Sort, f: &mut impl FnMut(&Sort) -> Expr) -> Expr {
-            if let Sort::Tuple(sorts) = sort {
-                Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect_vec())
-            } else {
-                f(sort)
+            match sort {
+                Sort::Tuple(sorts) => {
+                    Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect_vec())
+                }
+                Sort::Adt(adt_sort_def, args) => {
+                    let flds = adt_sort_def.instantiate(args);
+                    Expr::record(
+                        adt_sort_def.did(),
+                        args.clone(),
+                        flds.iter().map(|sort| go(sort, f)).collect(),
+                    )
+                }
+                _ => f(sort),
             }
         }
         go(sort, &mut f)
@@ -817,8 +826,12 @@ mod pretty {
                     w!("{:?}", body)
                 }
                 ExprKind::GlobalFunc(func, _) => w!("{}", ^func),
-                ExprKind::Record(def_id, sorts, flds) => {
-                    w!("{:?}<{:?}>{{ {:?} }}", def_id, join!(", ", sorts), join!(", ", flds))
+                ExprKind::Record(def_id, args, flds) => {
+                    if args.is_empty() {
+                        w!("{:?} {{ {:?} }}", def_id, join!(", ", flds))
+                    } else {
+                        w!("{:?}<{:?}> {{ {:?} }}", def_id, join!(", ", args), join!(", ", flds))
+                    }
                 }
             }
         }

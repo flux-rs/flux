@@ -549,7 +549,7 @@ impl TypeVisitable for Sort {
             | Sort::BitVec(_)
             | Sort::Loc
             | Sort::Param(_)
-            | Sort::Record(..)
+            | Sort::Adt(..)
             | Sort::Var(_) => ControlFlow::Continue(()),
         }
     }
@@ -577,7 +577,9 @@ impl TypeSuperFoldable for Sort {
                 };
                 Sort::Func(PolyFuncSort { params, fsort })
             }
-            Sort::Record(def_id, sorts) => Sort::Record(*def_id, sorts.try_fold_with(folder)?),
+            Sort::Adt(adt_sort_def, sorts) => {
+                Sort::Adt(adt_sort_def.clone(), sorts.try_fold_with(folder)?)
+            }
             Sort::Int
             | Sort::Bool
             | Sort::Real

@@ -830,7 +830,7 @@ pub struct RefinedBy {
     /// The number of early bound parameters
     early_bound: usize,
     /// Sorts of both early bound and index parameters. Early bound parameter appear first.
-    sorts: Vec<Sort>,
+    pub sorts: Vec<Sort>,
 }
 
 #[derive(Debug)]

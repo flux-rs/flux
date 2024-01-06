@@ -43,6 +43,7 @@ use crate::{
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
+    rty::fold::{TypeFolder, TypeSuperFoldable},
     rustc::{
         self,
         mir::{Local, Place},
@@ -56,6 +57,42 @@ pub use crate::{
         Region::{self, *},
     },
 };
+
+#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+pub struct AdtSortDef(Interned<AdtSortDefData>);
+
+#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+struct AdtSortDefData {
+    def_id: DefId,
+    params: Vec<DefId>,
+    fields: List<Sort>,
+}
+
+impl AdtSortDef {
+    pub fn new(def_id: DefId, params: Vec<DefId>, fields: List<Sort>) -> Self {
+        Self(Interned::new(AdtSortDefData { def_id, params, fields }))
+    }
+
+    pub fn did(&self) -> DefId {
+        self.0.def_id
+    }
+
+    pub fn instantiate(&self, args: &[Sort]) -> List<Sort> {
+        struct Subst<'a> {
+            args: &'a [Sort],
+        }
+        impl TypeFolder for Subst<'_> {
+            fn fold_sort(&mut self, sort: &Sort) -> Sort {
+                if let Sort::Var(var) = sort {
+                    self.args[var.index].clone()
+                } else {
+                    sort.super_fold_with(self)
+                }
+            }
+        }
+        self.0.fields.fold_with(&mut Subst { args })
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Generics {
@@ -180,7 +217,7 @@ pub enum Sort {
     Tuple(List<Sort>),
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
-    Record(DefId, List<Sort>),
+    Adt(AdtSortDef, List<Sort>),
     Var(SortVar),
 }
 
@@ -1515,7 +1552,7 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
     }
 }
 
-impl_internable!(AdtDefData, TyS);
+impl_internable!(AdtDefData, AdtSortDefData, TyS);
 impl_slice_internable!(
     Ty,
     GenericArg,
@@ -1690,11 +1727,11 @@ mod pretty {
                 Sort::Loc => w!("loc"),
                 Sort::Var(n) => w!("@{}", ^n.index),
                 Sort::Func(sort) => w!("{:?}", sort),
-                Sort::Record(def_id, sorts) => {
-                    if sorts.is_empty() {
-                        w!("{:?}", *def_id)
+                Sort::Adt(adt_sort_def, args) => {
+                    if args.is_empty() {
+                        w!("{:?}", adt_sort_def.did())
                     } else {
-                        w!("{:?}<{:?}>", *def_id, join!(", ", sorts))
+                        w!("{:?}<{:?}>", adt_sort_def.did(), join!(", ", args))
                     }
                 }
                 Sort::Tuple(sorts) => {

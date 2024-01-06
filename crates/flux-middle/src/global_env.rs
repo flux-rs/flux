@@ -111,6 +111,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.adt_def(self, def_id.into())
     }
 
+    pub fn adt_sort_def_of(&self, def_id: impl Into<DefId>) -> rty::AdtSortDef {
+        self.queries.adt_sort_def_of(self, def_id.into())
+    }
+
     pub fn check_wf(
         &self,
         flux_id: impl Into<FluxLocalDefId>,

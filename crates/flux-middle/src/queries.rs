@@ -47,6 +47,7 @@ pub struct Providers {
     pub defns: fn(&GlobalEnv) -> QueryResult<rty::Defns>,
     pub qualifiers: fn(&GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub func_decls: fn(&GlobalEnv) -> FxHashMap<Symbol, rty::FuncDecl>,
+    pub adt_sort_def_of: fn(&GlobalEnv, LocalDefId) -> rty::AdtSortDef,
     pub check_wf: fn(&GlobalEnv, FluxLocalDefId) -> QueryResult<Rc<fhir::WfckResults>>,
     pub adt_def: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>>,
@@ -74,6 +75,7 @@ impl Default for Providers {
             defns: |_| empty_query!(),
             func_decls: |_| empty_query!(),
             qualifiers: |_| empty_query!(),
+            adt_sort_def_of: |_, _| empty_query!(),
             check_wf: |_, _| empty_query!(),
             adt_def: |_, _| empty_query!(),
             type_of: |_, _| empty_query!(),
@@ -98,6 +100,7 @@ pub struct Queries<'tcx> {
     defns: OnceCell<QueryResult<rty::Defns>>,
     func_decls: OnceCell<FxHashMap<Symbol, rty::FuncDecl>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
+    adt_sort_def_of: Cache<DefId, rty::AdtSortDef>,
     check_wf: Cache<FluxLocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
@@ -202,6 +205,18 @@ impl<'tcx> Queries<'tcx> {
             .get_or_init(|| (self.providers.qualifiers)(genv))
             .as_deref()
             .map_err(Clone::clone)
+    }
+
+    pub(crate) fn adt_sort_def_of(&self, genv: &GlobalEnv, def_id: DefId) -> rty::AdtSortDef {
+        run_with_cache(&self.adt_sort_def_of, def_id, || {
+            let extern_id = genv.lookup_extern(def_id);
+            let def_id = extern_id.unwrap_or(def_id);
+            if let Some(local_id) = def_id.as_local() {
+                (self.providers.adt_sort_def_of)(genv, local_id)
+            } else {
+                todo!()
+            }
+        })
     }
 
     pub(crate) fn check_wf(
