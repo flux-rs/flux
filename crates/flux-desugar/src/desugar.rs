@@ -481,6 +481,18 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         }
     }
 
+    pub(crate) fn desugar_generics_for_adt(
+        &mut self,
+        generics: Option<&surface::Generics>,
+    ) -> Result<fhir::Generics> {
+        Ok(if let Some(generics) = generics {
+            self.desugar_generics(generics)?
+        } else {
+            self.as_lift_cx().lift_generics()?
+        }
+        .with_refined_by(self.genv.map().refined_by(self.owner.def_id)))
+    }
+
     pub(crate) fn desugar_type_alias(
         &mut self,
         ty_alias: &surface::TyAlias,

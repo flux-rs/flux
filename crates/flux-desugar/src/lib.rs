@@ -42,13 +42,7 @@ pub fn desugar_struct_def(
 
     let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
 
-    let generics = if let Some(generics) = &struct_def.generics {
-        cx.desugar_generics(generics)?
-    } else {
-        cx.as_lift_cx().lift_generics()?
-    }
-    .with_refined_by(genv.map().refined_by(def_id));
-
+    let generics = cx.desugar_generics_for_adt(struct_def.generics.as_ref())?;
     let predicates = cx.as_lift_cx().lift_generic_predicates()?;
 
     let struct_def = cx.desugar_struct_def(struct_def)?;
@@ -74,12 +68,7 @@ pub fn desugar_enum_def(
 
     let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
 
-    let generics = if let Some(generics) = &enum_def.generics {
-        cx.desugar_generics(generics)?
-    } else {
-        cx.as_lift_cx().lift_generics()?
-    }
-    .with_refined_by(genv.map().refined_by(def_id));
+    let generics = cx.desugar_generics_for_adt(enum_def.generics.as_ref())?;
     let predicates = cx.as_lift_cx().lift_generic_predicates()?;
 
     let enum_def = cx.desugar_enum_def(enum_def)?;

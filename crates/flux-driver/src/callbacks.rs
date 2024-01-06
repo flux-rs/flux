@@ -127,19 +127,18 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaran
     let mut err: Option<ErrorGuaranteed> = None;
     let tcx = genv.tcx;
     let sess = genv.sess;
+    let map = genv.map_mut();
 
     // Register Sorts
     for sort_decl in &specs.sort_decls {
-        genv.map_mut()
-            .insert_sort_decl(desugar::desugar_sort_decl(sort_decl));
+        map.insert_sort_decl(desugar::desugar_sort_decl(sort_decl));
     }
 
     // Register Consts
     for (def_id, const_sig) in &specs.consts {
         let did = def_id.to_def_id();
         let sym = def_id_symbol(tcx, *def_id);
-        genv.map_mut()
-            .insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
+        map.insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
     }
 
     // Register FnDecls
@@ -148,8 +147,8 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaran
         .iter()
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
-            let func_decl = desugar::func_def_to_func_decl(sess, genv.map().sort_decls(), defn)?;
-            genv.map_mut().insert_func_decl(name.name, func_decl);
+            let func_decl = desugar::func_def_to_func_decl(sess, map.sort_decls(), defn)?;
+            map.insert_func_decl(name.name, func_decl);
             Ok(())
         })
         .err()
@@ -161,26 +160,11 @@ fn stage1_desugar(genv: &mut GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaran
         .try_for_each_exhaust(|(owner_id, refined_by)| {
             let refined_by = if let Some(refined_by) = refined_by {
                 let generics = tcx.generics_of(owner_id);
-                desugar::desugar_refined_by(
-                    sess,
-                    genv.map().sort_decls(),
-                    owner_id,
-                    generics,
-                    refined_by,
-                )?
+                desugar::desugar_refined_by(sess, map.sort_decls(), owner_id, generics, refined_by)?
             } else {
                 lift::lift_refined_by(tcx, owner_id)
             };
-            // let generics = desugar::desugar_generics_for_adt(
-            //     genv,
-            //     owner_id,
-            //     resolver_output,
-            //     specs.generics_of_adt(owner_id),
-            // )?
-            // .with_refined_by(&refined_by);
-            // genv.map_mut().insert_generics(owner_id.def_id, generics);
-            genv.map_mut()
-                .insert_refined_by(owner_id.def_id, refined_by);
+            map.insert_refined_by(owner_id.def_id, refined_by);
             Ok(())
         })
         .err()
