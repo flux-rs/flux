@@ -54,6 +54,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Generics {
     pub params: Vec<GenericParam>,
+    pub self_kind: Option<GenericParamKind>,
 }
 
 #[derive(Debug)]
@@ -568,6 +569,8 @@ pub enum Sort {
     Record(DefId, List<Sort>),
     /// The sort associated to a type variable
     Param(DefId),
+    /// The sort associated to the `Self` type variable for a trait [DefId]
+    SelfParam(DefId),
     /// A sort that needs to be inferred
     Wildcard,
     /// Sort inference variable generated for a [Sort::Wildcard] during sort checking
@@ -852,7 +855,7 @@ impl Generics {
         self.params.iter().find(|p| p.def_id == def_id).unwrap()
     }
 
-    pub fn with_refined_by(&self, refined_by: &RefinedBy) -> Self {
+    pub fn with_refined_by(self, refined_by: &RefinedBy) -> Self {
         let mut params = vec![];
         for param in &self.params {
             let kind = if refined_by.is_base_generic(param.def_id.to_def_id()) {
@@ -862,7 +865,7 @@ impl Generics {
             };
             params.push(GenericParam { def_id: param.def_id, kind });
         }
-        Generics { params }
+        Generics { params, self_kind: self.self_kind }
     }
 }
 
@@ -978,6 +981,7 @@ impl Sort {
             | Sort::Unit
             | Sort::BitVec(_)
             | Sort::Param(_)
+            | Sort::SelfParam(_)
             | Sort::Wildcard
             | Sort::Record(_, _)
             | Sort::Infer(_)
@@ -1721,6 +1725,9 @@ impl fmt::Debug for Sort {
                 }
             }
             Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
+            Sort::SelfParam(def_id) => {
+                write!(f, "sortof({}::Self)", pretty::def_id_to_string(*def_id))
+            }
             Sort::Wildcard => write!(f, "_"),
             Sort::Infer(vid) => write!(f, "{vid:?}"),
             Sort::App(ctor, args) => write!(f, "{ctor}<{}>", args.iter().join(", ")),

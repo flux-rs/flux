@@ -41,7 +41,7 @@ pub type Ignores = UnordSet<IgnoreKey>;
 pub(crate) struct Specs {
     pub fn_sigs: UnordMap<OwnerId, FnSpec>,
     pub structs: FxHashMap<OwnerId, surface::StructDef>,
-    pub impls: FxHashMap<OwnerId, surface::Generics>,
+    pub generics: FxHashMap<OwnerId, surface::Generics>,
     pub enums: FxHashMap<OwnerId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
     pub func_defs: Vec<surface::FuncDef>,
@@ -102,7 +102,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 ItemKind::Mod(..) => collector.parse_mod_spec(owner_id.def_id, attrs),
                 ItemKind::TyAlias(..) => collector.parse_tyalias_spec(owner_id, attrs),
                 ItemKind::Const(..) => collector.parse_const_spec(item, attrs),
-                ItemKind::Impl(_) => collector.parse_impl_spec(owner_id, attrs),
+                ItemKind::Impl(_) => collector.parse_generics_spec(owner_id, attrs),
+                ItemKind::Trait(..) => collector.parse_generics_spec(owner_id, attrs),
                 _ => Ok(()),
             };
         }
@@ -187,7 +188,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn parse_impl_spec(
+    fn parse_generics_spec(
         &mut self,
         owner_id: OwnerId,
         attrs: &[Attribute],
@@ -196,7 +197,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.report_dups(&attrs)?;
 
         if let Some(generics) = attrs.generics() {
-            self.specs.impls.insert(owner_id, generics);
+            self.specs.generics.insert(owner_id, generics);
         }
 
         Ok(())
@@ -575,7 +576,7 @@ impl Specs {
     fn new() -> Specs {
         Specs {
             fn_sigs: Default::default(),
-            impls: Default::default(),
+            generics: Default::default(),
             structs: Default::default(),
             enums: Default::default(),
             qualifs: Vec::default(),

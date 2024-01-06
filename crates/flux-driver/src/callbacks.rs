@@ -306,7 +306,8 @@ fn desugar_item(
             desugar::desugar_struct_def(genv, owner_id, struct_def, resolver_output)?;
         }
         hir::ItemKind::Trait(.., items) => {
-            desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, None)?;
+            let generics = specs.generics.get(&owner_id);
+            desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, generics)?;
             items.iter().try_for_each_exhaust(|trait_item| {
                 desugar_assoc_item(
                     genv,
@@ -318,7 +319,7 @@ fn desugar_item(
             })?;
         }
         hir::ItemKind::Impl(impl_) => {
-            let generics = specs.impls.get(&owner_id);
+            let generics = specs.generics.get(&owner_id);
             desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, generics)?;
             impl_.items.iter().try_for_each_exhaust(|impl_item| {
                 desugar_assoc_item(

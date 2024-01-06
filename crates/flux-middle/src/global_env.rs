@@ -242,8 +242,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             }
             fhir::Res::SelfTyAlias { alias_to, .. } => self.sort_of_self_ty_alias(alias_to),
             fhir::Res::Def(DefKind::TyParam, def_id) => self.sort_of_generic_param(def_id),
-            fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _)
-            | fhir::Res::SelfTyParam { .. } => None,
+            fhir::Res::SelfTyParam { trait_ } => self.sort_of_self_param(trait_),
+            fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _) => None,
             fhir::Res::Def(..) => bug!("unexpected res `{:?}`", path.res),
         }
     }
@@ -258,6 +258,17 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         match &param.kind {
             fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy => {
                 Some(fhir::Sort::Param(def_id))
+            }
+            fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
+        }
+    }
+
+    fn sort_of_self_param(&self, owner: DefId) -> Option<fhir::Sort> {
+        let generics = self.map().get_generics(owner.expect_local())?;
+        let kind = generics.self_kind.as_ref()?;
+        match kind {
+            fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy => {
+                Some(fhir::Sort::SelfParam(owner))
             }
             fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
         }
@@ -338,6 +349,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             | fhir::Sort::Unit
             | fhir::Sort::BitVec(_)
             | fhir::Sort::Param(_)
+            | fhir::Sort::SelfParam(_)
             | fhir::Sort::Var(_) => true,
             fhir::Sort::Record(def_id, sort_args) => {
                 self.index_sorts_of(*def_id, sort_args)

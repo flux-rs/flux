@@ -211,7 +211,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             .iter()
             .map(|param| self.lift_generic_param(param))
             .try_collect_exhaust()?;
-        Ok(fhir::Generics { params })
+        Ok(fhir::Generics { params, self_kind: None })
     }
 
     fn lift_generic_predicates_inner(
