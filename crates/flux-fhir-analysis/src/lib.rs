@@ -260,7 +260,9 @@ fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
 
     if config::dump_rty() {
         let generics = genv.generics_of(def_id)?;
-        dbg::dump_item_info(genv.tcx, def_id, "rty", (generics, &fn_sig)).unwrap();
+        let refinement_generics = genv.refinement_generics_of(def_id)?;
+        dbg::dump_item_info(genv.tcx, def_id, "rty", (generics, refinement_generics, &fn_sig))
+            .unwrap();
     }
     Ok(fn_sig)
 }

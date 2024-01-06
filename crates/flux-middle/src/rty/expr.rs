@@ -255,17 +255,17 @@ impl Expr {
         Expr::late_bvar(INNERMOST, 0)
     }
 
-    pub fn expect_tuple(&self) -> &[Expr] {
-        if let ExprKind::Tuple(tup) = self.kind() {
-            tup
+    #[track_caller]
+    pub fn expect_record(&self) -> (DefId, List<Sort>, List<Expr>) {
+        if let ExprKind::Record(def_id, sorts, flds) = self.kind() {
+            (*def_id, sorts.clone(), flds.clone())
         } else {
             bug!("expected tuple")
         }
     }
 
     pub fn unit() -> Expr {
-        todo!()
-        // Expr::tuple(vec![])
+        Expr::tuple(vec![])
     }
 
     pub fn var(var: Var, espan: Option<ESpan>) -> Expr {
