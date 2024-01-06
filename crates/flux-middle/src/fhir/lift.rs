@@ -57,7 +57,7 @@ pub fn lift_type_alias(
     let mut cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, None);
 
     let generics = cx.lift_generics_inner(hir_generics)?;
-    let predicates = cx.lift_generic_predicates(hir_generics)?;
+    let predicates = cx.lift_generic_predicates_inner(hir_generics)?;
     let ty = cx.lift_ty(ty)?;
     let ty_alias = fhir::TyAlias {
         owner_id,
@@ -91,7 +91,7 @@ pub fn lift_fn(
 
     let generics = cx.lift_generics_inner(hir_generics)?;
     let fn_sig = cx.lift_fn_sig(fn_sig)?;
-    let fn_preds = cx.lift_generic_predicates(hir_generics)?;
+    let fn_preds = cx.lift_generic_predicates_inner(hir_generics)?;
 
     Ok((generics, fhir::FnInfo { fn_sig, predicates: fn_preds, opaque_tys }))
 }
@@ -158,21 +158,19 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         LiftCtxt::new(self.tcx, self.sess, owner, local_id_gen, self.opaque_tys.as_deref_mut())
     }
 
-    pub fn lift_generics_with_predicates(
-        &mut self,
-    ) -> Result<(fhir::Generics, fhir::GenericPredicates), ErrorGuaranteed> {
-        let generics = self.tcx.hir().get_generics(self.owner.def_id).unwrap();
-        Ok((self.lift_generics_inner(generics)?, self.lift_generic_predicates(generics)?))
-    }
-
     pub fn lift_generics(&mut self) -> Result<fhir::Generics, ErrorGuaranteed> {
         let generics = self.tcx.hir().get_generics(self.owner.def_id).unwrap();
         self.lift_generics_inner(generics)
     }
 
-    pub fn lift_predicates(&mut self) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
+    pub fn lift_generic_predicates(&mut self) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
         let generics = self.tcx.hir().get_generics(self.owner.def_id).unwrap();
-        self.lift_generic_predicates(generics)
+        let predicates = generics
+            .predicates
+            .iter()
+            .map(|pred| self.lift_where_predicate(pred))
+            .try_collect_exhaust()?;
+        Ok(fhir::GenericPredicates { predicates })
     }
 
     fn lift_generic_param(
@@ -216,7 +214,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         Ok(fhir::Generics { params })
     }
 
-    pub fn lift_generic_predicates(
+    fn lift_generic_predicates_inner(
         &mut self,
         generics: &hir::Generics,
     ) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {

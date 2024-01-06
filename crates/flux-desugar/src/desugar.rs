@@ -468,7 +468,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         let generic_preds = if let Some(predicates) = &fn_sig.predicates {
             self.desugar_predicates(predicates, &mut env)?
         } else {
-            self.as_lift_cx().lift_predicates()?
+            self.as_lift_cx().lift_generic_predicates()?
         };
 
         if let Some(e) = &fn_sig.requires {

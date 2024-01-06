@@ -49,7 +49,7 @@ pub fn desugar_struct_def(
     }
     .with_refined_by(genv.map().refined_by(def_id));
 
-    let predicates = cx.as_lift_cx().lift_predicates()?;
+    let predicates = cx.as_lift_cx().lift_generic_predicates()?;
 
     let struct_def = cx.desugar_struct_def(struct_def)?;
     if config::dump_fhir() {
@@ -80,7 +80,7 @@ pub fn desugar_enum_def(
         cx.as_lift_cx().lift_generics()?
     }
     .with_refined_by(genv.map().refined_by(def_id));
-    let predicates = cx.as_lift_cx().lift_predicates()?;
+    let predicates = cx.as_lift_cx().lift_generic_predicates()?;
 
     let enum_def = cx.desugar_enum_def(enum_def)?;
     if config::dump_fhir() {
@@ -106,7 +106,8 @@ pub fn desugar_type_alias(
     if let Some(ty_alias) = ty_alias {
         let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
 
-        let (generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
+        let generics = cx.as_lift_cx().lift_generics()?;
+        let predicates = cx.as_lift_cx().lift_generic_predicates()?;
 
         let ty_alias = cx.desugar_type_alias(ty_alias)?;
 
@@ -178,20 +179,6 @@ pub fn desugar_fn_sig(
     Ok(())
 }
 
-pub fn desugar_generics_for_adt(
-    genv: &mut GlobalEnv,
-    owner_id: OwnerId,
-    resolver_output: &ResolverOutput,
-    generics: Option<&surface::Generics>,
-) -> Result<fhir::Generics, ErrorGuaranteed> {
-    let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
-    if let Some(generics) = generics {
-        cx.desugar_generics(generics)
-    } else {
-        cx.as_lift_cx().lift_generics()
-    }
-}
-
 /// HACK(nilehmann) this is a bit of a hack. We use it to properly register generics and predicates
 /// for items that don't have surface syntax (impl blocks, traits, ...), or for `impl` blocks with
 /// explicit `generics` annotations. In the former case, we use `desugar`; in the latter cases we
@@ -203,16 +190,15 @@ pub fn desugar_generics_and_predicates(
     generics: Option<&surface::Generics>,
 ) -> Result<(), ErrorGuaranteed> {
     let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
-    let (lifted_generics, predicates) = cx.as_lift_cx().lift_generics_with_predicates()?;
-
     let generics = if let Some(generics) = generics {
         cx.desugar_generics(generics)?
     } else {
-        lifted_generics
+        cx.as_lift_cx().lift_generics()?
     };
-    let def_id = owner_id.def_id;
+    let predicates = cx.as_lift_cx().lift_generic_predicates()?;
 
     let map = genv.map_mut();
+    let def_id = owner_id.def_id;
     map.insert_generics(def_id, generics);
     map.insert_generic_predicates(def_id, predicates);
 
