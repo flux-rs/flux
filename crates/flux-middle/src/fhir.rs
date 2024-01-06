@@ -331,6 +331,7 @@ pub enum WeakKind {
 
 pub struct WfckResults {
     pub owner: FluxOwnerId,
+    record_ctors: ItemLocalMap<(DefId, List<Sort>)>,
     node_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
     type_holes: ItemLocalMap<Ty>,
@@ -339,7 +340,7 @@ pub struct WfckResults {
 
 #[derive(Debug)]
 pub enum Coercion {
-    Inject,
+    Inject(DefId, List<Sort>),
     Project,
 }
 
@@ -823,7 +824,7 @@ pub struct RefinedBy {
     /// ```
     /// then the sort associated to `RMap` is of the form `forall #0. { keys: Set<#0> }`
     /// and `sort_params` will be `vec![K]`,  i.e., it maps `Var(0)` to `K`.
-    sort_params: Vec<DefId>,
+    pub sort_params: Vec<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     index_params: FxIndexMap<Symbol, Sort>,
     /// The number of early bound parameters
@@ -1395,11 +1396,20 @@ impl WfckResults {
     pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
         Self {
             owner: owner.into(),
+            record_ctors: ItemLocalMap::default(),
             node_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
             type_holes: ItemLocalMap::default(),
             lifetime_holes: ItemLocalMap::default(),
         }
+    }
+
+    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<(DefId, List<Sort>)> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.record_ctors }
+    }
+
+    pub fn record_ctors(&self) -> LocalTableInContext<(DefId, List<Sort>)> {
+        LocalTableInContext { owner: self.owner, data: &self.record_ctors }
     }
 
     pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {

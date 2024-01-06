@@ -203,14 +203,25 @@ fn identity_sort_args_for_adt(genv: &GlobalEnv, def_id: LocalDefId) -> List<rty:
         .collect()
 }
 
+fn sort_args_for_adt(genv: &GlobalEnv, def_id: LocalDefId) -> List<rty::Sort> {
+    genv.map()
+        .refined_by(def_id)
+        .sort_params
+        .iter()
+        .map(|param_def_id| {
+            rty::Sort::Param(def_id_to_param_ty(genv.tcx, param_def_id.expect_local()))
+        })
+        .collect()
+}
+
 pub(crate) fn adt_def_for_struct(
     genv: &GlobalEnv,
     invariants: Vec<rty::Invariant>,
     struct_def: &fhir::StructDef,
 ) -> rty::AdtDef {
-    let def_id = struct_def.owner_id.to_def_id();
-    let sort_args = identity_sort_args_for_adt(genv, struct_def.owner_id.def_id);
-    let sort = rty::Sort::Record(def_id, sort_args);
+    let def_id = struct_def.owner_id.def_id;
+    let sort_args = identity_sort_args_for_adt(genv, def_id);
+    let sort = rty::Sort::Record(def_id.to_def_id(), sort_args);
     let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(struct_def.owner_id));
     rty::AdtDef::new(adt_def, sort, invariants, struct_def.is_opaque())
 }
@@ -220,9 +231,9 @@ pub(crate) fn adt_def_for_enum(
     invariants: Vec<rty::Invariant>,
     enum_def: &fhir::EnumDef,
 ) -> rty::AdtDef {
-    let def_id = enum_def.owner_id.to_def_id();
-    let sort_args = identity_sort_args_for_adt(genv, enum_def.owner_id.def_id);
-    let sort = rty::Sort::Record(def_id, sort_args);
+    let def_id = enum_def.owner_id.def_id;
+    let sort_args = identity_sort_args_for_adt(genv, def_id);
+    let sort = rty::Sort::Record(def_id.to_def_id(), sort_args);
     let adt_def = if let Some(extern_id) = enum_def.extern_id {
         lowering::lower_adt_def(&genv.tcx.adt_def(extern_id))
     } else {
@@ -559,10 +570,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 .try_collect()?;
 
             let vars = env.pop_layer().into_bound_vars();
-            let idx = rty::Expr::tuple(
+            let idx = rty::Expr::record(
+                def_id.to_def_id(),
+                sort_args_for_adt(genv, def_id),
                 (0..vars.len())
                     .map(|idx| rty::Expr::late_bvar(INNERMOST, idx as u32))
-                    .collect_vec(),
+                    .collect(),
             );
             let variant = rty::VariantSig::new(
                 adt_def,
@@ -750,11 +763,13 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 self.add_coercions(rty::Expr::abs(body), arg.fhir_id)
             }
             fhir::RefineArgKind::Record(flds) => {
-                let exprs: List<_> = flds
+                let (def_id, sorts) = self.wfckresults.record_ctors().get(arg.fhir_id).unwrap();
+                let sorts = conv_sorts(self.genv, sorts);
+                let flds: List<_> = flds
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
                     .collect();
-                rty::Expr::tuple(exprs)
+                rty::Expr::record(*def_id, List::from_vec(sorts), flds)
             }
         }
     }
@@ -995,7 +1010,10 @@ impl ConvCtxt<'_, '_> {
         if let Some(coercions) = self.wfckresults.coercions().get(fhir_id) {
             for coercion in coercions {
                 expr = match coercion {
-                    fhir::Coercion::Inject => rty::Expr::tuple(vec![expr]),
+                    fhir::Coercion::Inject(def_id, sorts) => {
+                        let sorts = conv_sorts(self.genv, sorts);
+                        rty::Expr::record(*def_id, List::from_vec(sorts), List::singleton(expr))
+                    }
                     fhir::Coercion::Project => rty::Expr::tuple_proj(expr, 0, span),
                 };
             }
