@@ -104,7 +104,7 @@ fn invariants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::I
         kind => bug!("expected struct or enum found `{kind:?}`"),
     };
     let wfckresults = genv.check_wf(def_id)?;
-    conv::conv_invariants(genv, params, invariants, &wfckresults)
+    conv::conv_invariants(genv, def_id, params, invariants, &wfckresults)
         .into_iter()
         .map(|invariant| normalize(genv, invariant))
         .collect()

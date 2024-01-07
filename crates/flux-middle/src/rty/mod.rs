@@ -92,6 +92,12 @@ impl AdtSortDef {
         }
         self.0.fields.fold_with(&mut Subst { args })
     }
+
+    pub fn identity_args(&self) -> List<Sort> {
+        (0..self.0.params.len())
+            .map(|i| Sort::Var(SortVar::from(i)))
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone)]
