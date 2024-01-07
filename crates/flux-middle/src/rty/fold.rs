@@ -1039,7 +1039,9 @@ impl TypeSuperFoldable for Expr {
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.try_fold_with(folder)?, span),
             ExprKind::TupleProj(e, proj) => Expr::tuple_proj(e.try_fold_with(folder)?, *proj, span),
-            ExprKind::FieldProj(e, def_id, fld) => Expr::field_proj(e, *def_id, *fld, span),
+            ExprKind::FieldProj(e, def_id, fld) => {
+                Expr::field_proj(e.try_fold_with(folder)?, *def_id, *fld, span)
+            }
             ExprKind::Tuple(exprs) => {
                 let exprs = exprs
                     .iter()

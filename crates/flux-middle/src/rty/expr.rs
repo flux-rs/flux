@@ -260,7 +260,7 @@ impl Expr {
         if let ExprKind::Record(def_id, sorts, flds) = self.kind() {
             (*def_id, sorts.clone(), flds.clone())
         } else {
-            bug!("expected tuple")
+            bug!("expected record, found {self:?}")
         }
     }
 

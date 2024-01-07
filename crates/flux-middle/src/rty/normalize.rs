@@ -2,7 +2,7 @@ use std::ops::ControlFlow;
 
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_span::Symbol;
+use rustc_span::{def_id::DefId, Symbol};
 use toposort_scc::IndexGraph;
 
 use super::{fold::TypeSuperFoldable, ESpan};
@@ -142,6 +142,15 @@ impl<'a> Normalizer<'a> {
             Expr::tuple_proj(tup, proj, None)
         }
     }
+
+    fn field_proj(&self, e: &Expr, def_id: DefId, fld: u32) -> Expr {
+        if let ExprKind::Record(def_id2, _, flds) = e.kind() {
+            debug_assert_eq!(def_id, *def_id2);
+            flds[fld as usize].clone()
+        } else {
+            Expr::field_proj(e, def_id, fld, None)
+        }
+    }
 }
 
 impl TypeFolder for Normalizer<'_> {
@@ -150,8 +159,8 @@ impl TypeFolder for Normalizer<'_> {
         let span = expr.span();
         match expr.kind() {
             ExprKind::App(func, args) => self.app(func, args, span),
-
-            ExprKind::TupleProj(tup, proj) => self.tuple_proj(tup, *proj),
+            ExprKind::TupleProj(e, fld) => self.tuple_proj(e, *fld),
+            ExprKind::FieldProj(e, def_id, fld) => self.field_proj(e, *def_id, *fld),
             _ => expr,
         }
     }
