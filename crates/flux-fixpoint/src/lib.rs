@@ -84,7 +84,6 @@ pub struct Task<T: Types> {
     pub kvars: Vec<KVar<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
-    pub sorts: Vec<String>,
     pub scrape_quals: bool,
 }
 
@@ -122,18 +121,6 @@ pub struct KVar<T: Types> {
 }
 
 impl<T: Types> Task<T> {
-    pub fn new(
-        comments: Vec<String>,
-        constants: Vec<ConstInfo<T>>,
-        kvars: Vec<KVar<T>>,
-        constraint: Constraint<T>,
-        qualifiers: Vec<Qualifier<T>>,
-        sorts: Vec<String>,
-        scrape_quals: bool,
-    ) -> Self {
-        Task { comments, constants, kvars, constraint, qualifiers, sorts, scrape_quals }
-    }
-
     pub fn hash_with_default(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);

@@ -23,11 +23,16 @@ pub enum Sort {
     Int,
     Bool,
     Real,
-    Unit,
     BitVec(usize),
-    Pair(Box<Sort>, Box<Sort>),
+    Tuple(Vec<Sort>),
     Func(PolyFuncSort),
     App(SortCtor, Vec<Sort>),
+}
+
+impl Sort {
+    pub fn unit() -> Self {
+        Sort::Tuple(vec![])
+    }
 }
 
 #[derive(Clone, Hash)]
@@ -62,10 +67,9 @@ pub enum Expr<T: Types> {
     BinaryOp(BinOp, Box<[Self; 2]>),
     App(Func<T>, Vec<Self>),
     UnaryOp(UnOp, Box<Self>),
-    Pair(Box<[Self; 2]>),
+    Tuple(Vec<Self>),
     Proj(Box<Self>, Proj),
     IfThenElse(Box<[Self; 3]>),
-    Unit,
 }
 
 #[derive_where(Hash)]
@@ -189,7 +193,7 @@ impl<T: Types> fmt::Display for Constraint<T> {
                 }
             }
             Constraint::Guard(body, head) => {
-                write!(f, "(forall ((_ Unit) {body})")?;
+                write!(f, "(forall ((_ {}) {body})", Sort::unit())?;
                 write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
                 write!(f, "\n)")
             }
@@ -247,9 +251,14 @@ impl fmt::Display for Sort {
             Sort::Int => write!(f, "int"),
             Sort::Bool => write!(f, "bool"),
             Sort::Real => write!(f, "real"),
-            Sort::Unit => write!(f, "Unit"),
             Sort::BitVec(size) => write!(f, "(BitVec Size{})", size),
-            Sort::Pair(s1, s2) => write!(f, "(Pair {s1} {s2})"),
+            Sort::Tuple(sorts) => {
+                write!(f, "(Tuple{}", sorts.len())?;
+                for sort in sorts {
+                    write!(f, " {}", sort)?;
+                }
+                write!(f, ")")
+            }
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::App(ctor, ts) => write!(f, "({ctor} {})", ts.iter().format(" ")),
         }
@@ -292,6 +301,10 @@ impl<T: Types> Expr<T> {
     pub fn eq(self, other: Self) -> Self {
         Expr::BinaryOp(BinOp::Eq, Box::new([self, other]))
     }
+
+    pub fn unit() -> Self {
+        Expr::Tuple(vec![])
+    }
 }
 
 struct FmtParens<'a, T: Types>(&'a Expr<T>);
@@ -326,10 +339,15 @@ impl<T: Types> fmt::Display for Expr<T> {
                     write!(f, "{op}({e})")
                 }
             }
-            Expr::Pair(box [e1, e2]) => write!(f, "(Pair ({e1}) ({e2}))"),
+            Expr::Tuple(exprs) => {
+                write!(f, "(Tuple{}", exprs.len())?;
+                for e in exprs {
+                    write!(f, " {}", e)?;
+                }
+                write!(f, ")")
+            }
             Expr::Proj(e, Proj::Fst) => write!(f, "(fst {e})"),
             Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
-            Expr::Unit => write!(f, "Unit"),
             Expr::App(func, args) => {
                 write!(f, "({func} {})", args.iter().map(FmtParens).format(" "),)
             }

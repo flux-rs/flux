@@ -11,7 +11,6 @@ use flux_common::{
 };
 use flux_config as config;
 use flux_fixpoint::FixpointResult;
-// use flux_fixpoint as fixpoint;
 use flux_middle::{
     fhir::FuncKind,
     global_env::GlobalEnv,
@@ -286,10 +285,10 @@ where
             })
             .collect_vec();
 
-        let mut closed_constraint = constraint;
+        let mut constraint = constraint;
         for const_info in self.const_map.values() {
             if let Some(val) = const_info.val {
-                closed_constraint = Self::assume_const_val(closed_constraint, const_info.name, val);
+                constraint = Self::assume_const_val(constraint, const_info.name, val);
             }
         }
 
@@ -311,23 +310,14 @@ where
             })
             .collect();
 
-        let sorts = self
-            .genv
-            .map()
-            .sort_decls()
-            .values()
-            .map(|sort_decl| sort_decl.name.to_string())
-            .collect_vec();
-
-        let task = fixpoint::Task::new(
-            self.comments,
+        let task = fixpoint::Task {
+            comments: self.comments,
             constants,
             kvars,
-            closed_constraint,
+            constraint,
             qualifiers,
-            sorts,
-            config.scrape_quals,
-        );
+            scrape_quals: config.scrape_quals,
+        };
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx, self.def_id, "smt2", &task).unwrap();
         }
@@ -403,8 +393,8 @@ where
             let var = fixpoint::Var::Local(fresh);
             bindings.push((
                 fresh,
-                fixpoint::Sort::Unit,
-                fixpoint::Expr::eq(fixpoint::Expr::Var(var), fixpoint::Expr::Unit),
+                fixpoint::Sort::unit(),
+                fixpoint::Expr::eq(fixpoint::Expr::Var(var), fixpoint::Expr::unit()),
             ));
             return fixpoint::Pred::KVar(kvids[0], vec![var]);
         }
@@ -428,7 +418,7 @@ where
             let all_args = decl.sorts.iter().map(sort_to_fixpoint).collect_vec();
 
             if all_args.is_empty() {
-                let sorts = vec![fixpoint::Sort::Unit];
+                let sorts = vec![fixpoint::Sort::unit()];
                 let kvid = self.fixpoint_kvars.push(FixpointKVar::new(sorts, kvid));
                 return vec![kvid];
             }
@@ -638,21 +628,7 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         }
         rty::Sort::Adt(_, _) => todo!(),
         rty::Sort::Tuple(sorts) => {
-            match &sorts[..] {
-                [] => fixpoint::Sort::Unit,
-                [_] => unreachable!("1-tuple"),
-                [sorts @ .., s1, s2] => {
-                    let s1 = Box::new(sort_to_fixpoint(s1));
-                    let s2 = Box::new(sort_to_fixpoint(s2));
-                    sorts
-                        .iter()
-                        .map(sort_to_fixpoint)
-                        .map(Box::new)
-                        .fold(fixpoint::Sort::Pair(s1, s2), |s1, s2| {
-                            fixpoint::Sort::Pair(Box::new(s1), s2)
-                        })
-                }
-            }
+            fixpoint::Sort::Tuple(sorts.iter().map(sort_to_fixpoint).collect_vec())
         }
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
         rty::Sort::Loc | rty::Sort::Var(_) => bug!("unexpected sort {sort:?}"),
@@ -695,8 +671,9 @@ impl<'a> ExprCtxt<'a> {
                     })
             }
             rty::ExprKind::FieldProj(_, _, _) => todo!(),
-            rty::ExprKind::Record(_, _) => todo!(),
-            rty::ExprKind::Tuple(exprs) => self.tuple_to_fixpoint(exprs),
+            rty::ExprKind::Record(_, flds) | rty::ExprKind::Tuple(flds) => {
+                fixpoint::Expr::Tuple(flds.iter().map(|e| self.expr_to_fixpoint(e)).collect())
+            }
             rty::ExprKind::ConstDefId(did) => {
                 let const_info = self.const_map.get(&Key::Const(*did)).unwrap_or_else(|| {
                     span_bug!(self.dbg_span, "no entry found in const_map for def_id: `{did:?}`")
@@ -752,18 +729,6 @@ impl<'a> ExprCtxt<'a> {
             .into_iter()
             .map(|e| self.expr_to_fixpoint(e))
             .collect()
-    }
-
-    fn tuple_to_fixpoint(&self, exprs: &[rty::Expr]) -> fixpoint::Expr {
-        match exprs {
-            [] => fixpoint::Expr::Unit,
-            [e, exprs @ ..] => {
-                fixpoint::Expr::Pair(Box::new([
-                    self.expr_to_fixpoint(e),
-                    self.tuple_to_fixpoint(exprs),
-                ]))
-            }
-        }
     }
 
     fn func_to_fixpoint(&self, func: &rty::Expr) -> fixpoint::Func {
