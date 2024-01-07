@@ -741,9 +741,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     self.idx_subtyping(rcx, e1, e2);
                 }
             }
-            (ExprKind::Record(def_id1, args1, flds1), ExprKind::Record(def_id2, args2, flds2)) => {
+            (ExprKind::Record(def_id1, flds1), ExprKind::Record(def_id2, flds2)) => {
                 debug_assert_eq!(def_id1, def_id2);
-                debug_assert_eq!(args1, args2);
                 debug_assert_eq!(flds1.len(), flds2.len());
 
                 for (e1, e2) in iter::zip(flds1, flds2) {

@@ -981,12 +981,8 @@ impl TypeSuperVisitable for Expr {
                 e1.visit_with(visitor)?;
                 e2.visit_with(visitor)
             }
-            ExprKind::Record(_, sorts, flds) => {
-                sorts.visit_with(visitor)?;
-                flds.visit_with(visitor)
-            }
+            ExprKind::Record(_, flds) => flds.visit_with(visitor),
             ExprKind::Tuple(exprs) => exprs.iter().try_for_each(|e| e.visit_with(visitor)),
-
             ExprKind::FieldProj(e, _, _)
             | ExprKind::PathProj(e, _)
             | ExprKind::UnaryOp(_, e)
@@ -1049,9 +1045,7 @@ impl TypeSuperFoldable for Expr {
                     .try_collect_vec()?;
                 Expr::tuple(exprs)
             }
-            ExprKind::Record(def_id, sorts, flds) => {
-                Expr::record(*def_id, sorts.try_fold_with(folder)?, flds.try_fold_with(folder)?)
-            }
+            ExprKind::Record(def_id, flds) => Expr::record(*def_id, flds.try_fold_with(folder)?),
             ExprKind::PathProj(e, field) => Expr::path_proj(e.try_fold_with(folder)?, *field),
             ExprKind::App(func, arg) => {
                 Expr::app(func.try_fold_with(folder)?, arg.try_fold_with(folder)?, span)

@@ -144,7 +144,7 @@ impl<'a> Normalizer<'a> {
     }
 
     fn field_proj(&self, e: &Expr, def_id: DefId, fld: u32) -> Expr {
-        if let ExprKind::Record(def_id2, _, flds) = e.kind() {
+        if let ExprKind::Record(def_id2, flds) = e.kind() {
             debug_assert_eq!(def_id, *def_id2);
             flds[fld as usize].clone()
         } else {

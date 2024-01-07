@@ -206,17 +206,6 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
     }
 }
 
-fn identity_sort_args_for_adt(genv: &GlobalEnv, def_id: LocalDefId) -> List<rty::Sort> {
-    genv.map()
-        .refined_by(def_id)
-        .sort_params
-        .iter()
-        .map(|param_def_id| {
-            rty::Sort::Param(def_id_to_param_ty(genv.tcx, param_def_id.expect_local()))
-        })
-        .collect()
-}
-
 pub(crate) fn adt_def_for_struct(
     genv: &GlobalEnv,
     invariants: Vec<rty::Invariant>,
@@ -571,7 +560,6 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             let vars = env.pop_layer().into_bound_vars();
             let idx = rty::Expr::record(
                 def_id.to_def_id(),
-                identity_sort_args_for_adt(genv, def_id),
                 (0..vars.len())
                     .map(|idx| rty::Expr::late_bvar(INNERMOST, idx as u32))
                     .collect(),
@@ -762,13 +750,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 self.add_coercions(rty::Expr::abs(body), arg.fhir_id)
             }
             fhir::RefineArgKind::Record(flds) => {
-                let (def_id, sorts) = self.wfckresults.record_ctors().get(arg.fhir_id).unwrap();
-                let sorts = conv_sorts(self.genv, sorts);
+                let (def_id, ..) = self.wfckresults.record_ctors().get(arg.fhir_id).unwrap();
                 let flds: List<_> = flds
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
                     .collect();
-                rty::Expr::record(*def_id, List::from_vec(sorts), flds)
+                rty::Expr::record(*def_id, flds)
             }
         }
     }
@@ -1009,9 +996,8 @@ impl ConvCtxt<'_, '_> {
         if let Some(coercions) = self.wfckresults.coercions().get(fhir_id) {
             for coercion in coercions {
                 expr = match coercion {
-                    fhir::Coercion::Inject(def_id, sorts) => {
-                        let sorts = conv_sorts(self.genv, sorts);
-                        rty::Expr::record(*def_id, List::from_vec(sorts), List::singleton(expr))
+                    fhir::Coercion::Inject(def_id) => {
+                        rty::Expr::record(*def_id, List::singleton(expr))
                     }
                     fhir::Coercion::Project(def_id) => {
                         rty::Expr::field_proj(expr, *def_id, 0, span)

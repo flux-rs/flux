@@ -695,7 +695,7 @@ impl<'a> ExprCtxt<'a> {
                     })
             }
             rty::ExprKind::FieldProj(_, _, _) => todo!(),
-            rty::ExprKind::Record(_, _, _) => todo!(),
+            rty::ExprKind::Record(_, _) => todo!(),
             rty::ExprKind::Tuple(exprs) => self.tuple_to_fixpoint(exprs),
             rty::ExprKind::ConstDefId(did) => {
                 let const_info = self.const_map.get(&Key::Const(*did)).unwrap_or_else(|| {

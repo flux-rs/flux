@@ -340,7 +340,7 @@ pub struct WfckResults {
 
 #[derive(Debug)]
 pub enum Coercion {
-    Inject(DefId, List<Sort>),
+    Inject(DefId),
     Project(DefId),
 }
 

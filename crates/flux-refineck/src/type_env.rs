@@ -468,19 +468,17 @@ impl BasicBlockEnvShape {
                 )
             }
             (
-                ExprKind::Record(def_id1, args1, flds1),
-                ExprKind::Record(def_id2, args2, flds2),
-                Sort::Adt(sort_def, args3),
+                ExprKind::Record(def_id1, flds1),
+                ExprKind::Record(def_id2, flds2),
+                Sort::Adt(sort_def, args),
             ) => {
                 debug_assert_eq3!(*def_id1, *def_id2, sort_def.did());
-                debug_assert_eq3!(args1, args2, args3);
 
-                let sorts = sort_def.instantiate(args3);
+                let sorts = sort_def.instantiate(args);
                 debug_assert_eq3!(flds1.len(), flds2.len(), sorts.len());
 
                 Expr::record(
                     *def_id1,
-                    args3.clone(),
                     izip!(flds1, flds2, &sorts)
                         .map(|(f1, f2, sort)| self.join_idx(f1, f2, sort, bound_sorts))
                         .collect(),

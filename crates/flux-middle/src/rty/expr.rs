@@ -84,7 +84,7 @@ pub enum ExprKind {
     TupleProj(Expr, u32),
     FieldProj(Expr, DefId, u32),
     Tuple(List<Expr>),
-    Record(DefId, List<Sort>, List<Expr>),
+    Record(DefId, List<Expr>),
     PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
@@ -256,9 +256,9 @@ impl Expr {
     }
 
     #[track_caller]
-    pub fn expect_record(&self) -> (DefId, List<Sort>, List<Expr>) {
-        if let ExprKind::Record(def_id, sorts, flds) = self.kind() {
-            (*def_id, sorts.clone(), flds.clone())
+    pub fn expect_record(&self) -> (DefId, List<Expr>) {
+        if let ExprKind::Record(def_id, flds) = self.kind() {
+            (*def_id, flds.clone())
         } else {
             bug!("expected record, found {self:?}")
         }
@@ -351,8 +351,8 @@ impl Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern_at(espan)
     }
 
-    pub fn record(def_id: DefId, sorts: List<Sort>, flds: List<Expr>) -> Expr {
-        ExprKind::Record(def_id, sorts, flds).intern()
+    pub fn record(def_id: DefId, flds: List<Expr>) -> Expr {
+        ExprKind::Record(def_id, flds).intern()
     }
 
     pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>, espan: Option<ESpan>) -> Expr {
@@ -561,11 +561,7 @@ impl Expr {
                 }
                 Sort::Adt(adt_sort_def, args) => {
                     let flds = adt_sort_def.instantiate(args);
-                    Expr::record(
-                        adt_sort_def.did(),
-                        args.clone(),
-                        flds.iter().map(|sort| go(sort, f)).collect(),
-                    )
+                    Expr::record(adt_sort_def.did(), flds.iter().map(|sort| go(sort, f)).collect())
                 }
                 _ => f(sort),
             }
@@ -826,12 +822,8 @@ mod pretty {
                     w!("{:?}", body)
                 }
                 ExprKind::GlobalFunc(func, _) => w!("{}", ^func),
-                ExprKind::Record(def_id, args, flds) => {
-                    if args.is_empty() {
-                        w!("{:?} {{ {:?} }}", def_id, join!(", ", flds))
-                    } else {
-                        w!("{:?}<{:?}> {{ {:?} }}", def_id, join!(", ", args), join!(", ", flds))
-                    }
+                ExprKind::Record(def_id, flds) => {
+                    w!("{:?} {{ {:?} }}", def_id, join!(", ", flds))
                 }
             }
         }

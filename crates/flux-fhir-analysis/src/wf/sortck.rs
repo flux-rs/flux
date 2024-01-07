@@ -6,7 +6,6 @@ use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     fhir::{self, FhirId, FluxOwnerId, WfckResults},
     global_env::GlobalEnv,
-    intern::List,
 };
 use itertools::izip;
 use rustc_data_structures::unord::UnordMap;
@@ -375,12 +374,12 @@ impl<'a> InferCtxt<'a, '_> {
         let mut sort2 = sort2.clone();
 
         let mut coercions = vec![];
-        if let Some((def_id, _sort_args, sort)) = self.is_single_field_record(&sort1) {
+        if let Some((def_id, sort)) = self.is_single_field_record(&sort1) {
             coercions.push(fhir::Coercion::Project(def_id));
             sort1 = sort.clone();
         }
-        if let Some((def_id, sort_args, sort)) = self.is_single_field_record(&sort2) {
-            coercions.push(fhir::Coercion::Inject(def_id, sort_args));
+        if let Some((def_id, sort)) = self.is_single_field_record(&sort2) {
+            coercions.push(fhir::Coercion::Inject(def_id));
             sort2 = sort.clone();
         }
         self.wfckresults.coercions_mut().insert(fhir_id, coercions);
@@ -394,12 +393,12 @@ impl<'a> InferCtxt<'a, '_> {
     ) -> Option<fhir::Sort> {
         if self.is_numeric(sort) {
             Some(sort.clone())
-        } else if let Some((def_id, sort_args, sort)) = self.is_single_field_record(sort)
+        } else if let Some((def_id, sort)) = self.is_single_field_record(sort)
             && sort.is_numeric()
         {
             self.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, vec![fhir::Coercion::Inject(def_id, sort_args)]);
+                .insert(fhir_id, vec![fhir::Coercion::Inject(def_id)]);
             Some(sort.clone())
         } else {
             None
@@ -413,7 +412,7 @@ impl<'a> InferCtxt<'a, '_> {
     ) -> Option<fhir::Sort> {
         if self.is_numeric(sort) {
             Some(sort.clone())
-        } else if let Some((def_id, _sort_args, sort)) = self.is_single_field_record(sort)
+        } else if let Some((def_id, sort)) = self.is_single_field_record(sort)
             && sort.is_numeric()
         {
             self.wfckresults
@@ -432,12 +431,10 @@ impl<'a> InferCtxt<'a, '_> {
     ) -> Option<fhir::PolyFuncSort> {
         if let Some(fsort) = self.is_func(sort) {
             Some(fsort)
-        } else if let Some((def_id, sort_args, fhir::Sort::Func(fsort))) =
-            self.is_single_field_record(sort)
-        {
+        } else if let Some((def_id, fhir::Sort::Func(fsort))) = self.is_single_field_record(sort) {
             self.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, vec![fhir::Coercion::Inject(def_id, sort_args)]);
+                .insert(fhir_id, vec![fhir::Coercion::Inject(def_id)]);
             Some(fsort.clone())
         } else {
             None
@@ -451,9 +448,7 @@ impl<'a> InferCtxt<'a, '_> {
     ) -> Option<fhir::PolyFuncSort> {
         if let Some(fsort) = self.is_func(sort) {
             Some(fsort)
-        } else if let Some((def_id, _sort_args, fhir::Sort::Func(fsort))) =
-            self.is_single_field_record(sort)
-        {
+        } else if let Some((def_id, fhir::Sort::Func(fsort))) = self.is_single_field_record(sort) {
             self.wfckresults
                 .coercions_mut()
                 .insert(fhir_id, vec![fhir::Coercion::Project(def_id)]);
@@ -582,15 +577,12 @@ impl<'a> InferCtxt<'a, '_> {
         })
     }
 
-    fn is_single_field_record(
-        &mut self,
-        sort: &fhir::Sort,
-    ) -> Option<(DefId, List<fhir::Sort>, fhir::Sort)> {
+    fn is_single_field_record(&mut self, sort: &fhir::Sort) -> Option<(DefId, fhir::Sort)> {
         self.resolve_sort(sort).and_then(|s| {
             if let fhir::Sort::Record(def_id, sort_args) = s
                 && let [sort] = &self.genv.index_sorts_of(def_id, &sort_args)[..]
             {
-                Some((def_id, sort_args.clone(), sort.clone()))
+                Some((def_id, sort.clone()))
             } else {
                 None
             }
