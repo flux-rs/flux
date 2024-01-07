@@ -214,7 +214,7 @@ impl<'tcx> Queries<'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_sort_def_of)(genv, local_id)
             } else {
-                todo!()
+                rty::AdtSortDef::new(def_id, vec![], List::empty())
             }
         })
     }
@@ -241,7 +241,7 @@ impl<'tcx> Queries<'tcx> {
                 } else {
                     lowering::lower_adt_def(&genv.tcx.adt_def(def_id))
                 };
-                Ok(rty::AdtDef::new(adt_def, rty::Sort::unit(), vec![], false))
+                Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id), vec![], false))
             }
         })
     }

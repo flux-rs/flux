@@ -58,18 +58,18 @@ pub use crate::{
     },
 };
 
-#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtSortDef(Interned<AdtSortDefData>);
 
-#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 struct AdtSortDefData {
     def_id: DefId,
-    params: Vec<DefId>,
+    params: Vec<u32>,
     fields: List<Sort>,
 }
 
 impl AdtSortDef {
-    pub fn new(def_id: DefId, params: Vec<DefId>, fields: List<Sort>) -> Self {
+    pub fn new(def_id: DefId, params: Vec<u32>, fields: List<Sort>) -> Self {
         Self(Interned::new(AdtSortDefData { def_id, params, fields }))
     }
 
@@ -252,7 +252,7 @@ pub struct AdtDef(Interned<AdtDefData>);
 #[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDefData {
     invariants: Vec<Invariant>,
-    sort: Sort, // TODO: Binder<Sort> as there may be Var in `Sort`
+    sort_def: AdtSortDef,
     opaque: bool,
     rustc: rustc::ty::AdtDef,
 }
@@ -477,6 +477,15 @@ impl GenericArg {
             bug!("expected `rty::GenericArg::Ty`, found {:?}", self)
         }
     }
+
+    fn peel_out_sort(&self) -> Option<Sort> {
+        match self {
+            GenericArg::Ty(ty) => ty.as_bty_skipping_existentials().map(BaseTy::sort),
+            GenericArg::BaseTy(abs) => Some(abs.vars()[0].expect_sort().clone()),
+            GenericArg::Lifetime(_) | GenericArg::Const(_) => None,
+        }
+    }
+
     pub fn is_valid_base_arg(&self) -> bool {
         match self {
             GenericArg::Ty(ty) => ty.kind().is_valid_base_ty(),
@@ -1020,19 +1029,28 @@ impl FnOutput {
 impl AdtDef {
     pub fn new(
         rustc: rustc::ty::AdtDef,
-        sort: Sort,
+        sort_def: AdtSortDef,
         invariants: Vec<Invariant>,
         opaque: bool,
     ) -> Self {
-        AdtDef(Interned::new(AdtDefData { invariants, sort, opaque, rustc }))
+        AdtDef(Interned::new(AdtDefData { invariants, sort_def, opaque, rustc }))
     }
 
     pub fn did(&self) -> DefId {
         self.0.rustc.did()
     }
 
-    pub fn sort(&self) -> &Sort {
-        &self.0.sort
+    pub fn sort(&self, args: &[GenericArg]) -> Sort {
+        let sorts = self
+            .0
+            .sort_def
+            .0
+            .params
+            .iter()
+            .map(|i| args[*i as usize].peel_out_sort().unwrap())
+            .collect();
+
+        Sort::Adt(self.0.sort_def.clone(), sorts)
     }
 
     pub fn is_box(&self) -> bool {
@@ -1448,7 +1466,7 @@ impl BaseTy {
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
             BaseTy::Bool => Sort::Bool,
-            BaseTy::Adt(adt_def, _) => adt_def.sort().clone(),
+            BaseTy::Adt(adt_def, args) => adt_def.sort(args),
             BaseTy::Param(param_ty) => Sort::Param(*param_ty),
             BaseTy::Float(_)
             | BaseTy::Str

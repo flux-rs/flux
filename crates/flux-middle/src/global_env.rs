@@ -73,14 +73,15 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let def_id = self.tcx.require_lang_item(LangItem::OwnedBox, None);
         let adt_def = self.adt_def(def_id).unwrap();
 
+        let args = vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)];
+
         // this is harcoding that `Box` has two type parameters and
         // it is indexed by unit. We leave this as a reminder in case
         // that ever changes.
         debug_assert_eq!(self.generics_of(def_id).unwrap().params.len(), 2);
-        debug_assert!(adt_def.sort().is_unit());
+        debug_assert!(adt_def.sort(&args).is_unit());
 
-        let bty =
-            rty::BaseTy::adt(adt_def, vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)]);
+        let bty = rty::BaseTy::adt(adt_def, args);
         rty::Ty::indexed(bty, rty::Expr::unit())
     }
 

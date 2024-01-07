@@ -176,7 +176,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             adt_def,
             rty::GenericArgs::identity_for_item(self.genv, adt_def_id)?,
             fields,
-            rty::Expr::unit(),
+            rty::Expr::record(adt_def_id, List::empty(), List::empty()),
         );
         Ok(rty::Binder::new(value, List::empty()))
     }

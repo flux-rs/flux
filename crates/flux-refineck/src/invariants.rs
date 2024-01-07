@@ -8,7 +8,7 @@ use rustc_span::{Span, DUMMY_SP};
 use crate::{
     constraint_gen::{ConstrReason, Tag},
     fixpoint_encoding::{FixpointCtxt, KVarStore},
-    refine_tree::RefineTree,
+    refine_tree::{AssumeInvariants, RefineTree},
     CheckerConfig,
 };
 
@@ -52,8 +52,7 @@ fn check_invariant(
             .replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
 
         for ty in variant.fields() {
-            let ty = rcx.unpack(ty, crate::refine_tree::AssumeInvariants::No);
-            rcx.assume_invariants(&ty, checker_config.check_overflow);
+            rcx.unpack(ty, AssumeInvariants::Yes { check_overflow: checker_config.check_overflow });
         }
         let pred = invariant.pred.replace_bound_expr(&variant.idx);
         rcx.check_pred(pred, Tag::new(ConstrReason::Other, DUMMY_SP));
