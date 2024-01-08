@@ -1,6 +1,6 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
-use std::{hash::Hash, iter};
+use std::{hash::Hash, iter, ops::ControlFlow};
 
 use flux_common::{
     bug,
@@ -16,10 +16,17 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
-    rty::{self, Constant, ESpan},
+    rty::{
+        self,
+        fold::{TypeSuperVisitable, TypeVisitable, TypeVisitor},
+        Constant, ESpan,
+    },
 };
 use itertools::{self, Itertools};
-use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
+use rustc_data_structures::{
+    fx::FxIndexMap,
+    unord::{UnordMap, UnordSet},
+};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_span::Span;
@@ -54,6 +61,42 @@ pub enum KVarEncoding {
     /// Concretely, a kvar `$k(a0, a1, ..., an)[b0, ...]` becomes
     /// `$k0(a0, a1, ..., an, b0, ...) ∧ $k1(a1, ..., an, b0, ...) ∧ ... ∧ $kn(an, b0, ...)`
     Conj,
+}
+
+#[derive(Default)]
+struct SortStore {
+    tuples: UnordSet<usize>,
+}
+
+impl SortStore {
+    fn declare_tuple(&mut self, arity: usize) {
+        self.tuples.insert(arity);
+    }
+
+    fn into_data_decls(self) -> Vec<fixpoint::DataDecl> {
+        self.tuples
+            .into_items()
+            .into_sorted_stable_ord()
+            .into_iter()
+            .map(|arity| {
+                fixpoint::DataDecl {
+                    name: tuple_sort_name(arity),
+                    vars: arity,
+                    ctors: vec![fixpoint::DataCtor {
+                        name: fixpoint::Var::TupleCtor { arity },
+                        fields: (0..(arity as u32))
+                            .map(|field| {
+                                fixpoint::DataField {
+                                    name: fixpoint::Var::TupleProj { arity, field },
+                                    sort: fixpoint::Sort::Var(field),
+                                }
+                            })
+                            .collect(),
+                    }],
+                }
+            })
+            .collect()
+    }
 }
 
 pub mod fixpoint {
@@ -132,6 +175,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: &'genv GlobalEnv<'genv, 'tcx>,
     kvars: KVarStore,
+    sorts: SortStore,
     fixpoint_kvars: IndexVec<fixpoint::KVid, FixpointKVar>,
     env: Env,
     const_map: ConstMap,
@@ -238,6 +282,7 @@ where
         Self {
             comments: vec![],
             kvars,
+            sorts: SortStore::default(),
             genv,
             env: Env::new(),
             const_map,
@@ -247,6 +292,30 @@ where
             tags_inv: Default::default(),
             def_id,
         }
+    }
+
+    pub(crate) fn collect_sorts<T: TypeVisitable>(&mut self, t: &T) {
+        struct Visitor<'a> {
+            sorts: &'a mut SortStore,
+        }
+        impl TypeVisitor for Visitor<'_> {
+            fn visit_expr(&mut self, expr: &rty::Expr) -> ControlFlow<!> {
+                if let rty::ExprKind::Record(_, flds) | rty::ExprKind::Tuple(flds) = expr.kind() {
+                    self.sorts.declare_tuple(flds.len());
+                }
+                expr.super_visit_with(self)
+            }
+
+            fn visit_sort(&mut self, sort: &rty::Sort) -> ControlFlow<!> {
+                match sort {
+                    rty::Sort::Tuple(flds) => self.sorts.declare_tuple(flds.len()),
+                    rty::Sort::Adt(sort_def, _) => self.sorts.declare_tuple(sort_def.fields()),
+                    _ => {}
+                }
+                sort.super_visit_with(self)
+            }
+        }
+        t.visit_with(&mut Visitor { sorts: &mut self.sorts });
     }
 
     pub(crate) fn with_name_map<R>(
@@ -323,6 +392,7 @@ where
             constraint,
             qualifiers,
             scrape_quals: config.scrape_quals,
+            data_decls: self.sorts.into_data_decls(),
         };
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx, self.def_id, "smt2", &task).unwrap();
@@ -634,7 +704,7 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         }
         rty::Sort::Adt(_, _) => todo!(),
         rty::Sort::Tuple(sorts) => {
-            let ctor = tuple_sort_ctor(sorts.len());
+            let ctor = fixpoint::SortCtor::Data(tuple_sort_name(sorts.len()));
             let args = sorts.iter().map(sort_to_fixpoint).collect();
             fixpoint::Sort::App(ctor, args)
         }
@@ -643,8 +713,8 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
     }
 }
 
-fn tuple_sort_ctor(arity: usize) -> fixpoint::SortCtor {
-    fixpoint::SortCtor::User(format!("Tuple{arity}"))
+fn tuple_sort_name(arity: usize) -> String {
+    format!("Tuple{arity}")
 }
 
 fn func_sort_to_fixpoint(fsort: &rty::PolyFuncSort) -> fixpoint::PolyFuncSort {

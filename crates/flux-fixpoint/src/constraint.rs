@@ -18,12 +18,32 @@ pub enum Constraint<T: Types> {
     ForAll(T::Var, Sort<T>, Pred<T>, Box<Self>),
 }
 
+#[derive_where(Hash)]
+pub struct DataDecl<T: Types> {
+    pub name: T::Sort,
+    pub vars: usize,
+    pub ctors: Vec<DataCtor<T>>,
+}
+
+#[derive_where(Hash)]
+pub struct DataCtor<T: Types> {
+    pub name: T::Var,
+    pub fields: Vec<DataField<T>>,
+}
+
+#[derive_where(Hash)]
+pub struct DataField<T: Types> {
+    pub name: T::Var,
+    pub sort: Sort<T>,
+}
+
 #[derive_where(Clone, Hash)]
 pub enum Sort<T: Types> {
     Int,
     Bool,
     Real,
     Unit,
+    Var(u32),
     BitVec(usize),
     Func(PolyFuncSort<T>),
     App(SortCtor<T>, Vec<Self>),
@@ -33,7 +53,7 @@ pub enum Sort<T: Types> {
 pub enum SortCtor<T: Types> {
     Set,
     Map,
-    User(T::Sort),
+    Data(T::Sort),
 }
 
 #[derive_where(Clone, Hash)]
@@ -166,6 +186,24 @@ impl<T: Types> PolyFuncSort<T> {
     }
 }
 
+impl<T: Types> fmt::Display for DataDecl<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(data {} {} = [{}])", self.name, self.vars, self.ctors.iter().format(" "))
+    }
+}
+
+impl<T: Types> fmt::Display for DataCtor<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "| {} {{ {} }}", self.name, self.fields.iter().format(", "))
+    }
+}
+
+impl<T: Types> fmt::Display for DataField<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.name, self.sort)
+    }
+}
+
 impl<T: Types> fmt::Display for Constraint<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -231,7 +269,7 @@ impl<T: Types> fmt::Display for SortCtor<T> {
         match self {
             SortCtor::Set => write!(f, "Set_Set"),
             SortCtor::Map => write!(f, "Map_t"),
-            SortCtor::User(name) => write!(f, "{name}"),
+            SortCtor::Data(name) => write!(f, "{name}"),
         }
     }
 }
@@ -242,7 +280,8 @@ impl<T: Types> fmt::Display for Sort<T> {
             Sort::Int => write!(f, "int"),
             Sort::Bool => write!(f, "bool"),
             Sort::Real => write!(f, "real"),
-            Sort::Unit => write!(f, "unit"),
+            Sort::Unit => write!(f, "Unit"),
+            Sort::Var(i) => write!(f, "@({i})"),
             Sort::BitVec(size) => write!(f, "(BitVec Size{})", size),
             Sort::Func(sort) => write!(f, "{sort}"),
             Sort::App(ctor, args) => {

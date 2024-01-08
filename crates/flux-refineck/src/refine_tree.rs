@@ -622,6 +622,27 @@ impl Iterator for ParentsIter {
     }
 }
 
+impl TypeVisitable for RefineTree {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        self.root.visit_with(visitor)
+    }
+}
+
+impl TypeVisitable for NodePtr {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        let node = self.borrow();
+        match &node.kind {
+            NodeKind::Conj | NodeKind::Comment(_) | NodeKind::True => {}
+            NodeKind::Guard(pred) | NodeKind::Head(pred, _) => pred.visit_with(visitor)?,
+            NodeKind::ForAll(_, sort) => sort.visit_with(visitor)?,
+        }
+        for child in &node.children {
+            child.visit_with(visitor)?;
+        }
+        ControlFlow::Continue(())
+    }
+}
+
 mod pretty {
     use std::{
         fmt::{self, Write},

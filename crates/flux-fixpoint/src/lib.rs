@@ -16,8 +16,8 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, Const, Constant, Constraint, Expr, Func, FuncSort, PolyFuncSort, Pred, Proj, Qualifier,
-    Sort, SortCtor, UnOp,
+    BinOp, Const, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Func, FuncSort,
+    PolyFuncSort, Pred, Proj, Qualifier, Sort, SortCtor, UnOp,
 };
 use derive_where::derive_where;
 use flux_common::{cache::QueryCache, format::PadAdapter};
@@ -54,6 +54,9 @@ macro_rules! declare_types {
             pub type Sort = $crate::Sort<FixpointTypes>;
             pub type SortCtor = $crate::SortCtor<FixpointTypes>;
             pub type PolyFuncSort = $crate::PolyFuncSort<FixpointTypes>;
+            pub type DataDecl = $crate::DataDecl<FixpointTypes>;
+            pub type DataCtor = $crate::DataCtor<FixpointTypes>;
+            pub type DataField = $crate::DataField<FixpointTypes>;
             pub use $crate::Proj;
         }
 
@@ -87,6 +90,7 @@ pub struct Task<T: Types> {
     #[derive_where(skip)]
     pub comments: Vec<String>,
     pub constants: Vec<ConstInfo<T>>,
+    pub data_decls: Vec<DataDecl<T>>,
     pub kvars: Vec<KVar<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
@@ -194,6 +198,12 @@ impl<T: Types> fmt::Display for Task<T> {
         }
         writeln!(f)?;
 
+        writeln!(f, "(data Unit 0 = [| unit {{ }}])")?;
+
+        for data_decl in &self.data_decls {
+            writeln!(f, "{data_decl}")?;
+        }
+
         for qualif in DEFAULT_QUALIFIERS.iter() {
             writeln!(f, "{qualif}")?;
         }
@@ -201,8 +211,6 @@ impl<T: Types> fmt::Display for Task<T> {
         for qualif in &self.qualifiers {
             writeln!(f, "{qualif}")?;
         }
-
-        writeln!(f, "(data Unit 0 = [| unit {{ }}])")?;
 
         for cinfo in &self.constants {
             writeln!(f, "{cinfo}")?;

@@ -37,6 +37,10 @@ pub trait TypeVisitor: Sized {
         expr.super_visit_with(self)
     }
 
+    fn visit_sort(&mut self, sort: &Sort) -> ControlFlow<Self::BreakTy> {
+        sort.super_visit_with(self)
+    }
+
     fn visit_fvar(&mut self, _name: Name) -> ControlFlow<Self::BreakTy> {
         ControlFlow::Continue(())
     }
@@ -194,6 +198,7 @@ pub trait TypeVisitable: Sized {
         self.visit_with(&mut collector);
         collector.0
     }
+
     /// Returns the set of all opaque type aliases def ids
     fn opaque_refine_args(&self) -> OpaqueArgsMap {
         struct CollectOpaqueRefineArgs(OpaqueArgsMap);
@@ -538,8 +543,15 @@ impl TypeFoldable for FnTraitPredicate {
         })
     }
 }
+
 impl TypeVisitable for Sort {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        visitor.visit_sort(self)
+    }
+}
+
+impl TypeSuperVisitable for Sort {
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             Sort::Tuple(sorts) | Sort::App(_, sorts) => sorts.visit_with(visitor),
             Sort::Func(fsort) => fsort.fsort.inputs_and_output.visit_with(visitor),
