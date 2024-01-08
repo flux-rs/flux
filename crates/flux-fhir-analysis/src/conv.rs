@@ -703,7 +703,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             let idx = rty::Expr::unit();
             self.conv_indexed_type(env, bty, idx)
         } else if let Some(def_id) = sort.is_unit_adt() {
-            let idx = rty::Expr::unit_record(def_id);
+            let idx = rty::Expr::unit_adt(def_id);
             self.conv_indexed_type(env, bty, idx)
         } else {
             env.push_layer(Layer::empty());

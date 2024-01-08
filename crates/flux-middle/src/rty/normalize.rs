@@ -1,6 +1,5 @@
 use std::ops::ControlFlow;
 
-use flux_common::bug;
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_span::Symbol;
@@ -138,16 +137,7 @@ impl<'a> Normalizer<'a> {
 
     fn field_proj(&self, e: &Expr, proj: FieldProj) -> Expr {
         match e.kind() {
-            ExprKind::Record(def_id2, flds) => {
-                let FieldProj::Adt { def_id, field } = proj else { bug!("expected adt proj") };
-                debug_assert_eq!(def_id, *def_id2);
-                flds[field as usize].clone()
-            }
-            ExprKind::Tuple(flds) => {
-                let FieldProj::Tuple { arity, field } = proj else { bug!("expected tuple proj") };
-                debug_assert_eq!(arity, flds.len());
-                flds[field as usize].clone()
-            }
+            ExprKind::Aggregate(_, flds) => flds[proj.field() as usize].clone(),
             _ => Expr::field_proj(e, proj, None),
         }
     }

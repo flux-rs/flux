@@ -15,7 +15,9 @@ pub mod subst;
 use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
-pub use expr::{ESpan, Expr, ExprKind, FieldProj, HoleKind, KVar, KVid, Loc, Name, Path, Var};
+pub use expr::{
+    AggregateKind, ESpan, Expr, ExprKind, FieldProj, HoleKind, KVar, KVid, Loc, Name, Path, Var,
+};
 use flux_common::bug;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;

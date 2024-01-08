@@ -3,7 +3,7 @@
 
 use std::ops::ControlFlow;
 
-use flux_common::{bug, iter::IterExt};
+use flux_common::bug;
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefId;
@@ -993,8 +993,7 @@ impl TypeSuperVisitable for Expr {
                 e1.visit_with(visitor)?;
                 e2.visit_with(visitor)
             }
-            ExprKind::Record(_, flds) => flds.visit_with(visitor),
-            ExprKind::Tuple(exprs) => exprs.iter().try_for_each(|e| e.visit_with(visitor)),
+            ExprKind::Aggregate(_, flds) => flds.visit_with(visitor),
             ExprKind::FieldProj(e, _) | ExprKind::PathProj(e, _) | ExprKind::UnaryOp(_, e) => {
                 e.visit_with(visitor)
             }
@@ -1046,14 +1045,10 @@ impl TypeSuperFoldable for Expr {
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.try_fold_with(folder)?, span),
             ExprKind::FieldProj(e, proj) => Expr::field_proj(e.try_fold_with(folder)?, *proj, span),
-            ExprKind::Tuple(exprs) => {
-                let exprs = exprs
-                    .iter()
-                    .map(|e| e.try_fold_with(folder))
-                    .try_collect_vec()?;
-                Expr::tuple(exprs)
+            ExprKind::Aggregate(kind, flds) => {
+                let flds = flds.iter().map(|e| e.try_fold_with(folder)).try_collect()?;
+                Expr::aggregate(*kind, flds)
             }
-            ExprKind::Record(def_id, flds) => Expr::record(*def_id, flds.try_fold_with(folder)?),
             ExprKind::PathProj(e, field) => Expr::path_proj(e.try_fold_with(folder)?, *field),
             ExprKind::App(func, arg) => {
                 Expr::app(func.try_fold_with(folder)?, arg.try_fold_with(folder)?, span)

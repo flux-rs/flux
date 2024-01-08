@@ -734,15 +734,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
 
         match (e1.kind(), e2.kind()) {
-            (ExprKind::Tuple(flds1), ExprKind::Tuple(flds2)) => {
-                debug_assert_eq!(flds1.len(), flds2.len());
-
-                for (e1, e2) in iter::zip(flds1, flds2) {
-                    self.idx_subtyping(rcx, e1, e2);
-                }
-            }
-            (ExprKind::Record(def_id1, flds1), ExprKind::Record(def_id2, flds2)) => {
-                debug_assert_eq!(def_id1, def_id2);
+            (ExprKind::Aggregate(kind1, flds1), ExprKind::Aggregate(kind2, flds2)) => {
+                debug_assert_eq!(kind1, kind2);
                 debug_assert_eq!(flds1.len(), flds2.len());
 
                 for (e1, e2) in iter::zip(flds1, flds2) {

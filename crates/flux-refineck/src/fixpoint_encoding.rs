@@ -300,7 +300,7 @@ where
         }
         impl TypeVisitor for Visitor<'_> {
             fn visit_expr(&mut self, expr: &rty::Expr) -> ControlFlow<!> {
-                if let rty::ExprKind::Record(_, flds) | rty::ExprKind::Tuple(flds) = expr.kind() {
+                if let rty::ExprKind::Aggregate(_, flds) = expr.kind() {
                     self.sorts.declare_tuple(flds.len());
                 }
                 expr.super_visit_with(self)
@@ -761,7 +761,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                 let proj = fixpoint::Var::TupleProj { arity, field };
                 fixpoint::Expr::App(fixpoint::Func::Var(proj), vec![self.expr_to_fixpoint(e)])
             }
-            rty::ExprKind::Record(_, flds) | rty::ExprKind::Tuple(flds) => {
+            rty::ExprKind::Aggregate(_, flds) => {
                 let ctor = fixpoint::Func::Var(fixpoint::Var::TupleCtor { arity: flds.len() });
                 let args = flds.iter().map(|e| self.expr_to_fixpoint(e)).collect();
                 fixpoint::Expr::App(ctor, args)

@@ -176,7 +176,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             adt_def,
             rty::GenericArgs::identity_for_item(self.genv, adt_def_id)?,
             fields,
-            rty::Expr::unit_record(adt_def_id),
+            rty::Expr::unit_adt(adt_def_id),
         );
         Ok(rty::Binder::new(value, List::empty()))
     }
@@ -271,7 +271,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
                 if s.is_unit() {
                     poly_ty.replace_bound_expr(&rty::Expr::unit())
                 } else if let Some(def_id) = s.is_unit_adt() {
-                    poly_ty.replace_bound_expr(&rty::Expr::unit_record(def_id))
+                    poly_ty.replace_bound_expr(&rty::Expr::unit_adt(def_id))
                 } else {
                     rty::Ty::exists(poly_ty)
                 }

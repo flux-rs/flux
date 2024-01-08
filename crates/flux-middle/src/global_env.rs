@@ -76,7 +76,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let args = vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)];
 
         let bty = rty::BaseTy::adt(adt_def, args);
-        rty::Ty::indexed(bty, rty::Expr::unit_record(def_id))
+        rty::Ty::indexed(bty, rty::Expr::unit_adt(def_id))
     }
 
     pub fn mir(&self, def_id: LocalDefId) -> QueryResult<Rc<rustc::mir::Body<'tcx>>> {

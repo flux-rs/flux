@@ -459,26 +459,24 @@ impl BasicBlockEnvShape {
 
     fn join_idx(&self, e1: &Expr, e2: &Expr, sort: &Sort, bound_sorts: &mut Vec<Sort>) -> Expr {
         match (e1.kind(), e2.kind(), sort) {
-            (ExprKind::Tuple(es1), ExprKind::Tuple(es2), Sort::Tuple(sorts)) => {
+            (ExprKind::Aggregate(_, es1), ExprKind::Aggregate(_, es2), Sort::Tuple(sorts)) => {
                 debug_assert_eq3!(es1.len(), es2.len(), sorts.len());
                 Expr::tuple(
                     izip!(es1, es2, sorts)
                         .map(|(e1, e2, sort)| self.join_idx(e1, e2, sort, bound_sorts))
-                        .collect_vec(),
+                        .collect(),
                 )
             }
             (
-                ExprKind::Record(def_id1, flds1),
-                ExprKind::Record(def_id2, flds2),
+                ExprKind::Aggregate(_, flds1),
+                ExprKind::Aggregate(_, flds2),
                 Sort::Adt(sort_def, args),
             ) => {
-                debug_assert_eq3!(*def_id1, *def_id2, sort_def.did());
-
                 let sorts = sort_def.instantiate(args);
                 debug_assert_eq3!(flds1.len(), flds2.len(), sorts.len());
 
                 Expr::record(
-                    *def_id1,
+                    sort_def.did(),
                     izip!(flds1, flds2, &sorts)
                         .map(|(f1, f2, sort)| self.join_idx(f1, f2, sort, bound_sorts))
                         .collect(),
