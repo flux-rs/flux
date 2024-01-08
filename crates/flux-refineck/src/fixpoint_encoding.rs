@@ -77,6 +77,7 @@ pub mod fixpoint {
     pub enum Var {
         Global(GlobalVar),
         Local(LocalVar),
+        TupleCtor(usize),
     }
 
     impl From<GlobalVar> for Var {
@@ -102,11 +103,13 @@ pub mod fixpoint {
             match self {
                 Var::Global(v) => write!(f, "c{}", v.as_u32()),
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
+                Var::TupleCtor(n) => write!(f, "Tuple{n}"),
             }
         }
     }
 
     flux_fixpoint::declare_types! {
+        type Sort = String;
         type KVar = KVid;
         type Var = Var;
         type Tag = super::TagIdx;
@@ -143,7 +146,7 @@ struct FixpointKVar {
     orig: rty::KVid,
 }
 
-/// Environment used to map [`rty::Var`] into [`fixpoint::Name`]. This only supports
+/// Environment used to map [`rty::Var`] into [`fixpoint::LocalVar`]. This only supports
 /// mapping of [`rty::Var::LateBound`] and [`rty::Var::Free`].
 struct Env {
     local_var_gen: IndexGen<fixpoint::LocalVar>,
@@ -393,8 +396,8 @@ where
             let var = fixpoint::Var::Local(fresh);
             bindings.push((
                 fresh,
-                fixpoint::Sort::unit(),
-                fixpoint::Expr::eq(fixpoint::Expr::Var(var), fixpoint::Expr::unit()),
+                fixpoint::Sort::Unit,
+                fixpoint::Expr::eq(fixpoint::Expr::Var(var), fixpoint::Expr::Unit),
             ));
             return fixpoint::Pred::KVar(kvids[0], vec![var]);
         }
@@ -418,7 +421,7 @@ where
             let all_args = decl.sorts.iter().map(sort_to_fixpoint).collect_vec();
 
             if all_args.is_empty() {
-                let sorts = vec![fixpoint::Sort::unit()];
+                let sorts = vec![fixpoint::Sort::Unit];
                 let kvid = self.fixpoint_kvars.push(FixpointKVar::new(sorts, kvid));
                 return vec![kvid];
             }
@@ -628,7 +631,9 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         }
         rty::Sort::Adt(_, _) => todo!(),
         rty::Sort::Tuple(sorts) => {
-            fixpoint::Sort::Tuple(sorts.iter().map(sort_to_fixpoint).collect_vec())
+            let ctor = fixpoint::SortCtor::User(format!("Tuple{}", sorts.len()));
+            let args = sorts.iter().map(sort_to_fixpoint).collect();
+            fixpoint::Sort::App(ctor, args)
         }
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
         rty::Sort::Loc | rty::Sort::Var(_) => bug!("unexpected sort {sort:?}"),
@@ -640,7 +645,7 @@ fn func_sort_to_fixpoint(fsort: &rty::PolyFuncSort) -> fixpoint::PolyFuncSort {
     let fsort = fsort.skip_binders();
     fixpoint::PolyFuncSort::new(
         params,
-        fsort.inputs().iter().map(sort_to_fixpoint),
+        fsort.inputs().iter().map(sort_to_fixpoint).collect(),
         sort_to_fixpoint(fsort.output()),
     )
 }
@@ -672,7 +677,9 @@ impl<'a> ExprCtxt<'a> {
             }
             rty::ExprKind::FieldProj(_, _, _) => todo!(),
             rty::ExprKind::Record(_, flds) | rty::ExprKind::Tuple(flds) => {
-                fixpoint::Expr::Tuple(flds.iter().map(|e| self.expr_to_fixpoint(e)).collect())
+                let ctor = fixpoint::Func::Var(fixpoint::Var::TupleCtor(flds.len()));
+                let args = flds.iter().map(|e| self.expr_to_fixpoint(e)).collect();
+                fixpoint::Expr::App(ctor, args)
             }
             rty::ExprKind::ConstDefId(did) => {
                 let const_info = self.const_map.get(&Key::Const(*did)).unwrap_or_else(|| {

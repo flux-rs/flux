@@ -15,42 +15,36 @@ pub enum Constraint<T: Types> {
     Pred(Pred<T>, #[derive_where(skip)] Option<T::Tag>),
     Conj(Vec<Self>),
     Guard(Pred<T>, Box<Self>),
-    ForAll(T::Var, Sort, Pred<T>, Box<Self>),
+    ForAll(T::Var, Sort<T>, Pred<T>, Box<Self>),
 }
 
-#[derive(Clone, Hash)]
-pub enum Sort {
+#[derive_where(Clone, Hash)]
+pub enum Sort<T: Types> {
     Int,
     Bool,
     Real,
+    Unit,
     BitVec(usize),
-    Tuple(Vec<Sort>),
-    Func(PolyFuncSort),
-    App(SortCtor, Vec<Sort>),
+    Func(PolyFuncSort<T>),
+    App(SortCtor<T>, Vec<Self>),
 }
 
-impl Sort {
-    pub fn unit() -> Self {
-        Sort::Tuple(vec![])
-    }
-}
-
-#[derive(Clone, Hash)]
-pub enum SortCtor {
+#[derive_where(Clone, Hash)]
+pub enum SortCtor<T: Types> {
     Set,
     Map,
-    // User { name: Symbol, arity: usize },
+    User(T::Sort),
 }
 
-#[derive(Clone, Hash)]
-pub struct FuncSort {
-    inputs_and_output: Vec<Sort>,
+#[derive_where(Clone, Hash)]
+pub struct FuncSort<T: Types> {
+    inputs_and_output: Vec<Sort<T>>,
 }
 
-#[derive(Clone, Hash)]
-pub struct PolyFuncSort {
+#[derive_where(Clone, Hash)]
+pub struct PolyFuncSort<T: Types> {
     params: usize,
-    fsort: FuncSort,
+    fsort: FuncSort<T>,
 }
 
 #[derive_where(Hash)]
@@ -62,12 +56,12 @@ pub enum Pred<T: Types> {
 
 #[derive_where(Hash)]
 pub enum Expr<T: Types> {
+    Unit,
     Var(T::Var),
     Constant(Constant),
     BinaryOp(BinOp, Box<[Self; 2]>),
     App(Func<T>, Vec<Self>),
     UnaryOp(UnOp, Box<Self>),
-    Tuple(Vec<Self>),
     Proj(Box<Self>, Proj),
     IfThenElse(Box<[Self; 3]>),
 }
@@ -88,7 +82,7 @@ pub enum Proj {
 #[derive_where(Hash)]
 pub struct Qualifier<T: Types> {
     pub name: String,
-    pub args: Vec<(T::Var, Sort)>,
+    pub args: Vec<(T::Var, Sort<T>)>,
     pub body: Expr<T>,
     pub global: bool,
 }
@@ -165,13 +159,8 @@ impl<T: Types> Pred<T> {
     }
 }
 
-impl PolyFuncSort {
-    pub fn new(
-        params: usize,
-        inputs: impl IntoIterator<Item = Sort>,
-        output: Sort,
-    ) -> PolyFuncSort {
-        let mut inputs = inputs.into_iter().collect_vec();
+impl<T: Types> PolyFuncSort<T> {
+    pub fn new(params: usize, mut inputs: Vec<Sort<T>>, output: Sort<T>) -> PolyFuncSort<T> {
         inputs.push(output);
         PolyFuncSort { params, fsort: FuncSort { inputs_and_output: inputs } }
     }
@@ -193,7 +182,7 @@ impl<T: Types> fmt::Display for Constraint<T> {
                 }
             }
             Constraint::Guard(body, head) => {
-                write!(f, "(forall ((_ {}) {body})", Sort::unit())?;
+                write!(f, "(forall ((_ {}) {body})", Sort::<T>::Unit)?;
                 write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
                 write!(f, "\n)")
             }
@@ -237,41 +226,43 @@ impl<T: Types> fmt::Display for PredTag<'_, T> {
     }
 }
 
-impl fmt::Display for SortCtor {
+impl<T: Types> fmt::Display for SortCtor<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SortCtor::Set => write!(f, "Set_Set"),
             SortCtor::Map => write!(f, "Map_t"),
+            SortCtor::User(name) => write!(f, "{name}"),
         }
     }
 }
-impl fmt::Display for Sort {
+
+impl<T: Types> fmt::Display for Sort<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Sort::Int => write!(f, "int"),
             Sort::Bool => write!(f, "bool"),
             Sort::Real => write!(f, "real"),
+            Sort::Unit => write!(f, "unit"),
             Sort::BitVec(size) => write!(f, "(BitVec Size{})", size),
-            Sort::Tuple(sorts) => {
-                write!(f, "(Tuple{}", sorts.len())?;
-                for sort in sorts {
-                    write!(f, " {}", sort)?;
+            Sort::Func(sort) => write!(f, "{sort}"),
+            Sort::App(ctor, args) => {
+                write!(f, "({ctor}")?;
+                for arg in args {
+                    write!(f, " {arg}")?;
                 }
                 write!(f, ")")
             }
-            Sort::Func(sort) => write!(f, "{sort}"),
-            Sort::App(ctor, ts) => write!(f, "({ctor} {})", ts.iter().format(" ")),
         }
     }
 }
 
-impl fmt::Display for PolyFuncSort {
+impl<T: Types> fmt::Display for PolyFuncSort<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(func({}, [{}]))", self.params, self.fsort.inputs_and_output.iter().format("; "))
     }
 }
 
-impl fmt::Display for FuncSort {
+impl<T: Types> fmt::Display for FuncSort<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(func(0, [{}]))", self.inputs_and_output.iter().format("; "))
     }
@@ -300,10 +291,6 @@ impl<T: Types> Expr<T> {
     pub const ONE: Expr<T> = Expr::Constant(Constant::ONE);
     pub fn eq(self, other: Self) -> Self {
         Expr::BinaryOp(BinOp::Eq, Box::new([self, other]))
-    }
-
-    pub fn unit() -> Self {
-        Expr::Tuple(vec![])
     }
 }
 
@@ -339,13 +326,13 @@ impl<T: Types> fmt::Display for Expr<T> {
                     write!(f, "{op}({e})")
                 }
             }
-            Expr::Tuple(exprs) => {
-                write!(f, "(Tuple{}", exprs.len())?;
-                for e in exprs {
-                    write!(f, " {}", e)?;
-                }
-                write!(f, ")")
-            }
+            // Expr::Tuple(exprs) => {
+            //     write!(f, "(Tuple{}", exprs.len())?;
+            //     for e in exprs {
+            //         write!(f, " {}", e)?;
+            //     }
+            //     write!(f, ")")
+            // }
             Expr::Proj(e, Proj::Fst) => write!(f, "(fst {e})"),
             Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
             Expr::App(func, args) => {
@@ -354,6 +341,7 @@ impl<T: Types> fmt::Display for Expr<T> {
             Expr::IfThenElse(box [p, e1, e2]) => {
                 write!(f, "if {p} then {e1} else {e2}")
             }
+            Expr::Unit => write!(f, "unit"),
         }
     }
 }
