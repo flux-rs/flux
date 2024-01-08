@@ -77,7 +77,8 @@ pub mod fixpoint {
     pub enum Var {
         Global(GlobalVar),
         Local(LocalVar),
-        TupleCtor(usize),
+        TupleCtor { arity: usize },
+        TupleProj { arity: usize, field: u32 },
     }
 
     impl From<GlobalVar> for Var {
@@ -103,7 +104,8 @@ pub mod fixpoint {
             match self {
                 Var::Global(v) => write!(f, "c{}", v.as_u32()),
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
-                Var::TupleCtor(n) => write!(f, "Tuple{n}"),
+                Var::TupleCtor { arity } => write!(f, "Tuple{arity}"),
+                Var::TupleProj { arity, field } => write!(f, "Tuple{arity}${field}"),
             }
         }
     }
@@ -193,7 +195,8 @@ impl Env {
     }
 }
 
-struct ExprCtxt<'a> {
+struct ExprCtxt<'a, 'tcx> {
+    genv: &'a GlobalEnv<'a, 'tcx>,
     env: &'a Env,
     const_map: &'a ConstMap,
     /// Used to report bugs
@@ -298,7 +301,7 @@ where
         let qualifiers = self
             .genv
             .qualifiers(self.def_id)?
-            .map(|qual| qualifier_to_fixpoint(span, &self.const_map, qual))
+            .map(|qual| qualifier_to_fixpoint(self.genv, span, &self.const_map, qual))
             .collect();
 
         let constants = self
@@ -471,8 +474,8 @@ where
         }
     }
 
-    fn as_expr_cx(&self) -> ExprCtxt<'_> {
-        ExprCtxt::new(&self.env, &self.const_map, self.def_span())
+    fn as_expr_cx(&self) -> ExprCtxt<'_, 'tcx> {
+        ExprCtxt::new(self.genv, &self.env, &self.const_map, self.def_span())
     }
 
     fn def_span(&self) -> Span {
@@ -631,13 +634,17 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         }
         rty::Sort::Adt(_, _) => todo!(),
         rty::Sort::Tuple(sorts) => {
-            let ctor = fixpoint::SortCtor::User(format!("Tuple{}", sorts.len()));
+            let ctor = tuple_sort_ctor(sorts.len());
             let args = sorts.iter().map(sort_to_fixpoint).collect();
             fixpoint::Sort::App(ctor, args)
         }
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
         rty::Sort::Loc | rty::Sort::Var(_) => bug!("unexpected sort {sort:?}"),
     }
+}
+
+fn tuple_sort_ctor(arity: usize) -> fixpoint::SortCtor {
+    fixpoint::SortCtor::User(format!("Tuple{arity}"))
 }
 
 fn func_sort_to_fixpoint(fsort: &rty::PolyFuncSort) -> fixpoint::PolyFuncSort {
@@ -650,9 +657,14 @@ fn func_sort_to_fixpoint(fsort: &rty::PolyFuncSort) -> fixpoint::PolyFuncSort {
     )
 }
 
-impl<'a> ExprCtxt<'a> {
-    fn new(env: &'a Env, const_map: &'a ConstMap, dbg_span: Span) -> Self {
-        Self { env, const_map, dbg_span }
+impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
+    fn new(
+        genv: &'a GlobalEnv<'a, 'tcx>,
+        env: &'a Env,
+        const_map: &'a ConstMap,
+        dbg_span: Span,
+    ) -> Self {
+        Self { genv, env, const_map, dbg_span }
     }
 
     fn expr_to_fixpoint(&self, expr: &rty::Expr) -> fixpoint::Expr {
@@ -675,9 +687,13 @@ impl<'a> ExprCtxt<'a> {
                         fixpoint::Expr::Proj(Box::new(e), proj)
                     })
             }
-            rty::ExprKind::FieldProj(_, _, _) => todo!(),
+            rty::ExprKind::FieldProj(e, def_id, field) => {
+                let arity = self.genv.adt_sort_def_of(*def_id).fields();
+                let proj = fixpoint::Var::TupleProj { arity, field: *field };
+                fixpoint::Expr::App(fixpoint::Func::Var(proj), vec![self.expr_to_fixpoint(e)])
+            }
             rty::ExprKind::Record(_, flds) | rty::ExprKind::Tuple(flds) => {
-                let ctor = fixpoint::Func::Var(fixpoint::Var::TupleCtor(flds.len()));
+                let ctor = fixpoint::Func::Var(fixpoint::Var::TupleCtor { arity: flds.len() });
                 let args = flds.iter().map(|e| self.expr_to_fixpoint(e)).collect();
                 fixpoint::Expr::App(ctor, args)
             }
@@ -764,6 +780,7 @@ impl<'a> ExprCtxt<'a> {
 }
 
 fn qualifier_to_fixpoint(
+    genv: &GlobalEnv,
     dbg_span: Span,
     const_map: &ConstMap,
     qualifier: &rty::Qualifier,
@@ -776,7 +793,7 @@ fn qualifier_to_fixpoint(
             .map(|(name, var)| ((*name).into(), sort_to_fixpoint(var.expect_sort())))
             .collect();
 
-    let cx = ExprCtxt::new(&env, const_map, dbg_span);
+    let cx = ExprCtxt::new(genv, &env, const_map, dbg_span);
     let body = cx.expr_to_fixpoint(qualifier.body.as_ref().skip_binder());
 
     let name = qualifier.name.to_string();

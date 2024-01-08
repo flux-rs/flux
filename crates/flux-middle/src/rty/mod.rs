@@ -77,6 +77,10 @@ impl AdtSortDef {
         self.0.def_id
     }
 
+    pub fn fields(&self) -> usize {
+        self.0.fields.len()
+    }
+
     pub fn instantiate(&self, args: &[Sort]) -> List<Sort> {
         struct Subst<'a> {
             args: &'a [Sort],
