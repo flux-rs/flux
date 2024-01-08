@@ -93,6 +93,8 @@ pub struct StructDef {
     pub opaque: bool,
     pub invariants: Vec<Expr>,
     pub node_id: NodeId,
+    /// Whether the struct is an extern spec for some [DefId]
+    pub extern_id: Option<DefId>,
 }
 
 impl StructDef {
@@ -109,7 +111,7 @@ pub struct EnumDef {
     pub variants: Vec<Option<VariantDef>>,
     pub invariants: Vec<Expr>,
     pub node_id: NodeId,
-    /// whether the enum is an extern spec for some [DefId]
+    /// Whether the enum is an extern spec for some [DefId]
     pub extern_id: Option<DefId>,
 }
 

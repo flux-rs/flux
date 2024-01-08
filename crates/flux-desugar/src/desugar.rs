@@ -404,6 +404,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             params: env.into_root().into_params(self),
             kind,
             invariants,
+            extern_id: struct_def.extern_id,
         })
     }
 

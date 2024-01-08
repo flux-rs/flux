@@ -85,13 +85,17 @@ enum LookupResultKind<'a> {
 }
 
 pub(crate) fn conv_adt_sort_def(genv: &GlobalEnv, refined_by: &fhir::RefinedBy) -> rty::AdtSortDef {
-    let sorts = conv_sorts(genv, &refined_by.sorts);
+    let sorts = conv_sorts(genv, refined_by.index_sorts_raw());
     let params = refined_by
         .sort_params
         .iter()
         .map(|def_id| def_id_to_param_index(genv.tcx, def_id.expect_local()))
         .collect();
-    rty::AdtSortDef::new(refined_by.def_id, params, List::from_vec(sorts))
+    let def_id = genv
+        .map()
+        .extern_id_of(genv.tcx, refined_by.def_id)
+        .unwrap_or(refined_by.def_id.to_def_id());
+    rty::AdtSortDef::new(def_id, params, List::from_vec(sorts))
 }
 
 pub(crate) fn expand_type_alias(

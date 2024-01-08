@@ -465,7 +465,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.tcx.hir()
     }
 
-    pub(crate) fn lookup_extern(&self, def_id: DefId) -> Option<DefId> {
+    pub fn lookup_extern(&self, def_id: DefId) -> Option<DefId> {
         self.map().get_extern(def_id).map(LocalDefId::to_def_id)
     }
 
