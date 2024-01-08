@@ -110,7 +110,7 @@ pub enum ExprKind {
     Hole(HoleKind),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum FieldProj {
     Tuple { arity: usize, field: u32 },
     Adt { def_id: DefId, field: u32 },
@@ -366,6 +366,10 @@ impl Expr {
 
     pub fn record(def_id: DefId, flds: List<Expr>) -> Expr {
         ExprKind::Record(def_id, flds).intern()
+    }
+
+    pub fn unit_record(def_id: DefId) -> Expr {
+        ExprKind::Record(def_id, List::empty()).intern()
     }
 
     pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>, espan: Option<ESpan>) -> Expr {
@@ -783,11 +787,12 @@ mod pretty {
                     }
                 }
                 ExprKind::FieldProj(e, proj) => {
-                    if e.is_atom() {
-                        w!("{:?}.{:?}", e, ^proj.field())
-                    } else {
-                        w!("({:?}).{:?}", e, ^proj.field())
-                    }
+                    w!("({:?}.{:?})", e, ^proj)
+                    // if e.is_atom() {
+                    //     w!("{:?}.{:?}", e, ^proj.field())
+                    // } else {
+                    //     w!("({:?}).{:?}", e, ^proj.field())
+                    // }
                 }
                 ExprKind::Tuple(exprs) => {
                     if let [e] = &exprs[..] {

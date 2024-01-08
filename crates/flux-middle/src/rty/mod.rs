@@ -730,6 +730,16 @@ impl Sort {
         matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
     }
 
+    pub fn is_unit_adt(&self) -> Option<DefId> {
+        if let Sort::Adt(sort_def, _) = self
+            && sort_def.fields() == 0
+        {
+            Some(sort_def.did())
+        } else {
+            None
+        }
+    }
+
     /// Whether the sort is a function with return sort bool
     fn is_pred(&self) -> bool {
         matches!(self, Sort::Func(fsort) if fsort.skip_binders().output().is_bool())

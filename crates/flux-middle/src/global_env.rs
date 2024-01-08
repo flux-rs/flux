@@ -75,14 +75,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
         let args = vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)];
 
-        // this is harcoding that `Box` has two type parameters and
-        // it is indexed by unit. We leave this as a reminder in case
-        // that ever changes.
-        debug_assert_eq!(self.generics_of(def_id).unwrap().params.len(), 2);
-        debug_assert!(adt_def.sort(&args).is_unit());
-
         let bty = rty::BaseTy::adt(adt_def, args);
-        rty::Ty::indexed(bty, rty::Expr::unit())
+        rty::Ty::indexed(bty, rty::Expr::unit_record(def_id))
     }
 
     pub fn mir(&self, def_id: LocalDefId) -> QueryResult<Rc<rustc::mir::Body<'tcx>>> {

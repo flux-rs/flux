@@ -139,7 +139,7 @@ impl<'a> Normalizer<'a> {
     fn field_proj(&self, e: &Expr, proj: FieldProj) -> Expr {
         match e.kind() {
             ExprKind::Record(def_id2, flds) => {
-                let FieldProj::Adt { def_id, field } = proj else { bug!("expected at proj") };
+                let FieldProj::Adt { def_id, field } = proj else { bug!("expected adt proj") };
                 debug_assert_eq!(def_id, *def_id2);
                 flds[field as usize].clone()
             }
