@@ -54,7 +54,6 @@ struct Layer {
 #[derive(Debug, Clone, Copy)]
 enum LayerKind {
     List,
-    Tuple(usize),
     Record(DefId),
 }
 
@@ -100,10 +99,11 @@ pub(crate) fn expand_type_alias(
     alias: &fhir::TyAlias,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
+    let def_id = alias.owner_id.to_def_id();
     let cx = ConvCtxt::new(genv, wfckresults);
 
     let mut env = Env::new(&alias.early_bound_params, wfckresults);
-    env.push_layer(Layer::tuple(&cx, &alias.index_params));
+    env.push_layer(Layer::record(&cx, def_id, &alias.index_params));
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
     Ok(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)))
@@ -1054,10 +1054,6 @@ impl Layer {
         Self::new(cx, late_bound_regions, params, filter_unit, LayerKind::List)
     }
 
-    fn tuple(cx: &ConvCtxt, params: &[fhir::RefineParam]) -> Self {
-        Self::new(cx, 0, params, false, LayerKind::Tuple(params.len()))
-    }
-
     fn record(cx: &ConvCtxt, def_id: DefId, params: &[fhir::RefineParam]) -> Self {
         Self::new(cx, 0, params, false, LayerKind::Record(def_id))
     }
@@ -1080,12 +1076,6 @@ impl Layer {
                 self.into_iter()
                     .map(|(sort, mode)| rty::BoundVariableKind::Refine(sort, mode))
                     .collect()
-            }
-            LayerKind::Tuple(_) => {
-                let sorts = self.into_iter().map(|(s, _)| s).collect();
-                let tuple = rty::Sort::Tuple(sorts);
-                let infer_mode = tuple.default_infer_mode();
-                List::singleton(rty::BoundVariableKind::Refine(tuple, infer_mode))
             }
             LayerKind::Record(def_id) => {
                 let sort_def = genv.adt_sort_def_of(def_id);
@@ -1136,13 +1126,6 @@ impl LookupResult<'_> {
             LookupResultKind::LateBoundList { level, entry: Entry::Sort { idx, .. }, kind } => {
                 match *kind {
                     LayerKind::List => rty::Expr::late_bvar(DebruijnIndex::from_u32(*level), *idx),
-                    LayerKind::Tuple(arity) => {
-                        rty::Expr::field_proj(
-                            rty::Expr::late_bvar(DebruijnIndex::from_u32(*level), 0),
-                            rty::FieldProj::Tuple { arity, field: *idx },
-                            None,
-                        )
-                    }
                     LayerKind::Record(def_id) => {
                         rty::Expr::field_proj(
                             rty::Expr::late_bvar(DebruijnIndex::from_u32(*level), 0),
