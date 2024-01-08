@@ -81,8 +81,7 @@ pub enum ExprKind {
     App(Expr, List<Expr>),
     GlobalFunc(Symbol, FuncKind),
     UnaryOp(UnOp, Expr),
-    TupleProj(Expr, u32),
-    FieldProj(Expr, DefId, u32),
+    FieldProj(Expr, FieldProj),
     Tuple(List<Expr>),
     Record(DefId, List<Expr>),
     PathProj(Expr, FieldIdx),
@@ -109,6 +108,20 @@ pub enum ExprKind {
     /// (where we don't want to worry about the scope) and the places where we infer them (where we do need to worry
     /// about the scope).
     Hole(HoleKind),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum FieldProj {
+    Tuple { arity: usize, field: u32 },
+    Adt { def_id: DefId, field: u32 },
+}
+
+impl FieldProj {
+    pub fn field(&self) -> u32 {
+        match self {
+            FieldProj::Tuple { field, .. } | FieldProj::Adt { field, .. } => *field,
+        }
+    }
 }
 
 /// The position where a hole appears. This determines how it will be inferred. This is related but not
@@ -399,19 +412,15 @@ impl Expr {
         ExprKind::BinaryOp(BinOp::Imp, e1.into(), e2.into()).intern()
     }
 
-    pub fn tuple_proj(e: impl Into<Expr>, proj: u32, espan: Option<ESpan>) -> Expr {
-        ExprKind::TupleProj(e.into(), proj).intern_at(espan)
+    pub fn field_proj(e: impl Into<Expr>, proj: FieldProj, espan: Option<ESpan>) -> Expr {
+        ExprKind::FieldProj(e.into(), proj).intern_at(espan)
     }
 
-    pub fn tuple_projs(e: impl Into<Expr>, projs: &[u32]) -> Expr {
+    pub fn field_projs(e: impl Into<Expr>, projs: &[FieldProj]) -> Expr {
         projs
             .iter()
             .copied()
-            .fold(e.into(), |e, p| Expr::tuple_proj(e, p, None))
-    }
-
-    pub fn field_proj(e: impl Into<Expr>, def_id: DefId, proj: u32, espan: Option<ESpan>) -> Expr {
-        ExprKind::FieldProj(e.into(), def_id, proj).intern_at(espan)
+            .fold(e.into(), |e, p| Expr::field_proj(e, p, None))
     }
 
     pub fn path_proj(base: Expr, field: FieldIdx) -> Expr {
@@ -773,18 +782,11 @@ mod pretty {
                         w!("{:?}({:?})", op, e)
                     }
                 }
-                ExprKind::TupleProj(e, field) => {
+                ExprKind::FieldProj(e, proj) => {
                     if e.is_atom() {
-                        w!("{:?}.{:?}", e, ^field)
+                        w!("{:?}.{:?}", e, ^proj.field())
                     } else {
-                        w!("({:?}).{:?}", e, ^field)
-                    }
-                }
-                ExprKind::FieldProj(e, _, field) => {
-                    if e.is_atom() {
-                        w!("{:?}.{:?}", e, ^field)
-                    } else {
-                        w!("({:?}).{:?}", e, ^field)
+                        w!("({:?}).{:?}", e, ^proj.field())
                     }
                 }
                 ExprKind::Tuple(exprs) => {

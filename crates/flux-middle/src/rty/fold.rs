@@ -995,10 +995,9 @@ impl TypeSuperVisitable for Expr {
             }
             ExprKind::Record(_, flds) => flds.visit_with(visitor),
             ExprKind::Tuple(exprs) => exprs.iter().try_for_each(|e| e.visit_with(visitor)),
-            ExprKind::FieldProj(e, _, _)
-            | ExprKind::PathProj(e, _)
-            | ExprKind::UnaryOp(_, e)
-            | ExprKind::TupleProj(e, _) => e.visit_with(visitor),
+            ExprKind::FieldProj(e, _) | ExprKind::PathProj(e, _) | ExprKind::UnaryOp(_, e) => {
+                e.visit_with(visitor)
+            }
             ExprKind::App(func, arg) => {
                 func.visit_with(visitor)?;
                 arg.visit_with(visitor)
@@ -1046,10 +1045,7 @@ impl TypeSuperFoldable for Expr {
                 Expr::binary_op(*op, e1.try_fold_with(folder)?, e2.try_fold_with(folder)?, span)
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.try_fold_with(folder)?, span),
-            ExprKind::TupleProj(e, proj) => Expr::tuple_proj(e.try_fold_with(folder)?, *proj, span),
-            ExprKind::FieldProj(e, def_id, fld) => {
-                Expr::field_proj(e.try_fold_with(folder)?, *def_id, *fld, span)
-            }
+            ExprKind::FieldProj(e, proj) => Expr::field_proj(e.try_fold_with(folder)?, *proj, span),
             ExprKind::Tuple(exprs) => {
                 let exprs = exprs
                     .iter()

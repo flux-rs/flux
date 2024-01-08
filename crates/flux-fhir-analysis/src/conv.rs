@@ -54,7 +54,7 @@ struct Layer {
 #[derive(Debug, Clone, Copy)]
 enum LayerKind {
     List,
-    Tuple,
+    Tuple(usize),
     Record(DefId),
 }
 
@@ -1005,12 +1005,12 @@ impl ConvCtxt<'_, '_> {
         let span = expr.span();
         if let Some(coercions) = self.wfckresults.coercions().get(fhir_id) {
             for coercion in coercions {
-                expr = match coercion {
+                expr = match *coercion {
                     fhir::Coercion::Inject(def_id) => {
-                        rty::Expr::record(*def_id, List::singleton(expr))
+                        rty::Expr::record(def_id, List::singleton(expr))
                     }
                     fhir::Coercion::Project(def_id) => {
-                        rty::Expr::field_proj(expr, *def_id, 0, span)
+                        rty::Expr::field_proj(expr, rty::FieldProj::Adt { def_id, field: 0 }, span)
                     }
                 };
             }
@@ -1052,7 +1052,7 @@ impl Layer {
     }
 
     fn tuple(cx: &ConvCtxt, params: &[fhir::RefineParam]) -> Self {
-        Self::new(cx, 0, params, false, LayerKind::Tuple)
+        Self::new(cx, 0, params, false, LayerKind::Tuple(params.len()))
     }
 
     fn record(cx: &ConvCtxt, def_id: DefId, params: &[fhir::RefineParam]) -> Self {
@@ -1078,7 +1078,7 @@ impl Layer {
                     .map(|(sort, mode)| rty::BoundVariableKind::Refine(sort, mode))
                     .collect()
             }
-            LayerKind::Tuple => {
+            LayerKind::Tuple(_) => {
                 let sorts = self.into_iter().map(|(s, _)| s).collect();
                 let tuple = rty::Sort::Tuple(sorts);
                 let infer_mode = tuple.default_infer_mode();
@@ -1133,9 +1133,19 @@ impl LookupResult<'_> {
             LookupResultKind::LateBoundList { level, entry: Entry::Sort { idx, .. }, kind } => {
                 match *kind {
                     LayerKind::List => rty::Expr::late_bvar(DebruijnIndex::from_u32(*level), *idx),
-                    LayerKind::Tuple => rty::Expr::tuple_proj(rty::Expr::nu(), *idx, None),
+                    LayerKind::Tuple(arity) => {
+                        rty::Expr::field_proj(
+                            rty::Expr::late_bvar(DebruijnIndex::from_u32(*level), 0),
+                            rty::FieldProj::Tuple { arity, field: *idx },
+                            None,
+                        )
+                    }
                     LayerKind::Record(def_id) => {
-                        rty::Expr::field_proj(rty::Expr::nu(), def_id, *idx, None)
+                        rty::Expr::field_proj(
+                            rty::Expr::late_bvar(DebruijnIndex::from_u32(*level), 0),
+                            rty::FieldProj::Adt { def_id, field: *idx },
+                            None,
+                        )
                     }
                 }
             }
@@ -1168,7 +1178,11 @@ impl LookupResult<'_> {
             let i = genv
                 .field_index(def_id, fld.name)
                 .unwrap_or_else(|| span_bug!(fld.span, "field `{fld:?}` not found in {def_id:?}"));
-            rty::Expr::field_proj(self.to_expr(), def_id, i as u32, None)
+            rty::Expr::field_proj(
+                self.to_expr(),
+                rty::FieldProj::Adt { def_id, field: i as u32 },
+                None,
+            )
         } else {
             span_bug!(fld.span, "expected record sort")
         }

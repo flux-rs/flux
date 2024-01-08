@@ -655,7 +655,7 @@ impl KVarStore {
                 if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
                     flattened_self_args += is_self_arg as usize;
                     sorts.push(sort.clone());
-                    exprs.push(rty::Expr::tuple_projs(&var, proj));
+                    exprs.push(rty::Expr::field_projs(&var, proj));
                 }
             });
         }
@@ -750,16 +750,15 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             rty::ExprKind::UnaryOp(op, e) => {
                 fixpoint::Expr::UnaryOp(*op, Box::new(self.expr_to_fixpoint(e)))
             }
-            rty::ExprKind::TupleProj(e, field) => {
-                itertools::repeat_n(fixpoint::Proj::Snd, *field as usize)
-                    .chain([fixpoint::Proj::Fst])
-                    .fold(self.expr_to_fixpoint(e), |e, proj| {
-                        fixpoint::Expr::Proj(Box::new(e), proj)
-                    })
-            }
-            rty::ExprKind::FieldProj(e, def_id, field) => {
-                let arity = self.genv.adt_sort_def_of(*def_id).fields();
-                let proj = fixpoint::Var::TupleProj { arity, field: *field };
+            rty::ExprKind::FieldProj(e, proj) => {
+                let (arity, field) = match *proj {
+                    rty::FieldProj::Tuple { arity, field } => (arity, field),
+                    rty::FieldProj::Adt { def_id, field } => {
+                        let arity = self.genv.adt_sort_def_of(def_id).fields();
+                        (arity, field)
+                    }
+                };
+                let proj = fixpoint::Var::TupleProj { arity, field };
                 fixpoint::Expr::App(fixpoint::Func::Var(proj), vec![self.expr_to_fixpoint(e)])
             }
             rty::ExprKind::Record(_, flds) | rty::ExprKind::Tuple(flds) => {

@@ -15,7 +15,7 @@ pub mod subst;
 use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
-pub use expr::{ESpan, Expr, ExprKind, HoleKind, KVar, KVid, Loc, Name, Path, Var};
+pub use expr::{ESpan, Expr, ExprKind, FieldProj, HoleKind, KVar, KVid, Loc, Name, Path, Var};
 use flux_common::bug;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
@@ -743,22 +743,27 @@ impl Sort {
         matches!(self, Self::Bool)
     }
 
-    pub fn flatten(&self) -> Vec<Sort> {
-        let mut sorts = vec![];
-        self.walk(|sort, _| sorts.push(sort.clone()));
-        sorts
-    }
-
-    pub fn walk(&self, mut f: impl FnMut(&Sort, &[u32])) {
-        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[u32]), proj: &mut Vec<u32>) {
-            if let Sort::Tuple(sorts) = sort {
-                sorts.iter().enumerate().for_each(|(i, sort)| {
-                    proj.push(i as u32);
-                    go(sort, f, proj);
-                    proj.pop();
-                });
-            } else {
-                f(sort, proj);
+    pub fn walk(&self, mut f: impl FnMut(&Sort, &[FieldProj])) {
+        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[FieldProj]), proj: &mut Vec<FieldProj>) {
+            match sort {
+                Sort::Tuple(flds) => {
+                    for (i, sort) in flds.iter().enumerate() {
+                        proj.push(FieldProj::Tuple { arity: flds.len(), field: i as u32 });
+                        go(sort, f, proj);
+                        proj.pop();
+                    }
+                }
+                Sort::Adt(sort_def, args) => {
+                    let flds = sort_def.instantiate(args);
+                    for (i, sort) in flds.iter().enumerate() {
+                        proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i as u32 });
+                        go(sort, f, proj);
+                        proj.pop();
+                    }
+                }
+                _ => {
+                    f(sort, proj);
+                }
             }
         }
         go(self, &mut f, &mut vec![]);

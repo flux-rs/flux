@@ -1,11 +1,12 @@
 use std::ops::ControlFlow;
 
+use flux_common::bug;
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_span::{def_id::DefId, Symbol};
+use rustc_span::Symbol;
 use toposort_scc::IndexGraph;
 
-use super::{fold::TypeSuperFoldable, ESpan};
+use super::{expr::FieldProj, fold::TypeSuperFoldable, ESpan};
 use crate::{
     fhir::FuncKind,
     rty::{
@@ -135,20 +136,19 @@ impl<'a> Normalizer<'a> {
         }
     }
 
-    fn tuple_proj(&self, tup: &Expr, proj: u32) -> Expr {
-        if let ExprKind::Tuple(exprs) = tup.kind() {
-            exprs[proj as usize].clone()
-        } else {
-            Expr::tuple_proj(tup, proj, None)
-        }
-    }
-
-    fn field_proj(&self, e: &Expr, def_id: DefId, fld: u32) -> Expr {
-        if let ExprKind::Record(def_id2, flds) = e.kind() {
-            debug_assert_eq!(def_id, *def_id2);
-            flds[fld as usize].clone()
-        } else {
-            Expr::field_proj(e, def_id, fld, None)
+    fn field_proj(&self, e: &Expr, proj: FieldProj) -> Expr {
+        match e.kind() {
+            ExprKind::Record(def_id2, flds) => {
+                let FieldProj::Adt { def_id, field } = proj else { bug!("expected at proj") };
+                debug_assert_eq!(def_id, *def_id2);
+                flds[field as usize].clone()
+            }
+            ExprKind::Tuple(flds) => {
+                let FieldProj::Tuple { arity, field } = proj else { bug!("expected tuple proj") };
+                debug_assert_eq!(arity, flds.len());
+                flds[field as usize].clone()
+            }
+            _ => Expr::field_proj(e, proj, None),
         }
     }
 }
@@ -159,8 +159,7 @@ impl TypeFolder for Normalizer<'_> {
         let span = expr.span();
         match expr.kind() {
             ExprKind::App(func, args) => self.app(func, args, span),
-            ExprKind::TupleProj(e, fld) => self.tuple_proj(e, *fld),
-            ExprKind::FieldProj(e, def_id, fld) => self.field_proj(e, *def_id, *fld),
+            ExprKind::FieldProj(e, proj) => self.field_proj(e, *proj),
             _ => expr,
         }
     }
