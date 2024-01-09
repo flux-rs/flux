@@ -16,7 +16,7 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, Const, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Func, FuncSort,
+    BinOp, Const, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, FuncSort,
     PolyFuncSort, Pred, Proj, Qualifier, Sort, SortCtor, UnOp,
 };
 use derive_where::derive_where;
@@ -45,7 +45,6 @@ macro_rules! declare_types {
             pub struct FixpointTypes;
             pub type Expr = $crate::Expr<FixpointTypes>;
             pub type Pred = $crate::Pred<FixpointTypes>;
-            pub type Func = $crate::Func<FixpointTypes>;
             pub type Constraint = $crate::Constraint<FixpointTypes>;
             pub type KVar = $crate::KVar<FixpointTypes>;
             pub type ConstInfo = $crate::ConstInfo<FixpointTypes>;

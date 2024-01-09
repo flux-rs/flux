@@ -120,8 +120,16 @@ pub mod fixpoint {
     pub enum Var {
         Global(GlobalVar),
         Local(LocalVar),
-        TupleCtor { arity: usize },
-        TupleProj { arity: usize, field: u32 },
+        TupleCtor {
+            arity: usize,
+        },
+        TupleProj {
+            arity: usize,
+            field: u32,
+        },
+        /// Interpreted theory function. This can be an arbitrary string, thus we are assuming the
+        /// name is different than the display implementation for the other variants.
+        Itf(Symbol),
     }
 
     impl From<GlobalVar> for Var {
@@ -149,6 +157,7 @@ pub mod fixpoint {
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
                 Var::TupleCtor { arity } => write!(f, "Tuple{arity}"),
                 Var::TupleProj { arity, field } => write!(f, "Tuple{arity}${field}"),
+                Var::Itf(name) => write!(f, "{name}"),
             }
         }
     }
@@ -160,6 +169,7 @@ pub mod fixpoint {
         type Tag = super::TagIdx;
     }
     pub use fixpoint_generated::*;
+    use rustc_span::Symbol;
 }
 
 type KVidMap = UnordMap<rty::KVid, Vec<fixpoint::KVid>>;
@@ -759,10 +769,10 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                     }
                 };
                 let proj = fixpoint::Var::TupleProj { arity, field };
-                fixpoint::Expr::App(fixpoint::Func::Var(proj), vec![self.expr_to_fixpoint(e)])
+                fixpoint::Expr::App(proj, vec![self.expr_to_fixpoint(e)])
             }
             rty::ExprKind::Aggregate(_, flds) => {
-                let ctor = fixpoint::Func::Var(fixpoint::Var::TupleCtor { arity: flds.len() });
+                let ctor = fixpoint::Var::TupleCtor { arity: flds.len() };
                 let args = flds.iter().map(|e| self.expr_to_fixpoint(e)).collect();
                 fixpoint::Expr::App(ctor, args)
             }
@@ -823,12 +833,10 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             .collect()
     }
 
-    fn func_to_fixpoint(&self, func: &rty::Expr) -> fixpoint::Func {
+    fn func_to_fixpoint(&self, func: &rty::Expr) -> fixpoint::Var {
         match func.kind() {
-            rty::ExprKind::Var(var) => fixpoint::Func::Var(self.var_to_fixpoint(var).into()),
-            rty::ExprKind::GlobalFunc(_, FuncKind::Thy(sym)) => {
-                fixpoint::Func::Itf(sym.to_string())
-            }
+            rty::ExprKind::Var(var) => self.var_to_fixpoint(var).into(),
+            rty::ExprKind::GlobalFunc(_, FuncKind::Thy(sym)) => fixpoint::Var::Itf(*sym),
             rty::ExprKind::GlobalFunc(sym, FuncKind::Uif) => {
                 let cinfo = self.const_map.get(&Key::Uif(*sym)).unwrap_or_else(|| {
                     span_bug!(
@@ -836,7 +844,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
                         "no constant found for uninterpreted function `{sym}` in `const_map`"
                     )
                 });
-                fixpoint::Func::Var(cinfo.name.into())
+                cinfo.name.into()
             }
             rty::ExprKind::GlobalFunc(sym, FuncKind::Def) => {
                 span_bug!(self.dbg_span, "unexpected global function `{sym}`. Function must be normalized away at this point")

@@ -80,17 +80,10 @@ pub enum Expr<T: Types> {
     Var(T::Var),
     Constant(Constant),
     BinaryOp(BinOp, Box<[Self; 2]>),
-    App(Func<T>, Vec<Self>),
+    App(T::Var, Vec<Self>),
     UnaryOp(UnOp, Box<Self>),
     Proj(Box<Self>, Proj),
     IfThenElse(Box<[Self; 3]>),
-}
-
-#[derive_where(Hash)]
-pub enum Func<T: Types> {
-    Var(T::Var),
-    /// interpreted (theory) function
-    Itf(String),
 }
 
 #[derive(Clone, Copy, Hash)]
@@ -381,15 +374,6 @@ impl<T: Types> fmt::Display for Expr<T> {
                 write!(f, "if {p} then {e1} else {e2}")
             }
             Expr::Unit => write!(f, "unit"),
-        }
-    }
-}
-
-impl<T: Types> fmt::Display for Func<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Func::Var(name) => write!(f, "{name}"),
-            Func::Itf(itf) => write!(f, "{itf}"),
         }
     }
 }
