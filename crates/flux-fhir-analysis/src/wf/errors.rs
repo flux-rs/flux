@@ -1,5 +1,8 @@
 use flux_macros::Diagnostic;
-use flux_middle::fhir::{self, SurfaceIdent};
+use flux_middle::{
+    fhir::{self, SurfaceIdent},
+    rty,
+};
 use rustc_span::{Span, Symbol};
 
 #[derive(Diagnostic)]
@@ -8,12 +11,12 @@ pub(super) struct SortMismatch {
     #[primary_span]
     #[label]
     span: Span,
-    expected: fhir::Sort,
-    found: fhir::Sort,
+    expected: rty::Sort,
+    found: rty::Sort,
 }
 
 impl SortMismatch {
-    pub(super) fn new(span: Span, expected: fhir::Sort, found: fhir::Sort) -> Self {
+    pub(super) fn new(span: Span, expected: rty::Sort, found: rty::Sort) -> Self {
         Self { span, expected, found }
     }
 }
@@ -96,11 +99,11 @@ impl MissingEnsures {
 pub(super) struct ExpectedFun<'a> {
     #[primary_span]
     span: Span,
-    found: &'a fhir::Sort,
+    found: &'a rty::Sort,
 }
 
 impl<'a> ExpectedFun<'a> {
-    pub(super) fn new(span: Span, found: &'a fhir::Sort) -> Self {
+    pub(super) fn new(span: Span, found: &'a rty::Sort) -> Self {
         Self { span, found }
     }
 }
@@ -111,12 +114,12 @@ pub(super) struct InvalidParamPos<'a> {
     #[primary_span]
     #[label]
     span: Span,
-    sort: &'a fhir::Sort,
+    sort: &'a rty::Sort,
     is_pred: bool,
 }
 
 impl<'a> InvalidParamPos<'a> {
-    pub(super) fn new(span: Span, sort: &'a fhir::Sort) -> Self {
+    pub(super) fn new(span: Span, sort: &'a rty::Sort) -> Self {
         Self { span, sort, is_pred: sort.is_pred() }
     }
 }
@@ -127,11 +130,11 @@ pub(super) struct UnexpectedFun<'a> {
     #[primary_span]
     #[label]
     span: Span,
-    sort: &'a fhir::Sort,
+    sort: &'a rty::Sort,
 }
 
 impl<'a> UnexpectedFun<'a> {
-    pub(super) fn new(span: Span, sort: &'a fhir::Sort) -> Self {
+    pub(super) fn new(span: Span, sort: &'a rty::Sort) -> Self {
         Self { span, sort }
     }
 }
@@ -142,11 +145,11 @@ pub(super) struct ExpectedNumeric<'a> {
     #[primary_span]
     #[label]
     span: Span,
-    found: &'a fhir::Sort,
+    found: &'a rty::Sort,
 }
 
 impl<'a> ExpectedNumeric<'a> {
-    pub(super) fn new(span: Span, found: &'a fhir::Sort) -> Self {
+    pub(super) fn new(span: Span, found: &'a rty::Sort) -> Self {
         Self { span, found }
     }
 }
@@ -172,12 +175,12 @@ impl ParamCountMismatch {
 pub(super) struct FieldNotFound {
     #[primary_span]
     span: Span,
-    sort: fhir::Sort,
+    sort: rty::Sort,
     fld: SurfaceIdent,
 }
 
 impl FieldNotFound {
-    pub(super) fn new(sort: fhir::Sort, fld: SurfaceIdent) -> Self {
+    pub(super) fn new(sort: rty::Sort, fld: SurfaceIdent) -> Self {
         Self { span: fld.span, sort, fld }
     }
 }
@@ -187,11 +190,11 @@ impl FieldNotFound {
 pub(super) struct InvalidPrimitiveDotAccess<'a> {
     #[primary_span]
     span: Span,
-    sort: &'a fhir::Sort,
+    sort: &'a rty::Sort,
 }
 
 impl<'a> InvalidPrimitiveDotAccess<'a> {
-    pub(super) fn new(sort: &'a fhir::Sort, fld: SurfaceIdent) -> Self {
+    pub(super) fn new(sort: &'a rty::Sort, fld: SurfaceIdent) -> Self {
         Self { sort, span: fld.span }
     }
 }
@@ -215,11 +218,11 @@ impl<'a> InvalidBaseInstance<'a> {
 pub(super) struct NoEquality<'a> {
     #[primary_span]
     span: Span,
-    sort: &'a fhir::Sort,
+    sort: &'a rty::Sort,
 }
 
 impl<'a> NoEquality<'a> {
-    pub(super) fn new(span: Span, sort: &'a fhir::Sort) -> Self {
+    pub(super) fn new(span: Span, sort: &'a rty::Sort) -> Self {
         Self { span, sort }
     }
 }

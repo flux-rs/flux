@@ -110,8 +110,9 @@ impl RustItemCtxt<'_, '_> {
         ty_alias: &surface::TyAlias,
     ) -> Result<super::Env> {
         let mut env = Env::new(ScopeId::TyAlias(ty_alias.node_id));
+        self.gather_refinement_generics(&ty_alias.generics.params, &mut env)?;
 
-        env.extend(self.sess(), self.resolve_params(ty_alias.refined_by.all_params())?)?;
+        env.extend(self.sess(), self.resolve_params(&ty_alias.refined_by.index_params)?)?;
 
         self.gather_params_ty(None, &ty_alias.ty, TypePos::Other, &mut env)?;
 
@@ -125,12 +126,7 @@ impl RustItemCtxt<'_, '_> {
         let mut env = Env::new(ScopeId::Struct(struct_def.node_id));
         env.extend(
             self.sess(),
-            self.resolve_params(
-                struct_def
-                    .refined_by
-                    .iter()
-                    .flat_map(surface::RefinedBy::all_params),
-            )?,
+            self.resolve_params(struct_def.refined_by.iter().flat_map(|it| &it.index_params))?,
         )?;
 
         struct_def
@@ -181,16 +177,25 @@ impl RustItemCtxt<'_, '_> {
     }
 
     fn gather_params_fn_sig_input(&self, fn_sig: &surface::FnSig, env: &mut Env) -> Result {
-        for param in fn_sig.generics.iter().flat_map(|g| &g.params) {
-            let surface::GenericParamKind::Refine { sort } = &param.kind else { continue };
-            let sort = self.sort_resolver.resolve_sort(sort)?;
-            env.insert(self.sess(), param.name, Param::Explicit(sort))?;
-        }
+        self.gather_refinement_generics(fn_sig.generics.iter().flat_map(|g| &g.params), env)?;
         for (idx, arg) in fn_sig.args.iter().enumerate() {
             self.gather_params_fun_arg(idx, arg, env)?;
         }
         if let Some(predicates) = &fn_sig.predicates {
             self.gather_params_predicates(predicates, env)?;
+        }
+        Ok(())
+    }
+
+    fn gather_refinement_generics<'a>(
+        &self,
+        params: impl IntoIterator<Item = &'a surface::GenericParam>,
+        env: &mut Env,
+    ) -> Result {
+        for param in params {
+            let surface::GenericParamKind::Refine { sort } = &param.kind else { continue };
+            let sort = self.sort_resolver.resolve_sort(sort)?;
+            env.insert(self.sess(), param.name, Param::Explicit(sort))?;
         }
         Ok(())
     }
@@ -288,7 +293,7 @@ impl RustItemCtxt<'_, '_> {
                     env.insert(self.sess(), bind, Param::SyntaxError)?;
                 }
                 env.push(ScopeId::Exists(node_id));
-                env.insert(self.sess(), *ex_bind, Param::Explicit(fhir::Sort::Wildcard))?;
+                env.insert(self.sess(), *ex_bind, Param::Explicit(fhir::Sort::Infer))?;
                 self.gather_params_bty(bty, pos, env)?;
                 env.exit();
                 Ok(())
@@ -416,11 +421,11 @@ impl Env {
         self.filter_map(|param, used| {
             let (sort, kind) = match param {
                 Param::Explicit(sort) => (sort, fhir::ParamKind::Explicit),
-                Param::At => (fhir::Sort::Wildcard, fhir::ParamKind::At),
-                Param::Pound => (fhir::Sort::Wildcard, fhir::ParamKind::Pound),
+                Param::At => (fhir::Sort::Infer, fhir::ParamKind::At),
+                Param::Pound => (fhir::Sort::Infer, fhir::ParamKind::Pound),
                 Param::Colon => {
                     if used {
-                        (fhir::Sort::Wildcard, fhir::ParamKind::Colon)
+                        (fhir::Sort::Infer, fhir::ParamKind::Colon)
                     } else {
                         return None;
                     }

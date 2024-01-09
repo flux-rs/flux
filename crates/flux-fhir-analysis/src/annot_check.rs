@@ -13,9 +13,10 @@ use flux_middle::{
     fhir::{
         self,
         lift::{self, LiftCtxt},
-        Res, WfckResults,
+        Res,
     },
     global_env::GlobalEnv,
+    rty::WfckResults,
 };
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;

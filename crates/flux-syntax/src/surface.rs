@@ -78,7 +78,7 @@ pub enum GenericParamKind {
 #[derive(Debug)]
 pub struct TyAlias {
     pub ident: Ident,
-    pub generics: Vec<Ty>,
+    pub generics: Generics,
     pub refined_by: RefinedBy,
     pub ty: Ty,
     pub node_id: NodeId,
@@ -140,7 +140,6 @@ pub struct VariantRet {
 
 #[derive(Debug, Default)]
 pub struct RefinedBy {
-    pub early_bound_params: Vec<RefineParam>,
     pub index_params: Vec<RefineParam>,
     pub span: Span,
 }
@@ -433,12 +432,6 @@ impl BindKind {
             BindKind::At => "@",
             BindKind::Pound => "#",
         }
-    }
-}
-
-impl RefinedBy {
-    pub fn all_params(&self) -> impl Iterator<Item = &RefineParam> {
-        self.early_bound_params.iter().chain(&self.index_params)
     }
 }
 
