@@ -63,8 +63,11 @@ pub enum KVarEncoding {
     Conj,
 }
 
+/// Keep track of all the sorts we need to define in the fixpoint constraint. Currently, we encode
+/// every aggregate sort as a tuple in fixpoint.
 #[derive(Default)]
 struct SortStore {
+    /// Set of all the arities
     tuples: UnordSet<usize>,
 }
 
@@ -304,6 +307,7 @@ where
         }
     }
 
+    /// Collect all the sorts that need to be defined in fixpoint to encode `t`
     pub(crate) fn collect_sorts<T: TypeVisitable>(&mut self, t: &T) {
         struct Visitor<'a> {
             sorts: &'a mut SortStore,
