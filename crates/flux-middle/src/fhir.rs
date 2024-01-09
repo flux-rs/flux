@@ -1194,12 +1194,6 @@ impl Map {
     }
 }
 
-impl TyAlias {
-    pub fn all_params(&self) -> impl Iterator<Item = &RefineParam> {
-        self.early_bound_params.iter().chain(&self.index_params)
-    }
-}
-
 impl StructDef {
     pub fn is_opaque(&self) -> bool {
         matches!(self.kind, StructKind::Opaque)
