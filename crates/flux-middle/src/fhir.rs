@@ -580,10 +580,6 @@ impl PolyFuncSort {
         let fsort = FuncSort::new(inputs, output);
         Self { params, fsort }
     }
-
-    pub fn skip_binders(&self) -> FuncSort {
-        self.fsort.clone()
-    }
 }
 
 #[derive(Clone)]

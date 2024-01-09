@@ -56,7 +56,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         expected: &rty::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         if let Some(fsort) = self.is_coercible_from_func(expected, arg.fhir_id) {
-            let fsort = fsort.skip_binders();
+            let fsort = fsort.instantiate_identity();
             self.insert_params(params);
 
             if params.len() != fsort.inputs().len() {

@@ -287,6 +287,15 @@ impl PolyFuncSort {
         self.fsort.clone()
     }
 
+    pub fn instantiate_identity(&self) -> FuncSort {
+        self.fsort.clone()
+    }
+
+    pub fn expect_mono(&self) -> FuncSort {
+        assert!(self.params == 0);
+        self.fsort.clone()
+    }
+
     pub fn params(&self) -> usize {
         self.params
     }

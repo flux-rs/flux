@@ -1275,7 +1275,7 @@ fn conv_func_sort(
     sort: &fhir::PolyFuncSort,
     next_sort_vid: &mut impl FnMut() -> rty::SortVid,
 ) -> rty::PolyFuncSort {
-    let fsort = sort.skip_binders();
+    let fsort = &sort.fsort;
     let fsort = rty::FuncSort::new(
         conv_sorts(genv, fsort.inputs(), next_sort_vid),
         conv_sort(genv, fsort.output(), next_sort_vid),
