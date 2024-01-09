@@ -1,4 +1,4 @@
-mod projection;
+mod place_ty;
 
 use std::{iter, ops::ControlFlow};
 
@@ -19,7 +19,7 @@ use flux_middle::{
 use itertools::{izip, Itertools};
 use rustc_middle::ty::TyCtxt;
 
-use self::projection::{LocKind, PlacesTree};
+use self::place_ty::{LocKind, PlacesTree};
 use super::rty::{Loc, Sort};
 use crate::{
     checker::errors::CheckerErrKind,
