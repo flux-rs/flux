@@ -222,7 +222,11 @@ pub(crate) fn adt_def_for_struct(
     struct_def: &fhir::StructDef,
 ) -> rty::AdtDef {
     let def_id = struct_def.owner_id.def_id;
-    let adt_def = lowering::lower_adt_def(&genv.tcx.adt_def(struct_def.owner_id));
+    let adt_def = if let Some(extern_id) = struct_def.extern_id {
+        lowering::lower_adt_def(&genv.tcx.adt_def(extern_id))
+    } else {
+        lowering::lower_adt_def(&genv.tcx.adt_def(struct_def.owner_id))
+    };
     rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id), invariants, struct_def.is_opaque())
 }
 
