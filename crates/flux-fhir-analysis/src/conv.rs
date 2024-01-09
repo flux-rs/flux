@@ -1234,7 +1234,6 @@ pub(crate) fn conv_sort(
         fhir::Sort::Bool => rty::Sort::Bool,
         fhir::Sort::BitVec(w) => rty::Sort::BitVec(*w),
         fhir::Sort::Loc => rty::Sort::Loc,
-        fhir::Sort::Unit => rty::Sort::unit(),
         fhir::Sort::Func(fsort) => rty::Sort::Func(conv_func_sort(genv, fsort, next_sort_vid)),
         fhir::Sort::Record(def_id, sort_args) => {
             rty::Sort::Adt(

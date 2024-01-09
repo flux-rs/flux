@@ -45,11 +45,7 @@ use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
-use crate::{
-    intern::{impl_internable, List},
-    pretty,
-    rty::Constant,
-};
+use crate::{pretty, rty::Constant};
 
 #[derive(Debug)]
 pub struct Generics {
@@ -525,7 +521,7 @@ pub enum InferMode {
     KVar,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, Copy, TyEncodable, TyDecodable)]
 pub enum SortCtor {
     Set,
     Map,
@@ -535,23 +531,22 @@ pub enum SortCtor {
     },
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
     Bool,
     Real,
     Loc,
-    Unit,
     BitVec(usize),
     /// Sort constructor application (e.g. `Set<int>` or `Map<int, int>`)
-    App(SortCtor, List<Sort>),
+    App(SortCtor, Vec<Sort>),
     Func(PolyFuncSort),
     /// sort variable
     Var(usize),
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
     /// the `List<Sort>` is for the type parameters of (generic) record sorts
-    Record(DefId, List<Sort>),
+    Record(DefId, Vec<Sort>),
     /// The sort associated to a type variable
     Param(DefId),
     /// The sort of the `Self` type, as used within a trait.
@@ -568,13 +563,13 @@ pub enum Sort {
     Infer,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct FuncSort {
     /// inputs and output in order
-    pub inputs_and_output: List<Sort>,
+    pub inputs_and_output: Vec<Sort>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct PolyFuncSort {
     pub params: usize,
     pub fsort: FuncSort,
@@ -875,11 +870,11 @@ impl RefinedBy {
 
 impl Sort {
     pub fn set(t: Sort) -> Self {
-        Self::App(SortCtor::Set, List::singleton(t))
+        Self::App(SortCtor::Set, vec![t])
     }
 
     pub fn map(k: Sort, v: Sort) -> Self {
-        Self::App(SortCtor::Map, List::from_vec(vec![k, v]))
+        Self::App(SortCtor::Map, vec![k, v])
     }
 }
 
@@ -892,7 +887,7 @@ impl From<PolyFuncSort> for Sort {
 impl FuncSort {
     pub fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
         inputs.push(output);
-        FuncSort { inputs_and_output: List::from_vec(inputs) }
+        FuncSort { inputs_and_output: inputs }
     }
 
     pub fn inputs(&self) -> &[Sort] {
@@ -1322,8 +1317,6 @@ impl<'a, T> LocalTableInContext<'a, T> {
     }
 }
 
-impl_internable!([Sort]);
-
 impl fmt::Debug for FnSig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if !self.params.is_empty() {
@@ -1581,7 +1574,6 @@ impl fmt::Debug for Sort {
             Sort::BitVec(w) => write!(f, "bitvec({w})"),
             Sort::Loc => write!(f, "loc"),
             Sort::Func(fsort) => write!(f, "{fsort:?}"),
-            Sort::Unit => write!(f, "()"),
             Sort::Record(def_id, sort_args) => {
                 if sort_args.is_empty() {
                     write!(f, "{}", pretty::def_id_to_string(*def_id))
