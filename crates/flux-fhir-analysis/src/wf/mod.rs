@@ -510,16 +510,21 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         match &path.res {
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
-                let sorts = self.genv.early_bound_sorts_of(*def_id, &[]);
-                if path.refine.len() != sorts.len() {
+                let generics = self
+                    .genv
+                    .refinement_generics_of(*def_id)
+                    .emit(self.genv.sess)?;
+
+                if path.refine.len() != generics.params.len() {
                     return self.emit_err(errors::EarlyBoundArgCountMismatch::new(
                         path.span,
-                        sorts.len(),
+                        generics.params.len(),
                         path.refine.len(),
                     ));
                 }
-                iter::zip(&path.refine, sorts)
-                    .try_for_each_exhaust(|(arg, sort)| self.check_refine_arg(infcx, arg, &sort))?;
+                iter::zip(&path.refine, &generics.params).try_for_each_exhaust(
+                    |(arg, param)| self.check_refine_arg(infcx, arg, &param.sort),
+                )?;
             }
             fhir::Res::SelfTyParam { .. }
             | fhir::Res::SelfTyAlias { .. }

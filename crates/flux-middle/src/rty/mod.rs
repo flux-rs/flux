@@ -12,7 +12,7 @@ pub mod projections;
 pub mod refining;
 pub mod subst;
 
-use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
+use std::{borrow::Cow, fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{
@@ -263,6 +263,12 @@ pub enum Sort {
     Var(SortVar),
     Infer(SortVid),
     Err,
+}
+
+impl rustc_errors::IntoDiagnosticArg for Sort {
+    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
+        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -804,7 +810,7 @@ impl Sort {
     }
 
     /// Whether the sort is a function with return sort bool
-    fn is_pred(&self) -> bool {
+    pub fn is_pred(&self) -> bool {
         matches!(self, Sort::Func(fsort) if fsort.skip_binders().output().is_bool())
     }
 
@@ -1858,7 +1864,7 @@ mod pretty {
                     }
                 }
                 Sort::Param(param_ty) => w!("{}::sort", ^param_ty),
-                Sort::Infer(_) => todo!(),
+                Sort::Infer(svid) => w!("{:?}", ^svid),
                 Sort::Err => w!("err"),
             }
         }
@@ -1867,12 +1873,20 @@ mod pretty {
     impl Pretty for FuncSort {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("({}) -> {:?}",
-                ^self.inputs()
-                    .iter()
-                    .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s))),
-                self.output()
-            )
+            match self.inputs() {
+                [input] => {
+                    w!(f, "{:?} -> {:?}", input, self.output())
+                }
+                inputs => {
+                    w!(f,
+                       "({}) -> {:?}",
+                       ^inputs
+                           .iter()
+                           .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s))),
+                       self.output()
+                    )
+                }
+            }
         }
     }
 

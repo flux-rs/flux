@@ -813,8 +813,6 @@ pub struct RefinedBy {
     pub sort_params: Vec<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     pub index_params: FxIndexMap<Symbol, Sort>,
-    /// The number of early bound parameters
-    early_bound: usize,
     /// Sorts of both early bound and index parameters. Early bound parameter appear first.
     sorts: Vec<Sort>,
 }
@@ -867,18 +865,13 @@ impl Generics {
 impl RefinedBy {
     pub fn new(
         def_id: LocalDefId,
-        early_bound_params: impl IntoIterator<Item = Sort>,
         index_params: impl IntoIterator<Item = (Symbol, Sort)>,
         sort_params: Vec<DefId>,
         span: Span,
     ) -> Self {
-        let mut sorts = early_bound_params.into_iter().collect_vec();
-        let early_bound = sorts.len();
-        let index_params = index_params
-            .into_iter()
-            .inspect(|(_, sort)| sorts.push(sort.clone()))
-            .collect();
-        RefinedBy { def_id, span, sort_params, index_params, early_bound, sorts }
+        let index_params: FxIndexMap<_, _> = index_params.into_iter().collect();
+        let sorts = index_params.values().cloned().collect();
+        RefinedBy { def_id, span, sort_params, index_params, sorts }
     }
 
     pub fn trivial(def_id: LocalDefId, span: Span) -> Self {
@@ -887,7 +880,6 @@ impl RefinedBy {
             sort_params: Default::default(),
             span,
             index_params: Default::default(),
-            early_bound: 0,
             sorts: vec![],
         }
     }
@@ -898,25 +890,6 @@ impl RefinedBy {
 
     pub fn field_sort(&self, fld: Symbol, args: &[Sort]) -> Option<Sort> {
         self.index_params.get(&fld).map(|sort| sort.subst(args))
-    }
-
-    pub fn early_bound_sorts(&self, args: &[Sort]) -> Vec<Sort> {
-        self.sorts[..self.early_bound]
-            .iter()
-            .map(|sort| sort.subst(args))
-            .collect()
-    }
-
-    pub fn index_sorts(&self, args: &[Sort]) -> Vec<Sort> {
-        self.sorts[self.early_bound..]
-            .iter()
-            .map(|sort| sort.subst(args))
-            .collect()
-    }
-
-    // TODO(nilehmann) remove this function
-    pub fn index_sorts_raw(&self) -> &[Sort] {
-        &self.sorts[self.early_bound..]
     }
 
     pub fn param_count(&self) -> usize {

@@ -101,7 +101,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 .insert(arg.fhir_id, sort_def.did());
 
             izip!(flds, &sorts)
-                .map(|(arg, expected)| self.check_refine_arg(arg, &expected))
+                .map(|(arg, expected)| self.check_refine_arg(arg, expected))
                 .try_collect_exhaust()
         } else {
             Err(self.emit_err(errors::ArgCountMismatch::new(
@@ -321,7 +321,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 };
                 fsort
             }
-            fhir::Func::Global(func, _, span, _) => self.genv.func_decl(func).sort.clone(),
+            fhir::Func::Global(func, ..) => self.genv.func_decl(func).sort.clone(),
         };
         Ok(self.instantiate_func_sort(poly_fsort))
     }
@@ -638,7 +638,7 @@ impl<'a, 'b, 'tcx> ImplicitParamInferer<'a, 'b, 'tcx> {
             fhir::RefineArgKind::Abs(_, _) => {}
             fhir::RefineArgKind::Record(flds) => {
                 if let rty::Sort::Adt(sort_def, sort_args) = expected {
-                    let sorts = sort_def.sorts(&sort_args);
+                    let sorts = sort_def.sorts(sort_args);
                     if flds.len() != sorts.len() {
                         return Err(self.emit_err(errors::ArgCountMismatch::new(
                             Some(idx.span),
@@ -648,7 +648,7 @@ impl<'a, 'b, 'tcx> ImplicitParamInferer<'a, 'b, 'tcx> {
                         )));
                     }
                     for (f, sort) in iter::zip(flds, &sorts) {
-                        self.infer_implicit_params(f, &sort)?;
+                        self.infer_implicit_params(f, sort)?;
                     }
                 } else {
                     return Err(self.emit_err(errors::ArgCountMismatch::new(

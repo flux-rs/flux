@@ -126,7 +126,6 @@ pub trait Visitor: Sized {
 }
 
 pub fn walk_refined_by<V: Visitor>(vis: &mut V, refined_by: &RefinedBy) {
-    walk_list!(vis, visit_refine_param, &refined_by.early_bound_params);
     walk_list!(vis, visit_refine_param, &refined_by.index_params);
 }
 

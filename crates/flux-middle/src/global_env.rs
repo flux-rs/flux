@@ -326,17 +326,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    pub fn early_bound_sorts_of(&self, def_id: DefId, sort_args: &[fhir::Sort]) -> Vec<fhir::Sort> {
-        if let Some(local_id) = def_id.as_local() {
-            self.map().refined_by(local_id).early_bound_sorts(sort_args)
-        } else {
-            self.cstore()
-                .refined_by(def_id)
-                .map(|refined_by| refined_by.early_bound_sorts(sort_args))
-                .unwrap_or_default()
-        }
-    }
-
     /// Whether values of this sort can be compared for equality.
     pub fn has_equality(&self, sort: &rty::Sort) -> bool {
         match sort {

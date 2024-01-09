@@ -111,7 +111,13 @@ impl RustItemCtxt<'_, '_> {
     ) -> Result<super::Env> {
         let mut env = Env::new(ScopeId::TyAlias(ty_alias.node_id));
 
-        env.extend(self.sess(), self.resolve_params(ty_alias.refined_by.all_params())?)?;
+        for param in &ty_alias.generics.params {
+            let surface::GenericParamKind::Refine { sort } = &param.kind else { continue };
+            let sort = self.sort_resolver.resolve_sort(sort)?;
+            env.insert(self.sess(), param.name, Param::Explicit(sort))?;
+        }
+
+        env.extend(self.sess(), self.resolve_params(&ty_alias.refined_by.index_params)?)?;
 
         self.gather_params_ty(None, &ty_alias.ty, TypePos::Other, &mut env)?;
 
@@ -125,12 +131,7 @@ impl RustItemCtxt<'_, '_> {
         let mut env = Env::new(ScopeId::Struct(struct_def.node_id));
         env.extend(
             self.sess(),
-            self.resolve_params(
-                struct_def
-                    .refined_by
-                    .iter()
-                    .flat_map(surface::RefinedBy::all_params),
-            )?,
+            self.resolve_params(struct_def.refined_by.iter().flat_map(|it| &it.index_params))?,
         )?;
 
         struct_def

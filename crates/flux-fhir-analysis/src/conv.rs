@@ -198,13 +198,12 @@ pub(crate) fn conv_generics(
 }
 
 pub(crate) fn conv_refinement_generics(
-    genv: &GlobalEnv,
     params: &[fhir::RefineParam],
     wfckresults: &fhir::WfckResults,
 ) -> List<rty::RefineParam> {
     params
         .iter()
-        .map(|param| conv_refine_param(genv, param, wfckresults))
+        .map(|param| conv_refine_param(param, wfckresults))
         .collect()
 }
 
@@ -985,7 +984,7 @@ impl ConvCtxt<'_, '_> {
                     espan,
                 )
             }
-            fhir::ExprKind::Dot(var, fld) => env.lookup(*var).get_field(self.genv, *fld),
+            fhir::ExprKind::Dot(var, fld) => env.lookup(*var).get_field(*fld),
         };
         self.add_coercions(expr, fhir_id)
     }
@@ -1048,7 +1047,7 @@ impl Layer {
             .map(|param| {
                 let sort = cx.resolve_param_sort(param);
                 let infer_mode = sort.infer_mode(param.kind);
-                let entry = Entry::new(cx.genv, idx, sort, infer_mode);
+                let entry = Entry::new(idx, sort, infer_mode);
                 if !filter_unit || !matches!(entry, Entry::Unit) {
                     idx += 1;
                 }
@@ -1123,7 +1122,7 @@ impl Layer {
 }
 
 impl Entry {
-    fn new(genv: &GlobalEnv, idx: u32, sort: rty::Sort, infer_mode: fhir::InferMode) -> Self {
+    fn new(idx: u32, sort: rty::Sort, infer_mode: fhir::InferMode) -> Self {
         if sort.is_unit() {
             Entry::Unit
         } else {
@@ -1171,7 +1170,7 @@ impl LookupResult<'_> {
         })
     }
 
-    fn get_field(&self, genv: &GlobalEnv, fld: SurfaceIdent) -> rty::Expr {
+    fn get_field(&self, fld: SurfaceIdent) -> rty::Expr {
         if let Some(sort_def) = self.is_record() {
             let def_id = sort_def.did();
             let i = sort_def
@@ -1208,7 +1207,6 @@ fn conv_sorts<'a>(
 }
 
 fn conv_refine_param(
-    genv: &GlobalEnv,
     param: &fhir::RefineParam,
     wfckresults: &fhir::WfckResults,
 ) -> rty::RefineParam {
@@ -1262,9 +1260,6 @@ pub(crate) fn conv_sort(
         }
         fhir::Sort::Var(n) => rty::Sort::Var(rty::SortVar::from(*n)),
         fhir::Sort::Infer => rty::Sort::Infer(next_sort_vid()),
-        fhir::Sort::Error => {
-            bug!("unexpected sort `{sort:?}`")
-        }
     }
 }
 
