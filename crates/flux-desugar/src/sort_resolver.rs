@@ -73,7 +73,7 @@ impl<'a> SortResolver<'a> {
             surface::Sort::Func { inputs, output } => {
                 Ok(self.resolve_func_sort(inputs, output)?.into())
             }
-            surface::Sort::Infer => Ok(fhir::Sort::Wildcard),
+            surface::Sort::Infer => Ok(fhir::Sort::Infer),
         }
     }
 

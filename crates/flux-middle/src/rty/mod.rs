@@ -40,23 +40,23 @@ use self::{
     fold::TypeFoldable,
     subst::{BoundVarReplacer, FnMutDelegate},
 };
-use crate::{
-    fhir::FuncKind,
-    global_env::GlobalEnv,
-    intern::{impl_internable, impl_slice_internable, Interned, List},
-    queries::QueryResult,
-    rty::fold::{TypeFolder, TypeSuperFoldable},
-    rustc::{
-        self,
-        mir::{Local, Place},
-        ty::{ConstKind, GeneratorArgsParts, VariantDef},
-    },
-};
 pub use crate::{
     fhir::InferMode,
     rustc::ty::{
         BoundRegion, BoundRegionKind, BoundVar, Const, EarlyBoundRegion, FreeRegion,
         Region::{self, *},
+    },
+};
+use crate::{
+    fhir::{FuncKind, ParamKind},
+    global_env::GlobalEnv,
+    intern::{impl_internable, impl_slice_internable, Interned, List},
+    queries::QueryResult,
+    rty::subst::SortSubst,
+    rustc::{
+        self,
+        mir::{Local, Place},
+        ty::{ConstKind, GeneratorArgsParts, VariantDef},
     },
 };
 
@@ -67,12 +67,19 @@ pub struct AdtSortDef(Interned<AdtSortDefData>);
 struct AdtSortDefData {
     def_id: DefId,
     params: Vec<u32>,
-    fields: List<Sort>,
+    field_names: Vec<Symbol>,
+    sorts: List<Sort>,
 }
 
 impl AdtSortDef {
-    pub fn new(def_id: DefId, params: Vec<u32>, fields: List<Sort>) -> Self {
-        Self(Interned::new(AdtSortDefData { def_id, params, fields }))
+    pub fn new(def_id: DefId, params: Vec<u32>, fields: Vec<(Symbol, Sort)>) -> Self {
+        let (field_names, sorts) = fields.into_iter().unzip();
+        Self(Interned::new(AdtSortDefData {
+            def_id,
+            params,
+            field_names,
+            sorts: List::from_vec(sorts),
+        }))
     }
 
     pub fn did(&self) -> DefId {
@@ -80,29 +87,26 @@ impl AdtSortDef {
     }
 
     pub fn fields(&self) -> usize {
-        self.0.fields.len()
+        self.0.sorts.len()
     }
 
-    pub fn instantiate(&self, args: &[Sort]) -> List<Sort> {
-        struct Subst<'a> {
-            args: &'a [Sort],
-        }
-        impl TypeFolder for Subst<'_> {
-            fn fold_sort(&mut self, sort: &Sort) -> Sort {
-                if let Sort::Var(var) = sort {
-                    self.args[var.index].clone()
-                } else {
-                    sort.super_fold_with(self)
-                }
-            }
-        }
-        self.0.fields.fold_with(&mut Subst { args })
+    pub fn field_sort(&self, args: &[Sort], name: Symbol) -> Option<Sort> {
+        let idx = self.field_index(name)?;
+        Some(self.0.sorts[idx].fold_with(&mut SortSubst::new(args)))
+    }
+
+    pub fn sorts(&self, args: &[Sort]) -> List<Sort> {
+        self.0.sorts.fold_with(&mut SortSubst::new(args))
     }
 
     pub fn identity_args(&self) -> List<Sort> {
         (0..self.0.params.len())
             .map(|i| Sort::Var(SortVar::from(i)))
             .collect()
+    }
+
+    pub fn field_index(&self, name: Symbol) -> Option<usize> {
+        self.0.field_names.iter().position(|it| name == *it)
     }
 }
 
@@ -283,6 +287,10 @@ impl PolyFuncSort {
 
     pub fn new(params: usize, fsort: FuncSort) -> Self {
         PolyFuncSort { params, fsort }
+    }
+
+    pub fn instantiate(&self, args: &[Sort]) -> FuncSort {
+        self.fsort.fold_with(&mut SortSubst::new(args))
     }
 }
 
@@ -744,6 +752,14 @@ impl RefinementGenerics {
 }
 
 impl Sort {
+    pub fn infer_mode(&self, kind: ParamKind) -> InferMode {
+        if self.is_pred() && !kind.is_implicit() {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
+        }
+    }
+
     pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
         Sort::Tuple(sorts.into())
     }
@@ -815,8 +831,7 @@ impl Sort {
                     }
                 }
                 Sort::Adt(sort_def, args) => {
-                    let flds = sort_def.instantiate(args);
-                    for (i, sort) in flds.iter().enumerate() {
+                    for (i, sort) in sort_def.sorts(args).iter().enumerate() {
                         proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i as u32 });
                         go(sort, f, proj);
                         proj.pop();

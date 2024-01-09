@@ -1163,7 +1163,7 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
         if let Some(param) = env.get(func) {
             return Ok(FuncRes::Param(fhir::Ident::new(param.name, func)));
         }
-        if let Some(decl) = self.genv().func_decl(func.name) {
+        if let Some(decl) = self.genv().map().func_decl(func.name) {
             return Ok(FuncRes::Global(decl));
         }
         Err(self.emit_err(errors::UnresolvedVar::from_ident(func)))

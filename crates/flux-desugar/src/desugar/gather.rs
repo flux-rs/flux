@@ -288,7 +288,7 @@ impl RustItemCtxt<'_, '_> {
                     env.insert(self.sess(), bind, Param::SyntaxError)?;
                 }
                 env.push(ScopeId::Exists(node_id));
-                env.insert(self.sess(), *ex_bind, Param::Explicit(fhir::Sort::Wildcard))?;
+                env.insert(self.sess(), *ex_bind, Param::Explicit(fhir::Sort::Infer))?;
                 self.gather_params_bty(bty, pos, env)?;
                 env.exit();
                 Ok(())
@@ -416,11 +416,11 @@ impl Env {
         self.filter_map(|param, used| {
             let (sort, kind) = match param {
                 Param::Explicit(sort) => (sort, fhir::ParamKind::Explicit),
-                Param::At => (fhir::Sort::Wildcard, fhir::ParamKind::At),
-                Param::Pound => (fhir::Sort::Wildcard, fhir::ParamKind::Pound),
+                Param::At => (fhir::Sort::Infer, fhir::ParamKind::At),
+                Param::Pound => (fhir::Sort::Infer, fhir::ParamKind::Pound),
                 Param::Colon => {
                     if used {
-                        (fhir::Sort::Wildcard, fhir::ParamKind::Colon)
+                        (fhir::Sort::Infer, fhir::ParamKind::Colon)
                     } else {
                         return None;
                     }

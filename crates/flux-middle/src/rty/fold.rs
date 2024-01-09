@@ -554,7 +554,7 @@ impl TypeSuperVisitable for Sort {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             Sort::Tuple(sorts) | Sort::App(_, sorts) => sorts.visit_with(visitor),
-            Sort::Func(fsort) => fsort.fsort.inputs_and_output.visit_with(visitor),
+            Sort::Func(fsort) => fsort.visit_with(visitor),
             Sort::Int
             | Sort::Bool
             | Sort::Real
@@ -580,17 +580,7 @@ impl TypeSuperFoldable for Sort {
         let sort = match self {
             Sort::Tuple(sorts) => Sort::tuple(sorts.try_fold_with(folder)?),
             Sort::App(ctor, sorts) => Sort::app(*ctor, sorts.try_fold_with(folder)?),
-            Sort::Func(fsort) => {
-                let params = fsort.params;
-                let fsort = FuncSort {
-                    inputs_and_output: fsort
-                        .clone()
-                        .skip_binders()
-                        .inputs_and_output
-                        .try_fold_with(folder)?,
-                };
-                Sort::Func(PolyFuncSort { params, fsort })
-            }
+            Sort::Func(fsort) => Sort::Func(fsort.try_fold_with(folder)?),
             Sort::Adt(adt_sort_def, sorts) => {
                 Sort::Adt(adt_sort_def.clone(), sorts.try_fold_with(folder)?)
             }
@@ -605,6 +595,30 @@ impl TypeSuperFoldable for Sort {
             | Sort::Err => self.clone(),
         };
         Ok(sort)
+    }
+}
+
+impl TypeVisitable for PolyFuncSort {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.fsort.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for PolyFuncSort {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(PolyFuncSort { params: self.params, fsort: self.fsort.try_fold_with(folder)? })
+    }
+}
+
+impl TypeVisitable for FuncSort {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.inputs_and_output.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for FuncSort {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(FuncSort { inputs_and_output: self.inputs_and_output.try_fold_with(folder)? })
     }
 }
 

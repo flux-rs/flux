@@ -214,7 +214,7 @@ impl<'tcx> Queries<'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_sort_def_of)(genv, local_id)
             } else {
-                rty::AdtSortDef::new(def_id, vec![], List::empty())
+                rty::AdtSortDef::new(def_id, vec![], vec![])
             }
         })
     }

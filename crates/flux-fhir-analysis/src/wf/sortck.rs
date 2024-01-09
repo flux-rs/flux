@@ -1,7 +1,7 @@
 use std::{collections::HashSet, iter};
 
 use ena::unify::InPlaceUnificationTable;
-use flux_common::{bug, iter::IterExt, span_bug};
+use flux_common::{bug, iter::IterExt};
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     fhir::{self, FhirId, FluxOwnerId, WfckResults},
@@ -14,6 +14,7 @@ use rustc_errors::IntoDiagnostic;
 use rustc_span::{def_id::DefId, Span};
 
 use super::errors;
+use crate::conv;
 
 pub(super) struct InferCtxt<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
@@ -56,7 +57,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         if let Some(fsort) = self.is_coercible_from_func(expected, arg.fhir_id) {
             let fsort = fsort.skip_binders();
-            self.push_layer(params);
+            self.insert_params(params);
 
             if params.len() != fsort.inputs().len() {
                 return Err(self.emit_err(errors::ParamCountMismatch::new(
@@ -86,7 +87,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         expected: &rty::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         if let rty::Sort::Adt(sort_def, sort_args) = expected {
-            let sorts = sort_def.instantiate(sort_args);
+            let sorts = sort_def.sorts(sort_args);
             if flds.len() != sorts.len() {
                 return Err(self.emit_err(errors::ArgCountMismatch::new(
                     Some(arg.span),
@@ -212,8 +213,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 let sort = self.ensure_resolved_var(*var)?;
                 match &sort {
                     rty::Sort::Adt(sort_def, sort_args) => {
-                        self.genv
-                            .field_sort(*def_id, sort_args.clone(), fld.name)
+                        sort_def
+                            .field_sort(sort_args, fld.name)
                             .ok_or_else(|| self.emit_field_not_found(&sort, *fld))
                     }
                     rty::Sort::Bool | rty::Sort::Int | rty::Sort::Real => {
@@ -312,27 +313,17 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 
     fn synth_func(&mut self, func: &fhir::Func) -> Result<rty::FuncSort, ErrorGuaranteed> {
-        let func_sort = match func {
+        let poly_fsort = match func {
             fhir::Func::Var(var, fhir_id) => {
                 let sort = self.lookup_var(*var);
-                if let Some(fsort) = self.is_coercible_to_func(&sort, *fhir_id) {
-                    Ok(fsort)
-                } else {
-                    Err(self.emit_err(errors::ExpectedFun::new(var.span(), &sort)))
-                }
+                let Some(fsort) = self.is_coercible_to_func(&sort, *fhir_id) else {
+                    return Err(self.emit_err(errors::ExpectedFun::new(var.span(), &sort)));
+                };
+                fsort
             }
-            fhir::Func::Global(func, _, span, _) => {
-                Ok(self
-                    .genv
-                    .func_decl(func)
-                    .unwrap_or_else(|| {
-                        span_bug!(*span, "no definition found for uif `{func:?}` - {span:?}")
-                    })
-                    .sort
-                    .clone())
-            }
+            fhir::Func::Global(func, _, span, _) => self.genv.func_decl(func).sort.clone(),
         };
-        func_sort.map(|fsort| self.instantiate_func_sort(fsort))
+        Ok(self.instantiate_func_sort(poly_fsort))
     }
 
     fn instantiate_func_sort(&mut self, fsort: rty::PolyFuncSort) -> rty::FuncSort {
@@ -346,18 +337,23 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
 impl<'a> InferCtxt<'a, '_> {
     /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
-    pub(super) fn push_layer<'b>(
+    pub(super) fn insert_params<'b>(
         &mut self,
         params: impl IntoIterator<Item = &'b fhir::RefineParam>,
     ) {
         for param in params {
-            let sort = if let fhir::Sort::Wildcard = param.sort {
-                rty::Sort::Infer(self.next_sort_vid())
-            } else {
-                replace_sort_self_alias(self.genv, &param.sort)
-            };
-            // self.params.insert(param.name(), (sort, param.kind));
+            let sort = conv::conv_sort(self.genv, &param.sort, &mut || self.next_sort_vid());
+            self.params.insert(param.name(), (sort, param.kind));
         }
+    }
+
+    pub(super) fn insert_param(
+        &mut self,
+        name: fhir::Name,
+        sort: rty::Sort,
+        kind: fhir::ParamKind,
+    ) {
+        self.params.insert(name, (sort, kind));
     }
 
     /// Whether a value of `sort1` can be automatically coerced to a value of `sort2`. A value of a
@@ -508,25 +504,15 @@ impl<'a> InferCtxt<'a, '_> {
         params: &[fhir::RefineParam],
     ) -> Result<(), ErrorGuaranteed> {
         params.iter().try_for_each_exhaust(|param| {
-            if param.sort == fhir::Sort::Wildcard {
-                if let Some(sort) = self.resolve_param(param) {
-                    self.wfckresults
-                        .node_sorts_mut()
-                        .insert(param.fhir_id, sort);
-                } else {
-                    return Err(self.emit_err(errors::SortAnnotationNeeded::new(param)));
-                }
+            let sort = self.lookup_var(param.ident);
+            if matches!(sort, rty::Sort::Infer(_)) {
+                return Err(self.emit_err(errors::SortAnnotationNeeded::new(param)));
             }
+            self.wfckresults
+                .node_sorts_mut()
+                .insert(param.fhir_id, sort);
             Ok(())
         })
-    }
-
-    fn resolve_param(&mut self, param: &fhir::RefineParam) -> Option<rty::Sort> {
-        if let rty::Sort::Infer(vid) = self.params[&param.ident.name].0 {
-            self.unification_table.probe_value(vid)
-        } else {
-            span_bug!(param.ident.span(), "expected wildcard sort")
-        }
     }
 
     pub(crate) fn lookup_var(&mut self, var: fhir::Ident) -> rty::Sort {
@@ -577,7 +563,7 @@ impl<'a> InferCtxt<'a, '_> {
     fn is_single_field_record(&mut self, sort: &rty::Sort) -> Option<(DefId, rty::Sort)> {
         self.resolve_sort(sort).and_then(|s| {
             if let rty::Sort::Adt(sort_def, sort_args) = s
-                && let [sort] = &sort_def.instantiate(&sort_args)[..]
+                && let [sort] = &sort_def.sorts(&sort_args)[..]
             {
                 Some((sort_def.did(), sort.clone()))
             } else {
@@ -615,7 +601,7 @@ impl<'a> InferCtxt<'a, '_> {
 
     pub(crate) fn infer_mode(&self, var: fhir::Ident) -> fhir::InferMode {
         let (sort, kind) = &self.params[&var.name];
-        kind.infer_mode(sort)
+        sort.infer_mode(*kind)
     }
 }
 
@@ -652,7 +638,7 @@ impl<'a, 'b, 'tcx> ImplicitParamInferer<'a, 'b, 'tcx> {
             fhir::RefineArgKind::Abs(_, _) => {}
             fhir::RefineArgKind::Record(flds) => {
                 if let rty::Sort::Adt(sort_def, sort_args) = expected {
-                    let sorts = sort_def.instantiate(&sort_args);
+                    let sorts = sort_def.sorts(&sort_args);
                     if flds.len() != sorts.len() {
                         return Err(self.emit_err(errors::ArgCountMismatch::new(
                             Some(idx.span),

@@ -255,9 +255,7 @@ pub fn walk_sort<V: Visitor>(vis: &mut V, sort: &Sort) {
         | Sort::Real
         | Sort::Loc
         | Sort::Unit
-        | Sort::Wildcard
-        | Sort::Infer(_)
-        | Sort::Error => {}
+        | Sort::Infer => {}
     }
 }
 

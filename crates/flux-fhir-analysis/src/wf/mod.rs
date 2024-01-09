@@ -14,7 +14,6 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{self, GenericParamDefKind},
 };
-use itertools::Itertools;
 use rustc_data_structures::snapshot_map::{self, SnapshotMap};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
@@ -22,6 +21,7 @@ use rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
 use rustc_span::Symbol;
 
 use self::sortck::InferCtxt;
+use crate::conv;
 
 struct Wf<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
@@ -45,7 +45,9 @@ pub(crate) fn check_qualifier(
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let owner = FluxOwnerId::Flux(qualifier.name);
     let mut infcx = InferCtxt::new(genv, owner);
-    infcx.push_layer(&qualifier.args);
+    infcx.insert_params(&qualifier.args);
+    infcx.resolve_params_sorts(&qualifier.args)?;
+
     infcx.check_expr(&qualifier.expr, &rty::Sort::Bool)?;
     Ok(infcx.into_results())
 }
@@ -56,8 +58,11 @@ pub(crate) fn check_defn(
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let owner = FluxOwnerId::Flux(defn.name);
     let mut infcx = InferCtxt::new(genv, owner);
-    infcx.push_layer(&defn.args);
-    infcx.check_expr(&defn.expr, &defn.sort)?;
+    infcx.insert_params(&defn.args);
+    infcx.resolve_params_sorts(&defn.args)?;
+
+    let output = conv::conv_sort(genv, &defn.sort, &mut || bug!("unexpected infer sort"));
+    infcx.check_expr(&defn.expr, &output)?;
     Ok(infcx.into_results())
 }
 
@@ -81,7 +86,10 @@ pub(crate) fn check_ty_alias(
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut infcx = InferCtxt::new(genv, ty_alias.owner_id.into());
     let mut wf = Wf::new(genv);
-    infcx.push_layer(ty_alias.all_params());
+    infcx.insert_params(ty_alias.all_params());
+    infcx.resolve_params_sorts(&ty_alias.early_bound_params)?;
+    infcx.resolve_params_sorts(&ty_alias.index_params)?;
+
     wf.check_type(&mut infcx, &ty_alias.ty)?;
     wf.check_params_are_determined(&infcx, &ty_alias.index_params)?;
     Ok(infcx.into_results())
@@ -93,7 +101,8 @@ pub(crate) fn check_struct_def(
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut infcx = InferCtxt::new(genv, struct_def.owner_id.into());
     let mut wf = Wf::new(genv);
-    infcx.push_layer(&struct_def.params);
+    infcx.insert_params(&struct_def.params);
+    infcx.resolve_params_sorts(&struct_def.params)?;
 
     struct_def
         .invariants
@@ -116,7 +125,8 @@ pub(crate) fn check_enum_def(
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut infcx = InferCtxt::new(genv, enum_def.owner_id.into());
     let mut wf = Wf::new(genv);
-    infcx.push_layer(&enum_def.params);
+    infcx.insert_params(&enum_def.params);
+    infcx.resolve_params_sorts(&enum_def.params)?;
 
     enum_def
         .invariants
@@ -143,16 +153,10 @@ pub(crate) fn check_opaque_ty(
     let parent = genv.tcx.local_parent(owner_id.def_id);
     if let Some(params) = genv.map().get_refine_params(genv.tcx, parent) {
         let wfckresults = genv.check_wf(parent).emit(genv.sess)?;
-        let params = params
-            .iter()
-            .map(|param| {
-                fhir::RefineParam {
-                    sort: wfckresults.node_sorts().get(param.fhir_id).unwrap().clone(),
-                    ..*param
-                }
-            })
-            .collect_vec();
-        infcx.push_layer(&params);
+        for param in params {
+            let sort = wfckresults.node_sorts().get(param.fhir_id).unwrap().clone();
+            infcx.insert_param(param.name(), sort, param.kind);
+        }
     }
     wf.check_opaque_ty(&mut infcx, opaque_ty)?;
     Ok(infcx.into_results())
@@ -166,7 +170,7 @@ pub(crate) fn check_fn_sig(
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
 
-    infcx.push_layer(&fn_sig.params);
+    infcx.insert_params(&fn_sig.params);
 
     for arg in &fn_sig.args {
         infcx.infer_implicit_params_ty(arg)?;
@@ -265,7 +269,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         infcx: &mut InferCtxt,
         variant: &fhir::VariantDef,
     ) -> Result<(), ErrorGuaranteed> {
-        infcx.push_layer(&variant.params);
+        infcx.insert_params(&variant.params);
         for field in &variant.fields {
             infcx.infer_implicit_params_ty(&field.ty)?;
         }
@@ -292,7 +296,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         fn_output: &fhir::FnOutput,
     ) -> Result<(), ErrorGuaranteed> {
         let snapshot = self.xi.snapshot();
-        infcx.push_layer(&fn_output.params);
+        infcx.insert_params(&fn_output.params);
         infcx.infer_implicit_params_ty(&fn_output.ret)?;
 
         self.check_type(infcx, &fn_output.ret)?;
@@ -363,7 +367,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                 self.check_base_ty(infcx, bty)
             }
             fhir::TyKind::Exists(params, ty) => {
-                infcx.push_layer(params);
+                infcx.insert_params(params);
                 self.check_type(infcx, ty)?;
                 infcx.resolve_params_sorts(params)?;
                 self.check_params_are_determined(infcx, params)

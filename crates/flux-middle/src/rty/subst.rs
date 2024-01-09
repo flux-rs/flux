@@ -376,3 +376,23 @@ impl GenericsSubstFolder<'_> {
         self.refine[idx as usize].shift_in_escaping(self.current_index.as_u32())
     }
 }
+
+pub(crate) struct SortSubst<'a> {
+    args: &'a [Sort],
+}
+
+impl<'a> SortSubst<'a> {
+    pub(crate) fn new(args: &'a [Sort]) -> Self {
+        Self { args }
+    }
+}
+
+impl TypeFolder for SortSubst<'_> {
+    fn fold_sort(&mut self, sort: &Sort) -> Sort {
+        if let Sort::Var(var) = sort {
+            self.args[var.index].clone()
+        } else {
+            sort.super_fold_with(self)
+        }
+    }
+}

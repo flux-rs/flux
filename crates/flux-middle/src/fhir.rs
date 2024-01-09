@@ -486,10 +486,6 @@ impl RefineParam {
     pub fn name(&self) -> Name {
         self.ident.name
     }
-
-    pub fn infer_mode(&self) -> InferMode {
-        self.kind.infer_mode(&self.sort)
-    }
 }
 
 /// How the declared parameter in the surface syntax. This is used to adjust how errors are reported
@@ -511,16 +507,8 @@ pub enum ParamKind {
 }
 
 impl ParamKind {
-    fn is_implicit(&self) -> bool {
+    pub(crate) fn is_implicit(&self) -> bool {
         matches!(self, ParamKind::At | ParamKind::Pound | ParamKind::Colon)
-    }
-
-    pub fn infer_mode(&self, sort: &Sort) -> InferMode {
-        if sort.is_pred() && !self.is_implicit() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
-        }
     }
 }
 
@@ -583,11 +571,7 @@ pub enum Sort {
         alias_to: DefId,
     },
     /// A sort that needs to be inferred
-    Wildcard,
-    /// Sort inference variable generated for a [Sort::Wildcard] during sort checking
-    Infer(SortVid),
-    /// A sort that couldn't be generated because of an error.
-    Error,
+    Infer,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -828,7 +812,7 @@ pub struct RefinedBy {
     /// and `sort_params` will be `vec![K]`,  i.e., it maps `Var(0)` to `K`.
     pub sort_params: Vec<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
-    index_params: FxIndexMap<Symbol, Sort>,
+    pub index_params: FxIndexMap<Symbol, Sort>,
     /// The number of early bound parameters
     early_bound: usize,
     /// Sorts of both early bound and index parameters. Early bound parameter appear first.
@@ -1003,10 +987,8 @@ impl Sort {
             | Sort::Param(_)
             | Sort::SelfParam { .. }
             | Sort::SelfAlias { .. }
-            | Sort::Wildcard
-            | Sort::Record(_, _)
-            | Sort::Infer(_)
-            | Sort::Error => self.clone(),
+            | Sort::Infer
+            | Sort::Record(_, _) => self.clone(),
         }
     }
 }
@@ -1717,11 +1699,7 @@ impl fmt::Debug for Lit {
 
 impl fmt::Display for Sort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Sort::Infer(_) = self {
-            write!(f, "_")
-        } else {
-            fmt::Debug::fmt(self, f)
-        }
+        fmt::Debug::fmt(self, f)
     }
 }
 
@@ -1771,10 +1749,8 @@ impl fmt::Debug for Sort {
             Sort::SelfAlias { alias_to } => {
                 write!(f, "sortof({}::Self)", pretty::def_id_to_string(*alias_to))
             }
-            Sort::Wildcard => write!(f, "_"),
-            Sort::Infer(vid) => write!(f, "{vid:?}"),
+            Sort::Infer => write!(f, "_"),
             Sort::App(ctor, args) => write!(f, "{ctor}<{}>", args.iter().join(", ")),
-            Sort::Error => write!(f, "err"),
         }
     }
 }
