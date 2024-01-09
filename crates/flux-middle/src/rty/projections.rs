@@ -51,7 +51,7 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
         self.assemble_candidates_from_impls(obligation, &mut candidates)?;
 
         if candidates.is_empty() {
-            bug!("failed to resolve `{obligation:?}` in {:?}", self.def_id);
+            return Ok(Ty::alias(AliasKind::Projection, obligation.clone()));
         }
         if candidates.len() > 1 {
             bug!("ambiguity when resolving `{obligation:?}` in {:?}", self.def_id);

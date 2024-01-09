@@ -592,6 +592,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
                 self.opaque_subtyping(rcx, ty1, alias_ty)
             }
+            (
+                TyKind::Alias(rty::AliasKind::Projection, alias_ty1),
+                TyKind::Alias(rty::AliasKind::Projection, alias_ty2),
+            ) => {
+                debug_assert_eq!(alias_ty1, alias_ty2);
+                Ok(())
+            }
             _ => tracked_span_bug!("`{ty1:?}` <: `{ty2:?}`"),
         }
     }
