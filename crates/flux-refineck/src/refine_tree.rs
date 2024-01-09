@@ -252,7 +252,7 @@ impl<'rcx> RefineCtxt<'rcx> {
                     && !idx.has_escaping_bvars()
                 {
                     for invariant in bty.invariants(self.overflow_checking) {
-                        let invariant = invariant.pred.replace_bound_expr(idx);
+                        let invariant = invariant.apply(idx);
                         self.rcx.assume_pred(invariant);
                     }
                 }

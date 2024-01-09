@@ -55,7 +55,7 @@ fn check_invariant(
             let ty = rcx.unpack(ty, AssumeInvariants::No);
             rcx.assume_invariants(&ty, checker_config.check_overflow);
         }
-        let pred = invariant.pred.replace_bound_expr(&variant.idx);
+        let pred = invariant.apply(&variant.idx);
         rcx.check_pred(pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
     let mut fcx = FixpointCtxt::new(genv, def_id, KVarStore::default());

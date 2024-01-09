@@ -284,7 +284,24 @@ pub static UINT_TYS: [UintTy; 6] =
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Invariant {
-    pub pred: Binder<Expr>,
+    // This predicate may have sort variables, but we don't explicitly mark it like in `PolyFuncSort`.
+    // See comment on `apply` for details.
+    pred: Binder<Expr>,
+}
+
+impl Invariant {
+    pub fn new(pred: Binder<Expr>) -> Self {
+        Self { pred }
+    }
+
+    pub fn apply(&self, idx: &Expr) -> Expr {
+        // The predicate may have sort variables but we don't explicitly instantiate them. This
+        // works because sort variables can only appear in sorts and not in expressions. Since
+        // we are removing the binder (which contains the sorts) we can avoid the explicit instantiation.
+        // Ultimately, this works because the expression we generate in fixpoint/z3 doesn't need
+        // sort annotations (sorts are re-inferred).
+        self.pred.replace_bound_expr(idx)
+    }
 }
 
 pub type PolyVariants = List<Binder<VariantSig>>;

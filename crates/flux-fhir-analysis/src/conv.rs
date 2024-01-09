@@ -1000,12 +1000,10 @@ impl ConvCtxt<'_, '_> {
     }
 
     fn conv_invariant(&self, env: &Env, invariant: &fhir::Expr) -> rty::Invariant {
-        rty::Invariant {
-            pred: rty::Binder::new(
-                self.conv_expr(env, invariant),
-                env.top_layer().to_bound_vars(self.genv),
-            ),
-        }
+        rty::Invariant::new(rty::Binder::new(
+            self.conv_expr(env, invariant),
+            env.top_layer().to_bound_vars(self.genv),
+        ))
     }
 
     fn add_coercions(&self, mut expr: rty::Expr, fhir_id: FhirId) -> rty::Expr {
