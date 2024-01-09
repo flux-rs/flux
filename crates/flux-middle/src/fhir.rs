@@ -525,12 +525,6 @@ pub enum InferMode {
     KVar,
 }
 
-newtype_index! {
-    /// A *Sort* *v*variable *id*
-    #[debug_format = "#{}"]
-    pub struct SortVid {}
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum SortCtor {
     Set,
@@ -580,7 +574,7 @@ pub struct FuncSort {
     pub inputs_and_output: List<Sort>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct PolyFuncSort {
     pub params: usize,
     pub fsort: FuncSort,
@@ -594,16 +588,6 @@ impl PolyFuncSort {
 
     pub fn skip_binders(&self) -> FuncSort {
         self.fsort.clone()
-    }
-
-    pub fn instantiate(&self, args: &[Sort]) -> FuncSort {
-        let inputs_and_output = self
-            .fsort
-            .inputs_and_output
-            .iter()
-            .map(|sort| sort.subst(args))
-            .collect();
-        FuncSort { inputs_and_output }
     }
 }
 
@@ -884,49 +868,12 @@ impl RefinedBy {
         }
     }
 
-    pub fn field_index(&self, fld: Symbol) -> Option<usize> {
-        self.index_params.get_index_of(&fld)
-    }
-
-    pub fn field_sort(&self, fld: Symbol, args: &[Sort]) -> Option<Sort> {
-        self.index_params.get(&fld).map(|sort| sort.subst(args))
-    }
-
-    pub fn param_count(&self) -> usize {
-        self.sort_params.len()
-    }
-
     fn is_base_generic(&self, def_id: DefId) -> bool {
         self.sort_params.contains(&def_id)
     }
 }
 
 impl Sort {
-    /// Returns `true` if the sort is [`Bool`].
-    ///
-    /// [`Bool`]: Sort::Bool
-    #[must_use]
-    pub fn is_bool(&self) -> bool {
-        matches!(self, Self::Bool)
-    }
-
-    pub fn is_numeric(&self) -> bool {
-        matches!(self, Self::Int | Self::Real)
-    }
-
-    /// Whether the sort is a function with return sort bool
-    pub fn is_pred(&self) -> bool {
-        matches!(self, Sort::Func(fsort) if fsort.skip_binders().output().is_bool())
-    }
-
-    pub fn default_infer_mode(&self) -> InferMode {
-        if self.is_pred() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
-        }
-    }
-
     pub fn set(t: Sort) -> Self {
         Self::App(SortCtor::Set, List::singleton(t))
     }
@@ -934,57 +881,7 @@ impl Sort {
     pub fn map(k: Sort, v: Sort) -> Self {
         Self::App(SortCtor::Map, List::from_vec(vec![k, v]))
     }
-
-    /// replace all "sort-vars" (indexed 0...n-1) with the corresponding sort in `subst`
-    fn subst(&self, subst: &[Sort]) -> Sort {
-        match self {
-            Sort::Var(i) => subst[*i].clone(),
-            Sort::App(ctor, args) => {
-                let args = args.iter().map(|arg| arg.subst(subst)).collect();
-                Sort::App(*ctor, args)
-            }
-            Sort::Func(fsort) => {
-                if fsort.params == 0 {
-                    let fsort = fsort.instantiate(subst);
-                    Sort::Func(PolyFuncSort { params: 0, fsort })
-                } else {
-                    bug!("unexpected subst in (nested) func-sort")
-                }
-            }
-            Sort::Int
-            | Sort::Bool
-            | Sort::Real
-            | Sort::Loc
-            | Sort::Unit
-            | Sort::BitVec(_)
-            | Sort::Param(_)
-            | Sort::SelfParam { .. }
-            | Sort::SelfAlias { .. }
-            | Sort::Infer
-            | Sort::Record(_, _) => self.clone(),
-        }
-    }
 }
-
-impl ena::unify::UnifyKey for SortVid {
-    type Value = Option<Sort>;
-
-    #[inline]
-    fn index(&self) -> u32 {
-        self.as_u32()
-    }
-
-    #[inline]
-    fn from_index(u: u32) -> Self {
-        SortVid::from_u32(u)
-    }
-
-    fn tag() -> &'static str {
-        "SortVid"
-    }
-}
-
-impl ena::unify::EqUnifyValue for Sort {}
 
 impl From<PolyFuncSort> for Sort {
     fn from(fsort: PolyFuncSort) -> Self {
@@ -1004,12 +901,6 @@ impl FuncSort {
 
     pub fn output(&self) -> &Sort {
         &self.inputs_and_output[self.inputs_and_output.len() - 1]
-    }
-}
-
-impl rustc_errors::IntoDiagnosticArg for Sort {
-    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self}")))
     }
 }
 
@@ -1670,18 +1561,6 @@ impl fmt::Debug for Lit {
     }
 }
 
-impl fmt::Display for Sort {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self, f)
-    }
-}
-
-impl fmt::Display for SortCtor {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self, f)
-    }
-}
-
 impl fmt::Debug for SortCtor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -1701,7 +1580,7 @@ impl fmt::Debug for Sort {
             Sort::Var(n) => write!(f, "@{}", n),
             Sort::BitVec(w) => write!(f, "bitvec({w})"),
             Sort::Loc => write!(f, "loc"),
-            Sort::Func(sort) => write!(f, "{sort}"),
+            Sort::Func(fsort) => write!(f, "{fsort:?}"),
             Sort::Unit => write!(f, "()"),
             Sort::Record(def_id, sort_args) => {
                 if sort_args.is_empty() {
@@ -1709,9 +1588,9 @@ impl fmt::Debug for Sort {
                 } else {
                     write!(
                         f,
-                        "{}<{}>",
+                        "{}<{:?}>",
                         pretty::def_id_to_string(*def_id),
-                        sort_args.iter().join(", ")
+                        sort_args.iter().format(", ")
                     )
                 }
             }
@@ -1723,36 +1602,30 @@ impl fmt::Debug for Sort {
                 write!(f, "sortof({}::Self)", pretty::def_id_to_string(*alias_to))
             }
             Sort::Infer => write!(f, "_"),
-            Sort::App(ctor, args) => write!(f, "{ctor}<{}>", args.iter().join(", ")),
+            Sort::App(ctor, args) => write!(f, "{ctor:?}<{:?}>", args.iter().format(", ")),
         }
     }
 }
 
-impl fmt::Display for PolyFuncSort {
+impl fmt::Debug for PolyFuncSort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.params > 0 {
-            write!(f, "for<{}>{}", self.params, self.fsort)
+            write!(f, "for<{}>{:?}", self.params, self.fsort)
         } else {
-            write!(f, "{}", self.fsort)
-        }
-    }
-}
-
-impl fmt::Display for FuncSort {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.inputs() {
-            [input] => {
-                write!(f, "{} -> {}", input, self.output())
-            }
-            inputs => {
-                write!(f, "({}) -> {}", inputs.iter().join(", "), self.output())
-            }
+            write!(f, "{:?}", self.fsort)
         }
     }
 }
 
 impl fmt::Debug for FuncSort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
+        match self.inputs() {
+            [input] => {
+                write!(f, "{:?} -> {:?}", input, self.output())
+            }
+            inputs => {
+                write!(f, "({:?}) -> {:?}", inputs.iter().format(", "), self.output())
+            }
+        }
     }
 }
