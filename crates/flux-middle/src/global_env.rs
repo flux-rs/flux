@@ -195,11 +195,12 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.map().const_by_name(name)
     }
 
-    pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> Option<fhir::Sort> {
-        match &bty.kind {
-            fhir::BaseTyKind::Path(fhir::QPath::Resolved(_, path)) => self.sort_of_path(path),
-            fhir::BaseTyKind::Slice(_) => Some(fhir::Sort::Int),
-        }
+    pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> Option<rty::Sort> {
+        todo!()
+        // match &bty.kind {
+        //     fhir::BaseTyKind::Path(fhir::QPath::Resolved(_, path)) => self.sort_of_path(path),
+        //     fhir::BaseTyKind::Slice(_) => Some(fhir::Sort::Int),
+        // }
     }
 
     pub fn index_sorts_of(
@@ -340,37 +341,29 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     /// Whether values of this sort can be compared for equality.
-    pub fn has_equality(&self, sort: &fhir::Sort) -> bool {
+    pub fn has_equality(&self, sort: &rty::Sort) -> bool {
         match sort {
-            fhir::Sort::Int
-            | fhir::Sort::Bool
-            | fhir::Sort::Real
-            | fhir::Sort::Unit
-            | fhir::Sort::BitVec(_)
-            | fhir::Sort::Param(_)
-            | fhir::Sort::SelfParam { trait_id: _ }
-            | fhir::Sort::Var(_) => true,
-            fhir::Sort::SelfAlias { alias_to } => {
-                self.sort_of_self_ty_alias(*alias_to)
-                    .map_or(false, |sort| self.has_equality(&sort))
-            }
-            fhir::Sort::Record(def_id, sort_args) => {
-                self.index_sorts_of(*def_id, sort_args)
+            rty::Sort::Int
+            | rty::Sort::Bool
+            | rty::Sort::Real
+            | rty::Sort::BitVec(_)
+            | rty::Sort::Param(_)
+            | rty::Sort::Var(_) => true,
+            rty::Sort::Tuple(sorts) => sorts.iter().all(|sort| self.has_equality(sort)),
+            rty::Sort::Adt(sort_def, sort_args) => {
+                sort_def
+                    .instantiate(sort_args)
                     .iter()
                     .all(|sort| self.has_equality(sort))
             }
-            fhir::Sort::App(ctor, sorts) => self.ctor_has_equality(ctor, sorts),
-            fhir::Sort::Loc
-            | fhir::Sort::Func(_)
-            | fhir::Sort::Wildcard
-            | fhir::Sort::Infer(_)
-            | fhir::Sort::Error => false,
+            rty::Sort::App(ctor, sorts) => self.ctor_has_equality(ctor, sorts),
+            rty::Sort::Err | rty::Sort::Loc | rty::Sort::Func(_) | rty::Sort::Infer(_) => false,
         }
     }
 
     /// For now all sort constructors have equality if all the generic arguments do. In the
     /// future we may have a more fine-grained notion of equality for sort constructors.
-    fn ctor_has_equality(&self, _: &fhir::SortCtor, args: &[fhir::Sort]) -> bool {
+    fn ctor_has_equality(&self, _: &rty::SortCtor, args: &[rty::Sort]) -> bool {
         args.iter().all(|sort| self.has_equality(sort))
     }
 

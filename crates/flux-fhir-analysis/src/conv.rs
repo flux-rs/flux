@@ -40,7 +40,7 @@ pub struct ConvCtxt<'a, 'tcx> {
 
 struct Env {
     layers: Vec<Layer>,
-    early_bound: FxIndexMap<fhir::Name, fhir::Sort>,
+    early_bound: FxIndexMap<fhir::Name, rty::Sort>,
 }
 
 #[derive(Debug, Clone)]
@@ -60,9 +60,8 @@ enum LayerKind {
 #[derive(Debug, Clone)]
 enum Entry {
     Sort {
-        sort: fhir::Sort,
         infer_mode: rty::InferMode,
-        conv: rty::Sort,
+        sort: rty::Sort,
         /// The index of the entry in the layer skipping all [`Entry::Unit`] if [`Layer::filter_unit`]
         /// is true
         idx: u32,
@@ -81,7 +80,7 @@ struct LookupResult<'a> {
 #[derive(Debug)]
 enum LookupResultKind<'a> {
     LateBoundList { level: u32, entry: &'a Entry, kind: LayerKind },
-    EarlyBound { idx: u32, sort: &'a fhir::Sort },
+    EarlyBound { idx: u32, sort: rty::Sort },
 }
 
 pub(crate) fn conv_adt_sort_def(genv: &GlobalEnv, refined_by: &fhir::RefinedBy) -> rty::AdtSortDef {
@@ -702,7 +701,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 return Ok(rty::Ty::param(param_ty));
             }
         }
-        let sort = conv_sort(self.genv, &sort.unwrap());
+        let sort = sort.unwrap();
         if sort.is_unit() {
             let idx = rty::Expr::unit();
             self.conv_indexed_type(env, bty, idx)
@@ -768,7 +767,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 self.add_coercions(rty::Expr::abs(body), arg.fhir_id)
             }
             fhir::RefineArgKind::Record(flds) => {
-                let (def_id, ..) = self.wfckresults.record_ctors().get(arg.fhir_id).unwrap();
+                let def_id = self.wfckresults.record_ctors().get(arg.fhir_id).unwrap();
                 let flds: List<_> = flds
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
@@ -904,7 +903,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         Ok(())
     }
 
-    fn resolve_param_sort(&self, param: &fhir::RefineParam) -> fhir::Sort {
+    fn resolve_param_sort(&self, param: &fhir::RefineParam) -> rty::Sort {
         resolve_param_sort(param, self.wfckresults).clone()
     }
 }
@@ -941,7 +940,10 @@ impl Env {
             }
         }
         if let Some((idx, _, sort)) = self.early_bound.get_full(&name.name) {
-            LookupResult { name, kind: LookupResultKind::EarlyBound { idx: idx as u32, sort } }
+            LookupResult {
+                name,
+                kind: LookupResultKind::EarlyBound { idx: idx as u32, sort: sort.clone() },
+            }
         } else {
             span_bug!(name.span(), "no entry found for key: `{:?}`", name);
         }
@@ -1100,7 +1102,7 @@ impl Layer {
     fn into_iter(self) -> impl Iterator<Item = (rty::Sort, rty::InferMode)> {
         self.map.into_values().filter_map(move |entry| {
             match entry {
-                Entry::Sort { infer_mode, conv, .. } => Some((conv, infer_mode)),
+                Entry::Sort { infer_mode, sort: conv, .. } => Some((conv, infer_mode)),
                 Entry::Unit => {
                     if self.filter_unit {
                         None
@@ -1116,12 +1118,11 @@ impl Layer {
 }
 
 impl Entry {
-    fn new(genv: &GlobalEnv, idx: u32, sort: fhir::Sort, infer_mode: fhir::InferMode) -> Self {
-        let conv = conv_sort(genv, &sort);
-        if conv.is_unit() {
+    fn new(genv: &GlobalEnv, idx: u32, sort: rty::Sort, infer_mode: fhir::InferMode) -> Self {
+        if sort.is_unit() {
             Entry::Unit
         } else {
-            Entry::Sort { sort, infer_mode, conv, idx }
+            Entry::Sort { sort, infer_mode, idx }
         }
     }
 }
@@ -1149,11 +1150,11 @@ impl LookupResult<'_> {
     fn is_record(&self) -> Option<DefId> {
         match &self.kind {
             LookupResultKind::LateBoundList {
-                entry: Entry::Sort { sort: fhir::Sort::Record(def_id, _), .. },
+                entry: Entry::Sort { sort: rty::Sort::Adt(sort_def, _), .. },
                 ..
-            } => Some(*def_id),
-            LookupResultKind::EarlyBound { sort: fhir::Sort::Record(def_id, _), .. } => {
-                Some(*def_id)
+            } => Some(sort_def.did()),
+            LookupResultKind::EarlyBound { sort: rty::Sort::Adt(sort_def, _), .. } => {
+                Some(sort_def.did())
             }
             _ => None,
         }
@@ -1200,23 +1201,17 @@ fn conv_refine_param(
     param: &fhir::RefineParam,
     wfckresults: &fhir::WfckResults,
 ) -> rty::RefineParam {
-    let sort = conv_sort(genv, resolve_param_sort(param, wfckresults));
+    let sort = resolve_param_sort(param, wfckresults);
     let mode = param.infer_mode();
     rty::RefineParam { sort, mode }
 }
 
-fn resolve_param_sort<'a>(
-    param: &'a fhir::RefineParam,
-    wfckresults: &'a fhir::WfckResults,
-) -> &'a fhir::Sort {
-    if fhir::Sort::Wildcard == param.sort {
-        wfckresults
-            .node_sorts()
-            .get(param.fhir_id)
-            .unwrap_or_else(|| bug!("unresolved sort for param: `{param:?}`"))
-    } else {
-        &param.sort
-    }
+fn resolve_param_sort(param: &fhir::RefineParam, wfckresults: &fhir::WfckResults) -> rty::Sort {
+    wfckresults
+        .node_sorts()
+        .get(param.fhir_id)
+        .unwrap_or_else(|| bug!("unresolved sort for param: `{param:?}`"))
+        .clone()
 }
 
 fn conv_sort(genv: &GlobalEnv, sort: &fhir::Sort) -> rty::Sort {

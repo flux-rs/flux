@@ -12,7 +12,7 @@ use flux_errors::{FluxSession, ResultExt};
 use flux_middle::{
     fhir::{self, FluxOwnerId, SurfaceIdent, WfckResults},
     global_env::GlobalEnv,
-    rty::GenericParamDefKind,
+    rty::{self, GenericParamDefKind},
 };
 use itertools::Itertools;
 use rustc_data_structures::snapshot_map::{self, SnapshotMap};
@@ -46,7 +46,7 @@ pub(crate) fn check_qualifier(
     let owner = FluxOwnerId::Flux(qualifier.name);
     let mut infcx = InferCtxt::new(genv, owner);
     infcx.push_layer(&qualifier.args);
-    infcx.check_expr(&qualifier.expr, &fhir::Sort::Bool)?;
+    infcx.check_expr(&qualifier.expr, &rty::Sort::Bool)?;
     Ok(infcx.into_results())
 }
 
@@ -98,7 +98,7 @@ pub(crate) fn check_struct_def(
     struct_def
         .invariants
         .iter()
-        .try_for_each_exhaust(|invariant| infcx.check_expr(invariant, &fhir::Sort::Bool))?;
+        .try_for_each_exhaust(|invariant| infcx.check_expr(invariant, &rty::Sort::Bool))?;
 
     if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
         fields
@@ -121,7 +121,7 @@ pub(crate) fn check_enum_def(
     enum_def
         .invariants
         .iter()
-        .try_for_each_exhaust(|invariant| infcx.check_expr(invariant, &fhir::Sort::Bool))?;
+        .try_for_each_exhaust(|invariant| infcx.check_expr(invariant, &rty::Sort::Bool))?;
 
     // We are reusing the same `InferCtxt` which may contain some variables from the enum params.
     // This is not a problem because parameters in the variants with the same name will overwrite them.
@@ -541,7 +541,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         &mut self,
         infcx: &mut InferCtxt,
         arg: &fhir::RefineArg,
-        expected: &fhir::Sort,
+        expected: &rty::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         infcx.check_refine_arg(arg, expected)?;
         self.check_param_uses_refine_arg(infcx, arg)
@@ -552,7 +552,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         infcx: &mut InferCtxt,
         expr: &fhir::Expr,
     ) -> Result<(), ErrorGuaranteed> {
-        infcx.check_expr(expr, &fhir::Sort::Bool)?;
+        infcx.check_expr(expr, &rty::Sort::Bool)?;
         self.check_param_uses_expr(infcx, expr, true)
     }
 
@@ -608,7 +608,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     .try_for_each_exhaust(|arg| self.check_param_uses_expr(infcx, arg, false))
             }
             fhir::ExprKind::Var(var, _) => {
-                if let sort @ fhir::Sort::Func(_) = &infcx.lookup_var(*var) {
+                if let sort @ rty::Sort::Func(_) = &infcx.lookup_var(*var) {
                     return self.emit_err(errors::InvalidParamPos::new(var.span(), sort));
                 }
                 Ok(())
@@ -620,7 +620,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             }
             fhir::ExprKind::Literal(_) | fhir::ExprKind::Const(_, _) => Ok(()),
             fhir::ExprKind::Dot(var, _) => {
-                if let sort @ fhir::Sort::Func(_) = &infcx.lookup_var(*var) {
+                if let sort @ rty::Sort::Func(_) = &infcx.lookup_var(*var) {
                     return self.emit_err(errors::InvalidParamPos::new(var.span(), sort));
                 }
                 Ok(())
@@ -628,7 +628,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         }
     }
 
-    fn sort_of_bty(&self, bty: &fhir::BaseTy) -> fhir::Sort {
+    fn sort_of_bty(&self, bty: &fhir::BaseTy) -> rty::Sort {
         self.genv
             .sort_of_bty(bty)
             .unwrap_or_else(|| span_bug!(bty.span, "unrefinable base type: `{bty:?}`"))

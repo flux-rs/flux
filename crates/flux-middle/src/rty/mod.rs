@@ -26,7 +26,7 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
-use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
+use rustc_macros::{newtype_index, Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::ParamConst;
 pub use rustc_middle::{
     mir::Mutability,
@@ -218,6 +218,32 @@ impl From<usize> for SortVar {
     }
 }
 
+newtype_index! {
+    /// A *Sort* *v*variable *id*
+    #[debug_format = "#{}"]
+    pub struct SortVid {}
+}
+
+impl ena::unify::UnifyKey for SortVid {
+    type Value = Option<Sort>;
+
+    #[inline]
+    fn index(&self) -> u32 {
+        self.as_u32()
+    }
+
+    #[inline]
+    fn from_index(u: u32) -> Self {
+        SortVid::from_u32(u)
+    }
+
+    fn tag() -> &'static str {
+        "SortVid"
+    }
+}
+
+impl ena::unify::EqUnifyValue for Sort {}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
@@ -231,16 +257,18 @@ pub enum Sort {
     App(SortCtor, List<Sort>),
     Adt(AdtSortDef, List<Sort>),
     Var(SortVar),
+    Infer(SortVid),
+    Err,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct FuncSort {
-    inputs_and_output: List<Sort>,
+    pub inputs_and_output: List<Sort>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct PolyFuncSort {
-    params: usize,
+    pub params: usize,
     fsort: FuncSort,
 }
 
@@ -768,8 +796,12 @@ impl Sort {
     ///
     /// [`Bool`]: Sort::Bool
     #[must_use]
-    fn is_bool(&self) -> bool {
+    pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
+    }
+
+    pub fn is_numeric(&self) -> bool {
+        matches!(self, Self::Int | Self::Real)
     }
 
     pub fn walk(&self, mut f: impl FnMut(&Sort, &[FieldProj])) {
@@ -1811,6 +1843,8 @@ mod pretty {
                     }
                 }
                 Sort::Param(param_ty) => w!("{}::sort", ^param_ty),
+                Sort::Infer(_) => todo!(),
+                Sort::Err => w!("err"),
             }
         }
     }

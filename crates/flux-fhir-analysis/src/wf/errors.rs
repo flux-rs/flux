@@ -1,5 +1,8 @@
 use flux_macros::Diagnostic;
-use flux_middle::fhir::{self, SurfaceIdent};
+use flux_middle::{
+    fhir::{self, SurfaceIdent},
+    rty,
+};
 use rustc_span::{Span, Symbol};
 
 #[derive(Diagnostic)]
@@ -13,8 +16,9 @@ pub(super) struct SortMismatch {
 }
 
 impl SortMismatch {
-    pub(super) fn new(span: Span, expected: fhir::Sort, found: fhir::Sort) -> Self {
-        Self { span, expected, found }
+    pub(super) fn new(span: Span, expected: rty::Sort, found: rty::Sort) -> Self {
+        todo!()
+        // Self { span, expected, found }
     }
 }
 
@@ -100,8 +104,9 @@ pub(super) struct ExpectedFun<'a> {
 }
 
 impl<'a> ExpectedFun<'a> {
-    pub(super) fn new(span: Span, found: &'a fhir::Sort) -> Self {
-        Self { span, found }
+    pub(super) fn new(span: Span, found: &'a rty::Sort) -> Self {
+        todo!()
+        // Self { span, found }
     }
 }
 
@@ -116,8 +121,9 @@ pub(super) struct InvalidParamPos<'a> {
 }
 
 impl<'a> InvalidParamPos<'a> {
-    pub(super) fn new(span: Span, sort: &'a fhir::Sort) -> Self {
-        Self { span, sort, is_pred: sort.is_pred() }
+    pub(super) fn new(span: Span, sort: &'a rty::Sort) -> Self {
+        todo!()
+        // Self { span, sort, is_pred: sort.is_pred() }
     }
 }
 
@@ -131,8 +137,9 @@ pub(super) struct UnexpectedFun<'a> {
 }
 
 impl<'a> UnexpectedFun<'a> {
-    pub(super) fn new(span: Span, sort: &'a fhir::Sort) -> Self {
-        Self { span, sort }
+    pub(super) fn new(span: Span, sort: &'a rty::Sort) -> Self {
+        todo!()
+        // Self { span, sort }
     }
 }
 
@@ -146,8 +153,9 @@ pub(super) struct ExpectedNumeric<'a> {
 }
 
 impl<'a> ExpectedNumeric<'a> {
-    pub(super) fn new(span: Span, found: &'a fhir::Sort) -> Self {
-        Self { span, found }
+    pub(super) fn new(span: Span, found: &'a rty::Sort) -> Self {
+        todo!()
+        // Self { span, found }
     }
 }
 
@@ -177,8 +185,9 @@ pub(super) struct FieldNotFound {
 }
 
 impl FieldNotFound {
-    pub(super) fn new(sort: fhir::Sort, fld: SurfaceIdent) -> Self {
-        Self { span: fld.span, sort, fld }
+    pub(super) fn new(sort: rty::Sort, fld: SurfaceIdent) -> Self {
+        todo!()
+        // Self { span: fld.span, sort, fld }
     }
 }
 
@@ -191,8 +200,9 @@ pub(super) struct InvalidPrimitiveDotAccess<'a> {
 }
 
 impl<'a> InvalidPrimitiveDotAccess<'a> {
-    pub(super) fn new(sort: &'a fhir::Sort, fld: SurfaceIdent) -> Self {
-        Self { sort, span: fld.span }
+    pub(super) fn new(sort: &'a rty::Sort, fld: SurfaceIdent) -> Self {
+        todo!()
+        // Self { sort, span: fld.span }
     }
 }
 
@@ -219,8 +229,9 @@ pub(super) struct NoEquality<'a> {
 }
 
 impl<'a> NoEquality<'a> {
-    pub(super) fn new(span: Span, sort: &'a fhir::Sort) -> Self {
-        Self { span, sort }
+    pub(super) fn new(span: Span, sort: &'a rty::Sort) -> Self {
+        todo!()
+        // Self { span, sort }
     }
 }
 

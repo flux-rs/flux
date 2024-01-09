@@ -562,7 +562,9 @@ impl TypeSuperVisitable for Sort {
             | Sort::Loc
             | Sort::Param(_)
             | Sort::Adt(..)
-            | Sort::Var(_) => ControlFlow::Continue(()),
+            | Sort::Var(_)
+            | Sort::Infer(_)
+            | Sort::Err => ControlFlow::Continue(()),
         }
     }
 }
@@ -598,7 +600,9 @@ impl TypeSuperFoldable for Sort {
             | Sort::Loc
             | Sort::BitVec(_)
             | Sort::Param(_)
-            | Sort::Var(_) => self.clone(),
+            | Sort::Var(_)
+            | Sort::Infer(_)
+            | Sort::Err => self.clone(),
         };
         Ok(sort)
     }

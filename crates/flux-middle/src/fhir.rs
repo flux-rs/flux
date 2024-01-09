@@ -333,8 +333,8 @@ pub enum WeakKind {
 
 pub struct WfckResults {
     pub owner: FluxOwnerId,
-    record_ctors: ItemLocalMap<(DefId, List<Sort>)>,
-    node_sorts: ItemLocalMap<Sort>,
+    record_ctors: ItemLocalMap<DefId>,
+    node_sorts: ItemLocalMap<crate::rty::Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
     type_holes: ItemLocalMap<Ty>,
     lifetime_holes: ItemLocalMap<ResolvedArg>,
@@ -1421,19 +1421,19 @@ impl WfckResults {
         }
     }
 
-    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<(DefId, List<Sort>)> {
+    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<DefId> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.record_ctors }
     }
 
-    pub fn record_ctors(&self) -> LocalTableInContext<(DefId, List<Sort>)> {
+    pub fn record_ctors(&self) -> LocalTableInContext<DefId> {
         LocalTableInContext { owner: self.owner, data: &self.record_ctors }
     }
 
-    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<crate::rty::Sort> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
     }
 
-    pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
+    pub fn node_sorts(&self) -> LocalTableInContext<crate::rty::Sort> {
         LocalTableInContext { owner: self.owner, data: &self.node_sorts }
     }
 
