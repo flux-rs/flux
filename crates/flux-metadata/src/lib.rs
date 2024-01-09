@@ -21,7 +21,7 @@ use std::path::PathBuf;
 use decoder::decode_crate_metadata;
 use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
-use flux_middle::{cstore::CrateStore, fhir, global_env::GlobalEnv, intern::List, rty};
+use flux_middle::{cstore::CrateStore, global_env::GlobalEnv, intern::List, rty};
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 use rustc_hash::FxHashMap;
 use rustc_hir::def::DefKind;
@@ -47,7 +47,6 @@ pub struct CStore {
 #[derive(TyEncodable, TyDecodable)]
 pub struct CrateMetadata {
     fn_sigs: FxHashMap<DefIndex, rty::EarlyBinder<rty::PolyFnSig>>,
-    refined_bys: FxHashMap<DefIndex, fhir::RefinedBy>,
     adts: FxHashMap<DefIndex, AdtMetadata>,
     /// For now it only store type of aliases
     type_of: FxHashMap<DefIndex, rty::EarlyBinder<rty::PolyTy>>,
@@ -87,10 +86,6 @@ impl CrateStore for CStore {
             .cloned()
     }
 
-    fn refined_by(&self, def_id: DefId) -> Option<&fhir::RefinedBy> {
-        self.meta.get(&def_id.krate)?.refined_bys.get(&def_id.index)
-    }
-
     fn adt_def(&self, def_id: DefId) -> Option<&rty::AdtDef> {
         self.adt(def_id).map(|adt| &adt.adt_def)
     }
@@ -113,7 +108,6 @@ impl CrateMetadata {
         let tcx = genv.tcx;
         let mut fn_sigs = FxHashMap::default();
         let mut adts = FxHashMap::default();
-        let mut refined_bys = FxHashMap::default();
         let mut type_of = FxHashMap::default();
 
         for local_id in tcx.iter_local_def_id() {
@@ -129,17 +123,14 @@ impl CrateMetadata {
                     let variants = genv.variants_of(def_id).unwrap();
                     let meta = AdtMetadata { adt_def, variants };
                     adts.insert(def_id.index, meta);
-
-                    refined_bys.insert(def_id.index, genv.map().refined_by(local_id).clone());
                 }
                 DefKind::TyAlias { .. } => {
                     type_of.insert(def_id.index, genv.type_of(def_id).unwrap());
-                    refined_bys.insert(def_id.index, genv.map().refined_by(local_id).clone());
                 }
                 _ => {}
             }
         }
-        Self { fn_sigs, refined_bys, adts, type_of }
+        Self { fn_sigs, adts, type_of }
     }
 }
 

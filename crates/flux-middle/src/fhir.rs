@@ -737,14 +737,6 @@ impl Ident {
 }
 
 /// Information about the refinement parameters associated with a type alias or a struct/enum.
-///
-/// For a type alias `type A(x1: s1, x2: s2, ..)[y1: s, y2 : s, ..] = ..` we call `x1, x2, ..`
-/// _early bound_ parameters. In contrast, `y1, y2, ..` are called _index parameters_. The term
-/// [early bound] is borrowed from rust, but besides using the same name there's no connection
-/// between both concepts. Our use is related to the positions a parameter is allowed to appear
-/// in a definition.
-///
-/// [early bound]: https://rustc-dev-guide.rust-lang.org/early-late-bound.html
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct RefinedBy {
     pub def_id: LocalDefId,
@@ -760,8 +752,6 @@ pub struct RefinedBy {
     pub sort_params: Vec<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     pub index_params: FxIndexMap<Symbol, Sort>,
-    /// Sorts of both early bound and index parameters. Early bound parameter appear first.
-    sorts: Vec<Sort>,
 }
 
 #[derive(Debug)]
@@ -817,8 +807,7 @@ impl RefinedBy {
         span: Span,
     ) -> Self {
         let index_params: FxIndexMap<_, _> = index_params.into_iter().collect();
-        let sorts = index_params.values().cloned().collect();
-        RefinedBy { def_id, span, sort_params, index_params, sorts }
+        RefinedBy { def_id, span, sort_params, index_params }
     }
 
     pub fn trivial(def_id: LocalDefId, span: Span) -> Self {
@@ -827,7 +816,6 @@ impl RefinedBy {
             sort_params: Default::default(),
             span,
             index_params: Default::default(),
-            sorts: vec![],
         }
     }
 
