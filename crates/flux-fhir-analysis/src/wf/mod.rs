@@ -84,7 +84,8 @@ pub(crate) fn check_ty_alias(
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut infcx = InferCtxt::new(genv, ty_alias.owner_id.into());
     let mut wf = Wf::new(genv);
-    infcx.insert_params(ty_alias.all_params());
+    infcx.insert_params(&ty_alias.early_bound_params);
+    infcx.insert_params(&ty_alias.index_params);
 
     wf.check_type(&mut infcx, &ty_alias.ty)?;
     wf.check_params_are_determined(&infcx, &ty_alias.index_params)?;

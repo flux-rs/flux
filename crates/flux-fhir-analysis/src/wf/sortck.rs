@@ -337,13 +337,10 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
 impl<'a> InferCtxt<'a, '_> {
     /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
-    pub(super) fn insert_params<'b>(
-        &mut self,
-        params: impl IntoIterator<Item = &'b fhir::RefineParam>,
-    ) {
+    pub(super) fn insert_params(&mut self, params: &[fhir::RefineParam]) {
         for param in params {
             let sort = conv::conv_sort(self.genv, &param.sort, &mut || self.next_sort_vid());
-            self.params.insert(param.name(), (sort, param.kind));
+            self.insert_param(param.name(), sort, param.kind);
         }
     }
 
