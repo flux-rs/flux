@@ -100,7 +100,22 @@ pub struct SortDecl {
 
 pub type SortDecls = FxHashMap<Symbol, SortDecl>;
 
-pub type ItemPredicates = UnordMap<LocalDefId, GenericPredicates>;
+#[derive(Debug)]
+pub struct AssocPredicates {
+    pub predicates: Vec<AssocPredicate>,
+}
+
+#[derive(Debug)]
+pub struct AssocPredicate {
+    pub name: Symbol,
+    pub kind: AssocPredicateKind,
+}
+
+#[derive(Debug)]
+pub enum AssocPredicateKind {
+    Spec(Sort),
+    Impl(Vec<RefineParam>, Expr),
+}
 
 #[derive(Debug)]
 pub struct GenericPredicates {
@@ -145,7 +160,8 @@ pub struct OpaqueTy {
 #[derive(Default)]
 pub struct Map {
     generics: UnordMap<LocalDefId, Generics>,
-    predicates: ItemPredicates,
+    predicates: UnordMap<LocalDefId, GenericPredicates>,
+    assoc_predicates: UnordMap<LocalDefId, AssocPredicates>,
     opaque_tys: UnordMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: SortDecls,
@@ -1081,6 +1097,14 @@ impl Map {
 
     pub fn insert_generic_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
         self.predicates.insert(def_id, predicates);
+    }
+
+    pub fn insert_assoc_predicates(
+        &mut self,
+        def_id: LocalDefId,
+        assoc_predicates: AssocPredicates,
+    ) {
+        self.assoc_predicates.insert(def_id, assoc_predicates);
     }
 
     pub fn insert_opaque_tys(&mut self, opaque_tys: UnordMap<LocalDefId, OpaqueTy>) {

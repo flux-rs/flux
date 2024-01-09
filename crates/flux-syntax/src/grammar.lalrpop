@@ -144,6 +144,17 @@ Sort: surface::Sort = {
     <input:BaseSort> "->" <output:BaseSort>                 => surface::Sort::Func { inputs: vec![input], output }
 }
 
+pub AssocPredicate: surface::AssocPredicate = {
+    <lo:@L> <name:Ident> ":" <kind:AssocPredicateKind> <hi:@R> => {
+        surface::AssocPredicate { name, kind, span: cx.map_span(lo, hi) }
+    }
+}
+
+pub AssocPredicateKind: surface::AssocPredicateKind = {
+    <sort:Sort> => surface::AssocPredicateKind::Spec(sort),
+    "|"<params:RefineParams<"?">> "|" <body:Expr>  => surface::AssocPredicateKind::Impl(params, body),
+}
+
 pub FnSig: surface::FnSig = {
     <lo:@L>
     <asyncness:Async>

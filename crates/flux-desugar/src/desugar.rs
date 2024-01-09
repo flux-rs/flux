@@ -17,7 +17,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{
-    def_id::LocalDefId,
+    def_id::{DefId, LocalDefId},
     sym::{self},
     symbol::kw,
     Span, Symbol,
@@ -198,17 +198,24 @@ enum QPathRes<'a> {
     NumConst(i128),
 }
 
-fn self_res(genv: &GlobalEnv, owner: OwnerId) -> SelfRes {
-    let def_id = owner.def_id;
-    if let Some(alias_to) = genv.tcx.opt_parent(def_id.to_def_id()) {
-        match genv.tcx.def_kind(alias_to) {
-            DefKind::Trait => SelfRes::Param { trait_id: alias_to },
-            DefKind::Impl { .. } => SelfRes::Alias { alias_to },
-            _ => SelfRes::None,
-        }
-    } else {
-        SelfRes::None
+fn self_res_did(genv: &GlobalEnv, def_id: DefId) -> SelfRes {
+    match genv.tcx.def_kind(def_id) {
+        DefKind::Trait => SelfRes::Param { trait_id: def_id },
+        DefKind::Impl { .. } => SelfRes::Alias { alias_to: def_id },
+        _ => SelfRes::None,
     }
+}
+
+fn self_res(genv: &GlobalEnv, owner: OwnerId) -> SelfRes {
+    let def_id = owner.def_id.to_def_id();
+    let owner_res = self_res_did(genv, def_id);
+    if owner_res != SelfRes::None {
+        return owner_res;
+    }
+    if let Some(alias_to) = genv.tcx.opt_parent(def_id) {
+        return self_res_did(genv, alias_to);
+    }
+    SelfRes::None
 }
 
 impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
@@ -312,6 +319,29 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             }
         }
         Ok(fhir::Generics { params, self_kind })
+    }
+
+    pub fn desugar_assoc_predicates(
+        &self,
+        assoc_predicate: &surface::AssocPredicate,
+    ) -> Result<fhir::AssocPredicates> {
+        let name = assoc_predicate.name.name;
+        let kind = match &assoc_predicate.kind {
+            surface::AssocPredicateKind::Spec(sort) => {
+                let sort = self.sort_resolver.resolve_sort(sort)?;
+                fhir::AssocPredicateKind::Spec(sort)
+            }
+            surface::AssocPredicateKind::Impl(params, body) => {
+                let mut env =
+                    Env::from_params(self.genv, &self.sort_resolver, ScopeId::FluxItem, params)?;
+                let body = self.desugar_expr(&mut env, body)?;
+                let params = env.pop().into_params(self);
+                fhir::AssocPredicateKind::Impl(params, body)
+            }
+        };
+        let assoc_predicate = fhir::AssocPredicate { name, kind };
+        let predicates = vec![assoc_predicate];
+        Ok(fhir::AssocPredicates { predicates })
     }
 
     fn desugar_predicates(

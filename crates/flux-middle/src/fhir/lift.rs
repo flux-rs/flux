@@ -92,7 +92,6 @@ pub fn lift_fn(
     let generics = cx.lift_generics_inner(hir_generics)?;
     let fn_sig = cx.lift_fn_sig(fn_sig)?;
     let fn_preds = cx.lift_generic_predicates_inner(hir_generics)?;
-
     Ok((generics, fhir::FnInfo { fn_sig, predicates: fn_preds, opaque_tys }))
 }
 

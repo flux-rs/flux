@@ -19,7 +19,7 @@ use crate::errors;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SelfRes {
     /// A `Self` parameter in a trait definition.
     Param { trait_id: DefId },

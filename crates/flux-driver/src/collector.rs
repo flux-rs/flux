@@ -42,6 +42,7 @@ pub(crate) struct Specs {
     pub fn_sigs: UnordMap<OwnerId, FnSpec>,
     pub structs: FxHashMap<OwnerId, surface::StructDef>,
     pub generics: FxHashMap<OwnerId, surface::Generics>,
+    pub assoc_predicates: FxHashMap<OwnerId, surface::AssocPredicate>,
     pub enums: FxHashMap<OwnerId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
     pub func_defs: Vec<surface::FuncDef>,
@@ -200,6 +201,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             self.specs.generics.insert(owner_id, generics);
         }
 
+        if let Some(assoc_predicates) = attrs.assoc_predicates() {
+            self.specs
+                .assoc_predicates
+                .insert(owner_id, assoc_predicates);
+        }
         Ok(())
     }
 
@@ -423,6 +429,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("sig", AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_fn_sig, FluxAttrKind::FnSig)?
             }
+            ("predicate", AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_assoc_pred, FluxAttrKind::AssocPred)?
+            }
             ("qualifiers", AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_qual_names, FluxAttrKind::QualNames)?
             }
@@ -577,6 +586,7 @@ impl Specs {
         Specs {
             fn_sigs: Default::default(),
             generics: Default::default(),
+            assoc_predicates: Default::default(),
             structs: Default::default(),
             enums: Default::default(),
             qualifs: Vec::default(),
@@ -633,6 +643,7 @@ enum FluxAttrKind {
     Trusted,
     Opaque,
     FnSig(surface::FnSig),
+    AssocPred(surface::AssocPredicate),
     RefinedBy(surface::RefinedBy),
     Generics(surface::Generics),
     QualNames(surface::QualNames),
@@ -729,6 +740,10 @@ impl FluxAttrs {
         read_attr!(self, Generics)
     }
 
+    fn assoc_predicates(&mut self) -> Option<surface::AssocPredicate> {
+        read_attr!(self, AssocPred)
+    }
+
     fn field(&mut self) -> Option<surface::Ty> {
         read_attr!(self, Field)
     }
@@ -756,6 +771,7 @@ impl FluxAttrKind {
             FluxAttrKind::Trusted => attr_name!(Trusted),
             FluxAttrKind::Opaque => attr_name!(Opaque),
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),
+            FluxAttrKind::AssocPred(_) => attr_name!(AssocPred),
             FluxAttrKind::ConstSig(_) => attr_name!(ConstSig),
             FluxAttrKind::RefinedBy(_) => attr_name!(RefinedBy),
             FluxAttrKind::Generics(_) => attr_name!(Generics),

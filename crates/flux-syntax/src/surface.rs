@@ -367,6 +367,19 @@ pub enum GenericArg {
     Constraint(Ident, Ty),
 }
 
+#[derive(Debug)]
+pub struct AssocPredicate {
+    pub name: Ident,
+    pub kind: AssocPredicateKind,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub enum AssocPredicateKind {
+    Spec(Sort),
+    Impl(Vec<RefineParam>, Expr),
+}
+
 #[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
