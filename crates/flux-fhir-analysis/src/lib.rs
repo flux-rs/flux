@@ -312,9 +312,14 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fh
             let opaque_ty = genv.map().get_opaque_ty(def_id).unwrap();
             wf::check_opaque_ty(genv, opaque_ty, owner_id)?
         }
-        DefKind::Impl { .. } => {
-            // We currently dont support refinements on an impl item, so there's nothing to check here.
-            WfckResults::new(OwnerId { def_id })
+        DefKind::Impl { .. } | DefKind::Trait { .. } => {
+            let owner_id = OwnerId { def_id };
+            if let Some(assoc_predicates) = genv.map().get_assoc_predicates(def_id) {
+                wf::check_assoc_predicates(genv, assoc_predicates, owner_id)?
+            } else {
+                // We currently dont support refinements on an impl item, so there's nothing to check here.
+                WfckResults::new(owner_id)
+            }
         }
         DefKind::Closure | DefKind::Coroutine | DefKind::TyParam => {
             let parent = genv.tcx.local_parent(def_id);

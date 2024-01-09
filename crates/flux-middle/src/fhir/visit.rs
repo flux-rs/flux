@@ -1,7 +1,8 @@
 use super::{
-    BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnOutput, FnSig, FuncSort,
-    GenericArg, Ident, Lifetime, Lit, Path, PolyFuncSort, QPath, RefineArg, RefineArgKind,
-    RefineParam, Sort, StructDef, Ty, TyKind, TypeBinding, VariantDef, VariantRet,
+    AliasPred, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnOutput, FnSig,
+    FuncSort, GenericArg, Ident, Lifetime, Lit, Path, PolyFuncSort, Pred, PredKind, QPath,
+    RefineArg, RefineArgKind, RefineParam, Sort, StructDef, Ty, TyKind, TypeBinding, VariantDef,
+    VariantRet,
 };
 
 #[macro_export]
@@ -95,6 +96,14 @@ pub trait Visitor: Sized {
         walk_expr(self, expr);
     }
 
+    fn visit_pred(&mut self, pred: &Pred) {
+        walk_pred(self, pred);
+    }
+
+    fn visit_alias_pred(&mut self, alias_pred: &AliasPred) {
+        walk_alias_pred(self, alias_pred);
+    }
+
     fn visit_literal(&mut self, _lit: &Lit) {}
 
     fn visit_ident(&mut self, _ident: Ident) {}
@@ -181,7 +190,7 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
             vis.visit_ty(ty);
         }
         TyKind::Constr(pred, ty) => {
-            vis.visit_expr(pred);
+            vis.visit_pred(pred);
             vis.visit_ty(ty);
         }
         TyKind::Ptr(lft, loc) => {
@@ -281,6 +290,18 @@ pub fn walk_refine_arg<V: Visitor>(vis: &mut V, arg: &RefineArg) {
         RefineArgKind::Record(flds) => {
             walk_list!(vis, visit_refine_arg, flds);
         }
+    }
+}
+
+pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasPred) {
+    walk_list!(vis, visit_generic_arg, &alias_pred.generic_args);
+    walk_list!(vis, visit_refine_arg, &alias_pred.refine_args);
+}
+
+pub fn walk_pred<V: Visitor>(vis: &mut V, pred: &Pred) {
+    match &pred.kind {
+        PredKind::Expr(expr) => vis.visit_expr(expr),
+        PredKind::Alias(alias_pred) => vis.visit_alias_pred(alias_pred),
     }
 }
 

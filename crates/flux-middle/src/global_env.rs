@@ -136,6 +136,13 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.predicates_of(self, def_id.into())
     }
 
+    pub fn assoc_predicates_of(
+        &self,
+        def_id: impl Into<DefId>,
+    ) -> QueryResult<rty::AssocPredicates> {
+        self.queries.assoc_predicates_of(self, def_id.into())
+    }
+
     pub fn item_bounds(&self, def_id: DefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
         self.queries.item_bounds(self, def_id)
     }

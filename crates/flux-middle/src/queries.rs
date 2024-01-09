@@ -103,6 +103,7 @@ pub struct Queries<'tcx> {
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     refinement_generics_of: Cache<DefId, QueryResult<rty::RefinementGenerics>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
+    assoc_predicates_of: Cache<DefId, QueryResult<rty::AssocPredicates>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
@@ -302,6 +303,14 @@ impl<'tcx> Queries<'tcx> {
                 Ok(rty::EarlyBinder(predicates))
             }
         })
+    }
+
+    pub(crate) fn assoc_predicates_of(
+        &self,
+        genv: &GlobalEnv,
+        def_id: DefId,
+    ) -> QueryResult<rty::AssocPredicates> {
+        todo!()
     }
 
     pub(crate) fn type_of(

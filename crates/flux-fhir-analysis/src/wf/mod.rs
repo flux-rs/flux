@@ -158,6 +158,30 @@ pub(crate) fn check_opaque_ty(
     Ok(infcx.into_results())
 }
 
+pub(crate) fn check_assoc_predicates(
+    genv: &GlobalEnv,
+    assoc_predicates: &fhir::AssocPredicates,
+    owner_id: OwnerId,
+) -> Result<WfckResults, ErrorGuaranteed> {
+    let mut infcx = InferCtxt::new(genv, owner_id.into());
+
+    // TODO(RJ): multiple-predicates
+    for assoc_pred in &assoc_predicates.predicates {
+        if let fhir::AssocPredicateKind::Impl(params, body) = &assoc_pred.kind {
+            infcx.push_layer(params);
+            infcx.check_expr(&body, &fhir::Sort::Bool)?;
+        }
+    }
+    // TODO: check-against-trait
+    // let def_id = owner_id.def_id.to_def_id();
+    // if let Some(trait_ref) = genv.tcx.impl_trait_ref(def_id) {
+    //     let trait_id = trait_ref.skip_binder().def_id;
+    //     let trait_assoc_predicates = genv.map().get_assoc_predicates(trait_id).unwrap();
+    // }
+
+    Ok(infcx.into_results())
+}
+
 pub(crate) fn check_fn_sig(
     genv: &GlobalEnv,
     fn_sig: &fhir::FnSig,
@@ -347,7 +371,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
                     .into_iter()
                     .try_collect_exhaust()
             }
-            fhir::Constraint::Pred(pred) => self.check_pred(infcx, pred),
+            fhir::Constraint::Pred(pred) => self.check_expr_as_pred(infcx, pred),
         }
     }
 
@@ -547,13 +571,24 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         self.check_param_uses_refine_arg(infcx, arg)
     }
 
-    fn check_pred(
+    fn check_expr_as_pred(
         &mut self,
         infcx: &mut InferCtxt,
         expr: &fhir::Expr,
     ) -> Result<(), ErrorGuaranteed> {
         infcx.check_expr(expr, &fhir::Sort::Bool)?;
         self.check_param_uses_expr(infcx, expr, true)
+    }
+
+    fn check_pred(
+        &mut self,
+        infcx: &mut InferCtxt,
+        pred: &fhir::Pred,
+    ) -> Result<(), ErrorGuaranteed> {
+        match &pred.kind {
+            fhir::PredKind::Expr(expr) => self.check_expr_as_pred(infcx, expr),
+            fhir::PredKind::Alias(_alias_pred) => Ok(()), // TODO: normalize-and-check-sort,
+        }
     }
 
     /// Checks that refinement parameters of function sort are used in allowed positions.

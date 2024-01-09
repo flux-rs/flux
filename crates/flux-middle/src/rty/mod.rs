@@ -148,6 +148,23 @@ pub struct GeneratorObligPredicate {
     pub output: Ty,
 }
 
+#[derive(Debug)]
+pub struct AssocPredicates {
+    pub predicates: Vec<AssocPredicate>,
+}
+
+#[derive(Debug)]
+pub struct AssocPredicate {
+    pub name: Symbol,
+    pub kind: AssocPredicateKind,
+}
+
+#[derive(Debug)]
+pub enum AssocPredicateKind {
+    Spec(Sort),
+    Impl(Vec<RefineParam>, Expr),
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum SortCtor {
     Set,

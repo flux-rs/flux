@@ -1,10 +1,10 @@
 use rustc_span::symbol::Ident;
 
 use super::{
-    Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind,
-    FnRetTy, FnSig, GenericArg, GenericParam, GenericParamKind, Generics, Indices, Lit, Path,
-    QPathExpr, RefineArg, RefineParam, RefinedBy, Sort, StructDef, TraitRef, Ty, TyKind,
-    VariantDef, VariantRet, WhereBoundPredicate,
+    AliasPred, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
+    ExprKind, FnRetTy, FnSig, GenericArg, GenericParam, GenericParamKind, Generics, Indices, Lit,
+    Path, Pred, PredKind, QPathExpr, RefineArg, RefineParam, RefinedBy, Sort, StructDef, TraitRef,
+    Ty, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -114,6 +114,14 @@ pub trait Visitor: Sized {
 
     fn visit_expr(&mut self, expr: &Expr) {
         walk_expr(self, expr);
+    }
+
+    fn visit_pred(&mut self, pred: &Pred) {
+        walk_pred(self, pred);
+    }
+
+    fn visit_alias_pred(&mut self, alias_pred: &AliasPred) {
+        walk_alias_pred(self, alias_pred);
     }
 
     fn visit_qpath_expr(&mut self, qpath: &QPathExpr) {
@@ -336,7 +344,7 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
             vis.visit_ty(ty);
         }
         TyKind::Constr(pred, ty) => {
-            vis.visit_expr(pred);
+            vis.visit_pred(pred);
             vis.visit_ty(ty);
         }
         TyKind::Tuple(tys) => {
@@ -363,6 +371,20 @@ pub fn walk_path<V: Visitor>(vis: &mut V, path: &Path) {
     walk_list!(vis, visit_ident, path.segments.iter().copied());
     walk_list!(vis, visit_generic_arg, &path.generics);
     walk_list!(vis, visit_refine_arg, &path.refine);
+}
+
+pub fn walk_pred<V: Visitor>(vis: &mut V, pred: &Pred) {
+    match &pred.kind {
+        PredKind::Expr(expr) => vis.visit_expr(expr),
+        PredKind::Alias(alias_pred) => vis.visit_alias_pred(alias_pred),
+    }
+}
+
+pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasPred) {
+    vis.visit_ident(alias_pred.name);
+    vis.visit_path(&alias_pred.trait_id);
+    walk_list!(vis, visit_generic_arg, &alias_pred.generic_args);
+    walk_list!(vis, visit_refine_arg, &alias_pred.refine_args);
 }
 
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {

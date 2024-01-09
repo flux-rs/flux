@@ -305,7 +305,7 @@ pub enum TyKind {
     Exists(Vec<RefineParam>, Box<Ty>),
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
-    Constr(Expr, Box<Ty>),
+    Constr(Pred, Box<Ty>),
     Ptr(Lifetime, Ident),
     Ref(Lifetime, MutTy),
     Tuple(Vec<Ty>),
@@ -634,6 +634,27 @@ impl PolyFuncSort {
             .collect();
         FuncSort { inputs_and_output }
     }
+}
+
+#[derive(Clone)]
+pub struct Pred {
+    pub kind: PredKind,
+    pub span: Span,
+    pub fhir_id: FhirId,
+}
+
+#[derive(Clone)]
+pub enum PredKind {
+    Expr(Expr),
+    Alias(AliasPred),
+}
+
+#[derive(Clone)]
+pub struct AliasPred {
+    pub trait_id: DefId,
+    pub name: Symbol,
+    pub generic_args: Vec<GenericArg>,
+    pub refine_args: Vec<RefineArg>,
 }
 
 #[derive(Clone)]
@@ -1125,6 +1146,10 @@ impl Map {
 
     pub fn get_generic_predicates(&self, def_id: LocalDefId) -> Option<&GenericPredicates> {
         self.predicates.get(&def_id)
+    }
+
+    pub fn get_assoc_predicates(&self, def_id: LocalDefId) -> Option<&AssocPredicates> {
+        self.assoc_predicates.get(&def_id)
     }
 
     pub fn get_opaque_ty(&self, def_id: LocalDefId) -> Option<&OpaqueTy> {
@@ -1662,6 +1687,21 @@ impl fmt::Debug for RefineArg {
             RefineArgKind::Record(flds) => {
                 write!(f, "{{ {:?} }}", flds.iter().format(", "))
             }
+        }
+    }
+}
+
+impl fmt::Debug for AliasPred {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TODO:AliasPred")
+    }
+}
+
+impl fmt::Debug for Pred {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            PredKind::Expr(expr) => write!(f, "{expr:?}"),
+            PredKind::Alias(alias_pred) => write!(f, "{alias_pred:?}"),
         }
     }
 }

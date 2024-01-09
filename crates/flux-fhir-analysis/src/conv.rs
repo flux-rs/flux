@@ -635,8 +635,9 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
             fhir::TyKind::Constr(pred, ty) => {
-                let pred = self.conv_expr(env, pred);
-                Ok(rty::Ty::constr(pred, self.conv_ty(env, ty)?))
+                todo!("TRACE:ASSOC-PRED")
+                // TODO: let pred = self.conv_pred(env, pred);
+                // TODO: Ok(rty::Ty::constr(pred, self.conv_ty(env, ty)?))
             }
             fhir::TyKind::RawPtr(ty, mutability) => {
                 Ok(rty::Ty::indexed(

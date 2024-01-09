@@ -335,7 +335,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 let mut env =
                     Env::from_params(self.genv, &self.sort_resolver, ScopeId::FluxItem, params)?;
                 let body = self.desugar_expr(&mut env, body)?;
-                let params = env.pop().into_params(self);
+                let params = env.into_root().into_params(self);
                 fhir::AssocPredicateKind::Impl(params, body)
             }
         };
@@ -624,6 +624,12 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 let bty = self.desugar_path_to_bty(path, env)?;
 
                 let pred = self.desugar_expr(env, pred)?;
+                let span = pred.span;
+                let pred = fhir::Pred {
+                    kind: fhir::PredKind::Expr(pred),
+                    span,
+                    fhir_id: self.next_fhir_id(),
+                };
 
                 let ty = if let Some(idx) = self.bind_into_refine_arg(*bind, env)? {
                     fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: path.span }
@@ -733,6 +739,12 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
                 let bty = self.desugar_bty(bty, env)?;
                 let pred = self.desugar_expr(env, pred)?;
+                let span = pred.span;
+                let pred = fhir::Pred {
+                    kind: fhir::PredKind::Expr(pred),
+                    span,
+                    fhir_id: self.next_fhir_id(),
+                };
                 let params = env.pop().into_params(self);
 
                 let idx = fhir::RefineArg {
@@ -755,6 +767,11 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 if let Some(pred) = pred {
                     let pred = self.desugar_expr(env, pred)?;
                     let span = ty.span.to(pred.span);
+                    let pred = fhir::Pred {
+                        kind: fhir::PredKind::Expr(pred),
+                        span,
+                        fhir_id: self.next_fhir_id(),
+                    };
                     ty = fhir::Ty { kind: fhir::TyKind::Constr(pred, Box::new(ty)), span };
                 }
                 let params = env.pop().into_params(self);
@@ -762,7 +779,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 fhir::TyKind::Exists(params, Box::new(ty))
             }
             surface::TyKind::Constr(pred, ty) => {
-                let pred = self.desugar_expr(env, pred)?;
+                let pred = self.desugar_pred(env, pred)?;
                 let ty = self.desugar_ty(None, ty, env)?;
                 fhir::TyKind::Constr(pred, Box::new(ty))
             }
@@ -912,6 +929,38 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         Ok(fhir::BaseTy::from(fhir::QPath::Resolved(None, self.desugar_path(path, env)?)))
     }
 
+    fn desugar_alias_pred(
+        &mut self,
+        env: &mut Env,
+        alias_pred: &surface::AliasPred,
+    ) -> Result<fhir::AliasPred> {
+        let path = self.desugar_path(&alias_pred.trait_id, env)?;
+
+        if let Res::Def(DefKind::Trait, trait_id) = path.res {
+            let (generic_args, _) =
+                self.desugar_generic_args(path.res, &alias_pred.generic_args, env)?;
+            let refine_args = alias_pred
+                .refine_args
+                .iter()
+                .map(|arg| self.desugar_refine_arg(arg, env))
+                .try_collect_exhaust()?;
+
+            Ok(fhir::AliasPred { trait_id, name: alias_pred.name.name, generic_args, refine_args })
+        } else {
+            Err(self.emit_err(errors::UnresolvedVar::from_path(&alias_pred.trait_id)))
+        }
+    }
+
+    fn desugar_pred(&mut self, env: &mut Env, pred: &surface::Pred) -> Result<fhir::Pred> {
+        let kind = match &pred.kind {
+            surface::PredKind::Expr(expr) => fhir::PredKind::Expr(self.desugar_expr(env, expr)?),
+            surface::PredKind::Alias(alias_pred) => {
+                fhir::PredKind::Alias(self.desugar_alias_pred(env, alias_pred)?)
+            }
+        };
+        let span = pred.span;
+        Ok(fhir::Pred { kind, span, fhir_id: self.next_fhir_id() })
+    }
     fn desugar_generic_args(
         &mut self,
         res: Res,
