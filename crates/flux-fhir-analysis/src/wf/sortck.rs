@@ -504,13 +504,15 @@ impl<'a> InferCtxt<'a, '_> {
         params: &[fhir::RefineParam],
     ) -> Result<(), ErrorGuaranteed> {
         params.iter().try_for_each_exhaust(|param| {
-            let sort = self.lookup_var(param.ident);
-            if matches!(sort, rty::Sort::Infer(_)) {
-                return Err(self.emit_err(errors::SortAnnotationNeeded::new(param)));
+            if let fhir::Sort::Infer = param.sort {
+                let sort = self.lookup_var(param.ident);
+                if matches!(sort, rty::Sort::Infer(_)) {
+                    return Err(self.emit_err(errors::SortAnnotationNeeded::new(param)));
+                }
+                self.wfckresults
+                    .node_sorts_mut()
+                    .insert(param.fhir_id, sort);
             }
-            self.wfckresults
-                .node_sorts_mut()
-                .insert(param.fhir_id, sort);
             Ok(())
         })
     }

@@ -46,7 +46,6 @@ pub(crate) fn check_qualifier(
     let owner = FluxOwnerId::Flux(qualifier.name);
     let mut infcx = InferCtxt::new(genv, owner);
     infcx.insert_params(&qualifier.args);
-    infcx.resolve_params_sorts(&qualifier.args)?;
 
     infcx.check_expr(&qualifier.expr, &rty::Sort::Bool)?;
     Ok(infcx.into_results())
@@ -59,7 +58,6 @@ pub(crate) fn check_defn(
     let owner = FluxOwnerId::Flux(defn.name);
     let mut infcx = InferCtxt::new(genv, owner);
     infcx.insert_params(&defn.args);
-    infcx.resolve_params_sorts(&defn.args)?;
 
     let output = conv::conv_sort(genv, &defn.sort, &mut || bug!("unexpected infer sort"));
     infcx.check_expr(&defn.expr, &output)?;
@@ -87,8 +85,6 @@ pub(crate) fn check_ty_alias(
     let mut infcx = InferCtxt::new(genv, ty_alias.owner_id.into());
     let mut wf = Wf::new(genv);
     infcx.insert_params(ty_alias.all_params());
-    infcx.resolve_params_sorts(&ty_alias.early_bound_params)?;
-    infcx.resolve_params_sorts(&ty_alias.index_params)?;
 
     wf.check_type(&mut infcx, &ty_alias.ty)?;
     wf.check_params_are_determined(&infcx, &ty_alias.index_params)?;
@@ -102,7 +98,6 @@ pub(crate) fn check_struct_def(
     let mut infcx = InferCtxt::new(genv, struct_def.owner_id.into());
     let mut wf = Wf::new(genv);
     infcx.insert_params(&struct_def.params);
-    infcx.resolve_params_sorts(&struct_def.params)?;
 
     struct_def
         .invariants
@@ -126,7 +121,6 @@ pub(crate) fn check_enum_def(
     let mut infcx = InferCtxt::new(genv, enum_def.owner_id.into());
     let mut wf = Wf::new(genv);
     infcx.insert_params(&enum_def.params);
-    infcx.resolve_params_sorts(&enum_def.params)?;
 
     enum_def
         .invariants

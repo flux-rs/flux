@@ -92,7 +92,7 @@ pub(crate) fn conv_adt_sort_def(genv: &GlobalEnv, refined_by: &fhir::RefinedBy) 
     let fields = refined_by
         .index_params
         .iter()
-        .map(|(name, sort)| (*name, conv_sort(genv, sort, &mut || bug!("unexpected infer sort"))))
+        .map(|(name, sort)| (*name, conv_sort(genv, sort, &mut bug_on_sort_vid)))
         .collect_vec();
     let def_id = genv
         .map()
@@ -109,7 +109,7 @@ pub(crate) fn expand_type_alias(
     let def_id = alias.owner_id.to_def_id();
     let cx = ConvCtxt::new(genv, wfckresults);
 
-    let mut env = Env::new(&alias.early_bound_params, wfckresults);
+    let mut env = Env::new(genv, &alias.early_bound_params, wfckresults);
     env.push_layer(Layer::record(&cx, def_id, &alias.index_params));
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
@@ -126,7 +126,7 @@ pub(crate) fn conv_generic_predicates(
 
     let refparams = genv.map().get_refine_params(genv.tcx, def_id);
 
-    let env = &mut Env::new(refparams.unwrap_or(&[]), wfckresults);
+    let env = &mut Env::new(genv, refparams.unwrap_or(&[]), wfckresults);
 
     let mut clauses = vec![];
     for pred in &predicates.predicates {
@@ -150,7 +150,7 @@ pub(crate) fn conv_opaque_ty(
     let refparams = genv.map().get_refine_params(genv.tcx, parent);
     let parent_wfckresults = genv.check_wf(parent)?;
 
-    let env = &mut Env::new(refparams.unwrap_or(&[]), &parent_wfckresults);
+    let env = &mut Env::new(genv, refparams.unwrap_or(&[]), &parent_wfckresults);
 
     let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
     let self_ty = rty::Ty::opaque(def_id, args, env.to_early_bound_vars());
@@ -198,12 +198,13 @@ pub(crate) fn conv_generics(
 }
 
 pub(crate) fn conv_refinement_generics(
+    genv: &GlobalEnv,
     params: &[fhir::RefineParam],
-    wfckresults: &fhir::WfckResults,
+    wfckresults: Option<&fhir::WfckResults>,
 ) -> List<rty::RefineParam> {
     params
         .iter()
-        .map(|param| conv_refine_param(param, wfckresults))
+        .map(|param| conv_refine_param(genv, param, wfckresults))
         .collect()
 }
 
@@ -254,7 +255,7 @@ pub(crate) fn conv_invariants(
     wfckresults: &fhir::WfckResults,
 ) -> Vec<rty::Invariant> {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let mut env = Env::new(&[], wfckresults);
+    let mut env = Env::new(genv, &[], wfckresults);
     env.push_layer(Layer::record(&cx, def_id.to_def_id(), params));
     cx.conv_invariants(&env, invariants)
 }
@@ -265,7 +266,7 @@ pub(crate) fn conv_defn(
     wfckresults: &fhir::WfckResults,
 ) -> rty::Defn {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let mut env = Env::new(&[], wfckresults);
+    let mut env = Env::new(genv, &[], wfckresults);
     env.push_layer(Layer::list(&cx, 0, &defn.args, false));
     let expr = cx.conv_expr(&env, &defn.expr);
     let expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv));
@@ -278,7 +279,7 @@ pub(crate) fn conv_qualifier(
     wfckresults: &fhir::WfckResults,
 ) -> rty::Qualifier {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let mut env = Env::new(&[], wfckresults);
+    let mut env = Env::new(genv, &[], wfckresults);
     env.push_layer(Layer::list(&cx, 0, &qualifier.args, false));
     let body = cx.conv_expr(&env, &qualifier.expr);
     let body = rty::Binder::new(body, env.pop_layer().into_bound_vars(genv));
@@ -295,7 +296,7 @@ pub(crate) fn conv_fn_sig(
 
     let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
 
-    let mut env = Env::new(&fn_sig.params, wfckresults);
+    let mut env = Env::new(genv, &fn_sig.params, wfckresults);
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[], true));
 
     let mut requires = vec![];
@@ -325,7 +326,7 @@ pub(crate) fn conv_ty(
     ty: &fhir::Ty,
     wfckresults: &fhir::WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
-    let mut env = Env::new(&[], wfckresults);
+    let mut env = Env::new(genv, &[], wfckresults);
     let ty = ConvCtxt::new(genv, wfckresults).conv_ty(&mut env, ty)?;
     Ok(rty::Binder::new(ty, List::empty()))
 }
@@ -536,7 +537,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     ) -> QueryResult<rty::PolyVariant> {
         let cx = ConvCtxt::new(genv, wfckresults);
 
-        let mut env = Env::new(&[], wfckresults);
+        let mut env = Env::new(genv, &[], wfckresults);
         env.push_layer(Layer::list(&cx, 0, &variant.params, true));
 
         let adt_def = genv.adt_def(adt_def_id)?;
@@ -562,7 +563,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         wfckresults: &fhir::WfckResults,
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
         let cx = ConvCtxt::new(genv, wfckresults);
-        let mut env = Env::new(&[], wfckresults);
+        let mut env = Env::new(genv, &[], wfckresults);
         env.push_layer(Layer::list(&cx, 0, &struct_def.params, false));
 
         let def_id = struct_def.owner_id.def_id;
@@ -907,15 +908,19 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     }
 
     fn resolve_param_sort(&self, param: &fhir::RefineParam) -> rty::Sort {
-        resolve_param_sort(param, self.wfckresults).clone()
+        resolve_param_sort(self.genv, param, Some(self.wfckresults)).clone()
     }
 }
 
 impl Env {
-    fn new(early_bound: &[fhir::RefineParam], wfckresults: &fhir::WfckResults) -> Self {
+    fn new(
+        genv: &GlobalEnv,
+        early_bound: &[fhir::RefineParam],
+        wfckresults: &fhir::WfckResults,
+    ) -> Self {
         let early_bound = early_bound
             .iter()
-            .map(|param| (param.name(), resolve_param_sort(param, wfckresults).clone()))
+            .map(|param| (param.name(), resolve_param_sort(genv, param, Some(wfckresults)).clone()))
             .collect();
         Self { layers: vec![], early_bound }
     }
@@ -1207,20 +1212,30 @@ fn conv_sorts<'a>(
 }
 
 fn conv_refine_param(
+    genv: &GlobalEnv,
     param: &fhir::RefineParam,
-    wfckresults: &fhir::WfckResults,
+    wfckresults: Option<&fhir::WfckResults>,
 ) -> rty::RefineParam {
-    let sort = resolve_param_sort(param, wfckresults);
+    let sort = resolve_param_sort(genv, param, wfckresults);
     let mode = sort.infer_mode(param.kind);
     rty::RefineParam { sort, mode }
 }
 
-fn resolve_param_sort(param: &fhir::RefineParam, wfckresults: &fhir::WfckResults) -> rty::Sort {
-    wfckresults
-        .node_sorts()
-        .get(param.fhir_id)
-        .unwrap_or_else(|| bug!("unresolved sort for param: `{param:?}`"))
-        .clone()
+fn resolve_param_sort(
+    genv: &GlobalEnv,
+    param: &fhir::RefineParam,
+    wfckresults: Option<&fhir::WfckResults>,
+) -> rty::Sort {
+    if let fhir::Sort::Infer = &param.sort {
+        wfckresults
+            .expect("`Sort::Infer` without wfckresults")
+            .node_sorts()
+            .get(param.fhir_id)
+            .unwrap_or_else(|| bug!("unresolved sort for param: `{param:?}`"))
+            .clone()
+    } else {
+        conv_sort(genv, &param.sort, &mut bug_on_sort_vid)
+    }
 }
 
 pub(crate) fn conv_sort(
@@ -1289,6 +1304,10 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
         fhir::Lit::Real(r) => rty::Constant::Real(r),
         fhir::Lit::Bool(b) => rty::Constant::from(b),
     }
+}
+
+fn bug_on_sort_vid() -> rty::SortVid {
+    bug!("unexpected infer sort")
 }
 
 mod errors {
