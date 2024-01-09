@@ -695,7 +695,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             if let fhir::Res::SelfTyParam { .. } = path.res
                 && sort.is_none()
             {
-                return Ok(rty::Ty::param(self_param_ty()));
+                return Ok(rty::Ty::param(rty::SELF_PARAM_TY));
             }
             if let fhir::Res::Def(DefKind::TyParam, def_id) = path.res
                 && sort.is_none()
@@ -824,7 +824,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             fhir::Res::Def(DefKind::TyParam, def_id) => {
                 rty::BaseTy::Param(self.genv.def_id_to_param_ty(def_id.expect_local()))
             }
-            fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(self_param_ty()),
+            fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
             fhir::Res::SelfTyAlias { alias_to, .. } => {
                 return Ok(self
                     .genv
@@ -1252,7 +1252,7 @@ pub(crate) fn conv_sort(
         fhir::Sort::Param(def_id) => {
             rty::Sort::Param(genv.def_id_to_param_ty(def_id.expect_local()))
         }
-        fhir::Sort::SelfParam { trait_id: _def_id } => rty::Sort::Param(self_param_ty()),
+        fhir::Sort::SelfParam { .. } => rty::Sort::Param(rty::SELF_PARAM_TY),
         fhir::Sort::SelfAlias { alias_to } => {
             genv.sort_of_self_ty_alias(*alias_to)
                 .unwrap_or(rty::Sort::Err)
@@ -1289,10 +1289,6 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
         fhir::Lit::Real(r) => rty::Constant::Real(r),
         fhir::Lit::Bool(b) => rty::Constant::from(b),
     }
-}
-
-fn self_param_ty() -> rty::ParamTy {
-    rty::ParamTy { index: 0, name: kw::SelfUpper }
 }
 
 mod errors {

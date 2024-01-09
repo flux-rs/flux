@@ -110,12 +110,7 @@ impl RustItemCtxt<'_, '_> {
         ty_alias: &surface::TyAlias,
     ) -> Result<super::Env> {
         let mut env = Env::new(ScopeId::TyAlias(ty_alias.node_id));
-
-        for param in &ty_alias.generics.params {
-            let surface::GenericParamKind::Refine { sort } = &param.kind else { continue };
-            let sort = self.sort_resolver.resolve_sort(sort)?;
-            env.insert(self.sess(), param.name, Param::Explicit(sort))?;
-        }
+        self.gather_refinement_generics(&ty_alias.generics.params, &mut env)?;
 
         env.extend(self.sess(), self.resolve_params(&ty_alias.refined_by.index_params)?)?;
 
@@ -182,16 +177,25 @@ impl RustItemCtxt<'_, '_> {
     }
 
     fn gather_params_fn_sig_input(&self, fn_sig: &surface::FnSig, env: &mut Env) -> Result {
-        for param in fn_sig.generics.iter().flat_map(|g| &g.params) {
-            let surface::GenericParamKind::Refine { sort } = &param.kind else { continue };
-            let sort = self.sort_resolver.resolve_sort(sort)?;
-            env.insert(self.sess(), param.name, Param::Explicit(sort))?;
-        }
+        self.gather_refinement_generics(fn_sig.generics.iter().flat_map(|g| &g.params), env)?;
         for (idx, arg) in fn_sig.args.iter().enumerate() {
             self.gather_params_fun_arg(idx, arg, env)?;
         }
         if let Some(predicates) = &fn_sig.predicates {
             self.gather_params_predicates(predicates, env)?;
+        }
+        Ok(())
+    }
+
+    fn gather_refinement_generics<'a>(
+        &self,
+        params: impl IntoIterator<Item = &'a surface::GenericParam>,
+        env: &mut Env,
+    ) -> Result {
+        for param in params {
+            let surface::GenericParamKind::Refine { sort } = &param.kind else { continue };
+            let sort = self.sort_resolver.resolve_sort(sort)?;
+            env.insert(self.sess(), param.name, Param::Explicit(sort))?;
         }
         Ok(())
     }

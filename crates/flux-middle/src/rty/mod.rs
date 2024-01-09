@@ -32,7 +32,7 @@ pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, OutlivesPredicate, ParamTy, ScalarInt, UintTy},
 };
-use rustc_span::Symbol;
+use rustc_span::{symbol::kw, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 pub use rustc_type_ir::INNERMOST;
 
@@ -146,6 +146,8 @@ pub enum GenericParamDefKind {
     Lifetime,
     Const { has_default: bool },
 }
+
+pub const SELF_PARAM_TY: ParamTy = ParamTy { index: 0, name: kw::SelfUpper };
 
 #[derive(Debug, Clone)]
 pub struct GenericPredicates {

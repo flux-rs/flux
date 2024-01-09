@@ -9,7 +9,6 @@ use rustc_hir::{
     LangItem, PrimTy,
 };
 use rustc_middle::ty::{TyCtxt, Variance};
-use rustc_span::symbol::kw;
 pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
@@ -267,7 +266,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let kind = generics.self_kind.as_ref()?;
         match kind {
             fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy => {
-                Some(rty::Sort::Param(rty::ParamTy { index: 0, name: kw::SelfUpper }))
+                Some(rty::Sort::Param(rty::SELF_PARAM_TY))
             }
             fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
         }
