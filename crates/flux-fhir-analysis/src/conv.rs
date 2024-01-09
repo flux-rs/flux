@@ -596,6 +596,10 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
     }
 
+    fn conv_pred(&self, env: &mut Env, pred: &fhir::Pred) -> QueryResult<rty::Pred> {
+        todo!("TODO: conv_pred")
+    }
+
     fn conv_ty(&self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => self.conv_base_ty(env, bty),
@@ -635,9 +639,8 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
             fhir::TyKind::Constr(pred, ty) => {
-                todo!("TRACE:ASSOC-PRED")
-                // TODO: let pred = self.conv_pred(env, pred);
-                // TODO: Ok(rty::Ty::constr(pred, self.conv_ty(env, ty)?))
+                let pred = self.conv_pred(env, pred)?;
+                Ok(rty::Ty::constr(pred, self.conv_ty(env, ty)?))
             }
             fhir::TyKind::RawPtr(ty, mutability) => {
                 Ok(rty::Ty::indexed(

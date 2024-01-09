@@ -10,7 +10,8 @@ use flux_middle::{
         fold::TypeFoldable,
         AliasTy, BaseTy, BinOp, Binder, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
         FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, GenericParamDefKind, HoleKind,
-        InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
+        InferMode, Mutability, Path, PolyFnSig, PolyVariant, Pred, PtrKind, Ref, Sort, Ty, TyKind,
+        Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -542,7 +543,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 let ty1 = ty1.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
                 self.subtyping(rcx, &ty1, ty2)
             }
-            (TyKind::Constr(p1, ty1), _) => {
+            (TyKind::Constr(Pred::Expr(p1), ty1), _) => {
                 rcx.assume_pred(p1);
                 self.subtyping(rcx, ty1, ty2)
             }
@@ -572,7 +573,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 // FIXME: we should rethink in which situation this is sound.
                 Ok(())
             }
-            (_, TyKind::Constr(p2, ty2)) => {
+            (_, TyKind::Constr(Pred::Expr(p2), ty2)) => {
                 rcx.check_pred(p2, self.tag);
                 self.subtyping(rcx, ty1, ty2)
             }
