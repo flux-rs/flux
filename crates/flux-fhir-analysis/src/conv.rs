@@ -596,8 +596,32 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
     }
 
+    fn conv_alias_pred(
+        &self,
+        env: &mut Env,
+        alias_pred: &fhir::AliasPred,
+    ) -> QueryResult<rty::AliasPred> {
+        let trait_id = alias_pred.trait_id;
+        let generic_args = self
+            .conv_generic_args(env, trait_id, &alias_pred.generic_args)?
+            .into();
+        let refine_args = alias_pred
+            .refine_args
+            .iter()
+            .map(|arg| self.conv_refine_arg(env, arg))
+            .collect_vec()
+            .into();
+        Ok(rty::AliasPred { trait_id, name: alias_pred.name, generic_args, refine_args })
+    }
+
     fn conv_pred(&self, env: &mut Env, pred: &fhir::Pred) -> QueryResult<rty::Pred> {
-        todo!("TODO: conv_pred")
+        let pred = match &pred.kind {
+            fhir::PredKind::Expr(expr) => rty::Pred::Expr(self.conv_expr(env, expr)),
+            fhir::PredKind::Alias(alias_pred) => {
+                rty::Pred::Alias(self.conv_alias_pred(env, alias_pred)?)
+            }
+        };
+        Ok(pred)
     }
 
     fn conv_ty(&self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {

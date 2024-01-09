@@ -349,10 +349,10 @@ pub enum Pred {
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub struct AliasPred {
-    trait_id: DefId,
-    name: Symbol,
-    generic_args: GenericArgs,
-    refine_args: RefineArgs,
+    pub trait_id: DefId,
+    pub name: Symbol,
+    pub generic_args: GenericArgs,
+    pub refine_args: RefineArgs,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
