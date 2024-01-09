@@ -16,8 +16,8 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, Const, Constant, Constraint, Expr, Func, FuncSort, PolyFuncSort, Pred, Proj, Qualifier,
-    Sort, SortCtor, UnOp,
+    BinOp, Const, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, FuncSort,
+    PolyFuncSort, Pred, Proj, Qualifier, Sort, SortCtor, UnOp,
 };
 use derive_where::derive_where;
 use flux_common::{cache::QueryCache, format::PadAdapter};
@@ -27,11 +27,12 @@ use serde::{de, Deserialize};
 
 use crate::constraint::DEFAULT_QUALIFIERS;
 
-pub trait Symbol: fmt::Display + Hash {}
+pub trait Symbol: fmt::Display + Hash + Clone {}
 
-impl<T: fmt::Display + Hash> Symbol for T {}
+impl<T: fmt::Display + Hash + Clone> Symbol for T {}
 
 pub trait Types {
+    type Sort: Symbol;
     type KVar: Symbol;
     type Var: Symbol;
     type Tag: fmt::Display + Hash + FromStr;
@@ -39,21 +40,27 @@ pub trait Types {
 
 #[macro_export]
 macro_rules! declare_types {
-    (type KVar = $kvar:ty; type Var = $var:ty; type Tag = $tag:ty;) => {
+    (type Sort = $sort:ty; type KVar = $kvar:ty; type Var = $var:ty; type Tag = $tag:ty;) => {
         pub mod fixpoint_generated {
             pub struct FixpointTypes;
             pub type Expr = $crate::Expr<FixpointTypes>;
             pub type Pred = $crate::Pred<FixpointTypes>;
-            pub type Func = $crate::Func<FixpointTypes>;
             pub type Constraint = $crate::Constraint<FixpointTypes>;
             pub type KVar = $crate::KVar<FixpointTypes>;
             pub type ConstInfo = $crate::ConstInfo<FixpointTypes>;
             pub type Task = $crate::Task<FixpointTypes>;
             pub type Qualifier = $crate::Qualifier<FixpointTypes>;
-            pub use $crate::{PolyFuncSort, Proj, Sort, SortCtor};
+            pub type Sort = $crate::Sort<FixpointTypes>;
+            pub type SortCtor = $crate::SortCtor<FixpointTypes>;
+            pub type PolyFuncSort = $crate::PolyFuncSort<FixpointTypes>;
+            pub type DataDecl = $crate::DataDecl<FixpointTypes>;
+            pub type DataCtor = $crate::DataCtor<FixpointTypes>;
+            pub type DataField = $crate::DataField<FixpointTypes>;
+            pub use $crate::Proj;
         }
 
         impl $crate::Types for fixpoint_generated::FixpointTypes {
+            type Sort = $sort;
             type KVar = $kvar;
             type Var = $var;
             type Tag = $tag;
@@ -64,6 +71,7 @@ macro_rules! declare_types {
 struct StringTypes;
 
 impl Types for StringTypes {
+    type Sort = &'static str;
     type KVar = &'static str;
     type Var = &'static str;
     type Tag = String;
@@ -73,7 +81,7 @@ impl Types for StringTypes {
 pub struct ConstInfo<T: Types> {
     pub name: T::Var,
     pub orig: String,
-    pub sort: Sort,
+    pub sort: Sort<T>,
 }
 
 #[derive_where(Hash)]
@@ -81,10 +89,10 @@ pub struct Task<T: Types> {
     #[derive_where(skip)]
     pub comments: Vec<String>,
     pub constants: Vec<ConstInfo<T>>,
+    pub data_decls: Vec<DataDecl<T>>,
     pub kvars: Vec<KVar<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
-    pub sorts: Vec<String>,
     pub scrape_quals: bool,
 }
 
@@ -117,23 +125,11 @@ pub struct CrashInfo(Vec<serde_json::Value>);
 #[derive_where(Hash)]
 pub struct KVar<T: Types> {
     kvid: T::KVar,
-    sorts: Vec<Sort>,
+    sorts: Vec<Sort<T>>,
     comment: String,
 }
 
 impl<T: Types> Task<T> {
-    pub fn new(
-        comments: Vec<String>,
-        constants: Vec<ConstInfo<T>>,
-        kvars: Vec<KVar<T>>,
-        constraint: Constraint<T>,
-        qualifiers: Vec<Qualifier<T>>,
-        sorts: Vec<String>,
-        scrape_quals: bool,
-    ) -> Self {
-        Task { comments, constants, kvars, constraint, qualifiers, sorts, scrape_quals }
-    }
-
     pub fn hash_with_default(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
@@ -186,7 +182,7 @@ impl<T: Types> Task<T> {
 }
 
 impl<T: Types> KVar<T> {
-    pub fn new(kvid: T::KVar, sorts: Vec<Sort>, comment: String) -> Self {
+    pub fn new(kvid: T::KVar, sorts: Vec<Sort<T>>, comment: String) -> Self {
         Self { kvid, sorts, comment }
     }
 }
@@ -201,6 +197,12 @@ impl<T: Types> fmt::Display for Task<T> {
         }
         writeln!(f)?;
 
+        writeln!(f, "(data Unit 0 = [| unit {{ }}])")?;
+
+        for data_decl in &self.data_decls {
+            writeln!(f, "{data_decl}")?;
+        }
+
         for qualif in DEFAULT_QUALIFIERS.iter() {
             writeln!(f, "{qualif}")?;
         }
@@ -208,9 +210,6 @@ impl<T: Types> fmt::Display for Task<T> {
         for qualif in &self.qualifiers {
             writeln!(f, "{qualif}")?;
         }
-
-        writeln!(f, "(data Pair 2 = [| Pair {{ fst: @(0), snd: @(1) }} ])")?;
-        writeln!(f, "(data Unit 0 = [| Unit {{ }}])")?;
 
         for cinfo in &self.constants {
             writeln!(f, "{cinfo}")?;

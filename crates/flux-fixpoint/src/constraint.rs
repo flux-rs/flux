@@ -15,37 +15,56 @@ pub enum Constraint<T: Types> {
     Pred(Pred<T>, #[derive_where(skip)] Option<T::Tag>),
     Conj(Vec<Self>),
     Guard(Pred<T>, Box<Self>),
-    ForAll(T::Var, Sort, Pred<T>, Box<Self>),
+    ForAll(T::Var, Sort<T>, Pred<T>, Box<Self>),
 }
 
-#[derive(Clone, Hash)]
-pub enum Sort {
+#[derive_where(Hash)]
+pub struct DataDecl<T: Types> {
+    pub name: T::Sort,
+    pub vars: usize,
+    pub ctors: Vec<DataCtor<T>>,
+}
+
+#[derive_where(Hash)]
+pub struct DataCtor<T: Types> {
+    pub name: T::Var,
+    pub fields: Vec<DataField<T>>,
+}
+
+#[derive_where(Hash)]
+pub struct DataField<T: Types> {
+    pub name: T::Var,
+    pub sort: Sort<T>,
+}
+
+#[derive_where(Clone, Hash)]
+pub enum Sort<T: Types> {
     Int,
     Bool,
     Real,
     Unit,
+    Var(u32),
     BitVec(usize),
-    Pair(Box<Sort>, Box<Sort>),
-    Func(PolyFuncSort),
-    App(SortCtor, Vec<Sort>),
+    Func(PolyFuncSort<T>),
+    App(SortCtor<T>, Vec<Self>),
 }
 
-#[derive(Clone, Hash)]
-pub enum SortCtor {
+#[derive_where(Clone, Hash)]
+pub enum SortCtor<T: Types> {
     Set,
     Map,
-    // User { name: Symbol, arity: usize },
+    Data(T::Sort),
 }
 
-#[derive(Clone, Hash)]
-pub struct FuncSort {
-    inputs_and_output: Vec<Sort>,
+#[derive_where(Clone, Hash)]
+pub struct FuncSort<T: Types> {
+    inputs_and_output: Vec<Sort<T>>,
 }
 
-#[derive(Clone, Hash)]
-pub struct PolyFuncSort {
+#[derive_where(Clone, Hash)]
+pub struct PolyFuncSort<T: Types> {
     params: usize,
-    fsort: FuncSort,
+    fsort: FuncSort<T>,
 }
 
 #[derive_where(Hash)]
@@ -57,22 +76,14 @@ pub enum Pred<T: Types> {
 
 #[derive_where(Hash)]
 pub enum Expr<T: Types> {
+    Unit,
     Var(T::Var),
     Constant(Constant),
     BinaryOp(BinOp, Box<[Self; 2]>),
-    App(Func<T>, Vec<Self>),
+    App(T::Var, Vec<Self>),
     UnaryOp(UnOp, Box<Self>),
-    Pair(Box<[Self; 2]>),
     Proj(Box<Self>, Proj),
     IfThenElse(Box<[Self; 3]>),
-    Unit,
-}
-
-#[derive_where(Hash)]
-pub enum Func<T: Types> {
-    Var(T::Var),
-    /// interpreted (theory) function
-    Itf(String),
 }
 
 #[derive(Clone, Copy, Hash)]
@@ -84,7 +95,7 @@ pub enum Proj {
 #[derive_where(Hash)]
 pub struct Qualifier<T: Types> {
     pub name: String,
-    pub args: Vec<(T::Var, Sort)>,
+    pub args: Vec<(T::Var, Sort<T>)>,
     pub body: Expr<T>,
     pub global: bool,
 }
@@ -161,15 +172,28 @@ impl<T: Types> Pred<T> {
     }
 }
 
-impl PolyFuncSort {
-    pub fn new(
-        params: usize,
-        inputs: impl IntoIterator<Item = Sort>,
-        output: Sort,
-    ) -> PolyFuncSort {
-        let mut inputs = inputs.into_iter().collect_vec();
+impl<T: Types> PolyFuncSort<T> {
+    pub fn new(params: usize, mut inputs: Vec<Sort<T>>, output: Sort<T>) -> PolyFuncSort<T> {
         inputs.push(output);
         PolyFuncSort { params, fsort: FuncSort { inputs_and_output: inputs } }
+    }
+}
+
+impl<T: Types> fmt::Display for DataDecl<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(data {} {} = [{}])", self.name, self.vars, self.ctors.iter().format(" "))
+    }
+}
+
+impl<T: Types> fmt::Display for DataCtor<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "| {} {{ {} }}", self.name, self.fields.iter().format(", "))
+    }
+}
+
+impl<T: Types> fmt::Display for DataField<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.name, self.sort)
     }
 }
 
@@ -189,7 +213,7 @@ impl<T: Types> fmt::Display for Constraint<T> {
                 }
             }
             Constraint::Guard(body, head) => {
-                write!(f, "(forall ((_ Unit) {body})")?;
+                write!(f, "(forall ((_ {}) {body})", Sort::<T>::Unit)?;
                 write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
                 write!(f, "\n)")
             }
@@ -233,36 +257,44 @@ impl<T: Types> fmt::Display for PredTag<'_, T> {
     }
 }
 
-impl fmt::Display for SortCtor {
+impl<T: Types> fmt::Display for SortCtor<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SortCtor::Set => write!(f, "Set_Set"),
             SortCtor::Map => write!(f, "Map_t"),
+            SortCtor::Data(name) => write!(f, "{name}"),
         }
     }
 }
-impl fmt::Display for Sort {
+
+impl<T: Types> fmt::Display for Sort<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Sort::Int => write!(f, "int"),
             Sort::Bool => write!(f, "bool"),
             Sort::Real => write!(f, "real"),
             Sort::Unit => write!(f, "Unit"),
+            Sort::Var(i) => write!(f, "@({i})"),
             Sort::BitVec(size) => write!(f, "(BitVec Size{})", size),
-            Sort::Pair(s1, s2) => write!(f, "(Pair {s1} {s2})"),
             Sort::Func(sort) => write!(f, "{sort}"),
-            Sort::App(ctor, ts) => write!(f, "({ctor} {})", ts.iter().format(" ")),
+            Sort::App(ctor, args) => {
+                write!(f, "({ctor}")?;
+                for arg in args {
+                    write!(f, " {arg}")?;
+                }
+                write!(f, ")")
+            }
         }
     }
 }
 
-impl fmt::Display for PolyFuncSort {
+impl<T: Types> fmt::Display for PolyFuncSort<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(func({}, [{}]))", self.params, self.fsort.inputs_and_output.iter().format("; "))
     }
 }
 
-impl fmt::Display for FuncSort {
+impl<T: Types> fmt::Display for FuncSort<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(func(0, [{}]))", self.inputs_and_output.iter().format("; "))
     }
@@ -326,25 +358,22 @@ impl<T: Types> fmt::Display for Expr<T> {
                     write!(f, "{op}({e})")
                 }
             }
-            Expr::Pair(box [e1, e2]) => write!(f, "(Pair ({e1}) ({e2}))"),
+            // Expr::Tuple(exprs) => {
+            //     write!(f, "(Tuple{}", exprs.len())?;
+            //     for e in exprs {
+            //         write!(f, " {}", e)?;
+            //     }
+            //     write!(f, ")")
+            // }
             Expr::Proj(e, Proj::Fst) => write!(f, "(fst {e})"),
             Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
-            Expr::Unit => write!(f, "Unit"),
             Expr::App(func, args) => {
                 write!(f, "({func} {})", args.iter().map(FmtParens).format(" "),)
             }
             Expr::IfThenElse(box [p, e1, e2]) => {
                 write!(f, "if {p} then {e1} else {e2}")
             }
-        }
-    }
-}
-
-impl<T: Types> fmt::Display for Func<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Func::Var(name) => write!(f, "{name}"),
-            Func::Itf(itf) => write!(f, "{itf}"),
+            Expr::Unit => write!(f, "unit"),
         }
     }
 }

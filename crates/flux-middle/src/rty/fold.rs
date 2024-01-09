@@ -3,7 +3,7 @@
 
 use std::ops::ControlFlow;
 
-use flux_common::{bug, iter::IterExt};
+use flux_common::bug;
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefId;
@@ -35,6 +35,10 @@ pub trait TypeVisitor: Sized {
 
     fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<Self::BreakTy> {
         expr.super_visit_with(self)
+    }
+
+    fn visit_sort(&mut self, sort: &Sort) -> ControlFlow<Self::BreakTy> {
+        sort.super_visit_with(self)
     }
 
     fn visit_fvar(&mut self, _name: Name) -> ControlFlow<Self::BreakTy> {
@@ -194,6 +198,7 @@ pub trait TypeVisitable: Sized {
         self.visit_with(&mut collector);
         collector.0
     }
+
     /// Returns the set of all opaque type aliases def ids
     fn opaque_refine_args(&self) -> OpaqueArgsMap {
         struct CollectOpaqueRefineArgs(OpaqueArgsMap);
@@ -538,8 +543,15 @@ impl TypeFoldable for FnTraitPredicate {
         })
     }
 }
+
 impl TypeVisitable for Sort {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        visitor.visit_sort(self)
+    }
+}
+
+impl TypeSuperVisitable for Sort {
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             Sort::Tuple(sorts) | Sort::App(_, sorts) => sorts.visit_with(visitor),
             Sort::Func(fsort) => fsort.fsort.inputs_and_output.visit_with(visitor),
@@ -549,6 +561,7 @@ impl TypeVisitable for Sort {
             | Sort::BitVec(_)
             | Sort::Loc
             | Sort::Param(_)
+            | Sort::Adt(..)
             | Sort::Var(_) => ControlFlow::Continue(()),
         }
     }
@@ -575,6 +588,9 @@ impl TypeSuperFoldable for Sort {
                         .try_fold_with(folder)?,
                 };
                 Sort::Func(PolyFuncSort { params, fsort })
+            }
+            Sort::Adt(adt_sort_def, sorts) => {
+                Sort::Adt(adt_sort_def.clone(), sorts.try_fold_with(folder)?)
             }
             Sort::Int
             | Sort::Bool
@@ -977,8 +993,8 @@ impl TypeSuperVisitable for Expr {
                 e1.visit_with(visitor)?;
                 e2.visit_with(visitor)
             }
-            ExprKind::Tuple(exprs) => exprs.iter().try_for_each(|e| e.visit_with(visitor)),
-            ExprKind::PathProj(e, _) | ExprKind::UnaryOp(_, e) | ExprKind::TupleProj(e, _) => {
+            ExprKind::Aggregate(_, flds) => flds.visit_with(visitor),
+            ExprKind::FieldProj(e, _) | ExprKind::PathProj(e, _) | ExprKind::UnaryOp(_, e) => {
                 e.visit_with(visitor)
             }
             ExprKind::App(func, arg) => {
@@ -1028,13 +1044,10 @@ impl TypeSuperFoldable for Expr {
                 Expr::binary_op(*op, e1.try_fold_with(folder)?, e2.try_fold_with(folder)?, span)
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.try_fold_with(folder)?, span),
-            ExprKind::TupleProj(e, proj) => Expr::tuple_proj(e.try_fold_with(folder)?, *proj, span),
-            ExprKind::Tuple(exprs) => {
-                let exprs = exprs
-                    .iter()
-                    .map(|e| e.try_fold_with(folder))
-                    .try_collect_vec()?;
-                Expr::tuple(exprs)
+            ExprKind::FieldProj(e, proj) => Expr::field_proj(e.try_fold_with(folder)?, *proj, span),
+            ExprKind::Aggregate(kind, flds) => {
+                let flds = flds.iter().map(|e| e.try_fold_with(folder)).try_collect()?;
+                Expr::aggregate(*kind, flds)
             }
             ExprKind::PathProj(e, field) => Expr::path_proj(e.try_fold_with(folder)?, *field),
             ExprKind::App(func, arg) => {

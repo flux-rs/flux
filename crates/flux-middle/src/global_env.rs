@@ -73,15 +73,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let def_id = self.tcx.require_lang_item(LangItem::OwnedBox, None);
         let adt_def = self.adt_def(def_id).unwrap();
 
-        // this is harcoding that `Box` has two type parameters and
-        // it is indexed by unit. We leave this as a reminder in case
-        // that ever changes.
-        debug_assert_eq!(self.generics_of(def_id).unwrap().params.len(), 2);
-        debug_assert!(adt_def.sort().is_unit());
+        let args = vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)];
 
-        let bty =
-            rty::BaseTy::adt(adt_def, vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)]);
-        rty::Ty::indexed(bty, rty::Expr::unit())
+        let bty = rty::BaseTy::adt(adt_def, args);
+        rty::Ty::indexed(bty, rty::Expr::unit_adt(def_id))
     }
 
     pub fn mir(&self, def_id: LocalDefId) -> QueryResult<Rc<rustc::mir::Body<'tcx>>> {
@@ -109,6 +104,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn adt_def(&self, def_id: impl Into<DefId>) -> QueryResult<rty::AdtDef> {
         self.queries.adt_def(self, def_id.into())
+    }
+
+    pub fn adt_sort_def_of(&self, def_id: impl Into<DefId>) -> rty::AdtSortDef {
+        self.queries.adt_sort_def_of(self, def_id.into())
     }
 
     pub fn check_wf(
@@ -466,7 +465,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.tcx.hir()
     }
 
-    pub(crate) fn lookup_extern(&self, def_id: DefId) -> Option<DefId> {
+    pub fn lookup_extern(&self, def_id: DefId) -> Option<DefId> {
         self.map().get_extern(def_id).map(LocalDefId::to_def_id)
     }
 

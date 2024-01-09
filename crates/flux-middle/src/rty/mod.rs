@@ -15,7 +15,9 @@ pub mod subst;
 use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
-pub use expr::{ESpan, Expr, ExprKind, HoleKind, KVar, KVid, Loc, Name, Path, Var};
+pub use expr::{
+    AggregateKind, ESpan, Expr, ExprKind, FieldProj, HoleKind, KVar, KVid, Loc, Name, Path, Var,
+};
 use flux_common::bug;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
@@ -43,6 +45,7 @@ use crate::{
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
+    rty::fold::{TypeFolder, TypeSuperFoldable},
     rustc::{
         self,
         mir::{Local, Place},
@@ -56,6 +59,52 @@ pub use crate::{
         Region::{self, *},
     },
 };
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+pub struct AdtSortDef(Interned<AdtSortDefData>);
+
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+struct AdtSortDefData {
+    def_id: DefId,
+    params: Vec<u32>,
+    fields: List<Sort>,
+}
+
+impl AdtSortDef {
+    pub fn new(def_id: DefId, params: Vec<u32>, fields: List<Sort>) -> Self {
+        Self(Interned::new(AdtSortDefData { def_id, params, fields }))
+    }
+
+    pub fn did(&self) -> DefId {
+        self.0.def_id
+    }
+
+    pub fn fields(&self) -> usize {
+        self.0.fields.len()
+    }
+
+    pub fn instantiate(&self, args: &[Sort]) -> List<Sort> {
+        struct Subst<'a> {
+            args: &'a [Sort],
+        }
+        impl TypeFolder for Subst<'_> {
+            fn fold_sort(&mut self, sort: &Sort) -> Sort {
+                if let Sort::Var(var) = sort {
+                    self.args[var.index].clone()
+                } else {
+                    sort.super_fold_with(self)
+                }
+            }
+        }
+        self.0.fields.fold_with(&mut Subst { args })
+    }
+
+    pub fn identity_args(&self) -> List<Sort> {
+        (0..self.0.params.len())
+            .map(|i| Sort::Var(SortVar::from(i)))
+            .collect()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Generics {
@@ -180,6 +229,7 @@ pub enum Sort {
     Tuple(List<Sort>),
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
+    Adt(AdtSortDef, List<Sort>),
     Var(SortVar),
 }
 
@@ -214,7 +264,7 @@ pub struct AdtDef(Interned<AdtDefData>);
 #[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDefData {
     invariants: Vec<Invariant>,
-    sort: Sort, // TODO: Binder<Sort> as there may be Var in `Sort`
+    sort_def: AdtSortDef,
     opaque: bool,
     rustc: rustc::ty::AdtDef,
 }
@@ -234,7 +284,24 @@ pub static UINT_TYS: [UintTy; 6] =
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Invariant {
-    pub pred: Binder<Expr>,
+    // This predicate may have sort variables, but we don't explicitly mark it like in `PolyFuncSort`.
+    // See comment on `apply` for details.
+    pred: Binder<Expr>,
+}
+
+impl Invariant {
+    pub fn new(pred: Binder<Expr>) -> Self {
+        Self { pred }
+    }
+
+    pub fn apply(&self, idx: &Expr) -> Expr {
+        // The predicate may have sort variables but we don't explicitly instantiate them. This
+        // works because sort variables can only appear in sorts and not in expressions. Since
+        // we are removing the binder (which contains the sorts) we can avoid the explicit instantiation.
+        // Ultimately, this works because the expression we generate in fixpoint/z3 doesn't need
+        // sort annotations (sorts are re-inferred).
+        self.pred.replace_bound_expr(idx)
+    }
 }
 
 pub type PolyVariants = List<Binder<VariantSig>>;
@@ -439,6 +506,15 @@ impl GenericArg {
             bug!("expected `rty::GenericArg::Ty`, found {:?}", self)
         }
     }
+
+    fn peel_out_sort(&self) -> Option<Sort> {
+        match self {
+            GenericArg::Ty(ty) => ty.as_bty_skipping_existentials().map(BaseTy::sort),
+            GenericArg::BaseTy(abs) => Some(abs.vars()[0].expect_sort().clone()),
+            GenericArg::Lifetime(_) | GenericArg::Const(_) => None,
+        }
+    }
+
     pub fn is_valid_base_arg(&self) -> bool {
         match self {
             GenericArg::Ty(ty) => ty.kind().is_valid_base_ty(),
@@ -673,6 +749,16 @@ impl Sort {
         matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
     }
 
+    pub fn is_unit_adt(&self) -> Option<DefId> {
+        if let Sort::Adt(sort_def, _) = self
+            && sort_def.fields() == 0
+        {
+            Some(sort_def.did())
+        } else {
+            None
+        }
+    }
+
     /// Whether the sort is a function with return sort bool
     fn is_pred(&self) -> bool {
         matches!(self, Sort::Func(fsort) if fsort.skip_binders().output().is_bool())
@@ -686,22 +772,27 @@ impl Sort {
         matches!(self, Self::Bool)
     }
 
-    pub fn flatten(&self) -> Vec<Sort> {
-        let mut sorts = vec![];
-        self.walk(|sort, _| sorts.push(sort.clone()));
-        sorts
-    }
-
-    pub fn walk(&self, mut f: impl FnMut(&Sort, &[u32])) {
-        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[u32]), proj: &mut Vec<u32>) {
-            if let Sort::Tuple(sorts) = sort {
-                sorts.iter().enumerate().for_each(|(i, sort)| {
-                    proj.push(i as u32);
-                    go(sort, f, proj);
-                    proj.pop();
-                });
-            } else {
-                f(sort, proj);
+    pub fn walk(&self, mut f: impl FnMut(&Sort, &[FieldProj])) {
+        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[FieldProj]), proj: &mut Vec<FieldProj>) {
+            match sort {
+                Sort::Tuple(flds) => {
+                    for (i, sort) in flds.iter().enumerate() {
+                        proj.push(FieldProj::Tuple { arity: flds.len(), field: i as u32 });
+                        go(sort, f, proj);
+                        proj.pop();
+                    }
+                }
+                Sort::Adt(sort_def, args) => {
+                    let flds = sort_def.instantiate(args);
+                    for (i, sort) in flds.iter().enumerate() {
+                        proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i as u32 });
+                        go(sort, f, proj);
+                        proj.pop();
+                    }
+                }
+                _ => {
+                    f(sort, proj);
+                }
             }
         }
         go(self, &mut f, &mut vec![]);
@@ -982,19 +1073,28 @@ impl FnOutput {
 impl AdtDef {
     pub fn new(
         rustc: rustc::ty::AdtDef,
-        sort: Sort,
+        sort_def: AdtSortDef,
         invariants: Vec<Invariant>,
         opaque: bool,
     ) -> Self {
-        AdtDef(Interned::new(AdtDefData { invariants, sort, opaque, rustc }))
+        AdtDef(Interned::new(AdtDefData { invariants, sort_def, opaque, rustc }))
     }
 
     pub fn did(&self) -> DefId {
         self.0.rustc.did()
     }
 
-    pub fn sort(&self) -> &Sort {
-        &self.0.sort
+    pub fn sort(&self, args: &[GenericArg]) -> Sort {
+        let sorts = self
+            .0
+            .sort_def
+            .0
+            .params
+            .iter()
+            .map(|i| args[*i as usize].peel_out_sort().unwrap())
+            .collect();
+
+        Sort::Adt(self.0.sort_def.clone(), sorts)
     }
 
     pub fn is_box(&self) -> bool {
@@ -1410,7 +1510,7 @@ impl BaseTy {
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
             BaseTy::Bool => Sort::Bool,
-            BaseTy::Adt(adt_def, _) => adt_def.sort().clone(),
+            BaseTy::Adt(adt_def, args) => adt_def.sort(args),
             BaseTy::Param(param_ty) => Sort::Param(*param_ty),
             BaseTy::Float(_)
             | BaseTy::Str
@@ -1514,7 +1614,7 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
     }
 }
 
-impl_internable!(AdtDefData, TyS);
+impl_internable!(AdtDefData, AdtSortDefData, TyS);
 impl_slice_internable!(
     Ty,
     GenericArg,
@@ -1689,6 +1789,13 @@ mod pretty {
                 Sort::Loc => w!("loc"),
                 Sort::Var(n) => w!("@{}", ^n.index),
                 Sort::Func(sort) => w!("{:?}", sort),
+                Sort::Adt(adt_sort_def, args) => {
+                    if args.is_empty() {
+                        w!("{:?}", adt_sort_def.did())
+                    } else {
+                        w!("{:?}<{:?}>", adt_sort_def.did(), join!(", ", args))
+                    }
+                }
                 Sort::Tuple(sorts) => {
                     if let [sort] = &sorts[..] {
                         w!("({:?},)", sort)
@@ -1697,8 +1804,8 @@ mod pretty {
                     }
                 }
                 Sort::App(ctor, sorts) => {
-                    if let [sort] = &sorts[..] {
-                        w!("{:?}<{:?}>", ctor, sort)
+                    if sorts.is_empty() {
+                        w!("{:?}", ctor)
                     } else {
                         w!("{:?}<{:?}>", ctor, join!(", ", sorts))
                     }

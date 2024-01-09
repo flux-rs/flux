@@ -180,6 +180,8 @@ pub struct StructDef {
     pub params: Vec<RefineParam>,
     pub kind: StructKind,
     pub invariants: Vec<Expr>,
+    /// Whether this is a spec for an extern struct
+    pub extern_id: Option<DefId>,
 }
 
 #[derive(Debug)]
@@ -204,7 +206,7 @@ pub struct EnumDef {
     pub params: Vec<RefineParam>,
     pub variants: Vec<VariantDef>,
     pub invariants: Vec<Expr>,
-    /// Whether this is an extern_spec for some other enum
+    /// Whether this is a expecr for an extern enum
     pub extern_id: Option<DefId>,
 }
 
@@ -331,6 +333,7 @@ pub enum WeakKind {
 
 pub struct WfckResults {
     pub owner: FluxOwnerId,
+    record_ctors: ItemLocalMap<(DefId, List<Sort>)>,
     node_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
     type_holes: ItemLocalMap<Ty>,
@@ -339,8 +342,8 @@ pub struct WfckResults {
 
 #[derive(Debug)]
 pub enum Coercion {
-    Inject,
-    Project,
+    Inject(DefId),
+    Project(DefId),
 }
 
 pub type ItemLocalMap<T> = FxHashMap<ItemLocalId, T>;
@@ -813,7 +816,7 @@ impl Ident {
 /// [early bound]: https://rustc-dev-guide.rust-lang.org/early-late-bound.html
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct RefinedBy {
-    pub def_id: DefId,
+    pub def_id: LocalDefId,
     pub span: Span,
     /// Tracks the mapping from bound var to generic def ids. e.g. if we have
     ///
@@ -823,7 +826,7 @@ pub struct RefinedBy {
     /// ```
     /// then the sort associated to `RMap` is of the form `forall #0. { keys: Set<#0> }`
     /// and `sort_params` will be `vec![K]`,  i.e., it maps `Var(0)` to `K`.
-    sort_params: Vec<DefId>,
+    pub sort_params: Vec<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     index_params: FxIndexMap<Symbol, Sort>,
     /// The number of early bound parameters
@@ -879,7 +882,7 @@ impl Generics {
 
 impl RefinedBy {
     pub fn new(
-        def_id: impl Into<DefId>,
+        def_id: LocalDefId,
         early_bound_params: impl IntoIterator<Item = Sort>,
         index_params: impl IntoIterator<Item = (Symbol, Sort)>,
         sort_params: Vec<DefId>,
@@ -891,12 +894,12 @@ impl RefinedBy {
             .into_iter()
             .inspect(|(_, sort)| sorts.push(sort.clone()))
             .collect();
-        RefinedBy { def_id: def_id.into(), sort_params, span, index_params, early_bound, sorts }
+        RefinedBy { def_id, span, sort_params, index_params, early_bound, sorts }
     }
 
-    pub fn trivial(def_id: impl Into<DefId>, span: Span) -> Self {
+    pub fn trivial(def_id: LocalDefId, span: Span) -> Self {
         RefinedBy {
-            def_id: def_id.into(),
+            def_id,
             sort_params: Default::default(),
             span,
             index_params: Default::default(),
@@ -925,6 +928,15 @@ impl RefinedBy {
             .iter()
             .map(|sort| sort.subst(args))
             .collect()
+    }
+
+    // TODO(nilehmann) remove this function
+    pub fn index_sorts_raw(&self) -> &[Sort] {
+        &self.sorts[self.early_bound..]
+    }
+
+    pub fn param_count(&self) -> usize {
+        self.sort_params.len()
     }
 
     fn is_base_generic(&self, def_id: DefId) -> bool {
@@ -1168,6 +1180,16 @@ impl Map {
         self.externs.get(&extern_def_id).copied()
     }
 
+    /// Return whether the local_def_id is a spec for an extern item. This is the inverse of
+    /// [`Map::get_extern`]. This currently only works for structs or enums
+    pub fn extern_id_of(&self, tcx: TyCtxt, local_def_id: LocalDefId) -> Option<DefId> {
+        match tcx.def_kind(local_def_id) {
+            DefKind::Struct => self.get_struct(local_def_id).extern_id,
+            DefKind::Enum => self.get_enum(local_def_id).extern_id,
+            _ => None,
+        }
+    }
+
     // ADT
 
     pub fn insert_refined_by(&mut self, def_id: LocalDefId, refined_by: RefinedBy) {
@@ -1391,11 +1413,20 @@ impl WfckResults {
     pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
         Self {
             owner: owner.into(),
+            record_ctors: ItemLocalMap::default(),
             node_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
             type_holes: ItemLocalMap::default(),
             lifetime_holes: ItemLocalMap::default(),
         }
+    }
+
+    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<(DefId, List<Sort>)> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.record_ctors }
+    }
+
+    pub fn record_ctors(&self) -> LocalTableInContext<(DefId, List<Sort>)> {
+        LocalTableInContext { owner: self.owner, data: &self.record_ctors }
     }
 
     pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {

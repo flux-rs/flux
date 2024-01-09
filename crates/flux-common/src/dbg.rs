@@ -117,3 +117,11 @@ fn dump_base_name(tcx: TyCtxt, def_id: DefId, ext: impl AsRef<str>) -> String {
     let item_name = tcx.def_path(def_id).to_filename_friendly_no_crate();
     format!("{crate_name}.{item_name}.{}", ext.as_ref())
 }
+
+#[macro_export]
+macro_rules! _debug_assert_eq3 {
+    ($e1:expr, $e2:expr, $e3:expr) => {{
+        debug_assert!($e1 == $e2 && $e2 == $e3, "{:?} != {:?} != {:?}", $e1, $e2, $e3);
+    }};
+}
+pub use crate::_debug_assert_eq3 as debug_assert_eq3;

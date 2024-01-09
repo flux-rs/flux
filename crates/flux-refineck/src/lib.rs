@@ -94,6 +94,7 @@ pub fn check_fn(
             dbg::dump_item_info(genv.tcx, def_id, "fluxc", &refine_tree).unwrap();
         }
         let mut fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars);
+        fcx.collect_sorts(&refine_tree);
         let constraint = refine_tree.into_fixpoint(&mut fcx);
         let errors = fcx.check(cache, constraint, &config).emit(genv.sess)?;
 

@@ -10,7 +10,7 @@ use flux_middle::{
 use itertools::izip;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
-use rustc_span::Span;
+use rustc_span::{def_id::DefId, Span};
 
 use super::errors;
 
@@ -41,28 +41,25 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         match &arg.kind {
             fhir::RefineArgKind::Expr(expr) => self.check_expr(expr, expected),
-            fhir::RefineArgKind::Abs(params, body) => {
-                self.check_abs(params, body, arg.span, arg.fhir_id, expected)
-            }
-            fhir::RefineArgKind::Record(flds) => self.check_record(flds, arg.span, expected),
+            fhir::RefineArgKind::Abs(params, body) => self.check_abs(arg, params, body, expected),
+            fhir::RefineArgKind::Record(flds) => self.check_record(arg, flds, expected),
         }
     }
 
     fn check_abs(
         &mut self,
+        arg: &fhir::RefineArg,
         params: &Vec<fhir::RefineParam>,
         body: &fhir::Expr,
-        span: Span,
-        fhir_id: FhirId,
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
-        if let Some(fsort) = self.is_coercible_to_func(expected, fhir_id, fhir::Coercion::Inject) {
+        if let Some(fsort) = self.is_coercible_from_func(expected, arg.fhir_id) {
             let fsort = fsort.skip_binders();
             self.push_layer(params);
 
             if params.len() != fsort.inputs().len() {
                 return Err(self.emit_err(errors::ParamCountMismatch::new(
-                    span,
+                    arg.span,
                     fsort.inputs().len(),
                     params.len(),
                 )));
@@ -77,35 +74,39 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             self.check_expr(body, fsort.output())?;
             self.resolve_params_sorts(params)
         } else {
-            Err(self.emit_err(errors::UnexpectedFun::new(span, expected)))
+            Err(self.emit_err(errors::UnexpectedFun::new(arg.span, expected)))
         }
     }
 
     fn check_record(
         &mut self,
-        args: &[fhir::RefineArg],
-        span: Span,
+        arg: &fhir::RefineArg,
+        flds: &[fhir::RefineArg],
         expected: &fhir::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         if let fhir::Sort::Record(def_id, sort_args) = expected {
             let sorts = self.genv.index_sorts_of(*def_id, sort_args);
-            if args.len() != sorts.len() {
+            if flds.len() != sorts.len() {
                 return Err(self.emit_err(errors::ArgCountMismatch::new(
-                    Some(span),
+                    Some(arg.span),
                     String::from("type"),
                     sorts.len(),
-                    args.len(),
+                    flds.len(),
                 )));
             }
-            izip!(args, sorts)
+            self.wfckresults
+                .record_ctors_mut()
+                .insert(arg.fhir_id, (*def_id, sort_args.clone()));
+
+            izip!(flds, sorts)
                 .map(|(arg, expected)| self.check_refine_arg(arg, &expected))
                 .try_collect_exhaust()
         } else {
             Err(self.emit_err(errors::ArgCountMismatch::new(
-                Some(span),
+                Some(arg.span),
                 String::from("type"),
                 1,
-                args.len(),
+                flds.len(),
             )))
         }
     }
@@ -163,9 +164,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 }
             }
             fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div => {
-                if let Some(expected) =
-                    self.is_coercible_to_numeric(expected, expr.fhir_id, fhir::Coercion::Inject)
-                {
+                if let Some(expected) = self.is_coercible_from_numeric(expected, expr.fhir_id) {
                     self.check_expr(e1, &expected)?;
                     self.check_expr(e2, &expected)?;
                     return Ok(());
@@ -253,9 +252,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge => {
                 let found = self.synth_expr(e1)?;
-                if let Some(found) =
-                    self.is_coercible_to_numeric(&found, e1.fhir_id, fhir::Coercion::Project)
-                {
+                if let Some(found) = self.is_coercible_to_numeric(&found, e1.fhir_id) {
                     self.check_expr(e2, &found)?;
                     Ok(fhir::Sort::Bool)
                 } else {
@@ -264,9 +261,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             }
             fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div => {
                 let found = self.synth_expr(e1)?;
-                if let Some(found) =
-                    self.is_coercible_to_numeric(&found, e1.fhir_id, fhir::Coercion::Project)
-                {
+                if let Some(found) = self.is_coercible_to_numeric(&found, e1.fhir_id) {
                     self.check_expr(e2, &found)?;
                     Ok(found)
                 } else {
@@ -319,9 +314,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         let func_sort = match func {
             fhir::Func::Var(var, fhir_id) => {
                 let sort = self.lookup_var(*var);
-                if let Some(fsort) =
-                    self.is_coercible_to_func(&sort, *fhir_id, fhir::Coercion::Project)
-                {
+                if let Some(fsort) = self.is_coercible_to_func(&sort, *fhir_id) {
                     Ok(fsort)
                 } else {
                     Err(self.emit_err(errors::ExpectedFun::new(var.span(), &sort)))
@@ -381,33 +374,68 @@ impl<'a> InferCtxt<'a, '_> {
         let mut sort2 = sort2.clone();
 
         let mut coercions = vec![];
-        if let Some(sort) = self.is_single_field_record(&sort1) {
-            coercions.push(fhir::Coercion::Project);
+        if let Some((def_id, sort)) = self.is_single_field_record(&sort1) {
+            coercions.push(fhir::Coercion::Project(def_id));
             sort1 = sort.clone();
         }
-        if let Some(sort) = self.is_single_field_record(&sort2) {
-            coercions.push(fhir::Coercion::Inject);
+        if let Some((def_id, sort)) = self.is_single_field_record(&sort2) {
+            coercions.push(fhir::Coercion::Inject(def_id));
             sort2 = sort.clone();
         }
         self.wfckresults.coercions_mut().insert(fhir_id, coercions);
         self.try_equate(&sort1, &sort2).is_some()
     }
 
-    fn is_coercible_to_numeric(
+    fn is_coercible_from_numeric(
         &mut self,
         sort: &fhir::Sort,
         fhir_id: FhirId,
-        coercion: fhir::Coercion,
     ) -> Option<fhir::Sort> {
         if self.is_numeric(sort) {
             Some(sort.clone())
-        } else if let Some(sort) = self.is_single_field_record(sort)
+        } else if let Some((def_id, sort)) = self.is_single_field_record(sort)
             && sort.is_numeric()
         {
             self.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, vec![coercion]);
+                .insert(fhir_id, vec![fhir::Coercion::Inject(def_id)]);
             Some(sort.clone())
+        } else {
+            None
+        }
+    }
+
+    fn is_coercible_to_numeric(
+        &mut self,
+        sort: &fhir::Sort,
+        fhir_id: FhirId,
+    ) -> Option<fhir::Sort> {
+        if self.is_numeric(sort) {
+            Some(sort.clone())
+        } else if let Some((def_id, sort)) = self.is_single_field_record(sort)
+            && sort.is_numeric()
+        {
+            self.wfckresults
+                .coercions_mut()
+                .insert(fhir_id, vec![fhir::Coercion::Project(def_id)]);
+            Some(sort.clone())
+        } else {
+            None
+        }
+    }
+
+    fn is_coercible_from_func(
+        &mut self,
+        sort: &fhir::Sort,
+        fhir_id: FhirId,
+    ) -> Option<fhir::PolyFuncSort> {
+        if let Some(fsort) = self.is_func(sort) {
+            Some(fsort)
+        } else if let Some((def_id, fhir::Sort::Func(fsort))) = self.is_single_field_record(sort) {
+            self.wfckresults
+                .coercions_mut()
+                .insert(fhir_id, vec![fhir::Coercion::Inject(def_id)]);
+            Some(fsort.clone())
         } else {
             None
         }
@@ -417,14 +445,13 @@ impl<'a> InferCtxt<'a, '_> {
         &mut self,
         sort: &fhir::Sort,
         fhir_id: FhirId,
-        coercion: fhir::Coercion,
     ) -> Option<fhir::PolyFuncSort> {
         if let Some(fsort) = self.is_func(sort) {
             Some(fsort)
-        } else if let Some(fhir::Sort::Func(fsort)) = self.is_single_field_record(sort) {
+        } else if let Some((def_id, fhir::Sort::Func(fsort))) = self.is_single_field_record(sort) {
             self.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, vec![coercion]);
+                .insert(fhir_id, vec![fhir::Coercion::Project(def_id)]);
             Some(fsort.clone())
         } else {
             None
@@ -550,12 +577,12 @@ impl<'a> InferCtxt<'a, '_> {
         })
     }
 
-    fn is_single_field_record(&mut self, sort: &fhir::Sort) -> Option<fhir::Sort> {
+    fn is_single_field_record(&mut self, sort: &fhir::Sort) -> Option<(DefId, fhir::Sort)> {
         self.resolve_sort(sort).and_then(|s| {
             if let fhir::Sort::Record(def_id, sort_args) = s
                 && let [sort] = &self.genv.index_sorts_of(def_id, &sort_args)[..]
             {
-                Some(sort.clone())
+                Some((def_id, sort.clone()))
             } else {
                 None
             }

@@ -38,6 +38,7 @@ pub fn provide(providers: &mut Providers) {
         defns,
         qualifiers,
         func_decls,
+        adt_sort_def_of,
         check_wf,
         adt_def,
         type_of,
@@ -48,6 +49,10 @@ pub fn provide(providers: &mut Providers) {
         predicates_of,
         item_bounds,
     };
+}
+
+fn adt_sort_def_of(genv: &GlobalEnv, def_id: LocalDefId) -> rty::AdtSortDef {
+    conv::conv_adt_sort_def(genv, genv.map().refined_by(def_id))
 }
 
 fn func_decls(genv: &GlobalEnv) -> FxHashMap<Symbol, rty::FuncDecl> {
@@ -99,7 +104,7 @@ fn invariants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::I
         kind => bug!("expected struct or enum found `{kind:?}`"),
     };
     let wfckresults = genv.check_wf(def_id)?;
-    conv::conv_invariants(genv, params, invariants, &wfckresults)
+    conv::conv_invariants(genv, def_id, params, invariants, &wfckresults)
         .into_iter()
         .map(|invariant| normalize(genv, invariant))
         .collect()
@@ -260,7 +265,9 @@ fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
 
     if config::dump_rty() {
         let generics = genv.generics_of(def_id)?;
-        dbg::dump_item_info(genv.tcx, def_id, "rty", (generics, &fn_sig)).unwrap();
+        let refinement_generics = genv.refinement_generics_of(def_id)?;
+        dbg::dump_item_info(genv.tcx, def_id, "rty", (generics, refinement_generics, &fn_sig))
+            .unwrap();
     }
     Ok(fn_sig)
 }

@@ -176,7 +176,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             adt_def,
             rty::GenericArgs::identity_for_item(self.genv, adt_def_id)?,
             fields,
-            rty::Expr::unit(),
+            rty::Expr::unit_adt(adt_def_id),
         );
         Ok(rty::Binder::new(value, List::empty()))
     }
@@ -264,14 +264,21 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     }
 
     pub(crate) fn refine_ty(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::Ty> {
-        let ty = self.refine_poly_ty(ty)?;
-        match &ty.vars()[..] {
-            [] => Ok(ty.skip_binder().shift_out_escaping(1)),
-            [rty::BoundVariableKind::Refine(s, _)] if s.is_unit() => {
-                Ok(ty.replace_bound_exprs(&[rty::Expr::unit()]))
+        let poly_ty = self.refine_poly_ty(ty)?;
+        let ty = match &poly_ty.vars()[..] {
+            [] => poly_ty.skip_binder().shift_out_escaping(1),
+            [rty::BoundVariableKind::Refine(s, _)] => {
+                if s.is_unit() {
+                    poly_ty.replace_bound_expr(&rty::Expr::unit())
+                } else if let Some(def_id) = s.is_unit_adt() {
+                    poly_ty.replace_bound_expr(&rty::Expr::unit_adt(def_id))
+                } else {
+                    rty::Ty::exists(poly_ty)
+                }
             }
-            _ => Ok(rty::Ty::exists(ty)),
-        }
+            _ => rty::Ty::exists(poly_ty),
+        };
+        Ok(ty)
     }
 
     fn refine_alias_kind(kind: &rustc::ty::AliasKind) -> rty::AliasKind {

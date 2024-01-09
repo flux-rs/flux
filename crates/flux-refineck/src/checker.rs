@@ -386,7 +386,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             }
             StatementKind::PlaceMention(_) => {
                 // Place mentions are a no-op used to detect uses of unsafe that would
-                // otherwise optimized away.
+                // otherwise be optimized away.
             }
             StatementKind::Nop => {}
         }

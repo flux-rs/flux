@@ -81,8 +81,8 @@ pub enum ExprKind {
     App(Expr, List<Expr>),
     GlobalFunc(Symbol, FuncKind),
     UnaryOp(UnOp, Expr),
-    TupleProj(Expr, u32),
-    Tuple(List<Expr>),
+    FieldProj(Expr, FieldProj),
+    Aggregate(AggregateKind, List<Expr>),
     PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
@@ -107,6 +107,26 @@ pub enum ExprKind {
     /// (where we don't want to worry about the scope) and the places where we infer them (where we do need to worry
     /// about the scope).
     Hole(HoleKind),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+pub enum AggregateKind {
+    Tuple,
+    Adt(DefId),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+pub enum FieldProj {
+    Tuple { arity: usize, field: u32 },
+    Adt { def_id: DefId, field: u32 },
+}
+
+impl FieldProj {
+    pub fn field(&self) -> u32 {
+        match self {
+            FieldProj::Tuple { field, .. } | FieldProj::Adt { field, .. } => *field,
+        }
+    }
 }
 
 /// The position where a hole appears. This determines how it will be inferred. This is related but not
@@ -253,16 +273,17 @@ impl Expr {
         Expr::late_bvar(INNERMOST, 0)
     }
 
-    pub fn expect_tuple(&self) -> &[Expr] {
-        if let ExprKind::Tuple(tup) = self.kind() {
-            tup
+    #[track_caller]
+    pub fn expect_adt(&self) -> (DefId, List<Expr>) {
+        if let ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) = self.kind() {
+            (*def_id, flds.clone())
         } else {
-            bug!("expected tuple")
+            bug!("expected record, found {self:?}")
         }
     }
 
     pub fn unit() -> Expr {
-        Expr::tuple(vec![])
+        Expr::tuple(List::empty())
     }
 
     pub fn var(var: Var, espan: Option<ESpan>) -> Expr {
@@ -301,8 +322,16 @@ impl Expr {
         ExprKind::ConstDefId(c).intern_at(espan)
     }
 
-    pub fn tuple(exprs: impl Into<List<Expr>>) -> Expr {
-        ExprKind::Tuple(exprs.into()).intern()
+    pub fn aggregate(kind: AggregateKind, flds: List<Expr>) -> Expr {
+        ExprKind::Aggregate(kind, flds).intern()
+    }
+
+    pub fn tuple(flds: List<Expr>) -> Expr {
+        Expr::aggregate(AggregateKind::Tuple, flds)
+    }
+
+    pub fn record(def_id: DefId, flds: List<Expr>) -> Expr {
+        ExprKind::Aggregate(AggregateKind::Adt(def_id), flds).intern()
     }
 
     pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {
@@ -346,6 +375,10 @@ impl Expr {
         espan: Option<ESpan>,
     ) -> Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern_at(espan)
+    }
+
+    pub fn unit_adt(def_id: DefId) -> Expr {
+        Expr::record(def_id, List::empty())
     }
 
     pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>, espan: Option<ESpan>) -> Expr {
@@ -392,15 +425,15 @@ impl Expr {
         ExprKind::BinaryOp(BinOp::Imp, e1.into(), e2.into()).intern()
     }
 
-    pub fn tuple_proj(e: impl Into<Expr>, proj: u32, espan: Option<ESpan>) -> Expr {
-        ExprKind::TupleProj(e.into(), proj).intern_at(espan)
+    pub fn field_proj(e: impl Into<Expr>, proj: FieldProj, espan: Option<ESpan>) -> Expr {
+        ExprKind::FieldProj(e.into(), proj).intern_at(espan)
     }
 
-    pub fn tuple_projs(e: impl Into<Expr>, projs: &[u32]) -> Expr {
+    pub fn field_projs(e: impl Into<Expr>, projs: &[FieldProj]) -> Expr {
         projs
             .iter()
             .copied()
-            .fold(e.into(), |e, p| Expr::tuple_proj(e, p, None))
+            .fold(e.into(), |e, p| Expr::field_proj(e, p, None))
     }
 
     pub fn path_proj(base: Expr, field: FieldIdx) -> Expr {
@@ -544,10 +577,13 @@ impl Expr {
 
     pub fn fold_sort(sort: &Sort, mut f: impl FnMut(&Sort) -> Expr) -> Expr {
         fn go(sort: &Sort, f: &mut impl FnMut(&Sort) -> Expr) -> Expr {
-            if let Sort::Tuple(sorts) = sort {
-                Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect_vec())
-            } else {
-                f(sort)
+            match sort {
+                Sort::Tuple(sorts) => Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect()),
+                Sort::Adt(adt_sort_def, args) => {
+                    let flds = adt_sort_def.instantiate(args);
+                    Expr::record(adt_sort_def.did(), flds.iter().map(|sort| go(sort, f)).collect())
+                }
+                _ => f(sort),
             }
         }
         go(sort, &mut f)
@@ -757,19 +793,22 @@ mod pretty {
                         w!("{:?}({:?})", op, e)
                     }
                 }
-                ExprKind::TupleProj(e, field) => {
+                ExprKind::FieldProj(e, proj) => {
                     if e.is_atom() {
-                        w!("{:?}.{:?}", e, ^field)
+                        w!("{:?}.{:?}", e, ^proj.field())
                     } else {
-                        w!("({:?}).{:?}", e, ^field)
+                        w!("({:?}).{:?}", e, ^proj.field())
                     }
                 }
-                ExprKind::Tuple(exprs) => {
-                    if let [e] = &exprs[..] {
+                ExprKind::Aggregate(AggregateKind::Tuple, flds) => {
+                    if let [e] = &flds[..] {
                         w!("({:?},)", e)
                     } else {
-                        w!("({:?})", join!(", ", exprs))
+                        w!("({:?})", join!(", ", flds))
                     }
+                }
+                ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) => {
+                    w!("{:?} {{ {:?} }}", def_id, join!(", ", flds))
                 }
                 ExprKind::PathProj(e, field) => {
                     if e.is_atom() {
