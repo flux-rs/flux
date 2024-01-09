@@ -327,34 +327,6 @@ pub enum WeakKind {
     Arr,
 }
 
-pub struct WfckResults {
-    pub owner: FluxOwnerId,
-    record_ctors: ItemLocalMap<DefId>,
-    node_sorts: ItemLocalMap<crate::rty::Sort>,
-    coercions: ItemLocalMap<Vec<Coercion>>,
-    type_holes: ItemLocalMap<Ty>,
-    lifetime_holes: ItemLocalMap<ResolvedArg>,
-}
-
-#[derive(Debug)]
-pub enum Coercion {
-    Inject(DefId),
-    Project(DefId),
-}
-
-pub type ItemLocalMap<T> = FxHashMap<ItemLocalId, T>;
-
-#[derive(Debug)]
-pub struct LocalTableInContext<'a, T> {
-    owner: FluxOwnerId,
-    data: &'a ItemLocalMap<T>,
-}
-
-pub struct LocalTableInContextMut<'a, T> {
-    owner: FluxOwnerId,
-    data: &'a mut ItemLocalMap<T>,
-}
-
 impl From<Mutability> for WeakKind {
     fn from(mutbl: Mutability) -> WeakKind {
         match mutbl {
@@ -1243,73 +1215,6 @@ impl TyAlias {
 impl StructDef {
     pub fn is_opaque(&self) -> bool {
         matches!(self.kind, StructKind::Opaque)
-    }
-}
-
-impl WfckResults {
-    pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
-        Self {
-            owner: owner.into(),
-            record_ctors: ItemLocalMap::default(),
-            node_sorts: ItemLocalMap::default(),
-            coercions: ItemLocalMap::default(),
-            type_holes: ItemLocalMap::default(),
-            lifetime_holes: ItemLocalMap::default(),
-        }
-    }
-
-    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<DefId> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.record_ctors }
-    }
-
-    pub fn record_ctors(&self) -> LocalTableInContext<DefId> {
-        LocalTableInContext { owner: self.owner, data: &self.record_ctors }
-    }
-
-    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<crate::rty::Sort> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
-    }
-
-    pub fn node_sorts(&self) -> LocalTableInContext<crate::rty::Sort> {
-        LocalTableInContext { owner: self.owner, data: &self.node_sorts }
-    }
-
-    pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.coercions }
-    }
-
-    pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
-        LocalTableInContext { owner: self.owner, data: &self.coercions }
-    }
-
-    pub fn type_holes_mut(&mut self) -> LocalTableInContextMut<Ty> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.type_holes }
-    }
-
-    pub fn type_holes(&self) -> LocalTableInContext<Ty> {
-        LocalTableInContext { owner: self.owner, data: &self.type_holes }
-    }
-
-    pub fn lifetime_holes_mut(&mut self) -> LocalTableInContextMut<ResolvedArg> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.lifetime_holes }
-    }
-
-    pub fn lifetime_holes(&self) -> LocalTableInContext<ResolvedArg> {
-        LocalTableInContext { owner: self.owner, data: &self.lifetime_holes }
-    }
-}
-
-impl<'a, T> LocalTableInContextMut<'a, T> {
-    pub fn insert(&mut self, fhir_id: FhirId, value: T) {
-        assert_eq!(self.owner, fhir_id.owner);
-        self.data.insert(fhir_id.local_id, value);
-    }
-}
-
-impl<'a, T> LocalTableInContext<'a, T> {
-    pub fn get(&self, fhir_id: FhirId) -> Option<&'a T> {
-        assert_eq!(self.owner, fhir_id.owner);
-        self.data.get(&fhir_id.local_id)
     }
 }
 

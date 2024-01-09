@@ -27,7 +27,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
 use rustc_macros::{newtype_index, Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::ty::ParamConst;
+use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::ParamConst};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, OutlivesPredicate, ParamTy, ScalarInt, UintTy},
@@ -48,7 +48,7 @@ pub use crate::{
     },
 };
 use crate::{
-    fhir::{FuncKind, ParamKind},
+    fhir::{self, FhirId, FluxOwnerId, FuncKind, ParamKind},
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
@@ -1732,6 +1732,101 @@ macro_rules! _Ref {
     };
 }
 pub use crate::_Ref as Ref;
+
+pub struct WfckResults {
+    pub owner: FluxOwnerId,
+    record_ctors: ItemLocalMap<DefId>,
+    node_sorts: ItemLocalMap<Sort>,
+    coercions: ItemLocalMap<Vec<Coercion>>,
+    type_holes: ItemLocalMap<fhir::Ty>,
+    lifetime_holes: ItemLocalMap<ResolvedArg>,
+}
+
+#[derive(Debug)]
+pub enum Coercion {
+    Inject(DefId),
+    Project(DefId),
+}
+
+pub type ItemLocalMap<T> = FxHashMap<fhir::ItemLocalId, T>;
+
+#[derive(Debug)]
+pub struct LocalTableInContext<'a, T> {
+    owner: FluxOwnerId,
+    data: &'a ItemLocalMap<T>,
+}
+
+pub struct LocalTableInContextMut<'a, T> {
+    owner: FluxOwnerId,
+    data: &'a mut ItemLocalMap<T>,
+}
+
+impl WfckResults {
+    pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
+        Self {
+            owner: owner.into(),
+            record_ctors: ItemLocalMap::default(),
+            node_sorts: ItemLocalMap::default(),
+            coercions: ItemLocalMap::default(),
+            type_holes: ItemLocalMap::default(),
+            lifetime_holes: ItemLocalMap::default(),
+        }
+    }
+
+    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<DefId> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.record_ctors }
+    }
+
+    pub fn record_ctors(&self) -> LocalTableInContext<DefId> {
+        LocalTableInContext { owner: self.owner, data: &self.record_ctors }
+    }
+
+    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
+    }
+
+    pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
+        LocalTableInContext { owner: self.owner, data: &self.node_sorts }
+    }
+
+    pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.coercions }
+    }
+
+    pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
+        LocalTableInContext { owner: self.owner, data: &self.coercions }
+    }
+
+    pub fn type_holes_mut(&mut self) -> LocalTableInContextMut<fhir::Ty> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.type_holes }
+    }
+
+    pub fn type_holes(&self) -> LocalTableInContext<fhir::Ty> {
+        LocalTableInContext { owner: self.owner, data: &self.type_holes }
+    }
+
+    pub fn lifetime_holes_mut(&mut self) -> LocalTableInContextMut<ResolvedArg> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.lifetime_holes }
+    }
+
+    pub fn lifetime_holes(&self) -> LocalTableInContext<ResolvedArg> {
+        LocalTableInContext { owner: self.owner, data: &self.lifetime_holes }
+    }
+}
+
+impl<'a, T> LocalTableInContextMut<'a, T> {
+    pub fn insert(&mut self, fhir_id: FhirId, value: T) {
+        assert_eq!(self.owner, fhir_id.owner);
+        self.data.insert(fhir_id.local_id, value);
+    }
+}
+
+impl<'a, T> LocalTableInContext<'a, T> {
+    pub fn get(&self, fhir_id: FhirId) -> Option<&'a T> {
+        assert_eq!(self.owner, fhir_id.owner);
+        self.data.get(&fhir_id.local_id)
+    }
+}
 
 mod pretty {
     use rustc_middle::ty::TyCtxt;

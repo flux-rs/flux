@@ -10,9 +10,9 @@ use std::iter;
 use flux_common::{bug, iter::IterExt, span_bug};
 use flux_errors::{FluxSession, ResultExt};
 use flux_middle::{
-    fhir::{self, FluxOwnerId, SurfaceIdent, WfckResults},
+    fhir::{self, FluxOwnerId, SurfaceIdent},
     global_env::GlobalEnv,
-    rty::{self, GenericParamDefKind},
+    rty::{self, GenericParamDefKind, WfckResults},
 };
 use rustc_data_structures::snapshot_map::{self, SnapshotMap};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};

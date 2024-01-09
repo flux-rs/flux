@@ -4,9 +4,9 @@ use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt};
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
-    fhir::{self, FhirId, FluxOwnerId, WfckResults},
+    fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
-    rty,
+    rty::{self, WfckResults},
 };
 use itertools::izip;
 use rustc_data_structures::unord::UnordMap;
@@ -20,7 +20,7 @@ pub(super) struct InferCtxt<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     params: UnordMap<fhir::Name, (rty::Sort, fhir::ParamKind)>,
     pub(super) unification_table: InPlaceUnificationTable<rty::SortVid>,
-    wfckresults: fhir::WfckResults,
+    wfckresults: WfckResults,
     /// sort variables that can only be instantiated to sorts that support equality (i.e. non `FuncSort`)
     eq_vids: HashSet<rty::SortVid>,
 }
@@ -29,7 +29,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     pub(super) fn new(genv: &'a GlobalEnv<'a, 'tcx>, owner: FluxOwnerId) -> Self {
         Self {
             genv,
-            wfckresults: fhir::WfckResults::new(owner),
+            wfckresults: WfckResults::new(owner),
             unification_table: InPlaceUnificationTable::new(),
             params: Default::default(),
             eq_vids: Default::default(),
@@ -372,11 +372,11 @@ impl<'a> InferCtxt<'a, '_> {
 
         let mut coercions = vec![];
         if let Some((def_id, sort)) = self.is_single_field_record(&sort1) {
-            coercions.push(fhir::Coercion::Project(def_id));
+            coercions.push(rty::Coercion::Project(def_id));
             sort1 = sort.clone();
         }
         if let Some((def_id, sort)) = self.is_single_field_record(&sort2) {
-            coercions.push(fhir::Coercion::Inject(def_id));
+            coercions.push(rty::Coercion::Inject(def_id));
             sort2 = sort.clone();
         }
         self.wfckresults.coercions_mut().insert(fhir_id, coercions);
@@ -395,7 +395,7 @@ impl<'a> InferCtxt<'a, '_> {
         {
             self.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, vec![fhir::Coercion::Inject(def_id)]);
+                .insert(fhir_id, vec![rty::Coercion::Inject(def_id)]);
             Some(sort.clone())
         } else {
             None
@@ -410,7 +410,7 @@ impl<'a> InferCtxt<'a, '_> {
         {
             self.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, vec![fhir::Coercion::Project(def_id)]);
+                .insert(fhir_id, vec![rty::Coercion::Project(def_id)]);
             Some(sort.clone())
         } else {
             None
@@ -427,7 +427,7 @@ impl<'a> InferCtxt<'a, '_> {
         } else if let Some((def_id, rty::Sort::Func(fsort))) = self.is_single_field_record(sort) {
             self.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, vec![fhir::Coercion::Inject(def_id)]);
+                .insert(fhir_id, vec![rty::Coercion::Inject(def_id)]);
             Some(fsort.clone())
         } else {
             None
@@ -444,7 +444,7 @@ impl<'a> InferCtxt<'a, '_> {
         } else if let Some((def_id, rty::Sort::Func(fsort))) = self.is_single_field_record(sort) {
             self.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, vec![fhir::Coercion::Project(def_id)]);
+                .insert(fhir_id, vec![rty::Coercion::Project(def_id)]);
             Some(fsort.clone())
         } else {
             None

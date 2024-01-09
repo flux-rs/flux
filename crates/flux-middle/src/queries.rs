@@ -19,7 +19,7 @@ use rustc_span::{Span, Symbol};
 use rustc_trait_selection::traits::NormalizeExt;
 
 use crate::{
-    fhir::{self, FluxLocalDefId},
+    fhir::FluxLocalDefId,
     global_env::GlobalEnv,
     intern::List,
     rty::{
@@ -48,7 +48,7 @@ pub struct Providers {
     pub qualifiers: fn(&GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub func_decls: fn(&GlobalEnv) -> FxHashMap<Symbol, rty::FuncDecl>,
     pub adt_sort_def_of: fn(&GlobalEnv, LocalDefId) -> rty::AdtSortDef,
-    pub check_wf: fn(&GlobalEnv, FluxLocalDefId) -> QueryResult<Rc<fhir::WfckResults>>,
+    pub check_wf: fn(&GlobalEnv, FluxLocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>>,
     pub variants_of: fn(
@@ -101,7 +101,7 @@ pub struct Queries<'tcx> {
     func_decls: OnceCell<FxHashMap<Symbol, rty::FuncDecl>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     adt_sort_def_of: Cache<DefId, rty::AdtSortDef>,
-    check_wf: Cache<FluxLocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
+    check_wf: Cache<FluxLocalDefId, QueryResult<Rc<rty::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     refinement_generics_of: Cache<DefId, QueryResult<rty::RefinementGenerics>>,
@@ -223,7 +223,7 @@ impl<'tcx> Queries<'tcx> {
         &self,
         genv: &GlobalEnv,
         flux_id: FluxLocalDefId,
-    ) -> QueryResult<Rc<fhir::WfckResults>> {
+    ) -> QueryResult<Rc<rty::WfckResults>> {
         run_with_cache(&self.check_wf, flux_id, || (self.providers.check_wf)(genv, flux_id))
     }
 

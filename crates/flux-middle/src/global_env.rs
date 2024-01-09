@@ -117,7 +117,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn check_wf(
         &self,
         flux_id: impl Into<FluxLocalDefId>,
-    ) -> QueryResult<Rc<fhir::WfckResults>> {
+    ) -> QueryResult<Rc<rty::WfckResults>> {
         self.queries.check_wf(self, flux_id.into())
     }
 

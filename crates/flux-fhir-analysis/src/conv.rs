@@ -15,7 +15,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
-    rty::{self, fold::TypeFoldable, refining, AdtSortDef, ESpan, INNERMOST},
+    rty::{self, fold::TypeFoldable, refining, AdtSortDef, ESpan, WfckResults, INNERMOST},
     rustc::{self, lowering},
 };
 use itertools::Itertools;
@@ -35,7 +35,7 @@ use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
-    wfckresults: &'a fhir::WfckResults,
+    wfckresults: &'a WfckResults,
 }
 
 struct Env {
@@ -104,7 +104,7 @@ pub(crate) fn conv_adt_sort_def(genv: &GlobalEnv, refined_by: &fhir::RefinedBy) 
 pub(crate) fn expand_type_alias(
     genv: &GlobalEnv,
     alias: &fhir::TyAlias,
-    wfckresults: &fhir::WfckResults,
+    wfckresults: &WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let def_id = alias.owner_id.to_def_id();
     let cx = ConvCtxt::new(genv, wfckresults);
@@ -120,7 +120,7 @@ pub(crate) fn conv_generic_predicates(
     genv: &GlobalEnv,
     def_id: LocalDefId,
     predicates: &fhir::GenericPredicates,
-    wfckresults: &fhir::WfckResults,
+    wfckresults: &WfckResults,
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
@@ -143,7 +143,7 @@ pub(crate) fn conv_opaque_ty(
     genv: &GlobalEnv,
     def_id: LocalDefId,
     opaque_ty: &fhir::OpaqueTy,
-    wfckresults: &fhir::WfckResults,
+    wfckresults: &WfckResults,
 ) -> QueryResult<List<rty::Clause>> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let parent = genv.tcx.local_parent(def_id);
@@ -200,7 +200,7 @@ pub(crate) fn conv_generics(
 pub(crate) fn conv_refinement_generics(
     genv: &GlobalEnv,
     params: &[fhir::RefineParam],
-    wfckresults: Option<&fhir::WfckResults>,
+    wfckresults: Option<&WfckResults>,
 ) -> List<rty::RefineParam> {
     params
         .iter()
@@ -252,7 +252,7 @@ pub(crate) fn conv_invariants(
     def_id: LocalDefId,
     params: &[fhir::RefineParam],
     invariants: &[fhir::Expr],
-    wfckresults: &fhir::WfckResults,
+    wfckresults: &WfckResults,
 ) -> Vec<rty::Invariant> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults);
@@ -263,7 +263,7 @@ pub(crate) fn conv_invariants(
 pub(crate) fn conv_defn(
     genv: &GlobalEnv,
     defn: &fhir::Defn,
-    wfckresults: &fhir::WfckResults,
+    wfckresults: &WfckResults,
 ) -> rty::Defn {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults);
@@ -276,7 +276,7 @@ pub(crate) fn conv_defn(
 pub(crate) fn conv_qualifier(
     genv: &GlobalEnv,
     qualifier: &fhir::Qualifier,
-    wfckresults: &fhir::WfckResults,
+    wfckresults: &WfckResults,
 ) -> rty::Qualifier {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults);
@@ -290,7 +290,7 @@ pub(crate) fn conv_fn_sig(
     genv: &GlobalEnv,
     def_id: LocalDefId,
     fn_sig: &fhir::FnSig,
-    wfckresults: &fhir::WfckResults,
+    wfckresults: &WfckResults,
 ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
@@ -324,7 +324,7 @@ pub(crate) fn conv_fn_sig(
 pub(crate) fn conv_ty(
     genv: &GlobalEnv,
     ty: &fhir::Ty,
-    wfckresults: &fhir::WfckResults,
+    wfckresults: &WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let mut env = Env::new(genv, &[], wfckresults);
     let ty = ConvCtxt::new(genv, wfckresults).conv_ty(&mut env, ty)?;
@@ -332,7 +332,7 @@ pub(crate) fn conv_ty(
 }
 
 impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
-    fn new(genv: &'a GlobalEnv<'a, 'tcx>, wfckresults: &'a fhir::WfckResults) -> Self {
+    fn new(genv: &'a GlobalEnv<'a, 'tcx>, wfckresults: &'a WfckResults) -> Self {
         Self { genv, wfckresults }
     }
 
@@ -513,7 +513,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     pub(crate) fn conv_enum_def_variants(
         genv: &GlobalEnv,
         enum_def: &fhir::EnumDef,
-        wfckresults: &fhir::WfckResults,
+        wfckresults: &WfckResults,
     ) -> QueryResult<Vec<rty::PolyVariant>> {
         enum_def
             .variants
@@ -533,7 +533,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         genv: &GlobalEnv,
         adt_def_id: DefId,
         variant: &fhir::VariantDef,
-        wfckresults: &fhir::WfckResults,
+        wfckresults: &WfckResults,
     ) -> QueryResult<rty::PolyVariant> {
         let cx = ConvCtxt::new(genv, wfckresults);
 
@@ -560,7 +560,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
     pub(crate) fn conv_struct_def_variant(
         genv: &GlobalEnv,
         struct_def: &fhir::StructDef,
-        wfckresults: &fhir::WfckResults,
+        wfckresults: &WfckResults,
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
         let cx = ConvCtxt::new(genv, wfckresults);
         let mut env = Env::new(genv, &[], wfckresults);
@@ -913,11 +913,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 }
 
 impl Env {
-    fn new(
-        genv: &GlobalEnv,
-        early_bound: &[fhir::RefineParam],
-        wfckresults: &fhir::WfckResults,
-    ) -> Self {
+    fn new(genv: &GlobalEnv, early_bound: &[fhir::RefineParam], wfckresults: &WfckResults) -> Self {
         let early_bound = early_bound
             .iter()
             .map(|param| (param.name(), resolve_param_sort(genv, param, Some(wfckresults)).clone()))
@@ -1025,10 +1021,10 @@ impl ConvCtxt<'_, '_> {
         if let Some(coercions) = self.wfckresults.coercions().get(fhir_id) {
             for coercion in coercions {
                 expr = match *coercion {
-                    fhir::Coercion::Inject(def_id) => {
+                    rty::Coercion::Inject(def_id) => {
                         rty::Expr::record(def_id, List::singleton(expr))
                     }
-                    fhir::Coercion::Project(def_id) => {
+                    rty::Coercion::Project(def_id) => {
                         rty::Expr::field_proj(expr, rty::FieldProj::Adt { def_id, field: 0 }, span)
                     }
                 };
@@ -1214,7 +1210,7 @@ fn conv_sorts<'a>(
 fn conv_refine_param(
     genv: &GlobalEnv,
     param: &fhir::RefineParam,
-    wfckresults: Option<&fhir::WfckResults>,
+    wfckresults: Option<&WfckResults>,
 ) -> rty::RefineParam {
     let sort = resolve_param_sort(genv, param, wfckresults);
     let mode = sort.infer_mode(param.kind);
@@ -1224,7 +1220,7 @@ fn conv_refine_param(
 fn resolve_param_sort(
     genv: &GlobalEnv,
     param: &fhir::RefineParam,
-    wfckresults: Option<&fhir::WfckResults>,
+    wfckresults: Option<&WfckResults>,
 ) -> rty::Sort {
     if let fhir::Sort::Infer = &param.sort {
         wfckresults
