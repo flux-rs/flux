@@ -153,16 +153,17 @@ pub struct AssocPredicates {
     pub predicates: Vec<AssocPredicate>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AssocPredicate {
     pub name: Symbol,
     pub kind: AssocPredicateKind,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AssocPredicateKind {
     Spec(Sort),
-    Impl(Vec<RefineParam>, Expr),
+    // Impl(Vec<RefineParam>, Expr),
+    Impl(EarlyBinder<Expr>),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
@@ -351,7 +352,7 @@ pub enum Pred {
 pub struct AliasPred {
     pub trait_id: DefId,
     pub name: Symbol,
-    pub generic_args: GenericArgs,
+    pub args: GenericArgs,
     pub refine_args: RefineArgs,
 }
 
@@ -1806,8 +1807,8 @@ mod pretty {
     }
 
     impl Pretty for Pred {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(_cx, f);
             match self {
                 Pred::Expr(expr) => w!("{expr:?}"),
                 Pred::Alias(alias_pred) => w!("{alias_pred:?}"),

@@ -778,7 +778,7 @@ impl TypeVisitable for AliasPred {
 
 impl TypeSuperVisitable for AliasPred {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
-        self.generic_args.visit_with(visitor)?;
+        self.args.visit_with(visitor)?;
         self.refine_args.visit_with(visitor)
     }
 }
@@ -1064,9 +1064,9 @@ impl TypeFoldable for AliasPred {
 impl TypeSuperFoldable for AliasPred {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let trait_id = self.trait_id;
-        let generic_args = self.generic_args.try_fold_with(folder)?;
+        let generic_args = self.args.try_fold_with(folder)?;
         let refine_args = self.refine_args.try_fold_with(folder)?;
-        let alias_pred = AliasPred { trait_id, name: self.name, generic_args, refine_args };
+        let alias_pred = AliasPred { trait_id, name: self.name, args: generic_args, refine_args };
         Ok(alias_pred)
     }
 }

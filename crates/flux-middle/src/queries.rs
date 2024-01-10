@@ -307,8 +307,8 @@ impl<'tcx> Queries<'tcx> {
 
     pub(crate) fn assoc_predicates_of(
         &self,
-        genv: &GlobalEnv,
-        def_id: DefId,
+        _genv: &GlobalEnv,
+        _def_id: DefId,
     ) -> QueryResult<rty::AssocPredicates> {
         todo!()
     }

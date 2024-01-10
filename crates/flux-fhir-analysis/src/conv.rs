@@ -611,7 +611,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             .map(|arg| self.conv_refine_arg(env, arg))
             .collect_vec()
             .into();
-        Ok(rty::AliasPred { trait_id, name: alias_pred.name, generic_args, refine_args })
+        Ok(rty::AliasPred { trait_id, name: alias_pred.name, args: generic_args, refine_args })
     }
 
     fn conv_pred(&self, env: &mut Env, pred: &fhir::Pred) -> QueryResult<rty::Pred> {

@@ -143,6 +143,20 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.assoc_predicates_of(self, def_id.into())
     }
 
+    pub fn assoc_predicate_of(
+        &self,
+        def_id: impl Into<DefId>,
+        name: Symbol,
+    ) -> QueryResult<Option<rty::AssocPredicate>> {
+        let pred = self
+            .assoc_predicates_of(def_id)?
+            .predicates
+            .iter()
+            .find(|assoc_pred| assoc_pred.name == name)
+            .cloned();
+        Ok(pred)
+    }
+
     pub fn item_bounds(&self, def_id: DefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
         self.queries.item_bounds(self, def_id)
     }

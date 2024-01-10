@@ -13,13 +13,13 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{FallibleTypeFolder, TypeSuperFoldable},
-    AliasKind, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, GenericArg, GenericArgs,
-    ProjectionPredicate, Region, Ty, TyKind,
+    AliasKind, AliasPred, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, GenericArg,
+    GenericArgs, Pred, ProjectionPredicate, Region, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    rty::fold::TypeVisitable,
+    rty::{fold::TypeVisitable, AssocPredicateKind},
     rustc::ty::FreeRegion,
 };
 
@@ -42,6 +42,26 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
             .instantiate_identity(genv, refine_params)?;
         let selcx = SelectionContext::new(infcx);
         Ok(Normalizer { genv, selcx, def_id: callsite_def_id, param_env })
+    }
+
+    fn normalize_alias_pred(&mut self, alias_pred: &AliasPred, ty: &Ty) -> QueryResult<Ty> {
+        let obligation = AliasTy::new(alias_pred.trait_id, alias_pred.args.clone(), vec![]);
+        if let Some(impl_id) = self.impl_id_of_alias_ty(&obligation)?
+            && let Some(pred) = self.genv.assoc_predicate_of(impl_id, alias_pred.name)?
+            && let AssocPredicateKind::Impl(body) = pred.kind
+        {
+            let expr = body.instantiate_identity(&alias_pred.refine_args);
+            Ok(Ty::constr_expr(expr, ty.clone()))
+        } else {
+            bug!("failed to normalize_alias_pred `{alias_pred:?}`")
+        }
+        /*
+           (trait_id, generic_args, name, refine_args) <- alias_pred
+           impl_id   <- candidates_from_impls(trait_id, generic_args)
+           impl_pred <- genv.assoc_predicates_of(impl_id, name)
+           expr      <- pred.subst(refine_args)
+           constr_expr(expr, ty)
+        */
     }
 
     fn normalize_projection_ty(&mut self, obligation: &AliasTy) -> QueryResult<Ty> {
@@ -132,11 +152,7 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
         Ok(())
     }
 
-    fn assemble_candidates_from_impls(
-        &mut self,
-        obligation: &AliasTy,
-        candidates: &mut Vec<Candidate>,
-    ) -> QueryResult<()> {
+    fn impl_id_of_alias_ty(&mut self, obligation: &AliasTy) -> QueryResult<Option<DefId>> {
         let trait_pred = Obligation::with_depth(
             self.tcx(),
             ObligationCause::dummy(),
@@ -145,11 +161,19 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
             into_rustc_alias_ty(self.tcx(), obligation).trait_ref(self.tcx()),
         );
         match self.selcx.select(&trait_pred) {
-            Ok(Some(ImplSource::UserDefined(impl_data))) => {
-                candidates.push(Candidate::UserDefinedImpl(impl_data.impl_def_id));
-            }
-            Ok(_) => {}
+            Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data.impl_def_id)),
+            Ok(_) => Ok(None),
             Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
+        }
+    }
+
+    fn assemble_candidates_from_impls(
+        &mut self,
+        obligation: &AliasTy,
+        candidates: &mut Vec<Candidate>,
+    ) -> QueryResult<()> {
+        if let Some(impl_def_id) = self.impl_id_of_alias_ty(obligation)? {
+            candidates.push(Candidate::UserDefinedImpl(impl_def_id));
         }
         Ok(())
     }
@@ -182,10 +206,14 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     type Error = QueryErr;
 
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
-        if let TyKind::Alias(AliasKind::Projection, alias_ty) = ty.kind() {
-            self.normalize_projection_ty(alias_ty)
-        } else {
-            ty.try_super_fold_with(self)
+        match ty.kind() {
+            TyKind::Alias(AliasKind::Projection, alias_ty) => {
+                self.normalize_projection_ty(alias_ty)
+            }
+            TyKind::Constr(Pred::Alias(alias_pred), ty) => {
+                self.normalize_alias_pred(alias_pred, ty)
+            }
+            _ => ty.try_super_fold_with(self),
         }
     }
 }
