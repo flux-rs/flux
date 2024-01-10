@@ -45,8 +45,7 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
     }
 
     fn normalize_alias_pred(&mut self, alias_pred: &AliasPred, ty: &Ty) -> QueryResult<Ty> {
-        let obligation = AliasTy::new(alias_pred.trait_id, alias_pred.args.clone(), vec![]);
-        if let Some(impl_id) = self.impl_id_of_alias_ty(&obligation)?
+        if let Some(impl_id) = self.impl_id_of_alias_ty(alias_pred)?
             && let Some(pred) = self.genv.assoc_predicate_of(impl_id, alias_pred.name)?
             && let AssocPredicateKind::Impl(body) = pred.kind
         {
@@ -152,13 +151,22 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
         Ok(())
     }
 
-    fn impl_id_of_alias_ty(&mut self, obligation: &AliasTy) -> QueryResult<Option<DefId>> {
+    pub fn alias_pred_trait_ref(&self, alias_pred: &AliasPred) -> rustc_middle::ty::TraitRef<'tcx> {
+        let tcx = self.tcx();
+        let trait_def_id = alias_pred.trait_id;
+        let args = into_rustc_generic_args(tcx, &alias_pred.args)
+            .truncate_to(tcx, tcx.generics_of(trait_def_id));
+        rustc_middle::ty::TraitRef::new(tcx, trait_def_id, args)
+    }
+
+    fn impl_id_of_alias_ty(&mut self, alias_pred: &AliasPred) -> QueryResult<Option<DefId>> {
         let trait_pred = Obligation::with_depth(
             self.tcx(),
             ObligationCause::dummy(),
             5,
             self.rustc_param_env(),
-            into_rustc_alias_ty(self.tcx(), obligation).trait_ref(self.tcx()),
+            self.alias_pred_trait_ref(alias_pred),
+            // into_rustc_alias_ty(self.tcx(), obligation).trait_ref(self.tcx()),
         );
         match self.selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data.impl_def_id)),
@@ -172,8 +180,19 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
     ) -> QueryResult<()> {
-        if let Some(impl_def_id) = self.impl_id_of_alias_ty(obligation)? {
-            candidates.push(Candidate::UserDefinedImpl(impl_def_id));
+        let trait_pred = Obligation::with_depth(
+            self.tcx(),
+            ObligationCause::dummy(),
+            5,
+            self.rustc_param_env(),
+            into_rustc_alias_ty(self.tcx(), obligation).trait_ref(self.tcx()),
+        );
+        match self.selcx.select(&trait_pred) {
+            Ok(Some(ImplSource::UserDefined(impl_data))) => {
+                candidates.push(Candidate::UserDefinedImpl(impl_data.impl_def_id));
+            }
+            Ok(_) => (),
+            Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
         }
         Ok(())
     }
