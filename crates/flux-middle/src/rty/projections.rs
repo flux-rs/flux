@@ -49,18 +49,11 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
             && let Some(pred) = self.genv.assoc_predicate_of(impl_id, alias_pred.name)?
             && let AssocPredicateKind::Impl(body) = pred.kind
         {
-            let expr = body.instantiate_identity(&alias_pred.refine_args);
+            let expr = body.replace_bound_exprs(&alias_pred.refine_args);
             Ok(Ty::constr_expr(expr, ty.clone()))
         } else {
             bug!("failed to normalize_alias_pred `{alias_pred:?}`")
         }
-        /*
-           (trait_id, generic_args, name, refine_args) <- alias_pred
-           impl_id   <- candidates_from_impls(trait_id, generic_args)
-           impl_pred <- genv.assoc_predicates_of(impl_id, name)
-           expr      <- pred.subst(refine_args)
-           constr_expr(expr, ty)
-        */
     }
 
     fn normalize_projection_ty(&mut self, obligation: &AliasTy) -> QueryResult<Ty> {

@@ -148,7 +148,7 @@ pub struct GeneratorObligPredicate {
     pub output: Ty,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct AssocPredicates {
     pub predicates: Vec<AssocPredicate>,
 }
@@ -162,8 +162,7 @@ pub struct AssocPredicate {
 #[derive(Debug, Clone)]
 pub enum AssocPredicateKind {
     Spec(Sort),
-    // Impl(Vec<RefineParam>, Expr),
-    Impl(EarlyBinder<Expr>),
+    Impl(Binder<Expr>),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]

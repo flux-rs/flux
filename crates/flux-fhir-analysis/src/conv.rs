@@ -246,6 +246,40 @@ pub(crate) fn conv_invariants(
     cx.conv_invariants(&env, invariants)
 }
 
+fn conv_assoc_predicate(
+    genv: &GlobalEnv,
+    assoc_predicate: &fhir::AssocPredicate,
+    wfckresults: &fhir::WfckResults,
+) -> rty::AssocPredicate {
+    let cx = ConvCtxt::new(genv, wfckresults);
+    let mut env = Env::new(&[], wfckresults);
+    let kind = match &assoc_predicate.kind {
+        fhir::AssocPredicateKind::Spec(sort) => {
+            rty::AssocPredicateKind::Spec(conv_sort(genv, sort))
+        }
+        fhir::AssocPredicateKind::Impl(args, expr) => {
+            env.push_layer(Layer::list(&cx, 0, &args, false));
+            let expr = cx.conv_expr(&env, expr);
+            let expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars());
+            rty::AssocPredicateKind::Impl(expr)
+        }
+    };
+    rty::AssocPredicate { name: assoc_predicate.name, kind }
+}
+
+pub(crate) fn conv_assoc_predicates(
+    genv: &GlobalEnv,
+    assoc_predicates: &fhir::AssocPredicates,
+    wfckresults: &fhir::WfckResults,
+) -> rty::AssocPredicates {
+    let predicates = assoc_predicates
+        .predicates
+        .iter()
+        .map(|assoc_pred| conv_assoc_predicate(genv, assoc_pred, wfckresults))
+        .collect_vec();
+    rty::AssocPredicates { predicates }
+}
+
 pub(crate) fn conv_defn(
     genv: &GlobalEnv,
     defn: &fhir::Defn,

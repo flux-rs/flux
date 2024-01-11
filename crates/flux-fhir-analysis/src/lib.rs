@@ -46,6 +46,7 @@ pub fn provide(providers: &mut Providers) {
         generics_of,
         refinement_generics_of,
         predicates_of,
+        assoc_predicates_of,
         item_bounds,
     };
 }
@@ -130,6 +131,20 @@ fn predicates_of(
         })
     };
     Ok(predicates)
+}
+
+fn assoc_predicates_of(
+    genv: &GlobalEnv,
+    local_id: LocalDefId,
+) -> QueryResult<rty::AssocPredicates> {
+    let assoc_predicates = if let Some(assoc_predicates) = genv.map().get_assoc_predicates(local_id)
+    {
+        let wfckresults = genv.check_wf(local_id)?;
+        conv::conv_assoc_predicates(genv, assoc_predicates, &wfckresults)
+    } else {
+        rty::AssocPredicates::default()
+    };
+    Ok(assoc_predicates)
 }
 
 fn item_bounds(

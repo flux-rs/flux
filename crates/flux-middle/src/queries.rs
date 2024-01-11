@@ -59,6 +59,7 @@ pub struct Providers {
     pub refinement_generics_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::RefinementGenerics>,
     pub predicates_of:
         fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>>,
+    pub assoc_predicates_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::AssocPredicates>,
     pub item_bounds: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
 }
 
@@ -82,6 +83,7 @@ impl Default for Providers {
             generics_of: |_, _| empty_query!(),
             refinement_generics_of: |_, _| empty_query!(),
             predicates_of: |_, _| empty_query!(),
+            assoc_predicates_of: |_, _| empty_query!(),
             item_bounds: |_, _| empty_query!(),
         }
     }
@@ -286,6 +288,7 @@ impl<'tcx> Queries<'tcx> {
             }
         })
     }
+
     pub(crate) fn predicates_of(
         &self,
         genv: &GlobalEnv,
@@ -307,10 +310,18 @@ impl<'tcx> Queries<'tcx> {
 
     pub(crate) fn assoc_predicates_of(
         &self,
-        _genv: &GlobalEnv,
+        genv: &GlobalEnv,
         def_id: DefId,
     ) -> QueryResult<rty::AssocPredicates> {
-        todo!("assoc_predicates_of {def_id:?}")
+        // todo!("assoc_predicates_of {def_id:?}")
+        run_with_cache(&self.assoc_predicates_of, def_id, || {
+            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
+            if let Some(local_id) = def_id.as_local() {
+                (self.providers.assoc_predicates_of)(genv, local_id)
+            } else {
+                Ok(rty::AssocPredicates::default())
+            }
+        })
     }
 
     pub(crate) fn type_of(
