@@ -257,8 +257,8 @@ fn conv_assoc_predicate(
         fhir::AssocPredicateKind::Spec(sort) => {
             rty::AssocPredicateKind::Spec(conv_sort(genv, sort))
         }
-        fhir::AssocPredicateKind::Impl(args, expr) => {
-            env.push_layer(Layer::list(&cx, 0, &args, false));
+        fhir::AssocPredicateKind::Impl(params, expr) => {
+            env.push_layer(Layer::list(&cx, 0, params, false));
             let expr = cx.conv_expr(&env, expr);
             let expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars());
             rty::AssocPredicateKind::Impl(expr)
