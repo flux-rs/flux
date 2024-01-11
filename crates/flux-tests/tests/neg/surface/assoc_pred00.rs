@@ -23,7 +23,7 @@ pub fn bob<T: MyTrait>(x: &T) {
 // Step 4 : concretize ----------------------------
 pub fn test() {
     let z0 = 0;
-    bob(&z0); // reject!
+    bob(&z0); //~ ERROR refinement type
     let z1 = 1;
-    bob(&z1); // accept
+    bob(&z1);
 }
