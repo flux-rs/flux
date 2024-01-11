@@ -1,6 +1,6 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
-use std::{hash::Hash, iter};
+use std::{hash::Hash, iter, ops::ControlFlow};
 
 use flux_common::{
     bug,
@@ -11,16 +11,22 @@ use flux_common::{
 };
 use flux_config as config;
 use flux_fixpoint::FixpointResult;
-// use flux_fixpoint as fixpoint;
 use flux_middle::{
     fhir::FuncKind,
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
-    rty::{self, Constant, ESpan},
+    rty::{
+        self,
+        fold::{TypeSuperVisitable, TypeVisitable, TypeVisitor},
+        Constant, ESpan,
+    },
 };
 use itertools::{self, Itertools};
-use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
+use rustc_data_structures::{
+    fx::FxIndexMap,
+    unord::{UnordMap, UnordSet},
+};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_span::Span;
@@ -57,6 +63,45 @@ pub enum KVarEncoding {
     Conj,
 }
 
+/// Keep track of all the sorts we need to define in the fixpoint constraint. Currently, we encode
+/// every aggregate sort as a tuple in fixpoint.
+#[derive(Default)]
+struct SortStore {
+    /// Set of all the arities
+    tuples: UnordSet<usize>,
+}
+
+impl SortStore {
+    fn declare_tuple(&mut self, arity: usize) {
+        self.tuples.insert(arity);
+    }
+
+    fn into_data_decls(self) -> Vec<fixpoint::DataDecl> {
+        self.tuples
+            .into_items()
+            .into_sorted_stable_ord()
+            .into_iter()
+            .map(|arity| {
+                fixpoint::DataDecl {
+                    name: tuple_sort_name(arity),
+                    vars: arity,
+                    ctors: vec![fixpoint::DataCtor {
+                        name: fixpoint::Var::TupleCtor { arity },
+                        fields: (0..(arity as u32))
+                            .map(|field| {
+                                fixpoint::DataField {
+                                    name: fixpoint::Var::TupleProj { arity, field },
+                                    sort: fixpoint::Sort::Var(field),
+                                }
+                            })
+                            .collect(),
+                    }],
+                }
+            })
+            .collect()
+    }
+}
+
 pub mod fixpoint {
     use std::fmt;
 
@@ -78,6 +123,16 @@ pub mod fixpoint {
     pub enum Var {
         Global(GlobalVar),
         Local(LocalVar),
+        TupleCtor {
+            arity: usize,
+        },
+        TupleProj {
+            arity: usize,
+            field: u32,
+        },
+        /// Interpreted theory function. This can be an arbitrary string, thus we are assuming the
+        /// name is different than the display implementation for the other variants.
+        Itf(Symbol),
     }
 
     impl From<GlobalVar> for Var {
@@ -103,16 +158,21 @@ pub mod fixpoint {
             match self {
                 Var::Global(v) => write!(f, "c{}", v.as_u32()),
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
+                Var::TupleCtor { arity } => write!(f, "Tuple{arity}"),
+                Var::TupleProj { arity, field } => write!(f, "Tuple{arity}${field}"),
+                Var::Itf(name) => write!(f, "{name}"),
             }
         }
     }
 
     flux_fixpoint::declare_types! {
+        type Sort = String;
         type KVar = KVid;
         type Var = Var;
         type Tag = super::TagIdx;
     }
     pub use fixpoint_generated::*;
+    use rustc_span::Symbol;
 }
 
 type KVidMap = UnordMap<rty::KVid, Vec<fixpoint::KVid>>;
@@ -128,6 +188,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: &'genv GlobalEnv<'genv, 'tcx>,
     kvars: KVarStore,
+    sorts: SortStore,
     fixpoint_kvars: IndexVec<fixpoint::KVid, FixpointKVar>,
     env: Env,
     const_map: ConstMap,
@@ -144,7 +205,7 @@ struct FixpointKVar {
     orig: rty::KVid,
 }
 
-/// Environment used to map [`rty::Var`] into [`fixpoint::Name`]. This only supports
+/// Environment used to map [`rty::Var`] into [`fixpoint::LocalVar`]. This only supports
 /// mapping of [`rty::Var::LateBound`] and [`rty::Var::Free`].
 struct Env {
     local_var_gen: IndexGen<fixpoint::LocalVar>,
@@ -191,7 +252,8 @@ impl Env {
     }
 }
 
-struct ExprCtxt<'a> {
+struct ExprCtxt<'a, 'tcx> {
+    genv: &'a GlobalEnv<'a, 'tcx>,
     env: &'a Env,
     const_map: &'a ConstMap,
     /// Used to report bugs
@@ -233,6 +295,7 @@ where
         Self {
             comments: vec![],
             kvars,
+            sorts: SortStore::default(),
             genv,
             env: Env::new(),
             const_map,
@@ -242,6 +305,31 @@ where
             tags_inv: Default::default(),
             def_id,
         }
+    }
+
+    /// Collect all the sorts that need to be defined in fixpoint to encode `t`
+    pub(crate) fn collect_sorts<T: TypeVisitable>(&mut self, t: &T) {
+        struct Visitor<'a> {
+            sorts: &'a mut SortStore,
+        }
+        impl TypeVisitor for Visitor<'_> {
+            fn visit_expr(&mut self, expr: &rty::Expr) -> ControlFlow<!> {
+                if let rty::ExprKind::Aggregate(_, flds) = expr.kind() {
+                    self.sorts.declare_tuple(flds.len());
+                }
+                expr.super_visit_with(self)
+            }
+
+            fn visit_sort(&mut self, sort: &rty::Sort) -> ControlFlow<!> {
+                match sort {
+                    rty::Sort::Tuple(flds) => self.sorts.declare_tuple(flds.len()),
+                    rty::Sort::Adt(sort_def, _) => self.sorts.declare_tuple(sort_def.fields()),
+                    _ => {}
+                }
+                sort.super_visit_with(self)
+            }
+        }
+        t.visit_with(&mut Visitor { sorts: &mut self.sorts });
     }
 
     pub(crate) fn with_name_map<R>(
@@ -286,17 +374,17 @@ where
             })
             .collect_vec();
 
-        let mut closed_constraint = constraint;
+        let mut constraint = constraint;
         for const_info in self.const_map.values() {
             if let Some(val) = const_info.val {
-                closed_constraint = Self::assume_const_val(closed_constraint, const_info.name, val);
+                constraint = Self::assume_const_val(constraint, const_info.name, val);
             }
         }
 
         let qualifiers = self
             .genv
             .qualifiers(self.def_id)?
-            .map(|qual| qualifier_to_fixpoint(span, &self.const_map, qual))
+            .map(|qual| qualifier_to_fixpoint(self.genv, span, &self.const_map, qual))
             .collect();
 
         let constants = self
@@ -311,23 +399,15 @@ where
             })
             .collect();
 
-        let sorts = self
-            .genv
-            .map()
-            .sort_decls()
-            .values()
-            .map(|sort_decl| sort_decl.name.to_string())
-            .collect_vec();
-
-        let task = fixpoint::Task::new(
-            self.comments,
+        let task = fixpoint::Task {
+            comments: self.comments,
             constants,
             kvars,
-            closed_constraint,
+            constraint,
             qualifiers,
-            sorts,
-            config.scrape_quals,
-        );
+            scrape_quals: config.scrape_quals,
+            data_decls: self.sorts.into_data_decls(),
+        };
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx, self.def_id, "smt2", &task).unwrap();
         }
@@ -478,8 +558,8 @@ where
         }
     }
 
-    fn as_expr_cx(&self) -> ExprCtxt<'_> {
-        ExprCtxt::new(&self.env, &self.const_map, self.def_span())
+    fn as_expr_cx(&self) -> ExprCtxt<'_, 'tcx> {
+        ExprCtxt::new(self.genv, &self.env, &self.const_map, self.def_span())
     }
 
     fn def_span(&self) -> Span {
@@ -589,7 +669,7 @@ impl KVarStore {
                 if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
                     flattened_self_args += is_self_arg as usize;
                     sorts.push(sort.clone());
-                    exprs.push(rty::Expr::tuple_projs(&var, proj));
+                    exprs.push(rty::Expr::field_projs(&var, proj));
                 }
             });
         }
@@ -636,26 +716,21 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
             let sorts = sorts.iter().map(sort_to_fixpoint).collect_vec();
             fixpoint::Sort::App(ctor, sorts)
         }
+        rty::Sort::Adt(_, _) => todo!(),
         rty::Sort::Tuple(sorts) => {
-            match &sorts[..] {
-                [] => fixpoint::Sort::Unit,
-                [_] => unreachable!("1-tuple"),
-                [sorts @ .., s1, s2] => {
-                    let s1 = Box::new(sort_to_fixpoint(s1));
-                    let s2 = Box::new(sort_to_fixpoint(s2));
-                    sorts
-                        .iter()
-                        .map(sort_to_fixpoint)
-                        .map(Box::new)
-                        .fold(fixpoint::Sort::Pair(s1, s2), |s1, s2| {
-                            fixpoint::Sort::Pair(Box::new(s1), s2)
-                        })
-                }
-            }
+            let ctor = fixpoint::SortCtor::Data(tuple_sort_name(sorts.len()));
+            let args = sorts.iter().map(sort_to_fixpoint).collect();
+            fixpoint::Sort::App(ctor, args)
         }
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
-        rty::Sort::Loc | rty::Sort::Var(_) => bug!("unexpected sort {sort:?}"),
+        rty::Sort::Err | rty::Sort::Infer(_) | rty::Sort::Loc | rty::Sort::Var(_) => {
+            bug!("unexpected sort {sort:?}")
+        }
     }
+}
+
+fn tuple_sort_name(arity: usize) -> String {
+    format!("Tuple{arity}")
 }
 
 fn func_sort_to_fixpoint(fsort: &rty::PolyFuncSort) -> fixpoint::PolyFuncSort {
@@ -663,14 +738,19 @@ fn func_sort_to_fixpoint(fsort: &rty::PolyFuncSort) -> fixpoint::PolyFuncSort {
     let fsort = fsort.skip_binders();
     fixpoint::PolyFuncSort::new(
         params,
-        fsort.inputs().iter().map(sort_to_fixpoint),
+        fsort.inputs().iter().map(sort_to_fixpoint).collect(),
         sort_to_fixpoint(fsort.output()),
     )
 }
 
-impl<'a> ExprCtxt<'a> {
-    fn new(env: &'a Env, const_map: &'a ConstMap, dbg_span: Span) -> Self {
-        Self { env, const_map, dbg_span }
+impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
+    fn new(
+        genv: &'a GlobalEnv<'a, 'tcx>,
+        env: &'a Env,
+        const_map: &'a ConstMap,
+        dbg_span: Span,
+    ) -> Self {
+        Self { genv, env, const_map, dbg_span }
     }
 
     fn expr_to_fixpoint(&self, expr: &rty::Expr) -> fixpoint::Expr {
@@ -686,14 +766,22 @@ impl<'a> ExprCtxt<'a> {
             rty::ExprKind::UnaryOp(op, e) => {
                 fixpoint::Expr::UnaryOp(*op, Box::new(self.expr_to_fixpoint(e)))
             }
-            rty::ExprKind::TupleProj(e, field) => {
-                itertools::repeat_n(fixpoint::Proj::Snd, *field as usize)
-                    .chain([fixpoint::Proj::Fst])
-                    .fold(self.expr_to_fixpoint(e), |e, proj| {
-                        fixpoint::Expr::Proj(Box::new(e), proj)
-                    })
+            rty::ExprKind::FieldProj(e, proj) => {
+                let (arity, field) = match *proj {
+                    rty::FieldProj::Tuple { arity, field } => (arity, field),
+                    rty::FieldProj::Adt { def_id, field } => {
+                        let arity = self.genv.adt_sort_def_of(def_id).fields();
+                        (arity, field)
+                    }
+                };
+                let proj = fixpoint::Var::TupleProj { arity, field };
+                fixpoint::Expr::App(proj, vec![self.expr_to_fixpoint(e)])
             }
-            rty::ExprKind::Tuple(exprs) => self.tuple_to_fixpoint(exprs),
+            rty::ExprKind::Aggregate(_, flds) => {
+                let ctor = fixpoint::Var::TupleCtor { arity: flds.len() };
+                let args = flds.iter().map(|e| self.expr_to_fixpoint(e)).collect();
+                fixpoint::Expr::App(ctor, args)
+            }
             rty::ExprKind::ConstDefId(did) => {
                 let const_info = self.const_map.get(&Key::Const(*did)).unwrap_or_else(|| {
                     span_bug!(self.dbg_span, "no entry found in const_map for def_id: `{did:?}`")
@@ -751,24 +839,10 @@ impl<'a> ExprCtxt<'a> {
             .collect()
     }
 
-    fn tuple_to_fixpoint(&self, exprs: &[rty::Expr]) -> fixpoint::Expr {
-        match exprs {
-            [] => fixpoint::Expr::Unit,
-            [e, exprs @ ..] => {
-                fixpoint::Expr::Pair(Box::new([
-                    self.expr_to_fixpoint(e),
-                    self.tuple_to_fixpoint(exprs),
-                ]))
-            }
-        }
-    }
-
-    fn func_to_fixpoint(&self, func: &rty::Expr) -> fixpoint::Func {
+    fn func_to_fixpoint(&self, func: &rty::Expr) -> fixpoint::Var {
         match func.kind() {
-            rty::ExprKind::Var(var) => fixpoint::Func::Var(self.var_to_fixpoint(var).into()),
-            rty::ExprKind::GlobalFunc(_, FuncKind::Thy(sym)) => {
-                fixpoint::Func::Itf(sym.to_string())
-            }
+            rty::ExprKind::Var(var) => self.var_to_fixpoint(var).into(),
+            rty::ExprKind::GlobalFunc(_, FuncKind::Thy(sym)) => fixpoint::Var::Itf(*sym),
             rty::ExprKind::GlobalFunc(sym, FuncKind::Uif) => {
                 let cinfo = self.const_map.get(&Key::Uif(*sym)).unwrap_or_else(|| {
                     span_bug!(
@@ -776,7 +850,7 @@ impl<'a> ExprCtxt<'a> {
                         "no constant found for uninterpreted function `{sym}` in `const_map`"
                     )
                 });
-                fixpoint::Func::Var(cinfo.name.into())
+                cinfo.name.into()
             }
             rty::ExprKind::GlobalFunc(sym, FuncKind::Def) => {
                 span_bug!(self.dbg_span, "unexpected global function `{sym}`. Function must be normalized away at this point")
@@ -789,6 +863,7 @@ impl<'a> ExprCtxt<'a> {
 }
 
 fn qualifier_to_fixpoint(
+    genv: &GlobalEnv,
     dbg_span: Span,
     const_map: &ConstMap,
     qualifier: &rty::Qualifier,
@@ -801,7 +876,7 @@ fn qualifier_to_fixpoint(
             .map(|(name, var)| ((*name).into(), sort_to_fixpoint(var.expect_sort())))
             .collect();
 
-    let cx = ExprCtxt::new(&env, const_map, dbg_span);
+    let cx = ExprCtxt::new(genv, &env, const_map, dbg_span);
     let body = cx.expr_to_fixpoint(qualifier.body.as_ref().skip_binder());
 
     let name = qualifier.name.to_string();

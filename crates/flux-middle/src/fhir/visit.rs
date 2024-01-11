@@ -110,13 +110,13 @@ pub trait Visitor: Sized {
 }
 
 pub fn walk_struct_def<V: Visitor>(vis: &mut V, struct_def: &StructDef) {
-    let StructDef { owner_id: _, params, kind: _, invariants } = struct_def;
+    let StructDef { owner_id: _, params, kind: _, invariants, extern_id: _ } = struct_def;
     walk_list!(vis, visit_refine_param, params);
     walk_list!(vis, visit_expr, invariants);
 }
 
 pub fn walk_enum_def<V: Visitor>(vis: &mut V, enum_def: &EnumDef) {
-    let EnumDef { owner_id: _, params, variants, invariants, .. } = enum_def;
+    let EnumDef { owner_id: _, params, variants, invariants, extern_id: _ } = enum_def;
     walk_list!(vis, visit_refine_param, params);
     walk_list!(vis, visit_variant, variants);
     walk_list!(vis, visit_expr, invariants);
@@ -263,10 +263,7 @@ pub fn walk_sort<V: Visitor>(vis: &mut V, sort: &Sort) {
         | Sort::Bool
         | Sort::Real
         | Sort::Loc
-        | Sort::Unit
-        | Sort::Wildcard
-        | Sort::Infer(_)
-        | Sort::Error => {}
+        | Sort::Infer => {}
     }
 }
 

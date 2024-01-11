@@ -243,16 +243,17 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let invariants = attrs.invariants();
 
-        if attrs.extern_spec() {
+        let extern_id = if attrs.extern_spec() {
             // extern_spec dummy structs are always opaque because they contain
             // one field: the external struct they are meant to represent.
             opaque = true;
-            let extern_def_id =
+            let extern_id =
                 self.extract_extern_def_id_from_extern_spec_struct(owner_id.def_id, data)?;
-            self.specs
-                .extern_specs
-                .insert(extern_def_id, owner_id.def_id);
-        }
+            self.specs.extern_specs.insert(extern_id, owner_id.def_id);
+            Some(extern_id)
+        } else {
+            None
+        };
 
         self.specs.structs.insert(
             owner_id,
@@ -263,6 +264,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 opaque,
                 invariants,
                 node_id: self.parse_sess.next_node_id(),
+                extern_id,
             },
         );
 
@@ -318,12 +320,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let invariants = attrs.invariants();
 
         let extern_id = if attrs.extern_spec() {
-            let extern_def_id =
+            let extern_id =
                 self.extract_extern_def_id_from_extern_spec_enum(owner_id.def_id, enum_def)?;
-            self.specs
-                .extern_specs
-                .insert(extern_def_id, owner_id.def_id);
-            Some(extern_def_id)
+            self.specs.extern_specs.insert(extern_id, owner_id.def_id);
+            Some(extern_id)
         } else {
             None
         };

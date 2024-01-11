@@ -45,11 +45,7 @@ use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
-use crate::{
-    intern::{impl_internable, List},
-    pretty,
-    rty::Constant,
-};
+use crate::{pretty, rty::Constant};
 
 #[derive(Debug)]
 pub struct Generics {
@@ -196,6 +192,8 @@ pub struct StructDef {
     pub params: Vec<RefineParam>,
     pub kind: StructKind,
     pub invariants: Vec<Expr>,
+    /// Whether this is a spec for an extern struct
+    pub extern_id: Option<DefId>,
 }
 
 #[derive(Debug)]
@@ -220,7 +218,7 @@ pub struct EnumDef {
     pub params: Vec<RefineParam>,
     pub variants: Vec<VariantDef>,
     pub invariants: Vec<Expr>,
-    /// Whether this is an extern_spec for some other enum
+    /// Whether this is a expecr for an extern enum
     pub extern_id: Option<DefId>,
 }
 
@@ -343,33 +341,6 @@ pub enum WeakKind {
     Shr,
     Mut,
     Arr,
-}
-
-pub struct WfckResults {
-    pub owner: FluxOwnerId,
-    node_sorts: ItemLocalMap<Sort>,
-    coercions: ItemLocalMap<Vec<Coercion>>,
-    type_holes: ItemLocalMap<Ty>,
-    lifetime_holes: ItemLocalMap<ResolvedArg>,
-}
-
-#[derive(Debug)]
-pub enum Coercion {
-    Inject,
-    Project,
-}
-
-pub type ItemLocalMap<T> = FxHashMap<ItemLocalId, T>;
-
-#[derive(Debug)]
-pub struct LocalTableInContext<'a, T> {
-    owner: FluxOwnerId,
-    data: &'a ItemLocalMap<T>,
-}
-
-pub struct LocalTableInContextMut<'a, T> {
-    owner: FluxOwnerId,
-    data: &'a mut ItemLocalMap<T>,
 }
 
 impl From<Mutability> for WeakKind {
@@ -499,10 +470,6 @@ impl RefineParam {
     pub fn name(&self) -> Name {
         self.ident.name
     }
-
-    pub fn infer_mode(&self) -> InferMode {
-        self.kind.infer_mode(&self.sort)
-    }
 }
 
 /// How the declared parameter in the surface syntax. This is used to adjust how errors are reported
@@ -524,16 +491,8 @@ pub enum ParamKind {
 }
 
 impl ParamKind {
-    fn is_implicit(&self) -> bool {
+    pub(crate) fn is_implicit(&self) -> bool {
         matches!(self, ParamKind::At | ParamKind::Pound | ParamKind::Colon)
-    }
-
-    pub fn infer_mode(&self, sort: &Sort) -> InferMode {
-        if sort.is_pred() && !self.is_implicit() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
-        }
     }
 }
 
@@ -550,13 +509,7 @@ pub enum InferMode {
     KVar,
 }
 
-newtype_index! {
-    /// A *Sort* *v*variable *id*
-    #[debug_format = "#{}"]
-    pub struct SortVid {}
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, Copy, TyEncodable, TyDecodable)]
 pub enum SortCtor {
     Set,
     Map,
@@ -566,23 +519,22 @@ pub enum SortCtor {
     },
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
     Bool,
     Real,
     Loc,
-    Unit,
     BitVec(usize),
     /// Sort constructor application (e.g. `Set<int>` or `Map<int, int>`)
-    App(SortCtor, List<Sort>),
+    App(SortCtor, Vec<Sort>),
     Func(PolyFuncSort),
     /// sort variable
     Var(usize),
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
     /// the `List<Sort>` is for the type parameters of (generic) record sorts
-    Record(DefId, List<Sort>),
+    Record(DefId, Vec<Sort>),
     /// The sort associated to a type variable
     Param(DefId),
     /// The sort of the `Self` type, as used within a trait.
@@ -596,20 +548,16 @@ pub enum Sort {
         alias_to: DefId,
     },
     /// A sort that needs to be inferred
-    Wildcard,
-    /// Sort inference variable generated for a [Sort::Wildcard] during sort checking
-    Infer(SortVid),
-    /// A sort that couldn't be generated because of an error.
-    Error,
+    Infer,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct FuncSort {
     /// inputs and output in order
-    pub inputs_and_output: List<Sort>,
+    pub inputs_and_output: Vec<Sort>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct PolyFuncSort {
     pub params: usize,
     pub fsort: FuncSort,
@@ -619,20 +567,6 @@ impl PolyFuncSort {
     pub fn new(params: usize, inputs: Vec<Sort>, output: Sort) -> Self {
         let fsort = FuncSort::new(inputs, output);
         Self { params, fsort }
-    }
-
-    pub fn skip_binders(&self) -> FuncSort {
-        self.fsort.clone()
-    }
-
-    pub fn instantiate(&self, args: &[Sort]) -> FuncSort {
-        let inputs_and_output = self
-            .fsort
-            .inputs_and_output
-            .iter()
-            .map(|sort| sort.subst(args))
-            .collect();
-        FuncSort { inputs_and_output }
     }
 }
 
@@ -840,17 +774,9 @@ impl Ident {
 }
 
 /// Information about the refinement parameters associated with a type alias or a struct/enum.
-///
-/// For a type alias `type A(x1: s1, x2: s2, ..)[y1: s, y2 : s, ..] = ..` we call `x1, x2, ..`
-/// _early bound_ parameters. In contrast, `y1, y2, ..` are called _index parameters_. The term
-/// [early bound] is borrowed from rust, but besides using the same name there's no connection
-/// between both concepts. Our use is related to the positions a parameter is allowed to appear
-/// in a definition.
-///
-/// [early bound]: https://rustc-dev-guide.rust-lang.org/early-late-bound.html
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct RefinedBy {
-    pub def_id: DefId,
+    pub def_id: LocalDefId,
     pub span: Span,
     /// Tracks the mapping from bound var to generic def ids. e.g. if we have
     ///
@@ -860,13 +786,9 @@ pub struct RefinedBy {
     /// ```
     /// then the sort associated to `RMap` is of the form `forall #0. { keys: Set<#0> }`
     /// and `sort_params` will be `vec![K]`,  i.e., it maps `Var(0)` to `K`.
-    sort_params: Vec<DefId>,
+    pub sort_params: Vec<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
-    index_params: FxIndexMap<Symbol, Sort>,
-    /// The number of early bound parameters
-    early_bound: usize,
-    /// Sorts of both early bound and index parameters. Early bound parameter appear first.
-    sorts: Vec<Sort>,
+    pub index_params: FxIndexMap<Symbol, Sort>,
 }
 
 #[derive(Debug)]
@@ -916,52 +838,22 @@ impl Generics {
 
 impl RefinedBy {
     pub fn new(
-        def_id: impl Into<DefId>,
-        early_bound_params: impl IntoIterator<Item = Sort>,
+        def_id: LocalDefId,
         index_params: impl IntoIterator<Item = (Symbol, Sort)>,
         sort_params: Vec<DefId>,
         span: Span,
     ) -> Self {
-        let mut sorts = early_bound_params.into_iter().collect_vec();
-        let early_bound = sorts.len();
-        let index_params = index_params
-            .into_iter()
-            .inspect(|(_, sort)| sorts.push(sort.clone()))
-            .collect();
-        RefinedBy { def_id: def_id.into(), sort_params, span, index_params, early_bound, sorts }
+        let index_params: FxIndexMap<_, _> = index_params.into_iter().collect();
+        RefinedBy { def_id, span, sort_params, index_params }
     }
 
-    pub fn trivial(def_id: impl Into<DefId>, span: Span) -> Self {
+    pub fn trivial(def_id: LocalDefId, span: Span) -> Self {
         RefinedBy {
-            def_id: def_id.into(),
+            def_id,
             sort_params: Default::default(),
             span,
             index_params: Default::default(),
-            early_bound: 0,
-            sorts: vec![],
         }
-    }
-
-    pub fn field_index(&self, fld: Symbol) -> Option<usize> {
-        self.index_params.get_index_of(&fld)
-    }
-
-    pub fn field_sort(&self, fld: Symbol, args: &[Sort]) -> Option<Sort> {
-        self.index_params.get(&fld).map(|sort| sort.subst(args))
-    }
-
-    pub fn early_bound_sorts(&self, args: &[Sort]) -> Vec<Sort> {
-        self.sorts[..self.early_bound]
-            .iter()
-            .map(|sort| sort.subst(args))
-            .collect()
-    }
-
-    pub fn index_sorts(&self, args: &[Sort]) -> Vec<Sort> {
-        self.sorts[self.early_bound..]
-            .iter()
-            .map(|sort| sort.subst(args))
-            .collect()
     }
 
     fn is_base_generic(&self, def_id: DefId) -> bool {
@@ -970,91 +862,14 @@ impl RefinedBy {
 }
 
 impl Sort {
-    /// Returns `true` if the sort is [`Bool`].
-    ///
-    /// [`Bool`]: Sort::Bool
-    #[must_use]
-    pub fn is_bool(&self) -> bool {
-        matches!(self, Self::Bool)
-    }
-
-    pub fn is_numeric(&self) -> bool {
-        matches!(self, Self::Int | Self::Real)
-    }
-
-    /// Whether the sort is a function with return sort bool
-    pub fn is_pred(&self) -> bool {
-        matches!(self, Sort::Func(fsort) if fsort.skip_binders().output().is_bool())
-    }
-
-    pub fn default_infer_mode(&self) -> InferMode {
-        if self.is_pred() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
-        }
-    }
-
     pub fn set(t: Sort) -> Self {
-        Self::App(SortCtor::Set, List::singleton(t))
+        Self::App(SortCtor::Set, vec![t])
     }
 
     pub fn map(k: Sort, v: Sort) -> Self {
-        Self::App(SortCtor::Map, List::from_vec(vec![k, v]))
-    }
-
-    /// replace all "sort-vars" (indexed 0...n-1) with the corresponding sort in `subst`
-    fn subst(&self, subst: &[Sort]) -> Sort {
-        match self {
-            Sort::Var(i) => subst[*i].clone(),
-            Sort::App(ctor, args) => {
-                let args = args.iter().map(|arg| arg.subst(subst)).collect();
-                Sort::App(*ctor, args)
-            }
-            Sort::Func(fsort) => {
-                if fsort.params == 0 {
-                    let fsort = fsort.instantiate(subst);
-                    Sort::Func(PolyFuncSort { params: 0, fsort })
-                } else {
-                    bug!("unexpected subst in (nested) func-sort")
-                }
-            }
-            Sort::Int
-            | Sort::Bool
-            | Sort::Real
-            | Sort::Loc
-            | Sort::Unit
-            | Sort::BitVec(_)
-            | Sort::Param(_)
-            | Sort::SelfParam { .. }
-            | Sort::SelfAlias { .. }
-            | Sort::Wildcard
-            | Sort::Record(_, _)
-            | Sort::Infer(_)
-            | Sort::Error => self.clone(),
-        }
+        Self::App(SortCtor::Map, vec![k, v])
     }
 }
-
-impl ena::unify::UnifyKey for SortVid {
-    type Value = Option<Sort>;
-
-    #[inline]
-    fn index(&self) -> u32 {
-        self.as_u32()
-    }
-
-    #[inline]
-    fn from_index(u: u32) -> Self {
-        SortVid::from_u32(u)
-    }
-
-    fn tag() -> &'static str {
-        "SortVid"
-    }
-}
-
-impl ena::unify::EqUnifyValue for Sort {}
 
 impl From<PolyFuncSort> for Sort {
     fn from(fsort: PolyFuncSort) -> Self {
@@ -1065,7 +880,7 @@ impl From<PolyFuncSort> for Sort {
 impl FuncSort {
     pub fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
         inputs.push(output);
-        FuncSort { inputs_and_output: List::from_vec(inputs) }
+        FuncSort { inputs_and_output: inputs }
     }
 
     pub fn inputs(&self) -> &[Sort] {
@@ -1074,12 +889,6 @@ impl FuncSort {
 
     pub fn output(&self) -> &Sort {
         &self.inputs_and_output[self.inputs_and_output.len() - 1]
-    }
-}
-
-impl rustc_errors::IntoDiagnosticArg for Sort {
-    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self}")))
     }
 }
 
@@ -1215,6 +1024,16 @@ impl Map {
 
     pub fn get_extern(&self, extern_def_id: DefId) -> Option<LocalDefId> {
         self.externs.get(&extern_def_id).copied()
+    }
+
+    /// Return whether the local_def_id is a spec for an extern item. This is the inverse of
+    /// [`Map::get_extern`]. This currently only works for structs or enums
+    pub fn extern_id_of(&self, tcx: TyCtxt, local_def_id: LocalDefId) -> Option<DefId> {
+        match tcx.def_kind(local_def_id) {
+            DefKind::Struct => self.get_struct(local_def_id).extern_id,
+            DefKind::Enum => self.get_enum(local_def_id).extern_id,
+            _ => None,
+        }
     }
 
     // ADT
@@ -1424,77 +1243,11 @@ impl Map {
     }
 }
 
-impl TyAlias {
-    pub fn all_params(&self) -> impl Iterator<Item = &RefineParam> {
-        self.early_bound_params.iter().chain(&self.index_params)
-    }
-}
-
 impl StructDef {
     pub fn is_opaque(&self) -> bool {
         matches!(self.kind, StructKind::Opaque)
     }
 }
-
-impl WfckResults {
-    pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
-        Self {
-            owner: owner.into(),
-            node_sorts: ItemLocalMap::default(),
-            coercions: ItemLocalMap::default(),
-            type_holes: ItemLocalMap::default(),
-            lifetime_holes: ItemLocalMap::default(),
-        }
-    }
-
-    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
-    }
-
-    pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
-        LocalTableInContext { owner: self.owner, data: &self.node_sorts }
-    }
-
-    pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.coercions }
-    }
-
-    pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
-        LocalTableInContext { owner: self.owner, data: &self.coercions }
-    }
-
-    pub fn type_holes_mut(&mut self) -> LocalTableInContextMut<Ty> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.type_holes }
-    }
-
-    pub fn type_holes(&self) -> LocalTableInContext<Ty> {
-        LocalTableInContext { owner: self.owner, data: &self.type_holes }
-    }
-
-    pub fn lifetime_holes_mut(&mut self) -> LocalTableInContextMut<ResolvedArg> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.lifetime_holes }
-    }
-
-    pub fn lifetime_holes(&self) -> LocalTableInContext<ResolvedArg> {
-        LocalTableInContext { owner: self.owner, data: &self.lifetime_holes }
-    }
-}
-
-impl<'a, T> LocalTableInContextMut<'a, T> {
-    pub fn insert(&mut self, fhir_id: FhirId, value: T) {
-        assert_eq!(self.owner, fhir_id.owner);
-        self.data.insert(fhir_id.local_id, value);
-    }
-}
-
-impl<'a, T> LocalTableInContext<'a, T> {
-    pub fn get(&self, fhir_id: FhirId) -> Option<&'a T> {
-        assert_eq!(self.owner, fhir_id.owner);
-        self.data.get(&fhir_id.local_id)
-    }
-}
-
-impl_internable!([Sort]);
 
 impl fmt::Debug for FnSig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1748,22 +1501,6 @@ impl fmt::Debug for Lit {
     }
 }
 
-impl fmt::Display for Sort {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Sort::Infer(_) = self {
-            write!(f, "_")
-        } else {
-            fmt::Debug::fmt(self, f)
-        }
-    }
-}
-
-impl fmt::Display for SortCtor {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self, f)
-    }
-}
-
 impl fmt::Debug for SortCtor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -1783,17 +1520,16 @@ impl fmt::Debug for Sort {
             Sort::Var(n) => write!(f, "@{}", n),
             Sort::BitVec(w) => write!(f, "bitvec({w})"),
             Sort::Loc => write!(f, "loc"),
-            Sort::Func(sort) => write!(f, "{sort}"),
-            Sort::Unit => write!(f, "()"),
+            Sort::Func(fsort) => write!(f, "{fsort:?}"),
             Sort::Record(def_id, sort_args) => {
                 if sort_args.is_empty() {
                     write!(f, "{}", pretty::def_id_to_string(*def_id))
                 } else {
                     write!(
                         f,
-                        "{}<{}>",
+                        "{}<{:?}>",
                         pretty::def_id_to_string(*def_id),
-                        sort_args.iter().join(", ")
+                        sort_args.iter().format(", ")
                     )
                 }
             }
@@ -1804,39 +1540,31 @@ impl fmt::Debug for Sort {
             Sort::SelfAlias { alias_to } => {
                 write!(f, "sortof({}::Self)", pretty::def_id_to_string(*alias_to))
             }
-            Sort::Wildcard => write!(f, "_"),
-            Sort::Infer(vid) => write!(f, "{vid:?}"),
-            Sort::App(ctor, args) => write!(f, "{ctor}<{}>", args.iter().join(", ")),
-            Sort::Error => write!(f, "err"),
+            Sort::Infer => write!(f, "_"),
+            Sort::App(ctor, args) => write!(f, "{ctor:?}<{:?}>", args.iter().format(", ")),
         }
     }
 }
 
-impl fmt::Display for PolyFuncSort {
+impl fmt::Debug for PolyFuncSort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.params > 0 {
-            write!(f, "for<{}>{}", self.params, self.fsort)
+            write!(f, "for<{}>{:?}", self.params, self.fsort)
         } else {
-            write!(f, "{}", self.fsort)
-        }
-    }
-}
-
-impl fmt::Display for FuncSort {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.inputs() {
-            [input] => {
-                write!(f, "{} -> {}", input, self.output())
-            }
-            inputs => {
-                write!(f, "({}) -> {}", inputs.iter().join(", "), self.output())
-            }
+            write!(f, "{:?}", self.fsort)
         }
     }
 }
 
 impl fmt::Debug for FuncSort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
+        match self.inputs() {
+            [input] => {
+                write!(f, "{:?} -> {:?}", input, self.output())
+            }
+            inputs => {
+                write!(f, "({:?}) -> {:?}", inputs.iter().format(", "), self.output())
+            }
+        }
     }
 }

@@ -1,9 +1,6 @@
 use flux_common::iter::IterExt;
 use flux_errors::FluxSession;
-use flux_middle::{
-    fhir::{self},
-    intern::List,
-};
+use flux_middle::fhir::{self};
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -73,7 +70,7 @@ impl<'a> SortResolver<'a> {
             surface::Sort::Func { inputs, output } => {
                 Ok(self.resolve_func_sort(inputs, output)?.into())
             }
-            surface::Sort::Infer => Ok(fhir::Sort::Wildcard),
+            surface::Sort::Infer => Ok(fhir::Sort::Infer),
         }
     }
 
@@ -147,7 +144,7 @@ impl<'a> SortResolver<'a> {
             Ok(fhir::Sort::Var(*idx))
         } else if self.sort_decls.get(&ident.name).is_some() {
             let ctor = fhir::SortCtor::User { name: ident.name };
-            Ok(fhir::Sort::App(ctor, List::empty()))
+            Ok(fhir::Sort::App(ctor, vec![]))
         } else {
             Err(self.sess.emit_err(errors::UnresolvedSort::new(*ident)))
         }

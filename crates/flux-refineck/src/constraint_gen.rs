@@ -471,7 +471,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     pub(crate) fn fresh_infer_var(&mut self, sort: &Sort, mode: InferMode) -> Expr {
         match mode {
             InferMode::KVar => {
-                let fsort = sort.expect_func().skip_binders();
+                let fsort = sort.expect_func().expect_mono();
                 let inputs = List::from_slice(fsort.inputs());
                 let kvar = self.fresh_kvar(&[inputs.clone()], KVarEncoding::Single);
                 Expr::abs(Binder::with_sorts(kvar, inputs.iter().cloned()))
@@ -592,6 +592,13 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 }
 
                 self.opaque_subtyping(rcx, ty1, alias_ty)
+            }
+            (
+                TyKind::Alias(rty::AliasKind::Projection, alias_ty1),
+                TyKind::Alias(rty::AliasKind::Projection, alias_ty2),
+            ) => {
+                debug_assert_eq!(alias_ty1, alias_ty2);
+                Ok(())
             }
             _ => tracked_span_bug!("`{ty1:?}` <: `{ty2:?}`"),
         }
@@ -735,10 +742,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         }
 
         match (e1.kind(), e2.kind()) {
-            (ExprKind::Tuple(tup1), ExprKind::Tuple(tup2)) => {
-                debug_assert_eq!(tup1.len(), tup2.len());
+            (ExprKind::Aggregate(kind1, flds1), ExprKind::Aggregate(kind2, flds2)) => {
+                debug_assert_eq!(kind1, kind2);
+                debug_assert_eq!(flds1.len(), flds2.len());
 
-                for (e1, e2) in iter::zip(tup1, tup2) {
+                for (e1, e2) in iter::zip(flds1, flds2) {
                     self.idx_subtyping(rcx, e1, e2);
                 }
             }

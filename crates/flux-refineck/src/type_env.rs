@@ -1,8 +1,8 @@
-mod projection;
+mod place_ty;
 
 use std::{iter, ops::ControlFlow};
 
-use flux_common::tracked_span_bug;
+use flux_common::{dbg::debug_assert_eq3, tracked_span_bug};
 use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
@@ -19,7 +19,7 @@ use flux_middle::{
 use itertools::{izip, Itertools};
 use rustc_middle::ty::TyCtxt;
 
-use self::projection::{LocKind, PlacesTree};
+use self::place_ty::{LocKind, PlacesTree};
 use super::rty::{Loc, Sort};
 use crate::{
     checker::errors::CheckerErrKind,
@@ -46,6 +46,7 @@ pub struct BasicBlockEnv {
     scope: Scope,
 }
 
+#[derive(Debug)]
 struct BasicBlockEnvData {
     constrs: List<Expr>,
     bindings: PlacesTree,
@@ -458,13 +459,27 @@ impl BasicBlockEnvShape {
 
     fn join_idx(&self, e1: &Expr, e2: &Expr, sort: &Sort, bound_sorts: &mut Vec<Sort>) -> Expr {
         match (e1.kind(), e2.kind(), sort) {
-            (ExprKind::Tuple(es1), ExprKind::Tuple(es2), Sort::Tuple(sorts)) => {
-                debug_assert_eq!(es1.len(), es2.len());
-                debug_assert_eq!(es1.len(), sorts.len());
+            (ExprKind::Aggregate(_, es1), ExprKind::Aggregate(_, es2), Sort::Tuple(sorts)) => {
+                debug_assert_eq3!(es1.len(), es2.len(), sorts.len());
                 Expr::tuple(
                     izip!(es1, es2, sorts)
                         .map(|(e1, e2, sort)| self.join_idx(e1, e2, sort, bound_sorts))
-                        .collect_vec(),
+                        .collect(),
+                )
+            }
+            (
+                ExprKind::Aggregate(_, flds1),
+                ExprKind::Aggregate(_, flds2),
+                Sort::Adt(sort_def, args),
+            ) => {
+                let sorts = sort_def.sorts(args);
+                debug_assert_eq3!(flds1.len(), flds2.len(), sorts.len());
+
+                Expr::record(
+                    sort_def.did(),
+                    izip!(flds1, flds2, &sorts)
+                        .map(|(f1, f2, sort)| self.join_idx(f1, f2, sort, bound_sorts))
+                        .collect(),
                 )
             }
             _ => {

@@ -5,7 +5,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_span::Symbol;
 use toposort_scc::IndexGraph;
 
-use super::{fold::TypeSuperFoldable, ESpan};
+use super::{expr::FieldProj, fold::TypeSuperFoldable, ESpan};
 use crate::{
     fhir::FuncKind,
     rty::{
@@ -135,11 +135,10 @@ impl<'a> Normalizer<'a> {
         }
     }
 
-    fn tuple_proj(&self, tup: &Expr, proj: u32) -> Expr {
-        if let ExprKind::Tuple(exprs) = tup.kind() {
-            exprs[proj as usize].clone()
-        } else {
-            Expr::tuple_proj(tup, proj, None)
+    fn field_proj(&self, e: &Expr, proj: FieldProj) -> Expr {
+        match e.kind() {
+            ExprKind::Aggregate(_, flds) => flds[proj.field() as usize].clone(),
+            _ => Expr::field_proj(e, proj, None),
         }
     }
 }
@@ -150,8 +149,7 @@ impl TypeFolder for Normalizer<'_> {
         let span = expr.span();
         match expr.kind() {
             ExprKind::App(func, args) => self.app(func, args, span),
-
-            ExprKind::TupleProj(tup, proj) => self.tuple_proj(tup, *proj),
+            ExprKind::FieldProj(e, proj) => self.field_proj(e, *proj),
             _ => expr,
         }
     }

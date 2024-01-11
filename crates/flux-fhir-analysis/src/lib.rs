@@ -19,11 +19,11 @@ use flux_config as config;
 use flux_errors::ResultExt;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    fhir::{self, FluxLocalDefId, WfckResults},
+    fhir::{self, FluxLocalDefId},
     global_env::GlobalEnv,
     intern::List,
     queries::{Providers, QueryResult},
-    rty::{self, fold::TypeFoldable, refining::Refiner},
+    rty::{self, fold::TypeFoldable, refining::Refiner, WfckResults},
 };
 use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
@@ -38,6 +38,7 @@ pub fn provide(providers: &mut Providers) {
         defns,
         qualifiers,
         func_decls,
+        adt_sort_def_of,
         check_wf,
         adt_def,
         type_of,
@@ -49,6 +50,10 @@ pub fn provide(providers: &mut Providers) {
         assoc_predicates_of,
         item_bounds,
     };
+}
+
+fn adt_sort_def_of(genv: &GlobalEnv, def_id: LocalDefId) -> rty::AdtSortDef {
+    conv::conv_adt_sort_def(genv, genv.map().refined_by(def_id))
 }
 
 fn func_decls(genv: &GlobalEnv) -> FxHashMap<Symbol, rty::FuncDecl> {
@@ -100,7 +105,7 @@ fn invariants_of(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::I
         kind => bug!("expected struct or enum found `{kind:?}`"),
     };
     let wfckresults = genv.check_wf(def_id)?;
-    conv::conv_invariants(genv, params, invariants, &wfckresults)
+    conv::conv_invariants(genv, def_id, params, invariants, &wfckresults)
         .into_iter()
         .map(|invariant| normalize(genv, invariant))
         .collect()
@@ -200,7 +205,12 @@ fn refinement_generics_of(
         DefKind::Fn | DefKind::AssocFn => {
             let fn_sig = genv.map().get_fn_sig(local_id);
             let wfckresults = genv.check_wf(local_id)?;
-            let params = conv::conv_refinement_generics(genv, &fn_sig.params, &wfckresults);
+            let params = conv::conv_refinement_generics(genv, &fn_sig.params, Some(&wfckresults));
+            Ok(rty::RefinementGenerics { parent, parent_count, params })
+        }
+        DefKind::TyAlias => {
+            let ty_alias = genv.map().get_type_alias(local_id);
+            let params = conv::conv_refinement_generics(genv, &ty_alias.early_bound_params, None);
             Ok(rty::RefinementGenerics { parent, parent_count, params })
         }
         _ => Ok(rty::RefinementGenerics { parent, parent_count, params: List::empty() }),
@@ -275,19 +285,21 @@ fn fn_sig(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
 
     if config::dump_rty() {
         let generics = genv.generics_of(def_id)?;
-        dbg::dump_item_info(genv.tcx, def_id, "rty", (generics, &fn_sig)).unwrap();
+        let refinement_generics = genv.refinement_generics_of(def_id)?;
+        dbg::dump_item_info(genv.tcx, def_id, "rty", (generics, refinement_generics, &fn_sig))
+            .unwrap();
     }
     Ok(fn_sig)
 }
 
-fn check_wf(genv: &GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<Rc<fhir::WfckResults>> {
+fn check_wf(genv: &GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<Rc<WfckResults>> {
     match flux_id {
         FluxLocalDefId::Flux(sym) => check_wf_flux_item(genv, sym),
         FluxLocalDefId::Rust(def_id) => check_wf_rust_item(genv, def_id),
     }
 }
 
-fn check_wf_flux_item(genv: &GlobalEnv, sym: Symbol) -> QueryResult<Rc<fhir::WfckResults>> {
+fn check_wf_flux_item(genv: &GlobalEnv, sym: Symbol) -> QueryResult<Rc<WfckResults>> {
     let wfckresults = match genv.map().get_flux_item(sym).unwrap() {
         fhir::FluxItem::Qualifier(qualifier) => wf::check_qualifier(genv, qualifier)?,
         fhir::FluxItem::Defn(defn) => wf::check_defn(genv, defn)?,
@@ -295,7 +307,7 @@ fn check_wf_flux_item(genv: &GlobalEnv, sym: Symbol) -> QueryResult<Rc<fhir::Wfc
     Ok(Rc::new(wfckresults))
 }
 
-fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<fhir::WfckResults>> {
+fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<WfckResults>> {
     let wfckresults = match genv.tcx.def_kind(def_id) {
         DefKind::TyAlias { .. } => {
             let alias = genv.map().get_type_alias(def_id);

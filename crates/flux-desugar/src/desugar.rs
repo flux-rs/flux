@@ -123,23 +123,8 @@ pub fn desugar_refined_by(
     generics: &rustc_middle::ty::Generics,
     refined_by: &surface::RefinedBy,
 ) -> Result<fhir::RefinedBy> {
-    let mut set = FxHashSet::default();
-    refined_by.all_params().try_for_each_exhaust(|param| {
-        if let Some(old) = set.replace(param.name) {
-            Err(sess.emit_err(errors::DuplicateParam::new(old, param.name)))
-        } else {
-            Ok(())
-        }
-    })?;
-
     let sort_vars = gather_refined_by_sort_vars(generics, refined_by);
     let sr = SortResolver::with_sort_params(sess, sort_decls, &sort_vars);
-
-    let early_bound_params: Vec<_> = refined_by
-        .early_bound_params
-        .iter()
-        .map(|param| sr.resolve_sort(&param.sort))
-        .try_collect_exhaust()?;
 
     let index_params: Vec<_> = refined_by
         .index_params
@@ -154,13 +139,7 @@ pub fn desugar_refined_by(
         .collect();
     let sort_params = sort_vars.iter().map(|sym| generic_idx[&sym]).collect();
 
-    Ok(fhir::RefinedBy::new(
-        owner_id.def_id,
-        early_bound_params,
-        index_params,
-        sort_params,
-        refined_by.span,
-    ))
+    Ok(fhir::RefinedBy::new(owner_id.def_id, index_params, sort_params, refined_by.span))
 }
 
 pub(crate) struct RustItemCtxt<'a, 'tcx> {
@@ -434,6 +413,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             params: env.into_root().into_params(self),
             kind,
             invariants,
+            extern_id: struct_def.extern_id,
         })
     }
 
@@ -453,10 +433,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             self.genv,
             &self.sort_resolver,
             ScopeId::Enum(enum_def.node_id),
-            enum_def
-                .refined_by
-                .iter()
-                .flat_map(surface::RefinedBy::all_params),
+            enum_def.refined_by.iter().flat_map(|it| &it.index_params),
         )?;
 
         let invariants = enum_def
@@ -532,8 +509,8 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         let ty = self.desugar_ty(None, &ty_alias.ty, &mut env)?;
 
         let mut early_bound_params = env.into_root().into_params(self);
-        let index_params =
-            early_bound_params.split_off(ty_alias.refined_by.early_bound_params.len());
+        let idx = early_bound_params.len() - ty_alias.refined_by.index_params.len();
+        let index_params = early_bound_params.split_off(idx);
 
         Ok(fhir::TyAlias {
             owner_id: self.owner,
@@ -1241,7 +1218,7 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
         if let Some(param) = env.get(func) {
             return Ok(FuncRes::Param(fhir::Ident::new(param.name, func)));
         }
-        if let Some(decl) = self.genv().func_decl(func.name) {
+        if let Some(decl) = self.genv().map().func_decl(func.name) {
             return Ok(FuncRes::Global(decl));
         }
         Err(self.emit_err(errors::UnresolvedVar::from_ident(func)))

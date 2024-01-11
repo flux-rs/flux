@@ -19,7 +19,7 @@ use rustc_span::{Span, Symbol};
 use rustc_trait_selection::traits::NormalizeExt;
 
 use crate::{
-    fhir::{self, FluxLocalDefId},
+    fhir::FluxLocalDefId,
     global_env::GlobalEnv,
     intern::List,
     rty::{
@@ -47,7 +47,8 @@ pub struct Providers {
     pub defns: fn(&GlobalEnv) -> QueryResult<rty::Defns>,
     pub qualifiers: fn(&GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub func_decls: fn(&GlobalEnv) -> FxHashMap<Symbol, rty::FuncDecl>,
-    pub check_wf: fn(&GlobalEnv, FluxLocalDefId) -> QueryResult<Rc<fhir::WfckResults>>,
+    pub adt_sort_def_of: fn(&GlobalEnv, LocalDefId) -> rty::AdtSortDef,
+    pub check_wf: fn(&GlobalEnv, FluxLocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
     pub type_of: fn(&GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>>,
     pub variants_of: fn(
@@ -75,6 +76,7 @@ impl Default for Providers {
             defns: |_| empty_query!(),
             func_decls: |_| empty_query!(),
             qualifiers: |_| empty_query!(),
+            adt_sort_def_of: |_, _| empty_query!(),
             check_wf: |_, _| empty_query!(),
             adt_def: |_, _| empty_query!(),
             type_of: |_, _| empty_query!(),
@@ -100,7 +102,8 @@ pub struct Queries<'tcx> {
     defns: OnceCell<QueryResult<rty::Defns>>,
     func_decls: OnceCell<FxHashMap<Symbol, rty::FuncDecl>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
-    check_wf: Cache<FluxLocalDefId, QueryResult<Rc<fhir::WfckResults>>>,
+    adt_sort_def_of: Cache<DefId, rty::AdtSortDef>,
+    check_wf: Cache<FluxLocalDefId, QueryResult<Rc<rty::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     refinement_generics_of: Cache<DefId, QueryResult<rty::RefinementGenerics>>,
@@ -207,11 +210,23 @@ impl<'tcx> Queries<'tcx> {
             .map_err(Clone::clone)
     }
 
+    pub(crate) fn adt_sort_def_of(&self, genv: &GlobalEnv, def_id: DefId) -> rty::AdtSortDef {
+        run_with_cache(&self.adt_sort_def_of, def_id, || {
+            let extern_id = genv.lookup_extern(def_id);
+            let def_id = extern_id.unwrap_or(def_id);
+            if let Some(local_id) = def_id.as_local() {
+                (self.providers.adt_sort_def_of)(genv, local_id)
+            } else {
+                rty::AdtSortDef::new(def_id, vec![], vec![])
+            }
+        })
+    }
+
     pub(crate) fn check_wf(
         &self,
         genv: &GlobalEnv,
         flux_id: FluxLocalDefId,
-    ) -> QueryResult<Rc<fhir::WfckResults>> {
+    ) -> QueryResult<Rc<rty::WfckResults>> {
         run_with_cache(&self.check_wf, flux_id, || (self.providers.check_wf)(genv, flux_id))
     }
 
@@ -229,7 +244,7 @@ impl<'tcx> Queries<'tcx> {
                 } else {
                     lowering::lower_adt_def(&genv.tcx.adt_def(def_id))
                 };
-                Ok(rty::AdtDef::new(adt_def, rty::Sort::unit(), vec![], false))
+                Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id), vec![], false))
             }
         })
     }

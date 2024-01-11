@@ -252,7 +252,7 @@ impl<'rcx> RefineCtxt<'rcx> {
                     && !idx.has_escaping_bvars()
                 {
                     for invariant in bty.invariants(self.overflow_checking) {
-                        let invariant = invariant.pred.replace_bound_expr(idx);
+                        let invariant = invariant.apply(idx);
                         self.rcx.assume_pred(invariant);
                     }
                 }
@@ -619,6 +619,27 @@ impl Iterator for ParentsIter {
         } else {
             None
         }
+    }
+}
+
+impl TypeVisitable for RefineTree {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        self.root.visit_with(visitor)
+    }
+}
+
+impl TypeVisitable for NodePtr {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        let node = self.borrow();
+        match &node.kind {
+            NodeKind::Conj | NodeKind::Comment(_) | NodeKind::True => {}
+            NodeKind::Guard(pred) | NodeKind::Head(pred, _) => pred.visit_with(visitor)?,
+            NodeKind::ForAll(_, sort) => sort.visit_with(visitor)?,
+        }
+        for child in &node.children {
+            child.visit_with(visitor)?;
+        }
+        ControlFlow::Continue(())
     }
 }
 

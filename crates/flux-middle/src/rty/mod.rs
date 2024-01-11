@@ -12,10 +12,12 @@ pub mod projections;
 pub mod refining;
 pub mod subst;
 
-use std::{fmt, hash::Hash, iter, slice, sync::LazyLock};
+use std::{borrow::Cow, fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
-pub use expr::{ESpan, Expr, ExprKind, HoleKind, KVar, KVid, Loc, Name, Path, Var};
+pub use expr::{
+    AggregateKind, ESpan, Expr, ExprKind, FieldProj, HoleKind, KVar, KVid, Loc, Name, Path, Var,
+};
 use flux_common::bug;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
@@ -24,30 +26,19 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
-use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::ty::ParamConst;
+use rustc_macros::{newtype_index, Decodable, Encodable, TyDecodable, TyEncodable};
+use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::ParamConst};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, OutlivesPredicate, ParamTy, ScalarInt, UintTy},
 };
-use rustc_span::Symbol;
+use rustc_span::{symbol::kw, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 pub use rustc_type_ir::INNERMOST;
 
 use self::{
     fold::TypeFoldable,
     subst::{BoundVarReplacer, FnMutDelegate},
-};
-use crate::{
-    fhir::FuncKind,
-    global_env::GlobalEnv,
-    intern::{impl_internable, impl_slice_internable, Interned, List},
-    queries::QueryResult,
-    rustc::{
-        self,
-        mir::{Local, Place},
-        ty::{ConstKind, GeneratorArgsParts, VariantDef},
-    },
 };
 pub use crate::{
     fhir::InferMode,
@@ -56,6 +47,68 @@ pub use crate::{
         Region::{self, *},
     },
 };
+use crate::{
+    fhir::{self, FhirId, FluxOwnerId, FuncKind, ParamKind},
+    global_env::GlobalEnv,
+    intern::{impl_internable, impl_slice_internable, Interned, List},
+    queries::QueryResult,
+    rty::subst::SortSubst,
+    rustc::{
+        self,
+        mir::{Local, Place},
+        ty::{ConstKind, GeneratorArgsParts, VariantDef},
+    },
+};
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+pub struct AdtSortDef(Interned<AdtSortDefData>);
+
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+struct AdtSortDefData {
+    def_id: DefId,
+    params: Vec<u32>,
+    field_names: Vec<Symbol>,
+    sorts: List<Sort>,
+}
+
+impl AdtSortDef {
+    pub fn new(def_id: DefId, params: Vec<u32>, fields: Vec<(Symbol, Sort)>) -> Self {
+        let (field_names, sorts) = fields.into_iter().unzip();
+        Self(Interned::new(AdtSortDefData {
+            def_id,
+            params,
+            field_names,
+            sorts: List::from_vec(sorts),
+        }))
+    }
+
+    pub fn did(&self) -> DefId {
+        self.0.def_id
+    }
+
+    pub fn fields(&self) -> usize {
+        self.0.sorts.len()
+    }
+
+    pub fn field_sort(&self, args: &[Sort], name: Symbol) -> Option<Sort> {
+        let idx = self.field_index(name)?;
+        Some(self.0.sorts[idx].fold_with(&mut SortSubst::new(args)))
+    }
+
+    pub fn sorts(&self, args: &[Sort]) -> List<Sort> {
+        self.0.sorts.fold_with(&mut SortSubst::new(args))
+    }
+
+    pub fn identity_args(&self) -> List<Sort> {
+        (0..self.0.params.len())
+            .map(|i| Sort::Var(SortVar::from(i)))
+            .collect()
+    }
+
+    pub fn field_index(&self, name: Symbol) -> Option<usize> {
+        self.0.field_names.iter().position(|it| name == *it)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Generics {
@@ -93,6 +146,8 @@ pub enum GenericParamDefKind {
     Lifetime,
     Const { has_default: bool },
 }
+
+pub const SELF_PARAM_TY: ParamTy = ParamTy { index: 0, name: kw::SelfUpper };
 
 #[derive(Debug, Clone)]
 pub struct GenericPredicates {
@@ -186,6 +241,32 @@ impl From<usize> for SortVar {
     }
 }
 
+newtype_index! {
+    /// A *Sort* *v*variable *id*
+    #[debug_format = "#{}"]
+    pub struct SortVid {}
+}
+
+impl ena::unify::UnifyKey for SortVid {
+    type Value = Option<Sort>;
+
+    #[inline]
+    fn index(&self) -> u32 {
+        self.as_u32()
+    }
+
+    #[inline]
+    fn from_index(u: u32) -> Self {
+        SortVid::from_u32(u)
+    }
+
+    fn tag() -> &'static str {
+        "SortVid"
+    }
+}
+
+impl ena::unify::EqUnifyValue for Sort {}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
@@ -197,22 +278,40 @@ pub enum Sort {
     Tuple(List<Sort>),
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
+    Adt(AdtSortDef, List<Sort>),
     Var(SortVar),
+    Infer(SortVid),
+    Err,
+}
+
+impl rustc_errors::IntoDiagnosticArg for Sort {
+    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
+        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct FuncSort {
-    inputs_and_output: List<Sort>,
+    pub inputs_and_output: List<Sort>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct PolyFuncSort {
-    params: usize,
+    pub params: usize,
     fsort: FuncSort,
 }
 
 impl PolyFuncSort {
     pub fn skip_binders(&self) -> FuncSort {
+        self.fsort.clone()
+    }
+
+    pub fn instantiate_identity(&self) -> FuncSort {
+        self.fsort.clone()
+    }
+
+    pub fn expect_mono(&self) -> FuncSort {
+        assert!(self.params == 0);
         self.fsort.clone()
     }
 
@@ -223,6 +322,10 @@ impl PolyFuncSort {
     pub fn new(params: usize, fsort: FuncSort) -> Self {
         PolyFuncSort { params, fsort }
     }
+
+    pub fn instantiate(&self, args: &[Sort]) -> FuncSort {
+        self.fsort.fold_with(&mut SortSubst::new(args))
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -231,7 +334,7 @@ pub struct AdtDef(Interned<AdtDefData>);
 #[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct AdtDefData {
     invariants: Vec<Invariant>,
-    sort: Sort, // TODO: Binder<Sort> as there may be Var in `Sort`
+    sort_def: AdtSortDef,
     opaque: bool,
     rustc: rustc::ty::AdtDef,
 }
@@ -251,7 +354,24 @@ pub static UINT_TYS: [UintTy; 6] =
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub struct Invariant {
-    pub pred: Binder<Expr>,
+    // This predicate may have sort variables, but we don't explicitly mark it like in `PolyFuncSort`.
+    // See comment on `apply` for details.
+    pred: Binder<Expr>,
+}
+
+impl Invariant {
+    pub fn new(pred: Binder<Expr>) -> Self {
+        Self { pred }
+    }
+
+    pub fn apply(&self, idx: &Expr) -> Expr {
+        // The predicate may have sort variables but we don't explicitly instantiate them. This
+        // works because sort variables can only appear in sorts and not in expressions. Since
+        // we are removing the binder (which contains the sorts) we can avoid the explicit instantiation.
+        // Ultimately, this works because the expression we generate in fixpoint/z3 doesn't need
+        // sort annotations (sorts are re-inferred).
+        self.pred.replace_bound_expr(idx)
+    }
 }
 
 pub type PolyVariants = List<Binder<VariantSig>>;
@@ -470,6 +590,15 @@ impl GenericArg {
             bug!("expected `rty::GenericArg::Ty`, found {:?}", self)
         }
     }
+
+    fn peel_out_sort(&self) -> Option<Sort> {
+        match self {
+            GenericArg::Ty(ty) => ty.as_bty_skipping_existentials().map(BaseTy::sort),
+            GenericArg::BaseTy(abs) => Some(abs.vars()[0].expect_sort().clone()),
+            GenericArg::Lifetime(_) | GenericArg::Const(_) => None,
+        }
+    }
+
     pub fn is_valid_base_arg(&self) -> bool {
         match self {
             GenericArg::Ty(ty) => ty.kind().is_valid_base_ty(),
@@ -671,6 +800,14 @@ impl RefinementGenerics {
 }
 
 impl Sort {
+    pub fn infer_mode(&self, kind: ParamKind) -> InferMode {
+        if self.is_pred() && !kind.is_implicit() {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
+        }
+    }
+
     pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
         Sort::Tuple(sorts.into())
     }
@@ -704,8 +841,18 @@ impl Sort {
         matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
     }
 
+    pub fn is_unit_adt(&self) -> Option<DefId> {
+        if let Sort::Adt(sort_def, _) = self
+            && sort_def.fields() == 0
+        {
+            Some(sort_def.did())
+        } else {
+            None
+        }
+    }
+
     /// Whether the sort is a function with return sort bool
-    fn is_pred(&self) -> bool {
+    pub fn is_pred(&self) -> bool {
         matches!(self, Sort::Func(fsort) if fsort.skip_binders().output().is_bool())
     }
 
@@ -713,26 +860,34 @@ impl Sort {
     ///
     /// [`Bool`]: Sort::Bool
     #[must_use]
-    fn is_bool(&self) -> bool {
+    pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
     }
 
-    pub fn flatten(&self) -> Vec<Sort> {
-        let mut sorts = vec![];
-        self.walk(|sort, _| sorts.push(sort.clone()));
-        sorts
+    pub fn is_numeric(&self) -> bool {
+        matches!(self, Self::Int | Self::Real)
     }
 
-    pub fn walk(&self, mut f: impl FnMut(&Sort, &[u32])) {
-        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[u32]), proj: &mut Vec<u32>) {
-            if let Sort::Tuple(sorts) = sort {
-                sorts.iter().enumerate().for_each(|(i, sort)| {
-                    proj.push(i as u32);
-                    go(sort, f, proj);
-                    proj.pop();
-                });
-            } else {
-                f(sort, proj);
+    pub fn walk(&self, mut f: impl FnMut(&Sort, &[FieldProj])) {
+        fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[FieldProj]), proj: &mut Vec<FieldProj>) {
+            match sort {
+                Sort::Tuple(flds) => {
+                    for (i, sort) in flds.iter().enumerate() {
+                        proj.push(FieldProj::Tuple { arity: flds.len(), field: i as u32 });
+                        go(sort, f, proj);
+                        proj.pop();
+                    }
+                }
+                Sort::Adt(sort_def, args) => {
+                    for (i, sort) in sort_def.sorts(args).iter().enumerate() {
+                        proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i as u32 });
+                        go(sort, f, proj);
+                        proj.pop();
+                    }
+                }
+                _ => {
+                    f(sort, proj);
+                }
             }
         }
         go(self, &mut f, &mut vec![]);
@@ -1013,19 +1168,28 @@ impl FnOutput {
 impl AdtDef {
     pub fn new(
         rustc: rustc::ty::AdtDef,
-        sort: Sort,
+        sort_def: AdtSortDef,
         invariants: Vec<Invariant>,
         opaque: bool,
     ) -> Self {
-        AdtDef(Interned::new(AdtDefData { invariants, sort, opaque, rustc }))
+        AdtDef(Interned::new(AdtDefData { invariants, sort_def, opaque, rustc }))
     }
 
     pub fn did(&self) -> DefId {
         self.0.rustc.did()
     }
 
-    pub fn sort(&self) -> &Sort {
-        &self.0.sort
+    pub fn sort(&self, args: &[GenericArg]) -> Sort {
+        let sorts = self
+            .0
+            .sort_def
+            .0
+            .params
+            .iter()
+            .map(|i| args[*i as usize].peel_out_sort().unwrap())
+            .collect();
+
+        Sort::Adt(self.0.sort_def.clone(), sorts)
     }
 
     pub fn is_box(&self) -> bool {
@@ -1445,7 +1609,7 @@ impl BaseTy {
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
             BaseTy::Bool => Sort::Bool,
-            BaseTy::Adt(adt_def, _) => adt_def.sort().clone(),
+            BaseTy::Adt(adt_def, args) => adt_def.sort(args),
             BaseTy::Param(param_ty) => Sort::Param(*param_ty),
             BaseTy::Float(_)
             | BaseTy::Str
@@ -1549,7 +1713,7 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
     }
 }
 
-impl_internable!(AdtDefData, TyS);
+impl_internable!(AdtDefData, AdtSortDefData, TyS);
 impl_slice_internable!(
     Ty,
     GenericArg,
@@ -1603,6 +1767,101 @@ macro_rules! _Ref {
     };
 }
 pub use crate::_Ref as Ref;
+
+pub struct WfckResults {
+    pub owner: FluxOwnerId,
+    record_ctors: ItemLocalMap<DefId>,
+    node_sorts: ItemLocalMap<Sort>,
+    coercions: ItemLocalMap<Vec<Coercion>>,
+    type_holes: ItemLocalMap<fhir::Ty>,
+    lifetime_holes: ItemLocalMap<ResolvedArg>,
+}
+
+#[derive(Debug)]
+pub enum Coercion {
+    Inject(DefId),
+    Project(DefId),
+}
+
+pub type ItemLocalMap<T> = FxHashMap<fhir::ItemLocalId, T>;
+
+#[derive(Debug)]
+pub struct LocalTableInContext<'a, T> {
+    owner: FluxOwnerId,
+    data: &'a ItemLocalMap<T>,
+}
+
+pub struct LocalTableInContextMut<'a, T> {
+    owner: FluxOwnerId,
+    data: &'a mut ItemLocalMap<T>,
+}
+
+impl WfckResults {
+    pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
+        Self {
+            owner: owner.into(),
+            record_ctors: ItemLocalMap::default(),
+            node_sorts: ItemLocalMap::default(),
+            coercions: ItemLocalMap::default(),
+            type_holes: ItemLocalMap::default(),
+            lifetime_holes: ItemLocalMap::default(),
+        }
+    }
+
+    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<DefId> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.record_ctors }
+    }
+
+    pub fn record_ctors(&self) -> LocalTableInContext<DefId> {
+        LocalTableInContext { owner: self.owner, data: &self.record_ctors }
+    }
+
+    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
+    }
+
+    pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
+        LocalTableInContext { owner: self.owner, data: &self.node_sorts }
+    }
+
+    pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.coercions }
+    }
+
+    pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
+        LocalTableInContext { owner: self.owner, data: &self.coercions }
+    }
+
+    pub fn type_holes_mut(&mut self) -> LocalTableInContextMut<fhir::Ty> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.type_holes }
+    }
+
+    pub fn type_holes(&self) -> LocalTableInContext<fhir::Ty> {
+        LocalTableInContext { owner: self.owner, data: &self.type_holes }
+    }
+
+    pub fn lifetime_holes_mut(&mut self) -> LocalTableInContextMut<ResolvedArg> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.lifetime_holes }
+    }
+
+    pub fn lifetime_holes(&self) -> LocalTableInContext<ResolvedArg> {
+        LocalTableInContext { owner: self.owner, data: &self.lifetime_holes }
+    }
+}
+
+impl<'a, T> LocalTableInContextMut<'a, T> {
+    pub fn insert(&mut self, fhir_id: FhirId, value: T) {
+        assert_eq!(self.owner, fhir_id.owner);
+        self.data.insert(fhir_id.local_id, value);
+    }
+}
+
+impl<'a, T> LocalTableInContext<'a, T> {
+    pub fn get(&self, fhir_id: FhirId) -> Option<&'a T> {
+        assert_eq!(self.owner, fhir_id.owner);
+        self.data.get(&fhir_id.local_id)
+    }
+}
 
 mod pretty {
     use rustc_middle::ty::TyCtxt;
@@ -1724,6 +1983,13 @@ mod pretty {
                 Sort::Loc => w!("loc"),
                 Sort::Var(n) => w!("@{}", ^n.index),
                 Sort::Func(sort) => w!("{:?}", sort),
+                Sort::Adt(adt_sort_def, args) => {
+                    if args.is_empty() {
+                        w!("{:?}", adt_sort_def.did())
+                    } else {
+                        w!("{:?}<{:?}>", adt_sort_def.did(), join!(", ", args))
+                    }
+                }
                 Sort::Tuple(sorts) => {
                     if let [sort] = &sorts[..] {
                         w!("({:?},)", sort)
@@ -1732,13 +1998,15 @@ mod pretty {
                     }
                 }
                 Sort::App(ctor, sorts) => {
-                    if let [sort] = &sorts[..] {
-                        w!("{:?}<{:?}>", ctor, sort)
+                    if sorts.is_empty() {
+                        w!("{:?}", ctor)
                     } else {
                         w!("{:?}<{:?}>", ctor, join!(", ", sorts))
                     }
                 }
                 Sort::Param(param_ty) => w!("{}::sort", ^param_ty),
+                Sort::Infer(svid) => w!("{:?}", ^svid),
+                Sort::Err => w!("err"),
             }
         }
     }
@@ -1746,12 +2014,20 @@ mod pretty {
     impl Pretty for FuncSort {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("({}) -> {:?}",
-                ^self.inputs()
-                    .iter()
-                    .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s))),
-                self.output()
-            )
+            match self.inputs() {
+                [input] => {
+                    w!(f, "{:?} -> {:?}", input, self.output())
+                }
+                inputs => {
+                    w!(f,
+                       "({}) -> {:?}",
+                       ^inputs
+                           .iter()
+                           .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s))),
+                       self.output()
+                    )
+                }
+            }
         }
     }
 
