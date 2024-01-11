@@ -168,6 +168,7 @@ pub(crate) fn check_assoc_predicates(
     // TODO(RJ): multiple-predicates
     for assoc_pred in &assoc_predicates.predicates {
         if let fhir::AssocPredicateKind::Impl(params, body) = &assoc_pred.kind {
+            // TODO: check_params(sorts)
             infcx.push_layer(params);
             infcx.check_expr(&body, &fhir::Sort::Bool)?;
         }

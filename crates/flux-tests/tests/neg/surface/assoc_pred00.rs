@@ -6,7 +6,7 @@ pub trait MyTrait {
 }
 
 // Step 2 : implement -----------------------------
-#[flux::predicate{ f : |x:int| { 0 < x } }]
+#[flux::predicate{ f : |x:int| { 0 < x } }] // TODO: check against trait-def
 impl MyTrait for i32 {
     fn method(&self) -> i32 {
         10
@@ -15,7 +15,7 @@ impl MyTrait for i32 {
 
 // Step 3 : abstract ------------------------------
 #[flux::trusted] // TODO: subtyping with alias_pred on lhs
-#[flux::sig(fn<T as base>(&{T[@x] | <T as MyTrait>::f(x)}))]
+#[flux::sig(fn<T as base>(&{T[@x] | <T as MyTrait>::f(x)}))] // TODO: check against trait-spec
 pub fn bob<T: MyTrait>(x: &T) {
     x.method();
 }

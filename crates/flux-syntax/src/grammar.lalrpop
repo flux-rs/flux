@@ -152,7 +152,7 @@ pub AssocPredicate: surface::AssocPredicate = {
 
 pub AssocPredicateKind: surface::AssocPredicateKind = {
     <sort:Sort> => surface::AssocPredicateKind::Spec(sort),
-    "|"<params:RefineParams<"?">> "|" "{" <body:Expr> "}"  => surface::AssocPredicateKind::Impl(params, body),
+    "|"<params:RefineParams<"!">> "|" "{" <body:Expr> "}"  => surface::AssocPredicateKind::Impl(params, body),
 }
 
 pub FnSig: surface::FnSig = {
