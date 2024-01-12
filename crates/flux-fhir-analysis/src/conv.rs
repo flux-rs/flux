@@ -268,8 +268,12 @@ fn conv_assoc_predicate(
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults);
     let kind = match &assoc_predicate.kind {
-        fhir::AssocPredicateKind::Spec(sort) => {
-            rty::AssocPredicateKind::Spec(conv_sort(genv, sort, &mut bug_on_sort_vid))
+        fhir::AssocPredicateKind::Spec(sorts) => {
+            let sorts = sorts
+                .iter()
+                .map(|sort| conv_sort(genv, sort, &mut bug_on_sort_vid))
+                .collect();
+            rty::AssocPredicateKind::Spec(sorts)
         }
         fhir::AssocPredicateKind::Impl(params, expr) => {
             env.push_layer(Layer::list(&cx, 0, params, false));

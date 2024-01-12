@@ -109,7 +109,7 @@ pub struct AssocPredicate {
 
 #[derive(Debug)]
 pub enum AssocPredicateKind {
-    Spec(Sort),
+    Spec(Vec<Sort>),
     Impl(Vec<RefineParam>, Expr),
 }
 

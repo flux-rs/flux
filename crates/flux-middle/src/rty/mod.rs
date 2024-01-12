@@ -222,7 +222,7 @@ pub struct AssocPredicate {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum AssocPredicateKind {
-    Spec(Sort),
+    Spec(List<Sort>),
     Impl(Binder<Expr>),
 }
 

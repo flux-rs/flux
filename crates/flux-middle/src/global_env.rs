@@ -16,7 +16,10 @@ use crate::{
     fhir::{self, FluxLocalDefId, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryResult},
-    rty::{self, fold::TypeFoldable, normalize::Defns, refining::Refiner, GenericParamDefKind},
+    rty::{
+        self, fold::TypeFoldable, normalize::Defns, refining::Refiner, subst::GenericSortSubst,
+        AssocPredicateKind, GenericParamDefKind,
+    },
     rustc::{self, ty},
 };
 
@@ -214,6 +217,28 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn const_by_name(&self, name: impl Borrow<Symbol>) -> Option<&fhir::ConstInfo> {
         self.map().const_by_name(name)
+    }
+
+    pub fn sorts_of_alias_pred(&self, alias_pred: &fhir::AliasPred) -> Option<List<rty::Sort>> {
+        let trait_id = alias_pred.trait_id;
+        let name = alias_pred.name;
+        let args: Vec<_> = alias_pred
+            .generic_args
+            .iter()
+            .flat_map(|arg| {
+                match arg {
+                    fhir::GenericArg::Type(ty) => self.sort_of_ty(ty),
+                    fhir::GenericArg::Lifetime(_) => None,
+                }
+            })
+            .collect();
+        if let Ok(Some(assoc_pred)) = self.assoc_predicate_of(trait_id, name)
+            && let AssocPredicateKind::Spec(sorts) = assoc_pred.kind
+        {
+            Some(sorts.fold_with(&mut GenericSortSubst::new(&args)))
+        } else {
+            None
+        }
     }
 
     pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> Option<rty::Sort> {

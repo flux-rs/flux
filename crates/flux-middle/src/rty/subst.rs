@@ -396,3 +396,23 @@ impl TypeFolder for SortSubst<'_> {
         }
     }
 }
+
+pub(crate) struct GenericSortSubst<'a> {
+    args: &'a [Sort],
+}
+
+impl<'a> GenericSortSubst<'a> {
+    pub(crate) fn new(args: &'a [Sort]) -> Self {
+        Self { args }
+    }
+}
+
+impl TypeFolder for GenericSortSubst<'_> {
+    fn fold_sort(&mut self, sort: &Sort) -> Sort {
+        if let Sort::Param(var) = sort {
+            self.args[var.index as usize].clone()
+        } else {
+            sort.super_fold_with(self)
+        }
+    }
+}

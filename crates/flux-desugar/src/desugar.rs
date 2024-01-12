@@ -303,7 +303,15 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         let kind = match &assoc_predicate.kind {
             surface::AssocPredicateKind::Spec(sort) => {
                 let sort = self.sort_resolver.resolve_sort(sort)?;
-                fhir::AssocPredicateKind::Spec(sort)
+                if let fhir::Sort::Func(func_sort) = sort
+                    && let fhir::Sort::Bool = func_sort.fsort.output()
+                    && func_sort.params == 0
+                {
+                    fhir::AssocPredicateKind::Spec(func_sort.fsort.inputs().to_vec())
+                } else {
+                    return Err(self
+                        .emit_err(errors::InvalidAssocPredicate::new(assoc_predicate.span, name)));
+                }
             }
             surface::AssocPredicateKind::Impl(params, body) => {
                 let mut env =

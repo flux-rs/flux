@@ -18,7 +18,7 @@ use rustc_data_structures::snapshot_map::{self, SnapshotMap};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
 use rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
-use rustc_span::Symbol;
+use rustc_span::{Span, Symbol};
 
 use self::sortck::InferCtxt;
 use crate::conv;
@@ -585,6 +585,28 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         self.check_param_uses_expr(infcx, expr, true)
     }
 
+    fn check_alias_pred_app(
+        &mut self,
+        infcx: &mut InferCtxt,
+        alias_pred: &fhir::AliasPred,
+        args: &[fhir::RefineArg],
+        span: Span,
+    ) -> Result<(), ErrorGuaranteed> {
+        if let Some(inputs) = self.genv.sorts_of_alias_pred(alias_pred) {
+            if args.len() != inputs.len() {
+                return self.emit_err(errors::ArgCountMismatch::new(
+                    Some(span),
+                    String::from("function"),
+                    inputs.len(),
+                    args.len(),
+                ));
+            }
+            iter::zip(args, &inputs)
+                .try_for_each_exhaust(|(arg, formal)| self.check_refine_arg(infcx, arg, formal))?;
+        }
+        Ok(())
+    }
+
     fn check_pred(
         &mut self,
         infcx: &mut InferCtxt,
@@ -592,7 +614,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         match &pred.kind {
             fhir::PredKind::Expr(expr) => self.check_expr_as_pred(infcx, expr),
-            fhir::PredKind::Alias(_, _) => Ok(()), // TODO: normalize-and-check-sort,
+            fhir::PredKind::Alias(alias_pred, args) => {
+                self.check_alias_pred_app(infcx, alias_pred, args, pred.span)
+            }
         }
     }
 
