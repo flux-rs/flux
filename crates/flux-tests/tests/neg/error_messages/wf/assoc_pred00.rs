@@ -11,14 +11,21 @@ impl MyTrait for i32 {
     }
 }
 
-#[flux::predicate{ f : |x:int, y:int| { y < x } }] // TODO: check-against-trait
-impl MyTrait for usize {
+#[flux::predicate{ f : |p:bool| { p } }] //~ ERROR invalid implementation for 'f'
+impl MyTrait for i16 {
     fn method(&self) -> i32 {
         10
     }
 }
 
-#[flux::predicate{ g : |x:int| { 0 < x } }] // TODO: check-against-trait
+#[flux::predicate{ f : |x:int, y:int| { y < x } }] //~ ERROR invalid implementation for 'f'
+impl MyTrait for i64 {
+    fn method(&self) -> i32 {
+        10
+    }
+}
+
+#[flux::predicate{ g : |x:int| { 0 < x } }] //~ ERROR unknown associated predicate 'g'
 impl MyTrait for u32 {
     fn method(&self) -> i32 {
         10
