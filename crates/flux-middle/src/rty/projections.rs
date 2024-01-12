@@ -44,13 +44,13 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
         Ok(Normalizer { genv, selcx, def_id: callsite_def_id, param_env })
     }
 
-    fn normalize_alias_pred(&mut self, alias_pred: &AliasPred, ty: &Ty) -> QueryResult<Ty> {
+    fn normalize_alias_pred(&mut self, alias_pred: &AliasPred) -> QueryResult<Pred> {
         if let Some(impl_id) = self.impl_id_of_alias_ty(alias_pred)?
             && let Some(pred) = self.genv.assoc_predicate_of(impl_id, alias_pred.name)?
             && let AssocPredicateKind::Impl(body) = pred.kind
         {
             let expr = body.replace_bound_exprs(&alias_pred.refine_args);
-            Ok(Ty::constr_expr(expr, ty.clone()))
+            Ok(Pred::Expr(expr))
         } else {
             bug!("failed to normalize_alias_pred `{alias_pred:?}`")
         }
@@ -222,10 +222,15 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
             TyKind::Alias(AliasKind::Projection, alias_ty) => {
                 self.normalize_projection_ty(alias_ty)
             }
-            TyKind::Constr(Pred::Alias(alias_pred), ty) => {
-                self.normalize_alias_pred(alias_pred, ty)
-            }
             _ => ty.try_super_fold_with(self),
+        }
+    }
+
+    fn try_fold_pred(&mut self, pred: &Pred) -> Result<Pred, Self::Error> {
+        if let Pred::Alias(alias_pred) = pred {
+            self.normalize_alias_pred(alias_pred)
+        } else {
+            pred.try_super_fold_with(self)
         }
     }
 }
