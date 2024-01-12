@@ -470,7 +470,7 @@ pub struct TyS {
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum Pred {
     Expr(Expr),
-    Alias(AliasPred),
+    Alias(AliasPred, RefineArgs),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
@@ -478,7 +478,7 @@ pub struct AliasPred {
     pub trait_id: DefId,
     pub name: Symbol,
     pub args: GenericArgs,
-    pub refine_args: RefineArgs,
+    // pub refine_args: RefineArgs,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
@@ -2093,7 +2093,7 @@ mod pretty {
             define_scoped!(_cx, f);
             match self {
                 Pred::Expr(expr) => w!("{expr:?}"),
-                Pred::Alias(alias_pred) => w!("{alias_pred:?}"),
+                Pred::Alias(alias_pred, refine_args) => w!("{alias_pred:?}({refine_args:?})"),
             }
         }
     }

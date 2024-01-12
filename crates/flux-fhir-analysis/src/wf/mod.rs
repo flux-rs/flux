@@ -592,7 +592,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         match &pred.kind {
             fhir::PredKind::Expr(expr) => self.check_expr_as_pred(infcx, expr),
-            fhir::PredKind::Alias(_alias_pred) => Ok(()), // TODO: normalize-and-check-sort,
+            fhir::PredKind::Alias(_, _) => Ok(()), // TODO: normalize-and-check-sort,
         }
     }
 

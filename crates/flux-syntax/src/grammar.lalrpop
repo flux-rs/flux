@@ -285,17 +285,14 @@ Pred: surface::Pred = {
 
 PredKind: surface::PredKind = {
     <expr:Expr> => surface::PredKind::Expr(expr),
-    <alias_pred:AliasPred> => surface::PredKind::Alias(alias_pred),
-}
-
-AliasPred: surface::AliasPred = {
     "<" <arg:GenericArg> "as" <trait_id:Path> ">" "::" <name:Ident> <refine_args:RefineArgs> => {
+        let alias_pred =
         surface::AliasPred {
             trait_id,
             name,
             generic_args: vec![arg],
-            refine_args,
-        }
+        };
+        surface::PredKind::Alias(alias_pred, refine_args)
     }
 }
 

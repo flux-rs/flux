@@ -580,7 +580,7 @@ pub struct Pred {
 #[derive(Clone)]
 pub enum PredKind {
     Expr(Expr),
-    Alias(AliasPred),
+    Alias(AliasPred, Vec<RefineArg>),
 }
 
 #[derive(Clone)]
@@ -588,7 +588,7 @@ pub struct AliasPred {
     pub trait_id: DefId,
     pub name: Symbol,
     pub generic_args: Vec<GenericArg>,
-    pub refine_args: Vec<RefineArg>,
+    // pub refine_args: Vec<RefineArg>,
 }
 
 #[derive(Clone)]
@@ -1446,7 +1446,7 @@ impl fmt::Debug for RefineArg {
 
 impl fmt::Debug for AliasPred {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TODO:AliasPred")
+        write!(f, "<{:?} as <{:?}>::{:?}", self.generic_args[0], self.trait_id, self.name)
     }
 }
 
@@ -1454,7 +1454,9 @@ impl fmt::Debug for Pred {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             PredKind::Expr(expr) => write!(f, "{expr:?}"),
-            PredKind::Alias(alias_pred) => write!(f, "{alias_pred:?}"),
+            PredKind::Alias(alias_pred, refine_args) => {
+                write!(f, "{alias_pred:?}({:?})", refine_args.iter().format(", "))
+            }
         }
     }
 }

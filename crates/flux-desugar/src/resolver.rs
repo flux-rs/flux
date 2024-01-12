@@ -226,7 +226,7 @@ impl<'a> ItemLikeResolver<'a> {
     fn resolve_pred(&mut self, pred: &Pred) -> Result {
         match &pred.kind {
             PredKind::Expr(_) => Ok(()),
-            PredKind::Alias(alias_pred) => self.resolve_alias_pred(alias_pred),
+            PredKind::Alias(alias_pred, _) => self.resolve_alias_pred(alias_pred),
         }
     }
 

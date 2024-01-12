@@ -905,19 +905,18 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         &mut self,
         env: &mut Env,
         alias_pred: &surface::AliasPred,
-    ) -> Result<fhir::AliasPred> {
+        refine_args: &[surface::RefineArg],
+    ) -> Result<fhir::Pred> {
         let path = self.desugar_path(&alias_pred.trait_id, env)?;
-
         if let Res::Def(DefKind::Trait, trait_id) = path.res {
             let (generic_args, _) =
                 self.desugar_generic_args(path.res, &alias_pred.generic_args, env)?;
-            let refine_args = alias_pred
-                .refine_args
+            let refine_args = refine_args
                 .iter()
                 .map(|arg| self.desugar_refine_arg(arg, env))
                 .try_collect_exhaust()?;
-
-            Ok(fhir::AliasPred { trait_id, name: alias_pred.name.name, generic_args, refine_args })
+            let alias_pred = fhir::AliasPred { trait_id, name: alias_pred.name.name, generic_args };
+            Ok(fhir::Alias(alias_pred, refine_args))
         } else {
             Err(self.emit_err(errors::UnresolvedVar::from_path(&alias_pred.trait_id, "trait")))
         }
@@ -926,8 +925,8 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     fn desugar_pred(&mut self, env: &mut Env, pred: &surface::Pred) -> Result<fhir::Pred> {
         let kind = match &pred.kind {
             surface::PredKind::Expr(expr) => fhir::PredKind::Expr(self.desugar_expr(env, expr)?),
-            surface::PredKind::Alias(alias_pred) => {
-                fhir::PredKind::Alias(self.desugar_alias_pred(env, alias_pred)?)
+            surface::PredKind::Alias(alias_pred, args) => {
+                self.desugar_alias_pred(env, alias_pred, args)?
             }
         };
         let span = pred.span;

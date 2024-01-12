@@ -14,7 +14,7 @@ use rustc_trait_selection::traits::SelectionContext;
 use super::{
     fold::{FallibleTypeFolder, TypeSuperFoldable},
     AliasKind, AliasPred, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, GenericArg,
-    GenericArgs, Pred, ProjectionPredicate, Region, Ty, TyKind,
+    GenericArgs, Pred, ProjectionPredicate, RefineArgs, Region, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -44,15 +44,19 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
         Ok(Normalizer { genv, selcx, def_id: callsite_def_id, param_env })
     }
 
-    fn normalize_alias_pred(&mut self, alias_pred: &AliasPred) -> QueryResult<Pred> {
+    fn normalize_alias_pred(
+        &mut self,
+        alias_pred: &AliasPred,
+        refine_args: &RefineArgs,
+    ) -> QueryResult<Pred> {
         if let Some(impl_id) = self.impl_id_of_alias_ty(alias_pred)?
             && let Some(pred) = self.genv.assoc_predicate_of(impl_id, alias_pred.name)?
             && let AssocPredicateKind::Impl(body) = pred.kind
         {
-            let expr = body.replace_bound_exprs(&alias_pred.refine_args);
+            let expr = body.replace_bound_exprs(refine_args);
             Ok(Pred::Expr(expr))
         } else {
-            Ok(Pred::Alias(alias_pred.clone()))
+            Ok(Pred::Alias(alias_pred.clone(), refine_args.clone()))
         }
     }
 
@@ -227,8 +231,8 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     }
 
     fn try_fold_pred(&mut self, pred: &Pred) -> Result<Pred, Self::Error> {
-        if let Pred::Alias(alias_pred) = pred {
-            self.normalize_alias_pred(alias_pred)
+        if let Pred::Alias(alias_pred, refine_args) = pred {
+            self.normalize_alias_pred(alias_pred, refine_args)
         } else {
             pred.try_super_fold_with(self)
         }

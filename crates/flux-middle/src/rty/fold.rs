@@ -812,8 +812,7 @@ impl TypeVisitable for AliasPred {
 
 impl TypeSuperVisitable for AliasPred {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
-        self.args.visit_with(visitor)?;
-        self.refine_args.visit_with(visitor)
+        self.args.visit_with(visitor)
     }
 }
 
@@ -827,7 +826,10 @@ impl TypeSuperVisitable for Pred {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
         match self {
             Pred::Expr(expr) => expr.visit_with(visitor),
-            Pred::Alias(alias_pred) => alias_pred.visit_with(visitor),
+            Pred::Alias(alias_pred, refine_args) => {
+                alias_pred.visit_with(visitor)?;
+                refine_args.visit_with(visitor)
+            }
         }
     }
 }
@@ -1099,8 +1101,7 @@ impl TypeSuperFoldable for AliasPred {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let trait_id = self.trait_id;
         let generic_args = self.args.try_fold_with(folder)?;
-        let refine_args = self.refine_args.try_fold_with(folder)?;
-        let alias_pred = AliasPred { trait_id, name: self.name, args: generic_args, refine_args };
+        let alias_pred = AliasPred { trait_id, name: self.name, args: generic_args };
         Ok(alias_pred)
     }
 }
@@ -1115,7 +1116,11 @@ impl TypeSuperFoldable for Pred {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let pred = match self {
             Pred::Expr(expr) => Pred::Expr(expr.try_fold_with(folder)?),
-            Pred::Alias(alias_pred) => Pred::Alias(alias_pred.try_fold_with(folder)?),
+            Pred::Alias(alias_pred, refine_args) => {
+                let alias_pred = alias_pred.try_fold_with(folder)?;
+                let refine_args = refine_args.try_fold_with(folder)?;
+                Pred::Alias(alias_pred, refine_args)
+            }
         };
         Ok(pred)
     }
