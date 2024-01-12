@@ -203,18 +203,24 @@ pub struct GeneratorObligPredicate {
     pub output: Ty,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct AssocPredicates {
-    pub predicates: Vec<AssocPredicate>,
+    pub predicates: List<AssocPredicate>,
 }
 
-#[derive(Debug, Clone)]
+impl Default for AssocPredicates {
+    fn default() -> Self {
+        Self { predicates: List::empty() }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct AssocPredicate {
     pub name: Symbol,
     pub kind: AssocPredicateKind,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum AssocPredicateKind {
     Spec(Sort),
     Impl(Binder<Expr>),
@@ -1726,6 +1732,7 @@ impl_slice_internable!(
     Invariant,
     BoundVariableKind,
     RefineParam,
+    AssocPredicate,
 );
 
 #[macro_export]

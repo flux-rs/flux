@@ -290,7 +290,8 @@ pub(crate) fn conv_assoc_predicates(
         .predicates
         .iter()
         .map(|assoc_pred| conv_assoc_predicate(genv, assoc_pred, wfckresults))
-        .collect_vec();
+        .collect_vec()
+        .into();
     rty::AssocPredicates { predicates }
 }
 
