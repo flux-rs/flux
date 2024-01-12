@@ -17,7 +17,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{
-    def_id::{DefId, LocalDefId},
+    def_id::LocalDefId,
     sym::{self},
     symbol::kw,
     Span, Symbol,
@@ -919,7 +919,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
             Ok(fhir::AliasPred { trait_id, name: alias_pred.name.name, generic_args, refine_args })
         } else {
-            Err(self.emit_err(errors::UnresolvedVar::from_path(&alias_pred.trait_id)))
+            Err(self.emit_err(errors::UnresolvedVar::from_path(&alias_pred.trait_id, "trait")))
         }
     }
 
@@ -1216,7 +1216,7 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
         if let Some(decl) = self.genv().map().func_decl(func.name) {
             return Ok(FuncRes::Global(decl));
         }
-        Err(self.emit_err(errors::UnresolvedVar::from_ident(func)))
+        Err(self.emit_err(errors::UnresolvedVar::from_ident(func, "function")))
     }
 
     fn resolve_qpath(&self, env: &Env, qpath: &surface::QPathExpr) -> Result<QPathRes<'a>> {
@@ -1228,13 +1228,14 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
                 if let Some(const_info) = self.genv().const_by_name(var.name) {
                     return Ok(QPathRes::Const(const_info));
                 }
-                Err(self.emit_err(errors::UnresolvedVar::from_ident(*var)))
+                Err(self.emit_err(errors::UnresolvedVar::from_ident(*var, "name")))
             }
             [typ, name] => {
-                resolve_num_const(*typ, *name)
-                    .ok_or_else(|| self.emit_err(errors::UnresolvedVar::from_qpath(qpath)))
+                resolve_num_const(*typ, *name).ok_or_else(|| {
+                    self.emit_err(errors::UnresolvedVar::from_qpath(qpath, "type-2"))
+                })
             }
-            _ => Err(self.emit_err(errors::UnresolvedVar::from_qpath(qpath))),
+            _ => Err(self.emit_err(errors::UnresolvedVar::from_qpath(qpath, "type-3"))),
         }
     }
 
@@ -1246,7 +1247,7 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
                 };
                 Ok((idx, fhir::Ident::new(param.name, loc)))
             }
-            None => Err(self.emit_err(errors::UnresolvedVar::from_ident(loc))),
+            None => Err(self.emit_err(errors::UnresolvedVar::from_ident(loc, "location"))),
         }
     }
 

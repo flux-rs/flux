@@ -1,5 +1,5 @@
 #![flux::defs {
-    qualifier MyQ(x: int) { x == a } //~ ERROR cannot find value `a` in this scope
+    qualifier MyQ(x: int) { x == a } //~ ERROR cannot find name `a` in this scope
 }]
 
 #[flux::sig(fn(i32[@n]) -> i32[n])]
