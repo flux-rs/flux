@@ -52,7 +52,7 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
             let expr = body.replace_bound_exprs(&alias_pred.refine_args);
             Ok(Pred::Expr(expr))
         } else {
-            bug!("failed to normalize_alias_pred `{alias_pred:?}`")
+            Ok(Pred::Alias(alias_pred.clone()))
         }
     }
 
