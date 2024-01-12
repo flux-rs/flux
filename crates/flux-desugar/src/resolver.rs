@@ -126,6 +126,7 @@ struct NameResTable<'sess> {
     sess: &'sess FluxSession,
 }
 
+#[derive(Debug)]
 enum ResEntry {
     Res(Res),
     Unsupported { reason: String, span: Span },
@@ -362,10 +363,13 @@ impl<'sess> NameResTable<'sess> {
 
         let mut table = Self::new(sess);
 
+        table.collect_from_generics(&impl_item.generics)?;
+
         // Insert generics from parent impl
         if let Some(parent_impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
             let parent_impl_item = tcx.hir().expect_item(parent_impl_did.expect_local());
             if let ItemKind::Impl(parent) = &parent_impl_item.kind {
+                table.collect_from_generics(&parent.generics)?;
                 table.collect_from_ty(parent.self_ty)?;
             }
         }
