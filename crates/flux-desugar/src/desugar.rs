@@ -177,22 +177,17 @@ enum QPathRes<'a> {
     NumConst(i128),
 }
 
-fn self_res_did(genv: &GlobalEnv, def_id: DefId) -> SelfRes {
-    match genv.tcx.def_kind(def_id) {
-        DefKind::Trait => SelfRes::Param { trait_id: def_id },
-        DefKind::Impl { .. } => SelfRes::Alias { alias_to: def_id },
-        _ => SelfRes::None,
-    }
-}
-
 fn self_res(genv: &GlobalEnv, owner: OwnerId) -> SelfRes {
     let def_id = owner.def_id.to_def_id();
-    let owner_res = self_res_did(genv, def_id);
-    if owner_res != SelfRes::None {
-        return owner_res;
-    }
-    if let Some(alias_to) = genv.tcx.opt_parent(def_id) {
-        return self_res_did(genv, alias_to);
+    let mut opt_def_id = Some(def_id);
+    while let Some(def_id) = opt_def_id {
+        match genv.tcx.def_kind(def_id) {
+            DefKind::Trait => return SelfRes::Param { trait_id: def_id },
+            DefKind::Impl { .. } => return SelfRes::Alias { alias_to: def_id },
+            _ => {
+                opt_def_id = genv.tcx.opt_parent(def_id);
+            }
+        }
     }
     SelfRes::None
 }
