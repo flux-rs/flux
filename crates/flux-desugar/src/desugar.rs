@@ -906,7 +906,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         env: &mut Env,
         alias_pred: &surface::AliasPred,
         refine_args: &[surface::RefineArg],
-    ) -> Result<fhir::Pred> {
+    ) -> Result<fhir::PredKind> {
         let path = self.desugar_path(&alias_pred.trait_id, env)?;
         if let Res::Def(DefKind::Trait, trait_id) = path.res {
             let (generic_args, _) =
@@ -916,7 +916,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 .map(|arg| self.desugar_refine_arg(arg, env))
                 .try_collect_exhaust()?;
             let alias_pred = fhir::AliasPred { trait_id, name: alias_pred.name.name, generic_args };
-            Ok(fhir::Alias(alias_pred, refine_args))
+            Ok(fhir::PredKind::Alias(alias_pred, refine_args))
         } else {
             Err(self.emit_err(errors::UnresolvedVar::from_path(&alias_pred.trait_id, "trait")))
         }
