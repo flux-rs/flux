@@ -1,5 +1,5 @@
 use flux_macros::Diagnostic;
-use flux_syntax::surface::{BindKind, QPathExpr};
+use flux_syntax::surface::{BindKind, Path, QPathExpr};
 use itertools::Itertools;
 use rustc_span::{symbol::Ident, Span, Symbol};
 
@@ -10,18 +10,28 @@ pub(super) struct UnresolvedVar {
     #[label]
     span: Span,
     var: String,
+    kind: String,
 }
 
 impl UnresolvedVar {
-    pub(super) fn from_qpath(qpath: &QPathExpr) -> Self {
-        Self {
-            span: qpath.span,
-            var: format!("{}", qpath.segments.iter().format_with("::", |s, f| f(&s.name))),
-        }
+    pub(super) fn from_qpath(qpath: &QPathExpr, kind: &str) -> Self {
+        Self::from_segments(&qpath.segments, kind, qpath.span)
     }
 
-    pub(super) fn from_ident(ident: Ident) -> Self {
-        Self { span: ident.span, var: format!("{ident}") }
+    pub(super) fn from_ident(ident: Ident, kind: &str) -> Self {
+        Self { span: ident.span, kind: kind.to_string(), var: format!("{ident}") }
+    }
+
+    pub(super) fn from_path(path: &Path, kind: &str) -> Self {
+        Self::from_segments(&path.segments, kind, path.span)
+    }
+
+    fn from_segments(segments: &[Ident], kind: &str, span: Span) -> Self {
+        Self {
+            span,
+            kind: kind.to_string(),
+            var: format!("{}", segments.iter().format_with("::", |s, f| f(&s.name))),
+        }
     }
 }
 

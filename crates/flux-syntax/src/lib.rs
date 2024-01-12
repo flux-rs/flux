@@ -65,6 +65,14 @@ impl ParseSess {
         parse!(self, grammar::FnSigParser, tokens, span)
     }
 
+    pub fn parse_assoc_pred(
+        &mut self,
+        tokens: &TokenStream,
+        span: Span,
+    ) -> ParseResult<surface::AssocPredicate> {
+        parse!(self, grammar::AssocPredicateParser, tokens, span)
+    }
+
     pub fn parse_qual_names(
         &mut self,
         tokens: &TokenStream,

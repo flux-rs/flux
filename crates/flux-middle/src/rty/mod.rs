@@ -203,6 +203,29 @@ pub struct GeneratorObligPredicate {
     pub output: Ty,
 }
 
+#[derive(Debug, Clone)]
+pub struct AssocPredicates {
+    pub predicates: List<AssocPredicate>,
+}
+
+impl Default for AssocPredicates {
+    fn default() -> Self {
+        Self { predicates: List::empty() }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct AssocPredicate {
+    pub name: Symbol,
+    pub kind: AssocPredicateKind,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub enum AssocPredicateKind {
+    Spec(Sort),
+    Impl(Binder<Expr>),
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum SortCtor {
     Set,
@@ -445,10 +468,24 @@ pub struct TyS {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+pub enum Pred {
+    Expr(Expr),
+    Alias(AliasPred, RefineArgs),
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+pub struct AliasPred {
+    pub trait_id: DefId,
+    pub name: Symbol,
+    pub args: GenericArgs,
+    // pub refine_args: RefineArgs,
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum TyKind {
     Indexed(BaseTy, Expr),
     Exists(Binder<Ty>),
-    Constr(Expr, Ty),
+    Constr(Pred, Ty),
     Uninit,
     Ptr(PtrKind, Path),
     /// This is a bit of a hack. We use this type internally to represent the result of
@@ -1280,8 +1317,12 @@ impl Ty {
         TyKind::Ptr(pk.into(), path.into()).intern()
     }
 
-    pub fn constr(p: impl Into<Expr>, ty: Ty) -> Ty {
+    pub fn constr(p: impl Into<Pred>, ty: Ty) -> Ty {
         TyKind::Constr(p.into(), ty).intern()
+    }
+
+    pub fn constr_expr(p: impl Into<Expr>, ty: Ty) -> Ty {
+        TyKind::Constr(Pred::Expr(p.into()), ty).intern()
     }
 
     pub fn uninit() -> Ty {
@@ -1299,7 +1340,7 @@ impl Ty {
     pub fn exists_with_constr(bty: BaseTy, pred: Expr) -> Ty {
         let sort = bty.sort();
         let ty = Ty::indexed(bty, Expr::nu());
-        Ty::exists(Binder::with_sort(Ty::constr(pred, ty), sort))
+        Ty::exists(Binder::with_sort(Ty::constr_expr(pred, ty), sort))
     }
 
     pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
@@ -1382,7 +1423,7 @@ impl Ty {
 
     pub fn unconstr(&self) -> (Ty, Expr) {
         fn go(this: &Ty, preds: &mut Vec<Expr>) -> Ty {
-            if let TyKind::Constr(pred, ty) = this.kind() {
+            if let TyKind::Constr(Pred::Expr(pred), ty) = this.kind() {
                 preds.push(pred.clone());
                 go(ty, preds)
             } else {
@@ -1691,6 +1732,7 @@ impl_slice_internable!(
     Invariant,
     BoundVariableKind,
     RefineParam,
+    AssocPredicate,
 );
 
 #[macro_export]
@@ -2042,6 +2084,16 @@ mod pretty {
             match self {
                 Constraint::Type(loc, ty, _) => w!("{:?}: {:?}", ^loc, ty),
                 Constraint::Pred(e) => w!("{:?}", e),
+            }
+        }
+    }
+
+    impl Pretty for Pred {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(_cx, f);
+            match self {
+                Pred::Expr(expr) => w!("{expr:?}"),
+                Pred::Alias(alias_pred, refine_args) => w!("{alias_pred:?}({refine_args:?})"),
             }
         }
     }

@@ -163,6 +163,17 @@ Sort: surface::Sort = {
     <input:BaseSort> "->" <output:BaseSort>                 => surface::Sort::Func { inputs: vec![input], output }
 }
 
+pub AssocPredicate: surface::AssocPredicate = {
+    <lo:@L> <name:Ident> ":" <kind:AssocPredicateKind> <hi:@R> => {
+        surface::AssocPredicate { name, kind, span: cx.map_span(lo, hi) }
+    }
+}
+
+pub AssocPredicateKind: surface::AssocPredicateKind = {
+    <sort:Sort> => surface::AssocPredicateKind::Spec(sort),
+    "|"<params:RefineParams<"!">> "|" "{" <body:Expr> "}"  => surface::AssocPredicateKind::Impl(params, body),
+}
+
 pub FnSig: surface::FnSig = {
     <lo:@L>
     <asyncness:Async>
@@ -265,6 +276,26 @@ Arg: surface::Arg = {
     <ty:Ty>                                          => surface::Arg::Ty(None, <>),
 }
 
+Pred: surface::Pred = {
+     <lo:@L> <kind:PredKind> <hi:@L> => surface::Pred {
+        kind,
+        span: cx.map_span(lo, hi)
+    }
+}
+
+PredKind: surface::PredKind = {
+    <expr:Expr> => surface::PredKind::Expr(expr),
+    "<" <arg:GenericArg> "as" <trait_id:Path> ">" "::" <name:Ident> <refine_args:RefineArgs> => {
+        let alias_pred =
+        surface::AliasPred {
+            trait_id,
+            name,
+            generic_args: vec![arg],
+        };
+        surface::PredKind::Alias(alias_pred, refine_args)
+    }
+}
+
 pub Ty: surface::Ty = {
     <lo:@L> <kind:TyKind> <hi:@L> => surface::Ty {
         kind,
@@ -277,7 +308,7 @@ TyKind: surface::TyKind = {
     <bty:BaseTy>                                      => surface::TyKind::Base(<>),
     <bty:BaseTy> "[" <indices:Indices> "]"            => surface::TyKind::Indexed { <> },
     <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
-    "{" <ty:Ty> "|" <pred:Expr> "}"                   => surface::TyKind::Constr(pred, Box::new(ty)),
+    "{" <ty:Ty> "|" <pred:Pred> "}"                   => surface::TyKind::Constr(pred, Box::new(ty)),
     "{" <params:Comma1<RefineParam<"?">>> "." <ty:Ty> <pred:("|" <Expr>)?> "}" => {
         surface::TyKind::GeneralExists { params, ty: Box::new(ty), pred }
     },

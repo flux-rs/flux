@@ -1,7 +1,7 @@
 use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::fhir::Res;
-use flux_syntax::surface::{self, BaseTy, BaseTyKind, Ident, Path, Ty};
+use flux_syntax::surface::{self, AliasPred, BaseTy, BaseTyKind, Ident, Path, Pred, PredKind, Ty};
 use hir::{def::DefKind, ItemId, ItemKind, OwnerId, PathSegment};
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
@@ -126,6 +126,7 @@ struct NameResTable<'sess> {
     sess: &'sess FluxSession,
 }
 
+#[derive(Debug)]
 enum ResEntry {
     Res(Res),
     Unsupported { reason: String, span: Span },
@@ -215,6 +216,21 @@ impl<'a> ItemLikeResolver<'a> {
         }
     }
 
+    fn resolve_alias_pred(&mut self, alias_pred: &AliasPred) -> Result {
+        self.resolve_path(&alias_pred.trait_id)?;
+        alias_pred
+            .generic_args
+            .iter()
+            .try_for_each_exhaust(|arg| self.resolve_generic_arg(arg))
+    }
+
+    fn resolve_pred(&mut self, pred: &Pred) -> Result {
+        match &pred.kind {
+            PredKind::Expr(_) => Ok(()),
+            PredKind::Alias(alias_pred, _) => self.resolve_alias_pred(alias_pred),
+        }
+    }
+
     fn resolve_ty(&mut self, ty: &Ty) -> Result {
         match &ty.kind {
             surface::TyKind::Base(bty) => {
@@ -234,7 +250,10 @@ impl<'a> ItemLikeResolver<'a> {
             surface::TyKind::Exists { bty, .. } => self.resolve_bty(bty),
             surface::TyKind::GeneralExists { ty, .. } => self.resolve_ty(ty),
             surface::TyKind::Ref(_, ty) => self.resolve_ty(ty),
-            surface::TyKind::Constr(_, ty) => self.resolve_ty(ty),
+            surface::TyKind::Constr(pred, ty) => {
+                self.resolve_pred(pred)?;
+                self.resolve_ty(ty)
+            }
             surface::TyKind::Tuple(tys) => {
                 tys.iter().try_for_each_exhaust(|ty| self.resolve_ty(ty))
             }
@@ -344,10 +363,13 @@ impl<'sess> NameResTable<'sess> {
 
         let mut table = Self::new(sess);
 
+        table.collect_from_generics(impl_item.generics)?;
+
         // Insert generics from parent impl
         if let Some(parent_impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
             let parent_impl_item = tcx.hir().expect_item(parent_impl_did.expect_local());
             if let ItemKind::Impl(parent) = &parent_impl_item.kind {
+                table.collect_from_generics(parent.generics)?;
                 table.collect_from_ty(parent.self_ty)?;
             }
         }

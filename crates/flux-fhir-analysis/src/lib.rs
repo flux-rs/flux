@@ -47,6 +47,7 @@ pub fn provide(providers: &mut Providers) {
         generics_of,
         refinement_generics_of,
         predicates_of,
+        assoc_predicates_of,
         item_bounds,
     };
 }
@@ -135,6 +136,20 @@ fn predicates_of(
         })
     };
     Ok(predicates)
+}
+
+fn assoc_predicates_of(
+    genv: &GlobalEnv,
+    local_id: LocalDefId,
+) -> QueryResult<rty::AssocPredicates> {
+    let assoc_predicates = if let Some(assoc_predicates) = genv.map().get_assoc_predicates(local_id)
+    {
+        let wfckresults = genv.check_wf(local_id)?;
+        conv::conv_assoc_predicates(genv, assoc_predicates, &wfckresults)
+    } else {
+        rty::AssocPredicates::default()
+    };
+    Ok(assoc_predicates)
 }
 
 fn item_bounds(
@@ -324,9 +339,13 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<Wf
             let opaque_ty = genv.map().get_opaque_ty(def_id).unwrap();
             wf::check_opaque_ty(genv, opaque_ty, owner_id)?
         }
-        DefKind::Impl { .. } => {
-            // We currently dont support refinements on an impl item, so there's nothing to check here.
-            WfckResults::new(OwnerId { def_id })
+        DefKind::Impl { .. } | DefKind::Trait { .. } => {
+            let owner_id = OwnerId { def_id };
+            if let Some(assoc_predicates) = genv.map().get_assoc_predicates(def_id) {
+                wf::check_assoc_predicates(genv, assoc_predicates, owner_id)?
+            } else {
+                WfckResults::new(owner_id)
+            }
         }
         DefKind::Closure | DefKind::Coroutine | DefKind::TyParam => {
             let parent = genv.tcx.local_parent(def_id);

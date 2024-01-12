@@ -13,13 +13,13 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{FallibleTypeFolder, TypeSuperFoldable},
-    AliasKind, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, GenericArg, GenericArgs,
-    ProjectionPredicate, Region, Ty, TyKind,
+    AliasKind, AliasPred, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, GenericArg,
+    GenericArgs, Pred, ProjectionPredicate, RefineArgs, Region, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    rty::fold::TypeVisitable,
+    rty::{fold::TypeVisitable, AssocPredicateKind},
     rustc::ty::FreeRegion,
 };
 
@@ -42,6 +42,22 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
             .instantiate_identity(genv, refine_params)?;
         let selcx = SelectionContext::new(infcx);
         Ok(Normalizer { genv, selcx, def_id: callsite_def_id, param_env })
+    }
+
+    fn normalize_alias_pred(
+        &mut self,
+        alias_pred: &AliasPred,
+        refine_args: &RefineArgs,
+    ) -> QueryResult<Pred> {
+        if let Some(impl_id) = self.impl_id_of_alias_ty(alias_pred)?
+            && let Some(pred) = self.genv.assoc_predicate_of(impl_id, alias_pred.name)?
+            && let AssocPredicateKind::Impl(body) = pred.kind
+        {
+            let expr = body.replace_bound_exprs(refine_args);
+            Ok(Pred::Expr(expr))
+        } else {
+            Ok(Pred::Alias(alias_pred.clone(), refine_args.clone()))
+        }
     }
 
     fn normalize_projection_ty(&mut self, obligation: &AliasTy) -> QueryResult<Ty> {
@@ -132,6 +148,30 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
         Ok(())
     }
 
+    pub fn alias_pred_trait_ref(&self, alias_pred: &AliasPred) -> rustc_middle::ty::TraitRef<'tcx> {
+        let tcx = self.tcx();
+        let trait_def_id = alias_pred.trait_id;
+        let args = into_rustc_generic_args(tcx, &alias_pred.args)
+            .truncate_to(tcx, tcx.generics_of(trait_def_id));
+        rustc_middle::ty::TraitRef::new(tcx, trait_def_id, args)
+    }
+
+    fn impl_id_of_alias_ty(&mut self, alias_pred: &AliasPred) -> QueryResult<Option<DefId>> {
+        let trait_pred = Obligation::with_depth(
+            self.tcx(),
+            ObligationCause::dummy(),
+            5,
+            self.rustc_param_env(),
+            self.alias_pred_trait_ref(alias_pred),
+            // into_rustc_alias_ty(self.tcx(), obligation).trait_ref(self.tcx()),
+        );
+        match self.selcx.select(&trait_pred) {
+            Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data.impl_def_id)),
+            Ok(_) => Ok(None),
+            Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
+        }
+    }
+
     fn assemble_candidates_from_impls(
         &mut self,
         obligation: &AliasTy,
@@ -148,7 +188,7 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
             Ok(Some(ImplSource::UserDefined(impl_data))) => {
                 candidates.push(Candidate::UserDefinedImpl(impl_data.impl_def_id));
             }
-            Ok(_) => {}
+            Ok(_) => (),
             Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
         }
         Ok(())
@@ -182,10 +222,19 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     type Error = QueryErr;
 
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
-        if let TyKind::Alias(AliasKind::Projection, alias_ty) = ty.kind() {
-            self.normalize_projection_ty(alias_ty)
+        match ty.kind() {
+            TyKind::Alias(AliasKind::Projection, alias_ty) => {
+                self.normalize_projection_ty(alias_ty)
+            }
+            _ => ty.try_super_fold_with(self),
+        }
+    }
+
+    fn try_fold_pred(&mut self, pred: &Pred) -> Result<Pred, Self::Error> {
+        if let Pred::Alias(alias_pred, refine_args) = pred {
+            self.normalize_alias_pred(alias_pred, refine_args)
         } else {
-            ty.try_super_fold_with(self)
+            pred.try_super_fold_with(self)
         }
     }
 }

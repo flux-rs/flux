@@ -12,7 +12,7 @@ use flux_middle::{
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
         BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path,
-        PtrKind, Region, Ty, TyKind, INNERMOST,
+        Pred, PtrKind, Region, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -421,7 +421,7 @@ impl BasicBlockEnvShape {
                 if sorts.is_empty() {
                     Ty::indexed(bty, idx)
                 } else {
-                    let ty = Ty::constr(Expr::hole(HoleKind::Pred), Ty::indexed(bty, idx));
+                    let ty = Ty::constr_expr(Expr::hole(HoleKind::Pred), Ty::indexed(bty, idx));
                     Ty::exists(Binder::with_sorts(ty, sorts))
                 }
             }
@@ -606,7 +606,7 @@ impl TypeFolder for Generalizer {
                 })
                 .fold_with(self)
             }
-            TyKind::Constr(pred, ty) => {
+            TyKind::Constr(Pred::Expr(pred), ty) => {
                 self.preds.push(pred.clone());
                 ty.fold_with(self)
             }

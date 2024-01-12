@@ -139,6 +139,27 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.predicates_of(self, def_id.into())
     }
 
+    pub fn assoc_predicates_of(
+        &self,
+        def_id: impl Into<DefId>,
+    ) -> QueryResult<rty::AssocPredicates> {
+        self.queries.assoc_predicates_of(self, def_id.into())
+    }
+
+    pub fn assoc_predicate_of(
+        &self,
+        def_id: impl Into<DefId>,
+        name: Symbol,
+    ) -> QueryResult<Option<rty::AssocPredicate>> {
+        let pred = self
+            .assoc_predicates_of(def_id)?
+            .predicates
+            .iter()
+            .find(|assoc_pred| assoc_pred.name == name)
+            .cloned();
+        Ok(pred)
+    }
+
     pub fn item_bounds(&self, def_id: DefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
         self.queries.item_bounds(self, def_id)
     }
@@ -391,7 +412,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             let sort = bty.sort();
             let mut ty = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
             if !sort.is_unit() {
-                ty = rty::Ty::constr(rty::Expr::hole(rty::HoleKind::Pred), ty);
+                ty = rty::Ty::constr_expr(rty::Expr::hole(rty::HoleKind::Pred), ty);
             }
             rty::Binder::with_sort(ty, sort)
         })

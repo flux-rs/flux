@@ -178,16 +178,18 @@ enum QPathRes<'a> {
 }
 
 fn self_res(genv: &GlobalEnv, owner: OwnerId) -> SelfRes {
-    let def_id = owner.def_id;
-    if let Some(alias_to) = genv.tcx.opt_parent(def_id.to_def_id()) {
-        match genv.tcx.def_kind(alias_to) {
-            DefKind::Trait => SelfRes::Param { trait_id: alias_to },
-            DefKind::Impl { .. } => SelfRes::Alias { alias_to },
-            _ => SelfRes::None,
+    let def_id = owner.def_id.to_def_id();
+    let mut opt_def_id = Some(def_id);
+    while let Some(def_id) = opt_def_id {
+        match genv.tcx.def_kind(def_id) {
+            DefKind::Trait => return SelfRes::Param { trait_id: def_id },
+            DefKind::Impl { .. } => return SelfRes::Alias { alias_to: def_id },
+            _ => {
+                opt_def_id = genv.tcx.opt_parent(def_id);
+            }
         }
-    } else {
-        SelfRes::None
     }
+    SelfRes::None
 }
 
 impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
@@ -291,6 +293,29 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             }
         }
         Ok(fhir::Generics { params, self_kind })
+    }
+
+    pub fn desugar_assoc_predicates(
+        &self,
+        assoc_predicate: &surface::AssocPredicate,
+    ) -> Result<fhir::AssocPredicates> {
+        let name = assoc_predicate.name.name;
+        let kind = match &assoc_predicate.kind {
+            surface::AssocPredicateKind::Spec(sort) => {
+                let sort = self.sort_resolver.resolve_sort(sort)?;
+                fhir::AssocPredicateKind::Spec(sort)
+            }
+            surface::AssocPredicateKind::Impl(params, body) => {
+                let mut env =
+                    Env::from_params(self.genv, &self.sort_resolver, ScopeId::FluxItem, params)?;
+                let body = self.desugar_expr(&mut env, body)?;
+                let params = env.into_root().into_params(self);
+                fhir::AssocPredicateKind::Impl(params, body)
+            }
+        };
+        let assoc_predicate = fhir::AssocPredicate { name, kind };
+        let predicates = vec![assoc_predicate];
+        Ok(fhir::AssocPredicates { predicates })
     }
 
     fn desugar_predicates(
@@ -571,6 +596,12 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 let bty = self.desugar_path_to_bty(path, env)?;
 
                 let pred = self.desugar_expr(env, pred)?;
+                let span = pred.span;
+                let pred = fhir::Pred {
+                    kind: fhir::PredKind::Expr(pred),
+                    span,
+                    fhir_id: self.next_fhir_id(),
+                };
 
                 let ty = if let Some(idx) = self.bind_into_refine_arg(*bind, env)? {
                     fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: path.span }
@@ -680,6 +711,12 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
                 let bty = self.desugar_bty(bty, env)?;
                 let pred = self.desugar_expr(env, pred)?;
+                let span = pred.span;
+                let pred = fhir::Pred {
+                    kind: fhir::PredKind::Expr(pred),
+                    span,
+                    fhir_id: self.next_fhir_id(),
+                };
                 let params = env.pop().into_params(self);
 
                 let idx = fhir::RefineArg {
@@ -702,6 +739,11 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 if let Some(pred) = pred {
                     let pred = self.desugar_expr(env, pred)?;
                     let span = ty.span.to(pred.span);
+                    let pred = fhir::Pred {
+                        kind: fhir::PredKind::Expr(pred),
+                        span,
+                        fhir_id: self.next_fhir_id(),
+                    };
                     ty = fhir::Ty { kind: fhir::TyKind::Constr(pred, Box::new(ty)), span };
                 }
                 let params = env.pop().into_params(self);
@@ -709,7 +751,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 fhir::TyKind::Exists(params, Box::new(ty))
             }
             surface::TyKind::Constr(pred, ty) => {
-                let pred = self.desugar_expr(env, pred)?;
+                let pred = self.desugar_pred(env, pred)?;
                 let ty = self.desugar_ty(None, ty, env)?;
                 fhir::TyKind::Constr(pred, Box::new(ty))
             }
@@ -859,6 +901,37 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         Ok(fhir::BaseTy::from(fhir::QPath::Resolved(None, self.desugar_path(path, env)?)))
     }
 
+    fn desugar_alias_pred(
+        &mut self,
+        env: &mut Env,
+        alias_pred: &surface::AliasPred,
+        refine_args: &[surface::RefineArg],
+    ) -> Result<fhir::PredKind> {
+        let path = self.desugar_path(&alias_pred.trait_id, env)?;
+        if let Res::Def(DefKind::Trait, trait_id) = path.res {
+            let (generic_args, _) =
+                self.desugar_generic_args(path.res, &alias_pred.generic_args, env)?;
+            let refine_args = refine_args
+                .iter()
+                .map(|arg| self.desugar_refine_arg(arg, env))
+                .try_collect_exhaust()?;
+            let alias_pred = fhir::AliasPred { trait_id, name: alias_pred.name.name, generic_args };
+            Ok(fhir::PredKind::Alias(alias_pred, refine_args))
+        } else {
+            Err(self.emit_err(errors::UnresolvedVar::from_path(&alias_pred.trait_id, "trait")))
+        }
+    }
+
+    fn desugar_pred(&mut self, env: &mut Env, pred: &surface::Pred) -> Result<fhir::Pred> {
+        let kind = match &pred.kind {
+            surface::PredKind::Expr(expr) => fhir::PredKind::Expr(self.desugar_expr(env, expr)?),
+            surface::PredKind::Alias(alias_pred, args) => {
+                self.desugar_alias_pred(env, alias_pred, args)?
+            }
+        };
+        let span = pred.span;
+        Ok(fhir::Pred { kind, span, fhir_id: self.next_fhir_id() })
+    }
     fn desugar_generic_args(
         &mut self,
         res: Res,
@@ -1142,7 +1215,7 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
         if let Some(decl) = self.genv().map().func_decl(func.name) {
             return Ok(FuncRes::Global(decl));
         }
-        Err(self.emit_err(errors::UnresolvedVar::from_ident(func)))
+        Err(self.emit_err(errors::UnresolvedVar::from_ident(func, "function")))
     }
 
     fn resolve_qpath(&self, env: &Env, qpath: &surface::QPathExpr) -> Result<QPathRes<'a>> {
@@ -1154,13 +1227,14 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
                 if let Some(const_info) = self.genv().const_by_name(var.name) {
                     return Ok(QPathRes::Const(const_info));
                 }
-                Err(self.emit_err(errors::UnresolvedVar::from_ident(*var)))
+                Err(self.emit_err(errors::UnresolvedVar::from_ident(*var, "name")))
             }
             [typ, name] => {
-                resolve_num_const(*typ, *name)
-                    .ok_or_else(|| self.emit_err(errors::UnresolvedVar::from_qpath(qpath)))
+                resolve_num_const(*typ, *name).ok_or_else(|| {
+                    self.emit_err(errors::UnresolvedVar::from_qpath(qpath, "type-2"))
+                })
             }
-            _ => Err(self.emit_err(errors::UnresolvedVar::from_qpath(qpath))),
+            _ => Err(self.emit_err(errors::UnresolvedVar::from_qpath(qpath, "type-3"))),
         }
     }
 
@@ -1172,7 +1246,7 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
                 };
                 Ok((idx, fhir::Ident::new(param.name, loc)))
             }
-            None => Err(self.emit_err(errors::UnresolvedVar::from_ident(loc))),
+            None => Err(self.emit_err(errors::UnresolvedVar::from_ident(loc, "location"))),
         }
     }
 

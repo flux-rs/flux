@@ -1,7 +1,7 @@
 # Desugar
 
 desugar_unresolved_var =
-    cannot find value `{$var}` in this scope
+    cannot find {$kind} `{$var}` in this scope
     .label = not found in this scope
 
 desugar_duplicate_param =

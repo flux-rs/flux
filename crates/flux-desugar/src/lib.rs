@@ -178,6 +178,7 @@ pub fn desugar_generics_and_predicates(
     owner_id: OwnerId,
     resolver_output: &ResolverOutput,
     generics: Option<&surface::Generics>,
+    assoc_predicates: Option<&surface::AssocPredicate>,
 ) -> Result<(), ErrorGuaranteed> {
     let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
     let generics = if let Some(generics) = generics {
@@ -186,11 +187,18 @@ pub fn desugar_generics_and_predicates(
         cx.as_lift_cx().lift_generics()?
     };
     let predicates = cx.as_lift_cx().lift_generic_predicates()?;
+    let assoc_predicates = match assoc_predicates {
+        Some(assoc_predicates) => Some(cx.desugar_assoc_predicates(assoc_predicates)?),
+        None => None,
+    };
 
     let map = genv.map_mut();
     let def_id = owner_id.def_id;
     map.insert_generics(def_id, generics);
     map.insert_generic_predicates(def_id, predicates);
+    if let Some(assoc_predicates) = assoc_predicates {
+        map.insert_assoc_predicates(def_id, assoc_predicates);
+    }
 
     Ok(())
 }

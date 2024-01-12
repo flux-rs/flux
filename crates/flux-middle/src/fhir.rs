@@ -96,7 +96,22 @@ pub struct SortDecl {
 
 pub type SortDecls = FxHashMap<Symbol, SortDecl>;
 
-pub type ItemPredicates = UnordMap<LocalDefId, GenericPredicates>;
+#[derive(Debug)]
+pub struct AssocPredicates {
+    pub predicates: Vec<AssocPredicate>,
+}
+
+#[derive(Debug)]
+pub struct AssocPredicate {
+    pub name: Symbol,
+    pub kind: AssocPredicateKind,
+}
+
+#[derive(Debug)]
+pub enum AssocPredicateKind {
+    Spec(Sort),
+    Impl(Vec<RefineParam>, Expr),
+}
 
 #[derive(Debug)]
 pub struct GenericPredicates {
@@ -141,7 +156,8 @@ pub struct OpaqueTy {
 #[derive(Default)]
 pub struct Map {
     generics: UnordMap<LocalDefId, Generics>,
-    predicates: ItemPredicates,
+    predicates: UnordMap<LocalDefId, GenericPredicates>,
+    assoc_predicates: UnordMap<LocalDefId, AssocPredicates>,
     opaque_tys: UnordMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: SortDecls,
@@ -287,7 +303,7 @@ pub enum TyKind {
     Exists(Vec<RefineParam>, Box<Ty>),
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
-    Constr(Expr, Box<Ty>),
+    Constr(Pred, Box<Ty>),
     Ptr(Lifetime, Ident),
     Ref(Lifetime, MutTy),
     Tuple(Vec<Ty>),
@@ -552,6 +568,27 @@ impl PolyFuncSort {
         let fsort = FuncSort::new(inputs, output);
         Self { params, fsort }
     }
+}
+
+#[derive(Clone)]
+pub struct Pred {
+    pub kind: PredKind,
+    pub span: Span,
+    pub fhir_id: FhirId,
+}
+
+#[derive(Clone)]
+pub enum PredKind {
+    Expr(Expr),
+    Alias(AliasPred, Vec<RefineArg>),
+}
+
+#[derive(Clone)]
+pub struct AliasPred {
+    pub trait_id: DefId,
+    pub name: Symbol,
+    pub generic_args: Vec<GenericArg>,
+    // pub refine_args: Vec<RefineArg>,
 }
 
 #[derive(Clone)]
@@ -892,6 +929,14 @@ impl Map {
         self.predicates.insert(def_id, predicates);
     }
 
+    pub fn insert_assoc_predicates(
+        &mut self,
+        def_id: LocalDefId,
+        assoc_predicates: AssocPredicates,
+    ) {
+        self.assoc_predicates.insert(def_id, assoc_predicates);
+    }
+
     pub fn insert_opaque_tys(&mut self, opaque_tys: UnordMap<LocalDefId, OpaqueTy>) {
         self.opaque_tys.extend_unord(opaque_tys.into_items());
     }
@@ -910,6 +955,10 @@ impl Map {
 
     pub fn get_generic_predicates(&self, def_id: LocalDefId) -> Option<&GenericPredicates> {
         self.predicates.get(&def_id)
+    }
+
+    pub fn get_assoc_predicates(&self, def_id: LocalDefId) -> Option<&AssocPredicates> {
+        self.assoc_predicates.get(&def_id)
     }
 
     pub fn get_opaque_ty(&self, def_id: LocalDefId) -> Option<&OpaqueTy> {
@@ -1390,6 +1439,23 @@ impl fmt::Debug for RefineArg {
             }
             RefineArgKind::Record(flds) => {
                 write!(f, "{{ {:?} }}", flds.iter().format(", "))
+            }
+        }
+    }
+}
+
+impl fmt::Debug for AliasPred {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<{:?} as <{:?}>::{:?}", self.generic_args[0], self.trait_id, self.name)
+    }
+}
+
+impl fmt::Debug for Pred {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.kind {
+            PredKind::Expr(expr) => write!(f, "{expr:?}"),
+            PredKind::Alias(alias_pred, refine_args) => {
+                write!(f, "{alias_pred:?}({:?})", refine_args.iter().format(", "))
             }
         }
     }

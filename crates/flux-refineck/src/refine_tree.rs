@@ -11,7 +11,7 @@ use flux_middle::rty::{
     fold::{
         TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor,
     },
-    BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind,
+    BaseTy, Expr, GenericArg, Mutability, Name, Pred, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -340,7 +340,7 @@ impl TypeFolder for Unpacker<'_, '_> {
                     ty.clone()
                 }
             }
-            TyKind::Constr(pred, ty) => {
+            TyKind::Constr(Pred::Expr(pred), ty) => {
                 self.rcx.assume_pred(pred);
                 ty.fold_with(self)
             }

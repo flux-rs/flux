@@ -260,6 +260,41 @@ pub(crate) fn conv_invariants(
     cx.conv_invariants(&env, invariants)
 }
 
+fn conv_assoc_predicate(
+    genv: &GlobalEnv,
+    assoc_predicate: &fhir::AssocPredicate,
+    wfckresults: &WfckResults,
+) -> rty::AssocPredicate {
+    let cx = ConvCtxt::new(genv, wfckresults);
+    let mut env = Env::new(genv, &[], wfckresults);
+    let kind = match &assoc_predicate.kind {
+        fhir::AssocPredicateKind::Spec(sort) => {
+            rty::AssocPredicateKind::Spec(conv_sort(genv, sort, &mut bug_on_sort_vid))
+        }
+        fhir::AssocPredicateKind::Impl(params, expr) => {
+            env.push_layer(Layer::list(&cx, 0, params, false));
+            let expr = cx.conv_expr(&env, expr);
+            let expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv));
+            rty::AssocPredicateKind::Impl(expr)
+        }
+    };
+    rty::AssocPredicate { name: assoc_predicate.name, kind }
+}
+
+pub(crate) fn conv_assoc_predicates(
+    genv: &GlobalEnv,
+    assoc_predicates: &fhir::AssocPredicates,
+    wfckresults: &WfckResults,
+) -> rty::AssocPredicates {
+    let predicates = assoc_predicates
+        .predicates
+        .iter()
+        .map(|assoc_pred| conv_assoc_predicate(genv, assoc_pred, wfckresults))
+        .collect_vec()
+        .into();
+    rty::AssocPredicates { predicates }
+}
+
 pub(crate) fn conv_defn(
     genv: &GlobalEnv,
     defn: &fhir::Defn,
@@ -611,6 +646,35 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         }
     }
 
+    fn conv_alias_pred(
+        &self,
+        env: &mut Env,
+        alias_pred: &fhir::AliasPred,
+        refine_args: &[fhir::RefineArg],
+    ) -> QueryResult<rty::Pred> {
+        let trait_id = alias_pred.trait_id;
+        let generic_args = self
+            .conv_generic_args(env, trait_id, &alias_pred.generic_args)?
+            .into();
+        let refine_args = refine_args
+            .iter()
+            .map(|arg| self.conv_refine_arg(env, arg))
+            .collect_vec()
+            .into();
+        let alias_pred = rty::AliasPred { trait_id, name: alias_pred.name, args: generic_args };
+        Ok(rty::Pred::Alias(alias_pred, refine_args))
+    }
+
+    fn conv_pred(&self, env: &mut Env, pred: &fhir::Pred) -> QueryResult<rty::Pred> {
+        let pred = match &pred.kind {
+            fhir::PredKind::Expr(expr) => rty::Pred::Expr(self.conv_expr(env, expr)),
+            fhir::PredKind::Alias(alias_pred, refine_args) => {
+                self.conv_alias_pred(env, alias_pred, refine_args)?
+            }
+        };
+        Ok(pred)
+    }
+
     fn conv_ty(&self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => self.conv_base_ty(env, bty),
@@ -650,7 +714,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
             fhir::TyKind::Constr(pred, ty) => {
-                let pred = self.conv_expr(env, pred);
+                let pred = self.conv_pred(env, pred)?;
                 Ok(rty::Ty::constr(pred, self.conv_ty(env, ty)?))
             }
             fhir::TyKind::RawPtr(ty, mutability) => {

@@ -3,7 +3,7 @@ pub mod rvec;
 
 use rvec::RVec;
 
-#[flux::refined_by(n: int)]
+#[flux::refined_by(n:int)]
 pub struct Foo {
     #[flux::field(RVec<usize>[n])]
     pub inner: RVec<usize>,

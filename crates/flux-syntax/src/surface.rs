@@ -255,6 +255,14 @@ pub struct Ty {
 }
 
 #[derive(Debug)]
+pub struct AliasPred {
+    pub trait_id: Path,
+    pub name: Ident,
+    pub generic_args: Vec<GenericArg>,
+    // pub refine_args: Vec<RefineArg>,
+}
+
+#[derive(Debug)]
 pub enum TyKind {
     /// ty
     Base(BaseTy),
@@ -277,11 +285,23 @@ pub enum TyKind {
     /// Mutable or shared reference
     Ref(Mutability, Box<Ty>),
     /// Constrained type: an exists without binder
-    Constr(Expr, Box<Ty>),
+    Constr(Pred, Box<Ty>),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
     /// The `NodeId` is used to resolve the type to a corresponding `OpaqueTy`
     ImplTrait(NodeId, GenericBounds),
+}
+
+#[derive(Debug)]
+pub struct Pred {
+    pub kind: PredKind,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub enum PredKind {
+    Expr(Expr),
+    Alias(AliasPred, Vec<RefineArg>),
 }
 
 impl Ty {
@@ -366,6 +386,19 @@ pub struct Path {
 pub enum GenericArg {
     Type(Ty),
     Constraint(Ident, Ty),
+}
+
+#[derive(Debug)]
+pub struct AssocPredicate {
+    pub name: Ident,
+    pub kind: AssocPredicateKind,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub enum AssocPredicateKind {
+    Spec(Sort),
+    Impl(Vec<RefineParam>, Expr),
 }
 
 #[derive(Debug, Clone)]
