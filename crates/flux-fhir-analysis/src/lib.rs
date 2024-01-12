@@ -344,7 +344,6 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<Wf
             if let Some(assoc_predicates) = genv.map().get_assoc_predicates(def_id) {
                 wf::check_assoc_predicates(genv, assoc_predicates, owner_id)?
             } else {
-                // We currently dont support refinements on an impl item, so there's nothing to check here.
                 WfckResults::new(owner_id)
             }
         }
