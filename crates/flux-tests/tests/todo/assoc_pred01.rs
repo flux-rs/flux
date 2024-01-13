@@ -9,8 +9,3 @@ pub trait MyTrait {
 pub fn bob<T: MyTrait>(x: &T) {
     x.method();
 }
-
-#[flux::predicate{ g : (int, int) -> int }]
-pub trait OtherTrait {
-    fn dohtem(&self) -> i32;
-}
