@@ -105,6 +105,7 @@ pub struct AssocPredicates {
 pub struct AssocPredicate {
     pub name: Symbol,
     pub kind: AssocPredicateKind,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -464,6 +465,7 @@ pub struct RefineParam {
     pub sort: Sort,
     pub kind: ParamKind,
     pub fhir_id: FhirId,
+    pub span: Span,
 }
 
 impl RefineParam {

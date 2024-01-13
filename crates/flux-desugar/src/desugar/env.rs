@@ -126,7 +126,7 @@ impl<P> Env<P> {
         self.curr = self.parent[&self.curr];
     }
 
-    pub(crate) fn filter_map<T>(self, mut f: impl FnMut(P, bool) -> Option<T>) -> Env<T> {
+    pub(crate) fn filter_map<T>(self, mut f: impl FnMut(P, Ident, bool) -> Option<T>) -> Env<T> {
         let scopes = self
             .scopes
             .into_iter()
@@ -135,7 +135,7 @@ impl<P> Env<P> {
                     .map
                     .into_iter()
                     .flat_map(|(ident, param)| {
-                        if let Some(r) = f(param, scope.used.contains(&ident)) {
+                        if let Some(r) = f(param, ident, scope.used.contains(&ident)) {
                             Some((ident, r))
                         } else {
                             scope.used.remove(&ident);

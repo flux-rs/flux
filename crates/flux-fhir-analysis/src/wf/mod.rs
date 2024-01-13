@@ -157,6 +157,51 @@ pub(crate) fn check_opaque_ty(
     Ok(infcx.into_results())
 }
 
+fn check_assoc_predicate_params(
+    genv: &GlobalEnv,
+    owner_id: OwnerId,
+    name: Symbol,
+    params: &[fhir::RefineParam],
+    span: Span,
+) -> Result<(), ErrorGuaranteed> {
+    let impl_id = owner_id.def_id.to_def_id();
+    let Some(sorts) = genv.sort_of_assoc_pred(impl_id, name) else {
+        let trait_id = genv
+            .tcx
+            .impl_trait_ref(impl_id)
+            .unwrap()
+            .skip_binder()
+            .def_id;
+        let trait_id = format!("{trait_id:?}"); // TODO(RJ): get "pretty" trait-name, instead of "gross" defid
+        return Err(genv
+            .sess
+            .emit_err(errors::InvalidAssocPredicate::new(span, name, trait_id)));
+    };
+
+    {
+        if sorts.len() != params.len() {
+            return Err(genv.sess.emit_err(errors::ArgCountMismatch::new(
+                Some(span),
+                String::from("associated predicate"),
+                sorts.len(),
+                params.len(),
+            )));
+        }
+        for (param, sort) in iter::zip(params, &sorts) {
+            let param_sort =
+                conv::conv_sort(genv, &param.sort, &mut || bug!("unexpected infer sort"));
+            if param_sort != *sort {
+                return Err(genv.sess.emit_err(errors::SortMismatch::new(
+                    param.span,
+                    sort.clone(),
+                    param_sort,
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn check_assoc_predicates(
     genv: &GlobalEnv,
     assoc_predicates: &fhir::AssocPredicates,
@@ -165,19 +210,17 @@ pub(crate) fn check_assoc_predicates(
     let mut infcx = InferCtxt::new(genv, owner_id.into());
 
     // TODO(RJ): multiple-predicates
+
     for assoc_pred in &assoc_predicates.predicates {
         if let fhir::AssocPredicateKind::Impl(params, body) = &assoc_pred.kind {
-            // TODO: check_params(sorts)
+            // 1. Check this impl sorts conform to spec
+            check_assoc_predicate_params(genv, owner_id, assoc_pred.name, params, assoc_pred.span)?;
+
+            // 2. Check this impl is well-sorted
             infcx.insert_params(params);
             infcx.check_expr(body, &rty::Sort::Bool)?;
         }
     }
-    // TODO: check-against-trait
-    // let def_id = owner_id.def_id.to_def_id();
-    // if let Some(trait_ref) = genv.tcx.impl_trait_ref(def_id) {
-    //     let trait_id = trait_ref.skip_binder().def_id;
-    //     let trait_assoc_predicates = genv.map().get_assoc_predicates(trait_id).unwrap();
-    // }
 
     Ok(infcx.into_results())
 }
@@ -592,7 +635,7 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         args: &[fhir::RefineArg],
         span: Span,
     ) -> Result<(), ErrorGuaranteed> {
-        if let Some(inputs) = self.genv.sorts_of_alias_pred(alias_pred) {
+        if let Some(inputs) = self.genv.sort_of_alias_pred(alias_pred) {
             if args.len() != inputs.len() {
                 return self.emit_err(errors::ArgCountMismatch::new(
                     Some(span),

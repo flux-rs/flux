@@ -597,7 +597,7 @@ impl GenericArg {
         }
     }
 
-    fn peel_out_sort(&self) -> Option<Sort> {
+    pub fn peel_out_sort(&self) -> Option<Sort> {
         match self {
             GenericArg::Ty(ty) => ty.as_bty_skipping_existentials().map(BaseTy::sort),
             GenericArg::BaseTy(abs) => Some(abs.vars()[0].expect_sort().clone()),

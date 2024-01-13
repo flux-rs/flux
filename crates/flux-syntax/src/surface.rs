@@ -153,6 +153,7 @@ pub struct QualNames {
 pub struct RefineParam {
     pub name: Ident,
     pub sort: Sort,
+    pub span: Span,
 }
 
 #[derive(Debug)]

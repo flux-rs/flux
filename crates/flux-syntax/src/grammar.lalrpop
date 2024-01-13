@@ -139,8 +139,8 @@ pub QualNames: surface::QualNames = {
 RefineParams<T>: Vec<surface::RefineParam> = Comma<RefineParam<T>>;
 
 RefineParam<T>: surface::RefineParam = {
-    <name:Ident> ":" <sort:Sort> => surface::RefineParam { <> },
-    <name:Ident> if T == "?" => surface::RefineParam { name, sort: surface::Sort::Infer },
+    <lo:@L>  <name:Ident> ":" <sort:Sort> <hi:@R> => surface::RefineParam { name, sort, span: cx.map_span(lo, hi) },
+    <name:Ident> if T == "?" => surface::RefineParam { name, sort: surface::Sort::Infer, span: name.span },
 };
 
 BaseSort: surface::BaseSort = {

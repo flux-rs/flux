@@ -727,7 +727,7 @@ fn lower_field(f: &rustc_ty::FieldDef) -> FieldDef {
     FieldDef { did: f.did, name: f.name }
 }
 
-fn lower_generic_args<'tcx>(
+pub fn lower_generic_args<'tcx>(
     tcx: TyCtxt<'tcx>,
     args: rustc_middle::ty::GenericArgsRef<'tcx>,
 ) -> Result<List<GenericArg>, UnsupportedReason> {

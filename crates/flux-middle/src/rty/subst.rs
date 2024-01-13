@@ -230,7 +230,7 @@ impl TypeFolder for EVarSubstFolder<'_> {
 }
 
 /// Substitution for generics, i.e., early bound types, lifetimes, const generics and refinements
-pub(super) struct GenericsSubstFolder<'a> {
+pub struct GenericsSubstFolder<'a> {
     current_index: DebruijnIndex,
     /// We leave this as [None] if we only want to substitute the EarlyBound refinement-params
     generics: Option<&'a [GenericArg]>,
@@ -238,7 +238,7 @@ pub(super) struct GenericsSubstFolder<'a> {
 }
 
 impl<'a> GenericsSubstFolder<'a> {
-    pub(super) fn new(generics: Option<&'a [GenericArg]>, refine: &'a [Expr]) -> Self {
+    pub fn new(generics: Option<&'a [GenericArg]>, refine: &'a [Expr]) -> Self {
         Self { current_index: INNERMOST, generics, refine }
     }
 }

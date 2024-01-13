@@ -158,6 +158,7 @@ struct Param {
     name: fhir::Name,
     sort: fhir::Sort,
     kind: fhir::ParamKind,
+    span: Span,
 }
 
 struct FluxItemCtxt<'a, 'tcx> {
@@ -321,7 +322,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 fhir::AssocPredicateKind::Impl(params, body)
             }
         };
-        let assoc_predicate = fhir::AssocPredicate { name, kind };
+        let assoc_predicate = fhir::AssocPredicate { name, kind, span: assoc_predicate.span };
         let predicates = vec![assoc_predicate];
         Ok(fhir::AssocPredicates { predicates })
     }
@@ -1042,7 +1043,12 @@ impl Env {
             env.insert(
                 genv.sess,
                 param.name,
-                Param { name: name_gen.fresh(), sort, kind: fhir::ParamKind::Explicit },
+                Param {
+                    name: name_gen.fresh(),
+                    sort,
+                    kind: fhir::ParamKind::Explicit,
+                    span: param.span,
+                },
             )?;
         }
         Ok(env)
@@ -1103,7 +1109,13 @@ impl Scope<Param> {
         for (ident, param) in self.into_iter() {
             let ident = fhir::Ident::new(param.name, ident);
             let fhir_id = cx.next_fhir_id();
-            params.push(fhir::RefineParam { ident, sort: param.sort, kind: param.kind, fhir_id });
+            params.push(fhir::RefineParam {
+                ident,
+                sort: param.sort,
+                kind: param.kind,
+                fhir_id,
+                span: param.span,
+            });
         }
         params
     }
