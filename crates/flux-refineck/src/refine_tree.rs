@@ -108,8 +108,8 @@ enum NodeKind {
     Conj,
     Comment(String),
     ForAll(Name, Sort),
-    Guard(Expr),
-    Head(Expr, Tag),
+    Guard(Pred),
+    Head(Pred, Tag),
     True,
 }
 
