@@ -473,6 +473,35 @@ pub enum Pred {
     Alias(AliasPred, RefineArgs),
 }
 
+impl Pred {
+    pub fn is_trivially_true(&self) -> bool {
+        match self {
+            Pred::Expr(expr) => expr.is_trivially_true(),
+            Pred::Alias(_, _) => false,
+        }
+    }
+
+    pub fn is_atom(&self) -> bool {
+        match self {
+            Pred::Expr(expr) => expr.is_atom(),
+            Pred::Alias(_, _) => true,
+        }
+    }
+
+    pub fn simplify(&self) -> Self {
+        match self {
+            Pred::Expr(expr) => Pred::Expr(expr.simplify()),
+            Pred::Alias(pred, args) => Pred::Alias(pred.clone(), args.clone()),
+        }
+    }
+}
+
+impl From<&Expr> for Pred {
+    fn from(expr: &Expr) -> Self {
+        Pred::Expr(expr.clone())
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub struct AliasPred {
     pub trait_id: DefId,

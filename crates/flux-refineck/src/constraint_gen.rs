@@ -110,7 +110,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub(crate) fn check_pred(
         &self,
         rcx: &mut RefineCtxt,
-        pred: impl Into<Expr>,
+        pred: impl Into<Pred>,
         reason: ConstrReason,
     ) {
         rcx.check_pred(pred, Tag::new(reason, self.span));
@@ -253,7 +253,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             let rcx = &mut rcx.push_comment(format!("{actual:?} <: {formal:?}"));
 
             let (formal, pred) = formal.unconstr();
-            infcx.check_pred(rcx, pred);
+            infcx.check_pred(rcx, &pred);
             // TODO(pack-closure): Generalize/refactor to reuse for mutable closures
             match (actual.kind(), formal.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::Ptr(PtrKind::Mut(_), path2)) => {
@@ -376,7 +376,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
             arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
         let (arr_ty, pred) = arr_ty.unconstr();
-        infcx.check_pred(rcx, pred);
+        infcx.check_pred(rcx, &pred);
 
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
@@ -499,7 +499,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
     }
 
-    pub(crate) fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
+    pub(crate) fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Pred>) {
         rcx.check_pred(pred, self.tag);
     }
 
@@ -543,8 +543,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 let ty1 = ty1.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
                 self.subtyping(rcx, &ty1, ty2)
             }
-            (TyKind::Constr(Pred::Expr(p1), ty1), _) => {
-                rcx.assume_pred(p1);
+            (TyKind::Constr(p1, ty1), _) => {
+                rcx.assume_pred(p1.clone());
                 self.subtyping(rcx, ty1, ty2)
             }
             (_, TyKind::Exists(ty2)) => {
@@ -573,8 +573,8 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 // FIXME: we should rethink in which situation this is sound.
                 Ok(())
             }
-            (_, TyKind::Constr(Pred::Expr(p2), ty2)) => {
-                rcx.check_pred(p2, self.tag);
+            (_, TyKind::Constr(p2, ty2)) => {
+                rcx.check_pred(p2.clone(), self.tag);
                 self.subtyping(rcx, ty1, ty2)
             }
             (TyKind::Downcast(.., fields1), TyKind::Downcast(.., fields2)) => {
@@ -763,7 +763,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
             _ => {
                 self.unify_exprs(e1, e2);
                 let span = e2.span();
-                rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2, span), self.tag);
+                rcx.check_pred(&Expr::binary_op(BinOp::Eq, e1, e2, span), self.tag);
             }
         }
     }
