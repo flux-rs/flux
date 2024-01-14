@@ -247,7 +247,10 @@ impl<'a> ItemLikeResolver<'a> {
                 }
             }
             surface::TyKind::Indexed { bty, .. } => self.resolve_bty(bty),
-            surface::TyKind::Exists { bty, .. } => self.resolve_bty(bty),
+            surface::TyKind::Exists { bty, pred, .. } => {
+                self.resolve_bty(bty)?;
+                self.resolve_pred(pred)
+            }
             surface::TyKind::GeneralExists { ty, .. } => self.resolve_ty(ty),
             surface::TyKind::Ref(_, ty) => self.resolve_ty(ty),
             surface::TyKind::Constr(pred, ty) => {
