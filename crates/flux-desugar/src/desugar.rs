@@ -719,13 +719,15 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 env.enter(ScopeId::Exists(node_id));
 
                 let bty = self.desugar_bty(bty, env)?;
-                let pred = self.desugar_expr(env, pred)?;
-                let span = pred.span;
-                let pred = fhir::Pred {
-                    kind: fhir::PredKind::Expr(pred),
-                    span,
-                    fhir_id: self.next_fhir_id(),
-                };
+                let pred = self.desugar_pred(env, pred)?;
+
+                // let span = pred.span;
+                // let pred = fhir::Pred {
+                //     kind: fhir::PredKind::Expr(pred),
+                //     span,
+                //     fhir_id: self.next_fhir_id(),
+                // };
+
                 let params = env.pop().into_params(self);
 
                 let idx = fhir::RefineArg {

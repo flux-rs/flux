@@ -506,7 +506,7 @@ impl Visitor for CheckParamUses<'_> {
             surface::TyKind::Exists { bty, pred, .. } => {
                 self.env.enter(ScopeId::Exists(node_id));
                 self.visit_bty(bty);
-                self.visit_expr(pred);
+                self.visit_pred(pred);
                 self.env.exit();
             }
             surface::TyKind::GeneralExists { ty, pred, .. } => {

@@ -276,7 +276,7 @@ pub enum TyKind {
     Exists {
         bind: Ident,
         bty: BaseTy,
-        pred: Expr,
+        pred: Pred,
     },
     GeneralExists {
         params: Vec<RefineParam>,
