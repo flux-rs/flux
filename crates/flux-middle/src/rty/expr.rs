@@ -11,7 +11,7 @@ use rustc_span::{BytePos, Span, Symbol, SyntaxContext};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
-use super::{evars::EVar, AliasPred, BaseTy, Binder, IntTy, Sort, UintTy};
+use super::{evars::EVar, BaseTy, Binder, IntTy, Sort, UintTy};
 use crate::{
     fhir::FuncKind,
     intern::{impl_internable, impl_slice_internable, Interned, List},
@@ -691,12 +691,6 @@ impl From<Path> for Expr {
 impl From<Name> for Expr {
     fn from(name: Name) -> Self {
         Expr::fvar(name)
-    }
-}
-
-impl From<AliasPred> for Expr {
-    fn from(pred: AliasPred) -> Self {
-        Expr::global_func(pred.name, FuncKind::Asp)
     }
 }
 

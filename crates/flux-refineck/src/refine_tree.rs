@@ -650,7 +650,7 @@ mod pretty {
     };
 
     use flux_common::format::PadAdapter;
-    use flux_middle::pretty::*;
+    use flux_middle::{fhir::FuncKind, pretty::*};
     use itertools::Itertools;
 
     use super::*;
@@ -693,7 +693,10 @@ mod pretty {
     fn pred_as_expr(pred: &Pred) -> Expr {
         match pred {
             Pred::Expr(expr) => expr.clone(),
-            Pred::Alias(alias_pred, args) => Expr::app(alias_pred.clone(), args.clone(), None),
+            Pred::Alias(alias_pred, args) => {
+                let func = Expr::global_func(alias_pred.name, FuncKind::Asp);
+                Expr::app(func, args.clone(), None)
+            }
         }
     }
 

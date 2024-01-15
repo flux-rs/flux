@@ -19,7 +19,7 @@ use flux_middle::{
     rty::{
         self,
         fold::{TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        Constant, ESpan,
+        AliasPred, Constant, ESpan,
     },
 };
 use itertools::{self, Itertools};
@@ -29,7 +29,7 @@ use rustc_data_structures::{
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
-use rustc_span::Span;
+use rustc_span::{Span, Symbol};
 use rustc_type_ir::DebruijnIndex;
 
 use crate::{refine_tree::Scope, CheckerConfig};
@@ -195,6 +195,8 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     kvid_map: KVidMap,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
+    alias_preds: UnordMap<AliasPred, rty::Expr>,
+    const_name_gen: IndexGen<fixpoint::GlobalVar>,
     /// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
     /// invariants.
     def_id: LocalDefId,
@@ -291,7 +293,7 @@ where
     Tag: std::hash::Hash + Eq + Copy,
 {
     pub fn new(genv: &'genv GlobalEnv<'genv, 'tcx>, def_id: LocalDefId, kvars: KVarStore) -> Self {
-        let const_map = fixpoint_const_map(genv);
+        let (const_map, const_name_gen) = fixpoint_const_map(genv);
         Self {
             comments: vec![],
             kvars,
@@ -303,6 +305,8 @@ where
             kvid_map: KVidMap::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
+            alias_preds: Default::default(),
+            const_name_gen,
             def_id,
         }
     }
@@ -449,9 +453,11 @@ where
             }
             rty::Pred::Alias(alias_pred, args) => {
                 // 1. collect the alias_pred_app (to later generate name+sort)
-                // 2. convert to expr and recurse Expr
                 // tcx.def_path_str(def_id) to get a full string from def_id
-                todo!("HEREHEREHEREHEREHERE")
+                let func = self.alias_pred_func(alias_pred, args.len());
+                let alias_pred_app = rty::Expr::app(func, args.clone(), None);
+                // 2. convert to expr and recurse Expr
+                self.pred_to_fixpoint(&rty::Pred::Expr(alias_pred_app))
             }
         }
     }
@@ -576,9 +582,40 @@ where
         self.genv.tcx.def_span(self.def_id)
     }
 
-    // fn alias_pred_symbol(&mut self, alias_pred: &AliasPred) -> i32 {
-    //     todo!("alias_pred_symbol: {alias_pred:?}")
-    // }
+    fn alias_pred_sort(arity: usize) -> rty::PolyFuncSort {
+        let mut sorts = vec![];
+        for i in 0..arity {
+            sorts.push(rty::Sort::Var(rty::SortVar::from(i)));
+        }
+        sorts.push(rty::Sort::Bool);
+        rty::PolyFuncSort::new(arity, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
+    }
+
+    fn fresh_alias_pred(&mut self, arity: usize) -> Symbol {
+        let n = self.alias_preds.len();
+        let sym = Symbol::intern(&format!("alias_pred_{n:?}"));
+        let name = self.const_name_gen.fresh();
+        let fsort = Self::alias_pred_sort(arity);
+        let sort = func_sort_to_fixpoint(&fsort);
+        let sort = fixpoint::Sort::Func(sort);
+        let cinfo = ConstInfo { name, sym, sort, val: None };
+        self.const_map.insert(Key::Uif(sym), cinfo);
+        sym
+    }
+
+    // returns the 'constant' UIF used to represent the alias_pred, creating and adding it to the
+    // const_map if necessary
+    fn alias_pred_func(&mut self, alias_pred: &AliasPred, arity: usize) -> rty::Expr {
+        match self.alias_preds.get(alias_pred) {
+            Some(func) => func.clone(),
+            None => {
+                let sym = self.fresh_alias_pred(arity);
+                let func = rty::Expr::global_func(sym, FuncKind::Asp);
+                self.alias_preds.insert(alias_pred.clone(), func.clone());
+                func
+            }
+        }
+    }
 }
 
 impl FixpointKVar {
@@ -587,7 +624,7 @@ impl FixpointKVar {
     }
 }
 
-fn fixpoint_const_map(genv: &GlobalEnv) -> ConstMap {
+fn fixpoint_const_map(genv: &GlobalEnv) -> (ConstMap, IndexGen<fixpoint::GlobalVar>) {
     let const_name_gen = IndexGen::new();
     let consts = genv
         .map()
@@ -622,7 +659,7 @@ fn fixpoint_const_map(genv: &GlobalEnv) -> ConstMap {
                 _ => None,
             }
         });
-    itertools::chain(consts, uifs).collect()
+    (itertools::chain(consts, uifs).collect(), const_name_gen)
 }
 
 impl KVarStore {
