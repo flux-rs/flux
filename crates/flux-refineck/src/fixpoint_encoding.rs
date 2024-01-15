@@ -895,7 +895,8 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         match func.kind() {
             rty::ExprKind::Var(var) => self.var_to_fixpoint(var).into(),
             rty::ExprKind::GlobalFunc(_, FuncKind::Thy(sym)) => fixpoint::Var::Itf(*sym),
-            rty::ExprKind::GlobalFunc(sym, FuncKind::Uif) => {
+            rty::ExprKind::GlobalFunc(sym, FuncKind::Uif)
+            | rty::ExprKind::GlobalFunc(sym, FuncKind::Asp) => {
                 let cinfo = self.const_map.get(&Key::Uif(*sym)).unwrap_or_else(|| {
                     span_bug!(
                         self.dbg_span,
