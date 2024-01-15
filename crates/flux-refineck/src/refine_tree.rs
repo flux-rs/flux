@@ -693,7 +693,7 @@ mod pretty {
     fn pred_as_expr(pred: &Pred) -> Expr {
         match pred {
             Pred::Expr(expr) => expr.clone(),
-            Pred::Alias(alias_pred, args) => todo!("pred-as-expr"),
+            Pred::Alias(alias_pred, args) => Expr::app(alias_pred.clone(), args.clone(), None),
         }
     }
 

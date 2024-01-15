@@ -808,6 +808,8 @@ pub enum FuncKind {
     Uif,
     /// User-defined functions with a body definition
     Def,
+    /// Associated predicate symbol
+    Asp,
 }
 
 #[derive(Debug)]

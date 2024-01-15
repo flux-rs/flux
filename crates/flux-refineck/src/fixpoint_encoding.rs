@@ -447,7 +447,12 @@ where
                 self.pred_to_fixpoint_internal(expr, &mut bindings, &mut preds);
                 (bindings, preds)
             }
-            rty::Pred::Alias(alias_pred, args) => todo!(),
+            rty::Pred::Alias(alias_pred, args) => {
+                // 1. collect the alias_pred_app (to later generate name+sort)
+                // 2. convert to expr and recurse Expr
+                // tcx.def_path_str(def_id) to get a full string from def_id
+                todo!("HEREHEREHEREHEREHERE")
+            }
         }
     }
 
@@ -570,6 +575,10 @@ where
     fn def_span(&self) -> Span {
         self.genv.tcx.def_span(self.def_id)
     }
+
+    // fn alias_pred_symbol(&mut self, alias_pred: &AliasPred) -> i32 {
+    //     todo!("alias_pred_symbol: {alias_pred:?}")
+    // }
 }
 
 impl FixpointKVar {
