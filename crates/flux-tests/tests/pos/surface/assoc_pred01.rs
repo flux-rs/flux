@@ -1,6 +1,7 @@
 #[flux::generics(Self as base)]
 #[flux::predicate(f: (Self) -> bool)]
 pub trait MyTrait {
+    // TODO(RJ): allow the below, by "collecting" name `MyTrait`
     // #[flux::sig(fn(self: &Self{v: <Self as MyTrait>::f(v)}) -> Self{v: <Self as MyTrait>::f(v)})]
     fn method(&self) -> Self;
 }

@@ -195,12 +195,14 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     kvid_map: KVidMap,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
-    alias_preds: UnordMap<AliasPred, rty::Expr>,
+    alias_preds: UnordMap<AliasPredKey, rty::Expr>,
     const_name_gen: IndexGen<fixpoint::GlobalVar>,
     /// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
     /// invariants.
     def_id: LocalDefId,
 }
+
+type AliasPredKey = (DefId, Vec<rty::Sort>);
 
 struct FixpointKVar {
     sorts: Vec<fixpoint::Sort>,
@@ -452,11 +454,8 @@ where
                 (bindings, preds)
             }
             rty::Pred::Alias(alias_pred, args) => {
-                // 1. collect the alias_pred_app (to later generate name+sort)
-                // tcx.def_path_str(def_id) to get a full string from def_id
                 let func = self.alias_pred_func(alias_pred, args.len());
                 let alias_pred_app = rty::Expr::app(func, args.clone(), None);
-                // 2. convert to expr and recurse Expr
                 self.pred_to_fixpoint(&rty::Pred::Expr(alias_pred_app))
             }
         }
@@ -603,15 +602,26 @@ where
         sym
     }
 
+    fn alias_pred_key(alias_pred: &AliasPred) -> AliasPredKey {
+        let trait_id = alias_pred.trait_id;
+        let args = alias_pred
+            .args
+            .iter()
+            .flat_map(|arg| arg.peel_out_sort())
+            .collect();
+        (trait_id, args)
+    }
+
     // returns the 'constant' UIF used to represent the alias_pred, creating and adding it to the
     // const_map if necessary
     fn alias_pred_func(&mut self, alias_pred: &AliasPred, arity: usize) -> rty::Expr {
-        match self.alias_preds.get(alias_pred) {
+        let key = Self::alias_pred_key(alias_pred);
+        match self.alias_preds.get(&key) {
             Some(func) => func.clone(),
             None => {
                 let sym = self.fresh_alias_pred(arity);
                 let func = rty::Expr::global_func(sym, FuncKind::Asp);
-                self.alias_preds.insert(alias_pred.clone(), func.clone());
+                self.alias_preds.insert(key, func.clone());
                 func
             }
         }
