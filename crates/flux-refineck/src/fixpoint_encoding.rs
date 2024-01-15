@@ -195,16 +195,12 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     kvid_map: KVidMap,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
-    alias_preds: UnordMap<AliasPredKey<'tcx>, rty::Expr>,
+    alias_preds: UnordMap<rustc_middle::ty::TraitRef<'tcx>, rty::Expr>,
     const_name_gen: IndexGen<fixpoint::GlobalVar>,
     /// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
     /// invariants.
     def_id: LocalDefId,
 }
-
-// TODO(RJ): This is sketchy, we really should use the rustc-generic args
-// type AliasPredKey = (DefId, Vec<rty::Sort>);
-type AliasPredKey<'tcx> = rustc_middle::ty::TraitRef<'tcx>;
 
 struct FixpointKVar {
     sorts: Vec<fixpoint::Sort>,
@@ -604,22 +600,9 @@ where
         sym
     }
 
-    // TODO(RJ): cheeky to use the `Sort` -- instead to be sound we should use the rustc types
-    // or somehow a stripped out version of the rty::Ty
-    // fn alias_pred_key(alias_pred: &AliasPred) -> AliasPredKey {
-    //     let trait_id = alias_pred.trait_id;
-    //     let args = alias_pred
-    //         .args
-    //         .iter()
-    //         .flat_map(|arg| arg.peel_out_sort())
-    //         .collect();
-    //     (trait_id, args)
-    // }
-
     // returns the 'constant' UIF used to represent the alias_pred, creating and adding it to the
     // const_map if necessary
     fn alias_pred_func(&mut self, alias_pred: &AliasPred, arity: usize) -> rty::Expr {
-        // let key = Self::alias_pred_key(alias_pred);
         let key = rty::projections::into_rustc_trait_ref(self.genv.tcx, alias_pred);
         match self.alias_preds.get(&key) {
             Some(func) => func.clone(),
