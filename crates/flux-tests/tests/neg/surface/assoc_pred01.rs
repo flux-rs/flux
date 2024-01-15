@@ -16,3 +16,8 @@ pub fn lib<T: MyTrait>(x: &T) -> T {
 pub fn cli<T: MyTrait>(x: &T) -> T {
     lib(x)
 }
+
+#[flux::sig(fn<T as base>(&T) -> T{v: <T as MyTrait>::f(v)})]
+pub fn cli2<T: MyTrait>(x: &T) -> T {
+    lib(x) //~ ERROR refinement type error
+}
