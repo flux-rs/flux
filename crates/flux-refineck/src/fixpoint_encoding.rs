@@ -774,7 +774,8 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
             fixpoint::Sort::App(ctor, args)
         }
         rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
-        rty::Sort::Err | rty::Sort::Infer(_) | rty::Sort::Loc | rty::Sort::Var(_) => {
+        rty::Sort::Var(k) => fixpoint::Sort::Var(k.index.try_into().unwrap()),
+        rty::Sort::Err | rty::Sort::Infer(_) | rty::Sort::Loc => {
             bug!("unexpected sort {sort:?}")
         }
     }
