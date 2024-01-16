@@ -408,11 +408,7 @@ where
         let constants = self
             .const_map
             .into_values()
-            .chain(
-                self.alias_preds
-                    .into_iter()
-                    .map(|(_, info)| info.const_info),
-            )
+            .chain(self.alias_preds.into_values().map(|info| info.const_info))
             .map(Self::fixpoint_const_info)
             .collect_vec();
 
