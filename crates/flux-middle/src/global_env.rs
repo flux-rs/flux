@@ -255,7 +255,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         if let Some(assoc_pred) = self.assoc_predicate_of(trait_id, name)?
             && let AssocPredicateKind::Spec(sorts) = assoc_pred.kind
         {
-            // CUT Ok(Some(sorts.fold_with(&mut GenericSortSubst::new(&args))))
             Ok(Some(sorts.fold_with(&mut GenericsSubstFolder::new(Some(generic_args), &[]))))
         } else {
             Ok(None)
