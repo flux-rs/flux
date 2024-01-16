@@ -238,8 +238,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         if let Some(assoc_pred) = self.assoc_predicate_of(trait_ref.def_id, name)?
             && let rty::AssocPredicateKind::Spec(sorts) = assoc_pred.kind
         {
-            // CUT let arg_sorts: Vec<_> = args.iter().flat_map(|arg| arg.peel_out_sort()).collect();
-            // CUT return Ok(Some(sorts.fold_with(&mut subst::GenericSortSubst::new(&arg_sorts))));
             return Ok(Some(
                 sorts.fold_with(&mut subst::GenericsSubstFolder::new(Some(&args), &[])),
             ));
@@ -254,16 +252,6 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     ) -> QueryResult<Option<List<rty::Sort>>> {
         let trait_id = alias_pred.trait_id;
         let name = alias_pred.name;
-        // CUT let args: Vec<_> = alias_pred
-        // CUT     .generic_args
-        // CUT     .iter()
-        // CUT     .flat_map(|arg| {
-        // CUT         match arg {
-        // CUT             fhir::GenericArg::Type(ty) => self.sort_of_ty(ty),
-        // CUT             fhir::GenericArg::Lifetime(_) => None,
-        // CUT         }
-        // CUT     })
-        // CUT     .collect();
         if let Some(assoc_pred) = self.assoc_predicate_of(trait_id, name)?
             && let AssocPredicateKind::Spec(sorts) = assoc_pred.kind
         {

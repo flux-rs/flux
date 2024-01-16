@@ -397,23 +397,3 @@ impl TypeFolder for SortSubst<'_> {
         }
     }
 }
-
-// CUT // pub(crate) struct GenericSortSubst<'a> {
-// CUT //     args: &'a [Sort],
-// CUT // }
-// CUT
-// CUT // impl<'a> GenericSortSubst<'a> {
-// CUT //     pub(crate) fn new(args: &'a [Sort]) -> Self {
-// CUT //         Self { args }
-// CUT //     }
-// CUT // }
-// CUT
-// CUT // impl TypeFolder for GenericSortSubst<'_> {
-// CUT //     fn fold_sort(&mut self, sort: &Sort) -> Sort {
-// CUT //         if let Sort::Param(var) = sort {
-// CUT //             self.args[var.index as usize].clone()
-// CUT //         } else {
-// CUT //             sort.super_fold_with(self)
-// CUT //         }
-// CUT //     }
-// CUT // }
