@@ -22,7 +22,7 @@ use rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
 use rustc_span::{Span, Symbol};
 
 use self::sortck::InferCtxt;
-use crate::conv;
+use crate::conv::{self, ConvCtxt};
 
 struct Wf<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
@@ -636,9 +636,15 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         args: &[fhir::RefineArg],
         span: Span,
     ) -> Result<(), ErrorGuaranteed> {
+        let conv = ConvCtxt::new(self.genv, &infcx.wfckresults);
+        let mut env = conv::Env::new(self.genv, &[], &infcx.wfckresults);
+        let generic_args = conv
+            .conv_generic_args(&mut env, alias_pred.trait_id, &alias_pred.generic_args)
+            .emit(self.genv.sess)?;
+
         if let Some(inputs) = self
             .genv
-            .sort_of_alias_pred(alias_pred)
+            .sort_of_alias_pred(alias_pred, &generic_args)
             .emit(self.genv.sess)?
         {
             if args.len() != inputs.len() {

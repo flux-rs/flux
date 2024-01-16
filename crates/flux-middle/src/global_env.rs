@@ -21,7 +21,7 @@ use crate::{
         fold::TypeFoldable,
         normalize::Defns,
         refining::Refiner,
-        subst::{self, GenericSortSubst},
+        subst::{self, GenericsSubstFolder},
         AssocPredicateKind, GenericParamDefKind,
     },
     rustc::{self, lowering::lower_generic_args, ty},
@@ -238,9 +238,11 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         if let Some(assoc_pred) = self.assoc_predicate_of(trait_ref.def_id, name)?
             && let rty::AssocPredicateKind::Spec(sorts) = assoc_pred.kind
         {
-            let arg_sorts: Vec<_> = args.iter().flat_map(|arg| arg.peel_out_sort()).collect();
-
-            return Ok(Some(sorts.fold_with(&mut subst::GenericSortSubst::new(&arg_sorts))));
+            // CUT let arg_sorts: Vec<_> = args.iter().flat_map(|arg| arg.peel_out_sort()).collect();
+            // CUT return Ok(Some(sorts.fold_with(&mut subst::GenericSortSubst::new(&arg_sorts))));
+            return Ok(Some(
+                sorts.fold_with(&mut subst::GenericsSubstFolder::new(Some(&args), &[])),
+            ));
         };
         Ok(None)
     }
@@ -248,23 +250,25 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn sort_of_alias_pred(
         &self,
         alias_pred: &fhir::AliasPred,
+        generic_args: &[rty::GenericArg],
     ) -> QueryResult<Option<List<rty::Sort>>> {
         let trait_id = alias_pred.trait_id;
         let name = alias_pred.name;
-        let args: Vec<_> = alias_pred
-            .generic_args
-            .iter()
-            .flat_map(|arg| {
-                match arg {
-                    fhir::GenericArg::Type(ty) => self.sort_of_ty(ty),
-                    fhir::GenericArg::Lifetime(_) => None,
-                }
-            })
-            .collect();
+        // CUT let args: Vec<_> = alias_pred
+        // CUT     .generic_args
+        // CUT     .iter()
+        // CUT     .flat_map(|arg| {
+        // CUT         match arg {
+        // CUT             fhir::GenericArg::Type(ty) => self.sort_of_ty(ty),
+        // CUT             fhir::GenericArg::Lifetime(_) => None,
+        // CUT         }
+        // CUT     })
+        // CUT     .collect();
         if let Some(assoc_pred) = self.assoc_predicate_of(trait_id, name)?
             && let AssocPredicateKind::Spec(sorts) = assoc_pred.kind
         {
-            Ok(Some(sorts.fold_with(&mut GenericSortSubst::new(&args))))
+            // CUT Ok(Some(sorts.fold_with(&mut GenericSortSubst::new(&args))))
+            Ok(Some(sorts.fold_with(&mut GenericsSubstFolder::new(Some(generic_args), &[]))))
         } else {
             Ok(None)
         }

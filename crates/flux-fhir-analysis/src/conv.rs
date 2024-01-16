@@ -38,7 +38,7 @@ pub struct ConvCtxt<'a, 'tcx> {
     wfckresults: &'a WfckResults,
 }
 
-struct Env {
+pub(crate) struct Env {
     layers: Vec<Layer>,
     early_bound: FxIndexMap<fhir::Name, rty::Sort>,
 }
@@ -371,7 +371,7 @@ pub(crate) fn conv_ty(
 }
 
 impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
-    fn new(genv: &'a GlobalEnv<'a, 'tcx>, wfckresults: &'a WfckResults) -> Self {
+    pub(crate) fn new(genv: &'a GlobalEnv<'a, 'tcx>, wfckresults: &'a WfckResults) -> Self {
         Self { genv, wfckresults }
     }
 
@@ -921,7 +921,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         Ok(rty::Ty::indexed(bty, idx))
     }
 
-    fn conv_generic_args(
+    pub fn conv_generic_args(
         &self,
         env: &mut Env,
         def_id: DefId,
@@ -981,7 +981,11 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
 }
 
 impl Env {
-    fn new(genv: &GlobalEnv, early_bound: &[fhir::RefineParam], wfckresults: &WfckResults) -> Self {
+    pub(crate) fn new(
+        genv: &GlobalEnv,
+        early_bound: &[fhir::RefineParam],
+        wfckresults: &WfckResults,
+    ) -> Self {
         let early_bound = early_bound
             .iter()
             .map(|param| (param.name(), resolve_param_sort(genv, param, Some(wfckresults)).clone()))

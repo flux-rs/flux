@@ -20,7 +20,7 @@ pub(super) struct InferCtxt<'a, 'tcx> {
     pub genv: &'a GlobalEnv<'a, 'tcx>,
     params: UnordMap<fhir::Name, (rty::Sort, fhir::ParamKind)>,
     pub(super) unification_table: InPlaceUnificationTable<rty::SortVid>,
-    wfckresults: WfckResults,
+    pub wfckresults: WfckResults,
     /// sort variables that can only be instantiated to sorts that support equality (i.e. non `FuncSort`)
     eq_vids: HashSet<rty::SortVid>,
 }

@@ -321,14 +321,15 @@ impl GenericsSubstFolder<'_> {
     fn sort_for_param(&self, param_ty: ParamTy) -> Sort {
         if let Some(generics) = self.generics {
             match generics.get(param_ty.index as usize) {
-                Some(GenericArg::BaseTy(arg)) => {
-                    if let [BoundVariableKind::Refine(sort, _)] = &arg.vars()[..] {
-                        sort.clone()
-                    } else {
-                        bug!("unexpected bound variable `{arg:?}`")
-                    }
-                }
-                Some(arg) => bug!("expected base type for generic parameter, found `{arg:?}`"),
+                Some(generic_arg) => generic_arg.peel_out_sort().unwrap(),
+                // Some(GenericArg::BaseTy(arg)) => {
+                //     if let [BoundVariableKind::Refine(sort, _)] = &arg.vars()[..] {
+                //         sort.clone()
+                //     } else {
+                //         bug!("unexpected bound variable `{arg:?}`")
+                //     }
+                // }
+                // Some(arg) => bug!("expected base type for generic parameter, found `{arg:?}`"),
                 None => bug!("type parameter out of range {param_ty:?}"),
             }
         } else {
@@ -397,22 +398,22 @@ impl TypeFolder for SortSubst<'_> {
     }
 }
 
-pub(crate) struct GenericSortSubst<'a> {
-    args: &'a [Sort],
-}
-
-impl<'a> GenericSortSubst<'a> {
-    pub(crate) fn new(args: &'a [Sort]) -> Self {
-        Self { args }
-    }
-}
-
-impl TypeFolder for GenericSortSubst<'_> {
-    fn fold_sort(&mut self, sort: &Sort) -> Sort {
-        if let Sort::Param(var) = sort {
-            self.args[var.index as usize].clone()
-        } else {
-            sort.super_fold_with(self)
-        }
-    }
-}
+// CUT // pub(crate) struct GenericSortSubst<'a> {
+// CUT //     args: &'a [Sort],
+// CUT // }
+// CUT
+// CUT // impl<'a> GenericSortSubst<'a> {
+// CUT //     pub(crate) fn new(args: &'a [Sort]) -> Self {
+// CUT //         Self { args }
+// CUT //     }
+// CUT // }
+// CUT
+// CUT // impl TypeFolder for GenericSortSubst<'_> {
+// CUT //     fn fold_sort(&mut self, sort: &Sort) -> Sort {
+// CUT //         if let Sort::Param(var) = sort {
+// CUT //             self.args[var.index as usize].clone()
+// CUT //         } else {
+// CUT //             sort.super_fold_with(self)
+// CUT //         }
+// CUT //     }
+// CUT // }
