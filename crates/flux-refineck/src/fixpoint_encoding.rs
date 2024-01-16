@@ -19,7 +19,7 @@ use flux_middle::{
     rty::{
         self,
         fold::{TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        AliasPred, Constant, ESpan,
+        Constant, ESpan,
     },
 };
 use itertools::{self, Itertools};
@@ -27,6 +27,7 @@ use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},
 };
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_span::{Span, Symbol};
@@ -195,11 +196,16 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     kvid_map: KVidMap,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
-    alias_preds: UnordMap<rustc_middle::ty::TraitRef<'tcx>, rty::Expr>,
+    alias_preds: FxHashMap<rustc_middle::ty::TraitRef<'tcx>, AliasPredInfo>,
     const_name_gen: IndexGen<fixpoint::GlobalVar>,
     /// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
     /// invariants.
     def_id: LocalDefId,
+}
+
+struct AliasPredInfo {
+    pub var: fixpoint::Var,
+    pub const_info: ConstInfo,
 }
 
 struct FixpointKVar {
@@ -358,6 +364,14 @@ where
         fixpoint::Constraint::Guard(pred, Box::new(cstr))
     }
 
+    fn fixpoint_const_info(const_info: ConstInfo) -> fixpoint::ConstInfo {
+        fixpoint::ConstInfo {
+            name: fixpoint::Var::Global(const_info.name),
+            orig: const_info.sym.to_string(),
+            sort: const_info.sort,
+        }
+    }
+
     pub fn check(
         self,
         cache: &mut QueryCache,
@@ -394,14 +408,13 @@ where
         let constants = self
             .const_map
             .into_values()
-            .map(|const_info| {
-                fixpoint::ConstInfo {
-                    name: fixpoint::Var::Global(const_info.name),
-                    orig: const_info.sym.to_string(),
-                    sort: const_info.sort,
-                }
-            })
-            .collect();
+            .chain(
+                self.alias_preds
+                    .into_iter()
+                    .map(|(_, info)| info.const_info),
+            )
+            .map(Self::fixpoint_const_info)
+            .collect_vec();
 
         let task = fixpoint::Task {
             comments: self.comments,
@@ -452,9 +465,17 @@ where
                 (bindings, preds)
             }
             rty::Pred::Alias(alias_pred, args) => {
-                let func = self.alias_pred_func(alias_pred, args.len());
-                let alias_pred_app = rty::Expr::app(func, args.clone(), None);
-                self.pred_to_fixpoint(&rty::Pred::Expr(alias_pred_app))
+                // let func = self.alias_pred_func(alias_pred, args.len());
+                // let alias_pred_app = rty::Expr::app(func, args.clone(), None);
+                // self.pred_to_fixpoint(&rty::Pred::Expr(alias_pred_app))
+
+                let func = self.register_const_for_alias_pred(alias_pred, args.len());
+                let args = args
+                    .iter()
+                    .map(|expr| self.as_expr_cx().expr_to_fixpoint(expr))
+                    .collect_vec();
+                let pred = fixpoint::Expr::App(func, args);
+                (vec![], vec![(fixpoint::Pred::Expr(pred), None)])
             }
         }
     }
@@ -588,29 +609,46 @@ where
         rty::PolyFuncSort::new(arity, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
     }
 
-    fn fresh_alias_pred(&mut self, arity: usize) -> Symbol {
+    fn alias_pred_gen(&mut self, arity: usize) -> AliasPredInfo {
         let n = self.alias_preds.len();
         let sym = Symbol::intern(&format!("alias_pred_{n:?}"));
         let name = self.const_name_gen.fresh();
         let fsort = Self::alias_pred_sort(arity);
         let sort = func_sort_to_fixpoint(&fsort);
         let sort = fixpoint::Sort::Func(sort);
-        let cinfo = ConstInfo { name, sym, sort, val: None };
-        self.const_map.insert(Key::Uif(sym), cinfo);
-        sym
+        let var = fixpoint::Var::Global(name);
+        let info = ConstInfo { name, sym, sort, val: None };
+        AliasPredInfo { var, const_info: info }
+        // self.const_map.insert(Key::Uif(sym), cinfo);
     }
 
-    // returns the 'constant' UIF used to represent the alias_pred, creating and adding it to the
-    // const_map if necessary
-    fn alias_pred_func(&mut self, alias_pred: &AliasPred, arity: usize) -> rty::Expr {
+    // fn alias_pred_func(&mut self, alias_pred: &AliasPred, arity: usize) -> rty::Expr {
+    //     let key = rty::projections::into_rustc_trait_ref(self.genv.tcx, alias_pred);
+    //     match self.alias_preds.get(&key) {
+    //         Some(func) => func.clone(),
+    //         None => {
+    //             let sym = self.fresh_alias_pred(arity);
+    //             let func = rty::Expr::global_func(sym, FuncKind::Asp);
+    //             self.alias_preds.insert(key, func.clone());
+    //             func
+    //         }
+    //     }
+    // }
+
+    // returns the 'constant' UIF for Var used to represent the alias_pred, creating and adding it to the const_map if necessary
+    fn register_const_for_alias_pred(
+        &mut self,
+        alias_pred: &rty::AliasPred,
+        arity: usize,
+    ) -> fixpoint::Var {
         let key = rty::projections::into_rustc_trait_ref(self.genv.tcx, alias_pred);
         match self.alias_preds.get(&key) {
-            Some(func) => func.clone(),
+            Some(info) => info.var,
             None => {
-                let sym = self.fresh_alias_pred(arity);
-                let func = rty::Expr::global_func(sym, FuncKind::Asp);
-                self.alias_preds.insert(key, func.clone());
-                func
+                let info = self.alias_pred_gen(arity);
+                let var = info.var;
+                self.alias_preds.insert(key, info);
+                var
             }
         }
     }

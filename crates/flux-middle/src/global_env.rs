@@ -15,7 +15,7 @@ use crate::{
     cstore::CrateStoreDyn,
     fhir::{self, FluxLocalDefId, VariantIdx},
     intern::List,
-    queries::{Providers, Queries, QueryResult},
+    queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{
         self,
         fold::TypeFoldable,
@@ -223,23 +223,32 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.map().const_by_name(name)
     }
 
-    pub fn sort_of_assoc_pred(&self, impl_id: DefId, name: Symbol) -> Option<List<rty::Sort>> {
+    pub fn sort_of_assoc_pred(
+        &self,
+        impl_id: DefId,
+        name: Symbol,
+    ) -> QueryResult<Option<List<rty::Sort>>> {
         let trait_ref = self.tcx.impl_trait_ref(impl_id).unwrap();
         let trait_ref = trait_ref.skip_binder(); // TODO: Yikes?
-        if let Ok(generics) = self.generics_of(impl_id)
-            && let Ok(args) = lower_generic_args(self.tcx, trait_ref.args)
-            && let Ok(args) = self.refine_default_generic_args(&generics, &args)
-            && let Ok(Some(assoc_pred)) = self.assoc_predicate_of(trait_ref.def_id, name)
+        let generics = self.generics_of(impl_id)?;
+        let args = lower_generic_args(self.tcx, trait_ref.args)
+            .map_err(|err| QueryErr::unsupported(self.tcx, impl_id, err.into_err()))?;
+        let args = self.refine_default_generic_args(&generics, &args)?;
+
+        if let Some(assoc_pred) = self.assoc_predicate_of(trait_ref.def_id, name)?
             && let rty::AssocPredicateKind::Spec(sorts) = assoc_pred.kind
         {
             let arg_sorts: Vec<_> = args.iter().flat_map(|arg| arg.peel_out_sort()).collect();
 
-            return Some(sorts.fold_with(&mut subst::GenericSortSubst::new(&arg_sorts)));
+            return Ok(Some(sorts.fold_with(&mut subst::GenericSortSubst::new(&arg_sorts))));
         };
-        None
+        Ok(None)
     }
 
-    pub fn sort_of_alias_pred(&self, alias_pred: &fhir::AliasPred) -> Option<List<rty::Sort>> {
+    pub fn sort_of_alias_pred(
+        &self,
+        alias_pred: &fhir::AliasPred,
+    ) -> QueryResult<Option<List<rty::Sort>>> {
         let trait_id = alias_pred.trait_id;
         let name = alias_pred.name;
         let args: Vec<_> = alias_pred
@@ -252,12 +261,12 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 }
             })
             .collect();
-        if let Ok(Some(assoc_pred)) = self.assoc_predicate_of(trait_id, name)
+        if let Some(assoc_pred) = self.assoc_predicate_of(trait_id, name)?
             && let AssocPredicateKind::Spec(sorts) = assoc_pred.kind
         {
-            Some(sorts.fold_with(&mut GenericSortSubst::new(&args)))
+            Ok(Some(sorts.fold_with(&mut GenericSortSubst::new(&args))))
         } else {
-            None
+            Ok(None)
         }
     }
 

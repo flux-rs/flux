@@ -64,7 +64,7 @@ pub struct UnsupportedErr {
 }
 
 impl UnsupportedErr {
-    fn new(reason: UnsupportedReason) -> Self {
+    pub fn new(reason: UnsupportedReason) -> Self {
         UnsupportedErr { descr: reason.descr, span: None }
     }
 

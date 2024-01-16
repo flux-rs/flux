@@ -12,6 +12,7 @@ use flux_errors::{FluxSession, ResultExt};
 use flux_middle::{
     fhir::{self, FluxOwnerId, SurfaceIdent},
     global_env::GlobalEnv,
+    pretty::def_id_to_string,
     rty::{self, GenericParamDefKind, WfckResults},
 };
 use rustc_data_structures::snapshot_map::{self, SnapshotMap};
@@ -165,14 +166,14 @@ fn check_assoc_predicate_params(
     span: Span,
 ) -> Result<(), ErrorGuaranteed> {
     let impl_id = owner_id.def_id.to_def_id();
-    let Some(sorts) = genv.sort_of_assoc_pred(impl_id, name) else {
+    let Some(sorts) = genv.sort_of_assoc_pred(impl_id, name).emit(genv.sess)? else {
         let trait_id = genv
             .tcx
             .impl_trait_ref(impl_id)
             .unwrap()
             .skip_binder()
             .def_id;
-        let trait_id = format!("{trait_id:?}"); // TODO(RJ): get "pretty" trait-name, instead of "gross" defid
+        let trait_id = def_id_to_string(trait_id);
         return Err(genv
             .sess
             .emit_err(errors::InvalidAssocPredicate::new(span, name, trait_id)));
@@ -635,7 +636,11 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         args: &[fhir::RefineArg],
         span: Span,
     ) -> Result<(), ErrorGuaranteed> {
-        if let Some(inputs) = self.genv.sort_of_alias_pred(alias_pred) {
+        if let Some(inputs) = self
+            .genv
+            .sort_of_alias_pred(alias_pred)
+            .emit(self.genv.sess)?
+        {
             if args.len() != inputs.len() {
                 return self.emit_err(errors::ArgCountMismatch::new(
                     Some(span),
