@@ -596,6 +596,12 @@ where
         self.genv.tcx.def_span(self.def_id)
     }
 
+    /// [alias_pred_sort] returns a very polymorphic sort for the UIF encoding the alias_pred;
+    /// This is ok, as well-formedness in previous phases will ensure the function is always
+    /// instantiated with the same sorts. However, the proper thing is to compute the *actual*
+    /// mono-sort at which this alias_pred is being used see [sort_of_alias_pred] but that is
+    /// a bit tedious as its done using the `fhir` (not `rty`). Alternatively, we might stash
+    /// the computed mono-sort *in* the `rty::AliasPred` during `conv`?
     fn alias_pred_sort(arity: usize) -> rty::PolyFuncSort {
         let mut sorts = vec![];
         for i in 0..arity {
@@ -605,9 +611,8 @@ where
         rty::PolyFuncSort::new(arity, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
     }
 
-    fn alias_pred_gen(&mut self, arity: usize) -> AliasPredInfo {
-        let n = self.alias_preds.len();
-        let sym = Symbol::intern(&format!("alias_pred_{n:?}"));
+    fn alias_pred_gen(&mut self, alias_pred: &rty::AliasPred, arity: usize) -> AliasPredInfo {
+        let sym = Symbol::intern(&format!("{alias_pred:?}"));
         let name = self.const_name_gen.fresh();
         let fsort = Self::alias_pred_sort(arity);
         let sort = func_sort_to_fixpoint(&fsort);
@@ -641,7 +646,7 @@ where
         match self.alias_preds.get(&key) {
             Some(info) => info.var,
             None => {
-                let info = self.alias_pred_gen(arity);
+                let info = self.alias_pred_gen(alias_pred, arity);
                 let var = info.var;
                 self.alias_preds.insert(key, info);
                 var
