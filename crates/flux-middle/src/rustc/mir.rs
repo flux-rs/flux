@@ -83,7 +83,7 @@ pub struct BasicBlockData<'tcx> {
 
 pub type LocalDecls = IndexSlice<Local, LocalDecl>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LocalDecl {
     pub ty: Ty,
     pub source_info: SourceInfo,

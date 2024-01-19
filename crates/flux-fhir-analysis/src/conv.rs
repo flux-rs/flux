@@ -639,7 +639,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
                 Ok(rty::Constraint::Type(
                     env.lookup(*loc).to_path(),
                     self.conv_ty(env, ty)?,
-                    Local::from_usize(*idx),
+                    Local::from_usize(*idx + 1),
                 ))
             }
             fhir::Constraint::Pred(pred) => Ok(rty::Constraint::Pred(self.conv_expr(env, pred))),

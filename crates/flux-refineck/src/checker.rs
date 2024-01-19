@@ -15,8 +15,8 @@ use flux_middle::{
         self,
         mir::{
             self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-            Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
-            RETURN_PLACE, START_BLOCK,
+            Location, Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
+            TerminatorKind, RETURN_PLACE, START_BLOCK,
         },
         ty::{ConstKind, GeneratorArgsParts},
     },
@@ -282,7 +282,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     let loc = path.to_loc().unwrap();
                     let ty = rcx.unpack(ty, AssumeInvariants::No);
                     rcx.assume_invariants(&ty, config.check_overflow);
-                    env.alloc_universal_loc(loc, Place::new(*local, vec![]), ty);
+                    env.alloc_universal_loc(loc, Place::new(*local, vec![PlaceElem::Deref]), ty);
                 }
                 rty::Constraint::Pred(e) => {
                     rcx.assume_pred(e.clone());
