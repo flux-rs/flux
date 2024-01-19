@@ -615,19 +615,6 @@ where
         // self.const_map.insert(Key::Uif(sym), cinfo);
     }
 
-    // fn alias_pred_func(&mut self, alias_pred: &AliasPred, arity: usize) -> rty::Expr {
-    //     let key = rty::projections::into_rustc_trait_ref(self.genv.tcx, alias_pred);
-    //     match self.alias_preds.get(&key) {
-    //         Some(func) => func.clone(),
-    //         None => {
-    //             let sym = self.fresh_alias_pred(arity);
-    //             let func = rty::Expr::global_func(sym, FuncKind::Asp);
-    //             self.alias_preds.insert(key, func.clone());
-    //             func
-    //         }
-    //     }
-    // }
-
     // returns the 'constant' UIF for Var used to represent the alias_pred, creating and adding it to the const_map if necessary
     fn register_const_for_alias_pred(
         &mut self,
