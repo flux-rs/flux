@@ -110,16 +110,14 @@ pub trait Visitor: Sized {
 }
 
 pub fn walk_struct_def<V: Visitor>(vis: &mut V, struct_def: &StructDef) {
-    let StructDef { owner_id: _, params, kind: _, invariants, extern_id: _ } = struct_def;
-    walk_list!(vis, visit_refine_param, params);
-    walk_list!(vis, visit_expr, invariants);
+    walk_list!(vis, visit_refine_param, &struct_def.params);
+    walk_list!(vis, visit_expr, &struct_def.invariants);
 }
 
 pub fn walk_enum_def<V: Visitor>(vis: &mut V, enum_def: &EnumDef) {
-    let EnumDef { owner_id: _, params, variants, invariants, extern_id: _ } = enum_def;
-    walk_list!(vis, visit_refine_param, params);
-    walk_list!(vis, visit_variant, variants);
-    walk_list!(vis, visit_expr, invariants);
+    walk_list!(vis, visit_refine_param, &enum_def.params);
+    walk_list!(vis, visit_variant, &enum_def.variants);
+    walk_list!(vis, visit_expr, &enum_def.invariants);
 }
 
 pub fn walk_variant<V: Visitor>(vis: &mut V, variant: &VariantDef) {
@@ -141,11 +139,10 @@ pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
 }
 
 pub fn walk_fn_sig<V: Visitor>(vis: &mut V, sig: &FnSig) {
-    let FnSig { params, requires, args, output, lifted: _, span: _ } = sig;
-    walk_list!(vis, visit_refine_param, params);
-    walk_list!(vis, visit_constraint, requires);
-    walk_list!(vis, visit_ty, args);
-    vis.visit_fn_output(output);
+    walk_list!(vis, visit_refine_param, &sig.params);
+    walk_list!(vis, visit_constraint, &sig.requires);
+    walk_list!(vis, visit_ty, &sig.args);
+    vis.visit_fn_output(&sig.output);
 }
 
 pub fn walk_refine_param<V: Visitor>(vis: &mut V, param: &RefineParam) {

@@ -151,10 +151,10 @@ pub(crate) struct RustItemCtxt<'a, 'tcx> {
     sort_resolver: SortResolver<'a>,
 }
 
-type Env = env::Env<Param>;
+pub(crate) type Env = env::Env<Param>;
 
 #[derive(Debug, Clone)]
-struct Param {
+pub(crate) struct Param {
     name: fhir::Name,
     sort: fhir::Sort,
     kind: fhir::ParamKind,
@@ -228,13 +228,32 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         )
     }
 
+    pub(crate) fn desugar_trait_or_impl(
+        &mut self,
+        trait_or_impl: &surface::TraitOrImpl,
+    ) -> Result<fhir::TraitOrImpl> {
+        let mut env = Env::new(ScopeId::Misc);
+        let generics = if let Some(generics) = &trait_or_impl.generics {
+            self.desugar_generics(generics, &mut env)?
+        } else {
+            self.as_lift_cx().lift_generics()?
+        };
+        let assoc_predicates = if let Some(assoc_predicates) = &trait_or_impl.assoc_predicates {
+            self.desugar_assoc_predicates(assoc_predicates)?
+        } else {
+            vec![]
+        };
+        Ok(fhir::TraitOrImpl { generics, assoc_predicates })
+    }
+
     /// [desugar_generics] starts with the `lifted_generics` and "updates" it with the surface `generics`
     pub(crate) fn desugar_generics(
         &mut self,
         generics: &surface::Generics,
+        env: &mut Env,
     ) -> Result<fhir::Generics> {
         // Step 1: desugar the surface generics by themselves
-        let generics = self.desugar_surface_generics(generics)?;
+        let generics = self.desugar_surface_generics(generics, env)?;
 
         // Step 2: map each (surface) generic to its specified kind
         let generic_kinds: FxHashMap<_, _> = generics
@@ -255,10 +274,14 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             })
             .collect();
 
-        Ok(fhir::Generics { params, self_kind: generics.self_kind.clone() })
+        Ok(fhir::Generics { params, ..generics })
     }
 
-    fn desugar_surface_generics(&self, generics: &surface::Generics) -> Result<fhir::Generics> {
+    fn desugar_surface_generics(
+        &mut self,
+        generics: &surface::Generics,
+        env: &mut Env,
+    ) -> Result<fhir::Generics> {
         let hir_generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
         let generics_map: FxHashMap<_, _> = hir_generics
             .params
@@ -293,13 +316,14 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 params.push(fhir::GenericParam { def_id, kind });
             }
         }
-        Ok(fhir::Generics { params, self_kind })
+        let predicates = self.desugar_generic_predicates(&generics.predicates, env)?;
+        Ok(fhir::Generics { params, self_kind, predicates })
     }
 
     pub fn desugar_assoc_predicates(
         &self,
         assoc_predicate: &surface::AssocPredicate,
-    ) -> Result<fhir::AssocPredicates> {
+    ) -> Result<Vec<fhir::AssocPredicate>> {
         let name = assoc_predicate.name.name;
         let kind = match &assoc_predicate.kind {
             surface::AssocPredicateKind::Spec(sort) => {
@@ -323,23 +347,21 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             }
         };
         let assoc_predicate = fhir::AssocPredicate { name, kind, span: assoc_predicate.span };
-        let predicates = vec![assoc_predicate];
-        Ok(fhir::AssocPredicates { predicates })
+        Ok(vec![assoc_predicate])
     }
 
-    fn desugar_predicates(
+    fn desugar_generic_predicates(
         &mut self,
-        predicates: &Vec<surface::WhereBoundPredicate>,
+        predicates: &[surface::WhereBoundPredicate],
         env: &mut Env,
-    ) -> Result<fhir::GenericPredicates> {
-        let mut res = vec![];
-        for pred in predicates {
-            res.push(self.desugar_predicate(pred, env)?);
-        }
-        Ok(fhir::GenericPredicates { predicates: res })
+    ) -> Result<Vec<fhir::WhereBoundPredicate>> {
+        predicates
+            .iter()
+            .map(|pred| self.desugar_generic_predicate(pred, env))
+            .try_collect_exhaust()
     }
 
-    fn desugar_predicate(
+    fn desugar_generic_predicate(
         &mut self,
         pred: &surface::WhereBoundPredicate,
         env: &mut Env,
@@ -382,6 +404,8 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     ) -> Result<fhir::StructDef> {
         let mut env = self.gather_params_struct(struct_def)?;
 
+        let generics = self.desugar_generics_for_adt(struct_def.generics.as_ref(), &mut env)?;
+
         let invariants = struct_def
             .invariants
             .iter()
@@ -414,6 +438,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         };
         Ok(fhir::StructDef {
             owner_id: self.owner,
+            generics,
             params: env.into_root().into_params(self),
             kind,
             invariants,
@@ -440,6 +465,8 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             enum_def.refined_by.iter().flat_map(|it| &it.index_params),
         )?;
 
+        let generics = self.desugar_generics_for_adt(enum_def.generics.as_ref(), &mut env)?;
+
         let invariants = enum_def
             .invariants
             .iter()
@@ -448,6 +475,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
         Ok(fhir::EnumDef {
             owner_id: self.owner,
+            generics,
             params: env.into_root().into_params(self),
             variants,
             invariants,
@@ -495,9 +523,10 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     pub(crate) fn desugar_generics_for_adt(
         &mut self,
         generics: Option<&surface::Generics>,
+        env: &mut Env,
     ) -> Result<fhir::Generics> {
         Ok(if let Some(generics) = generics {
-            self.desugar_generics(generics)?
+            self.desugar_generics(generics, env)?
         } else {
             self.as_lift_cx().lift_generics()?
         }
@@ -510,6 +539,8 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     ) -> Result<fhir::TyAlias> {
         let mut env = self.gather_params_type_alias(ty_alias)?;
 
+        let generics = self.desugar_generics(&ty_alias.generics, &mut env)?;
+
         let ty = self.desugar_ty(None, &ty_alias.ty, &mut env)?;
 
         let mut early_bound_params = env.into_root().into_params(self);
@@ -518,6 +549,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
         Ok(fhir::TyAlias {
             owner_id: self.owner,
+            generics,
             early_bound_params,
             index_params,
             ty,
@@ -526,20 +558,13 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         })
     }
 
-    pub(crate) fn desugar_fn_sig(
-        &mut self,
-        fn_sig: &surface::FnSig,
-    ) -> Result<(fhir::GenericPredicates, fhir::FnSig)> {
+    pub(crate) fn desugar_fn_sig(&mut self, fn_sig: &surface::FnSig) -> Result<fhir::FnSig> {
         let mut env = self.gather_params_fn_sig(fn_sig)?;
 
         let mut requires = vec![];
 
-        // Desugar predicates -- after we have gathered the input params
-        let generic_preds = if let Some(predicates) = &fn_sig.predicates {
-            self.desugar_predicates(predicates, &mut env)?
-        } else {
-            self.as_lift_cx().lift_generic_predicates()?
-        };
+        // Desugar generics after we have gathered the input params
+        let generics = self.desugar_generics(&fn_sig.generics, &mut env)?;
 
         if let Some(e) = &fn_sig.requires {
             let pred = self.desugar_expr(&mut env, e)?;
@@ -566,6 +591,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         let output = fhir::FnOutput { params: env.pop().into_params(self), ret: ret?, ensures };
 
         let fn_sig = fhir::FnSig {
+            generics,
             params: env.into_root().into_params(self),
             requires,
             args,
@@ -573,7 +599,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             span: fn_sig.span,
             lifted: false,
         };
-        Ok((generic_preds, fn_sig))
+        Ok(fn_sig)
     }
 
     fn desugar_constraint(
@@ -667,6 +693,8 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         env: &mut Env,
     ) -> Result<fhir::OpaqueTy> {
         let output = self.desugar_fn_ret_ty(returns, env)?;
+        // Does this opaque type has any generics?
+        let generics = self.as_lift_cx().lift_generics()?;
         let bound = fhir::GenericBound::LangItemTrait(
             hir::LangItem::Future,
             vec![],
@@ -675,7 +703,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 term: output,
             }],
         );
-        Ok(fhir::OpaqueTy { bounds: vec![bound] })
+        Ok(fhir::OpaqueTy { generics, bounds: vec![bound] })
     }
 
     fn desugar_fn_ret_ty(&mut self, returns: &surface::FnRetTy, env: &mut Env) -> Result<fhir::Ty> {
@@ -798,8 +826,9 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         bounds: &surface::GenericBounds,
         env: &mut Env,
     ) -> Result<fhir::OpaqueTy> {
+        let generics = self.as_lift_cx().lift_generics()?;
         let bounds = self.desugar_generic_bounds(bounds, env)?;
-        Ok(fhir::OpaqueTy { bounds })
+        Ok(fhir::OpaqueTy { generics, bounds })
     }
 
     fn mk_lft_hole(&self) -> fhir::Lifetime {

@@ -14,6 +14,18 @@ pub Generics: surface::Generics = {
     <lo:@L> <params:Comma<GenericParam>> <hi:@R> => {
         surface::Generics {
             params,
+            predicates: vec![],
+            span: cx.map_span(lo, hi),
+        }
+    }
+}
+
+GenericsWithAngleBrackets: surface::Generics = {
+    "<" <Generics> ">" => <>,
+    <lo:@L> <hi:@R> => {
+        surface::Generics {
+            params: vec![],
+            predicates: vec![],
             span: cx.map_span(lo, hi),
         }
     }
@@ -39,22 +51,15 @@ pub TyAlias: surface::TyAlias = {
     <lo:@L>
     "type"
     <ident:Ident>
-    <generics_lo:@L>
-    <generics: ("<" <Generics> ">")?>
+    <mut generics:GenericsWithAngleBrackets>
     <early_bound_params:("(" <RefineParams<"!">> ")")?>
-    <generics_hi:@R>
     <refined_by_lo:@L>
     <index_params:("[" <RefineParams<"!">> "]")?>
     <refined_by_hi:@R>
     "="
     <ty:Ty>
     <hi:@R> => {
-        let mut params = if let Some(generics) = generics {
-            generics.params
-        } else {
-            vec![]
-        };
-        params.extend(
+        generics.params.extend(
             early_bound_params
                 .unwrap_or_default()
                 .into_iter()
@@ -64,10 +69,6 @@ pub TyAlias: surface::TyAlias = {
                 }
             )
         );
-        let generics = surface::Generics {
-            params,
-            span: cx.map_span(generics_lo, generics_hi),
-        };
         let refined_by = surface::RefinedBy {
             index_params: index_params.unwrap_or_default(),
             span: cx.map_span(refined_by_lo, refined_by_hi),
@@ -178,7 +179,7 @@ pub FnSig: surface::FnSig = {
     <lo:@L>
     <asyncness:Async>
     "fn"
-    <generics:("<" Generics ">")?>
+    <mut generics:GenericsWithAngleBrackets>
     "(" <args:Args> ")"
     <ret_lo:@L> <ret_hi:@R>
     <returns:("->" <Ty>)?>
@@ -193,7 +194,7 @@ pub FnSig: surface::FnSig = {
         } else {
             surface::FnRetTy::Default(cx.map_span(ret_lo, ret_hi))
         };
-        let generics = generics.map(|z| z.1);
+        generics.predicates = predicates.unwrap_or_default();
         surface::FnSig {
             asyncness,
             generics,
@@ -201,7 +202,6 @@ pub FnSig: surface::FnSig = {
             returns,
             ensures,
             requires,
-            predicates,
             span: cx.map_span(lo, hi),
             node_id: cx.next_node_id(),
         }

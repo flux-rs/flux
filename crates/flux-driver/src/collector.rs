@@ -41,8 +41,7 @@ pub type Ignores = UnordSet<IgnoreKey>;
 pub(crate) struct Specs {
     pub fn_sigs: UnordMap<OwnerId, FnSpec>,
     pub structs: FxHashMap<OwnerId, surface::StructDef>,
-    pub generics: FxHashMap<OwnerId, surface::Generics>,
-    pub assoc_predicates: FxHashMap<OwnerId, surface::AssocPredicate>,
+    pub trait_or_impls: FxHashMap<OwnerId, surface::TraitOrImpl>,
     pub enums: FxHashMap<OwnerId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
     pub func_defs: Vec<surface::FuncDef>,
@@ -103,8 +102,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 ItemKind::Mod(..) => collector.parse_mod_spec(owner_id.def_id, attrs),
                 ItemKind::TyAlias(..) => collector.parse_tyalias_spec(owner_id, attrs),
                 ItemKind::Const(..) => collector.parse_const_spec(item, attrs),
-                ItemKind::Impl(_) => collector.parse_generics_spec(owner_id, attrs),
-                ItemKind::Trait(..) => collector.parse_generics_spec(owner_id, attrs),
+                ItemKind::Impl(_) | ItemKind::Trait(..) => {
+                    collector.parse_trait_or_impl_specs(owner_id, attrs)
+                }
                 _ => Ok(()),
             };
         }
@@ -189,7 +189,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn parse_generics_spec(
+    fn parse_trait_or_impl_specs(
         &mut self,
         owner_id: OwnerId,
         attrs: &[Attribute],
@@ -197,15 +197,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut attrs = self.parse_flux_attrs(attrs)?;
         self.report_dups(&attrs)?;
 
-        if let Some(generics) = attrs.generics() {
-            self.specs.generics.insert(owner_id, generics);
-        }
+        let generics = attrs.generics();
+        let assoc_predicates = attrs.assoc_predicates();
 
-        if let Some(assoc_predicates) = attrs.assoc_predicates() {
-            self.specs
-                .assoc_predicates
-                .insert(owner_id, assoc_predicates);
-        }
+        self.specs
+            .trait_or_impls
+            .insert(owner_id, surface::TraitOrImpl { generics, assoc_predicates });
+
         Ok(())
     }
 
@@ -585,8 +583,7 @@ impl Specs {
     fn new() -> Specs {
         Specs {
             fn_sigs: Default::default(),
-            generics: Default::default(),
-            assoc_predicates: Default::default(),
+            trait_or_impls: Default::default(),
             structs: Default::default(),
             enums: Default::default(),
             qualifs: Vec::default(),

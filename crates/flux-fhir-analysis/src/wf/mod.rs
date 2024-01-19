@@ -205,14 +205,14 @@ fn check_assoc_predicate_params(
 
 pub(crate) fn check_assoc_predicates(
     genv: &GlobalEnv,
-    assoc_predicates: &fhir::AssocPredicates,
+    assoc_predicates: &[fhir::AssocPredicate],
     owner_id: OwnerId,
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut infcx = InferCtxt::new(genv, owner_id.into());
 
     // TODO(RJ): multiple-predicates
 
-    for assoc_pred in &assoc_predicates.predicates {
+    for assoc_pred in assoc_predicates {
         if let fhir::AssocPredicateKind::Impl(params, body) = &assoc_pred.kind {
             // 1. Check this impl sorts conform to spec
             check_assoc_predicate_params(genv, owner_id, assoc_pred.name, params, assoc_pred.span)?;
@@ -253,8 +253,7 @@ pub(crate) fn check_fn_sig(
         .iter()
         .try_for_each_exhaust(|constr| wf.check_constraint(&mut infcx, constr));
 
-    let predicates = genv.map().get_generic_predicates(owner_id.def_id).unwrap();
-    wf.check_generic_predicates(&mut infcx, predicates)?;
+    wf.check_generic_predicates(&mut infcx, &fn_sig.generics.predicates)?;
 
     let output = wf.check_fn_output(&mut infcx, &fn_sig.output);
 
@@ -293,10 +292,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     fn check_generic_predicates(
         &mut self,
         infcx: &mut InferCtxt,
-        predicates: &fhir::GenericPredicates,
+        predicates: &[fhir::WhereBoundPredicate],
     ) -> Result<(), ErrorGuaranteed> {
         predicates
-            .predicates
             .iter()
             .try_for_each_exhaust(|pred| self.check_generic_predicate(infcx, pred))
     }

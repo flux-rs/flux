@@ -221,10 +221,10 @@ pub(crate) struct Scope<P> {
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub(crate) enum ScopeId {
     /// The scope introduced by a function's input parameters. It contains explicit parameters plus
-    /// synthetic parameters declared with `@x` or `x: T`.
+    /// implicitly scoped parameters declared with `@x` or `x: T`.
     FnInput(NodeId),
-    /// The scope introduced by a function's output parameters. It contains synthetic parameters
-    /// declared with `#n` syntax.
+    /// The scope introduced by a function's output parameters. It contains implicitly scoped
+    /// parameters declared with `#n` syntax.
     FnOutput(NodeId),
     /// The scope introduced by the `refined_by` annotation in a struct.
     Struct(NodeId),
@@ -242,6 +242,8 @@ pub(crate) enum ScopeId {
     /// The scope introduced by a flux item like a func definition or a qualifier. It includes
     /// parameters of the item
     FluxItem,
+    /// Other scope we don't care to clasify
+    Misc,
 }
 
 impl<P> Scope<P> {
@@ -304,6 +306,7 @@ impl fmt::Debug for ScopeId {
             ScopeId::Abs(node_id) => write!(f, "Abs({})", node_id.as_usize()),
             ScopeId::Exists(node_id) => write!(f, "Exists({})", node_id.as_usize()),
             ScopeId::FluxItem => write!(f, "FluxItem"),
+            ScopeId::Misc => write!(f, "Misc"),
         }
     }
 }

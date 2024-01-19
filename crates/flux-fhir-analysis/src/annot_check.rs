@@ -32,7 +32,7 @@ pub fn check_fn_sig(
         return Ok(());
     }
     let self_ty = lift::lift_self_ty(genv.tcx, genv.sess, owner_id)?;
-    let expected_fn_sig = &lift::lift_fn(genv.tcx, genv.sess, owner_id)?.1.fn_sig;
+    let expected_fn_sig = &lift::lift_fn(genv.tcx, genv.sess, owner_id)?.0;
     Zipper::new(genv, wfckresults, self_ty.as_ref()).zip_fn_sig(fn_sig, expected_fn_sig)
 }
 
@@ -44,7 +44,7 @@ pub fn check_alias(
     if ty_alias.lifted {
         return Ok(());
     }
-    let (.., expected_ty_alias) = lift::lift_type_alias(genv.tcx, genv.sess, ty_alias.owner_id)?;
+    let expected_ty_alias = lift::lift_type_alias(genv.tcx, genv.sess, ty_alias.owner_id)?;
     Zipper::new(genv, wfckresults, None).zip_ty(&ty_alias.ty, &expected_ty_alias.ty)
 }
 

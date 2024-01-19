@@ -89,13 +89,11 @@ impl<'a, 'tcx> Resolver<'a, 'tcx> {
             .iter()
             .try_for_each_exhaust(|cstr| item_resolver.resolve_constraint(cstr));
 
-        let predicates = if let Some(predicates) = &fn_sig.predicates {
-            predicates
-                .iter()
-                .try_for_each_exhaust(|pred| item_resolver.resolve_where_bound_predicate(pred))
-        } else {
-            Ok(())
-        };
+        let predicates = fn_sig
+            .generics
+            .predicates
+            .iter()
+            .try_for_each_exhaust(|pred| item_resolver.resolve_where_bound_predicate(pred));
 
         let returns = item_resolver.resolve_fn_ret_ty(&fn_sig.returns);
 
