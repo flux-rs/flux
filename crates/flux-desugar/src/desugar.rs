@@ -151,10 +151,10 @@ pub(crate) struct RustItemCtxt<'a, 'tcx> {
     sort_resolver: SortResolver<'a>,
 }
 
-pub(crate) type Env = env::Env<Param>;
+type Env = env::Env<Param>;
 
 #[derive(Debug, Clone)]
-pub(crate) struct Param {
+struct Param {
     name: fhir::Name,
     sort: fhir::Sort,
     kind: fhir::ParamKind,
@@ -218,7 +218,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         RustItemCtxt::new(self.genv, owner, self.resolver_output, self.opaque_tys.as_deref_mut())
     }
 
-    pub(crate) fn as_lift_cx<'b>(&'b mut self) -> LiftCtxt<'b, 'tcx> {
+    fn as_lift_cx<'b>(&'b mut self) -> LiftCtxt<'b, 'tcx> {
         LiftCtxt::new(
             self.genv.tcx,
             self.genv.sess,
@@ -247,7 +247,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     }
 
     /// [desugar_generics] starts with the `lifted_generics` and "updates" it with the surface `generics`
-    pub(crate) fn desugar_generics(
+    fn desugar_generics(
         &mut self,
         generics: &surface::Generics,
         env: &mut Env,
@@ -520,7 +520,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         }
     }
 
-    pub(crate) fn desugar_generics_for_adt(
+    fn desugar_generics_for_adt(
         &mut self,
         generics: Option<&surface::Generics>,
         env: &mut Env,
