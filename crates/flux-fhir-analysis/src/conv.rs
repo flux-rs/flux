@@ -119,7 +119,7 @@ pub(crate) fn expand_type_alias(
 pub(crate) fn conv_generic_predicates(
     genv: &GlobalEnv,
     def_id: LocalDefId,
-    predicates: &fhir::GenericPredicates,
+    predicates: &[fhir::WhereBoundPredicate],
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
     let cx = ConvCtxt::new(genv, wfckresults);
@@ -129,7 +129,7 @@ pub(crate) fn conv_generic_predicates(
     let env = &mut Env::new(genv, refparams.unwrap_or(&[]), wfckresults);
 
     let mut clauses = vec![];
-    for pred in &predicates.predicates {
+    for pred in predicates {
         let bounded_ty = cx.conv_ty(env, &pred.bounded_ty)?;
         for clause in cx.conv_generic_bounds(env, bounded_ty, &pred.bounds)? {
             clauses.push(clause);
@@ -287,11 +287,10 @@ fn conv_assoc_predicate(
 
 pub(crate) fn conv_assoc_predicates(
     genv: &GlobalEnv,
-    assoc_predicates: &fhir::AssocPredicates,
+    assoc_predicates: &[fhir::AssocPredicate],
     wfckresults: &WfckResults,
 ) -> rty::AssocPredicates {
     let predicates = assoc_predicates
-        .predicates
         .iter()
         .map(|assoc_pred| conv_assoc_predicate(genv, assoc_pred, wfckresults))
         .collect_vec()

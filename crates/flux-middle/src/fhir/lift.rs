@@ -47,35 +47,33 @@ pub fn lift_type_alias(
     tcx: TyCtxt,
     sess: &FluxSession,
     owner_id: OwnerId,
-) -> Result<(fhir::Generics, fhir::GenericPredicates, fhir::TyAlias), ErrorGuaranteed> {
+) -> Result<fhir::TyAlias, ErrorGuaranteed> {
     let def_id = owner_id.def_id;
     let item = tcx.hir().expect_item(def_id);
-    let hir::ItemKind::TyAlias(ty, hir_generics) = item.kind else {
+    let hir::ItemKind::TyAlias(ty, _) = item.kind else {
         bug!("expected type alias");
     };
     let local_id_gen = IndexGen::new();
     let mut cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, None);
 
-    let generics = cx.lift_generics_inner(hir_generics)?;
-    let predicates = cx.lift_generic_predicates_inner(hir_generics)?;
+    let generics = cx.lift_generics()?;
     let ty = cx.lift_ty(ty)?;
-    let ty_alias = fhir::TyAlias {
+    Ok(fhir::TyAlias {
         owner_id,
+        generics,
         early_bound_params: vec![],
         index_params: vec![],
         ty,
         span: item.span,
         lifted: true,
-    };
-
-    Ok((generics, predicates, ty_alias))
+    })
 }
 
 pub fn lift_fn(
     tcx: TyCtxt,
     sess: &FluxSession,
     owner_id: OwnerId,
-) -> Result<(fhir::Generics, fhir::FnInfo), ErrorGuaranteed> {
+) -> Result<(fhir::FnSig, UnordMap<LocalDefId, fhir::OpaqueTy>), ErrorGuaranteed> {
     let mut opaque_tys = Default::default();
     let local_id_gen = IndexGen::new();
     let mut cx = LiftCtxt::new(tcx, sess, owner_id, &local_id_gen, Some(&mut opaque_tys));
@@ -83,16 +81,13 @@ pub fn lift_fn(
     let def_id = owner_id.def_id;
     let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
 
-    let hir_generics = tcx.hir().get_generics(def_id).unwrap();
     let fn_sig = tcx
         .hir()
         .fn_sig_by_hir_id(hir_id)
         .expect("item does not have a `FnDecl`");
 
-    let generics = cx.lift_generics_inner(hir_generics)?;
     let fn_sig = cx.lift_fn_sig(fn_sig)?;
-    let fn_preds = cx.lift_generic_predicates_inner(hir_generics)?;
-    Ok((generics, fhir::FnInfo { fn_sig, predicates: fn_preds, opaque_tys }))
+    Ok((fn_sig, opaque_tys))
 }
 
 /// HACK(nilehmann) this is used during annot check to allow an explicit type to refine [`Self`].
@@ -162,16 +157,6 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         self.lift_generics_inner(generics)
     }
 
-    pub fn lift_generic_predicates(&mut self) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
-        let generics = self.tcx.hir().get_generics(self.owner.def_id).unwrap();
-        let predicates = generics
-            .predicates
-            .iter()
-            .map(|pred| self.lift_where_predicate(pred))
-            .try_collect_exhaust()?;
-        Ok(fhir::GenericPredicates { predicates })
-    }
-
     fn lift_generic_param(
         &mut self,
         param: &hir::GenericParam,
@@ -210,19 +195,19 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             .iter()
             .map(|param| self.lift_generic_param(param))
             .try_collect_exhaust()?;
-        Ok(fhir::Generics { params, self_kind: None })
+        let predicates = self.lift_generic_predicates_inner(generics)?;
+        Ok(fhir::Generics { params, self_kind: None, predicates })
     }
 
     fn lift_generic_predicates_inner(
         &mut self,
         generics: &hir::Generics,
-    ) -> Result<fhir::GenericPredicates, ErrorGuaranteed> {
-        let predicates = generics
+    ) -> Result<Vec<fhir::WhereBoundPredicate>, ErrorGuaranteed> {
+        generics
             .predicates
             .iter()
             .map(|pred| self.lift_where_predicate(pred))
-            .try_collect_exhaust()?;
-        Ok(fhir::GenericPredicates { predicates })
+            .try_collect_exhaust()
     }
 
     fn lift_where_predicate(
@@ -289,12 +274,14 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         })
     }
 
-    fn lift_opaque_ty(&mut self, item_id: hir::ItemId) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
-        let hir::ItemKind::OpaqueTy(opaque_ty) = self.tcx.hir().item(item_id).kind else {
+    fn lift_opaque_ty(&mut self) -> Result<fhir::OpaqueTy, ErrorGuaranteed> {
+        let hir::ItemKind::OpaqueTy(opaque_ty) = self.tcx.hir().expect_item(self.owner.def_id).kind
+        else {
             bug!("expected opaque type")
         };
 
         let opaque_ty = fhir::OpaqueTy {
+            generics: self.lift_generics_inner(opaque_ty.generics)?,
             bounds: opaque_ty
                 .bounds
                 .iter()
@@ -305,6 +292,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
     }
 
     fn lift_fn_sig(&mut self, fn_sig: &hir::FnSig) -> Result<fhir::FnSig, ErrorGuaranteed> {
+        let generics = self.lift_generics()?;
         let args = fn_sig
             .decl
             .inputs
@@ -319,6 +307,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
         };
 
         let fn_sig = fhir::FnSig {
+            generics,
             params: vec![],
             requires: vec![],
             args,
@@ -448,7 +437,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             hir::TyKind::OpaqueDef(item_id, args, in_trait_def) => {
                 let opaque_ty = self
                     .with_new_owner(item_id.owner_id, &IndexGen::new())
-                    .lift_opaque_ty(item_id)?;
+                    .lift_opaque_ty()?;
                 self.insert_opaque_ty(item_id.owner_id.def_id, opaque_ty);
 
                 let args = self.lift_generic_args(args)?;

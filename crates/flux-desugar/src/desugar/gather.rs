@@ -177,19 +177,17 @@ impl RustItemCtxt<'_, '_> {
     }
 
     fn gather_params_fn_sig_input(&self, fn_sig: &surface::FnSig, env: &mut Env) -> Result {
-        self.gather_refinement_generics(fn_sig.generics.iter().flat_map(|g| &g.params), env)?;
+        self.gather_refinement_generics(&fn_sig.generics.params, env)?;
         for (idx, arg) in fn_sig.args.iter().enumerate() {
             self.gather_params_fun_arg(idx, arg, env)?;
         }
-        if let Some(predicates) = &fn_sig.predicates {
-            self.gather_params_predicates(predicates, env)?;
-        }
+        self.gather_params_predicates(&fn_sig.generics.predicates, env)?;
         Ok(())
     }
 
-    fn gather_refinement_generics<'a>(
+    fn gather_refinement_generics(
         &self,
-        params: impl IntoIterator<Item = &'a surface::GenericParam>,
+        params: &[surface::GenericParam],
         env: &mut Env,
     ) -> Result {
         for param in params {
@@ -475,19 +473,16 @@ impl Visitor for CheckParamUses<'_> {
     fn visit_fn_sig(&mut self, fn_sig: &surface::FnSig) {
         let surface::FnSig {
             asyncness: _asyncness,
-            generics: _generics,
+            generics,
             requires,
             args,
             returns,
             ensures,
-            predicates,
             span: _span,
             node_id,
         } = fn_sig;
 
-        if let Some(predicates) = predicates {
-            walk_list!(self, visit_where_predicate, predicates);
-        }
+        walk_list!(self, visit_where_predicate, &generics.predicates);
         if let Some(requires) = requires {
             self.visit_expr(requires);
         }

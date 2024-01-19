@@ -221,18 +221,12 @@ pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
         args,
         returns,
         ensures,
-        predicates,
         span: _span,
         node_id: _node_id,
     } = fn_sig;
 
     vis.visit_async(asyncness);
-    if let Some(generics) = generics {
-        vis.visit_generics(generics);
-    }
-    if let Some(predicates) = predicates {
-        walk_list!(vis, visit_where_predicate, predicates);
-    }
+    vis.visit_generics(generics);
     if let Some(requires) = requires {
         vis.visit_expr(requires);
     }
@@ -243,6 +237,7 @@ pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
 
 pub fn walk_generics<V: Visitor>(vis: &mut V, generics: &Generics) {
     walk_list!(vis, visit_generic_param, &generics.params);
+    walk_list!(vis, visit_where_predicate, &generics.predicates);
 }
 
 pub fn walk_fun_arg<V: Visitor>(vis: &mut V, arg: &Arg) {

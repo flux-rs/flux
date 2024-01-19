@@ -208,7 +208,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParam {
         let owner = self.hir().ty_param_owner(def_id);
-        self.map().get_generics(owner).unwrap().get_param(def_id)
+        self.map()
+            .get_generics(self.tcx, owner)
+            .unwrap()
+            .get_param(def_id)
     }
 
     pub fn is_box(&self, res: fhir::Res) -> bool {
@@ -323,7 +326,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     fn sort_of_self_param(&self, owner: DefId) -> Option<rty::Sort> {
-        let generics = self.map().get_generics(owner.expect_local())?;
+        let generics = self.map().get_generics(self.tcx, owner.expect_local())?;
         let kind = generics.self_kind.as_ref()?;
         match kind {
             fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy => {

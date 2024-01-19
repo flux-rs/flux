@@ -58,6 +58,7 @@ pub struct FuncDef {
 #[derive(Debug)]
 pub struct Generics {
     pub params: Vec<GenericParam>,
+    pub predicates: Vec<WhereBoundPredicate>,
     pub span: Span,
 }
 
@@ -184,10 +185,16 @@ pub struct ConstSig {
     pub span: Span,
 }
 
+// FIXME(nilehmann) We should have separate definitions for trait and impls
+pub struct TraitOrImpl {
+    pub generics: Option<Generics>,
+    pub assoc_predicates: Option<AssocPredicate>,
+}
+
 #[derive(Debug)]
 pub struct FnSig {
     pub asyncness: Async,
-    pub generics: Option<Generics>,
+    pub generics: Generics,
     /// example: `requires n > 0`
     pub requires: Option<Expr>,
     /// example: `i32<@n>`
@@ -196,8 +203,6 @@ pub struct FnSig {
     pub returns: FnRetTy,
     /// example: `*x: i32{v. v = n+1}` or just `x > 10`
     pub ensures: Vec<Constraint>,
-    /// example: `where I: Iterator<Item = i32{v:0<=v}>`
-    pub predicates: Option<Vec<WhereBoundPredicate>>,
     /// source span
     pub span: Span,
     pub node_id: NodeId,

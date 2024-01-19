@@ -126,16 +126,15 @@ fn predicates_of(
     genv: &GlobalEnv,
     local_id: LocalDefId,
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
-    let predicates = if let Some(predicates) = genv.map().get_generic_predicates(local_id) {
+    if let Some(generics) = genv.map().get_generics(genv.tcx, local_id) {
         let wfckresults = genv.check_wf(local_id)?;
-        conv::conv_generic_predicates(genv, local_id, predicates, &wfckresults)?
+        conv::conv_generic_predicates(genv, local_id, &generics.predicates, &wfckresults)
     } else {
-        rty::EarlyBinder(rty::GenericPredicates {
+        Ok(rty::EarlyBinder(rty::GenericPredicates {
             parent: genv.tcx.opt_parent(local_id.to_def_id()),
             predicates: List::empty(),
-        })
-    };
-    Ok(predicates)
+        }))
+    }
 }
 
 fn assoc_predicates_of(
@@ -157,7 +156,7 @@ fn item_bounds(
     local_id: LocalDefId,
 ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
     let wfckresults = genv.check_wf(local_id)?;
-    let opaque_ty = genv.map().get_opaque_ty(local_id).unwrap();
+    let opaque_ty = genv.map().get_opaque_ty(local_id);
     Ok(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id, opaque_ty, &wfckresults)?))
 }
 
@@ -179,7 +178,7 @@ fn generics_of(genv: &GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Gener
             let is_trait = (def_kind == DefKind::Trait).then_some(local_id);
             let generics = genv
                 .map()
-                .get_generics(local_id)
+                .get_generics(genv.tcx, local_id)
                 .unwrap_or_else(|| bug!("no generics for {:?}", def_id));
             conv::conv_generics(&rustc_generics, generics, is_trait)
         }
@@ -336,7 +335,7 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<Wf
         }
         DefKind::OpaqueTy => {
             let owner_id = OwnerId { def_id };
-            let opaque_ty = genv.map().get_opaque_ty(def_id).unwrap();
+            let opaque_ty = genv.map().get_opaque_ty(def_id);
             wf::check_opaque_ty(genv, opaque_ty, owner_id)?
         }
         DefKind::Impl { .. } | DefKind::Trait { .. } => {

@@ -41,19 +41,13 @@ pub fn desugar_struct_def(
     let def_id = owner_id.def_id;
 
     let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
-
-    let generics = cx.desugar_generics_for_adt(struct_def.generics.as_ref())?;
-    let predicates = cx.as_lift_cx().lift_generic_predicates()?;
-
     let struct_def = cx.desugar_struct_def(struct_def)?;
+
     if config::dump_fhir() {
         dbg::dump_item_info(genv.tcx, owner_id, "fhir", &struct_def).unwrap();
     }
 
-    let map = genv.map_mut();
-    map.insert_generics(def_id, generics);
-    map.insert_generic_predicates(def_id, predicates);
-    map.insert_struct(def_id, struct_def);
+    genv.map_mut().insert_struct(def_id, struct_def);
 
     Ok(())
 }
@@ -67,19 +61,13 @@ pub fn desugar_enum_def(
     let def_id = owner_id.def_id;
 
     let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
-
-    let generics = cx.desugar_generics_for_adt(enum_def.generics.as_ref())?;
-    let predicates = cx.as_lift_cx().lift_generic_predicates()?;
-
     let enum_def = cx.desugar_enum_def(enum_def)?;
+
     if config::dump_fhir() {
         dbg::dump_item_info(genv.tcx, owner_id, "fhir", &enum_def).unwrap();
     }
 
-    let map = genv.map_mut();
-    map.insert_generics(def_id, generics);
-    map.insert_generic_predicates(def_id, predicates);
-    map.insert_enum(def_id, enum_def);
+    genv.map_mut().insert_enum(def_id, enum_def);
 
     Ok(())
 }
@@ -92,35 +80,18 @@ pub fn desugar_type_alias(
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
-    if let Some(ty_alias) = ty_alias {
+    let ty_alias = if let Some(ty_alias) = ty_alias {
         let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
-
-        let generics = cx.as_lift_cx().lift_generics()?;
-        let predicates = cx.as_lift_cx().lift_generic_predicates()?;
-
-        let ty_alias = cx.desugar_type_alias(ty_alias)?;
-
-        if config::dump_fhir() {
-            dbg::dump_item_info(genv.tcx, owner_id, "fhir", &ty_alias).unwrap();
-        }
-
-        let map = genv.map_mut();
-        map.insert_generics(def_id, generics);
-        map.insert_generic_predicates(def_id, predicates);
-        map.insert_type_alias(def_id, ty_alias);
+        cx.desugar_type_alias(ty_alias)?
     } else {
-        let (generics, predicates, ty_alias) =
-            lift::lift_type_alias(genv.tcx, genv.sess, owner_id)?;
+        lift::lift_type_alias(genv.tcx, genv.sess, owner_id)?
+    };
 
-        if config::dump_fhir() {
-            dbg::dump_item_info(genv.tcx, owner_id, "fhir", &ty_alias).unwrap();
-        }
-
-        let map = genv.map_mut();
-        map.insert_generics(def_id, generics);
-        map.insert_generic_predicates(def_id, predicates);
-        map.insert_type_alias(def_id, ty_alias);
+    if config::dump_fhir() {
+        dbg::dump_item_info(genv.tcx, owner_id, "fhir", &ty_alias).unwrap();
     }
+
+    genv.map_mut().insert_type_alias(def_id, ty_alias);
 
     Ok(())
 }
@@ -132,73 +103,41 @@ pub fn desugar_fn_sig(
     resolver_output: &ResolverOutput,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
-    if let Some(fn_sig) = fn_sig {
+
+    let (fn_sig, opaque_tys) = if let Some(fn_sig) = fn_sig {
         let mut opaque_tys = Default::default();
         let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, Some(&mut opaque_tys));
 
-        let generics = if let Some(generics) = &fn_sig.generics {
-            cx.desugar_generics(generics)?
-        } else {
-            cx.as_lift_cx().lift_generics()?
-        };
+        let fn_sig = cx.desugar_fn_sig(fn_sig)?;
 
-        let (generic_preds, fn_sig) = cx.desugar_fn_sig(fn_sig)?;
-
-        if config::dump_fhir() {
-            dbg::dump_item_info(genv.tcx, def_id, "fhir", &fn_sig).unwrap();
-        }
-
-        let map = genv.map_mut();
-        map.insert_generics(def_id, generics);
-        map.insert_generic_predicates(def_id, generic_preds);
-        map.insert_fn_sig(def_id, fn_sig);
-        map.insert_opaque_tys(opaque_tys);
+        (fn_sig, opaque_tys)
     } else {
-        let (generics, fn_info) = lift::lift_fn(genv.tcx, genv.sess, owner_id)?;
+        lift::lift_fn(genv.tcx, genv.sess, owner_id)?
+    };
 
-        if config::dump_fhir() {
-            dbg::dump_item_info(genv.tcx, def_id, "fhir", &fn_info.fn_sig).unwrap();
-        }
-
-        let map = genv.map_mut();
-        map.insert_generics(def_id, generics);
-        map.insert_generic_predicates(def_id, fn_info.predicates);
-        map.insert_fn_sig(def_id, fn_info.fn_sig);
-        map.insert_opaque_tys(fn_info.opaque_tys);
+    if config::dump_fhir() {
+        dbg::dump_item_info(genv.tcx, def_id, "fhir", &fn_sig).unwrap();
     }
+
+    let map = genv.map_mut();
+    map.insert_fn_sig(def_id, fn_sig);
+    map.insert_opaque_tys(opaque_tys);
+
     Ok(())
 }
 
-/// HACK(nilehmann) this is a bit of a hack. We use it to properly register generics and predicates
-/// for items that don't have surface syntax (impl blocks, traits, ...), or for `impl` blocks with
-/// explicit `generics` annotations. In the former case, we use `desugar`; in the latter cases we
-/// just [lift] them from hir.
-pub fn desugar_generics_and_predicates(
+pub fn desugar_trait_or_impl(
     genv: &mut GlobalEnv,
     owner_id: OwnerId,
     resolver_output: &ResolverOutput,
-    generics: Option<&surface::Generics>,
-    assoc_predicates: Option<&surface::AssocPredicate>,
+    trait_or_impl: &surface::TraitOrImpl,
 ) -> Result<(), ErrorGuaranteed> {
-    let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
-    let generics = if let Some(generics) = generics {
-        cx.desugar_generics(generics)?
-    } else {
-        cx.as_lift_cx().lift_generics()?
-    };
-    let predicates = cx.as_lift_cx().lift_generic_predicates()?;
-    let assoc_predicates = match assoc_predicates {
-        Some(assoc_predicates) => Some(cx.desugar_assoc_predicates(assoc_predicates)?),
-        None => None,
-    };
-
-    let map = genv.map_mut();
     let def_id = owner_id.def_id;
-    map.insert_generics(def_id, generics);
-    map.insert_generic_predicates(def_id, predicates);
-    if let Some(assoc_predicates) = assoc_predicates {
-        map.insert_assoc_predicates(def_id, assoc_predicates);
-    }
+
+    let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
+    let trait_or_impl = cx.desugar_trait_or_impl(trait_or_impl)?;
+
+    genv.map_mut().insert_trait_or_impl(def_id, trait_or_impl);
 
     Ok(())
 }

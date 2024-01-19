@@ -6,7 +6,7 @@ use flux_desugar as desugar;
 use flux_errors::{FluxSession, ResultExt};
 use flux_metadata::CStore;
 use flux_middle::{
-    fhir::{lift, ConstInfo},
+    fhir::{self, lift, ConstInfo},
     global_env::GlobalEnv,
 };
 use flux_refineck as refineck;
@@ -279,7 +279,7 @@ fn desugar_item(
             desugar::desugar_type_alias(genv, owner_id, ty_alias, resolver_output)?;
         }
         hir::ItemKind::OpaqueTy(_) => {
-            desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, None, None)?;
+            // Opaque types are desugared as part of the desugaring of their defining function
         }
         hir::ItemKind::Enum(..) => {
             let enum_def = &specs.enums[&owner_id];
@@ -290,15 +290,8 @@ fn desugar_item(
             desugar::desugar_struct_def(genv, owner_id, struct_def, resolver_output)?;
         }
         hir::ItemKind::Trait(.., items) => {
-            let generics = specs.generics.get(&owner_id);
-            let assoc_predicates = specs.assoc_predicates.get(&owner_id);
-            desugar::desugar_generics_and_predicates(
-                genv,
-                owner_id,
-                resolver_output,
-                generics,
-                assoc_predicates,
-            )?;
+            let trait_or_impl = &specs.trait_or_impls[&owner_id];
+            desugar::desugar_trait_or_impl(genv, owner_id, resolver_output, trait_or_impl)?;
             items.iter().try_for_each_exhaust(|trait_item| {
                 desugar_assoc_item(
                     genv,
@@ -310,15 +303,8 @@ fn desugar_item(
             })?;
         }
         hir::ItemKind::Impl(impl_) => {
-            let generics = specs.generics.get(&owner_id);
-            let assoc_predicates = specs.assoc_predicates.get(&owner_id);
-            desugar::desugar_generics_and_predicates(
-                genv,
-                owner_id,
-                resolver_output,
-                generics,
-                assoc_predicates,
-            )?;
+            let trait_or_impl = &specs.trait_or_impls[&owner_id];
+            desugar::desugar_trait_or_impl(genv, owner_id, resolver_output, trait_or_impl)?;
             impl_.items.iter().try_for_each_exhaust(|impl_item| {
                 desugar_assoc_item(
                     genv,
@@ -344,7 +330,10 @@ fn desugar_assoc_item(
     match kind {
         hir::AssocItemKind::Fn { .. } => desugar_fn_sig(genv, specs, owner_id, resolver_output),
         hir::AssocItemKind::Type => {
-            desugar::desugar_generics_and_predicates(genv, owner_id, resolver_output, None, None)
+            let generics = lift::lift_generics(genv.tcx, genv.sess, owner_id)?;
+            let assoc_ty = fhir::AssocType { generics };
+            genv.map_mut().insert_assoc_type(owner_id.def_id, assoc_ty);
+            Ok(())
         }
         hir::AssocItemKind::Const => Ok(()),
     }

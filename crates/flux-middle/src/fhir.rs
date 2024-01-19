@@ -51,6 +51,7 @@ use crate::{pretty, rty::Constant};
 pub struct Generics {
     pub params: Vec<GenericParam>,
     pub self_kind: Option<GenericParamKind>,
+    pub predicates: Vec<WhereBoundPredicate>,
 }
 
 #[derive(Debug)]
@@ -97,11 +98,6 @@ pub struct SortDecl {
 pub type SortDecls = FxHashMap<Symbol, SortDecl>;
 
 #[derive(Debug)]
-pub struct AssocPredicates {
-    pub predicates: Vec<AssocPredicate>,
-}
-
-#[derive(Debug)]
 pub struct AssocPredicate {
     pub name: Symbol,
     pub kind: AssocPredicateKind,
@@ -146,8 +142,19 @@ pub enum TraitBoundModifier {
     Maybe,
 }
 
+// FIXME(nilehmann) We should have separate definitions for trait and impls
+pub struct TraitOrImpl {
+    pub generics: Generics,
+    pub assoc_predicates: Vec<AssocPredicate>,
+}
+
+pub struct AssocType {
+    pub generics: Generics,
+}
+
 #[derive(Debug)]
 pub struct OpaqueTy {
+    pub generics: Generics,
     pub bounds: GenericBounds,
 }
 
@@ -156,9 +163,8 @@ pub struct OpaqueTy {
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default)]
 pub struct Map {
-    generics: UnordMap<LocalDefId, Generics>,
-    predicates: UnordMap<LocalDefId, GenericPredicates>,
-    assoc_predicates: UnordMap<LocalDefId, AssocPredicates>,
+    assoc_types: UnordMap<LocalDefId, AssocType>,
+    trait_or_impls: UnordMap<LocalDefId, TraitOrImpl>,
     opaque_tys: UnordMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: SortDecls,
@@ -177,6 +183,7 @@ pub struct Map {
 #[derive(Debug)]
 pub struct TyAlias {
     pub owner_id: OwnerId,
+    pub generics: Generics,
     pub ty: Ty,
     pub span: Span,
     pub early_bound_params: Vec<RefineParam>,
@@ -190,6 +197,7 @@ pub struct TyAlias {
 #[derive(Debug)]
 pub struct StructDef {
     pub owner_id: OwnerId,
+    pub generics: Generics,
     pub params: Vec<RefineParam>,
     pub kind: StructKind,
     pub invariants: Vec<Expr>,
@@ -216,6 +224,7 @@ pub struct FieldDef {
 #[derive(Debug)]
 pub struct EnumDef {
     pub owner_id: OwnerId,
+    pub generics: Generics,
     pub params: Vec<RefineParam>,
     pub variants: Vec<VariantDef>,
     pub invariants: Vec<Expr>,
@@ -242,14 +251,8 @@ pub struct VariantRet {
     pub idx: RefineArg,
 }
 
-#[derive(Debug)]
-pub struct FnInfo {
-    pub predicates: GenericPredicates,
-    pub fn_sig: FnSig,
-    pub opaque_tys: UnordMap<LocalDefId, OpaqueTy>,
-}
-
 pub struct FnSig {
+    pub generics: Generics,
     /// example: vec![(n: Int), (l: Loc)]
     pub params: Vec<RefineParam>,
     /// example: vec![(0 <= n), (l: i32)]
@@ -836,7 +839,7 @@ impl Generics {
             };
             params.push(GenericParam { def_id: param.def_id, kind });
         }
-        Generics { params, self_kind: self.self_kind }
+        Generics { params, ..self }
     }
 }
 
@@ -925,28 +928,30 @@ impl Map {
         me
     }
 
-    pub fn insert_generics(&mut self, def_id: LocalDefId, generics: Generics) {
-        self.generics.insert(def_id, generics);
+    pub fn insert_trait_or_impl(&mut self, def_id: LocalDefId, trait_or_impl: TraitOrImpl) {
+        self.trait_or_impls.insert(def_id, trait_or_impl);
     }
 
-    pub fn insert_generic_predicates(&mut self, def_id: LocalDefId, predicates: GenericPredicates) {
-        self.predicates.insert(def_id, predicates);
-    }
-
-    pub fn insert_assoc_predicates(
-        &mut self,
-        def_id: LocalDefId,
-        assoc_predicates: AssocPredicates,
-    ) {
-        self.assoc_predicates.insert(def_id, assoc_predicates);
+    pub fn insert_assoc_type(&mut self, def_id: LocalDefId, assoc_ty: AssocType) {
+        self.assoc_types.insert(def_id, assoc_ty);
     }
 
     pub fn insert_opaque_tys(&mut self, opaque_tys: UnordMap<LocalDefId, OpaqueTy>) {
         self.opaque_tys.extend_unord(opaque_tys.into_items());
     }
 
-    pub fn get_generics(&self, def_id: LocalDefId) -> Option<&Generics> {
-        self.generics.get(&def_id)
+    pub fn get_generics(&self, tcx: TyCtxt, def_id: LocalDefId) -> Option<&Generics> {
+        match tcx.def_kind(def_id) {
+            DefKind::Struct => Some(&self.get_struct(def_id).generics),
+            DefKind::Enum => Some(&self.get_enum(def_id).generics),
+            DefKind::Impl { .. } | DefKind::Trait => Some(&self.trait_or_impls[&def_id].generics),
+            DefKind::TyAlias => Some(&self.type_aliases[&def_id].generics),
+            DefKind::AssocTy => Some(&self.assoc_types[&def_id].generics),
+            DefKind::Fn => Some(&self.get_fn_sig(def_id).generics),
+            DefKind::AssocFn => Some(&self.get_fn_sig(def_id).generics),
+            DefKind::OpaqueTy => Some(&self.get_opaque_ty(def_id).generics),
+            _ => None,
+        }
     }
 
     pub fn get_refine_params(&self, tcx: TyCtxt, def_id: LocalDefId) -> Option<&[RefineParam]> {
@@ -957,16 +962,14 @@ impl Map {
         }
     }
 
-    pub fn get_generic_predicates(&self, def_id: LocalDefId) -> Option<&GenericPredicates> {
-        self.predicates.get(&def_id)
+    pub fn get_assoc_predicates(&self, def_id: LocalDefId) -> Option<&[AssocPredicate]> {
+        self.trait_or_impls
+            .get(&def_id)
+            .map(|it| &it.assoc_predicates[..])
     }
 
-    pub fn get_assoc_predicates(&self, def_id: LocalDefId) -> Option<&AssocPredicates> {
-        self.assoc_predicates.get(&def_id)
-    }
-
-    pub fn get_opaque_ty(&self, def_id: LocalDefId) -> Option<&OpaqueTy> {
-        self.opaque_tys.get(&def_id)
+    pub fn get_opaque_ty(&self, def_id: LocalDefId) -> &OpaqueTy {
+        self.opaque_tys.get(&def_id).unwrap()
     }
 
     // Qualifiers
