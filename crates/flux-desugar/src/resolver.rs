@@ -400,6 +400,15 @@ impl<'sess> NameResTable<'sess> {
         // Insert generics from parent trait
         if let Some(parent_impl_did) = tcx.trait_of_item(def_id.to_def_id()) {
             let parent_impl_item = tcx.hir().expect_item(parent_impl_did.expect_local());
+
+            // Insert NAME of parent trait
+            if let ItemKind::Trait(_, _, _, _, _) = &parent_impl_item.kind {
+                table.insert(
+                    ResKey::from_ident(parent_impl_item.ident),
+                    Res::Def(DefKind::Trait, parent_impl_did),
+                );
+            }
+
             if let ItemKind::Impl(parent) = &parent_impl_item.kind {
                 table.collect_from_ty(parent.self_ty)?;
             }

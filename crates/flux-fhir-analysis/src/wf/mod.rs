@@ -628,7 +628,8 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         infcx.check_expr(expr, &rty::Sort::Bool)?;
         self.check_param_uses_expr(infcx, expr, true)
     }
-    // NOTE: bit nasty that we have to `conv` the generic_args in order to use the [GenericsSubstFolder] in [sort_of_alias_pred]
+
+    // A bit nasty that we have to `conv` the alias_pred.generic_args to use the [GenericsSubstFolder] in [sort_of_alias_pred]
     // I suppose its ok to use these empty `Env` as these generic_args are totally unrefined, but it would be nice to have that
     // explicitly enforced.
     fn check_alias_pred_app(
