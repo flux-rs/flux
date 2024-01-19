@@ -482,6 +482,18 @@ where
             rty::ExprKind::KVar(kvar) => {
                 preds.push((self.kvar_to_fixpoint(kvar, bindings), None));
             }
+            // FIXME(nilehmann) when we allow associated predicates nested in expression
+            // in the surface syntax we should move this to `expr_to_fixpoint`
+            rty::ExprKind::AliasPred(alias_pred, args) => {
+                let span = expr.span();
+                let func = self.register_const_for_alias_pred(alias_pred, args.len());
+                let args = args
+                    .iter()
+                    .map(|expr| self.as_expr_cx().expr_to_fixpoint(expr))
+                    .collect_vec();
+                let pred = fixpoint::Expr::App(func, args);
+                preds.push((fixpoint::Pred::Expr(pred), span));
+            }
             _ => {
                 let span = expr.span();
                 preds.push((fixpoint::Pred::Expr(self.as_expr_cx().expr_to_fixpoint(expr)), span));
@@ -869,6 +881,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             }
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)
+            | rty::ExprKind::AliasPred(_, _)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::Abs(_)
             | rty::ExprKind::GlobalFunc(..)

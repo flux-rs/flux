@@ -1048,6 +1048,10 @@ impl TypeSuperVisitable for Expr {
                 e2.visit_with(visitor)
             }
             ExprKind::KVar(kvar) => kvar.visit_with(visitor),
+            ExprKind::AliasPred(alias, args) => {
+                alias.visit_with(visitor)?;
+                args.visit_with(visitor)
+            }
             ExprKind::Abs(body) => body.visit_with(visitor),
             ExprKind::Constant(_)
             | ExprKind::Hole(_)
@@ -1135,6 +1139,11 @@ impl TypeSuperFoldable for Expr {
             ExprKind::KVar(kvar) => Expr::kvar(kvar.try_fold_with(folder)?),
             ExprKind::Abs(body) => Expr::abs(body.try_fold_with(folder)?),
             ExprKind::GlobalFunc(func, kind) => Expr::global_func(*func, *kind),
+            ExprKind::AliasPred(alias, args) => {
+                let alias = alias.try_fold_with(folder)?;
+                let args = args.try_fold_with(folder)?;
+                Expr::alias_pred(alias, args)
+            }
         };
         Ok(expr)
     }

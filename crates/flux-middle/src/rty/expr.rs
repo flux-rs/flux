@@ -11,7 +11,7 @@ use rustc_span::{BytePos, Span, Symbol, SyntaxContext};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
-use super::{evars::EVar, BaseTy, Binder, IntTy, Sort, UintTy};
+use super::{evars::EVar, AliasPred, BaseTy, Binder, IntTy, Sort, UintTy};
 use crate::{
     fhir::FuncKind,
     intern::{impl_internable, impl_slice_internable, Interned, List},
@@ -86,6 +86,7 @@ pub enum ExprKind {
     PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
+    AliasPred(AliasPred, List<Expr>),
     /// Lambda abstractions. They are purely syntactic and we don't encode them in the logic. As such,
     /// they have some syntactic restrictions that we must carefully maintain:
     ///
@@ -366,6 +367,10 @@ impl Expr {
 
     pub fn kvar(kvar: KVar) -> Expr {
         ExprKind::KVar(kvar).intern()
+    }
+
+    pub fn alias_pred(alias: AliasPred, args: List<Expr>) -> Expr {
+        ExprKind::AliasPred(alias, args).intern()
     }
 
     pub fn binary_op(
@@ -833,6 +838,9 @@ mod pretty {
                 }
                 ExprKind::KVar(kvar) => {
                     w!("{:?}", kvar)
+                }
+                ExprKind::AliasPred(alias, args) => {
+                    w!("{:?}({:?}", ^alias, join!(", ", args))
                 }
                 ExprKind::Abs(body) => {
                     w!("{:?}", body)
