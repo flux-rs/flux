@@ -30,7 +30,7 @@ use rustc_data_structures::{
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
-use rustc_span::{Span, Symbol};
+use rustc_span::Span;
 use rustc_type_ir::DebruijnIndex;
 
 use crate::{refine_tree::Scope, CheckerConfig};
@@ -196,16 +196,11 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     kvid_map: KVidMap,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
-    alias_preds: FxHashMap<rustc_middle::ty::TraitRef<'tcx>, AliasPredInfo>,
-    const_name_gen: IndexGen<fixpoint::GlobalVar>,
+    alias_preds: FxHashMap<rustc_middle::ty::TraitRef<'tcx>, ConstInfo>,
+    global_var_gen: IndexGen<fixpoint::GlobalVar>,
     /// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
     /// invariants.
     def_id: LocalDefId,
-}
-
-struct AliasPredInfo {
-    pub var: fixpoint::Var,
-    pub const_info: ConstInfo,
 }
 
 struct FixpointKVar {
@@ -270,7 +265,7 @@ struct ExprCtxt<'a, 'tcx> {
 
 struct ConstInfo {
     name: fixpoint::GlobalVar,
-    sym: rustc_span::Symbol,
+    orig: String,
     sort: fixpoint::Sort,
     val: Option<Constant>,
 }
@@ -299,7 +294,8 @@ where
     Tag: std::hash::Hash + Eq + Copy,
 {
     pub fn new(genv: &'genv GlobalEnv<'genv, 'tcx>, def_id: LocalDefId, kvars: KVarStore) -> Self {
-        let (const_map, const_name_gen) = fixpoint_const_map(genv);
+        let global_var_gen = IndexGen::new();
+        let const_map = fixpoint_const_map(genv, &global_var_gen);
         Self {
             comments: vec![],
             kvars,
@@ -312,7 +308,7 @@ where
             tags: IndexVec::new(),
             tags_inv: Default::default(),
             alias_preds: Default::default(),
-            const_name_gen,
+            global_var_gen,
             def_id,
         }
     }
@@ -367,7 +363,7 @@ where
     fn fixpoint_const_info(const_info: ConstInfo) -> fixpoint::ConstInfo {
         fixpoint::ConstInfo {
             name: fixpoint::Var::Global(const_info.name),
-            orig: const_info.sym.to_string(),
+            orig: const_info.orig,
             sort: const_info.sort,
         }
     }
@@ -408,7 +404,7 @@ where
         let constants = self
             .const_map
             .into_values()
-            .chain(self.alias_preds.into_values().map(|info| info.const_info))
+            .chain(self.alias_preds.into_values())
             .map(Self::fixpoint_const_info)
             .collect_vec();
 
@@ -592,49 +588,49 @@ where
         self.genv.tcx.def_span(self.def_id)
     }
 
-    /// [alias_pred_sort] returns a very polymorphic sort for the UIF encoding the alias_pred;
-    /// This is ok, as well-formedness in previous phases will ensure the function is always
-    /// instantiated with the same sorts. However, the proper thing is to compute the *actual*
-    /// mono-sort at which this alias_pred is being used see [sort_of_alias_pred] but that is
-    /// a bit tedious as its done using the `fhir` (not `rty`). Alternatively, we might stash
-    /// the computed mono-sort *in* the `rty::AliasPred` during `conv`?
-    fn alias_pred_sort(arity: usize) -> rty::PolyFuncSort {
-        let mut sorts = vec![];
-        for i in 0..arity {
-            sorts.push(rty::Sort::Var(rty::SortVar::from(i)));
-        }
-        sorts.push(rty::Sort::Bool);
-        rty::PolyFuncSort::new(arity, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
-    }
-
-    fn alias_pred_gen(&mut self, alias_pred: &rty::AliasPred, arity: usize) -> AliasPredInfo {
-        let sym = Symbol::intern(&format!("{alias_pred:?}"));
-        let name = self.const_name_gen.fresh();
-        let fsort = Self::alias_pred_sort(arity);
-        let sort = func_sort_to_fixpoint(&fsort);
-        let sort = fixpoint::Sort::Func(sort);
-        let var = fixpoint::Var::Global(name);
-        let info = ConstInfo { name, sym, sort, val: None };
-        AliasPredInfo { var, const_info: info }
-    }
-
-    // returns the 'constant' UIF for Var used to represent the alias_pred, creating and adding it to the const_map if necessary
+    /// returns the 'constant' UIF for Var used to represent the alias_pred, creating and adding it
+    /// to the const_map if necessary
     fn register_const_for_alias_pred(
         &mut self,
         alias_pred: &rty::AliasPred,
         arity: usize,
     ) -> fixpoint::Var {
         let key = rty::projections::into_rustc_trait_ref(self.genv.tcx, alias_pred);
-        match self.alias_preds.get(&key) {
-            Some(info) => info.var,
-            None => {
-                let info = self.alias_pred_gen(alias_pred, arity);
-                let var = info.var;
-                self.alias_preds.insert(key, info);
-                var
-            }
-        }
+        fixpoint::Var::Global(
+            self.alias_preds
+                .entry(key)
+                .or_insert_with(|| alias_pred_gen(&self.global_var_gen, alias_pred, arity))
+                .name,
+        )
     }
+}
+
+/// This function returns a very polymorphic sort for the UIF encoding the alias_pred;
+/// This is ok, as well-formedness in previous phases will ensure the function is always
+/// instantiated with the same sorts. However, the proper thing is to compute the *actual*
+/// mono-sort at which this alias_pred is being used see [`GlobalEnv::sort_of_alias_pred`] but
+/// that is a bit tedious as its done using the `fhir` (not `rty`). Alternatively, we might
+/// stash the computed mono-sort *in* the `rty::AliasPred` during `conv`?
+fn alias_pred_sort(arity: usize) -> rty::PolyFuncSort {
+    let mut sorts = vec![];
+    for i in 0..arity {
+        sorts.push(rty::Sort::Var(rty::SortVar::from(i)));
+    }
+    sorts.push(rty::Sort::Bool);
+    rty::PolyFuncSort::new(arity, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
+}
+
+fn alias_pred_gen(
+    global_var_gen: &IndexGen<fixpoint::GlobalVar>,
+    alias_pred: &rty::AliasPred,
+    arity: usize,
+) -> ConstInfo {
+    let orig = format!("{alias_pred:?}");
+    let name = global_var_gen.fresh();
+    let fsort = alias_pred_sort(arity);
+    let sort = func_sort_to_fixpoint(&fsort);
+    let sort = fixpoint::Sort::Func(sort);
+    ConstInfo { name, orig, sort, val: None }
 }
 
 impl FixpointKVar {
@@ -643,17 +639,18 @@ impl FixpointKVar {
     }
 }
 
-fn fixpoint_const_map(genv: &GlobalEnv) -> (ConstMap, IndexGen<fixpoint::GlobalVar>) {
-    let const_name_gen = IndexGen::new();
+fn fixpoint_const_map(
+    genv: &GlobalEnv,
+    global_var_gen: &IndexGen<fixpoint::GlobalVar>,
+) -> ConstMap {
     let consts = genv
         .map()
         .consts()
         .sorted_by(|a, b| Ord::cmp(&a.sym, &b.sym))
         .map(|const_info| {
-            let name = const_name_gen.fresh();
             let cinfo = ConstInfo {
-                name,
-                sym: const_info.sym,
+                name: global_var_gen.fresh(),
+                orig: const_info.sym.to_string(),
                 sort: fixpoint::Sort::Int,
                 val: Some(const_info.val),
             };
@@ -665,20 +662,19 @@ fn fixpoint_const_map(genv: &GlobalEnv) -> (ConstMap, IndexGen<fixpoint::GlobalV
         .filter_map(|decl| {
             match decl.kind {
                 FuncKind::Uif => {
-                    let name = const_name_gen.fresh();
                     let sort = func_sort_to_fixpoint(&decl.sort);
                     let cinfo = ConstInfo {
-                        name,
-                        sym: decl.name,
+                        name: global_var_gen.fresh(),
+                        orig: decl.name.to_string(),
                         sort: fixpoint::Sort::Func(sort),
                         val: None,
                     };
-                    Some((Key::Uif(cinfo.sym), cinfo))
+                    Some((Key::Uif(decl.name), cinfo))
                 }
                 _ => None,
             }
         });
-    (itertools::chain(consts, uifs).collect(), const_name_gen)
+    itertools::chain(consts, uifs).collect()
 }
 
 impl KVarStore {

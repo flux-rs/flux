@@ -92,7 +92,7 @@ pub(super) struct InvalidAssocPredicate {
 
 impl InvalidAssocPredicate {
     pub(super) fn new(span: Span, name: Symbol, trait_id: String) -> InvalidAssocPredicate {
-        Self { span, name, trait_id }
+        Self { span, trait_id, name }
     }
 }
 
