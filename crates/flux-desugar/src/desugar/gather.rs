@@ -126,7 +126,12 @@ impl RustItemCtxt<'_, '_> {
         let mut env = Env::new(ScopeId::Struct(struct_def.node_id));
         env.extend(
             self.sess(),
-            self.resolve_params(struct_def.refined_by.iter().flat_map(|it| &it.index_params))?,
+            self.resolve_params(
+                struct_def
+                    .refined_by
+                    .as_ref()
+                    .map_or(&[], |it| &it.index_params[..]),
+            )?,
         )?;
 
         struct_def
@@ -399,12 +404,12 @@ impl RustItemCtxt<'_, '_> {
         CheckParamUses::new(self.sess(), env).run(f)
     }
 
-    fn resolve_params<'a>(
+    fn resolve_params(
         &self,
-        params: impl IntoIterator<Item = &'a surface::RefineParam>,
+        params: &[surface::RefineParam],
     ) -> Result<Vec<(surface::Ident, Param)>> {
         params
-            .into_iter()
+            .iter()
             .map(|param| {
                 let sort = self.sort_resolver.resolve_sort(&param.sort)?;
                 Ok((param.name, Param::Explicit(sort)))
