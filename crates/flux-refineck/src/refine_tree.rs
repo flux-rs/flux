@@ -120,10 +120,6 @@ impl RefineTree {
         RefineTree { root }
     }
 
-    pub(crate) fn as_subtree(&mut self) -> RefineSubtree {
-        RefineSubtree { root: NodePtr(Rc::clone(&self.root)), tree: self }
-    }
-
     pub(crate) fn simplify(&mut self) {
         self.root.borrow_mut().simplify();
     }
