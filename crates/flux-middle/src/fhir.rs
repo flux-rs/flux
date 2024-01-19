@@ -50,6 +50,7 @@ use crate::{pretty, rty::Constant};
 #[derive(Debug)]
 pub struct Generics {
     pub params: Vec<GenericParam>,
+    pub refinement_params: Vec<RefineParam>,
     pub self_kind: Option<GenericParamKind>,
     pub predicates: Vec<WhereBoundPredicate>,
 }
@@ -186,7 +187,6 @@ pub struct TyAlias {
     pub generics: Generics,
     pub ty: Ty,
     pub span: Span,
-    pub early_bound_params: Vec<RefineParam>,
     pub index_params: Vec<RefineParam>,
     /// Whether this alias was [lifted] from a `hir` alias
     ///
@@ -253,8 +253,6 @@ pub struct VariantRet {
 
 pub struct FnSig {
     pub generics: Generics,
-    /// example: vec![(n: Int), (l: Loc)]
-    pub params: Vec<RefineParam>,
     /// example: vec![(0 <= n), (l: i32)]
     pub requires: Vec<Constraint>,
     /// example: vec![(x: StrRef(l))]
@@ -954,14 +952,6 @@ impl Map {
         }
     }
 
-    pub fn get_refine_params(&self, tcx: TyCtxt, def_id: LocalDefId) -> Option<&[RefineParam]> {
-        if matches!(tcx.def_kind(def_id), DefKind::Fn | DefKind::AssocFn) {
-            Some(&self.get_fn_sig(def_id).params)
-        } else {
-            None
-        }
-    }
-
     pub fn get_assoc_predicates(&self, def_id: LocalDefId) -> Option<&[AssocPredicate]> {
         self.trait_or_impls
             .get(&def_id)
@@ -1258,13 +1248,16 @@ impl StructDef {
 
 impl fmt::Debug for FnSig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if !self.params.is_empty() {
+        if !self.generics.refinement_params.is_empty() {
             write!(
                 f,
                 "for<{}> ",
-                self.params.iter().format_with(", ", |param, f| {
-                    f(&format_args!("{:?}: {:?}", param.ident, param.sort))
-                })
+                self.generics
+                    .refinement_params
+                    .iter()
+                    .format_with(", ", |param, f| {
+                        f(&format_args!("{:?}: {:?}", param.ident, param.sort))
+                    })
             )?;
         }
         if !self.requires.is_empty() {

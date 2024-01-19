@@ -109,7 +109,7 @@ pub(crate) fn expand_type_alias(
     let def_id = alias.owner_id.to_def_id();
     let cx = ConvCtxt::new(genv, wfckresults);
 
-    let mut env = Env::new(genv, &alias.early_bound_params, wfckresults);
+    let mut env = Env::new(genv, &alias.generics.refinement_params, wfckresults);
     env.push_layer(Layer::record(&cx, def_id, &alias.index_params));
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
@@ -124,9 +124,13 @@ pub(crate) fn conv_generic_predicates(
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
-    let refparams = genv.map().get_refine_params(genv.tcx, def_id);
+    let refparams = &genv
+        .map()
+        .get_generics(genv.tcx, def_id)
+        .unwrap()
+        .refinement_params;
 
-    let env = &mut Env::new(genv, refparams.unwrap_or(&[]), wfckresults);
+    let env = &mut Env::new(genv, refparams, wfckresults);
 
     let mut clauses = vec![];
     for pred in predicates {
@@ -147,10 +151,14 @@ pub(crate) fn conv_opaque_ty(
 ) -> QueryResult<List<rty::Clause>> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let parent = genv.tcx.local_parent(def_id);
-    let refparams = genv.map().get_refine_params(genv.tcx, parent);
+    let refparams = &genv
+        .map()
+        .get_generics(genv.tcx, parent)
+        .unwrap()
+        .refinement_params;
     let parent_wfckresults = genv.check_wf(parent)?;
 
-    let env = &mut Env::new(genv, refparams.unwrap_or(&[]), &parent_wfckresults);
+    let env = &mut Env::new(genv, refparams, &parent_wfckresults);
 
     let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
     let self_ty = rty::Ty::opaque(def_id, args, env.to_early_bound_vars());
@@ -334,7 +342,7 @@ pub(crate) fn conv_fn_sig(
 
     let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
 
-    let mut env = Env::new(genv, &fn_sig.params, wfckresults);
+    let mut env = Env::new(genv, &fn_sig.generics.refinement_params, wfckresults);
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[], true));
 
     let mut requires = vec![];

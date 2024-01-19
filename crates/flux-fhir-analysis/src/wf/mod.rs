@@ -85,7 +85,7 @@ pub(crate) fn check_ty_alias(
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut infcx = InferCtxt::new(genv, ty_alias.owner_id.into());
     let mut wf = Wf::new(genv);
-    infcx.insert_params(&ty_alias.early_bound_params);
+    infcx.insert_params(&ty_alias.generics.refinement_params);
     infcx.insert_params(&ty_alias.index_params);
 
     wf.check_type(&mut infcx, &ty_alias.ty)?;
@@ -147,9 +147,9 @@ pub(crate) fn check_opaque_ty(
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
     let parent = genv.tcx.local_parent(owner_id.def_id);
-    if let Some(params) = genv.map().get_refine_params(genv.tcx, parent) {
+    if let Some(generics) = genv.map().get_generics(genv.tcx, parent) {
         let wfckresults = genv.check_wf(parent).emit(genv.sess)?;
-        for param in params {
+        for param in &generics.refinement_params {
             let sort = wfckresults.node_sorts().get(param.fhir_id).unwrap().clone();
             infcx.insert_param(param.name(), sort, param.kind);
         }
@@ -234,7 +234,7 @@ pub(crate) fn check_fn_sig(
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
 
-    infcx.insert_params(&fn_sig.params);
+    infcx.insert_params(&fn_sig.generics.refinement_params);
 
     for arg in &fn_sig.args {
         infcx.infer_implicit_params_ty(arg)?;
@@ -264,8 +264,8 @@ pub(crate) fn check_fn_sig(
     requires?;
     constrs?;
 
-    infcx.resolve_params_sorts(&fn_sig.params)?;
-    wf.check_params_are_determined(&infcx, &fn_sig.params)?;
+    infcx.resolve_params_sorts(&fn_sig.generics.refinement_params)?;
+    wf.check_params_are_determined(&infcx, &fn_sig.generics.refinement_params)?;
 
     Ok(infcx.into_results())
 }

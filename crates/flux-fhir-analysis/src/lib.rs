@@ -204,12 +204,17 @@ fn refinement_generics_of(
         DefKind::Fn | DefKind::AssocFn => {
             let fn_sig = genv.map().get_fn_sig(local_id);
             let wfckresults = genv.check_wf(local_id)?;
-            let params = conv::conv_refinement_generics(genv, &fn_sig.params, Some(&wfckresults));
+            let params = conv::conv_refinement_generics(
+                genv,
+                &fn_sig.generics.refinement_params,
+                Some(&wfckresults),
+            );
             Ok(rty::RefinementGenerics { parent, parent_count, params })
         }
         DefKind::TyAlias => {
             let ty_alias = genv.map().get_type_alias(local_id);
-            let params = conv::conv_refinement_generics(genv, &ty_alias.early_bound_params, None);
+            let params =
+                conv::conv_refinement_generics(genv, &ty_alias.generics.refinement_params, None);
             Ok(rty::RefinementGenerics { parent, parent_count, params })
         }
         _ => Ok(rty::RefinementGenerics { parent, parent_count, params: List::empty() }),

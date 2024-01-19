@@ -317,7 +317,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             }
         }
         let predicates = self.desugar_generic_predicates(&generics.predicates, env)?;
-        Ok(fhir::Generics { params, self_kind, predicates })
+        Ok(fhir::Generics { params, self_kind, refinement_params: vec![], predicates })
     }
 
     pub fn desugar_assoc_predicates(
@@ -539,18 +539,17 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     ) -> Result<fhir::TyAlias> {
         let mut env = self.gather_params_type_alias(ty_alias)?;
 
-        let generics = self.desugar_generics(&ty_alias.generics, &mut env)?;
+        let mut generics = self.desugar_generics(&ty_alias.generics, &mut env)?;
 
         let ty = self.desugar_ty(None, &ty_alias.ty, &mut env)?;
 
-        let mut early_bound_params = env.into_root().into_params(self);
-        let idx = early_bound_params.len() - ty_alias.refined_by.index_params.len();
-        let index_params = early_bound_params.split_off(idx);
+        generics.refinement_params = env.into_root().into_params(self);
+        let idx = generics.refinement_params.len() - ty_alias.refined_by.index_params.len();
+        let index_params = generics.refinement_params.split_off(idx);
 
         Ok(fhir::TyAlias {
             owner_id: self.owner,
             generics,
-            early_bound_params,
             index_params,
             ty,
             span: ty_alias.span,
@@ -564,7 +563,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         let mut requires = vec![];
 
         // Desugar generics after we have gathered the input params
-        let generics = self.desugar_generics(&fn_sig.generics, &mut env)?;
+        let mut generics = self.desugar_generics(&fn_sig.generics, &mut env)?;
 
         if let Some(e) = &fn_sig.requires {
             let pred = self.desugar_expr(&mut env, e)?;
@@ -590,15 +589,10 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
 
         let output = fhir::FnOutput { params: env.pop().into_params(self), ret: ret?, ensures };
 
-        let fn_sig = fhir::FnSig {
-            generics,
-            params: env.into_root().into_params(self),
-            requires,
-            args,
-            output,
-            span: fn_sig.span,
-            lifted: false,
-        };
+        generics.refinement_params = env.into_root().into_params(self);
+
+        let fn_sig =
+            fhir::FnSig { generics, requires, args, output, span: fn_sig.span, lifted: false };
         Ok(fn_sig)
     }
 
