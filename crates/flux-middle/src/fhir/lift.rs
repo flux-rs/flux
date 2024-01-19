@@ -61,7 +61,6 @@ pub fn lift_type_alias(
     Ok(fhir::TyAlias {
         owner_id,
         generics,
-        early_bound_params: vec![],
         index_params: vec![],
         ty,
         span: item.span,
@@ -196,7 +195,7 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
             .map(|param| self.lift_generic_param(param))
             .try_collect_exhaust()?;
         let predicates = self.lift_generic_predicates_inner(generics)?;
-        Ok(fhir::Generics { params, self_kind: None, predicates })
+        Ok(fhir::Generics { params, self_kind: None, refinement_params: vec![], predicates })
     }
 
     fn lift_generic_predicates_inner(
@@ -308,7 +307,6 @@ impl<'a, 'tcx> LiftCtxt<'a, 'tcx> {
 
         let fn_sig = fhir::FnSig {
             generics,
-            params: vec![],
             requires: vec![],
             args,
             output,
