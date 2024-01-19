@@ -612,7 +612,6 @@ where
         let var = fixpoint::Var::Global(name);
         let info = ConstInfo { name, sym, sort, val: None };
         AliasPredInfo { var, const_info: info }
-        // self.const_map.insert(Key::Uif(sym), cinfo);
     }
 
     // returns the 'constant' UIF for Var used to represent the alias_pred, creating and adding it to the const_map if necessary
