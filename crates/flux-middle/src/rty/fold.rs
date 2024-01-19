@@ -16,7 +16,7 @@ use super::{
     subst::EVarSubstFolder,
     AliasPred, AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr,
     ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg,
-    Invariant, KVar, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate, PolyFuncSort, Pred,
+    Invariant, KVar, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate, PolyFuncSort,
     ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef,
     Ty, TyKind,
 };
@@ -83,10 +83,6 @@ pub trait FallibleTypeFolder: Sized {
 
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
         expr.try_super_fold_with(self)
-    }
-
-    fn try_fold_pred(&mut self, pred: &Pred) -> Result<Pred, Self::Error> {
-        pred.try_super_fold_with(self)
     }
 }
 
@@ -319,7 +315,7 @@ pub trait TypeFoldable: TypeVisitable {
                         Ty::exists(ty.fold_with(&mut WithHoles { in_exists: true }))
                     }
                     TyKind::Constr(_, ty) => {
-                        Ty::constr_expr(Expr::hole(HoleKind::Pred), ty.fold_with(self))
+                        Ty::constr(Expr::hole(HoleKind::Pred), ty.fold_with(self))
                     }
                     _ => ty.super_fold_with(self),
                 }
@@ -798,18 +794,6 @@ impl TypeVisitable for AliasPred {
     }
 }
 
-impl TypeVisitable for Pred {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
-        match self {
-            Pred::Expr(expr) => expr.visit_with(visitor),
-            Pred::Alias(alias_pred, refine_args) => {
-                alias_pred.visit_with(visitor)?;
-                refine_args.visit_with(visitor)
-            }
-        }
-    }
-}
-
 impl TypeVisitable for Ty {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
         visitor.visit_ty(self)
@@ -1077,26 +1061,6 @@ impl TypeFoldable for AliasPred {
         let generic_args = self.args.try_fold_with(folder)?;
         let alias_pred = AliasPred { trait_id, name: self.name, args: generic_args };
         Ok(alias_pred)
-    }
-}
-
-impl TypeFoldable for Pred {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        folder.try_fold_pred(self)
-    }
-}
-
-impl TypeSuperFoldable for Pred {
-    fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        let pred = match self {
-            Pred::Expr(expr) => Pred::Expr(expr.try_fold_with(folder)?),
-            Pred::Alias(alias_pred, refine_args) => {
-                let alias_pred = alias_pred.try_fold_with(folder)?;
-                let refine_args = refine_args.try_fold_with(folder)?;
-                Pred::Alias(alias_pred, refine_args)
-            }
-        };
-        Ok(pred)
     }
 }
 

@@ -448,24 +448,11 @@ where
         })
     }
 
-    pub fn pred_to_fixpoint(&mut self, pred: &rty::Pred) -> (Bindings, PredSpans) {
-        match pred {
-            rty::Pred::Expr(expr) => {
-                let mut bindings = vec![];
-                let mut preds = vec![];
-                self.pred_to_fixpoint_internal(expr, &mut bindings, &mut preds);
-                (bindings, preds)
-            }
-            rty::Pred::Alias(alias_pred, args) => {
-                let func = self.register_const_for_alias_pred(alias_pred, args.len());
-                let args = args
-                    .iter()
-                    .map(|expr| self.as_expr_cx().expr_to_fixpoint(expr))
-                    .collect_vec();
-                let pred = fixpoint::Expr::App(func, args);
-                (vec![], vec![(fixpoint::Pred::Expr(pred), None)])
-            }
-        }
+    pub fn pred_to_fixpoint(&mut self, pred: &rty::Expr) -> (Bindings, PredSpans) {
+        let mut bindings = vec![];
+        let mut preds = vec![];
+        self.pred_to_fixpoint_internal(pred, &mut bindings, &mut preds);
+        (bindings, preds)
     }
 
     fn pred_to_fixpoint_internal(
