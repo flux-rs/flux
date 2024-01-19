@@ -330,7 +330,7 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
         TyKind::Exists { bind, bty, pred } => {
             vis.visit_ident(*bind);
             vis.visit_bty(bty);
-            vis.visit_expr(pred);
+            vis.visit_pred(pred);
         }
         TyKind::GeneralExists { params, ty, pred } => {
             walk_list!(vis, visit_refine_param, params);

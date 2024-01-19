@@ -139,8 +139,8 @@ pub QualNames: surface::QualNames = {
 RefineParams<T>: Vec<surface::RefineParam> = Comma<RefineParam<T>>;
 
 RefineParam<T>: surface::RefineParam = {
-    <name:Ident> ":" <sort:Sort> => surface::RefineParam { <> },
-    <name:Ident> if T == "?" => surface::RefineParam { name, sort: surface::Sort::Infer },
+    <lo:@L>  <name:Ident> ":" <sort:Sort> <hi:@R> => surface::RefineParam { name, sort, span: cx.map_span(lo, hi) },
+    <name:Ident> if T == "?" => surface::RefineParam { name, sort: surface::Sort::Infer, span: name.span },
 };
 
 BaseSort: surface::BaseSort = {
@@ -307,7 +307,7 @@ pub Ty: surface::Ty = {
 TyKind: surface::TyKind = {
     <bty:BaseTy>                                      => surface::TyKind::Base(<>),
     <bty:BaseTy> "[" <indices:Indices> "]"            => surface::TyKind::Indexed { <> },
-    <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
+    <bty:BaseTy> "{" <bind:Ident> ":" <pred:Pred> "}" => surface::TyKind::Exists { <> },
     "{" <ty:Ty> "|" <pred:Pred> "}"                   => surface::TyKind::Constr(pred, Box::new(ty)),
     "{" <params:Comma1<RefineParam<"?">>> "." <ty:Ty> <pred:("|" <Expr>)?> "}" => {
         surface::TyKind::GeneralExists { params, ty: Box::new(ty), pred }

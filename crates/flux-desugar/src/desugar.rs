@@ -158,6 +158,7 @@ struct Param {
     name: fhir::Name,
     sort: fhir::Sort,
     kind: fhir::ParamKind,
+    span: Span,
 }
 
 struct FluxItemCtxt<'a, 'tcx> {
@@ -303,7 +304,15 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         let kind = match &assoc_predicate.kind {
             surface::AssocPredicateKind::Spec(sort) => {
                 let sort = self.sort_resolver.resolve_sort(sort)?;
-                fhir::AssocPredicateKind::Spec(sort)
+                if let fhir::Sort::Func(func_sort) = sort
+                    && let fhir::Sort::Bool = func_sort.fsort.output()
+                    && func_sort.params == 0
+                {
+                    fhir::AssocPredicateKind::Spec(func_sort.fsort.inputs().to_vec())
+                } else {
+                    return Err(self
+                        .emit_err(errors::InvalidAssocPredicate::new(assoc_predicate.span, name)));
+                }
             }
             surface::AssocPredicateKind::Impl(params, body) => {
                 let mut env =
@@ -313,7 +322,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 fhir::AssocPredicateKind::Impl(params, body)
             }
         };
-        let assoc_predicate = fhir::AssocPredicate { name, kind };
+        let assoc_predicate = fhir::AssocPredicate { name, kind, span: assoc_predicate.span };
         let predicates = vec![assoc_predicate];
         Ok(fhir::AssocPredicates { predicates })
     }
@@ -710,13 +719,8 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 env.enter(ScopeId::Exists(node_id));
 
                 let bty = self.desugar_bty(bty, env)?;
-                let pred = self.desugar_expr(env, pred)?;
-                let span = pred.span;
-                let pred = fhir::Pred {
-                    kind: fhir::PredKind::Expr(pred),
-                    span,
-                    fhir_id: self.next_fhir_id(),
-                };
+                let pred = self.desugar_pred(env, pred)?;
+
                 let params = env.pop().into_params(self);
 
                 let idx = fhir::RefineArg {
@@ -1034,7 +1038,12 @@ impl Env {
             env.insert(
                 genv.sess,
                 param.name,
-                Param { name: name_gen.fresh(), sort, kind: fhir::ParamKind::Explicit },
+                Param {
+                    name: name_gen.fresh(),
+                    sort,
+                    kind: fhir::ParamKind::Explicit,
+                    span: param.span,
+                },
             )?;
         }
         Ok(env)
@@ -1095,7 +1104,13 @@ impl Scope<Param> {
         for (ident, param) in self.into_iter() {
             let ident = fhir::Ident::new(param.name, ident);
             let fhir_id = cx.next_fhir_id();
-            params.push(fhir::RefineParam { ident, sort: param.sort, kind: param.kind, fhir_id });
+            params.push(fhir::RefineParam {
+                ident,
+                sort: param.sort,
+                kind: param.kind,
+                fhir_id,
+                span: param.span,
+            });
         }
         params
     }

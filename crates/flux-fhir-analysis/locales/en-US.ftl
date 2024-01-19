@@ -40,6 +40,9 @@ fhir_analysis_duplicated_ensures =
 fhir_analysis_unknown_qualifier =
     unknown qualifier
 
+fhir_analysis_invalid_assoc_predicate =
+    invalid associated predicate `{$name}` for trait `{$trait_id}`
+
 fhir_analysis_missing_ensures =
     missing ensures clause for `&strg` reference
 

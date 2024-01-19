@@ -222,7 +222,7 @@ pub struct AssocPredicate {
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum AssocPredicateKind {
-    Spec(Sort),
+    Spec(List<Sort>),
     Impl(Binder<Expr>),
 }
 
@@ -473,6 +473,35 @@ pub enum Pred {
     Alias(AliasPred, RefineArgs),
 }
 
+impl Pred {
+    pub fn is_trivially_true(&self) -> bool {
+        match self {
+            Pred::Expr(expr) => expr.is_trivially_true(),
+            Pred::Alias(_, _) => false,
+        }
+    }
+
+    pub fn is_atom(&self) -> bool {
+        match self {
+            Pred::Expr(expr) => expr.is_atom(),
+            Pred::Alias(_, _) => true,
+        }
+    }
+
+    pub fn simplify(&self) -> Self {
+        match self {
+            Pred::Expr(expr) => Pred::Expr(expr.simplify()),
+            Pred::Alias(pred, args) => Pred::Alias(pred.clone(), args.clone()),
+        }
+    }
+}
+
+impl From<&Expr> for Pred {
+    fn from(expr: &Expr) -> Self {
+        Pred::Expr(expr.clone())
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub struct AliasPred {
     pub trait_id: DefId,
@@ -597,7 +626,7 @@ impl GenericArg {
         }
     }
 
-    fn peel_out_sort(&self) -> Option<Sort> {
+    pub fn peel_out_sort(&self) -> Option<Sort> {
         match self {
             GenericArg::Ty(ty) => ty.as_bty_skipping_existentials().map(BaseTy::sort),
             GenericArg::BaseTy(abs) => Some(abs.vars()[0].expect_sort().clone()),

@@ -797,7 +797,7 @@ fn downcast_enum(
             None
         }
     }));
-    rcx.assume_pred(constr);
+    rcx.assume_pred(&constr);
 
     Ok(variant_def.fields.to_vec())
 }

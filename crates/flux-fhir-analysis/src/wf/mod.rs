@@ -12,16 +12,17 @@ use flux_errors::{FluxSession, ResultExt};
 use flux_middle::{
     fhir::{self, FluxOwnerId, SurfaceIdent},
     global_env::GlobalEnv,
+    pretty::def_id_to_string,
     rty::{self, GenericParamDefKind, WfckResults},
 };
 use rustc_data_structures::snapshot_map::{self, SnapshotMap};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
 use rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
-use rustc_span::Symbol;
+use rustc_span::{Span, Symbol};
 
 use self::sortck::InferCtxt;
-use crate::conv;
+use crate::conv::{self, ConvCtxt};
 
 struct Wf<'a, 'tcx> {
     genv: &'a GlobalEnv<'a, 'tcx>,
@@ -157,6 +158,51 @@ pub(crate) fn check_opaque_ty(
     Ok(infcx.into_results())
 }
 
+fn check_assoc_predicate_params(
+    genv: &GlobalEnv,
+    owner_id: OwnerId,
+    name: Symbol,
+    params: &[fhir::RefineParam],
+    span: Span,
+) -> Result<(), ErrorGuaranteed> {
+    let impl_id = owner_id.def_id.to_def_id();
+    let Some(sorts) = genv.sort_of_assoc_pred(impl_id, name).emit(genv.sess)? else {
+        let trait_id = genv
+            .tcx
+            .impl_trait_ref(impl_id)
+            .unwrap()
+            .skip_binder()
+            .def_id;
+        let trait_id = def_id_to_string(trait_id);
+        return Err(genv
+            .sess
+            .emit_err(errors::InvalidAssocPredicate::new(span, name, trait_id)));
+    };
+
+    {
+        if sorts.len() != params.len() {
+            return Err(genv.sess.emit_err(errors::ArgCountMismatch::new(
+                Some(span),
+                String::from("associated predicate"),
+                sorts.len(),
+                params.len(),
+            )));
+        }
+        for (param, sort) in iter::zip(params, &sorts) {
+            let param_sort =
+                conv::conv_sort(genv, &param.sort, &mut || bug!("unexpected infer sort"));
+            if param_sort != *sort {
+                return Err(genv.sess.emit_err(errors::SortMismatch::new(
+                    param.span,
+                    sort.clone(),
+                    param_sort,
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn check_assoc_predicates(
     genv: &GlobalEnv,
     assoc_predicates: &fhir::AssocPredicates,
@@ -165,19 +211,17 @@ pub(crate) fn check_assoc_predicates(
     let mut infcx = InferCtxt::new(genv, owner_id.into());
 
     // TODO(RJ): multiple-predicates
+
     for assoc_pred in &assoc_predicates.predicates {
         if let fhir::AssocPredicateKind::Impl(params, body) = &assoc_pred.kind {
-            // TODO: check_params(sorts)
+            // 1. Check this impl sorts conform to spec
+            check_assoc_predicate_params(genv, owner_id, assoc_pred.name, params, assoc_pred.span)?;
+
+            // 2. Check this impl is well-sorted
             infcx.insert_params(params);
             infcx.check_expr(body, &rty::Sort::Bool)?;
         }
     }
-    // TODO: check-against-trait
-    // let def_id = owner_id.def_id.to_def_id();
-    // if let Some(trait_ref) = genv.tcx.impl_trait_ref(def_id) {
-    //     let trait_id = trait_ref.skip_binder().def_id;
-    //     let trait_assoc_predicates = genv.map().get_assoc_predicates(trait_id).unwrap();
-    // }
 
     Ok(infcx.into_results())
 }
@@ -585,6 +629,41 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         self.check_param_uses_expr(infcx, expr, true)
     }
 
+    // A bit nasty that we have to `conv` the alias_pred.generic_args to use the [GenericsSubstFolder] in [sort_of_alias_pred]
+    // I suppose its ok to use these empty `Env` as these generic_args are totally unrefined, but it would be nice to have that
+    // explicitly enforced.
+    fn check_alias_pred_app(
+        &mut self,
+        infcx: &mut InferCtxt,
+        alias_pred: &fhir::AliasPred,
+        args: &[fhir::RefineArg],
+        span: Span,
+    ) -> Result<(), ErrorGuaranteed> {
+        let conv = ConvCtxt::new(self.genv, &infcx.wfckresults);
+        let mut env = conv::Env::new(self.genv, &[], &infcx.wfckresults);
+        let generic_args = conv
+            .conv_generic_args(&mut env, alias_pred.trait_id, &alias_pred.generic_args)
+            .emit(self.genv.sess)?;
+
+        if let Some(inputs) = self
+            .genv
+            .sort_of_alias_pred(alias_pred, &generic_args)
+            .emit(self.genv.sess)?
+        {
+            if args.len() != inputs.len() {
+                return self.emit_err(errors::ArgCountMismatch::new(
+                    Some(span),
+                    String::from("function"),
+                    inputs.len(),
+                    args.len(),
+                ));
+            }
+            iter::zip(args, &inputs)
+                .try_for_each_exhaust(|(arg, formal)| self.check_refine_arg(infcx, arg, formal))?;
+        }
+        Ok(())
+    }
+
     fn check_pred(
         &mut self,
         infcx: &mut InferCtxt,
@@ -592,7 +671,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         match &pred.kind {
             fhir::PredKind::Expr(expr) => self.check_expr_as_pred(infcx, expr),
-            fhir::PredKind::Alias(_, _) => Ok(()), // TODO: normalize-and-check-sort,
+            fhir::PredKind::Alias(alias_pred, args) => {
+                self.check_alias_pred_app(infcx, alias_pred, args, pred.span)
+            }
         }
     }
 

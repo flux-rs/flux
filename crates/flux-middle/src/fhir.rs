@@ -105,11 +105,12 @@ pub struct AssocPredicates {
 pub struct AssocPredicate {
     pub name: Symbol,
     pub kind: AssocPredicateKind,
+    pub span: Span,
 }
 
 #[derive(Debug)]
 pub enum AssocPredicateKind {
-    Spec(Sort),
+    Spec(Vec<Sort>),
     Impl(Vec<RefineParam>, Expr),
 }
 
@@ -464,6 +465,7 @@ pub struct RefineParam {
     pub sort: Sort,
     pub kind: ParamKind,
     pub fhir_id: FhirId,
+    pub span: Span,
 }
 
 impl RefineParam {
@@ -806,6 +808,8 @@ pub enum FuncKind {
     Uif,
     /// User-defined functions with a body definition
     Def,
+    /// Associated predicate symbol
+    Asp,
 }
 
 #[derive(Debug)]

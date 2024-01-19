@@ -230,7 +230,7 @@ impl TypeFolder for EVarSubstFolder<'_> {
 }
 
 /// Substitution for generics, i.e., early bound types, lifetimes, const generics and refinements
-pub(super) struct GenericsSubstFolder<'a> {
+pub struct GenericsSubstFolder<'a> {
     current_index: DebruijnIndex,
     /// We leave this as [None] if we only want to substitute the EarlyBound refinement-params
     generics: Option<&'a [GenericArg]>,
@@ -238,7 +238,7 @@ pub(super) struct GenericsSubstFolder<'a> {
 }
 
 impl<'a> GenericsSubstFolder<'a> {
-    pub(super) fn new(generics: Option<&'a [GenericArg]>, refine: &'a [Expr]) -> Self {
+    pub fn new(generics: Option<&'a [GenericArg]>, refine: &'a [Expr]) -> Self {
         Self { current_index: INNERMOST, generics, refine }
     }
 }
@@ -321,14 +321,7 @@ impl GenericsSubstFolder<'_> {
     fn sort_for_param(&self, param_ty: ParamTy) -> Sort {
         if let Some(generics) = self.generics {
             match generics.get(param_ty.index as usize) {
-                Some(GenericArg::BaseTy(arg)) => {
-                    if let [BoundVariableKind::Refine(sort, _)] = &arg.vars()[..] {
-                        sort.clone()
-                    } else {
-                        bug!("unexpected bound variable `{arg:?}`")
-                    }
-                }
-                Some(arg) => bug!("expected base type for generic parameter, found `{arg:?}`"),
+                Some(generic_arg) => generic_arg.peel_out_sort().unwrap(),
                 None => bug!("type parameter out of range {param_ty:?}"),
             }
         } else {

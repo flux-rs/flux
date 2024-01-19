@@ -418,7 +418,7 @@ impl RustItemCtxt<'_, '_> {
 impl Env {
     fn into_desugar_env(self) -> env::Env<super::Param> {
         let name_gen = IndexGen::default();
-        self.filter_map(|param, used| {
+        self.filter_map(|param, ident, used| {
             let (sort, kind) = match param {
                 Param::Explicit(sort) => (sort, fhir::ParamKind::Explicit),
                 Param::At => (fhir::Sort::Infer, fhir::ParamKind::At),
@@ -433,7 +433,7 @@ impl Env {
                 Param::Loc(idx) => (fhir::Sort::Loc, fhir::ParamKind::Loc(idx)),
                 Param::SyntaxError => return None,
             };
-            Some(super::Param { name: name_gen.fresh(), sort, kind })
+            Some(super::Param { name: name_gen.fresh(), sort, kind, span: ident.span })
         })
     }
 }
@@ -506,7 +506,7 @@ impl Visitor for CheckParamUses<'_> {
             surface::TyKind::Exists { bty, pred, .. } => {
                 self.env.enter(ScopeId::Exists(node_id));
                 self.visit_bty(bty);
-                self.visit_expr(pred);
+                self.visit_pred(pred);
                 self.env.exit();
             }
             surface::TyKind::GeneralExists { ty, pred, .. } => {

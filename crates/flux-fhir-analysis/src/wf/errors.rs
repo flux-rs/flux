@@ -82,6 +82,21 @@ impl UnknownQualifier {
 }
 
 #[derive(Diagnostic)]
+#[diag(fhir_analysis_invalid_assoc_predicate, code = "FLUX")]
+pub(super) struct InvalidAssocPredicate {
+    #[primary_span]
+    span: Span,
+    trait_id: String,
+    name: Symbol,
+}
+
+impl InvalidAssocPredicate {
+    pub(super) fn new(span: Span, name: Symbol, trait_id: String) -> InvalidAssocPredicate {
+        Self { span, name, trait_id }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(fhir_analysis_missing_ensures, code = "FLUX")]
 pub(super) struct MissingEnsures {
     #[primary_span]

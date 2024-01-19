@@ -153,6 +153,7 @@ pub struct QualNames {
 pub struct RefineParam {
     pub name: Ident,
     pub sort: Sort,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -275,7 +276,7 @@ pub enum TyKind {
     Exists {
         bind: Ident,
         bty: BaseTy,
-        pred: Expr,
+        pred: Pred,
     },
     GeneralExists {
         params: Vec<RefineParam>,

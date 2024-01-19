@@ -1,6 +1,6 @@
 #[flux::generics(Self as base)]
 #[flux::predicate{ f : (Self) -> bool }]
-trait MyTrait {
+pub trait MyTrait {
     fn method(&self) -> i32;
 }
 
@@ -11,14 +11,21 @@ impl MyTrait for i32 {
     }
 }
 
-#[flux::predicate{ f : |x:int, y:int| { y < x } }] // TODO: check-against-trait
-impl MyTrait for usize {
+#[flux::predicate{ f : |p:bool| { p } }] //~ ERROR mismatched sorts
+impl MyTrait for i16 {
     fn method(&self) -> i32 {
         10
     }
 }
 
-#[flux::predicate{ g : |x:int| { 0 < x } }] // TODO: check-against-trait
+#[flux::predicate{ f : |x:int, y:int| { y < x } }] //~ ERROR this associated predicate takes 1 refinement argument but 2 were found
+impl MyTrait for i64 {
+    fn method(&self) -> i32 {
+        10
+    }
+}
+
+#[flux::predicate{ g : |x:int| { 0 < x } }] //~ ERROR invalid associated predicate `g`
 impl MyTrait for u32 {
     fn method(&self) -> i32 {
         10

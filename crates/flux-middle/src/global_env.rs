@@ -15,9 +15,16 @@ use crate::{
     cstore::CrateStoreDyn,
     fhir::{self, FluxLocalDefId, VariantIdx},
     intern::List,
-    queries::{Providers, Queries, QueryResult},
-    rty::{self, fold::TypeFoldable, normalize::Defns, refining::Refiner, GenericParamDefKind},
-    rustc::{self, ty},
+    queries::{Providers, Queries, QueryErr, QueryResult},
+    rty::{
+        self,
+        fold::TypeFoldable,
+        normalize::Defns,
+        refining::Refiner,
+        subst::{self, GenericsSubstFolder},
+        AssocPredicateKind, GenericParamDefKind,
+    },
+    rustc::{self, lowering::lower_generic_args, ty},
 };
 
 pub struct GlobalEnv<'sess, 'tcx> {
@@ -214,6 +221,44 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     pub fn const_by_name(&self, name: impl Borrow<Symbol>) -> Option<&fhir::ConstInfo> {
         self.map().const_by_name(name)
+    }
+
+    pub fn sort_of_assoc_pred(
+        &self,
+        impl_id: DefId,
+        name: Symbol,
+    ) -> QueryResult<Option<List<rty::Sort>>> {
+        let trait_ref = self.tcx.impl_trait_ref(impl_id).unwrap();
+        let trait_ref = trait_ref.skip_binder(); // TODO: Yikes?
+        let generics = self.generics_of(impl_id)?;
+        let args = lower_generic_args(self.tcx, trait_ref.args)
+            .map_err(|err| QueryErr::unsupported(self.tcx, impl_id, err.into_err()))?;
+        let args = self.refine_default_generic_args(&generics, &args)?;
+
+        if let Some(assoc_pred) = self.assoc_predicate_of(trait_ref.def_id, name)?
+            && let rty::AssocPredicateKind::Spec(sorts) = assoc_pred.kind
+        {
+            return Ok(Some(
+                sorts.fold_with(&mut subst::GenericsSubstFolder::new(Some(&args), &[])),
+            ));
+        };
+        Ok(None)
+    }
+
+    pub fn sort_of_alias_pred(
+        &self,
+        alias_pred: &fhir::AliasPred,
+        generic_args: &[rty::GenericArg],
+    ) -> QueryResult<Option<List<rty::Sort>>> {
+        let trait_id = alias_pred.trait_id;
+        let name = alias_pred.name;
+        if let Some(assoc_pred) = self.assoc_predicate_of(trait_id, name)?
+            && let AssocPredicateKind::Spec(sorts) = assoc_pred.kind
+        {
+            Ok(Some(sorts.fold_with(&mut GenericsSubstFolder::new(Some(generic_args), &[]))))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> Option<rty::Sort> {

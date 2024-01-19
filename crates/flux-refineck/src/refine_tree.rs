@@ -108,8 +108,8 @@ enum NodeKind {
     Conj,
     Comment(String),
     ForAll(Name, Sort),
-    Guard(Expr),
-    Head(Expr, Tag),
+    Guard(Pred),
+    Head(Pred, Tag),
     True,
 }
 
@@ -207,18 +207,18 @@ impl<'rcx> RefineCtxt<'rcx> {
         Expr::fold_sort(sort, |sort| Expr::fvar(self.define_var(sort)))
     }
 
-    pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>) {
+    pub(crate) fn assume_pred(&mut self, pred: impl Into<Pred>) {
         self.ptr.push_guard(pred);
     }
 
-    pub(crate) fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
+    pub(crate) fn check_pred(&mut self, pred: impl Into<Pred>, tag: Tag) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
             self.ptr.push_node(NodeKind::Head(pred, tag));
         }
     }
 
-    pub(crate) fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
+    pub(crate) fn check_impl(&mut self, pred1: impl Into<Pred>, pred2: impl Into<Pred>, tag: Tag) {
         self.ptr
             .push_node(NodeKind::Guard(pred1.into()))
             .push_node(NodeKind::Head(pred2.into(), tag));
@@ -253,7 +253,7 @@ impl<'rcx> RefineCtxt<'rcx> {
                 {
                     for invariant in bty.invariants(self.overflow_checking) {
                         let invariant = invariant.apply(idx);
-                        self.rcx.assume_pred(invariant);
+                        self.rcx.assume_pred(&invariant);
                     }
                 }
                 ty.super_visit_with(self)
@@ -340,8 +340,8 @@ impl TypeFolder for Unpacker<'_, '_> {
                     ty.clone()
                 }
             }
-            TyKind::Constr(Pred::Expr(pred), ty) => {
-                self.rcx.assume_pred(pred);
+            TyKind::Constr(pred, ty) => {
+                self.rcx.assume_pred(pred.clone());
                 ty.fold_with(self)
             }
             TyKind::Downcast(..) if !self.shallow => ty.super_fold_with(self),
@@ -424,7 +424,7 @@ impl NodePtr {
         WeakNodePtr(Rc::downgrade(&this.0))
     }
 
-    fn push_guard(&mut self, pred: impl Into<Expr>) {
+    fn push_guard(&mut self, pred: impl Into<Pred>) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
             *self = self.push_node(NodeKind::Guard(pred));
@@ -650,7 +650,7 @@ mod pretty {
     };
 
     use flux_common::format::PadAdapter;
-    use flux_middle::pretty::*;
+    use flux_middle::{fhir::FuncKind, pretty::*};
     use itertools::Itertools;
 
     use super::*;
@@ -690,11 +690,21 @@ mod pretty {
         children
     }
 
+    fn pred_as_expr(pred: &Pred) -> Expr {
+        match pred {
+            Pred::Expr(expr) => expr.clone(),
+            Pred::Alias(alias_pred, args) => {
+                let func = Expr::global_func(alias_pred.name, FuncKind::Asp);
+                Expr::app(func, args.clone(), None)
+            }
+        }
+    }
+
     fn preds_chain(ptr: &NodePtr) -> (Vec<Expr>, Vec<NodePtr>) {
         fn go(ptr: &NodePtr, mut preds: Vec<Expr>) -> (Vec<Expr>, Vec<NodePtr>) {
             let node = ptr.borrow();
             if let NodeKind::Guard(pred) = &node.kind {
-                preds.push(pred.clone());
+                preds.push(pred_as_expr(pred));
                 if let [child] = &node.children[..] {
                     go(child, preds)
                 } else {
@@ -755,7 +765,7 @@ mod pretty {
                     let (preds, children) = if cx.preds_chain {
                         preds_chain(self)
                     } else {
-                        (vec![pred.clone()], node.children.clone())
+                        (vec![pred_as_expr(pred)], node.children.clone())
                     };
                     let guard = Expr::and(preds).simplify();
                     w!("{:?} =>", parens!(guard, !guard.is_atom()))?;

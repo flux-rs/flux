@@ -285,7 +285,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     env.alloc_universal_loc(loc, Place::new(*local, vec![PlaceElem::Deref]), ty);
                 }
                 rty::Constraint::Pred(e) => {
-                    rcx.assume_pred(e.clone());
+                    rcx.assume_pred(e);
                 }
             }
         }
@@ -544,7 +544,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                     rcx.assume_invariants(&updated_ty, self.config.check_overflow);
                     env.update_path(path, updated_ty);
                 }
-                Constraint::Pred(e) => rcx.assume_pred(e.clone()),
+                Constraint::Pred(e) => rcx.assume_pred(e),
             }
         }
 
@@ -645,11 +645,8 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             AssertKind::Overflow(mir::BinOp::Rem) => "possible reminder with overflow",
             AssertKind::Overflow(_) => return Ok(Guard::Pred(pred)),
         };
-        self.constr_gen(rcx, terminator_span).check_pred(
-            rcx,
-            pred.clone(),
-            ConstrReason::Assert(msg),
-        );
+        self.constr_gen(rcx, terminator_span)
+            .check_pred(rcx, &pred, ConstrReason::Assert(msg));
         Ok(Guard::Pred(pred))
     }
 
@@ -719,7 +716,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
             match guard {
                 Guard::None => {}
                 Guard::Pred(expr) => {
-                    rcx.assume_pred(expr);
+                    rcx.assume_pred(&expr);
                 }
                 Guard::Match(place, variant_idx) => {
                     env.downcast(self.genv, &mut rcx, &place, variant_idx, self.config)
@@ -939,7 +936,7 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 if let sigs::Pre::Some(reason, constr) = &sig.pre {
                     self.constr_gen(rcx, source_span).check_pred(
                         rcx,
-                        constr([e1.clone(), e2.clone()]),
+                        &constr([e1.clone(), e2.clone()]),
                         *reason,
                     );
                 }
@@ -965,8 +962,11 @@ impl<'a, 'tcx, M: Mode> Checker<'a, 'tcx, M> {
                 let sig = sigs::get_un_op_sig(un_op, bty, self.config.check_overflow);
                 let e = idx.clone();
                 if let sigs::Pre::Some(reason, constr) = &sig.pre {
-                    self.constr_gen(rcx, source_span)
-                        .check_pred(rcx, constr([e.clone()]), *reason);
+                    self.constr_gen(rcx, source_span).check_pred(
+                        rcx,
+                        &constr([e.clone()]),
+                        *reason,
+                    );
                 }
                 Ok(sig.out.to_ty([e]))
             }
