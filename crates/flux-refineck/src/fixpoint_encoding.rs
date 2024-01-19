@@ -461,7 +461,6 @@ where
                 (bindings, preds)
             }
             rty::Pred::Alias(alias_pred, args) => {
-
                 let func = self.register_const_for_alias_pred(alias_pred, args.len());
                 let args = args
                     .iter()
