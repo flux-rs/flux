@@ -307,9 +307,18 @@ impl RustItemCtxt<'_, '_> {
                 }
                 env.push(ScopeId::Exists(node_id));
                 env.extend(self.sess(), self.resolve_params(params)?)?;
-                // Declaring parameters with @ inside and existential has weird behavior if names
-                // are being shadowed. Thus, we don't allow it to keep things simple. We could eventually
-                // allow it if we resolve the weird behavior by detecting shadowing.
+                // Declaring parameters with @ inside an existential has weird behavior specially
+                // if names are being shadowed. For example, in a definition like
+                //
+                // `fn foo(x: {a: (i32[@a] i32[a]) | a > 0}) { .. }`
+                //
+                // it is not clear in which scope `@a` should be declared. If we define it at the
+                // function's input scope, then it will be shadowed by the `a` in the existential
+                // which is unexpected. Alternatively, we could have a rule that `@` binders declare
+                // parameters in the closest containing scope (the scope of the existential in this
+                // case) under such a rule this example would be rejected because of name duplication.
+                //
+                // To keep things simple we just disallow `@` bindings inside existentials.
                 self.gather_params_ty(None, ty, TypePos::Other, env)?;
                 env.exit();
                 Ok(())
