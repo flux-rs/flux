@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::hash_map, slice};
+use std::{cmp::Ordering, collections::hash_map};
 
 use flux_common::bug;
 use rustc_data_structures::unord::UnordMap;
@@ -230,7 +230,7 @@ impl TypeFolder for EVarSubstFolder<'_> {
 }
 
 /// Substitution for generics, i.e., early bound types, lifetimes, const generics and refinements
-pub struct GenericsSubstFolder<'a> {
+pub(crate) struct GenericsSubstFolder<'a> {
     current_index: DebruijnIndex,
     /// We leave this as [None] if we only want to substitute the EarlyBound refinement-params
     generics: Option<&'a [GenericArg]>,
@@ -238,7 +238,7 @@ pub struct GenericsSubstFolder<'a> {
 }
 
 impl<'a> GenericsSubstFolder<'a> {
-    pub fn new(generics: Option<&'a [GenericArg]>, refine: &'a [Expr]) -> Self {
+    pub(crate) fn new(generics: Option<&'a [GenericArg]>, refine: &'a [Expr]) -> Self {
         Self { current_index: INNERMOST, generics, refine }
     }
 }
@@ -344,7 +344,7 @@ impl GenericsSubstFolder<'_> {
     fn bty_for_param(&self, param_ty: ParamTy, idx: &Expr) -> Ty {
         if let Some(generics) = self.generics {
             match generics.get(param_ty.index as usize) {
-                Some(GenericArg::BaseTy(arg)) => arg.replace_bound_exprs(slice::from_ref(idx)),
+                Some(GenericArg::BaseTy(arg)) => arg.replace_bound_expr(idx),
                 Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
                 None => bug!("type parameter out of range"),
             }
