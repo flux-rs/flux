@@ -461,9 +461,6 @@ where
                 (bindings, preds)
             }
             rty::Pred::Alias(alias_pred, args) => {
-                // let func = self.alias_pred_func(alias_pred, args.len());
-                // let alias_pred_app = rty::Expr::app(func, args.clone(), None);
-                // self.pred_to_fixpoint(&rty::Pred::Expr(alias_pred_app))
 
                 let func = self.register_const_for_alias_pred(alias_pred, args.len());
                 let args = args
