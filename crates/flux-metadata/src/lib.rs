@@ -123,8 +123,9 @@ impl CrateMetadata {
                     let variants = genv.variants_of(def_id).unwrap();
                     let meta = AdtMetadata { adt_def, variants };
                     adts.insert(def_id.index, meta);
+                    type_of.insert(def_id.index, genv.type_of(def_id).unwrap());
                 }
-                DefKind::TyAlias { .. } => {
+                DefKind::TyAlias { .. } | DefKind::AssocTy => {
                     type_of.insert(def_id.index, genv.type_of(def_id).unwrap());
                 }
                 _ => {}

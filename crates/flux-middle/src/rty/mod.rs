@@ -66,13 +66,13 @@ pub struct AdtSortDef(Interned<AdtSortDefData>);
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 struct AdtSortDefData {
     def_id: DefId,
-    params: Vec<u32>,
+    params: Vec<ParamTy>,
     field_names: Vec<Symbol>,
     sorts: List<Sort>,
 }
 
 impl AdtSortDef {
-    pub fn new(def_id: DefId, params: Vec<u32>, fields: Vec<(Symbol, Sort)>) -> Self {
+    pub fn new(def_id: DefId, params: Vec<ParamTy>, fields: Vec<(Symbol, Sort)>) -> Self {
         let (field_names, sorts) = fields.into_iter().unzip();
         Self(Interned::new(AdtSortDefData {
             def_id,
@@ -97,6 +97,12 @@ impl AdtSortDef {
 
     pub fn sorts(&self, args: &[Sort]) -> List<Sort> {
         self.0.sorts.fold_with(&mut SortSubst::new(args))
+    }
+
+    /// Given a list of generic args returns an iterator of argument that should be used to
+    /// instantiate the sort parameters.
+    pub fn filter_generic_args<'a, A>(&'a self, args: &'a [A]) -> impl Iterator<Item = &A> + 'a {
+        self.0.params.iter().map(|p| &args[p.index as usize])
     }
 
     pub fn identity_args(&self) -> List<Sort> {
@@ -1214,17 +1220,18 @@ impl AdtDef {
         self.0.rustc.did()
     }
 
+    pub fn sort_def(&self) -> &AdtSortDef {
+        &self.0.sort_def
+    }
+
     pub fn sort(&self, args: &[GenericArg]) -> Sort {
         let sorts = self
-            .0
-            .sort_def
-            .0
-            .params
-            .iter()
-            .map(|i| args[*i as usize].peel_out_sort().unwrap())
+            .sort_def()
+            .filter_generic_args(args)
+            .map(|arg| arg.peel_out_sort().unwrap())
             .collect();
 
-        Sort::Adt(self.0.sort_def.clone(), sorts)
+        Sort::Adt(self.sort_def().clone(), sorts)
     }
 
     pub fn is_box(&self) -> bool {

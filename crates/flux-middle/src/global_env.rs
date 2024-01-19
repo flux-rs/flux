@@ -22,7 +22,7 @@ use crate::{
         normalize::Defns,
         refining::Refiner,
         subst::{self, GenericsSubstFolder},
-        AssocPredicateKind, GenericParamDefKind,
+        AssocPredicateKind,
     },
     rustc::{self, lowering::lower_generic_args, ty},
 };
@@ -278,15 +278,10 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             }
             fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
                 let mut sort_args = vec![];
-                if let Ok(generics) = self.generics_of(def_id) {
-                    for (param, arg) in generics.params.iter().zip(&path.args) {
-                        if let GenericParamDefKind::SplTy = param.kind {
-                            let fhir::GenericArg::Type(ty) = arg else { return None };
-                            let sort = self.sort_of_ty(ty)?;
-                            sort_args.push(sort);
-                        }
-                    }
-                };
+                let sort_def = self.adt_sort_def_of(def_id);
+                for arg in sort_def.filter_generic_args(&path.args) {
+                    sort_args.push(self.sort_of_ty(arg.expect_type())?);
+                }
                 Some(rty::Sort::Adt(self.adt_sort_def_of(def_id), List::from_vec(sort_args)))
             }
             fhir::Res::SelfTyAlias { alias_to, .. } => self.sort_of_self_ty_alias(alias_to),
@@ -363,12 +358,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             ty::TyKind::Slice(_) | ty::TyKind::Int(_) | ty::TyKind::Uint(_) => Some(rty::Sort::Int),
             ty::TyKind::Adt(adt_def, args) => {
                 let mut sort_args = vec![];
-                for arg in *args {
-                    if let Some(ty) = arg.as_type()
-                        && let Some(sort) = self.sort_of_self_ty(def_id, ty)
-                    {
-                        sort_args.push(sort);
-                    }
+                let sort_def = self.adt_sort_def_of(adt_def.did());
+                for arg in sort_def.filter_generic_args(args) {
+                    sort_args.push(self.sort_of_self_ty(def_id, arg.expect_ty())?);
                 }
                 Some(rty::Sort::Adt(self.adt_sort_def_of(adt_def.did()), List::from_vec(sort_args)))
             }

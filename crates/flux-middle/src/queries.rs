@@ -216,6 +216,8 @@ impl<'tcx> Queries<'tcx> {
             let def_id = extern_id.unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_sort_def_of)(genv, local_id)
+            } else if let Some(adt_def) = genv.cstore().adt_def(def_id) {
+                adt_def.sort_def().clone()
             } else {
                 rty::AdtSortDef::new(def_id, vec![], vec![])
             }

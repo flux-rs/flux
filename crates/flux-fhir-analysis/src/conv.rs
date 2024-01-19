@@ -87,7 +87,7 @@ pub(crate) fn conv_adt_sort_def(genv: &GlobalEnv, refined_by: &fhir::RefinedBy) 
     let params = refined_by
         .sort_params
         .iter()
-        .map(|def_id| genv.def_id_to_param_index(def_id.expect_local()))
+        .map(|def_id| genv.def_id_to_param_ty(def_id.expect_local()))
         .collect();
     let fields = refined_by
         .index_params
