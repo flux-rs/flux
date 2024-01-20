@@ -38,6 +38,7 @@ pub mod pretty;
 pub mod queries;
 pub mod rty;
 pub mod rustc;
+mod sort_of;
 
 use flux_macros::fluent_messages;
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};

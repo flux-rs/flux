@@ -1608,7 +1608,6 @@ impl BaseTy {
     }
 
     pub fn sort(&self) -> Sort {
-        // CODESYNC(sort-of, 3) sorts should be given consistently
         match self {
             BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
             BaseTy::Bool => Sort::Bool,
