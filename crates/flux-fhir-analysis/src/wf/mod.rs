@@ -203,24 +203,28 @@ fn check_assoc_predicate_params(
     Ok(())
 }
 
-pub(crate) fn check_assoc_predicates(
+pub(crate) fn check_impl(
     genv: &GlobalEnv,
-    assoc_predicates: &[fhir::AssocPredicate],
+    impl_: &fhir::Impl,
     owner_id: OwnerId,
 ) -> Result<WfckResults, ErrorGuaranteed> {
     let mut infcx = InferCtxt::new(genv, owner_id.into());
 
     // TODO(RJ): multiple-predicates
 
-    for assoc_pred in assoc_predicates {
-        if let fhir::AssocPredicateKind::Impl(params, body) = &assoc_pred.kind {
-            // 1. Check this impl sorts conform to spec
-            check_assoc_predicate_params(genv, owner_id, assoc_pred.name, params, assoc_pred.span)?;
+    for assoc_pred in &impl_.assoc_predicates {
+        // 1. Check this impl sorts conform to spec
+        check_assoc_predicate_params(
+            genv,
+            owner_id,
+            assoc_pred.name,
+            &assoc_pred.params,
+            assoc_pred.span,
+        )?;
 
-            // 2. Check this impl is well-sorted
-            infcx.insert_params(params);
-            infcx.check_expr(body, &rty::Sort::Bool)?;
-        }
+        // 2. Check this impl is well-sorted
+        infcx.insert_params(&assoc_pred.params);
+        infcx.check_expr(&assoc_pred.body, &rty::Sort::Bool)?;
     }
 
     Ok(infcx.into_results())

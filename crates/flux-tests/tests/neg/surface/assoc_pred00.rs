@@ -6,7 +6,7 @@ pub trait MyTrait {
 }
 
 // Step 2 : implement -----------------------------
-#[flux::predicate{ f : |x:int| { 0 < x } }] // TODO: check against trait-def
+#[flux::predicate{ f = |x:int| { 0 < x } }] // TODO: check against trait-def
 impl MyTrait for i32 {
     fn method(&self) -> i32 {
         10

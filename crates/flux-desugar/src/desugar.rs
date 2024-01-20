@@ -228,22 +228,72 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         )
     }
 
-    pub(crate) fn desugar_trait_or_impl(
-        &mut self,
-        trait_or_impl: &surface::TraitOrImpl,
-    ) -> Result<fhir::TraitOrImpl> {
+    pub(crate) fn desugar_trait(&mut self, trait_: &surface::Trait) -> Result<fhir::Trait> {
         let mut env = Env::new(ScopeId::Misc);
-        let generics = if let Some(generics) = &trait_or_impl.generics {
+        let generics = if let Some(generics) = &trait_.generics {
             self.desugar_generics(generics, &mut env)?
         } else {
             self.as_lift_cx().lift_generics()?
         };
-        let assoc_predicates = if let Some(assoc_predicates) = &trait_or_impl.assoc_predicates {
-            self.desugar_assoc_predicates(assoc_predicates)?
+        let assoc_predicates = self.desugar_trait_assoc_predicates(&trait_.assoc_predicates)?;
+        Ok(fhir::Trait { generics, assoc_predicates })
+    }
+
+    fn desugar_trait_assoc_predicates(
+        &self,
+        assoc_predicates: &[surface::TraitAssocPredicate],
+    ) -> Result<Vec<fhir::TraitAssocPredicate>> {
+        assoc_predicates
+            .iter()
+            .map(|assoc_pred| {
+                let name = assoc_pred.name.name;
+                let sort = self.sort_resolver.resolve_sort(&assoc_pred.sort)?;
+                if let fhir::Sort::Func(func_sort) = sort
+                    && let fhir::Sort::Bool = func_sort.fsort.output()
+                    && func_sort.params == 0
+                {
+                    Ok(fhir::TraitAssocPredicate {
+                        name,
+                        sorts: func_sort.fsort.inputs().to_vec(),
+                        span: assoc_pred.span,
+                    })
+                } else {
+                    Err(self.emit_err(errors::InvalidAssocPredicate::new(assoc_pred.span, name)))
+                }
+            })
+            .try_collect_exhaust()
+    }
+
+    pub(crate) fn desugar_impl(&mut self, impl_: &surface::Impl) -> Result<fhir::Impl> {
+        let mut env = Env::new(ScopeId::Misc);
+        let generics = if let Some(generics) = &impl_.generics {
+            self.desugar_generics(generics, &mut env)?
         } else {
-            vec![]
+            self.as_lift_cx().lift_generics()?
         };
-        Ok(fhir::TraitOrImpl { generics, assoc_predicates })
+        let assoc_predicates = self.desugar_impl_assoc_predicates(&impl_.assoc_predicates)?;
+        Ok(fhir::Impl { generics, assoc_predicates })
+    }
+
+    fn desugar_impl_assoc_predicates(
+        &self,
+        assoc_predicates: &[surface::ImplAssocPredicate],
+    ) -> Result<Vec<fhir::ImplAssocPredicate>> {
+        assoc_predicates
+            .iter()
+            .map(|assoc_pred| {
+                let name = assoc_pred.name.name;
+                let mut env = Env::from_params(
+                    self.genv,
+                    &self.sort_resolver,
+                    ScopeId::Misc,
+                    &assoc_pred.params,
+                )?;
+                let body = self.desugar_expr(&mut env, &assoc_pred.body)?;
+                let params = env.into_root().into_params(self);
+                Ok(fhir::ImplAssocPredicate { name, params, body, span: assoc_pred.span })
+            })
+            .try_collect_exhaust()
     }
 
     /// [desugar_generics] starts with the `lifted_generics` and "updates" it with the surface `generics`
@@ -318,36 +368,6 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         }
         let predicates = self.desugar_generic_predicates(&generics.predicates, env)?;
         Ok(fhir::Generics { params, self_kind, refinement_params: vec![], predicates })
-    }
-
-    pub fn desugar_assoc_predicates(
-        &self,
-        assoc_predicate: &surface::AssocPredicate,
-    ) -> Result<Vec<fhir::AssocPredicate>> {
-        let name = assoc_predicate.name.name;
-        let kind = match &assoc_predicate.kind {
-            surface::AssocPredicateKind::Spec(sort) => {
-                let sort = self.sort_resolver.resolve_sort(sort)?;
-                if let fhir::Sort::Func(func_sort) = sort
-                    && let fhir::Sort::Bool = func_sort.fsort.output()
-                    && func_sort.params == 0
-                {
-                    fhir::AssocPredicateKind::Spec(func_sort.fsort.inputs().to_vec())
-                } else {
-                    return Err(self
-                        .emit_err(errors::InvalidAssocPredicate::new(assoc_predicate.span, name)));
-                }
-            }
-            surface::AssocPredicateKind::Impl(params, body) => {
-                let mut env =
-                    Env::from_params(self.genv, &self.sort_resolver, ScopeId::FluxItem, params)?;
-                let body = self.desugar_expr(&mut env, body)?;
-                let params = env.into_root().into_params(self);
-                fhir::AssocPredicateKind::Impl(params, body)
-            }
-        };
-        let assoc_predicate = fhir::AssocPredicate { name, kind, span: assoc_predicate.span };
-        Ok(vec![assoc_predicate])
     }
 
     fn desugar_generic_predicates(

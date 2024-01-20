@@ -99,19 +99,6 @@ pub struct SortDecl {
 pub type SortDecls = FxHashMap<Symbol, SortDecl>;
 
 #[derive(Debug)]
-pub struct AssocPredicate {
-    pub name: Symbol,
-    pub kind: AssocPredicateKind,
-    pub span: Span,
-}
-
-#[derive(Debug)]
-pub enum AssocPredicateKind {
-    Spec(Vec<Sort>),
-    Impl(Vec<RefineParam>, Expr),
-}
-
-#[derive(Debug)]
 pub struct GenericPredicates {
     pub predicates: Vec<WhereBoundPredicate>,
 }
@@ -143,10 +130,27 @@ pub enum TraitBoundModifier {
     Maybe,
 }
 
-// FIXME(nilehmann) We should have separate definitions for trait and impls
-pub struct TraitOrImpl {
+pub struct Trait {
     pub generics: Generics,
-    pub assoc_predicates: Vec<AssocPredicate>,
+    pub assoc_predicates: Vec<TraitAssocPredicate>,
+}
+#[derive(Debug)]
+pub struct TraitAssocPredicate {
+    pub name: Symbol,
+    pub sorts: Vec<Sort>,
+    pub span: Span,
+}
+
+pub struct Impl {
+    pub generics: Generics,
+    pub assoc_predicates: Vec<ImplAssocPredicate>,
+}
+
+pub struct ImplAssocPredicate {
+    pub name: Symbol,
+    pub params: Vec<RefineParam>,
+    pub body: Expr,
+    pub span: Span,
 }
 
 pub struct AssocType {
@@ -165,7 +169,8 @@ pub struct OpaqueTy {
 #[derive(Default)]
 pub struct Map {
     assoc_types: UnordMap<LocalDefId, AssocType>,
-    trait_or_impls: UnordMap<LocalDefId, TraitOrImpl>,
+    traits: UnordMap<LocalDefId, Trait>,
+    impls: UnordMap<LocalDefId, Impl>,
     opaque_tys: UnordMap<LocalDefId, OpaqueTy>,
     func_decls: FxHashMap<Symbol, FuncDecl>,
     sort_decls: SortDecls,
@@ -916,8 +921,20 @@ impl Map {
         me
     }
 
-    pub fn insert_trait_or_impl(&mut self, def_id: LocalDefId, trait_or_impl: TraitOrImpl) {
-        self.trait_or_impls.insert(def_id, trait_or_impl);
+    pub fn insert_trait(&mut self, def_id: LocalDefId, trait_: Trait) {
+        self.traits.insert(def_id, trait_);
+    }
+
+    pub fn get_trait(&self, def_id: LocalDefId) -> &Trait {
+        self.traits.get(&def_id).unwrap()
+    }
+
+    pub fn insert_impl(&mut self, def_id: LocalDefId, impl_: Impl) {
+        self.impls.insert(def_id, impl_);
+    }
+
+    pub fn get_impl(&self, def_id: LocalDefId) -> &Impl {
+        self.impls.get(&def_id).unwrap()
     }
 
     pub fn insert_assoc_type(&mut self, def_id: LocalDefId, assoc_ty: AssocType) {
@@ -932,7 +949,8 @@ impl Map {
         match tcx.def_kind(def_id) {
             DefKind::Struct => Some(&self.get_struct(def_id).generics),
             DefKind::Enum => Some(&self.get_enum(def_id).generics),
-            DefKind::Impl { .. } | DefKind::Trait => Some(&self.trait_or_impls[&def_id].generics),
+            DefKind::Impl { .. } => Some(&self.impls[&def_id].generics),
+            DefKind::Trait => Some(&self.traits[&def_id].generics),
             DefKind::TyAlias => Some(&self.type_aliases[&def_id].generics),
             DefKind::AssocTy => Some(&self.assoc_types[&def_id].generics),
             DefKind::Fn => Some(&self.get_fn_sig(def_id).generics),
@@ -940,12 +958,6 @@ impl Map {
             DefKind::OpaqueTy => Some(&self.get_opaque_ty(def_id).generics),
             _ => None,
         }
-    }
-
-    pub fn get_assoc_predicates(&self, def_id: LocalDefId) -> Option<&[AssocPredicate]> {
-        self.trait_or_impls
-            .get(&def_id)
-            .map(|it| &it.assoc_predicates[..])
     }
 
     pub fn get_opaque_ty(&self, def_id: LocalDefId) -> &OpaqueTy {
