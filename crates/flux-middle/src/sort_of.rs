@@ -10,7 +10,11 @@ use crate::{
     global_env::GlobalEnv,
     intern::List,
     queries::{QueryErr, QueryResult},
-    rty::{self, fold::TypeFoldable as _, subst::GenericsSubstFolder},
+    rty::{
+        self,
+        fold::TypeFoldable as _,
+        subst::{GenericArgsDelegate, GenericsSubstFolder, GenericsSubstForSort},
+    },
     rustc::lowering,
 };
 
@@ -30,7 +34,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         if let Some(assoc_pred) = self.assoc_predicate_of(trait_ref.def_id, name)?
             && let rty::AssocPredicateKind::Spec(sorts) = assoc_pred.kind
         {
-            return Ok(Some(sorts.fold_with(&mut GenericsSubstFolder::new(Some(&args), &[]))));
+            return Ok(Some(
+                sorts.fold_with(&mut GenericsSubstFolder::new(GenericArgsDelegate(&args), &[])),
+            ));
         };
         Ok(None)
     }
@@ -38,14 +44,21 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn sort_of_alias_pred(
         &self,
         alias_pred: &fhir::AliasPred,
-        generic_args: &[rty::GenericArg],
     ) -> QueryResult<Option<List<rty::Sort>>> {
         let trait_id = alias_pred.trait_id;
         let name = alias_pred.name;
         if let Some(assoc_pred) = self.assoc_predicate_of(trait_id, name)?
             && let rty::AssocPredicateKind::Spec(sorts) = assoc_pred.kind
         {
-            Ok(Some(sorts.fold_with(&mut GenericsSubstFolder::new(Some(generic_args), &[]))))
+            Ok(Some(sorts.fold_with(&mut GenericsSubstFolder::new(
+                GenericsSubstForSort {
+                    sort_for_param: |param_ty| {
+                        self.sort_of_generic_arg(&alias_pred.generic_args[param_ty.index as usize])
+                            .unwrap()
+                    },
+                },
+                &[],
+            ))))
         } else {
             Ok(None)
         }
@@ -106,6 +119,13 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 Some(rty::Sort::Param(rty::SELF_PARAM_TY))
             }
             fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
+        }
+    }
+
+    fn sort_of_generic_arg(&self, arg: &fhir::GenericArg) -> Option<rty::Sort> {
+        match arg {
+            fhir::GenericArg::Lifetime(_) => None,
+            fhir::GenericArg::Type(ty) => self.sort_of_ty(ty),
         }
     }
 

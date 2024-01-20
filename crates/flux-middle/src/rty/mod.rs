@@ -1082,13 +1082,17 @@ impl Binder<Ty> {
 
 impl<T: TypeFoldable> EarlyBinder<T> {
     pub fn instantiate(self, args: &[GenericArg], refine_args: &[Expr]) -> T {
-        self.0
-            .fold_with(&mut subst::GenericsSubstFolder::new(Some(args), refine_args))
+        self.0.fold_with(&mut subst::GenericsSubstFolder::new(
+            subst::GenericArgsDelegate(args),
+            refine_args,
+        ))
     }
 
     pub fn instantiate_identity(self, refine_args: &[Expr]) -> T {
-        self.0
-            .fold_with(&mut subst::GenericsSubstFolder::new(None, refine_args))
+        self.0.fold_with(&mut subst::GenericsSubstFolder::new(
+            subst::IdentitySubstDelegate,
+            refine_args,
+        ))
     }
 }
 
