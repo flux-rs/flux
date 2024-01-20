@@ -472,32 +472,6 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
             .try_collect_exhaust()
     }
 
-    fn check_ty_is_spl(&self, ty: &fhir::Ty) -> Result<(), ErrorGuaranteed> {
-        match &ty.kind {
-            fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, _) => {
-                if self.genv.sort_of_bty(bty).is_none() {
-                    return self.emit_err(errors::InvalidBaseInstance::new(ty));
-                }
-                Ok(())
-            }
-            fhir::TyKind::Tuple(tys) => {
-                for ty in tys {
-                    self.check_ty_is_spl(ty)?;
-                }
-                Ok(())
-            }
-            fhir::TyKind::Constr(_, ty) | fhir::TyKind::Exists(_, ty) => self.check_ty_is_spl(ty),
-
-            fhir::TyKind::Ptr(_, _)
-            | fhir::TyKind::Ref(_, _)
-            | fhir::TyKind::Array(_, _)
-            | fhir::TyKind::RawPtr(_, _)
-            | fhir::TyKind::OpaqueDef(_, _, _, _)
-            | fhir::TyKind::Never
-            | fhir::TyKind::Hole(_) => self.emit_err(errors::InvalidBaseInstance::new(ty)),
-        }
-    }
-
     fn check_generic_args_kinds(
         &self,
         def_id: DefId,
@@ -506,10 +480,9 @@ impl<'a, 'tcx> Wf<'a, 'tcx> {
         let generics = self.genv.generics_of(def_id).emit(self.genv.sess)?;
         for (arg, param) in iter::zip(args, &generics.params) {
             if param.kind == GenericParamDefKind::SplTy {
-                if let fhir::GenericArg::Type(ty) = arg {
-                    self.check_ty_is_spl(ty)?;
-                } else {
-                    bug!("expected type argument got `{arg:?}`");
+                let ty = arg.expect_type();
+                if self.genv.sort_of_ty(ty).is_none() {
+                    return self.emit_err(errors::InvalidBaseInstance::new(ty));
                 }
             }
         }

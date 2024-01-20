@@ -129,11 +129,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    fn sort_of_ty(&self, ty: &fhir::Ty) -> Option<rty::Sort> {
+    pub fn sort_of_ty(&self, ty: &fhir::Ty) -> Option<rty::Sort> {
         match &ty.kind {
-            fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, _) => {
-                self.sort_of_path(bty.as_path()?)
-            }
+            fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, _) => self.sort_of_bty(bty),
             fhir::TyKind::Exists(_, ty) | fhir::TyKind::Constr(_, ty) => self.sort_of_ty(ty),
             fhir::TyKind::RawPtr(_, _)
             | fhir::TyKind::Ref(_, _)
