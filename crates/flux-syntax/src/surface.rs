@@ -185,10 +185,29 @@ pub struct ConstSig {
     pub span: Span,
 }
 
-// FIXME(nilehmann) We should have separate definitions for trait and impls
-pub struct TraitOrImpl {
+pub struct Impl {
     pub generics: Option<Generics>,
-    pub assoc_predicates: Option<AssocPredicate>,
+    pub assoc_predicates: Vec<ImplAssocPredicate>,
+}
+
+#[derive(Debug)]
+pub struct ImplAssocPredicate {
+    pub name: Ident,
+    pub params: Vec<RefineParam>,
+    pub body: Expr,
+    pub span: Span,
+}
+
+pub struct Trait {
+    pub generics: Option<Generics>,
+    pub assoc_predicates: Vec<TraitAssocPredicate>,
+}
+
+#[derive(Debug)]
+pub struct TraitAssocPredicate {
+    pub name: Ident,
+    pub sort: Sort,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -392,19 +411,6 @@ pub struct Path {
 pub enum GenericArg {
     Type(Ty),
     Constraint(Ident, Ty),
-}
-
-#[derive(Debug)]
-pub struct AssocPredicate {
-    pub name: Ident,
-    pub kind: AssocPredicateKind,
-    pub span: Span,
-}
-
-#[derive(Debug)]
-pub enum AssocPredicateKind {
-    Spec(Sort),
-    Impl(Vec<RefineParam>, Expr),
 }
 
 #[derive(Debug, Clone)]

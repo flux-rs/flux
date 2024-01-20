@@ -13,6 +13,7 @@ use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashMap;
 use rustc_hir::{
+    def::DefKind,
     def_id::{DefId, LocalDefId},
     EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
 };
@@ -41,7 +42,8 @@ pub type Ignores = UnordSet<IgnoreKey>;
 pub(crate) struct Specs {
     pub fn_sigs: UnordMap<OwnerId, FnSpec>,
     pub structs: FxHashMap<OwnerId, surface::StructDef>,
-    pub trait_or_impls: FxHashMap<OwnerId, surface::TraitOrImpl>,
+    pub traits: FxHashMap<OwnerId, surface::Trait>,
+    pub impls: FxHashMap<OwnerId, surface::Impl>,
     pub enums: FxHashMap<OwnerId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
     pub func_defs: Vec<surface::FuncDef>,
@@ -96,15 +98,20 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             let attrs = tcx.hir().attrs(hir_id);
             let owner_id = item.owner_id;
             let _ = match &item.kind {
-                ItemKind::Fn(..) => collector.parse_fn_spec(owner_id, attrs),
+                ItemKind::Fn(..) => collector.parse_fn_spec(owner_id, attrs, DefKind::Fn),
                 ItemKind::Struct(data, ..) => collector.parse_struct_def(owner_id, attrs, data),
                 ItemKind::Enum(def, ..) => collector.parse_enum_def(owner_id, attrs, def),
                 ItemKind::Mod(..) => collector.parse_mod_spec(owner_id.def_id, attrs),
                 ItemKind::TyAlias(..) => collector.parse_tyalias_spec(owner_id, attrs),
                 ItemKind::Const(..) => collector.parse_const_spec(item, attrs),
-                ItemKind::Impl(_) | ItemKind::Trait(..) => {
-                    collector.parse_trait_or_impl_specs(owner_id, attrs)
+                ItemKind::Impl(impl_) => {
+                    collector.parse_impl_specs(
+                        owner_id,
+                        attrs,
+                        DefKind::Impl { of_trait: impl_.of_trait.is_some() },
+                    )
                 }
+                ItemKind::Trait(..) => collector.parse_trait_specs(owner_id, attrs),
                 _ => Ok(()),
             };
         }
@@ -112,7 +119,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         for trait_item_id in crate_items.trait_items() {
             let attrs = tcx.hir().attrs(trait_item_id.hir_id());
             if let rustc_hir::TraitItemKind::Fn(_, _) = tcx.hir().trait_item(trait_item_id).kind {
-                collector.parse_fn_spec(trait_item_id.owner_id, attrs)?;
+                collector.parse_fn_spec(trait_item_id.owner_id, attrs, DefKind::AssocFn)?;
             }
         }
 
@@ -122,7 +129,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             if let ImplItemKind::Fn(..) = &impl_item.kind {
                 let hir_id = impl_item.hir_id();
                 let attrs = tcx.hir().attrs(hir_id);
-                let _ = collector.parse_fn_spec(owner_id, attrs);
+                let _ = collector.parse_fn_spec(owner_id, attrs, DefKind::AssocFn);
             }
         }
 
@@ -137,7 +144,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         // TODO(atgeller) error if non-crate attributes
         // TODO(atgeller) error if >1 cfg attributes
 
-        let mut attrs = self.parse_flux_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Mod)?;
         if attrs.ignore() {
             self.specs.ignores.insert(IgnoreKey::Crate);
         }
@@ -154,7 +161,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         def_id: LocalDefId,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
-        let mut attrs = self.parse_flux_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Mod)?;
         self.specs.extend_items(attrs.items());
         if attrs.ignore() {
             self.specs.ignores.insert(IgnoreKey::Module(def_id));
@@ -167,7 +174,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         item: &Item,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
-        let mut attrs = self.parse_flux_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Const)?;
         self.report_dups(&attrs)?;
 
         let Some(_ty) = attrs.const_sig() else {
@@ -189,20 +196,39 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn parse_trait_or_impl_specs(
+    fn parse_trait_specs(
         &mut self,
         owner_id: OwnerId,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
-        let mut attrs = self.parse_flux_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Trait)?;
         self.report_dups(&attrs)?;
 
         let generics = attrs.generics();
-        let assoc_predicates = attrs.assoc_predicates();
+        let assoc_predicates = attrs.trait_assoc_predicates();
 
         self.specs
-            .trait_or_impls
-            .insert(owner_id, surface::TraitOrImpl { generics, assoc_predicates });
+            .traits
+            .insert(owner_id, surface::Trait { generics, assoc_predicates });
+
+        Ok(())
+    }
+
+    fn parse_impl_specs(
+        &mut self,
+        owner_id: OwnerId,
+        attrs: &[Attribute],
+        def_kind: DefKind,
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut attrs = self.parse_flux_attrs(attrs, def_kind)?;
+        self.report_dups(&attrs)?;
+
+        let generics = attrs.generics();
+        let assoc_predicates = attrs.impl_assoc_predicates();
+
+        self.specs
+            .impls
+            .insert(owner_id, surface::Impl { generics, assoc_predicates });
 
         Ok(())
     }
@@ -212,7 +238,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         owner_id: OwnerId,
         attrs: &[Attribute],
     ) -> Result<(), ErrorGuaranteed> {
-        let mut attrs = self.parse_flux_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs, DefKind::TyAlias)?;
         self.specs.ty_aliases.insert(owner_id, attrs.ty_alias());
         Ok(())
     }
@@ -223,7 +249,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         attrs: &[Attribute],
         data: &VariantData,
     ) -> Result<(), ErrorGuaranteed> {
-        let mut attrs = self.parse_flux_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Struct)?;
         self.report_dups(&attrs)?;
         // TODO(nilehmann) error if it has non-struct attrs
 
@@ -275,7 +301,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         opaque: bool,
     ) -> Result<Option<surface::Ty>, ErrorGuaranteed> {
         let attrs = self.tcx.hir().attrs(field.hir_id);
-        let mut attrs = self.parse_flux_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Field)?;
         self.report_dups(&attrs)?;
         let field_attr = attrs.field();
 
@@ -297,7 +323,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         attrs: &[Attribute],
         enum_def: &EnumDef,
     ) -> Result<(), ErrorGuaranteed> {
-        let mut attrs = self.parse_flux_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Enum)?;
         self.report_dups(&attrs)?;
 
         let generics = attrs.generics();
@@ -346,7 +372,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         has_refined_by: bool,
     ) -> Result<Option<surface::VariantDef>, ErrorGuaranteed> {
         let attrs = self.tcx.hir().attrs(hir_variant.hir_id);
-        let mut attrs = self.parse_flux_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs, DefKind::Variant)?;
         self.report_dups(&attrs)?;
 
         let variant = attrs.variant();
@@ -362,8 +388,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         owner_id: OwnerId,
         attrs: &[Attribute],
+        def_kind: DefKind,
     ) -> Result<(), ErrorGuaranteed> {
-        let mut attrs = self.parse_flux_attrs(attrs)?;
+        let mut attrs = self.parse_flux_attrs(attrs, def_kind)?;
         self.report_dups(&attrs)?;
         // TODO(nilehmann) error if it has non-fun attrs
 
@@ -389,7 +416,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_flux_attrs(&mut self, attrs: &[Attribute]) -> Result<FluxAttrs, ErrorGuaranteed> {
+    fn parse_flux_attrs(
+        &mut self,
+        attrs: &[Attribute],
+        def_kind: DefKind,
+    ) -> Result<FluxAttrs, ErrorGuaranteed> {
         let attrs: Vec<_> = attrs
             .iter()
             .filter_map(|attr| {
@@ -409,13 +440,17 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     None
                 }
             })
-            .map(|attr_item| self.parse_flux_attr(&attr_item.item))
+            .map(|attr_item| self.parse_flux_attr(&attr_item.item, def_kind))
             .try_collect_exhaust()?;
 
         Ok(FluxAttrs::new(attrs))
     }
 
-    fn parse_flux_attr(&mut self, attr_item: &AttrItem) -> Result<FluxAttr, ErrorGuaranteed> {
+    fn parse_flux_attr(
+        &mut self,
+        attr_item: &AttrItem,
+        def_kind: DefKind,
+    ) -> Result<FluxAttr, ErrorGuaranteed> {
         let [_, segment] = &attr_item.path.segments[..] else {
             return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() }));
         };
@@ -428,7 +463,25 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 self.parse(dargs, ParseSess::parse_fn_sig, FluxAttrKind::FnSig)?
             }
             ("predicate", AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_assoc_pred, FluxAttrKind::AssocPred)?
+                match def_kind {
+                    DefKind::Trait => {
+                        self.parse(
+                            dargs,
+                            ParseSess::parse_trait_assoc_pred,
+                            FluxAttrKind::TraitAssocPred,
+                        )?
+                    }
+                    DefKind::Impl { .. } => {
+                        self.parse(
+                            dargs,
+                            ParseSess::parse_impl_assoc_pred,
+                            FluxAttrKind::ImplAssocPred,
+                        )?
+                    }
+                    _ => {
+                        return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() }));
+                    }
+                }
             }
             ("qualifiers", AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_qual_names, FluxAttrKind::QualNames)?
@@ -583,7 +636,8 @@ impl Specs {
     fn new() -> Specs {
         Specs {
             fn_sigs: Default::default(),
-            trait_or_impls: Default::default(),
+            traits: Default::default(),
+            impls: Default::default(),
             structs: Default::default(),
             enums: Default::default(),
             qualifs: Vec::default(),
@@ -640,7 +694,8 @@ enum FluxAttrKind {
     Trusted,
     Opaque,
     FnSig(surface::FnSig),
-    AssocPred(surface::AssocPredicate),
+    TraitAssocPred(surface::TraitAssocPredicate),
+    ImplAssocPred(surface::ImplAssocPredicate),
     RefinedBy(surface::RefinedBy),
     Generics(surface::Generics),
     QualNames(surface::QualNames),
@@ -737,8 +792,12 @@ impl FluxAttrs {
         read_attr!(self, Generics)
     }
 
-    fn assoc_predicates(&mut self) -> Option<surface::AssocPredicate> {
-        read_attr!(self, AssocPred)
+    fn trait_assoc_predicates(&mut self) -> Vec<surface::TraitAssocPredicate> {
+        read_attrs!(self, TraitAssocPred)
+    }
+
+    fn impl_assoc_predicates(&mut self) -> Vec<surface::ImplAssocPredicate> {
+        read_attrs!(self, ImplAssocPred)
     }
 
     fn field(&mut self) -> Option<surface::Ty> {
@@ -768,7 +827,8 @@ impl FluxAttrKind {
             FluxAttrKind::Trusted => attr_name!(Trusted),
             FluxAttrKind::Opaque => attr_name!(Opaque),
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),
-            FluxAttrKind::AssocPred(_) => attr_name!(AssocPred),
+            FluxAttrKind::TraitAssocPred(_) => attr_name!(TraitAssocPred),
+            FluxAttrKind::ImplAssocPred(_) => attr_name!(ImplAssocPred),
             FluxAttrKind::ConstSig(_) => attr_name!(ConstSig),
             FluxAttrKind::RefinedBy(_) => attr_name!(RefinedBy),
             FluxAttrKind::Generics(_) => attr_name!(Generics),

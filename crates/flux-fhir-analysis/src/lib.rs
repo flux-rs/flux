@@ -141,14 +141,18 @@ fn assoc_predicates_of(
     genv: &GlobalEnv,
     local_id: LocalDefId,
 ) -> QueryResult<rty::AssocPredicates> {
-    let assoc_predicates = if let Some(assoc_predicates) = genv.map().get_assoc_predicates(local_id)
-    {
-        let wfckresults = genv.check_wf(local_id)?;
-        conv::conv_assoc_predicates(genv, assoc_predicates, &wfckresults)
-    } else {
-        rty::AssocPredicates::default()
-    };
-    Ok(assoc_predicates)
+    match genv.tcx.def_kind(local_id) {
+        DefKind::Impl { .. } => {
+            let assoc_predicates = &genv.map().get_impl(local_id).assoc_predicates;
+            let wfckresults = genv.check_wf(local_id)?;
+            Ok(conv::conv_impl_assoc_predicates(genv, assoc_predicates, &wfckresults))
+        }
+        DefKind::Trait => {
+            let assoc_predicates = &genv.map().get_trait(local_id).assoc_predicates;
+            Ok(conv::conv_trait_assoc_predicates(genv, assoc_predicates))
+        }
+        _ => bug!("expected trait or impl"),
+    }
 }
 
 fn item_bounds(
@@ -343,13 +347,14 @@ fn check_wf_rust_item(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<Wf
             let opaque_ty = genv.map().get_opaque_ty(def_id);
             wf::check_opaque_ty(genv, opaque_ty, owner_id)?
         }
-        DefKind::Impl { .. } | DefKind::Trait { .. } => {
+        DefKind::Impl { .. } => {
             let owner_id = OwnerId { def_id };
-            if let Some(assoc_predicates) = genv.map().get_assoc_predicates(def_id) {
-                wf::check_assoc_predicates(genv, assoc_predicates, owner_id)?
-            } else {
-                WfckResults::new(owner_id)
-            }
+            wf::check_impl(genv, genv.map().get_impl(def_id), owner_id)?
+        }
+        DefKind::Trait { .. } => {
+            // TODO(nilehmann) we should check the sorts of associated predicates are well-formed.
+            let owner_id = OwnerId { def_id };
+            WfckResults::new(owner_id)
         }
         DefKind::Closure | DefKind::Coroutine | DefKind::TyParam => {
             let parent = genv.tcx.local_parent(def_id);

@@ -126,18 +126,34 @@ pub fn desugar_fn_sig(
     Ok(())
 }
 
-pub fn desugar_trait_or_impl(
+pub fn desugar_trait(
     genv: &mut GlobalEnv,
     owner_id: OwnerId,
     resolver_output: &ResolverOutput,
-    trait_or_impl: &surface::TraitOrImpl,
+    trait_: &surface::Trait,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
     let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
-    let trait_or_impl = cx.desugar_trait_or_impl(trait_or_impl)?;
+    let trait_ = cx.desugar_trait(trait_)?;
 
-    genv.map_mut().insert_trait_or_impl(def_id, trait_or_impl);
+    genv.map_mut().insert_trait(def_id, trait_);
+
+    Ok(())
+}
+
+pub fn desugar_impl(
+    genv: &mut GlobalEnv,
+    owner_id: OwnerId,
+    resolver_output: &ResolverOutput,
+    impl_: &surface::Impl,
+) -> Result<(), ErrorGuaranteed> {
+    let def_id = owner_id.def_id;
+
+    let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
+    let impl_ = cx.desugar_impl(impl_)?;
+
+    genv.map_mut().insert_impl(def_id, impl_);
 
     Ok(())
 }
