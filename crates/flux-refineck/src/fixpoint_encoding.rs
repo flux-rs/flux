@@ -448,24 +448,11 @@ where
         })
     }
 
-    pub fn pred_to_fixpoint(&mut self, pred: &rty::Pred) -> (Bindings, PredSpans) {
-        match pred {
-            rty::Pred::Expr(expr) => {
-                let mut bindings = vec![];
-                let mut preds = vec![];
-                self.pred_to_fixpoint_internal(expr, &mut bindings, &mut preds);
-                (bindings, preds)
-            }
-            rty::Pred::Alias(alias_pred, args) => {
-                let func = self.register_const_for_alias_pred(alias_pred, args.len());
-                let args = args
-                    .iter()
-                    .map(|expr| self.as_expr_cx().expr_to_fixpoint(expr))
-                    .collect_vec();
-                let pred = fixpoint::Expr::App(func, args);
-                (vec![], vec![(fixpoint::Pred::Expr(pred), None)])
-            }
-        }
+    pub fn pred_to_fixpoint(&mut self, pred: &rty::Expr) -> (Bindings, PredSpans) {
+        let mut bindings = vec![];
+        let mut preds = vec![];
+        self.pred_to_fixpoint_internal(pred, &mut bindings, &mut preds);
+        (bindings, preds)
     }
 
     fn pred_to_fixpoint_internal(
@@ -481,6 +468,18 @@ where
             }
             rty::ExprKind::KVar(kvar) => {
                 preds.push((self.kvar_to_fixpoint(kvar, bindings), None));
+            }
+            // FIXME(nilehmann) when we allow associated predicates nested in expression
+            // in the surface syntax we should move this to `expr_to_fixpoint`
+            rty::ExprKind::AliasPred(alias_pred, args) => {
+                let span = expr.span();
+                let func = self.register_const_for_alias_pred(alias_pred, args.len());
+                let args = args
+                    .iter()
+                    .map(|expr| self.as_expr_cx().expr_to_fixpoint(expr))
+                    .collect_vec();
+                let pred = fixpoint::Expr::App(func, args);
+                preds.push((fixpoint::Pred::Expr(pred), span));
             }
             _ => {
                 let span = expr.span();
@@ -869,6 +868,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
             }
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)
+            | rty::ExprKind::AliasPred(_, _)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::Abs(_)
             | rty::ExprKind::GlobalFunc(..)
@@ -910,8 +910,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
         match func.kind() {
             rty::ExprKind::Var(var) => self.var_to_fixpoint(var).into(),
             rty::ExprKind::GlobalFunc(_, FuncKind::Thy(sym)) => fixpoint::Var::Itf(*sym),
-            rty::ExprKind::GlobalFunc(sym, FuncKind::Uif)
-            | rty::ExprKind::GlobalFunc(sym, FuncKind::Asp) => {
+            rty::ExprKind::GlobalFunc(sym, FuncKind::Uif) => {
                 let cinfo = self.const_map.get(&Key::Uif(*sym)).unwrap_or_else(|| {
                     span_bug!(
                         self.dbg_span,

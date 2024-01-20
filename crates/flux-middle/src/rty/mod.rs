@@ -474,41 +474,6 @@ pub struct TyS {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
-pub enum Pred {
-    Expr(Expr),
-    Alias(AliasPred, RefineArgs),
-}
-
-impl Pred {
-    pub fn is_trivially_true(&self) -> bool {
-        match self {
-            Pred::Expr(expr) => expr.is_trivially_true(),
-            Pred::Alias(_, _) => false,
-        }
-    }
-
-    pub fn is_atom(&self) -> bool {
-        match self {
-            Pred::Expr(expr) => expr.is_atom(),
-            Pred::Alias(_, _) => true,
-        }
-    }
-
-    pub fn simplify(&self) -> Self {
-        match self {
-            Pred::Expr(expr) => Pred::Expr(expr.simplify()),
-            Pred::Alias(pred, args) => Pred::Alias(pred.clone(), args.clone()),
-        }
-    }
-}
-
-impl From<&Expr> for Pred {
-    fn from(expr: &Expr) -> Self {
-        Pred::Expr(expr.clone())
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub struct AliasPred {
     pub trait_id: DefId,
     pub name: Symbol,
@@ -520,7 +485,7 @@ pub struct AliasPred {
 pub enum TyKind {
     Indexed(BaseTy, Expr),
     Exists(Binder<Ty>),
-    Constr(Pred, Ty),
+    Constr(Expr, Ty),
     Uninit,
     Ptr(PtrKind, Path),
     /// This is a bit of a hack. We use this type internally to represent the result of
@@ -1353,12 +1318,8 @@ impl Ty {
         TyKind::Ptr(pk.into(), path.into()).intern()
     }
 
-    pub fn constr(p: impl Into<Pred>, ty: Ty) -> Ty {
+    pub fn constr(p: impl Into<Expr>, ty: Ty) -> Ty {
         TyKind::Constr(p.into(), ty).intern()
-    }
-
-    pub fn constr_expr(p: impl Into<Expr>, ty: Ty) -> Ty {
-        TyKind::Constr(Pred::Expr(p.into()), ty).intern()
     }
 
     pub fn uninit() -> Ty {
@@ -1376,7 +1337,7 @@ impl Ty {
     pub fn exists_with_constr(bty: BaseTy, pred: Expr) -> Ty {
         let sort = bty.sort();
         let ty = Ty::indexed(bty, Expr::nu());
-        Ty::exists(Binder::with_sort(Ty::constr_expr(pred, ty), sort))
+        Ty::exists(Binder::with_sort(Ty::constr(pred, ty), sort))
     }
 
     pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
@@ -1459,7 +1420,7 @@ impl Ty {
 
     pub fn unconstr(&self) -> (Ty, Expr) {
         fn go(this: &Ty, preds: &mut Vec<Expr>) -> Ty {
-            if let TyKind::Constr(Pred::Expr(pred), ty) = this.kind() {
+            if let TyKind::Constr(pred, ty) = this.kind() {
                 preds.push(pred.clone());
                 go(ty, preds)
             } else {
@@ -2120,16 +2081,6 @@ mod pretty {
             match self {
                 Constraint::Type(loc, ty, _) => w!("{:?}: {:?}", ^loc, ty),
                 Constraint::Pred(e) => w!("{:?}", e),
-            }
-        }
-    }
-
-    impl Pretty for Pred {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(_cx, f);
-            match self {
-                Pred::Expr(expr) => w!("{expr:?}"),
-                Pred::Alias(alias_pred, refine_args) => w!("{alias_pred:?}({refine_args:?})"),
             }
         }
     }

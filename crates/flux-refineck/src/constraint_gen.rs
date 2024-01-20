@@ -10,8 +10,7 @@ use flux_middle::{
         fold::TypeFoldable,
         AliasTy, BaseTy, BinOp, Binder, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
         FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, GenericParamDefKind, HoleKind,
-        InferMode, Mutability, Path, PolyFnSig, PolyVariant, Pred, PtrKind, Ref, Sort, Ty, TyKind,
-        Var,
+        InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -110,7 +109,7 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     pub(crate) fn check_pred(
         &self,
         rcx: &mut RefineCtxt,
-        pred: impl Into<Pred>,
+        pred: impl Into<Expr>,
         reason: ConstrReason,
     ) {
         rcx.check_pred(pred, Tag::new(reason, self.span));
@@ -492,7 +491,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
     }
 
-    pub(crate) fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Pred>) {
+    pub(crate) fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
         rcx.check_pred(pred, self.tag);
     }
 

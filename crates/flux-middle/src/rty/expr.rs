@@ -11,7 +11,7 @@ use rustc_span::{BytePos, Span, Symbol, SyntaxContext};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
-use super::{evars::EVar, BaseTy, Binder, IntTy, Sort, UintTy};
+use super::{evars::EVar, AliasPred, BaseTy, Binder, IntTy, Sort, UintTy};
 use crate::{
     fhir::FuncKind,
     intern::{impl_internable, impl_slice_internable, Interned, List},
@@ -78,7 +78,6 @@ pub enum ExprKind {
     Constant(Constant),
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
-    App(Expr, List<Expr>),
     GlobalFunc(Symbol, FuncKind),
     UnaryOp(UnOp, Expr),
     FieldProj(Expr, FieldProj),
@@ -86,25 +85,35 @@ pub enum ExprKind {
     PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
+    AliasPred(AliasPred, List<Expr>),
+    /// Function application. The syntax allows arbitrary expressions in function position, but in
+    /// practice we are restricted by what's possible to encode in fixpoint. In a nutshell, we need
+    /// to make sure that expressions that can't be encoded are eliminated before we generate the
+    /// fixpoint constraint. Most notably, lambda abstractions have to be fully applied before
+    /// encoding into fixpoint (except when they appear as an index at the top-level).
+    App(Expr, List<Expr>),
     /// Lambda abstractions. They are purely syntactic and we don't encode them in the logic. As such,
     /// they have some syntactic restrictions that we must carefully maintain:
     ///
     /// 1. They can appear as an index at the top level.
     /// 2. We can only substitute an abstraction for a variable in function position (or as an index).
     ///    More generaly, we need to partially evaluate expressions such that all abstractions in
-    ///    non-index position are eliminated before encoding into fixpoint. Right now, the implementation
-    ///    only evaluates abstractions that are immediately applied to arguments, thus the restriction.
+    ///    non-index position are eliminated before encoding into fixpoint. Right now, the
+    ///    implementation only evaluates abstractions that are immediately applied to arguments,
+    ///    thus the restriction.
     Abs(Binder<Expr>),
     /// A hole is an expression that must be inferred either *semantically* by generating a kvar or
-    /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or syntactically
-    /// depends on the position it appears: only holes appearing in predicate position can be inferred
-    /// with a kvar (provided it satisfy the fixpoint horn constraints) and only holes used as a refinement
-    /// argument or index (a position that fully determines their value) can be inferred with an evar.
+    /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or
+    /// syntactically depends on the position it appears: only holes appearing in predicate position
+    /// can be inferred with a kvar (provided it satisfies the fixpoint horn constraints) and only
+    /// holes used as an index (a position that fully determines their value) can be inferred with
+    /// an evar.
     ///
-    /// Holes are implicitly defined in a scope, i.e., their solution could mention free and bound variables
-    /// in this scope. This must be considered when generating an inference variables for them (either evar or kvar).
-    /// In fact, the main reason we have holes is that we want to decouple the places where we generate them,
-    /// (where we don't want to worry about the scope) and the places where we infer them (where we do need to worry
+    /// Holes are implicitly defined in a scope, i.e., their solution could mention free and bound
+    /// variables in this scope. This must be considered when generating an inference variables for
+    /// them (either evar or kvar). In fact, the main reason we have holes is that we want to
+    /// decouple the places where we generate holes (where we don't want to worry about the scope),
+    /// and the places where we generate inference variable for them (where we do need to worry
     /// about the scope).
     Hole(HoleKind),
 }
@@ -366,6 +375,10 @@ impl Expr {
 
     pub fn kvar(kvar: KVar) -> Expr {
         ExprKind::KVar(kvar).intern()
+    }
+
+    pub fn alias_pred(alias: AliasPred, args: List<Expr>) -> Expr {
+        ExprKind::AliasPred(alias, args).intern()
     }
 
     pub fn binary_op(
@@ -833,6 +846,9 @@ mod pretty {
                 }
                 ExprKind::KVar(kvar) => {
                     w!("{:?}", kvar)
+                }
+                ExprKind::AliasPred(alias, args) => {
+                    w!("{:?}({:?}", ^alias, join!(", ", args))
                 }
                 ExprKind::Abs(body) => {
                     w!("{:?}", body)

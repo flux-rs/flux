@@ -662,7 +662,7 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
         env: &mut Env,
         alias_pred: &fhir::AliasPred,
         refine_args: &[fhir::RefineArg],
-    ) -> QueryResult<rty::Pred> {
+    ) -> QueryResult<rty::Expr> {
         let trait_id = alias_pred.trait_id;
         let generic_args = self
             .conv_generic_args(env, trait_id, &alias_pred.generic_args)?
@@ -673,12 +673,12 @@ impl<'a, 'tcx> ConvCtxt<'a, 'tcx> {
             .collect_vec()
             .into();
         let alias_pred = rty::AliasPred { trait_id, name: alias_pred.name, args: generic_args };
-        Ok(rty::Pred::Alias(alias_pred, refine_args))
+        Ok(rty::Expr::alias_pred(alias_pred, refine_args))
     }
 
-    fn conv_pred(&self, env: &mut Env, pred: &fhir::Pred) -> QueryResult<rty::Pred> {
+    fn conv_pred(&self, env: &mut Env, pred: &fhir::Pred) -> QueryResult<rty::Expr> {
         let pred = match &pred.kind {
-            fhir::PredKind::Expr(expr) => rty::Pred::Expr(self.conv_expr(env, expr)),
+            fhir::PredKind::Expr(expr) => self.conv_expr(env, expr),
             fhir::PredKind::Alias(alias_pred, refine_args) => {
                 self.conv_alias_pred(env, alias_pred, refine_args)?
             }

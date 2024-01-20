@@ -61,7 +61,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
             refine: |bty| {
                 let sort = bty.sort();
                 let indexed = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
-                let constr = rty::Ty::constr_expr(rty::Expr::hole(rty::HoleKind::Pred), indexed);
+                let constr = rty::Ty::constr(rty::Expr::hole(rty::HoleKind::Pred), indexed);
                 rty::Binder::with_sort(constr, sort)
             },
         }
