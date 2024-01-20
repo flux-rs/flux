@@ -229,21 +229,130 @@ impl TypeFolder for EVarSubstFolder<'_> {
     }
 }
 
-/// Substitution for generics, i.e., early bound types, lifetimes, const generics and refinements
-pub(crate) struct GenericsSubstFolder<'a> {
+/// Substitution for generics, i.e., early bound types, lifetimes, const generics, and refinements.
+/// Note that a substitution for refinement parameters (a list of expressions) must always be
+/// specified, while the behavior of other generics parameters (types, lifetimes and consts) can be
+/// configured with [`GenericsSubstDelegate`].
+pub(crate) struct GenericsSubstFolder<'a, D> {
     current_index: DebruijnIndex,
-    /// We leave this as [None] if we only want to substitute the EarlyBound refinement-params
-    generics: Option<&'a [GenericArg]>,
-    refine: &'a [Expr],
+    delegate: D,
+    refinement_args: &'a [Expr],
 }
 
-impl<'a> GenericsSubstFolder<'a> {
-    pub(crate) fn new(generics: Option<&'a [GenericArg]>, refine: &'a [Expr]) -> Self {
-        Self { current_index: INNERMOST, generics, refine }
+trait GenericsSubstDelegate {
+    fn sort_for_param(&mut self, param_ty: ParamTy) -> Sort;
+    fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty;
+    fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> Ty;
+    fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region;
+}
+
+/// The identity substitution used when checking the body of a (polymorphic) function. For example,
+/// consider the function `fn foo<T>(){ .. }`
+///
+/// Outside of `foo`, `T` is bound (represented by the presence of `EarlyBinder`). Inside of the body
+/// of `foo`, we treat `T` as a placeholder.
+pub(crate) struct IdentitySubstDelegate;
+
+impl GenericsSubstDelegate for IdentitySubstDelegate {
+    fn sort_for_param(&mut self, param_ty: ParamTy) -> Sort {
+        Sort::Param(param_ty)
+    }
+
+    fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty {
+        Ty::param(param_ty)
+    }
+
+    fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> Ty {
+        Ty::indexed(BaseTy::Param(param_ty), idx.clone())
+    }
+
+    fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region {
+        ReEarlyBound(ebr)
     }
 }
 
-impl TypeFolder for GenericsSubstFolder<'_> {
+/// A substitution with an explicit list of generic arguments.
+pub(crate) struct GenericArgsDelegate<'a>(pub(crate) &'a [GenericArg]);
+
+impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
+    fn sort_for_param(&mut self, param_ty: ParamTy) -> Sort {
+        match self.0.get(param_ty.index as usize) {
+            Some(generic_arg) => generic_arg.peel_out_sort().unwrap(),
+            None => bug!("type parameter out of range {param_ty:?}"),
+        }
+    }
+
+    fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty {
+        match self.0.get(param_ty.index as usize) {
+            Some(GenericArg::Ty(ty)) => ty.clone(),
+            Some(arg) => bug!("expected type for generic parameter, found `{:?}`", arg),
+            None => bug!("type parameter out of range"),
+        }
+    }
+
+    fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> Ty {
+        match self.0.get(param_ty.index as usize) {
+            Some(GenericArg::BaseTy(arg)) => arg.replace_bound_expr(idx),
+            Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
+            None => bug!("type parameter out of range"),
+        }
+    }
+
+    fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region {
+        match self.0.get(ebr.index as usize) {
+            Some(GenericArg::Lifetime(re)) => *re,
+            Some(arg) => bug!("expected region for generic parameter, found `{:?}`", arg),
+            None => bug!("region parameter out of range"),
+        }
+    }
+}
+
+/// A substitution meant to be used only for sorts. It'll panic if used on a type. This is used to
+/// break cycles during wf checking. During wf-checking we use [`rty::Sort`], but we can't yet
+/// generate (in general) an [`rty::GenericArg`] because conversion from [`fhir`] into [`rty`]
+/// requires the results of wf checking. Perhaps, we could also solve this problem by doing
+/// wf-checking with a different "IR" for sorts that sits in between [`fhir`] and [`rty`].
+///
+/// [`rty::Sort`]: crate::rty::Sort
+/// [`rty::GenericArg`]: crate::rty::GenericArg
+/// [`fhir`]: crate::fhir
+/// [`rty`]: crate::rty
+pub(crate) struct GenericsSubstForSort<F>
+where
+    F: FnMut(ParamTy) -> Sort,
+{
+    /// Implementation of [`GenericsSubstDelegate::sort_for_param`]
+    pub(crate) sort_for_param: F,
+}
+
+impl<F> GenericsSubstDelegate for GenericsSubstForSort<F>
+where
+    F: FnMut(ParamTy) -> Sort,
+{
+    fn sort_for_param(&mut self, param_ty: ParamTy) -> Sort {
+        (self.sort_for_param)(param_ty)
+    }
+
+    fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty {
+        bug!("unexpected type param {param_ty:?}");
+    }
+
+    fn bty_for_param(&mut self, param_ty: ParamTy, _idx: &Expr) -> Ty {
+        bug!("unexpected base type param {param_ty:?}");
+    }
+
+    fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region {
+        bug!("unexpected region param {ebr:?}");
+    }
+}
+
+impl<'a, D> GenericsSubstFolder<'a, D> {
+    pub(crate) fn new(delegate: D, refine: &'a [Expr]) -> Self {
+        Self { current_index: INNERMOST, delegate, refinement_args: refine }
+    }
+}
+
+impl<D: GenericsSubstDelegate> TypeFolder for GenericsSubstFolder<'_, D> {
     fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
         self.current_index.shift_in(1);
         let r = t.super_fold_with(self);
@@ -253,48 +362,18 @@ impl TypeFolder for GenericsSubstFolder<'_> {
 
     fn fold_sort(&mut self, sort: &Sort) -> Sort {
         if let Sort::Param(param_ty) = sort {
-            self.sort_for_param(*param_ty)
+            self.delegate.sort_for_param(*param_ty)
         } else {
             sort.super_fold_with(self)
         }
     }
 
-    // [NOTE:index-subst]
-
-    // Consider
-
-    // ```rust
-    // fn choose <T as base>(b: bool, x: T[@n], y: T[@m]) -> T[if b { n } else { m }])
-    // ```
-
-    // and then a client
-
-    // ```rust
-    // pub fn test01() {
-    //     assert(choose(true, 0, 1) == 0);
-    // }
-    // ```
-
-    // At the callsite `choose(true, 0, 1)` there are *two* substitutions going on
-    // in the signature for `choose` i.e. for the `T[@n]` and `T[@m]`
-
-    // 1. `T` -> `i32{v: ...}`
-    // 2. earlybound `n, m` -> fresh-evars.
-
-    // The trouble is that if you solely rely on the `bty_for_param` code below,
-    // then the `n, m` substitutions "get lost" and so those variables are not
-    // "solved for" and you get that pesky instantiation error.
-
-    // Instead, we _first_ substitute for the indices, and then let `bty_for_param`
-    // do its business.
-
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
-            TyKind::Param(param_ty) => self.ty_for_param(*param_ty),
+            TyKind::Param(param_ty) => self.delegate.ty_for_param(*param_ty),
             TyKind::Indexed(BaseTy::Param(param_ty), idx) => {
-                // See [NOTE:index-subst]
                 let idx = idx.fold_with(self);
-                self.bty_for_param(*param_ty, &idx)
+                self.delegate.bty_for_param(*param_ty, &idx)
             }
             _ => ty.super_fold_with(self),
         }
@@ -302,7 +381,7 @@ impl TypeFolder for GenericsSubstFolder<'_> {
 
     fn fold_region(&mut self, re: &Region) -> Region {
         if let ReEarlyBound(ebr) = *re {
-            self.region_for_param(ebr)
+            self.delegate.region_for_param(ebr)
         } else {
             *re
         }
@@ -317,56 +396,9 @@ impl TypeFolder for GenericsSubstFolder<'_> {
     }
 }
 
-impl GenericsSubstFolder<'_> {
-    fn sort_for_param(&self, param_ty: ParamTy) -> Sort {
-        if let Some(generics) = self.generics {
-            match generics.get(param_ty.index as usize) {
-                Some(generic_arg) => generic_arg.peel_out_sort().unwrap(),
-                None => bug!("type parameter out of range {param_ty:?}"),
-            }
-        } else {
-            Sort::Param(param_ty)
-        }
-    }
-
-    fn ty_for_param(&self, param_ty: ParamTy) -> Ty {
-        if let Some(generics) = self.generics {
-            match generics.get(param_ty.index as usize) {
-                Some(GenericArg::Ty(ty)) => ty.clone(),
-                Some(arg) => bug!("expected type for generic parameter, found `{:?}`", arg),
-                None => bug!("type parameter out of range"),
-            }
-        } else {
-            Ty::param(param_ty)
-        }
-    }
-
-    fn bty_for_param(&self, param_ty: ParamTy, idx: &Expr) -> Ty {
-        if let Some(generics) = self.generics {
-            match generics.get(param_ty.index as usize) {
-                Some(GenericArg::BaseTy(arg)) => arg.replace_bound_expr(idx),
-                Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
-                None => bug!("type parameter out of range"),
-            }
-        } else {
-            Ty::indexed(BaseTy::Param(param_ty), idx.clone())
-        }
-    }
-
-    fn region_for_param(&self, ebr: EarlyBoundRegion) -> Region {
-        if let Some(generics) = self.generics {
-            match generics.get(ebr.index as usize) {
-                Some(GenericArg::Lifetime(re)) => *re,
-                Some(arg) => bug!("expected region for generic parameter, found `{:?}`", arg),
-                None => bug!("region parameter out of range"),
-            }
-        } else {
-            ReEarlyBound(ebr)
-        }
-    }
-
+impl<D> GenericsSubstFolder<'_, D> {
     fn expr_for_param(&self, idx: u32) -> Expr {
-        self.refine[idx as usize].shift_in_escaping(self.current_index.as_u32())
+        self.refinement_args[idx as usize].shift_in_escaping(self.current_index.as_u32())
     }
 }
 

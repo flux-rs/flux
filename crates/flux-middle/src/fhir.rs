@@ -591,7 +591,6 @@ pub struct AliasPred {
     pub trait_id: DefId,
     pub name: Symbol,
     pub generic_args: Vec<GenericArg>,
-    // pub refine_args: Vec<RefineArg>,
 }
 
 #[derive(Clone)]
