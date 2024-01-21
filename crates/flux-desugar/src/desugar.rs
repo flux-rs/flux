@@ -254,7 +254,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
                 {
                     Ok(fhir::TraitAssocPredicate {
                         name,
-                        sorts: func_sort.fsort.inputs().to_vec(),
+                        sort: func_sort.fsort,
                         span: assoc_pred.span,
                     })
                 } else {

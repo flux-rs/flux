@@ -166,7 +166,7 @@ fhir_analysis_assoc_type_not_found =
     .label = cannot resolve this associated type
     .note = Flux cannot resolved associated types if they are defined in a super trait
 
-# Check impl agains trait errors
+# Check impl against trait errors
 
 fhir_analysis_incompatible_sort =
     implemented associated predicate `{$name}` has an incompatible sort for trait

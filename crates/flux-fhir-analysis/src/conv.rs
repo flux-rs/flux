@@ -1244,12 +1244,12 @@ impl LookupResult<'_> {
 pub fn conv_func_decl(genv: &GlobalEnv, uif: &fhir::FuncDecl) -> rty::FuncDecl {
     rty::FuncDecl {
         name: uif.name,
-        sort: conv_func_sort(genv, &uif.sort, &mut || bug!("unexpected infer sort")),
+        sort: conv_poly_func_sort(genv, &uif.sort, &mut || bug!("unexpected infer sort")),
         kind: uif.kind,
     }
 }
 
-pub(crate) fn conv_sorts<'a>(
+fn conv_sorts<'a>(
     genv: &GlobalEnv,
     sorts: impl IntoIterator<Item = &'a fhir::Sort>,
     next_sort_vid: &mut impl FnMut() -> rty::SortVid,
@@ -1298,7 +1298,7 @@ pub(crate) fn conv_sort(
         fhir::Sort::Bool => rty::Sort::Bool,
         fhir::Sort::BitVec(w) => rty::Sort::BitVec(*w),
         fhir::Sort::Loc => rty::Sort::Loc,
-        fhir::Sort::Func(fsort) => rty::Sort::Func(conv_func_sort(genv, fsort, next_sort_vid)),
+        fhir::Sort::Func(fsort) => rty::Sort::Func(conv_poly_func_sort(genv, fsort, next_sort_vid)),
         fhir::Sort::Record(def_id, sort_args) => {
             rty::Sort::Adt(
                 genv.adt_sort_def_of(*def_id),
@@ -1334,17 +1334,23 @@ fn conv_sort_ctor(ctor: &fhir::SortCtor) -> rty::SortCtor {
     }
 }
 
-fn conv_func_sort(
+fn conv_poly_func_sort(
     genv: &GlobalEnv,
     sort: &fhir::PolyFuncSort,
     next_sort_vid: &mut impl FnMut() -> rty::SortVid,
 ) -> rty::PolyFuncSort {
-    let fsort = &sort.fsort;
-    let fsort = rty::FuncSort::new(
+    rty::PolyFuncSort::new(sort.params, conv_func_sort(genv, &sort.fsort, next_sort_vid))
+}
+
+pub(crate) fn conv_func_sort(
+    genv: &GlobalEnv,
+    fsort: &fhir::FuncSort,
+    next_sort_vid: &mut impl FnMut() -> rty::SortVid,
+) -> rty::FuncSort {
+    rty::FuncSort::new(
         conv_sorts(genv, fsort.inputs(), next_sort_vid),
         conv_sort(genv, fsort.output(), next_sort_vid),
-    );
-    rty::PolyFuncSort::new(sort.params, fsort)
+    )
 }
 
 fn conv_lit(lit: fhir::Lit) -> rty::Constant {

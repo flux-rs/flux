@@ -146,7 +146,7 @@ impl Trait {
 #[derive(Debug)]
 pub struct TraitAssocPredicate {
     pub name: Symbol,
-    pub sorts: Vec<Sort>,
+    pub sort: FuncSort,
     pub span: Span,
 }
 
