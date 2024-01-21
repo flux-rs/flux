@@ -9,9 +9,9 @@ version = "0.1.0"
 flux-tests.workspace = true
 home.workspace = true
 
-anyhow = "1.0.75"
+anyhow = "1.0.79"
 opener = "0.6.1"
-xflags = "0.3.1"
+xflags = "0.3.2"
 xshell = "0.2.5"
 
 [lints]

@@ -23,7 +23,7 @@ flux-rs = { path = "./crates/flux-rs", version = "0.1.0" }
 flux-syntax = { path = "./crates/flux-syntax", version = "0.1.0" }
 flux-tests = { path = "./crates/flux-tests", version = "0.1.0" }
 
-home = "0.5.5"
+home = "0.5.9"
 itertools = "0.10.5"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"

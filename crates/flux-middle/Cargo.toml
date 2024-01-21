@@ -16,7 +16,7 @@ itertools.workspace = true
 
 dashmap = { version = "5.5.3", features = ["raw-api"] }
 ena = "0.14.2"
-hashbrown = "0.14.0"
+hashbrown = "0.14.3"
 toposort-scc = "0.5.4"
 
 [package.metadata.rust-analyzer]
