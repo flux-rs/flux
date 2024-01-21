@@ -306,7 +306,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         let generics = self.desugar_surface_generics(generics, env)?;
 
         // Step 2: map each (surface) generic to its specified kind
-        let generic_kinds: FxHashMap<_, _> = generics
+        let mut generic_kinds: FxHashMap<_, _> = generics
             .params
             .into_iter()
             .map(|param| (param.def_id, param.kind))
@@ -316,10 +316,10 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         let lifted_generics = self.as_lift_cx().lift_generics()?;
         let params = lifted_generics
             .params
-            .iter()
+            .into_iter()
             .map(|lifted_param| {
                 let def_id = lifted_param.def_id;
-                let kind = generic_kinds.get(&def_id).unwrap_or(&lifted_param.kind);
+                let kind = generic_kinds.remove(&def_id).unwrap_or(lifted_param.kind);
                 fhir::GenericParam { def_id, kind: kind.clone() }
             })
             .collect();
