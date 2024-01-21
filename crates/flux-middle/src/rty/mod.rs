@@ -594,21 +594,6 @@ impl GenericArgs {
         }
         Ok(())
     }
-
-    /// See [`rustc_middle::ty::GenericArgs::rebase_onto`]
-    pub fn rebase_onto(
-        &self,
-        genv: GlobalEnv,
-        source_ancestor: DefId,
-        target_args: GenericArgs,
-    ) -> GenericArgs {
-        let defs = genv.tcx.generics_of(source_ancestor);
-        target_args
-            .iter()
-            .chain(self.iter().skip(defs.count()))
-            .cloned()
-            .collect()
-    }
 }
 
 impl GenericArg {
