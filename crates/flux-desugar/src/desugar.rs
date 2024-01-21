@@ -16,6 +16,7 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{
     def_id::LocalDefId,
     sym::{self},
@@ -40,9 +41,9 @@ pub fn desugar_qualifier(
     let sort_resolver =
         SortResolver::with_sort_params(genv.sess, genv.map().sort_decls(), sort_params);
 
-    let mut env = Env::from_params(genv, &sort_resolver, ScopeId::FluxItem, &qualifier.args)?;
+    let mut env = Env::from_params(genv.sess, &sort_resolver, ScopeId::FluxItem, &qualifier.args)?;
 
-    let cx = FluxItemCtxt::new(genv, qualifier.name.name);
+    let cx = FluxItemCtxt::new(genv.sess, genv.map(), qualifier.name.name);
     let expr = cx.desugar_expr(&mut env, &qualifier.expr);
 
     Ok(fhir::Qualifier {
@@ -58,9 +59,9 @@ pub fn desugar_defn(genv: &GlobalEnv, defn: surface::FuncDef) -> Result<Option<f
         let sort_params = defn.sort_vars.iter().map(|ident| ident.name).collect_vec();
         let sort_resolver =
             SortResolver::with_sort_params(genv.sess, genv.map().sort_decls(), &sort_params);
-        let mut env = Env::from_params(genv, &sort_resolver, ScopeId::FluxItem, &defn.args)?;
+        let mut env = Env::from_params(genv.sess, &sort_resolver, ScopeId::FluxItem, &defn.args)?;
 
-        let cx = FluxItemCtxt::new(genv, defn.name.name);
+        let cx = FluxItemCtxt::new(genv.sess, genv.map(), defn.name.name);
         let expr = cx.desugar_expr(&mut env, &body)?;
         let name = defn.name.name;
         let params = defn.sort_vars.len();
@@ -143,7 +144,9 @@ pub fn desugar_refined_by(
 }
 
 pub(crate) struct RustItemCtxt<'a, 'tcx> {
-    genv: &'a GlobalEnv<'a, 'tcx>,
+    tcx: TyCtxt<'tcx>,
+    sess: &'a FluxSession,
+    map: &'a fhir::Map,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
     resolver_output: &'a ResolverOutput,
@@ -161,8 +164,9 @@ struct Param {
     span: Span,
 }
 
-struct FluxItemCtxt<'a, 'tcx> {
-    genv: &'a GlobalEnv<'a, 'tcx>,
+struct FluxItemCtxt<'a> {
+    sess: &'a FluxSession,
+    map: &'a fhir::Map,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: Symbol,
 }
@@ -178,34 +182,37 @@ enum QPathRes<'a> {
     NumConst(i128),
 }
 
-fn self_res(genv: &GlobalEnv, owner: OwnerId) -> SelfRes {
+fn self_res(tcx: TyCtxt, owner: OwnerId) -> SelfRes {
     let def_id = owner.def_id.to_def_id();
     let mut opt_def_id = Some(def_id);
     while let Some(def_id) = opt_def_id {
-        match genv.tcx.def_kind(def_id) {
+        match tcx.def_kind(def_id) {
             DefKind::Trait => return SelfRes::Param { trait_id: def_id },
             DefKind::Impl { .. } => return SelfRes::Alias { alias_to: def_id },
             _ => {
-                opt_def_id = genv.tcx.opt_parent(def_id);
+                opt_def_id = tcx.opt_parent(def_id);
             }
         }
     }
     SelfRes::None
 }
 
-impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
+impl<'a, 'tcx: 'a> RustItemCtxt<'a, 'tcx> {
     pub(crate) fn new(
-        genv: &'a GlobalEnv<'a, 'tcx>,
+        tcx: TyCtxt<'tcx>,
+        sess: &'a FluxSession,
+        map: &'a fhir::Map,
         owner: OwnerId,
         resolver_output: &'a ResolverOutput,
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy>>,
     ) -> RustItemCtxt<'a, 'tcx> {
-        let generics = genv.tcx.generics_of(owner);
-        let self_res = self_res(genv, owner);
-        let sort_resolver =
-            SortResolver::with_generics(genv.sess, genv.map().sort_decls(), generics, self_res);
+        let generics = tcx.generics_of(owner);
+        let self_res = self_res(tcx, owner);
+        let sort_resolver = SortResolver::with_generics(sess, map.sort_decls(), generics, self_res);
         RustItemCtxt {
-            genv,
+            tcx,
+            sess,
+            map,
             owner,
             local_id_gen: IndexGen::new(),
             sort_resolver,
@@ -215,13 +222,20 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     }
 
     fn with_new_owner<'b>(&'b mut self, owner: OwnerId) -> RustItemCtxt<'b, 'tcx> {
-        RustItemCtxt::new(self.genv, owner, self.resolver_output, self.opaque_tys.as_deref_mut())
+        RustItemCtxt::new(
+            self.tcx,
+            self.sess,
+            self.map,
+            owner,
+            self.resolver_output,
+            self.opaque_tys.as_deref_mut(),
+        )
     }
 
     fn as_lift_cx<'b>(&'b mut self) -> LiftCtxt<'b, 'tcx> {
         LiftCtxt::new(
-            self.genv.tcx,
-            self.genv.sess,
+            self.tcx,
+            self.sess,
             self.owner,
             &self.local_id_gen,
             self.opaque_tys.as_deref_mut(),
@@ -284,7 +298,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             .map(|assoc_pred| {
                 let name = assoc_pred.name.name;
                 let mut env = Env::from_params(
-                    self.genv,
+                    self.sess,
                     &self.sort_resolver,
                     ScopeId::Misc,
                     &assoc_pred.params,
@@ -332,7 +346,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         generics: &surface::Generics,
         env: &mut Env,
     ) -> Result<fhir::Generics> {
-        let hir_generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
+        let hir_generics = self.tcx.hir().get_generics(self.owner.def_id).unwrap();
         let generics_map: FxHashMap<_, _> = hir_generics
             .params
             .iter()
@@ -377,18 +391,12 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     ) -> Result<Vec<fhir::WhereBoundPredicate>> {
         predicates
             .iter()
-            .map(|pred| self.desugar_generic_predicate(pred, env))
+            .map(|pred| {
+                let bounded_ty = self.desugar_ty(None, &pred.bounded_ty, env)?;
+                let bounds = self.desugar_generic_bounds(&pred.bounds, env)?;
+                Ok(fhir::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
+            })
             .try_collect_exhaust()
-    }
-
-    fn desugar_generic_predicate(
-        &mut self,
-        pred: &surface::WhereBoundPredicate,
-        env: &mut Env,
-    ) -> Result<fhir::WhereBoundPredicate> {
-        let bounded_ty = self.desugar_ty(None, &pred.bounded_ty, env)?;
-        let bounds = self.desugar_generic_bounds(&pred.bounds, env)?;
-        Ok(fhir::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
     }
 
     fn desugar_generic_bounds(
@@ -436,7 +444,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             fhir::StructKind::Opaque
         } else {
             let hir::ItemKind::Struct(variant_data, _) =
-                &self.genv.hir().expect_item(self.owner.def_id).kind
+                &self.tcx.hir().expect_item(self.owner.def_id).kind
             else {
                 bug!("expected struct")
             };
@@ -471,7 +479,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         enum_def: &surface::EnumDef,
     ) -> Result<fhir::EnumDef> {
         let def_id = self.owner.def_id;
-        let ItemKind::Enum(hir_enum, _) = &self.genv.hir().expect_item(def_id).kind else {
+        let ItemKind::Enum(hir_enum, _) = &self.tcx.hir().expect_item(def_id).kind else {
             bug!("expected enum");
         };
         let variants = iter::zip(&enum_def.variants, hir_enum.variants)
@@ -479,7 +487,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             .try_collect_exhaust()?;
 
         let mut env = Env::from_params(
-            self.genv,
+            self.sess,
             &self.sort_resolver,
             ScopeId::Enum(enum_def.node_id),
             enum_def.refined_by.iter().flat_map(|it| &it.index_params),
@@ -550,7 +558,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         } else {
             self.as_lift_cx().lift_generics()?
         }
-        .with_refined_by(self.genv.map().refined_by(self.owner.def_id)))
+        .with_refined_by(self.map.refined_by(self.owner.def_id)))
     }
 
     pub(crate) fn desugar_type_alias(
@@ -979,6 +987,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
         let span = pred.span;
         Ok(fhir::Pred { kind, span, fhir_id: self.next_fhir_id() })
     }
+
     fn desugar_generic_args(
         &mut self,
         res: Res,
@@ -992,7 +1001,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
             def_id,
         ) = res
         {
-            let generics = self.genv.tcx.generics_of(def_id);
+            let generics = self.tcx.generics_of(def_id);
             for param in &generics.params {
                 if let rustc_middle::ty::GenericParamDefKind::Lifetime = param.kind {
                     fhir_args.push(fhir::GenericArg::Lifetime(self.mk_lft_hole()));
@@ -1052,7 +1061,7 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     }
 
     fn sess(&self) -> &'a FluxSession {
-        self.genv.sess
+        self.sess
     }
 
     #[track_caller]
@@ -1061,15 +1070,15 @@ impl<'a, 'tcx> RustItemCtxt<'a, 'tcx> {
     }
 }
 
-impl<'a, 'tcx> FluxItemCtxt<'a, 'tcx> {
-    fn new(genv: &'a GlobalEnv<'a, 'tcx>, owner: Symbol) -> Self {
-        Self { genv, local_id_gen: Default::default(), owner }
+impl<'a> FluxItemCtxt<'a> {
+    fn new(sess: &'a FluxSession, map: &'a fhir::Map, owner: Symbol) -> Self {
+        Self { sess, map, local_id_gen: Default::default(), owner }
     }
 }
 
 impl Env {
     fn from_params<'a>(
-        genv: &GlobalEnv,
+        sess: &FluxSession,
         sort_resolver: &SortResolver,
         scope: ScopeId,
         params: impl IntoIterator<Item = &'a surface::RefineParam>,
@@ -1079,7 +1088,7 @@ impl Env {
         for param in params {
             let sort = sort_resolver.resolve_sort(&param.sort)?;
             env.insert(
-                genv.sess,
+                sess,
                 param.name,
                 Param {
                     name: name_gen.fresh(),
@@ -1121,11 +1130,7 @@ fn desugar_un_op(op: surface::UnOp) -> fhir::UnOp {
 }
 
 impl Scope<Param> {
-    fn to_refine_args<'a, 'tcx: 'a>(
-        &self,
-        cx: &impl DesugarCtxt<'a, 'tcx>,
-        span: Span,
-    ) -> Vec<fhir::RefineArg> {
+    fn to_refine_args<'a>(&self, cx: &impl DesugarCtxt<'a>, span: Span) -> Vec<fhir::RefineArg> {
         let mut refine_args = vec![];
         for (ident, param) in self.iter() {
             let ident = fhir::Ident::new(param.name, *ident);
@@ -1142,7 +1147,7 @@ impl Scope<Param> {
         refine_args
     }
 
-    fn into_params<'a, 'tcx: 'a>(self, cx: &impl DesugarCtxt<'a, 'tcx>) -> Vec<fhir::RefineParam> {
+    fn into_params<'a>(self, cx: &impl DesugarCtxt<'a>) -> Vec<fhir::RefineParam> {
         let mut params = vec![];
         for (ident, param) in self.into_iter() {
             let ident = fhir::Ident::new(param.name, ident);
@@ -1159,8 +1164,9 @@ impl Scope<Param> {
     }
 }
 
-trait DesugarCtxt<'a, 'tcx: 'a> {
-    fn genv(&self) -> &'a GlobalEnv<'a, 'tcx>;
+trait DesugarCtxt<'a> {
+    fn map(&self) -> &'a fhir::Map;
+    fn sess(&self) -> &'a FluxSession;
     fn next_fhir_id(&self) -> FhirId;
 
     fn desugar_expr(&self, env: &mut Env, expr: &surface::Expr) -> Result<fhir::Expr> {
@@ -1270,7 +1276,7 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
         if let Some(param) = env.get(func) {
             return Ok(FuncRes::Param(fhir::Ident::new(param.name, func)));
         }
-        if let Some(decl) = self.genv().map().func_decl(func.name) {
+        if let Some(decl) = self.map().func_decl(func.name) {
             return Ok(FuncRes::Global(decl));
         }
         Err(self.emit_err(errors::UnresolvedVar::from_ident(func, "function")))
@@ -1282,7 +1288,7 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
                 if let Some(param) = env.get(*var) {
                     return Ok(QPathRes::Param(fhir::Ident::new(param.name, *var)));
                 }
-                if let Some(const_info) = self.genv().const_by_name(var.name) {
+                if let Some(const_info) = self.map().const_by_name(var.name) {
                     return Ok(QPathRes::Const(const_info));
                 }
                 Err(self.emit_err(errors::UnresolvedVar::from_ident(*var, "name")))
@@ -1310,27 +1316,35 @@ trait DesugarCtxt<'a, 'tcx: 'a> {
 
     #[track_caller]
     fn emit_err(&self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
-        self.genv().sess.emit_err(err)
+        self.sess().emit_err(err)
     }
 }
 
-impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> for RustItemCtxt<'a, 'tcx> {
+impl<'a, 'tcx> DesugarCtxt<'a> for RustItemCtxt<'a, 'tcx> {
     fn next_fhir_id(&self) -> FhirId {
         FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
     }
 
-    fn genv(&self) -> &'a GlobalEnv<'a, 'tcx> {
-        self.genv
+    fn map(&self) -> &'a fhir::Map {
+        self.map
+    }
+
+    fn sess(&self) -> &'a FluxSession {
+        self.sess
     }
 }
 
-impl<'a, 'tcx> DesugarCtxt<'a, 'tcx> for FluxItemCtxt<'a, 'tcx> {
+impl<'a> DesugarCtxt<'a> for FluxItemCtxt<'a> {
     fn next_fhir_id(&self) -> FhirId {
         FhirId { owner: FluxOwnerId::Flux(self.owner), local_id: self.local_id_gen.fresh() }
     }
 
-    fn genv(&self) -> &'a GlobalEnv<'a, 'tcx> {
-        self.genv
+    fn map(&self) -> &'a fhir::Map {
+        self.map
+    }
+
+    fn sess(&self) -> &'a FluxSession {
+        self.sess
     }
 }
 

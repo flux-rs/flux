@@ -730,6 +730,14 @@ impl Res {
             Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => "self type",
         }
     }
+
+    pub fn is_box(&self, tcx: TyCtxt) -> bool {
+        if let Res::Def(DefKind::Struct, def_id) = self {
+            tcx.adt_def(def_id).is_box()
+        } else {
+            false
+        }
+    }
 }
 
 impl TryFrom<rustc_hir::def::Res> for Res {

@@ -40,7 +40,8 @@ pub fn desugar_struct_def(
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
-    let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
+    let mut cx =
+        RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
     let struct_def = cx.desugar_struct_def(struct_def)?;
 
     if config::dump_fhir() {
@@ -60,7 +61,8 @@ pub fn desugar_enum_def(
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
-    let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
+    let mut cx =
+        RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
     let enum_def = cx.desugar_enum_def(enum_def)?;
 
     if config::dump_fhir() {
@@ -81,7 +83,8 @@ pub fn desugar_type_alias(
     let def_id = owner_id.def_id;
 
     let ty_alias = if let Some(ty_alias) = ty_alias {
-        let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
+        let mut cx =
+            RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
         cx.desugar_type_alias(ty_alias)?
     } else {
         lift::lift_type_alias(genv.tcx, genv.sess, owner_id)?
@@ -106,7 +109,14 @@ pub fn desugar_fn_sig(
 
     let (fn_sig, opaque_tys) = if let Some(fn_sig) = fn_sig {
         let mut opaque_tys = Default::default();
-        let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, Some(&mut opaque_tys));
+        let mut cx = RustItemCtxt::new(
+            genv.tcx,
+            genv.sess,
+            genv.map(),
+            owner_id,
+            resolver_output,
+            Some(&mut opaque_tys),
+        );
 
         let fn_sig = cx.desugar_fn_sig(fn_sig)?;
 
@@ -134,7 +144,8 @@ pub fn desugar_trait(
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
-    let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
+    let mut cx =
+        RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
     let trait_ = cx.desugar_trait(trait_)?;
 
     genv.map_mut().insert_trait(def_id, trait_);
@@ -150,7 +161,8 @@ pub fn desugar_impl(
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
-    let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
+    let mut cx =
+        RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
     let impl_ = cx.desugar_impl(impl_)?;
 
     genv.map_mut().insert_impl(def_id, impl_);

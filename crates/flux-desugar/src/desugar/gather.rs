@@ -382,7 +382,7 @@ impl RustItemCtxt<'_, '_> {
 
         // Check generic args
         let res = self.resolver_output.path_res_map[&path.node_id];
-        let pos = if self.genv.is_box(res) { pos } else { TypePos::Generic };
+        let pos = if res.is_box(self.tcx) { pos } else { TypePos::Generic };
         path.generics
             .iter()
             .try_for_each_exhaust(|arg| self.gather_params_generic_arg(arg, pos, params))

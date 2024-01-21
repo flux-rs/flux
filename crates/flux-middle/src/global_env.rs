@@ -3,7 +3,6 @@ use std::{borrow::Borrow, rc::Rc};
 use flux_errors::FluxSession;
 use rustc_hash::FxHashSet;
 use rustc_hir::{
-    def::DefKind,
     def_id::{DefId, LocalDefId},
     LangItem,
 };
@@ -221,15 +220,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     pub fn is_box(&self, res: fhir::Res) -> bool {
-        if let fhir::Res::Def(DefKind::Struct, def_id) = res {
-            self.tcx.adt_def(def_id).is_box()
-        } else {
-            false
-        }
-    }
-
-    pub fn const_by_name(&self, name: impl Borrow<Symbol>) -> Option<&fhir::ConstInfo> {
-        self.map().const_by_name(name)
+        res.is_box(self.tcx)
     }
 
     pub fn def_id_to_param_ty(&self, def_id: LocalDefId) -> rty::ParamTy {
