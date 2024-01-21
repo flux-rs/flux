@@ -1,67 +1,18 @@
 use flux_common::bug;
 use rustc_hir::{def::DefKind, PrimTy};
-use rustc_span::{
-    def_id::{DefId, LocalDefId},
-    Symbol,
-};
+use rustc_span::def_id::{DefId, LocalDefId};
 
-use crate::{
-    fhir,
-    global_env::GlobalEnv,
-    intern::List,
-    queries::{QueryErr, QueryResult},
-    rty::{
-        self,
-        fold::TypeFoldable as _,
-        subst::{GenericArgsDelegate, GenericsSubstFolder, GenericsSubstForSort},
-    },
-    rustc::lowering,
-};
+use crate::{fhir, global_env::GlobalEnv, intern::List, queries::QueryResult, rty};
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
-    pub fn sort_of_assoc_pred(
-        &self,
-        impl_id: DefId,
-        name: Symbol,
-    ) -> QueryResult<Option<List<rty::Sort>>> {
-        let trait_ref = self.tcx.impl_trait_ref(impl_id).unwrap();
-        let trait_ref = trait_ref.skip_binder(); // TODO: Yikes?
-        let generics = self.generics_of(impl_id)?;
-        let args = lowering::lower_generic_args(self.tcx, trait_ref.args)
-            .map_err(|err| QueryErr::unsupported(self.tcx, impl_id, err.into_err()))?;
-        let args = self.refine_default_generic_args(&generics, &args)?;
-
-        if let Some(assoc_pred) = self.assoc_predicate_of(trait_ref.def_id, name)?
-            && let rty::AssocPredicateKind::Spec(sorts) = assoc_pred.kind
-        {
-            return Ok(Some(
-                sorts.fold_with(&mut GenericsSubstFolder::new(GenericArgsDelegate(&args), &[])),
-            ));
-        };
-        Ok(None)
-    }
-
-    pub fn sort_of_alias_pred(
-        &self,
-        alias_pred: &fhir::AliasPred,
-    ) -> QueryResult<Option<List<rty::Sort>>> {
+    pub fn sort_of_alias_pred(&self, alias_pred: &fhir::AliasPred) -> QueryResult<rty::FuncSort> {
         let trait_id = alias_pred.trait_id;
         let name = alias_pred.name;
-        if let Some(assoc_pred) = self.assoc_predicate_of(trait_id, name)?
-            && let rty::AssocPredicateKind::Spec(sorts) = assoc_pred.kind
-        {
-            Ok(Some(sorts.fold_with(&mut GenericsSubstFolder::new(
-                GenericsSubstForSort {
-                    sort_for_param: |param_ty| {
-                        self.sort_of_generic_arg(&alias_pred.generic_args[param_ty.index as usize])
-                            .unwrap()
-                    },
-                },
-                &[],
-            ))))
-        } else {
-            Ok(None)
-        }
+        let fsort = self.sort_of_assoc_pred(trait_id, name);
+        Ok(fsort.instantiate_func_sort(|param_ty| {
+            self.sort_of_generic_arg(&alias_pred.generic_args[param_ty.index as usize])
+                .unwrap()
+        }))
     }
 
     pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> Option<rty::Sort> {

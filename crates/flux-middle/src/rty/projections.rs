@@ -19,7 +19,7 @@ use super::{
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    rty::{fold::TypeVisitable, AssocPredicateKind},
+    rty::fold::TypeVisitable,
     rustc::ty::FreeRegion,
 };
 
@@ -49,11 +49,12 @@ impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
         alias_pred: &AliasPred,
         refine_args: &RefineArgs,
     ) -> QueryResult<Expr> {
-        if let Some(impl_id) = self.impl_id_of_alias_ty(alias_pred)?
-            && let Some(pred) = self.genv.assoc_predicate_of(impl_id, alias_pred.name)?
-            && let AssocPredicateKind::Impl(body) = pred.kind
-        {
-            let expr = body.replace_bound_exprs(refine_args);
+        if let Some(impl_id) = self.impl_id_of_alias_ty(alias_pred)? {
+            let pred = self
+                .genv
+                .assoc_predicate_def(impl_id, alias_pred.name)?
+                .instantiate(&alias_pred.args, &[]);
+            let expr = pred.replace_bound_exprs(refine_args);
             Ok(expr)
         } else {
             Ok(Expr::alias_pred(alias_pred.clone(), refine_args.clone()))

@@ -268,57 +268,6 @@ pub(crate) fn conv_invariants(
     cx.conv_invariants(&env, invariants)
 }
 
-pub(crate) fn conv_impl_assoc_predicates(
-    genv: &GlobalEnv,
-    assoc_predicates: &[fhir::ImplAssocPredicate],
-    wfckresults: &WfckResults,
-) -> rty::AssocPredicates {
-    let predicates = assoc_predicates
-        .iter()
-        .map(|assoc_pred| conv_impl_assoc_predicate(genv, assoc_pred, wfckresults))
-        .collect_vec()
-        .into();
-    rty::AssocPredicates { predicates }
-}
-
-fn conv_impl_assoc_predicate(
-    genv: &GlobalEnv,
-    assoc_predicate: &fhir::ImplAssocPredicate,
-    wfckresults: &WfckResults,
-) -> rty::AssocPredicate {
-    let cx = ConvCtxt::new(genv, wfckresults);
-    let mut env = Env::new(genv, &[], wfckresults);
-    env.push_layer(Layer::list(&cx, 0, &assoc_predicate.params, false));
-    let expr = cx.conv_expr(&env, &assoc_predicate.body);
-    let expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv));
-    let kind = rty::AssocPredicateKind::Impl(expr);
-    rty::AssocPredicate { name: assoc_predicate.name, kind }
-}
-
-pub(crate) fn conv_trait_assoc_predicates(
-    genv: &GlobalEnv,
-    assoc_predicates: &[fhir::TraitAssocPredicate],
-) -> rty::AssocPredicates {
-    let predicates = assoc_predicates
-        .iter()
-        .map(|assoc_pred| conv_trait_assoc_predicate(genv, assoc_pred))
-        .collect_vec()
-        .into();
-    rty::AssocPredicates { predicates }
-}
-
-fn conv_trait_assoc_predicate(
-    genv: &GlobalEnv,
-    assoc_predicate: &fhir::TraitAssocPredicate,
-) -> rty::AssocPredicate {
-    let sorts = assoc_predicate
-        .sorts
-        .iter()
-        .map(|sort| conv_sort(genv, sort, &mut bug_on_sort_vid))
-        .collect();
-    let kind = rty::AssocPredicateKind::Spec(sorts);
-    rty::AssocPredicate { name: assoc_predicate.name, kind }
-}
 pub(crate) fn conv_defn(
     genv: &GlobalEnv,
     defn: &fhir::Defn,
@@ -378,6 +327,18 @@ pub(crate) fn conv_fn_sig(
 
     let res = rty::PolyFnSig::new(rty::FnSig::new(requires, args, output), vars);
     Ok(rty::EarlyBinder(res))
+}
+
+pub(crate) fn conv_assoc_pred_def(
+    genv: &GlobalEnv,
+    assoc_pred: &fhir::ImplAssocPredicate,
+    wfckresults: &WfckResults,
+) -> rty::Lambda {
+    let cx = ConvCtxt::new(genv, wfckresults);
+    let mut env = Env::new(genv, &[], wfckresults);
+    env.push_layer(Layer::list(&cx, 0, &assoc_pred.params, false));
+    let expr = cx.conv_expr(&env, &assoc_pred.body);
+    rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv))
 }
 
 pub(crate) fn conv_ty(
@@ -1288,7 +1249,7 @@ pub fn conv_func_decl(genv: &GlobalEnv, uif: &fhir::FuncDecl) -> rty::FuncDecl {
     }
 }
 
-fn conv_sorts<'a>(
+pub(crate) fn conv_sorts<'a>(
     genv: &GlobalEnv,
     sorts: impl IntoIterator<Item = &'a fhir::Sort>,
     next_sort_vid: &mut impl FnMut() -> rty::SortVid,
@@ -1309,7 +1270,7 @@ fn conv_refine_param(
     rty::RefineParam { sort, mode }
 }
 
-fn resolve_param_sort(
+pub(crate) fn resolve_param_sort(
     genv: &GlobalEnv,
     param: &fhir::RefineParam,
     wfckresults: Option<&WfckResults>,
@@ -1394,7 +1355,7 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
     }
 }
 
-fn bug_on_sort_vid() -> rty::SortVid {
+pub(crate) fn bug_on_sort_vid() -> rty::SortVid {
     bug!("unexpected infer sort")
 }
 

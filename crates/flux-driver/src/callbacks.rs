@@ -4,6 +4,7 @@ use flux_common::{cache::QueryCache, dbg, iter::IterExt};
 use flux_config as config;
 use flux_desugar as desugar;
 use flux_errors::{FluxSession, ResultExt};
+use flux_fhir_analysis::compare_impl_item;
 use flux_metadata::CStore;
 use flux_middle::{
     fhir::{self, lift, ConstInfo},
@@ -448,6 +449,12 @@ impl<'a, 'genv, 'tcx> CrateChecker<'a, 'genv, 'tcx> {
                     &adt_def,
                     self.checker_config,
                 )
+            }
+            DefKind::Impl { of_trait } => {
+                if of_trait {
+                    compare_impl_item::check_impl_against_trait(self.genv, def_id)?;
+                }
+                Ok(())
             }
             _ => Ok(()),
         }

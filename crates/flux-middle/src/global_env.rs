@@ -14,9 +14,9 @@ use crate::{
     cstore::CrateStoreDyn,
     fhir::{self, FluxLocalDefId, VariantIdx},
     intern::List,
-    queries::{Providers, Queries, QueryResult},
+    queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{self, fold::TypeFoldable, normalize::Defns, refining::Refiner},
-    rustc::{self, ty},
+    rustc::{self, lowering, ty},
 };
 
 pub struct GlobalEnv<'sess, 'tcx> {
@@ -120,6 +120,21 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.check_wf(self, flux_id.into())
     }
 
+    pub fn impl_trait_ref(
+        &self,
+        impl_id: DefId,
+    ) -> QueryResult<Option<rty::EarlyBinder<rty::TraitRef>>> {
+        let Some(poly_trait_ref) = self.tcx.impl_trait_ref(impl_id) else { return Ok(None) };
+
+        let impl_generics = self.generics_of(impl_id)?;
+        let trait_ref = poly_trait_ref.skip_binder();
+        let args = lowering::lower_generic_args(self.tcx, trait_ref.args)
+            .map_err(|err| QueryErr::unsupported(self.tcx, impl_id, err.into_err()))?;
+        let args = self.refine_default_generic_args(&impl_generics, &args)?;
+        let trait_ref = rty::TraitRef { def_id: trait_ref.def_id, args };
+        Ok(Some(rty::EarlyBinder(trait_ref)))
+    }
+
     pub fn generics_of(&self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {
         self.queries.generics_of(self, def_id.into())
     }
@@ -138,25 +153,24 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.queries.predicates_of(self, def_id.into())
     }
 
-    pub fn assoc_predicates_of(
-        &self,
-        def_id: impl Into<DefId>,
-    ) -> QueryResult<rty::AssocPredicates> {
+    pub fn assoc_predicates_of(&self, def_id: impl Into<DefId>) -> rty::AssocPredicates {
         self.queries.assoc_predicates_of(self, def_id.into())
     }
 
-    pub fn assoc_predicate_of(
+    pub fn assoc_predicate_def(
+        &self,
+        impl_id: DefId,
+        name: Symbol,
+    ) -> QueryResult<rty::EarlyBinder<rty::Binder<rty::Expr>>> {
+        self.queries.assoc_predicate_def(self, impl_id, name)
+    }
+
+    pub fn sort_of_assoc_pred(
         &self,
         def_id: impl Into<DefId>,
         name: Symbol,
-    ) -> QueryResult<Option<rty::AssocPredicate>> {
-        let pred = self
-            .assoc_predicates_of(def_id)?
-            .predicates
-            .iter()
-            .find(|assoc_pred| assoc_pred.name == name)
-            .cloned();
-        Ok(pred)
+    ) -> rty::EarlyBinder<rty::FuncSort> {
+        self.queries.sort_of_assoc_pred(self, def_id.into(), name)
     }
 
     pub fn item_bounds(&self, def_id: DefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {

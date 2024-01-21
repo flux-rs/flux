@@ -16,7 +16,8 @@ use std::{borrow::Cow, fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{
-    AggregateKind, ESpan, Expr, ExprKind, FieldProj, HoleKind, KVar, KVid, Loc, Name, Path, Var,
+    AggregateKind, ESpan, Expr, ExprKind, FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path,
+    Var,
 };
 use flux_common::bug;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
@@ -220,16 +221,17 @@ impl Default for AssocPredicates {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct AssocPredicate {
-    pub name: Symbol,
-    pub kind: AssocPredicateKind,
+impl AssocPredicates {
+    pub fn find(&self, name: Symbol) -> Option<&AssocPredicate> {
+        self.predicates.iter().find(|it| it.name == name)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum AssocPredicateKind {
-    Spec(List<Sort>),
-    Impl(Binder<Expr>),
+pub struct AssocPredicate {
+    /// [`DefId`] of the container, i.e., the impl block or trait.
+    pub container_def_id: DefId,
+    pub name: Symbol,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
@@ -297,6 +299,12 @@ pub enum Sort {
 }
 
 impl rustc_errors::IntoDiagnosticArg for Sort {
+    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
+        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+    }
+}
+
+impl rustc_errors::IntoDiagnosticArg for FuncSort {
     fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
         rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
@@ -585,6 +593,21 @@ impl GenericArgs {
             args.push(kind);
         }
         Ok(())
+    }
+
+    /// See [`rustc_middle::ty::GenericArgs::rebase_onto`]
+    pub fn rebase_onto(
+        &self,
+        genv: GlobalEnv,
+        source_ancestor: DefId,
+        target_args: GenericArgs,
+    ) -> GenericArgs {
+        let defs = genv.tcx.generics_of(source_ancestor);
+        target_args
+            .iter()
+            .chain(self.iter().skip(defs.count()))
+            .cloned()
+            .collect()
     }
 }
 
@@ -1092,6 +1115,16 @@ impl<T: TypeFoldable> EarlyBinder<T> {
         self.0.fold_with(&mut subst::GenericsSubstFolder::new(
             subst::IdentitySubstDelegate,
             refine_args,
+        ))
+    }
+}
+
+impl EarlyBinder<FuncSort> {
+    /// See [`subst::GenericsSubstForSort`]
+    pub fn instantiate_func_sort(self, sort_for_param: impl FnMut(ParamTy) -> Sort) -> FuncSort {
+        self.0.fold_with(&mut subst::GenericsSubstFolder::new(
+            subst::GenericsSubstForSort { sort_for_param },
+            &[],
         ))
     }
 }
