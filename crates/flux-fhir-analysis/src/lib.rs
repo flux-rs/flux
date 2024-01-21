@@ -9,6 +9,7 @@ extern crate rustc_span;
 extern crate rustc_type_ir;
 
 mod annot_check;
+pub mod compare_impl_item;
 mod conv;
 mod wf;
 
@@ -48,6 +49,8 @@ pub fn provide(providers: &mut Providers) {
         refinement_generics_of,
         predicates_of,
         assoc_predicates_of,
+        sort_of_assoc_pred,
+        assoc_predicate_def,
         item_bounds,
     };
 }
@@ -137,21 +140,87 @@ fn predicates_of(
     }
 }
 
-fn assoc_predicates_of(
-    genv: &GlobalEnv,
-    local_id: LocalDefId,
-) -> QueryResult<rty::AssocPredicates> {
-    match genv.tcx.def_kind(local_id) {
+fn assoc_predicates_of(genv: &GlobalEnv, local_id: LocalDefId) -> rty::AssocPredicates {
+    let predicates = match genv.tcx.def_kind(local_id) {
         DefKind::Impl { .. } => {
-            let assoc_predicates = &genv.map().get_impl(local_id).assoc_predicates;
-            let wfckresults = genv.check_wf(local_id)?;
-            Ok(conv::conv_impl_assoc_predicates(genv, assoc_predicates, &wfckresults))
+            genv.map()
+                .get_impl(local_id)
+                .assoc_predicates
+                .iter()
+                .map(|assoc_pred| {
+                    rty::AssocPredicate {
+                        container_def_id: local_id.to_def_id(),
+                        name: assoc_pred.name,
+                    }
+                })
+                .collect()
         }
         DefKind::Trait => {
-            let assoc_predicates = &genv.map().get_trait(local_id).assoc_predicates;
-            Ok(conv::conv_trait_assoc_predicates(genv, assoc_predicates))
+            genv.map()
+                .get_trait(local_id)
+                .assoc_predicates
+                .iter()
+                .map(|assoc_pred| {
+                    rty::AssocPredicate {
+                        container_def_id: local_id.to_def_id(),
+                        name: assoc_pred.name,
+                    }
+                })
+                .collect()
         }
         _ => bug!("expected trait or impl"),
+    };
+    rty::AssocPredicates { predicates }
+}
+
+fn assoc_predicate_def(
+    genv: &GlobalEnv,
+    impl_id: LocalDefId,
+    name: Symbol,
+) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
+    let assoc_pred = genv
+        .map()
+        .get_impl(impl_id)
+        .find_assoc_predicate(name)
+        .unwrap();
+    let wfckresults = genv.check_wf(impl_id)?;
+    Ok(rty::EarlyBinder(conv::conv_assoc_pred_def(genv, assoc_pred, &wfckresults)))
+}
+
+fn sort_of_assoc_pred(
+    genv: &GlobalEnv,
+    def_id: LocalDefId,
+    name: Symbol,
+) -> rty::EarlyBinder<rty::FuncSort> {
+    match genv.tcx.def_kind(def_id) {
+        DefKind::Trait => {
+            let assoc_pred = genv
+                .map()
+                .get_trait(def_id)
+                .find_assoc_predicate(name)
+                .unwrap();
+            rty::EarlyBinder(conv::conv_func_sort(
+                genv,
+                &assoc_pred.sort,
+                &mut conv::bug_on_sort_vid,
+            ))
+        }
+        DefKind::Impl { .. } => {
+            let assoc_pred = genv
+                .map()
+                .get_impl(def_id)
+                .find_assoc_predicate(name)
+                .unwrap();
+            let inputs = assoc_pred
+                .params
+                .iter()
+                .map(|p| conv::resolve_param_sort(genv, p, None))
+                .collect_vec();
+            rty::EarlyBinder(rty::FuncSort::new(inputs, rty::Sort::Bool))
+        }
+        _ => {
+            bug!("expected trait or impl");
+        }
     }
 }
 

@@ -134,16 +134,33 @@ pub struct Trait {
     pub generics: Generics,
     pub assoc_predicates: Vec<TraitAssocPredicate>,
 }
+
+impl Trait {
+    pub fn find_assoc_predicate(&self, name: Symbol) -> Option<&TraitAssocPredicate> {
+        self.assoc_predicates
+            .iter()
+            .find(|assoc_pred| assoc_pred.name == name)
+    }
+}
+
 #[derive(Debug)]
 pub struct TraitAssocPredicate {
     pub name: Symbol,
-    pub sorts: Vec<Sort>,
+    pub sort: FuncSort,
     pub span: Span,
 }
 
 pub struct Impl {
     pub generics: Generics,
     pub assoc_predicates: Vec<ImplAssocPredicate>,
+}
+
+impl Impl {
+    pub fn find_assoc_predicate(&self, name: Symbol) -> Option<&ImplAssocPredicate> {
+        self.assoc_predicates
+            .iter()
+            .find(|assoc_pred| assoc_pred.name == name)
+    }
 }
 
 pub struct ImplAssocPredicate {

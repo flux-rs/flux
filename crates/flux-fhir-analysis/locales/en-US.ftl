@@ -40,9 +40,6 @@ fhir_analysis_duplicated_ensures =
 fhir_analysis_unknown_qualifier =
     unknown qualifier
 
-fhir_analysis_invalid_assoc_predicate =
-    invalid associated predicate `{$name}` for trait `{$trait_id}`
-
 fhir_analysis_missing_ensures =
     missing ensures clause for `&strg` reference
 
@@ -167,4 +164,13 @@ fhir_analysis_definition_cycle =
 fhir_analysis_assoc_type_not_found =
     associated type not found
     .label = cannot resolve this associated type
-    .note = flux cannot resolved associated types if they are defined in a super trait
+    .note = Flux cannot resolved associated types if they are defined in a super trait
+
+# Check impl against trait errors
+
+fhir_analysis_incompatible_sort =
+    implemented associated predicate `{$name}` has an incompatible sort for trait
+    .label = expected `{$expected}`, found `{$found}`
+
+fhir_analysis_invalid_assoc_predicate =
+    associated predicate `{$name}` is not a member of trait `{$trait_id}`

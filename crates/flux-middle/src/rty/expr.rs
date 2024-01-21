@@ -18,6 +18,9 @@ use crate::{
     rty::fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
 };
 
+/// A lambda abstraction
+pub type Lambda = Binder<Expr>;
+
 pub type Expr = Interned<ExprS>;
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -101,7 +104,7 @@ pub enum ExprKind {
     ///    non-index position are eliminated before encoding into fixpoint. Right now, the
     ///    implementation only evaluates abstractions that are immediately applied to arguments,
     ///    thus the restriction.
-    Abs(Binder<Expr>),
+    Abs(Lambda),
     /// A hole is an expression that must be inferred either *semantically* by generating a kvar or
     /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or
     /// syntactically depends on the position it appears: only holes appearing in predicate position
