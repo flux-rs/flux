@@ -161,7 +161,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         &self,
         impl_id: DefId,
         name: Symbol,
-    ) -> QueryResult<rty::EarlyBinder<rty::Binder<rty::Expr>>> {
+    ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
         self.queries.assoc_predicate_def(self, impl_id, name)
     }
 
