@@ -11,21 +11,21 @@ impl MyTrait for i32 {
     }
 }
 
-#[flux::predicate{ f = |p:bool| { p } }] //~ ERROR mismatched sorts
+#[flux::predicate{ f = |p:bool| { p } }] //~ ERROR implemented associated predicate `f` has an incompatible sort for trait
 impl MyTrait for i16 {
     fn method(&self) -> i32 {
         10
     }
 }
 
-#[flux::predicate{ f = |x:int, y:int| { y < x } }] //~ ERROR this associated predicate takes 1 refinement argument but 2 were found
+#[flux::predicate{ f = |x:int, y:int| { y < x } }] //~ ERROR implemented associated predicate `f` has an incompatible sort for trait
 impl MyTrait for i64 {
     fn method(&self) -> i32 {
         10
     }
 }
 
-#[flux::predicate{ g = |x:int| { 0 < x } }] //~ ERROR invalid associated predicate `g`
+#[flux::predicate{ g = |x:int| { 0 < x } }] //~ ERROR associated predicate `g` is not a member of trait `MyTrait`
 impl MyTrait for u32 {
     fn method(&self) -> i32 {
         10
