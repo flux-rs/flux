@@ -9,6 +9,10 @@ use flux_rs::extern_spec;
 #[flux::refined_by(len: int)]
 struct Vec<T, A: Allocator = Global>;
 
+fn goo() -> i32 {
+    10
+}
+
 #[extern_spec]
 impl<T> Vec<T> {
     #[flux::sig(fn() -> Vec<T>[0])]
