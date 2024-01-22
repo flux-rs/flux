@@ -14,7 +14,7 @@ use rustc_span::{
     Symbol,
 };
 
-use crate::errors;
+use crate::{errors, resolver::ResolverOutput};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -28,30 +28,42 @@ pub enum SelfRes {
     None,
 }
 
-pub(crate) struct SortResolver<'genv, 'tcx> {
+pub(crate) struct SortResolver<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
+    resolver_output: &'a ResolverOutput,
     generic_params: FxHashMap<Symbol, DefId>,
     sort_params: FxHashMap<Symbol, usize>,
     self_res: SelfRes,
 }
 
-impl<'genv, 'tcx> SortResolver<'genv, 'tcx> {
-    pub(crate) fn with_sort_params(genv: GlobalEnv<'genv, 'tcx>, sort_params: &[Symbol]) -> Self {
+impl<'a, 'genv, 'tcx> SortResolver<'a, 'genv, 'tcx> {
+    pub(crate) fn with_sort_params(
+        genv: GlobalEnv<'genv, 'tcx>,
+        resolver_output: &'a ResolverOutput,
+        sort_params: &[Symbol],
+    ) -> Self {
         let sort_params = sort_params
             .iter()
             .enumerate()
             .map(|(i, v)| (*v, i))
             .collect();
-        Self { genv, generic_params: Default::default(), sort_params, self_res: SelfRes::None }
+        Self {
+            genv,
+            resolver_output,
+            generic_params: Default::default(),
+            sort_params,
+            self_res: SelfRes::None,
+        }
     }
 
     pub(crate) fn with_generics(
         genv: GlobalEnv<'genv, 'tcx>,
+        resolver_output: &'a ResolverOutput,
         generics: &Generics,
         self_res: SelfRes,
     ) -> Self {
         let generic_params = generics.params.iter().map(|p| (p.name, p.def_id)).collect();
-        Self { genv, sort_params: Default::default(), generic_params, self_res }
+        Self { genv, resolver_output, sort_params: Default::default(), generic_params, self_res }
     }
 
     pub(crate) fn resolve_sort(&self, sort: &surface::Sort) -> Result<fhir::Sort<'genv>> {
@@ -142,7 +154,7 @@ impl<'genv, 'tcx> SortResolver<'genv, 'tcx> {
             Ok(fhir::Sort::Param(*def_id))
         } else if let Some(idx) = self.sort_params.get(&ident.name) {
             Ok(fhir::Sort::Var(*idx))
-        } else if self.genv.map().find_sort(ident.name).is_some() {
+        } else if self.resolver_output.sort_decls.get(&ident.name).is_some() {
             let ctor = fhir::SortCtor::User { name: ident.name };
             Ok(fhir::Sort::App(ctor, self.genv.alloc_slice(&[])))
         } else {

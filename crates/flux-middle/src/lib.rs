@@ -40,7 +40,145 @@ pub mod rty;
 pub mod rustc;
 mod sort_of;
 
+use std::sync::OnceLock;
+
 use flux_macros::fluent_messages;
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
+use rustc_span::Symbol;
 
 fluent_messages! { "../locales/en-US.ftl" }
+
+pub struct TheoryFunc {
+    pub name: Symbol,
+    pub sort: rty::PolyFuncSort,
+    pub fixpoint_name: Symbol,
+}
+
+pub fn theory_funcs() -> &'static [TheoryFunc] {
+    static THEORY_FUNCS: OnceLock<Vec<TheoryFunc>> = OnceLock::new();
+    THEORY_FUNCS.get_or_init(|| {
+        use rty::{
+            Sort::{self, *},
+            SortCtor::*,
+            SortVar,
+        };
+        vec![
+            // Bitvector operations
+            TheoryFunc {
+                name: Symbol::intern("bv_int_to_bv32"),
+                fixpoint_name: Symbol::intern("int_to_bv32"),
+                sort: rty::PolyFuncSort::new(
+                    0,
+                    rty::FuncSort::new(vec![rty::Sort::Int], BitVec(32)),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("bv_bv32_to_int"),
+                fixpoint_name: Symbol::intern("bv32_to_int"),
+                sort: rty::PolyFuncSort::new(0, rty::FuncSort::new(vec![BitVec(32)], Int)),
+            },
+            TheoryFunc {
+                name: Symbol::intern("bv_sub"),
+                fixpoint_name: Symbol::intern("bvsub"),
+                sort: rty::PolyFuncSort::new(
+                    0,
+                    rty::FuncSort::new(vec![BitVec(32), BitVec(32)], BitVec(32)),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("bv_and"),
+                fixpoint_name: Symbol::intern("bvand"),
+                sort: rty::PolyFuncSort::new(
+                    0,
+                    rty::FuncSort::new(vec![BitVec(32), BitVec(32)], BitVec(32)),
+                ),
+            },
+            // Set operations
+            TheoryFunc {
+                name: Symbol::intern("set_empty"),
+                fixpoint_name: Symbol::intern("Set_empty"),
+                sort: rty::PolyFuncSort::new(
+                    1,
+                    rty::FuncSort::new(vec![Int], Sort::app(Set, vec![Var(SortVar::from(0))])),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("set_singleton"),
+                fixpoint_name: Symbol::intern("Set_sng"),
+                sort: rty::PolyFuncSort::new(
+                    1,
+                    rty::FuncSort::new(
+                        vec![Var(SortVar::from(0))],
+                        Sort::app(Set, vec![Var(SortVar::from(0))]),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("set_union"),
+                fixpoint_name: Symbol::intern("Set_cup"),
+                sort: rty::PolyFuncSort::new(
+                    1,
+                    rty::FuncSort::new(
+                        vec![
+                            Sort::app(Set, vec![Var(SortVar::from(0))]),
+                            Sort::app(Set, vec![Var(SortVar::from(0))]),
+                        ],
+                        Sort::app(Set, vec![Var(SortVar::from(0))]),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("set_is_in"),
+                fixpoint_name: Symbol::intern("Set_mem"),
+                sort: rty::PolyFuncSort::new(
+                    1,
+                    rty::FuncSort::new(
+                        vec![Var(SortVar::from(0)), Sort::app(Set, vec![Var(SortVar::from(0))])],
+                        Bool,
+                    ),
+                ),
+            },
+            // Map operations
+            TheoryFunc {
+                name: Symbol::intern("map_default"),
+                fixpoint_name: Symbol::intern("Map_default"),
+                sort: rty::PolyFuncSort::new(
+                    2,
+                    rty::FuncSort::new(
+                        vec![Var(SortVar::from(1))],
+                        Sort::app(Map, vec![Var(SortVar::from(0)), Var(SortVar::from(1))]),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("map_select"),
+                fixpoint_name: Symbol::intern("Map_select"),
+                sort: rty::PolyFuncSort::new(
+                    2,
+                    rty::FuncSort::new(
+                        vec![
+                            Sort::app(Map, vec![Var(SortVar::from(0)), Var(SortVar::from(1))]),
+                            Var(SortVar::from(0)),
+                        ],
+                        Var(SortVar::from(1)),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("map_store"),
+                fixpoint_name: Symbol::intern("Map_store"),
+                sort: rty::PolyFuncSort::new(
+                    2,
+                    rty::FuncSort::new(
+                        vec![
+                            Sort::app(Map, vec![Var(SortVar::from(0)), Var(SortVar::from(1))]),
+                            Var(SortVar::from(0)),
+                            Var(SortVar::from(1)),
+                        ],
+                        Sort::app(Map, vec![Var(SortVar::from(0)), Var(SortVar::from(1))]),
+                    ),
+                ),
+            },
+        ]
+    })
+}

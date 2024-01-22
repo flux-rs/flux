@@ -46,14 +46,12 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
         providers: Providers,
         f: impl for<'genv> FnOnce(GlobalEnv<'genv, 'tcx>) -> R,
     ) -> R {
-        let mut fhir = fhir::Crate::default();
-        fhir.insert_theory_funcs(arena);
         let inner = GlobalEnvInner {
             tcx,
             sess,
             cstore,
             arena,
-            fhir: RefCell::new(fhir),
+            fhir: RefCell::new(fhir::Crate::default()),
             queries: Queries::new(providers),
         };
         f(GlobalEnv { inner: &inner })
@@ -446,12 +444,6 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
             .insert(def_id, self.genv.alloc(impl_));
     }
 
-    pub fn insert_sort_decl(self, sort_decl: fhir::SortDecl) {
-        self.borrow_mut()
-            .sort_decls
-            .insert(sort_decl.name, sort_decl);
-    }
-
     pub fn insert_const(self, c: fhir::ConstInfo) {
         self.borrow_mut().consts.insert(c.sym, c);
     }
@@ -490,10 +482,10 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         self.borrow_mut().trusted.insert(def_id);
     }
 
-    pub fn insert_fn_quals(self, def_id: LocalDefId, quals: Vec<Ident>) {
+    pub fn insert_fn_quals(self, def_id: LocalDefId, quals: &[Ident]) {
         self.borrow_mut()
             .fn_quals
-            .insert(def_id, self.genv.alloc_slice(&quals));
+            .insert(def_id, self.genv.alloc_slice(quals));
     }
 
     fn borrow_mut(self) -> RefMut<'genv, fhir::Crate<'genv>> {
@@ -522,23 +514,11 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         self.borrow().flux_items.get(&name).copied()
     }
 
-    pub fn func_decl(self, name: Symbol) -> Option<&'genv fhir::FuncDecl<'genv>> {
-        self.borrow().func_decls.get(&name).copied()
-    }
-
-    pub fn const_by_name(self, name: Symbol) -> Option<fhir::ConstInfo> {
-        self.borrow().consts.get(&name).copied()
-    }
-
     pub fn refined_by(self, def_id: LocalDefId) -> &'genv fhir::RefinedBy<'genv> {
         self.borrow()
             .refined_by
             .get(&def_id)
             .unwrap_or_else(|| panic!("{def_id:?}"))
-    }
-
-    pub fn find_sort(self, name: Symbol) -> Option<fhir::SortDecl> {
-        self.borrow().sort_decls.get(&name).copied()
     }
 
     pub fn extern_id_of(self, def_id: LocalDefId) -> Option<DefId> {

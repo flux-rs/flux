@@ -20,6 +20,7 @@ use rustc_hir::{self as hir, def::DefKind, def_id::LocalDefId, OwnerId};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::{query, ty::TyCtxt};
 use rustc_session::config::OutputType;
+use rustc_span::Symbol;
 
 use crate::{
     collector::{IgnoreKey, Ignores, SpecCollector, Specs},
@@ -75,6 +76,7 @@ impl FluxCallbacks {
                 tcx.sess.parse_sess.clone_source_map(),
                 rustc_errors::fallback_fluent_bundle(DEFAULT_LOCALE_RESOURCES.to_vec(), false),
             );
+
             let mut providers = Providers::default();
             flux_fhir_analysis::provide(&mut providers);
 
@@ -90,16 +92,15 @@ impl FluxCallbacks {
 
 fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     tracing::info_span!("check_crate").in_scope(move || {
-        let mut specs = SpecCollector::collect(genv.tcx(), genv.sess())?;
+        let specs = SpecCollector::collect(genv.tcx(), genv.sess())?;
 
         // Ignore everything and go home
         if specs.ignores.contains(&IgnoreKey::Crate) {
             return Ok(());
         }
 
-        stage1_desugar(genv, &specs)?;
         let resolver_output = resolve_crate(genv, &specs)?;
-        stage2_desugar(genv, &mut specs, &resolver_output)?;
+        desugar_crate(genv, &specs, &resolver_output)?;
 
         flux_fhir_analysis::check_crate_wf(genv)?;
 
@@ -126,40 +127,28 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     })
 }
 
-fn stage1_desugar(genv: GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaranteed> {
-    let mut err: Option<ErrorGuaranteed> = None;
-
-    // Register Sorts
+fn collect_global_items(tcx: TyCtxt, resolver_output: &mut ResolverOutput, specs: &Specs) {
     for sort_decl in &specs.sort_decls {
-        genv.map()
-            .insert_sort_decl(desugar::desugar_sort_decl(sort_decl));
+        resolver_output
+            .sort_decls
+            .insert(sort_decl.name.name, desugar::desugar_sort_decl(sort_decl));
     }
 
-    // Register Consts
-    for (def_id, const_sig) in &specs.consts {
+    for def_id in specs.consts.keys() {
         let did = def_id.to_def_id();
-        let sym = def_id_symbol(genv.tcx(), *def_id);
-        genv.map()
-            .insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
+        let sym = def_id_symbol(tcx, *def_id);
+        resolver_output.consts.insert(sym, did);
     }
 
-    // Register FnDecls
-    err = specs
-        .func_defs
-        .iter()
-        .try_for_each_exhaust(|defn| {
-            let name = defn.name;
-            let func_decl = desugar::func_def_to_func_decl(genv, defn)?;
-            genv.map().insert_func_decl(name.name, func_decl);
-            Ok(())
-        })
-        .err()
-        .or(err);
+    for defn in &specs.func_defs {
+        let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
+        resolver_output.func_decls.insert(defn.name.name, kind);
+    }
 
-    if let Some(err) = err {
-        Err(err)
-    } else {
-        Ok(())
+    for itf in flux_middle::theory_funcs() {
+        resolver_output
+            .func_decls
+            .insert(itf.name, fhir::FuncKind::Thy(itf.fixpoint_name));
     }
 }
 
@@ -186,23 +175,40 @@ fn resolve_crate(genv: GlobalEnv, specs: &Specs) -> Result<ResolverOutput, Error
             }
             Ok(())
         })?;
+    let mut resolver_output = resolver.into_output();
 
-    Ok(resolver.into_output())
+    collect_global_items(genv.tcx(), &mut resolver_output, specs);
+
+    Ok(resolver_output)
 }
 
-fn stage2_desugar(
+fn desugar_crate(
     genv: GlobalEnv,
-    specs: &mut Specs,
+    specs: &Specs,
     resolver_output: &ResolverOutput,
 ) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
 
+    for defn in &specs.func_defs {
+        let name = defn.name;
+        let func_decl = desugar::func_def_to_func_decl(genv, resolver_output, defn)?;
+        genv.map().insert_func_decl(name.name, func_decl);
+    }
+
+    for (def_id, const_sig) in &specs.consts {
+        let did = def_id.to_def_id();
+        let sym = def_id_symbol(genv.tcx(), *def_id);
+        genv.map()
+            .insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
+    }
+
     // Defns
-    err = std::mem::take(&mut specs.func_defs)
-        .into_iter()
+    err = specs
+        .func_defs
+        .iter()
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
-            if let Some(defn) = desugar::desugar_defn(genv, defn)? {
+            if let Some(defn) = desugar::desugar_defn(genv, resolver_output, defn)? {
                 genv.map().insert_defn(name.name, defn);
             }
             Ok(())
@@ -215,7 +221,7 @@ fn stage2_desugar(
         .qualifs
         .iter()
         .try_for_each_exhaust(|qualifier| {
-            let qualifier = desugar::desugar_qualifier(genv, qualifier)?;
+            let qualifier = desugar::desugar_qualifier(genv, resolver_output, qualifier)?;
             genv.map().insert_qualifier(qualifier);
             Ok(())
         })
@@ -246,12 +252,13 @@ fn stage2_desugar(
 
 fn desugar_item(
     genv: GlobalEnv,
-    specs: &mut Specs,
+    specs: &Specs,
     item_id: hir::ItemId,
     resolver_output: &ResolverOutput,
 ) -> Result<(), ErrorGuaranteed> {
     let owner_id = item_id.owner_id;
     let item = genv.hir().item(item_id);
+
     match item.kind {
         hir::ItemKind::Fn(..) => {
             desugar_fn_sig(genv, specs, owner_id, resolver_output)?;
@@ -302,7 +309,7 @@ fn desugar_item(
 
 fn desugar_assoc_item(
     genv: GlobalEnv,
-    specs: &mut Specs,
+    specs: &Specs,
     owner_id: OwnerId,
     kind: hir::AssocItemKind,
     resolver_output: &ResolverOutput,
@@ -321,11 +328,11 @@ fn desugar_assoc_item(
 
 fn desugar_fn_sig(
     genv: GlobalEnv,
-    specs: &mut Specs,
+    specs: &Specs,
     owner_id: OwnerId,
     resolver_output: &ResolverOutput,
 ) -> Result<(), ErrorGuaranteed> {
-    let spec = specs.fn_sigs.remove(&owner_id).unwrap();
+    let spec = specs.fn_sigs.get(&owner_id).unwrap();
     let def_id = owner_id.def_id;
     if spec.trusted {
         genv.map().add_trusted(def_id);
@@ -333,9 +340,8 @@ fn desugar_fn_sig(
 
     desugar::desugar_fn_sig(genv, owner_id, spec.fn_sig.as_ref(), resolver_output)?;
 
-    // FIXME(nilehmann) not cloning `spec.qual_names` is the only reason we take a `&mut Specs`
-    if let Some(quals) = spec.qual_names {
-        genv.map().insert_fn_quals(def_id, quals.names);
+    if let Some(quals) = &spec.qual_names {
+        genv.map().insert_fn_quals(def_id, &quals.names);
     }
     Ok(())
 }

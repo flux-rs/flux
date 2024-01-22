@@ -19,10 +19,7 @@
 pub mod lift;
 pub mod visit;
 
-use std::{
-    borrow::{Borrow, Cow},
-    fmt,
-};
+use std::{borrow::Cow, fmt};
 
 use flux_common::{bug, span_bug};
 pub use flux_fixpoint::{BinOp, UnOp};
@@ -193,7 +190,6 @@ pub struct Crate<'fhir> {
     pub impls: UnordMap<LocalDefId, &'fhir Impl<'fhir>>,
     pub opaque_tys: UnordMap<LocalDefId, &'fhir OpaqueTy<'fhir>>,
     pub func_decls: FxHashMap<Symbol, &'fhir FuncDecl<'fhir>>,
-    pub sort_decls: SortDecls,
     pub flux_items: FxHashMap<Symbol, &'fhir FluxItem<'fhir>>,
     pub consts: FxHashMap<Symbol, ConstInfo>,
     pub refined_by: UnordMap<LocalDefId, &'fhir RefinedBy<'fhir>>,
@@ -876,16 +872,6 @@ impl<'fhir> RefinedBy<'fhir> {
     }
 }
 
-impl<'fhir> Sort<'fhir> {
-    fn set(arena: &'fhir Arena, t: Sort<'fhir>) -> Self {
-        Self::App(SortCtor::Set, arena.alloc_slice_copy(&[t]))
-    }
-
-    fn map(arena: &'fhir Arena, k: Sort<'fhir>, v: Sort<'fhir>) -> Self {
-        Self::App(SortCtor::Map, arena.alloc_slice_copy(&[k, v]))
-    }
-}
-
 impl<'fhir> From<PolyFuncSort<'fhir>> for Sort<'fhir> {
     fn from(fsort: PolyFuncSort<'fhir>) -> Self {
         Self::Func(fsort)
@@ -921,156 +907,6 @@ impl<'fhir> GenericArg<'fhir> {
         } else {
             bug!("expected `GenericArg::Type`")
         }
-    }
-}
-
-impl<'fhir> Crate<'fhir> {
-    // Qualifiers
-
-    pub fn qualifiers(&self) -> impl Iterator<Item = &Qualifier> {
-        self.flux_items.values().filter_map(|item| {
-            if let FluxItem::Qualifier(qual) = item {
-                Some(qual)
-            } else {
-                None
-            }
-        })
-    }
-
-    // Theory Symbols
-    fn insert_theory_func(
-        &mut self,
-        arena: &'fhir Arena,
-        name: Symbol,
-        fixpoint_name: Symbol,
-        params: usize,
-        inputs_and_output: &[Sort<'fhir>],
-    ) {
-        let sort = PolyFuncSort::new(params, arena.alloc_slice_copy(inputs_and_output));
-        self.func_decls
-            .insert(name, arena.alloc(FuncDecl { name, sort, kind: FuncKind::Thy(fixpoint_name) }));
-    }
-
-    pub(crate) fn insert_theory_funcs(&mut self, arena: &'fhir Arena) {
-        // Bitvector operations
-        self.insert_theory_func(
-            arena,
-            Symbol::intern("bv_int_to_bv32"),
-            Symbol::intern("int_to_bv32"),
-            0,
-            &[Sort::Int, Sort::BitVec(32)],
-        );
-        self.insert_theory_func(
-            arena,
-            Symbol::intern("bv_bv32_to_int"),
-            Symbol::intern("bv32_to_int"),
-            0,
-            &[Sort::BitVec(32), Sort::Int],
-        );
-        self.insert_theory_func(
-            arena,
-            Symbol::intern("bv_sub"),
-            Symbol::intern("bvsub"),
-            0,
-            &[Sort::BitVec(32), Sort::BitVec(32), Sort::BitVec(32)],
-        );
-        self.insert_theory_func(
-            arena,
-            Symbol::intern("bv_and"),
-            Symbol::intern("bvand"),
-            0,
-            &[Sort::BitVec(32), Sort::BitVec(32), Sort::BitVec(32)],
-        );
-
-        // Set operations
-        self.insert_theory_func(
-            arena,
-            Symbol::intern("set_empty"),
-            Symbol::intern("Set_empty"),
-            1,
-            &[Sort::Int, Sort::set(arena, Sort::Var(0))],
-        );
-        self.insert_theory_func(
-            arena,
-            Symbol::intern("set_singleton"),
-            Symbol::intern("Set_sng"),
-            1,
-            &[Sort::Var(0), Sort::set(arena, Sort::Var(0))],
-        );
-        self.insert_theory_func(
-            arena,
-            Symbol::intern("set_union"),
-            Symbol::intern("Set_cup"),
-            1,
-            &[
-                Sort::set(arena, Sort::Var(0)),
-                Sort::set(arena, Sort::Var(0)),
-                Sort::set(arena, Sort::Var(0)),
-            ],
-        );
-        self.insert_theory_func(
-            arena,
-            Symbol::intern("set_is_in"),
-            Symbol::intern("Set_mem"),
-            1,
-            &[Sort::Var(0), Sort::set(arena, Sort::Var(0)), Sort::Bool],
-        );
-
-        // Map operations
-        self.insert_theory_func(
-            arena,
-            Symbol::intern("map_default"),
-            Symbol::intern("Map_default"),
-            2,
-            &[Sort::Var(1), Sort::map(arena, Sort::Var(0), Sort::Var(1))],
-        );
-        self.insert_theory_func(
-            arena,
-            Symbol::intern("map_select"),
-            Symbol::intern("Map_select"),
-            2,
-            &[Sort::map(arena, Sort::Var(0), Sort::Var(1)), Sort::Var(0), Sort::Var(1)],
-        );
-        self.insert_theory_func(
-            arena,
-            Symbol::intern("map_store"),
-            Symbol::intern("Map_store"),
-            2,
-            &[
-                Sort::map(arena, Sort::Var(0), Sort::Var(1)),
-                Sort::Var(0),
-                Sort::Var(1),
-                Sort::map(arena, Sort::Var(0), Sort::Var(1)),
-            ],
-        );
-    }
-
-    // Defn
-
-    pub fn defns(&self) -> impl Iterator<Item = &Defn> {
-        self.flux_items.values().filter_map(|item| {
-            if let FluxItem::Defn(defn) = item {
-                Some(defn)
-            } else {
-                None
-            }
-        })
-    }
-
-    pub fn defn(&self, sym: impl Borrow<Symbol>) -> Option<&Defn> {
-        self.flux_items.get(sym.borrow()).and_then(|item| {
-            if let FluxItem::Defn(defn) = item {
-                Some(defn)
-            } else {
-                None
-            }
-        })
-    }
-
-    // Sorts
-
-    pub fn sort_decls(&self) -> &SortDecls {
-        &self.sort_decls
     }
 }
 

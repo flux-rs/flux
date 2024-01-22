@@ -60,11 +60,20 @@ fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> rty::AdtSortDef {
 }
 
 fn func_decls(genv: GlobalEnv) -> FxHashMap<Symbol, rty::FuncDecl> {
-    genv.map()
-        .func_decls()
-        .into_iter()
-        .map(|decl| (decl.name, conv::conv_func_decl(genv, decl)))
-        .collect()
+    let mut func_decls = FxHashMap::default();
+    for decl in genv.map().func_decls() {
+        func_decls.insert(decl.name, conv::conv_func_decl(genv, decl));
+    }
+    for itf in flux_middle::theory_funcs() {
+        let func_decl = rty::FuncDecl {
+            name: itf.name,
+            sort: itf.sort.clone(),
+            kind: fhir::FuncKind::Thy(itf.fixpoint_name),
+        };
+        func_decls.insert(itf.name, func_decl);
+    }
+
+    func_decls
 }
 
 fn defns(genv: GlobalEnv) -> QueryResult<rty::Defns> {

@@ -1,6 +1,6 @@
 use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
-use flux_middle::fhir::Res;
+use flux_middle::fhir::{self, Res};
 use flux_syntax::surface::{self, AliasPred, BaseTy, BaseTyKind, Ident, Path, Pred, PredKind, Ty};
 use hir::{def::DefKind, ItemId, ItemKind, OwnerId, PathSegment};
 use itertools::Itertools;
@@ -8,7 +8,7 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir as hir;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::Span;
+use rustc_span::{def_id::DefId, Span, Symbol};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -22,6 +22,9 @@ pub struct Resolver<'a, 'tcx> {
 pub struct ResolverOutput {
     pub path_res_map: UnordMap<surface::NodeId, Res>,
     pub impl_trait_res_map: UnordMap<surface::NodeId, ItemId>,
+    pub func_decls: UnordMap<Symbol, fhir::FuncKind>,
+    pub sort_decls: UnordMap<Symbol, fhir::SortDecl>,
+    pub consts: UnordMap<Symbol, DefId>,
 }
 
 impl<'a, 'tcx> Resolver<'a, 'tcx> {

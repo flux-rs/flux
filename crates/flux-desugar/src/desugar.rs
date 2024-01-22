@@ -22,7 +22,7 @@ use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{
-    def_id::LocalDefId,
+    def_id::{DefId, LocalDefId},
     sym::{self},
     symbol::kw,
     Span, Symbol,
@@ -39,14 +39,15 @@ use crate::{
 
 pub fn desugar_qualifier<'genv>(
     genv: GlobalEnv<'genv, '_>,
+    resolver_output: &ResolverOutput,
     qualifier: &surface::Qualifier,
 ) -> Result<fhir::Qualifier<'genv>> {
     let sort_params = &[];
-    let sort_resolver = SortResolver::with_sort_params(genv, sort_params);
+    let sort_resolver = SortResolver::with_sort_params(genv, resolver_output, sort_params);
 
     let mut env = Env::from_params(&sort_resolver, ScopeId::FluxItem, &qualifier.args)?;
 
-    let cx = FluxItemCtxt::new(genv, qualifier.name.name);
+    let cx = FluxItemCtxt::new(genv, resolver_output, qualifier.name.name);
     let expr = cx.desugar_expr(&mut env, &qualifier.expr);
 
     Ok(fhir::Qualifier {
@@ -59,15 +60,16 @@ pub fn desugar_qualifier<'genv>(
 
 pub fn desugar_defn<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    defn: surface::FuncDef,
+    resolver_output: &ResolverOutput,
+    defn: &surface::FuncDef,
 ) -> Result<Option<fhir::Defn<'genv>>> {
-    if let Some(body) = defn.body {
+    if let Some(body) = &defn.body {
         let sort_params = defn.sort_vars.iter().map(|ident| ident.name).collect_vec();
-        let sort_resolver = SortResolver::with_sort_params(genv, &sort_params);
+        let sort_resolver = SortResolver::with_sort_params(genv, resolver_output, &sort_params);
         let mut env = Env::from_params(&sort_resolver, ScopeId::FluxItem, &defn.args)?;
 
-        let cx = FluxItemCtxt::new(genv, defn.name.name);
-        let expr = cx.desugar_expr(&mut env, &body)?;
+        let cx = FluxItemCtxt::new(genv, resolver_output, defn.name.name);
+        let expr = cx.desugar_expr(&mut env, body)?;
         let name = defn.name.name;
         let params = defn.sort_vars.len();
         let sort = sort_resolver.resolve_sort(&defn.output)?;
@@ -81,11 +83,12 @@ pub fn desugar_defn<'genv>(
 
 pub fn func_def_to_func_decl<'genv>(
     genv: GlobalEnv<'genv, '_>,
+    resolver_output: &ResolverOutput,
     defn: &surface::FuncDef,
 ) -> Result<fhir::FuncDecl<'genv>> {
     let params = defn.sort_vars.len();
     let sort_vars = defn.sort_vars.iter().map(|ident| ident.name).collect_vec();
-    let sr = SortResolver::with_sort_params(genv, &sort_vars);
+    let sr = SortResolver::with_sort_params(genv, resolver_output, &sort_vars);
     let mut inputs_and_output: Vec<fhir::Sort> = defn
         .args
         .iter()
@@ -127,7 +130,7 @@ pub(crate) struct RustItemCtxt<'a, 'genv, 'tcx> {
     owner: OwnerId,
     resolver_output: &'a ResolverOutput,
     opaque_tys: Option<&'a mut UnordMap<LocalDefId, &'genv fhir::OpaqueTy<'genv>>>,
-    sort_resolver: SortResolver<'genv, 'tcx>,
+    sort_resolver: SortResolver<'a, 'genv, 'tcx>,
 }
 
 type Env<'genv> = env::Env<Param<'genv>>;
@@ -140,20 +143,21 @@ struct Param<'fhir> {
     span: Span,
 }
 
-struct FluxItemCtxt<'genv, 'tcx> {
+struct FluxItemCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
+    resolver_output: &'a ResolverOutput,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: Symbol,
 }
 
-enum FuncRes<'a> {
+enum FuncRes {
     Param(fhir::Ident),
-    Global(&'a fhir::FuncDecl<'a>),
+    Global(fhir::FuncKind),
 }
 
 enum QPathRes {
     Param(fhir::Ident),
-    Const(fhir::ConstInfo),
+    Const(DefId),
     NumConst(i128),
 }
 
@@ -181,7 +185,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> Self {
         let generics = genv.tcx().generics_of(owner);
         let self_res = self_res(genv.tcx(), owner);
-        let sort_resolver = SortResolver::with_generics(genv, generics, self_res);
+        let sort_resolver = SortResolver::with_generics(genv, resolver_output, generics, self_res);
         RustItemCtxt {
             genv,
             owner,
@@ -394,7 +398,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> Result<fhir::RefinedBy<'genv>> {
         let generics = self.genv.tcx().generics_of(self.owner);
         let sort_vars = gather_refined_by_sort_vars(generics, refined_by);
-        let sr = SortResolver::with_sort_params(self.genv, &sort_vars);
+        let sr = SortResolver::with_sort_params(self.genv, self.resolver_output, &sort_vars);
 
         let index_params: Vec<_> = refined_by
             .index_params
@@ -1114,15 +1118,19 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
     }
 }
 
-impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, owner: Symbol) -> Self {
-        Self { genv, local_id_gen: Default::default(), owner }
+impl<'a, 'genv, 'tcx> FluxItemCtxt<'a, 'genv, 'tcx> {
+    fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        resolver_output: &'a ResolverOutput,
+        owner: Symbol,
+    ) -> Self {
+        Self { genv, resolver_output, local_id_gen: Default::default(), owner }
     }
 }
 
 impl<'genv> Env<'genv> {
     fn from_params<'a>(
-        sort_resolver: &SortResolver<'genv, '_>,
+        sort_resolver: &SortResolver<'_, 'genv, '_>,
         scope: ScopeId,
         params: impl IntoIterator<Item = &'a surface::RefineParam>,
     ) -> Result<Self> {
@@ -1220,6 +1228,7 @@ impl<'genv> Scope<Param<'genv>> {
 
 trait DesugarCtxt<'genv, 'tcx: 'genv> {
     fn genv(&self) -> GlobalEnv<'genv, 'tcx>;
+    fn resolver_output(&self) -> &ResolverOutput;
     fn next_fhir_id(&self) -> FhirId;
 
     fn sess(&self) -> &'genv FluxSession {
@@ -1239,8 +1248,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             surface::ExprKind::QPath(qpath) => {
                 match self.resolve_qpath(env, qpath)? {
                     QPathRes::Param(ident) => fhir::ExprKind::Var(ident, None),
-                    QPathRes::Const(const_info) => {
-                        fhir::ExprKind::Const(const_info.def_id, qpath.span)
+                    QPathRes::Const(const_def_id) => {
+                        fhir::ExprKind::Const(const_def_id, qpath.span)
                     }
                     QPathRes::NumConst(i) => fhir::ExprKind::Literal(fhir::Lit::Int(i)),
                 }
@@ -1273,14 +1282,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             surface::ExprKind::App(func, args) => {
                 let args = self.desugar_exprs(env, args)?;
                 match self.resolve_func(env, *func)? {
-                    FuncRes::Global(fundecl) => {
+                    FuncRes::Global(funckind) => {
                         fhir::ExprKind::App(
-                            fhir::Func::Global(
-                                func.name,
-                                fundecl.kind,
-                                func.span,
-                                self.next_fhir_id(),
-                            ),
+                            fhir::Func::Global(func.name, funckind, func.span, self.next_fhir_id()),
                             args,
                         )
                     }
@@ -1354,12 +1358,12 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         }
     }
 
-    fn resolve_func(&self, env: &Env, func: surface::Ident) -> Result<FuncRes<'genv>> {
+    fn resolve_func(&self, env: &Env, func: surface::Ident) -> Result<FuncRes> {
         if let Some(param) = env.get(func) {
             return Ok(FuncRes::Param(fhir::Ident::new(param.name, func)));
         }
-        if let Some(decl) = self.map().func_decl(func.name) {
-            return Ok(FuncRes::Global(decl));
+        if let Some(decl) = self.resolver_output().func_decls.get(&func.name) {
+            return Ok(FuncRes::Global(*decl));
         }
         Err(self.emit_err(errors::UnresolvedVar::from_ident(func, "function")))
     }
@@ -1370,8 +1374,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 if let Some(param) = env.get(*var) {
                     return Ok(QPathRes::Param(fhir::Ident::new(param.name, *var)));
                 }
-                if let Some(const_info) = self.map().const_by_name(var.name) {
-                    return Ok(QPathRes::Const(const_info));
+                if let Some(const_def_id) = self.resolver_output().consts.get(&var.name) {
+                    return Ok(QPathRes::Const(*const_def_id));
                 }
                 Err(self.emit_err(errors::UnresolvedVar::from_ident(*var, "name")))
             }
@@ -1410,15 +1414,23 @@ impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'a, 'genv, 'tcx>
     fn genv(&self) -> GlobalEnv<'genv, 'tcx> {
         self.genv
     }
+
+    fn resolver_output(&self) -> &ResolverOutput {
+        self.resolver_output
+    }
 }
 
-impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for FluxItemCtxt<'genv, 'tcx> {
+impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for FluxItemCtxt<'a, 'genv, 'tcx> {
     fn next_fhir_id(&self) -> FhirId {
         FhirId { owner: FluxOwnerId::Flux(self.owner), local_id: self.local_id_gen.fresh() }
     }
 
     fn genv(&self) -> GlobalEnv<'genv, 'tcx> {
         self.genv
+    }
+
+    fn resolver_output(&self) -> &ResolverOutput {
+        self.resolver_output
     }
 }
 
