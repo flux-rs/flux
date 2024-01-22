@@ -1,5 +1,4 @@
 use std::{
-    borrow::Borrow,
     cell::{self, RefCell, RefMut},
     rc::Rc,
 };
@@ -29,13 +28,11 @@ pub struct GlobalEnv<'genv, 'tcx> {
     inner: &'genv GlobalEnvInner<'genv, 'tcx>,
 }
 
-type Arena = bumpalo::Bump;
-
 struct GlobalEnvInner<'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'genv FluxSession,
     fhir: RefCell<fhir::Crate<'genv>>,
-    arena: &'genv Arena,
+    arena: &'genv fhir::Arena,
     cstore: Box<CrateStoreDyn>,
     queries: Queries<'genv, 'tcx>,
 }
@@ -45,17 +42,18 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
         tcx: TyCtxt<'tcx>,
         sess: &'a FluxSession,
         cstore: Box<CrateStoreDyn>,
-        arena: &'a Arena,
+        arena: &'a fhir::Arena,
         providers: Providers,
         f: impl for<'genv> FnOnce(GlobalEnv<'genv, 'tcx>) -> R,
     ) -> R {
-        let map = RefCell::new(fhir::Crate::default());
+        let mut fhir = fhir::Crate::default();
+        fhir.insert_theory_funcs(arena);
         let inner = GlobalEnvInner {
             tcx,
             sess,
             cstore,
             arena,
-            fhir: map,
+            fhir: RefCell::new(fhir),
             queries: Queries::new(providers),
         };
         f(GlobalEnv { inner: &inner })
@@ -107,7 +105,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         did: LocalDefId,
     ) -> QueryResult<impl Iterator<Item = &'genv rty::Qualifier>> {
-        let names: FxHashSet<Symbol> = self.map().get_fn_quals(did).map(|qual| qual.name).collect();
+        let names: FxHashSet<Symbol> = self
+            .map()
+            .fn_quals_for(did)
+            .iter()
+            .map(|qual| qual.name)
+            .collect();
         Ok(self
             .inner
             .queries
@@ -492,21 +495,13 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn insert_fn_quals(self, def_id: LocalDefId, quals: Vec<Ident>) {
-        self.borrow_mut().fn_quals.insert(def_id, quals);
+        self.borrow_mut()
+            .fn_quals
+            .insert(def_id, self.genv.alloc_slice(&quals));
     }
 
     fn borrow_mut(self) -> RefMut<'genv, fhir::Crate<'genv>> {
         self.genv.inner.fhir.borrow_mut()
-    }
-
-    pub fn get_fn_quals(&self, did: LocalDefId) -> impl Iterator<Item = fhir::SurfaceIdent> {
-        [].into_iter()
-        // self.borrow()
-        //     .fn_quals
-        //     .get(&did)
-        //     .map_or(&[][..], Vec::as_slice)
-        //     .iter()
-        //     .copied()
     }
 
     pub fn get_generics(self, def_id: LocalDefId) -> Option<&'genv fhir::Generics<'genv>> {
@@ -555,12 +550,20 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         }
     }
 
-    pub fn func_decls(self) -> impl Iterator<Item = &'genv fhir::FuncDecl<'genv>> {
-        [].into_iter()
+    pub fn func_decls(self) -> Vec<&'genv fhir::FuncDecl<'genv>> {
+        // FIXME(nilehmann) avoid the allocation
+        self.borrow().func_decls.values().copied().collect()
     }
 
-    pub fn defns(self) -> impl Iterator<Item = &'genv fhir::Defn<'genv>> {
-        [].into_iter()
+    pub fn defns(self) -> Vec<&'genv fhir::Defn<'genv>> {
+        // FIXME(nilehmann) avoid the allocation
+        self.borrow()
+            .flux_items
+            .values()
+            .filter_map(
+                |item| if let fhir::FluxItem::Defn(defn) = item { Some(defn) } else { None },
+            )
+            .collect()
     }
 
     pub fn defn(&self, name: Symbol) -> Option<&'genv fhir::Defn<'genv>> {
@@ -573,18 +576,24 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         })
     }
 
-    pub fn qualifiers(&self) -> impl Iterator<Item = &'genv fhir::Qualifier<'genv>> {
-        [].into_iter()
+    pub fn qualifiers(&self) -> Vec<&'genv fhir::Qualifier<'genv>> {
+        // FIXME(nilehmann) avoid the allocation
+        self.borrow()
+            .flux_items
+            .values()
+            .filter_map(
+                |item| if let fhir::FluxItem::Qualifier(qual) = item { Some(qual) } else { None },
+            )
+            .collect()
     }
 
-    pub fn fn_quals(&self) -> impl Iterator<Item = (LocalDefId, &'genv [fhir::SurfaceIdent])> {
-        [].into_iter()
-        // self.fn_quals.iter().map(|(def_id, quals)| (*def_id, quals))
+    pub fn fn_quals_for(&self, def_id: LocalDefId) -> &'genv [fhir::SurfaceIdent] {
+        self.borrow().fn_quals.get(&def_id).copied().unwrap_or(&[])
     }
 
-    pub fn consts(&self) -> impl Iterator<Item = fhir::ConstInfo> {
-        // self.consts.values().copied()
-        [].into_iter()
+    pub fn consts(&self) -> Vec<fhir::ConstInfo> {
+        // FIXME(nilehmann) avoid the allocation
+        self.borrow().consts.values().copied().collect()
     }
 
     pub fn is_trusted(&self, def_id: LocalDefId) -> bool {

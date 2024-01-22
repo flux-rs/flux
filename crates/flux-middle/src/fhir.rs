@@ -201,7 +201,7 @@ pub struct Crate<'fhir> {
     pub structs: FxHashMap<LocalDefId, &'fhir StructDef<'fhir>>,
     pub enums: FxHashMap<LocalDefId, &'fhir EnumDef<'fhir>>,
     pub fns: FxHashMap<LocalDefId, &'fhir FnSig<'fhir>>,
-    pub fn_quals: FxHashMap<LocalDefId, Vec<SurfaceIdent>>,
+    pub fn_quals: FxHashMap<LocalDefId, &'fhir [SurfaceIdent]>,
     pub trusted: UnordSet<LocalDefId>,
     pub externs: UnordMap<DefId, LocalDefId>,
 }
@@ -877,12 +877,12 @@ impl<'fhir> RefinedBy<'fhir> {
 }
 
 impl<'fhir> Sort<'fhir> {
-    pub fn set(genv: GlobalEnv<'fhir, '_>, t: Sort<'fhir>) -> Self {
-        Self::App(SortCtor::Set, genv.alloc_slice(&[t]))
+    fn set(arena: &'fhir Arena, t: Sort<'fhir>) -> Self {
+        Self::App(SortCtor::Set, arena.alloc_slice_copy(&[t]))
     }
 
-    pub fn map(genv: GlobalEnv<'fhir, '_>, k: Sort<'fhir>, v: Sort<'fhir>) -> Self {
-        Self::App(SortCtor::Map, genv.alloc_slice(&[k, v]))
+    fn map(arena: &'fhir Arena, k: Sort<'fhir>, v: Sort<'fhir>) -> Self {
+        Self::App(SortCtor::Map, arena.alloc_slice_copy(&[k, v]))
     }
 }
 
@@ -937,53 +937,45 @@ impl<'fhir> Crate<'fhir> {
         })
     }
 
-    pub fn get_fn_quals(&self, def_id: LocalDefId) -> impl Iterator<Item = SurfaceIdent> + '_ {
-        self.fn_quals
-            .get(&def_id)
-            .map_or(&[][..], Vec::as_slice)
-            .iter()
-            .copied()
-    }
-
     // Theory Symbols
     fn insert_theory_func(
         &mut self,
-        genv: GlobalEnv<'fhir, '_>,
+        arena: &'fhir Arena,
         name: Symbol,
         fixpoint_name: Symbol,
         params: usize,
         inputs_and_output: &[Sort<'fhir>],
     ) {
-        let sort = PolyFuncSort::new(params, genv.alloc_slice(inputs_and_output));
-        // self.func_decls
-        //     .insert(name, FuncDecl { name, sort, kind: FuncKind::Thy(fixpoint_name) });
+        let sort = PolyFuncSort::new(params, arena.alloc_slice_copy(inputs_and_output));
+        self.func_decls
+            .insert(name, arena.alloc(FuncDecl { name, sort, kind: FuncKind::Thy(fixpoint_name) }));
     }
 
-    fn insert_theory_funcs(&mut self, genv: GlobalEnv<'fhir, '_>) {
+    pub(crate) fn insert_theory_funcs(&mut self, arena: &'fhir Arena) {
         // Bitvector operations
         self.insert_theory_func(
-            genv,
+            arena,
             Symbol::intern("bv_int_to_bv32"),
             Symbol::intern("int_to_bv32"),
             0,
             &[Sort::Int, Sort::BitVec(32)],
         );
         self.insert_theory_func(
-            genv,
+            arena,
             Symbol::intern("bv_bv32_to_int"),
             Symbol::intern("bv32_to_int"),
             0,
             &[Sort::BitVec(32), Sort::Int],
         );
         self.insert_theory_func(
-            genv,
+            arena,
             Symbol::intern("bv_sub"),
             Symbol::intern("bvsub"),
             0,
             &[Sort::BitVec(32), Sort::BitVec(32), Sort::BitVec(32)],
         );
         self.insert_theory_func(
-            genv,
+            arena,
             Symbol::intern("bv_and"),
             Symbol::intern("bvand"),
             0,
@@ -992,63 +984,63 @@ impl<'fhir> Crate<'fhir> {
 
         // Set operations
         self.insert_theory_func(
-            genv,
+            arena,
             Symbol::intern("set_empty"),
             Symbol::intern("Set_empty"),
             1,
-            &[Sort::Int, Sort::set(genv, Sort::Var(0))],
+            &[Sort::Int, Sort::set(arena, Sort::Var(0))],
         );
         self.insert_theory_func(
-            genv,
+            arena,
             Symbol::intern("set_singleton"),
             Symbol::intern("Set_sng"),
             1,
-            &[Sort::Var(0), Sort::set(genv, Sort::Var(0))],
+            &[Sort::Var(0), Sort::set(arena, Sort::Var(0))],
         );
         self.insert_theory_func(
-            genv,
+            arena,
             Symbol::intern("set_union"),
             Symbol::intern("Set_cup"),
             1,
             &[
-                Sort::set(genv, Sort::Var(0)),
-                Sort::set(genv, Sort::Var(0)),
-                Sort::set(genv, Sort::Var(0)),
+                Sort::set(arena, Sort::Var(0)),
+                Sort::set(arena, Sort::Var(0)),
+                Sort::set(arena, Sort::Var(0)),
             ],
         );
         self.insert_theory_func(
-            genv,
+            arena,
             Symbol::intern("set_is_in"),
             Symbol::intern("Set_mem"),
             1,
-            &[Sort::Var(0), Sort::set(genv, Sort::Var(0)), Sort::Bool],
+            &[Sort::Var(0), Sort::set(arena, Sort::Var(0)), Sort::Bool],
         );
 
         // Map operations
         self.insert_theory_func(
-            genv,
+            arena,
             Symbol::intern("map_default"),
             Symbol::intern("Map_default"),
             2,
-            &[Sort::Var(1), Sort::map(genv, Sort::Var(0), Sort::Var(1))],
+            &[Sort::Var(1), Sort::map(arena, Sort::Var(0), Sort::Var(1))],
         );
         self.insert_theory_func(
-            genv,
+            arena,
             Symbol::intern("map_select"),
             Symbol::intern("Map_select"),
             2,
-            &[Sort::map(genv, Sort::Var(0), Sort::Var(1)), Sort::Var(0), Sort::Var(1)],
+            &[Sort::map(arena, Sort::Var(0), Sort::Var(1)), Sort::Var(0), Sort::Var(1)],
         );
         self.insert_theory_func(
-            genv,
+            arena,
             Symbol::intern("map_store"),
             Symbol::intern("Map_store"),
             2,
             &[
-                Sort::map(genv, Sort::Var(0), Sort::Var(1)),
+                Sort::map(arena, Sort::Var(0), Sort::Var(1)),
                 Sort::Var(0),
                 Sort::Var(1),
-                Sort::map(genv, Sort::Var(0), Sort::Var(1)),
+                Sort::map(arena, Sort::Var(0), Sort::Var(1)),
             ],
         );
     }

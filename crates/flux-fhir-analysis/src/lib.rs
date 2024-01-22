@@ -62,6 +62,7 @@ fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> rty::AdtSortDef {
 fn func_decls(genv: GlobalEnv) -> FxHashMap<Symbol, rty::FuncDecl> {
     genv.map()
         .func_decls()
+        .into_iter()
         .map(|decl| (decl.name, conv::conv_func_decl(genv, decl)))
         .collect()
 }
@@ -70,6 +71,7 @@ fn defns(genv: GlobalEnv) -> QueryResult<rty::Defns> {
     let defns = genv
         .map()
         .defns()
+        .into_iter()
         .map(|defn| -> QueryResult<_> {
             let wfckresults = genv.check_wf(FluxLocalDefId::Flux(defn.name))?;
             let defn = conv::conv_defn(genv, defn, &wfckresults);
@@ -88,6 +90,7 @@ fn defns(genv: GlobalEnv) -> QueryResult<rty::Defns> {
 fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
     genv.map()
         .qualifiers()
+        .into_iter()
         .map(|qualifier| {
             let wfckresults = genv.check_wf(FluxLocalDefId::Flux(qualifier.name))?;
             normalize(genv, conv::conv_qualifier(genv, qualifier, &wfckresults))
@@ -448,8 +451,16 @@ fn check_wf_rust_item<'genv>(
 pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
 
+    let qualifiers = genv
+        .map()
+        .qualifiers()
+        .into_iter()
+        .map(|q| q.name)
+        .collect();
+
     for def_id in genv.tcx().hir_crate_items(()).definitions() {
-        match genv.tcx().def_kind(def_id) {
+        let def_kind = genv.tcx().def_kind(def_id);
+        match def_kind {
             DefKind::TyAlias { .. }
             | DefKind::Struct
             | DefKind::Enum
@@ -459,6 +470,12 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
                 err = genv.check_wf(def_id).emit(genv.sess()).err().or(err);
             }
             _ => {}
+        }
+        if matches!(def_kind, DefKind::Fn | DefKind::AssocFn) {
+            let fn_quals = genv.map().fn_quals_for(def_id);
+            err = wf::check_fn_quals(genv.sess(), &qualifiers, fn_quals)
+                .err()
+                .or(err);
         }
     }
 
@@ -474,13 +491,6 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         err = genv
             .check_wf(FluxLocalDefId::Flux(qualifier.name))
             .emit(genv.sess())
-            .err()
-            .or(err);
-    }
-
-    let qualifiers = genv.map().qualifiers().map(|q| q.name).collect();
-    for (_, fn_quals) in genv.map().fn_quals() {
-        err = wf::check_fn_quals(genv.sess(), &qualifiers, fn_quals)
             .err()
             .or(err);
     }
