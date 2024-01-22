@@ -77,10 +77,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         Map { genv: self }
     }
 
-    pub fn borrow_map_mut(self) -> Map<'genv, 'tcx> {
-        Map { genv: self }
-    }
-
     pub fn alloc<T>(&self, val: T) -> &'genv T {
         self.inner.arena.alloc(val)
     }
@@ -535,7 +531,10 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn refined_by(self, def_id: LocalDefId) -> &'genv fhir::RefinedBy<'genv> {
-        self.borrow().refined_by[&def_id]
+        self.borrow()
+            .refined_by
+            .get(&def_id)
+            .unwrap_or_else(|| panic!("{def_id:?}"))
     }
 
     pub fn find_sort(self, name: Symbol) -> Option<fhir::SortDecl> {

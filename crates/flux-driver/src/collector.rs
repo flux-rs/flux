@@ -660,22 +660,6 @@ impl Specs {
             }
         }
     }
-
-    pub fn refined_bys(&self) -> impl Iterator<Item = (OwnerId, Option<&surface::RefinedBy>)> {
-        let structs = self
-            .structs
-            .iter()
-            .map(|(owner_id, struct_def)| (*owner_id, struct_def.refined_by.as_ref()));
-        let enums = self
-            .enums
-            .iter()
-            .map(|(owner_id, enum_def)| (*owner_id, enum_def.refined_by.as_ref()));
-        let aliases = self
-            .ty_aliases
-            .iter()
-            .map(|(owner_id, alias)| (*owner_id, alias.as_ref().map(|alias| &alias.refined_by)));
-        itertools::chain!(structs, enums, aliases)
-    }
 }
 
 #[derive(Debug)]

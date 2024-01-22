@@ -131,7 +131,7 @@ fn stage1_desugar(genv: GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaranteed>
 
     // Register Sorts
     for sort_decl in &specs.sort_decls {
-        genv.borrow_map_mut()
+        genv.map()
             .insert_sort_decl(desugar::desugar_sort_decl(sort_decl));
     }
 
@@ -139,7 +139,7 @@ fn stage1_desugar(genv: GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaranteed>
     for (def_id, const_sig) in &specs.consts {
         let did = def_id.to_def_id();
         let sym = def_id_symbol(genv.tcx(), *def_id);
-        genv.borrow_map_mut()
+        genv.map()
             .insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
     }
 
@@ -150,37 +150,11 @@ fn stage1_desugar(genv: GlobalEnv, specs: &Specs) -> Result<(), ErrorGuaranteed>
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
             let func_decl = desugar::func_def_to_func_decl(genv, defn)?;
-            genv.borrow_map_mut().insert_func_decl(name.name, func_decl);
+            genv.map().insert_func_decl(name.name, func_decl);
             Ok(())
         })
         .err()
         .or(err);
-
-    // Register RefinedBys (for structs and enums, which also registers their Generics)
-    err = specs
-        .refined_bys()
-        .try_for_each_exhaust(|(owner_id, refined_by)| {
-            let refined_by = if let Some(refined_by) = refined_by {
-                let generics = genv.tcx().generics_of(owner_id);
-                desugar::desugar_refined_by(genv, owner_id, generics, refined_by)?
-            } else {
-                lift::lift_refined_by(genv.tcx(), owner_id)
-            };
-            genv.borrow_map_mut()
-                .insert_refined_by(owner_id.def_id, refined_by);
-            Ok(())
-        })
-        .err()
-        .or(err);
-
-    // Externs
-    specs
-        .extern_specs
-        .iter()
-        .for_each(|(extern_def_id, local_def_id)| {
-            genv.borrow_map_mut()
-                .insert_extern(*extern_def_id, *local_def_id);
-        });
 
     if let Some(err) = err {
         Err(err)
@@ -229,7 +203,7 @@ fn stage2_desugar(
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
             if let Some(defn) = desugar::desugar_defn(genv, defn)? {
-                genv.borrow_map_mut().insert_defn(name.name, defn);
+                genv.map().insert_defn(name.name, defn);
             }
             Ok(())
         })
@@ -242,7 +216,7 @@ fn stage2_desugar(
         .iter()
         .try_for_each_exhaust(|qualifier| {
             let qualifier = desugar::desugar_qualifier(genv, qualifier)?;
-            genv.borrow_map_mut().insert_qualifier(qualifier);
+            genv.map().insert_qualifier(qualifier);
             Ok(())
         })
         .err()
@@ -255,6 +229,13 @@ fn stage2_desugar(
         .try_for_each_exhaust(|item_id| desugar_item(genv, specs, item_id, resolver_output))
         .err()
         .or(err);
+
+    specs
+        .extern_specs
+        .iter()
+        .for_each(|(extern_def_id, local_def_id)| {
+            genv.map().insert_extern(*extern_def_id, *local_def_id);
+        });
 
     if let Some(err) = err {
         Err(err)
@@ -331,8 +312,7 @@ fn desugar_assoc_item(
         hir::AssocItemKind::Type => {
             let generics = lift::lift_generics(genv, owner_id)?;
             let assoc_ty = fhir::AssocType { generics };
-            genv.borrow_map_mut()
-                .insert_assoc_type(owner_id.def_id, assoc_ty);
+            genv.map().insert_assoc_type(owner_id.def_id, assoc_ty);
             Ok(())
         }
         hir::AssocItemKind::Const => Ok(()),
@@ -348,14 +328,14 @@ fn desugar_fn_sig(
     let spec = specs.fn_sigs.remove(&owner_id).unwrap();
     let def_id = owner_id.def_id;
     if spec.trusted {
-        genv.borrow_map_mut().add_trusted(def_id);
+        genv.map().add_trusted(def_id);
     }
 
     desugar::desugar_fn_sig(genv, owner_id, spec.fn_sig.as_ref(), resolver_output)?;
 
     // FIXME(nilehmann) not cloning `spec.qual_names` is the only reason we take a `&mut Specs`
     if let Some(quals) = spec.qual_names {
-        genv.borrow_map_mut().insert_fn_quals(def_id, quals.names);
+        genv.map().insert_fn_quals(def_id, quals.names);
     }
     Ok(())
 }
