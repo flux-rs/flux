@@ -96,7 +96,7 @@ pub(crate) fn conv_adt_sort_def(genv: GlobalEnv, refined_by: &fhir::RefinedBy) -
         .collect_vec();
     let def_id = genv
         .map()
-        .extern_id_of(genv.tcx(), refined_by.def_id)
+        .extern_id_of(refined_by.def_id)
         .unwrap_or(refined_by.def_id.to_def_id());
     rty::AdtSortDef::new(def_id, params, fields)
 }
@@ -124,11 +124,7 @@ pub(crate) fn conv_generic_predicates<'genv>(
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
-    let refparams = &genv
-        .map()
-        .get_generics(genv.tcx(), def_id)
-        .unwrap()
-        .refinement_params;
+    let refparams = &genv.map().get_generics(def_id).unwrap().refinement_params;
 
     let env = &mut Env::new(genv, refparams, wfckresults);
 
@@ -151,11 +147,7 @@ pub(crate) fn conv_opaque_ty<'genv>(
 ) -> QueryResult<List<rty::Clause>> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let parent = genv.tcx().local_parent(def_id);
-    let refparams = &genv
-        .map()
-        .get_generics(genv.tcx(), parent)
-        .unwrap()
-        .refinement_params;
+    let refparams = &genv.map().get_generics(parent).unwrap().refinement_params;
     let parent_wfckresults = genv.check_wf(parent)?;
 
     let env = &mut Env::new(genv, refparams, &parent_wfckresults);

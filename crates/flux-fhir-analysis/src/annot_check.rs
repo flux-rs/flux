@@ -31,8 +31,8 @@ pub fn check_fn_sig<'genv>(
     if fn_sig.lifted {
         return Ok(());
     }
-    let self_ty = lift::lift_self_ty(genv.tcx(), genv.sess(), genv.map(), owner_id)?;
-    let expected_fn_sig = &lift::lift_fn(genv.tcx(), genv.sess(), genv.map(), owner_id)?.0;
+    let self_ty = lift::lift_self_ty(genv, owner_id)?;
+    let expected_fn_sig = &lift::lift_fn(genv, owner_id)?.0;
     Zipper::new(genv, wfckresults, self_ty).zip_fn_sig(fn_sig, expected_fn_sig)
 }
 
@@ -44,8 +44,7 @@ pub fn check_alias<'genv>(
     if ty_alias.lifted {
         return Ok(());
     }
-    let expected_ty_alias =
-        lift::lift_type_alias(genv.tcx(), genv.sess(), genv.map(), ty_alias.owner_id)?;
+    let expected_ty_alias = lift::lift_type_alias(genv, ty_alias.owner_id)?;
     Zipper::new(genv, wfckresults, None).zip_ty(&ty_alias.ty, &expected_ty_alias.ty)
 }
 
@@ -57,20 +56,12 @@ pub fn check_struct_def<'genv>(
     match &struct_def.kind {
         fhir::StructKind::Transparent { fields } => {
             let local_id_gen = IndexGen::new();
-            let mut liftcx = LiftCtxt::new(
-                genv.tcx(),
-                genv.sess(),
-                genv.map(),
-                struct_def.owner_id,
-                &local_id_gen,
-                None,
-            );
+            let mut liftcx = LiftCtxt::new(genv, struct_def.owner_id, &local_id_gen, None);
             fields.iter().try_for_each_exhaust(|field| {
                 if field.lifted {
                     return Ok(());
                 }
-                let self_ty =
-                    lift::lift_self_ty(genv.tcx(), genv.sess(), genv.map(), struct_def.owner_id)?;
+                let self_ty = lift::lift_self_ty(genv, struct_def.owner_id)?;
                 Zipper::new(genv, wfckresults, self_ty)
                     .zip_ty(&field.ty, &liftcx.lift_field_def_id(field.def_id)?.ty)
             })
@@ -84,16 +75,13 @@ pub fn check_enum_def<'genv>(
     wfckresults: &mut WfckResults<'genv>,
     enum_def: &fhir::EnumDef,
 ) -> Result<(), ErrorGuaranteed> {
-    let tcx = genv.tcx();
-    let sess = genv.sess();
-    let map = genv.map();
     let local_id_gen = IndexGen::new();
-    let mut liftcx = LiftCtxt::new(tcx, sess, map, enum_def.owner_id, &local_id_gen, None);
+    let mut liftcx = LiftCtxt::new(genv, enum_def.owner_id, &local_id_gen, None);
     enum_def.variants.iter().try_for_each_exhaust(|variant| {
         if variant.lifted {
             return Ok(());
         }
-        let self_ty = lift::lift_self_ty(tcx, sess, map, enum_def.owner_id)?;
+        let self_ty = lift::lift_self_ty(genv, enum_def.owner_id)?;
         Zipper::new(genv, wfckresults, self_ty)
             .zip_enum_variant(variant, &liftcx.lift_enum_variant_id(variant.def_id)?)
     })
@@ -337,7 +325,7 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
         };
         if let Res::Def(res_kind, res_did) = res
             && let Res::Def(expected_kind, expected_did) = expected
-            && let Some(extern_id) = self.genv.map().get_extern(res_did)
+            && let Some(extern_id) = self.genv.map().get_local_id_for_extern(res_did)
             && res_kind == expected_kind
             && extern_id.to_def_id() == expected_did
         {

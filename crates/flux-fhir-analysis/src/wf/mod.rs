@@ -67,7 +67,7 @@ pub(crate) fn check_defn<'genv>(
 pub(crate) fn check_fn_quals(
     sess: &FluxSession,
     qualifiers: &FxHashSet<Symbol>,
-    fn_quals: &Vec<SurfaceIdent>,
+    fn_quals: &[SurfaceIdent],
 ) -> Result<(), ErrorGuaranteed> {
     for qual in fn_quals {
         if !qualifiers.contains(&qual.name) {
@@ -146,7 +146,7 @@ pub(crate) fn check_opaque_ty<'genv>(
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
     let parent = genv.tcx().local_parent(owner_id.def_id);
-    if let Some(generics) = genv.map().get_generics(genv.tcx(), parent) {
+    if let Some(generics) = genv.map().get_generics(parent) {
         let wfckresults = genv.check_wf(parent).emit(genv.sess())?;
         for param in generics.refinement_params {
             let sort = wfckresults.node_sorts().get(param.fhir_id).unwrap().clone();

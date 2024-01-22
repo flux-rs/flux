@@ -99,7 +99,6 @@ impl Default for Providers {
     }
 }
 
-#[derive(Default)]
 pub struct Queries<'genv, 'tcx> {
     pub(crate) providers: Providers,
     mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
@@ -127,6 +126,34 @@ pub struct Queries<'genv, 'tcx> {
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
+    pub(crate) fn new(providers: Providers) -> Self {
+        Self {
+            providers,
+            mir: Default::default(),
+            lower_generics_of: Default::default(),
+            lower_predicates_of: Default::default(),
+            lower_type_of: Default::default(),
+            lower_fn_sig: Default::default(),
+            defns: Default::default(),
+            func_decls: Default::default(),
+            qualifiers: Default::default(),
+            adt_sort_def_of: Default::default(),
+            check_wf: Default::default(),
+            adt_def: Default::default(),
+            generics_of: Default::default(),
+            refinement_generics_of: Default::default(),
+            predicates_of: Default::default(),
+            assoc_predicates_of: Default::default(),
+            assoc_predicate_def: Default::default(),
+            sort_of_assoc_pred: Default::default(),
+            item_bounds: Default::default(),
+            type_of: Default::default(),
+            variants_of: Default::default(),
+            fn_sig: Default::default(),
+            lower_late_bound_vars: Default::default(),
+        }
+    }
+
     pub(crate) fn mir(
         &self,
         genv: GlobalEnv<'genv, 'tcx>,

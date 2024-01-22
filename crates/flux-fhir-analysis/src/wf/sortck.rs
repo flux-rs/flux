@@ -321,7 +321,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 };
                 fsort
             }
-            fhir::Func::Global(func, ..) => self.genv.func_decl(func).sort.clone(),
+            fhir::Func::Global(func, ..) => self.genv.func_decl(*func).sort.clone(),
         };
         Ok(self.instantiate_func_sort(poly_fsort))
     }

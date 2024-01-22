@@ -18,7 +18,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result 
         if trait_assoc_preds.find(name).is_none() {
             let fhir_impl_assoc_pred = genv
                 .map()
-                .get_impl(impl_id)
+                .expect_impl(impl_id)
                 .find_assoc_predicate(name)
                 .unwrap();
             return Err(genv.sess().emit_err(errors::InvalidAssocPredicate::new(
@@ -56,7 +56,7 @@ fn check_assoc_predicate(
     if impl_sort != trait_sort {
         let impl_span = genv
             .map()
-            .get_impl(impl_id)
+            .expect_impl(impl_id)
             .find_assoc_predicate(name)
             .unwrap()
             .span;

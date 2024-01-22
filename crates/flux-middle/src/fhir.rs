@@ -29,7 +29,7 @@ pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_data_structures::{
     fx::FxIndexMap,
-    unord::{ExtendUnord, UnordMap, UnordSet},
+    unord::{UnordMap, UnordSet},
 };
 use rustc_hash::FxHashMap;
 pub use rustc_hir::PrimTy;
@@ -45,7 +45,7 @@ use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
-use crate::{pretty, rty::Constant};
+use crate::{global_env::GlobalEnv, pretty, rty::Constant};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Generics<'fhir> {
@@ -90,7 +90,7 @@ pub enum FluxItem<'fhir> {
     Defn(Defn<'fhir>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct SortDecl {
     pub name: Symbol,
     pub span: Span,
@@ -186,24 +186,24 @@ pub type Arena = bumpalo::Bump;
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
-pub struct Map<'fhir> {
-    arena: &'fhir Arena,
-    assoc_types: UnordMap<LocalDefId, AssocType<'fhir>>,
-    traits: UnordMap<LocalDefId, Trait<'fhir>>,
-    impls: UnordMap<LocalDefId, Impl<'fhir>>,
-    opaque_tys: UnordMap<LocalDefId, OpaqueTy<'fhir>>,
-    func_decls: FxHashMap<Symbol, FuncDecl<'fhir>>,
-    sort_decls: SortDecls,
-    flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
-    consts: FxHashMap<Symbol, ConstInfo>,
-    refined_by: UnordMap<LocalDefId, RefinedBy<'fhir>>,
-    type_aliases: FxHashMap<LocalDefId, TyAlias<'fhir>>,
-    structs: FxHashMap<LocalDefId, StructDef<'fhir>>,
-    enums: FxHashMap<LocalDefId, EnumDef<'fhir>>,
-    fns: FxHashMap<LocalDefId, FnSig<'fhir>>,
-    fn_quals: FxHashMap<LocalDefId, Vec<SurfaceIdent>>,
-    trusted: UnordSet<LocalDefId>,
-    externs: UnordMap<DefId, LocalDefId>,
+#[derive(Default)]
+pub struct Crate<'fhir> {
+    pub assoc_types: UnordMap<LocalDefId, &'fhir AssocType<'fhir>>,
+    pub traits: UnordMap<LocalDefId, &'fhir Trait<'fhir>>,
+    pub impls: UnordMap<LocalDefId, &'fhir Impl<'fhir>>,
+    pub opaque_tys: UnordMap<LocalDefId, &'fhir OpaqueTy<'fhir>>,
+    pub func_decls: FxHashMap<Symbol, &'fhir FuncDecl<'fhir>>,
+    pub sort_decls: SortDecls,
+    pub flux_items: FxHashMap<Symbol, &'fhir FluxItem<'fhir>>,
+    pub consts: FxHashMap<Symbol, ConstInfo>,
+    pub refined_by: UnordMap<LocalDefId, &'fhir RefinedBy<'fhir>>,
+    pub type_aliases: FxHashMap<LocalDefId, &'fhir TyAlias<'fhir>>,
+    pub structs: FxHashMap<LocalDefId, &'fhir StructDef<'fhir>>,
+    pub enums: FxHashMap<LocalDefId, &'fhir EnumDef<'fhir>>,
+    pub fns: FxHashMap<LocalDefId, &'fhir FnSig<'fhir>>,
+    pub fn_quals: FxHashMap<LocalDefId, Vec<SurfaceIdent>>,
+    pub trusted: UnordSet<LocalDefId>,
+    pub externs: UnordMap<DefId, LocalDefId>,
 }
 
 #[derive(Debug)]
@@ -837,7 +837,7 @@ impl<'fhir> Generics<'fhir> {
         self.params.iter().find(|p| p.def_id == def_id).unwrap()
     }
 
-    pub fn with_refined_by(self, map: &Map<'fhir>, refined_by: &RefinedBy) -> Self {
+    pub fn with_refined_by(self, genv: GlobalEnv<'fhir, '_>, refined_by: &RefinedBy) -> Self {
         let mut params = vec![];
         for param in self.params {
             let kind = if refined_by.is_base_generic(param.def_id.to_def_id()) {
@@ -847,7 +847,7 @@ impl<'fhir> Generics<'fhir> {
             };
             params.push(GenericParam { def_id: param.def_id, kind });
         }
-        Generics { params: map.alloc_slice(&params), ..self }
+        Generics { params: genv.alloc_slice(&params), ..self }
     }
 }
 
@@ -877,12 +877,12 @@ impl<'fhir> RefinedBy<'fhir> {
 }
 
 impl<'fhir> Sort<'fhir> {
-    pub fn set(map: &Map<'fhir>, t: Sort<'fhir>) -> Self {
-        Self::App(SortCtor::Set, map.alloc_slice(&[t]))
+    pub fn set(genv: GlobalEnv<'fhir, '_>, t: Sort<'fhir>) -> Self {
+        Self::App(SortCtor::Set, genv.alloc_slice(&[t]))
     }
 
-    pub fn map(map: &Map<'fhir>, k: Sort<'fhir>, v: Sort<'fhir>) -> Self {
-        Self::App(SortCtor::Map, map.alloc_slice(&[k, v]))
+    pub fn map(genv: GlobalEnv<'fhir, '_>, k: Sort<'fhir>, v: Sort<'fhir>) -> Self {
+        Self::App(SortCtor::Map, genv.alloc_slice(&[k, v]))
     }
 }
 
@@ -924,96 +924,8 @@ impl<'fhir> GenericArg<'fhir> {
     }
 }
 
-impl<'fhir> Map<'fhir> {
-    pub fn new(arena: &'fhir Arena) -> Self {
-        let mut me = Self {
-            arena,
-            assoc_types: Default::default(),
-            traits: Default::default(),
-            impls: Default::default(),
-            opaque_tys: Default::default(),
-            func_decls: Default::default(),
-            sort_decls: Default::default(),
-            flux_items: Default::default(),
-            consts: Default::default(),
-            refined_by: Default::default(),
-            type_aliases: Default::default(),
-            structs: Default::default(),
-            enums: Default::default(),
-            fns: Default::default(),
-            fn_quals: Default::default(),
-            trusted: Default::default(),
-            externs: Default::default(),
-        };
-        me.insert_theory_funcs();
-        me
-    }
-
-    pub fn alloc<T>(&self, val: T) -> &'fhir T {
-        self.arena.alloc(val)
-    }
-
-    pub fn alloc_slice<T: Copy>(&self, slice: &[T]) -> &'fhir [T] {
-        self.arena.alloc_slice_copy(slice)
-    }
-
-    pub fn alloc_slice_fill_iter<T, I>(&self, it: I) -> &'fhir [T]
-    where
-        I: IntoIterator<Item = T>,
-        I::IntoIter: ExactSizeIterator,
-    {
-        self.arena.alloc_slice_fill_iter(it)
-    }
-
-    pub fn insert_trait(&mut self, def_id: LocalDefId, trait_: Trait<'fhir>) {
-        self.traits.insert(def_id, trait_);
-    }
-
-    pub fn get_trait(&self, def_id: LocalDefId) -> &Trait {
-        self.traits.get(&def_id).unwrap()
-    }
-
-    pub fn insert_impl(&mut self, def_id: LocalDefId, impl_: Impl<'fhir>) {
-        self.impls.insert(def_id, impl_);
-    }
-
-    pub fn get_impl(&self, def_id: LocalDefId) -> &Impl<'fhir> {
-        self.impls.get(&def_id).unwrap()
-    }
-
-    pub fn insert_assoc_type(&mut self, def_id: LocalDefId, assoc_ty: AssocType<'fhir>) {
-        self.assoc_types.insert(def_id, assoc_ty);
-    }
-
-    pub fn insert_opaque_tys(&mut self, opaque_tys: UnordMap<LocalDefId, OpaqueTy<'fhir>>) {
-        self.opaque_tys.extend_unord(opaque_tys.into_items());
-    }
-
-    pub fn get_generics(&self, tcx: TyCtxt, def_id: LocalDefId) -> Option<&Generics<'fhir>> {
-        match tcx.def_kind(def_id) {
-            DefKind::Struct => Some(&self.get_struct(def_id).generics),
-            DefKind::Enum => Some(&self.get_enum(def_id).generics),
-            DefKind::Impl { .. } => Some(&self.impls[&def_id].generics),
-            DefKind::Trait => Some(&self.traits[&def_id].generics),
-            DefKind::TyAlias => Some(&self.type_aliases[&def_id].generics),
-            DefKind::AssocTy => Some(&self.assoc_types[&def_id].generics),
-            DefKind::Fn => Some(&self.get_fn_sig(def_id).generics),
-            DefKind::AssocFn => Some(&self.get_fn_sig(def_id).generics),
-            DefKind::OpaqueTy => Some(&self.get_opaque_ty(def_id).generics),
-            _ => None,
-        }
-    }
-
-    pub fn get_opaque_ty(&self, def_id: LocalDefId) -> &OpaqueTy<'fhir> {
-        self.opaque_tys.get(&def_id).unwrap()
-    }
-
+impl<'fhir> Crate<'fhir> {
     // Qualifiers
-
-    pub fn insert_qualifier(&mut self, qualifier: Qualifier<'fhir>) {
-        self.flux_items
-            .insert(qualifier.name, FluxItem::Qualifier(qualifier));
-    }
 
     pub fn qualifiers(&self) -> impl Iterator<Item = &Qualifier> {
         self.flux_items.values().filter_map(|item| {
@@ -1025,30 +937,6 @@ impl<'fhir> Map<'fhir> {
         })
     }
 
-    // FnSigs
-
-    pub fn insert_fn_sig(&mut self, def_id: LocalDefId, fn_sig: FnSig<'fhir>) {
-        self.fns.insert(def_id, fn_sig);
-    }
-
-    pub fn insert_fn_quals(&mut self, def_id: LocalDefId, quals: Vec<SurfaceIdent>) {
-        self.fn_quals.insert(def_id, quals);
-    }
-
-    pub fn add_trusted(&mut self, def_id: LocalDefId) {
-        self.trusted.insert(def_id);
-    }
-
-    pub fn get_fn_sig(&self, def_id: LocalDefId) -> &FnSig<'fhir> {
-        self.fns
-            .get(&def_id)
-            .unwrap_or_else(|| bug!("no fn_sig found for `{def_id:?}`"))
-    }
-
-    pub fn fn_quals(&self) -> impl Iterator<Item = (LocalDefId, &Vec<SurfaceIdent>)> {
-        self.fn_quals.iter().map(|(def_id, quals)| (*def_id, quals))
-    }
-
     pub fn get_fn_quals(&self, def_id: LocalDefId) -> impl Iterator<Item = SurfaceIdent> + '_ {
         self.fn_quals
             .get(&def_id)
@@ -1057,116 +945,45 @@ impl<'fhir> Map<'fhir> {
             .copied()
     }
 
-    pub fn is_trusted(&self, def_id: LocalDefId) -> bool {
-        self.trusted.contains(&def_id)
-    }
-
-    pub fn insert_extern(&mut self, extern_def_id: DefId, local_def_id: LocalDefId) {
-        self.externs.insert(extern_def_id, local_def_id);
-    }
-
-    pub fn get_extern(&self, extern_def_id: DefId) -> Option<LocalDefId> {
-        self.externs.get(&extern_def_id).copied()
-    }
-
-    /// Return whether the local_def_id is a spec for an extern item. This is the inverse of
-    /// [`Map::get_extern`]. This currently only works for structs or enums
-    pub fn extern_id_of(&self, tcx: TyCtxt, local_def_id: LocalDefId) -> Option<DefId> {
-        match tcx.def_kind(local_def_id) {
-            DefKind::Struct => self.get_struct(local_def_id).extern_id,
-            DefKind::Enum => self.get_enum(local_def_id).extern_id,
-            _ => None,
-        }
-    }
-
-    // ADT
-
-    pub fn insert_refined_by(&mut self, def_id: LocalDefId, refined_by: RefinedBy<'fhir>) {
-        self.refined_by.insert(def_id, refined_by);
-    }
-
-    pub fn refined_by(&self, def_id: LocalDefId) -> &RefinedBy {
-        &self.refined_by[&def_id]
-    }
-
-    // Aliases
-
-    pub fn insert_type_alias(&mut self, def_id: LocalDefId, alias: TyAlias<'fhir>) {
-        self.type_aliases.insert(def_id, alias);
-    }
-
-    pub fn get_type_alias(&self, def_id: impl Borrow<LocalDefId>) -> &TyAlias {
-        &self.type_aliases[def_id.borrow()]
-    }
-
-    // Structs
-
-    pub fn insert_struct(&mut self, def_id: LocalDefId, struct_def: StructDef<'fhir>) {
-        self.structs.insert(def_id, struct_def);
-    }
-
-    pub fn get_struct(&self, def_id: impl Borrow<LocalDefId>) -> &StructDef<'fhir> {
-        &self.structs[def_id.borrow()]
-    }
-
-    // Enums
-
-    pub fn insert_enum(&mut self, def_id: LocalDefId, enum_def: EnumDef<'fhir>) {
-        self.enums.insert(def_id, enum_def);
-    }
-
-    pub fn get_enum(&self, def_id: impl Borrow<LocalDefId>) -> &EnumDef<'fhir> {
-        &self.enums[def_id.borrow()]
-    }
-
-    // Consts
-
-    pub fn insert_const(&mut self, c: ConstInfo) {
-        self.consts.insert(c.sym, c);
-    }
-
-    pub fn consts(&self) -> impl Iterator<Item = &ConstInfo> {
-        self.consts.values()
-    }
-
-    pub fn const_by_name(&self, name: impl Borrow<Symbol>) -> Option<&ConstInfo> {
-        self.consts.get(name.borrow())
-    }
-
     // Theory Symbols
     fn insert_theory_func(
         &mut self,
+        genv: GlobalEnv<'fhir, '_>,
         name: Symbol,
         fixpoint_name: Symbol,
         params: usize,
         inputs_and_output: &[Sort<'fhir>],
     ) {
-        let sort = PolyFuncSort::new(params, self.alloc_slice(inputs_and_output));
-        self.func_decls
-            .insert(name, FuncDecl { name, sort, kind: FuncKind::Thy(fixpoint_name) });
+        let sort = PolyFuncSort::new(params, genv.alloc_slice(inputs_and_output));
+        // self.func_decls
+        //     .insert(name, FuncDecl { name, sort, kind: FuncKind::Thy(fixpoint_name) });
     }
 
-    fn insert_theory_funcs(&mut self) {
+    fn insert_theory_funcs(&mut self, genv: GlobalEnv<'fhir, '_>) {
         // Bitvector operations
         self.insert_theory_func(
+            genv,
             Symbol::intern("bv_int_to_bv32"),
             Symbol::intern("int_to_bv32"),
             0,
             &[Sort::Int, Sort::BitVec(32)],
         );
         self.insert_theory_func(
+            genv,
             Symbol::intern("bv_bv32_to_int"),
             Symbol::intern("bv32_to_int"),
             0,
             &[Sort::BitVec(32), Sort::Int],
         );
         self.insert_theory_func(
+            genv,
             Symbol::intern("bv_sub"),
             Symbol::intern("bvsub"),
             0,
             &[Sort::BitVec(32), Sort::BitVec(32), Sort::BitVec(32)],
         );
         self.insert_theory_func(
+            genv,
             Symbol::intern("bv_and"),
             Symbol::intern("bvand"),
             0,
@@ -1175,78 +992,68 @@ impl<'fhir> Map<'fhir> {
 
         // Set operations
         self.insert_theory_func(
+            genv,
             Symbol::intern("set_empty"),
             Symbol::intern("Set_empty"),
             1,
-            &[Sort::Int, Sort::set(self, Sort::Var(0))],
+            &[Sort::Int, Sort::set(genv, Sort::Var(0))],
         );
         self.insert_theory_func(
+            genv,
             Symbol::intern("set_singleton"),
             Symbol::intern("Set_sng"),
             1,
-            &[Sort::Var(0), Sort::set(self, Sort::Var(0))],
+            &[Sort::Var(0), Sort::set(genv, Sort::Var(0))],
         );
         self.insert_theory_func(
+            genv,
             Symbol::intern("set_union"),
             Symbol::intern("Set_cup"),
             1,
             &[
-                Sort::set(self, Sort::Var(0)),
-                Sort::set(self, Sort::Var(0)),
-                Sort::set(self, Sort::Var(0)),
+                Sort::set(genv, Sort::Var(0)),
+                Sort::set(genv, Sort::Var(0)),
+                Sort::set(genv, Sort::Var(0)),
             ],
         );
         self.insert_theory_func(
+            genv,
             Symbol::intern("set_is_in"),
             Symbol::intern("Set_mem"),
             1,
-            &[Sort::Var(0), Sort::set(self, Sort::Var(0)), Sort::Bool],
+            &[Sort::Var(0), Sort::set(genv, Sort::Var(0)), Sort::Bool],
         );
 
         // Map operations
         self.insert_theory_func(
+            genv,
             Symbol::intern("map_default"),
             Symbol::intern("Map_default"),
             2,
-            &[Sort::Var(1), Sort::map(self, Sort::Var(0), Sort::Var(1))],
+            &[Sort::Var(1), Sort::map(genv, Sort::Var(0), Sort::Var(1))],
         );
         self.insert_theory_func(
+            genv,
             Symbol::intern("map_select"),
             Symbol::intern("Map_select"),
             2,
-            &[Sort::map(self, Sort::Var(0), Sort::Var(1)), Sort::Var(0), Sort::Var(1)],
+            &[Sort::map(genv, Sort::Var(0), Sort::Var(1)), Sort::Var(0), Sort::Var(1)],
         );
         self.insert_theory_func(
+            genv,
             Symbol::intern("map_store"),
             Symbol::intern("Map_store"),
             2,
             &[
-                Sort::map(self, Sort::Var(0), Sort::Var(1)),
+                Sort::map(genv, Sort::Var(0), Sort::Var(1)),
                 Sort::Var(0),
                 Sort::Var(1),
-                Sort::map(self, Sort::Var(0), Sort::Var(1)),
+                Sort::map(genv, Sort::Var(0), Sort::Var(1)),
             ],
         );
     }
 
-    // UIF
-
-    pub fn insert_func_decl(&mut self, symb: Symbol, uif: FuncDecl<'fhir>) {
-        self.func_decls.insert(symb, uif);
-    }
-
-    pub fn func_decls(&self) -> impl Iterator<Item = &FuncDecl> {
-        self.func_decls.values()
-    }
-
-    pub fn func_decl(&self, sym: impl Borrow<Symbol>) -> Option<&FuncDecl> {
-        self.func_decls.get(sym.borrow())
-    }
-
     // Defn
-    pub fn insert_defn(&mut self, symb: Symbol, defn: Defn<'fhir>) {
-        self.flux_items.insert(symb, FluxItem::Defn(defn));
-    }
 
     pub fn defns(&self) -> impl Iterator<Item = &Defn> {
         self.flux_items.values().filter_map(|item| {
@@ -1270,16 +1077,8 @@ impl<'fhir> Map<'fhir> {
 
     // Sorts
 
-    pub fn insert_sort_decl(&mut self, sort_decl: SortDecl) {
-        self.sort_decls.insert(sort_decl.name, sort_decl);
-    }
-
     pub fn sort_decls(&self) -> &SortDecls {
         &self.sort_decls
-    }
-
-    pub fn get_flux_item(&self, name: impl Borrow<Symbol>) -> Option<&FluxItem> {
-        self.flux_items.get(name.borrow())
     }
 }
 

@@ -37,7 +37,7 @@ use rustc_errors::ErrorGuaranteed;
 use super::{
     env::{self, ScopeId},
     errors::{IllegalBinder, InvalidUnrefinedParam},
-    RustItemCtxt,
+    DesugarCtxt as _, RustItemCtxt,
 };
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -104,11 +104,11 @@ impl From<surface::BindKind> for Param<'_> {
     }
 }
 
-impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
+impl<'genv> RustItemCtxt<'_, 'genv, '_> {
     pub(super) fn gather_params_type_alias(
         &self,
         ty_alias: &surface::TyAlias,
-    ) -> Result<super::Env<'fhir>> {
+    ) -> Result<super::Env<'genv>> {
         let mut env = Env::new(ScopeId::TyAlias(ty_alias.node_id));
         self.gather_refinement_generics(&ty_alias.generics.params, &mut env)?;
 
@@ -122,7 +122,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
     pub(super) fn gather_params_struct(
         &self,
         struct_def: &surface::StructDef,
-    ) -> Result<super::Env<'fhir>> {
+    ) -> Result<super::Env<'genv>> {
         let mut env = Env::new(ScopeId::Struct(struct_def.node_id));
         env.extend(
             self.sess(),
@@ -146,7 +146,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
     pub(super) fn gather_params_variant(
         &self,
         variant_def: &surface::VariantDef,
-    ) -> Result<super::Env<'fhir>> {
+    ) -> Result<super::Env<'genv>> {
         let mut env = Env::new(ScopeId::Variant(variant_def.node_id));
 
         for ty in &variant_def.fields {
@@ -162,7 +162,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
         Ok(env.into_desugar_env())
     }
 
-    fn gather_params_variant_ret(&self, ret: &surface::VariantRet, env: &mut Env<'fhir>) -> Result {
+    fn gather_params_variant_ret(&self, ret: &surface::VariantRet, env: &mut Env<'genv>) -> Result {
         self.gather_params_path(&ret.path, TypePos::Other, env)?;
         self.gather_params_indices(&ret.indices, TypePos::Other, env)
     }
@@ -170,7 +170,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
     pub(super) fn gather_params_fn_sig(
         &mut self,
         fn_sig: &surface::FnSig,
-    ) -> Result<super::Env<'fhir>> {
+    ) -> Result<super::Env<'genv>> {
         let mut env = Env::new(ScopeId::FnInput(fn_sig.node_id));
 
         self.gather_params_fn_sig_input(fn_sig, &mut env)?;
@@ -184,7 +184,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
         Ok(env.into_desugar_env())
     }
 
-    fn gather_params_fn_sig_input(&self, fn_sig: &surface::FnSig, env: &mut Env<'fhir>) -> Result {
+    fn gather_params_fn_sig_input(&self, fn_sig: &surface::FnSig, env: &mut Env<'genv>) -> Result {
         self.gather_refinement_generics(&fn_sig.generics.params, env)?;
         for (idx, arg) in fn_sig.args.iter().enumerate() {
             self.gather_params_fun_arg(idx, arg, env)?;
@@ -196,7 +196,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
     fn gather_refinement_generics(
         &self,
         params: &[surface::GenericParam],
-        env: &mut Env<'fhir>,
+        env: &mut Env<'genv>,
     ) -> Result {
         for param in params {
             let surface::GenericParamKind::Refine { sort } = &param.kind else { continue };
@@ -211,7 +211,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
     fn gather_params_predicates(
         &self,
         predicates: &[surface::WhereBoundPredicate],
-        env: &mut Env<'fhir>,
+        env: &mut Env<'genv>,
     ) -> Result {
         for predicate in predicates {
             self.gather_params_ty(None, &predicate.bounded_ty, TypePos::Other, env)?;
@@ -222,7 +222,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
         Ok(())
     }
 
-    fn gather_params_fn_sig_output(&self, fn_sig: &surface::FnSig, env: &mut Env<'fhir>) -> Result {
+    fn gather_params_fn_sig_output(&self, fn_sig: &surface::FnSig, env: &mut Env<'genv>) -> Result {
         if let surface::FnRetTy::Ty(ty) = &fn_sig.returns {
             self.gather_params_ty(None, ty, TypePos::Output, env)?;
         }
@@ -238,7 +238,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
         &self,
         idx: usize,
         arg: &surface::Arg,
-        env: &mut Env<'fhir>,
+        env: &mut Env<'genv>,
     ) -> Result {
         match arg {
             surface::Arg::Constr(bind, path, _) => {
@@ -261,7 +261,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
         bind: Option<surface::Ident>,
         ty: &surface::Ty,
         pos: TypePos,
-        env: &mut Env<'fhir>,
+        env: &mut Env<'genv>,
     ) -> Result {
         let node_id = ty.node_id;
         match &ty.kind {
@@ -344,7 +344,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
         &self,
         indices: &surface::Indices,
         pos: TypePos,
-        env: &mut Env<'fhir>,
+        env: &mut Env<'genv>,
     ) -> Result {
         indices
             .indices
@@ -356,7 +356,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
         &self,
         arg: &surface::RefineArg,
         pos: TypePos,
-        env: &mut Env<'fhir>,
+        env: &mut Env<'genv>,
     ) -> Result {
         match arg {
             surface::RefineArg::Bind(ident, kind, span) => {
@@ -379,7 +379,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
         &self,
         path: &surface::Path,
         pos: TypePos,
-        params: &mut Env<'fhir>,
+        params: &mut Env<'genv>,
     ) -> Result {
         // CODESYNC(type-holes, 3) type holes do not have a corresponding `Res`.
         if path.is_hole() {
@@ -395,7 +395,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
 
         // Check generic args
         let res = self.resolver_output.path_res_map[&path.node_id];
-        let pos = if res.is_box(self.tcx) { pos } else { TypePos::Generic };
+        let pos = if res.is_box(self.genv.tcx()) { pos } else { TypePos::Generic };
         path.generics
             .iter()
             .try_for_each_exhaust(|arg| self.gather_params_generic_arg(arg, pos, params))
@@ -405,7 +405,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
         &self,
         arg: &surface::GenericArg,
         pos: TypePos,
-        params: &mut Env<'fhir>,
+        params: &mut Env<'genv>,
     ) -> Result {
         match arg {
             surface::GenericArg::Type(ty) => self.gather_params_ty(None, ty, pos, params),
@@ -417,7 +417,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
         &self,
         bty: &surface::BaseTy,
         pos: TypePos,
-        params: &mut Env<'fhir>,
+        params: &mut Env<'genv>,
     ) -> Result {
         match &bty.kind {
             surface::BaseTyKind::Path(path) => self.gather_params_path(path, pos, params),
@@ -429,7 +429,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
 
     fn check_param_uses(
         &self,
-        env: &mut Env<'fhir>,
+        env: &mut Env<'genv>,
         f: impl FnOnce(&mut CheckParamUses),
     ) -> Result {
         CheckParamUses::new(self.sess(), env).run(f)
@@ -438,7 +438,7 @@ impl<'fhir> RustItemCtxt<'_, 'fhir, '_> {
     fn resolve_params(
         &self,
         params: &[surface::RefineParam],
-    ) -> Result<Vec<(surface::Ident, Param<'fhir>)>> {
+    ) -> Result<Vec<(surface::Ident, Param<'genv>)>> {
         params
             .iter()
             .map(|param| {
