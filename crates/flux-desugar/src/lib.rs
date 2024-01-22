@@ -12,6 +12,7 @@ extern crate rustc_span;
 use desugar::RustItemCtxt;
 use flux_common::dbg;
 use flux_config as config;
+use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
 use resolver::ResolverOutput;
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
@@ -24,58 +25,60 @@ pub mod resolver;
 mod sort_resolver;
 
 pub use desugar::{desugar_defn, desugar_qualifier, desugar_refined_by, func_def_to_func_decl};
-use flux_middle::{
-    fhir::{self, lift},
-    global_env::GlobalEnv,
-};
+use flux_middle::fhir::{self, lift};
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::OwnerId;
+use rustc_middle::ty::TyCtxt;
 
 pub fn desugar_struct_def(
-    genv: &mut GlobalEnv,
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    map: &mut fhir::Map,
     owner_id: OwnerId,
     struct_def: &surface::StructDef,
     resolver_output: &ResolverOutput,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
-    let mut cx =
-        RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
+    let mut cx = RustItemCtxt::new(tcx, sess, map, owner_id, resolver_output, None);
     let struct_def = cx.desugar_struct_def(struct_def)?;
 
     if config::dump_fhir() {
-        dbg::dump_item_info(genv.tcx, owner_id, "fhir", &struct_def).unwrap();
+        dbg::dump_item_info(tcx, owner_id, "fhir", struct_def).unwrap();
     }
 
-    genv.map_mut().insert_struct(def_id, struct_def);
+    map.insert_struct(def_id, struct_def);
 
     Ok(())
 }
 
 pub fn desugar_enum_def(
-    genv: &mut GlobalEnv,
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    map: &mut fhir::Map,
     owner_id: OwnerId,
     enum_def: &surface::EnumDef,
     resolver_output: &ResolverOutput,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
-    let mut cx =
-        RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
+    let mut cx = RustItemCtxt::new(tcx, sess, map, owner_id, resolver_output, None);
     let enum_def = cx.desugar_enum_def(enum_def)?;
 
     if config::dump_fhir() {
-        dbg::dump_item_info(genv.tcx, owner_id, "fhir", &enum_def).unwrap();
+        dbg::dump_item_info(tcx, owner_id, "fhir", &enum_def).unwrap();
     }
 
-    genv.map_mut().insert_enum(def_id, enum_def);
+    map.insert_enum(def_id, enum_def);
 
     Ok(())
 }
 
 pub fn desugar_type_alias(
-    genv: &mut GlobalEnv,
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    map: &mut fhir::Map,
     owner_id: OwnerId,
     ty_alias: Option<&surface::TyAlias>,
     resolver_output: &ResolverOutput,
@@ -83,24 +86,25 @@ pub fn desugar_type_alias(
     let def_id = owner_id.def_id;
 
     let ty_alias = if let Some(ty_alias) = ty_alias {
-        let mut cx =
-            RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
+        let mut cx = RustItemCtxt::new(tcx, sess, map, owner_id, resolver_output, None);
         cx.desugar_type_alias(ty_alias)?
     } else {
-        lift::lift_type_alias(genv.tcx, genv.sess, owner_id)?
+        lift::lift_type_alias(tcx, sess, map, owner_id)?
     };
 
     if config::dump_fhir() {
-        dbg::dump_item_info(genv.tcx, owner_id, "fhir", &ty_alias).unwrap();
+        dbg::dump_item_info(tcx, owner_id, "fhir", &ty_alias).unwrap();
     }
 
-    genv.map_mut().insert_type_alias(def_id, ty_alias);
+    map.insert_type_alias(def_id, ty_alias);
 
     Ok(())
 }
 
 pub fn desugar_fn_sig(
-    genv: &mut GlobalEnv,
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    map: &mut fhir::Map,
     owner_id: OwnerId,
     fn_sig: Option<&surface::FnSig>,
     resolver_output: &ResolverOutput,
@@ -109,27 +113,20 @@ pub fn desugar_fn_sig(
 
     let (fn_sig, opaque_tys) = if let Some(fn_sig) = fn_sig {
         let mut opaque_tys = Default::default();
-        let mut cx = RustItemCtxt::new(
-            genv.tcx,
-            genv.sess,
-            genv.map(),
-            owner_id,
-            resolver_output,
-            Some(&mut opaque_tys),
-        );
+        let mut cx =
+            RustItemCtxt::new(tcx, sess, map, owner_id, resolver_output, Some(&mut opaque_tys));
 
         let fn_sig = cx.desugar_fn_sig(fn_sig)?;
 
         (fn_sig, opaque_tys)
     } else {
-        lift::lift_fn(genv.tcx, genv.sess, owner_id)?
+        lift::lift_fn(tcx, sess, map, owner_id)?
     };
 
     if config::dump_fhir() {
-        dbg::dump_item_info(genv.tcx, def_id, "fhir", &fn_sig).unwrap();
+        dbg::dump_item_info(tcx, def_id, "fhir", fn_sig).unwrap();
     }
 
-    let map = genv.map_mut();
     map.insert_fn_sig(def_id, fn_sig);
     map.insert_opaque_tys(opaque_tys);
 
@@ -137,35 +134,37 @@ pub fn desugar_fn_sig(
 }
 
 pub fn desugar_trait(
-    genv: &mut GlobalEnv,
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    map: &mut fhir::Map,
     owner_id: OwnerId,
     resolver_output: &ResolverOutput,
     trait_: &surface::Trait,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
-    let mut cx =
-        RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
+    let mut cx = RustItemCtxt::new(tcx, sess, map, owner_id, resolver_output, None);
     let trait_ = cx.desugar_trait(trait_)?;
 
-    genv.map_mut().insert_trait(def_id, trait_);
+    map.insert_trait(def_id, trait_);
 
     Ok(())
 }
 
 pub fn desugar_impl(
-    genv: &mut GlobalEnv,
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    map: &mut fhir::Map,
     owner_id: OwnerId,
     resolver_output: &ResolverOutput,
     impl_: &surface::Impl,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
-    let mut cx =
-        RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
+    let mut cx = RustItemCtxt::new(tcx, sess, map, owner_id, resolver_output, None);
     let impl_ = cx.desugar_impl(impl_)?;
 
-    genv.map_mut().insert_impl(def_id, impl_);
+    map.insert_impl(def_id, impl_);
 
     Ok(())
 }

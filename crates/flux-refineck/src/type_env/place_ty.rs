@@ -98,9 +98,9 @@ pub(crate) trait LookupMode {
     ) -> Result<Vec<Ty>, Self::Error>;
 }
 
-struct Unfold<'a, 'rcx, 'tcx>(&'a GlobalEnv<'a, 'tcx>, &'a mut RefineCtxt<'rcx>);
+struct Unfold<'a, 'genv, 'rcx, 'tcx>(GlobalEnv<'genv, 'tcx>, &'a mut RefineCtxt<'rcx>);
 
-impl LookupMode for Unfold<'_, '_, '_> {
+impl LookupMode for Unfold<'_, '_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
@@ -135,7 +135,7 @@ impl LookupMode for NoUnfold {
 impl PlacesTree {
     pub(crate) fn unfold(
         &mut self,
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         rcx: &mut RefineCtxt,
         key: &impl LookupKey,
         checker_conf: CheckerConfig,
@@ -217,7 +217,7 @@ impl PlacesTree {
 
     pub(crate) fn lookup_unfolding(
         &mut self,
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         rcx: &mut RefineCtxt,
         key: &impl LookupKey,
     ) -> CheckerResult<LookupResult> {
@@ -361,8 +361,8 @@ impl LookupResult<'_> {
     }
 }
 
-struct Unfolder<'a, 'rcx, 'tcx> {
-    genv: &'a GlobalEnv<'a, 'tcx>,
+struct Unfolder<'a, 'rcx, 'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
     rcx: &'a mut RefineCtxt<'rcx>,
     insertions: Vec<(Loc, Place, Binding)>,
     cursor: Cursor,
@@ -371,7 +371,7 @@ struct Unfolder<'a, 'rcx, 'tcx> {
     has_work: bool,
 }
 
-impl FallibleTypeFolder for Unfolder<'_, '_, '_> {
+impl FallibleTypeFolder for Unfolder<'_, '_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn try_fold_ty(&mut self, ty: &Ty) -> CheckerResult<Ty> {
@@ -391,9 +391,9 @@ impl FallibleTypeFolder for Unfolder<'_, '_, '_> {
     }
 }
 
-impl<'a, 'rcx, 'tcx> Unfolder<'a, 'rcx, 'tcx> {
+impl<'a, 'rcx, 'genv, 'tcx> Unfolder<'a, 'rcx, 'genv, 'tcx> {
     fn new(
-        genv: &'a GlobalEnv<'a, 'tcx>,
+        genv: GlobalEnv<'genv, 'tcx>,
         rcx: &'a mut RefineCtxt<'rcx>,
         cursor: Cursor,
         checker_conf: CheckerConfig,
@@ -716,7 +716,7 @@ impl Cursor {
 }
 
 fn downcast(
-    genv: &GlobalEnv,
+    genv: GlobalEnv,
     rcx: &mut RefineCtxt,
     adt: &AdtDef,
     args: &[GenericArg],
@@ -742,7 +742,7 @@ fn downcast(
 ///     * `x.fld : T[A := t ..][i := e...]`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
 fn downcast_struct(
-    genv: &GlobalEnv,
+    genv: GlobalEnv,
     adt: &AdtDef,
     args: &[GenericArg],
     idx: &Expr,
@@ -756,7 +756,7 @@ fn downcast_struct(
 }
 
 fn struct_variant(
-    genv: &GlobalEnv,
+    genv: GlobalEnv,
     def_id: DefId,
 ) -> CheckerResult<EarlyBinder<Binder<VariantSig>>> {
     debug_assert!(genv.adt_def(def_id)?.is_struct());
@@ -773,7 +773,7 @@ fn struct_variant(
 ///     2. *Unpack* the fields using `y:t'...`
 ///     3. *Assert* the constraint `i == j'...`
 fn downcast_enum(
-    genv: &GlobalEnv,
+    genv: GlobalEnv,
     rcx: &mut RefineCtxt,
     adt: &AdtDef,
     variant_idx: VariantIdx,

@@ -460,7 +460,7 @@ pub struct Defn {
     pub expr: Binder<Expr>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FuncDecl {
     pub name: Symbol,
     pub sort: PolyFuncSort,
@@ -565,7 +565,7 @@ pub enum GenericArg {
 }
 
 impl GenericArgs {
-    pub fn identity_for_item(genv: &GlobalEnv, def_id: impl Into<DefId>) -> QueryResult<Self> {
+    pub fn identity_for_item(genv: GlobalEnv, def_id: impl Into<DefId>) -> QueryResult<Self> {
         let mut args = vec![];
         let generics = genv.generics_of(def_id)?;
         Self::fill_item(genv, &mut args, &generics, &mut |param, _| {
@@ -575,7 +575,7 @@ impl GenericArgs {
     }
 
     fn fill_item<F>(
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         args: &mut Vec<GenericArg>,
         generics: &Generics,
         mk_kind: &mut F,
@@ -621,7 +621,7 @@ impl GenericArg {
         }
     }
 
-    fn from_param_def(genv: &GlobalEnv, param: &GenericParamDef) -> QueryResult<Self> {
+    fn from_param_def(genv: GlobalEnv, param: &GenericParamDef) -> QueryResult<Self> {
         match param.kind {
             GenericParamDefKind::Type { .. } | GenericParamDefKind::SplTy => {
                 let param_ty = ParamTy { index: param.index, name: param.name };
@@ -773,7 +773,7 @@ impl GeneratorObligPredicate {
 }
 
 impl Generics {
-    pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> QueryResult<GenericParamDef> {
+    pub fn param_at(&self, param_index: usize, genv: GlobalEnv) -> QueryResult<GenericParamDef> {
         if let Some(index) = param_index.checked_sub(self.parent_count) {
             Ok(self.params[index].clone())
         } else {
@@ -788,7 +788,7 @@ impl RefinementGenerics {
         self.parent_count + self.params.len()
     }
 
-    pub fn param_at(&self, param_index: usize, genv: &GlobalEnv) -> QueryResult<RefineParam> {
+    pub fn param_at(&self, param_index: usize, genv: GlobalEnv) -> QueryResult<RefineParam> {
         if let Some(index) = param_index.checked_sub(self.parent_count) {
             Ok(self.params[index].clone())
         } else {
@@ -801,7 +801,7 @@ impl RefinementGenerics {
     /// Iterate and collect all parameters in this item including parents
     pub fn collect_all_params<T, S>(
         &self,
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         mut f: impl FnMut(RefineParam) -> T,
     ) -> QueryResult<S>
     where
@@ -1121,7 +1121,7 @@ impl EarlyBinder<GenericPredicates> {
 
     pub fn instantiate_identity(
         self,
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         refine_args: &[Expr],
     ) -> QueryResult<Vec<Clause>> {
         let mut predicates = vec![];
@@ -1131,7 +1131,7 @@ impl EarlyBinder<GenericPredicates> {
 
     fn instantiate_identity_into(
         self,
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         refine_args: &[Expr],
         predicates: &mut Vec<Clause>,
     ) -> QueryResult<()> {
@@ -1793,12 +1793,12 @@ macro_rules! _Ref {
 }
 pub use crate::_Ref as Ref;
 
-pub struct WfckResults {
+pub struct WfckResults<'genv> {
     pub owner: FluxOwnerId,
     record_ctors: ItemLocalMap<DefId>,
     node_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
-    type_holes: ItemLocalMap<fhir::Ty>,
+    type_holes: ItemLocalMap<fhir::Ty<'genv>>,
     lifetime_holes: ItemLocalMap<ResolvedArg>,
 }
 
@@ -1821,7 +1821,7 @@ pub struct LocalTableInContextMut<'a, T> {
     data: &'a mut ItemLocalMap<T>,
 }
 
-impl WfckResults {
+impl<'genv> WfckResults<'genv> {
     pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
         Self {
             owner: owner.into(),
@@ -1857,7 +1857,7 @@ impl WfckResults {
         LocalTableInContext { owner: self.owner, data: &self.coercions }
     }
 
-    pub fn type_holes_mut(&mut self) -> LocalTableInContextMut<fhir::Ty> {
+    pub fn type_holes_mut(&mut self) -> LocalTableInContextMut<fhir::Ty<'genv>> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.type_holes }
     }
 

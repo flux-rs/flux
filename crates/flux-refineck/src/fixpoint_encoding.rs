@@ -187,7 +187,7 @@ enum Key {
 
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
-    genv: &'genv GlobalEnv<'genv, 'tcx>,
+    genv: GlobalEnv<'genv, 'tcx>,
     kvars: KVarStore,
     sorts: SortStore,
     fixpoint_kvars: IndexVec<fixpoint::KVid, FixpointKVar>,
@@ -255,8 +255,8 @@ impl Env {
     }
 }
 
-struct ExprCtxt<'a, 'tcx> {
-    genv: &'a GlobalEnv<'a, 'tcx>,
+struct ExprCtxt<'a, 'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
     env: &'a Env,
     const_map: &'a ConstMap,
     /// Used to report bugs
@@ -293,7 +293,7 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(genv: &'genv GlobalEnv<'genv, 'tcx>, def_id: LocalDefId, kvars: KVarStore) -> Self {
+    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: LocalDefId, kvars: KVarStore) -> Self {
         let global_var_gen = IndexGen::new();
         let const_map = fixpoint_const_map(genv, &global_var_gen);
         Self {
@@ -418,10 +418,10 @@ where
             data_decls: self.sorts.into_data_decls(),
         };
         if config::dump_constraint() {
-            dbg::dump_item_info(self.genv.tcx, self.def_id, "smt2", &task).unwrap();
+            dbg::dump_item_info(self.genv.tcx(), self.def_id, "smt2", &task).unwrap();
         }
 
-        let task_key = self.genv.tcx.def_path_str(self.def_id);
+        let task_key = self.genv.tcx().def_path_str(self.def_id);
 
         match task.check_with_cache(task_key, cache) {
             Ok(FixpointResult::Safe(_)) => Ok(vec![]),
@@ -579,12 +579,12 @@ where
         }
     }
 
-    fn as_expr_cx(&self) -> ExprCtxt<'_, 'tcx> {
+    fn as_expr_cx(&self) -> ExprCtxt<'_, 'genv, 'tcx> {
         ExprCtxt::new(self.genv, &self.env, &self.const_map, self.def_span())
     }
 
     fn def_span(&self) -> Span {
-        self.genv.tcx.def_span(self.def_id)
+        self.genv.tcx().def_span(self.def_id)
     }
 
     /// returns the 'constant' UIF for Var used to represent the alias_pred, creating and adding it
@@ -594,7 +594,7 @@ where
         alias_pred: &rty::AliasPred,
         arity: usize,
     ) -> fixpoint::Var {
-        let key = rty::projections::into_rustc_trait_ref(self.genv.tcx, alias_pred);
+        let key = rty::projections::into_rustc_trait_ref(self.genv.tcx(), alias_pred);
         fixpoint::Var::Global(
             self.alias_preds
                 .entry(key)
@@ -638,10 +638,7 @@ impl FixpointKVar {
     }
 }
 
-fn fixpoint_const_map(
-    genv: &GlobalEnv,
-    global_var_gen: &IndexGen<fixpoint::GlobalVar>,
-) -> ConstMap {
+fn fixpoint_const_map(genv: GlobalEnv, global_var_gen: &IndexGen<fixpoint::GlobalVar>) -> ConstMap {
     let consts = genv
         .map()
         .consts()
@@ -809,9 +806,9 @@ fn func_sort_to_fixpoint(fsort: &rty::PolyFuncSort) -> fixpoint::PolyFuncSort {
     )
 }
 
-impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
+impl<'a, 'genv, 'tcx> ExprCtxt<'a, 'genv, 'tcx> {
     fn new(
-        genv: &'a GlobalEnv<'a, 'tcx>,
+        genv: GlobalEnv<'genv, 'tcx>,
         env: &'a Env,
         const_map: &'a ConstMap,
         dbg_span: Span,
@@ -930,7 +927,7 @@ impl<'a, 'tcx> ExprCtxt<'a, 'tcx> {
 }
 
 fn qualifier_to_fixpoint(
-    genv: &GlobalEnv,
+    genv: GlobalEnv,
     dbg_span: Span,
     const_map: &ConstMap,
     qualifier: &rty::Qualifier,

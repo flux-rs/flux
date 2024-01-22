@@ -14,6 +14,7 @@ flux-fixpoint.workspace = true
 flux-macros.workspace = true
 itertools.workspace = true
 
+bumpalo = "3.14.0"
 dashmap = { version = "5.5.3", features = ["raw-api"] }
 ena = "0.14.2"
 hashbrown = "0.14.3"

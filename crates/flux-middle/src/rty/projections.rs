@@ -23,16 +23,16 @@ use crate::{
     rustc::ty::FreeRegion,
 };
 
-pub(crate) struct Normalizer<'sess, 'tcx, 'cx> {
-    genv: &'sess GlobalEnv<'sess, 'tcx>,
+pub(crate) struct Normalizer<'genv, 'tcx, 'cx> {
+    genv: GlobalEnv<'genv, 'tcx>,
     selcx: SelectionContext<'cx, 'tcx>,
     def_id: DefId,
     param_env: Vec<Clause>,
 }
 
-impl<'sess, 'tcx, 'cx> Normalizer<'sess, 'tcx, 'cx> {
+impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
     pub(crate) fn new(
-        genv: &'sess GlobalEnv<'sess, 'tcx>,
+        genv: GlobalEnv<'genv, 'tcx>,
         infcx: &'cx InferCtxt<'tcx>,
         callsite_def_id: DefId,
         refine_params: &[Expr],

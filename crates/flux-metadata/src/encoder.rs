@@ -21,14 +21,14 @@ struct EncodeContext<'tcx> {
 
 pub fn encode_metadata(genv: &GlobalEnv, path: &std::path::Path) {
     let mut encoder = opaque::FileEncoder::new(path)
-        .unwrap_or_else(|err| genv.tcx.sess.emit_fatal(FailCreateFileEncoder { err }));
+        .unwrap_or_else(|err| genv.tcx().sess.emit_fatal(FailCreateFileEncoder { err }));
 
     encoder.emit_raw_bytes(METADATA_HEADER);
 
     let crate_root = CrateMetadata::new(genv);
 
     let mut ecx = EncodeContext {
-        tcx: genv.tcx,
+        tcx: genv.tcx(),
         opaque: encoder,
         type_shorthands: Default::default(),
         predicate_shorthands: Default::default(),

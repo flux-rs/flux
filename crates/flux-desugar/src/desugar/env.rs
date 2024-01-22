@@ -251,11 +251,11 @@ impl<P> Scope<P> {
         Self { map: Default::default(), used: Default::default() }
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (&Ident, &P)> {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&Ident, &P)> + ExactSizeIterator {
         self.map.iter()
     }
 
-    pub(crate) fn into_iter(self) -> impl Iterator<Item = (Ident, P)> {
+    pub(crate) fn into_iter(self) -> impl Iterator<Item = (Ident, P)> + ExactSizeIterator {
         self.map.into_iter()
     }
 

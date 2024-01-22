@@ -32,7 +32,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
                 let mut sort_args = vec![];
                 let sort_def = self.adt_sort_def_of(def_id);
-                for arg in sort_def.filter_generic_args(&path.args) {
+                for arg in sort_def.filter_generic_args(path.args) {
                     sort_args.push(self.sort_of_ty(arg.expect_type())?);
                 }
                 Some(rty::Sort::Adt(self.adt_sort_def_of(def_id), List::from_vec(sort_args)))
@@ -48,7 +48,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     pub fn sort_of_self_ty_alias(&self, alias_to: DefId) -> Option<rty::Sort> {
-        let self_ty = self.tcx.type_of(alias_to).instantiate_identity();
+        let self_ty = self.tcx().type_of(alias_to).instantiate_identity();
         self.sort_of_self_ty(alias_to, self_ty)
     }
 
@@ -63,7 +63,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     fn sort_of_self_param(&self, owner: DefId) -> Option<rty::Sort> {
-        let generics = self.map().get_generics(self.tcx, owner.expect_local())?;
+        let generics = self.map().get_generics(self.tcx(), owner.expect_local())?;
         let kind = generics.self_kind.as_ref()?;
         match kind {
             fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy => {
@@ -110,9 +110,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             }
             ty::TyKind::Param(p) => {
                 let generic_param_def = self
-                    .tcx
+                    .tcx()
                     .generics_of(def_id)
-                    .param_at(p.index as usize, self.tcx);
+                    .param_at(p.index as usize, self.tcx());
                 self.sort_of_generic_param(generic_param_def.def_id.expect_local())
             }
             ty::TyKind::Float(_)
