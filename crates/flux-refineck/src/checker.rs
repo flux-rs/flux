@@ -8,8 +8,8 @@ use flux_middle::{
     rty::{
         self, fold::TypeFoldable, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr,
         Float, FnOutput, FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate,
-        GenericArg, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Region::ReStatic, Ty,
-        TyKind, Uint, UintTy, VariantIdx,
+        GenericArg, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref, Region::ReStatic,
+        Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -510,9 +510,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         generic_args: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<Ty, CheckerError> {
+        let actuals = infer_under_mut_ref_hack(rcx, actuals, fn_sig.as_ref());
         let (output, obligs) = self
             .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, did, fn_sig, generic_args, actuals)
+            .check_fn_call(rcx, env, did, fn_sig, generic_args, &actuals)
             .with_span(terminator_span)?;
 
         let output = output.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
@@ -1119,6 +1120,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         self.config().check_overflow
     }
 }
+
 fn init_env<'a>(
     rcx: &mut RefineCtxt,
     body: &'a Body,
@@ -1153,6 +1155,31 @@ fn init_env<'a>(
 
     env.alloc(RETURN_PLACE);
     env
+}
+
+/// HACK(nilehmann) This let us infer parameters under mutable references for the simple case
+/// where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
+/// to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
+/// mutable references.
+fn infer_under_mut_ref_hack(
+    rcx: &mut RefineCtxt,
+    actuals: &[Ty],
+    fn_sig: EarlyBinder<&PolyFnSig>,
+) -> Vec<Ty> {
+    iter::zip(actuals, fn_sig.as_ref().skip_binder().as_ref().skip_binder().args())
+        .map(|(actual, formal)| {
+            if let (Ref!(.., Mutability::Mut), Ref!(_, ty, Mutability::Mut)) =
+                (actual.kind(), formal.kind())
+                && let TyKind::Indexed(..) = ty.kind()
+            {
+                rcx.unpacker(AssumeInvariants::No)
+                    .unpack_inside_mut_ref(true)
+                    .unpack(actual)
+            } else {
+                actual.clone()
+            }
+        })
+        .collect()
 }
 
 impl Mode for ShapeMode {

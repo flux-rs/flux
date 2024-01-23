@@ -191,14 +191,16 @@ impl<'rcx> RefineCtxt<'rcx> {
         fresh
     }
 
-    /// Given a [`sort`] that may contain nested tuples, it destructs the tuples recursively, generating
-    /// multiple fresh variables and returning the "eta-expanded" tuple of fresh variables. This is in contrast
-    /// to generating a single fresh variable of tuple sort.
+    /// Given a [`sort`] that may contain aggregate sorts ([tuples] or [records]), it destructs the sort
+    /// recursively, generating multiple fresh variables and returning the "eta-expanded" tuple of fresh
+    /// variables. This is in contrast to generating a single fresh variable of tuple sort.
     ///
     /// For example, given the sort `(int, (bool, int))` it returns `(a0, (a1, a2))` for fresh variables
     /// `a0: int`, `a1: bool`, and `a2: int`.
     ///
     /// [`sort`]: Sort
+    /// [tuples]: Sort::Tuple
+    /// [records]: Sort::Adt
     pub(crate) fn define_vars(&mut self, sort: &Sort) -> Expr {
         Expr::fold_sort(sort, |sort| Expr::fvar(self.define_var(sort)))
     }

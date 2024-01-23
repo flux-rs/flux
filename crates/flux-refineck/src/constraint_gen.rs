@@ -25,7 +25,7 @@ use rustc_span::Span;
 use crate::{
     checker::errors::CheckerErrKind,
     fixpoint_encoding::KVarEncoding,
-    refine_tree::{AssumeInvariants, RefineCtxt, Scope, Snapshot},
+    refine_tree::{RefineCtxt, Scope, Snapshot},
     type_env::TypeEnv,
 };
 
@@ -176,26 +176,6 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         generic_args: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<(Binder<FnOutput>, Obligations), CheckerErrKind> {
-        // HACK(nilehmann) This let us infer parameters under mutable references for the simple case
-        // where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
-        // to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
-        // mutable references.
-        let actuals =
-            iter::zip(actuals, fn_sig.as_ref().skip_binder().as_ref().skip_binder().args())
-                .map(|(actual, formal)| {
-                    if let (Ref!(.., Mutability::Mut), Ref!(_, ty, Mutability::Mut)) =
-                        (actual.kind(), formal.kind())
-                        && let TyKind::Indexed(..) = ty.kind()
-                    {
-                        rcx.unpacker(AssumeInvariants::No)
-                            .unpack_inside_mut_ref(true)
-                            .unpack(actual)
-                    } else {
-                        actual.clone()
-                    }
-                })
-                .collect_vec();
-
         let genv = self.genv;
         let span = self.span;
 
@@ -248,7 +228,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         }
 
         // Check arguments
-        for (actual, formal) in iter::zip(&actuals, inst_fn_sig.args()) {
+        for (actual, formal) in iter::zip(actuals, inst_fn_sig.args()) {
             let rcx = &mut rcx.push_comment(format!("{actual:?} <: {formal:?}"));
 
             let (formal, pred) = formal.unconstr();
