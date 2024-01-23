@@ -19,7 +19,7 @@ use rustc_span::{Span, Symbol};
 use rustc_trait_selection::traits::NormalizeExt;
 
 use crate::{
-    fhir::FluxLocalDefId,
+    fhir::{self, FluxLocalDefId},
     global_env::GlobalEnv,
     intern::List,
     rty::{
@@ -44,6 +44,7 @@ pub enum QueryErr {
 }
 
 pub struct Providers {
+    pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::Crate<'genv>,
     pub defns: fn(GlobalEnv) -> QueryResult<rty::Defns>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub func_decls: fn(GlobalEnv) -> FxHashMap<Symbol, rty::FuncDecl>,
@@ -79,6 +80,7 @@ macro_rules! empty_query {
 impl Default for Providers {
     fn default() -> Self {
         Self {
+            fhir_crate: |_| empty_query!(),
             defns: |_| empty_query!(),
             func_decls: |_| empty_query!(),
             qualifiers: |_| empty_query!(),
@@ -102,6 +104,7 @@ impl Default for Providers {
 pub struct Queries<'genv, 'tcx> {
     pub(crate) providers: Providers,
     mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
+    fhir_crate: OnceCell<fhir::Crate<'genv>>,
     lower_generics_of: Cache<DefId, QueryResult<ty::Generics<'tcx>>>,
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
@@ -130,6 +133,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         Self {
             providers,
             mir: Default::default(),
+            fhir_crate: Default::default(),
             lower_generics_of: Default::default(),
             lower_predicates_of: Default::default(),
             lower_type_of: Default::default(),
@@ -164,6 +168,14 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let mir = rustc::lowering::LoweringCtxt::lower_mir_body(genv.tcx(), genv.sess(), mir)?;
             Ok(Rc::new(mir))
         })
+    }
+
+    pub(crate) fn fhir_crate(
+        &'genv self,
+        genv: GlobalEnv<'genv, 'tcx>,
+    ) -> &'genv fhir::Crate<'genv> {
+        self.fhir_crate
+            .get_or_init(|| (self.providers.fhir_crate)(genv))
     }
 
     pub(crate) fn lower_generics_of(

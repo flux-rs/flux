@@ -1,4 +1,3 @@
-use config::CrateConfig;
 use desugar::resolver::{Resolver, ResolverOutput};
 use flux_common::{cache::QueryCache, dbg, iter::IterExt};
 use flux_config as config;
@@ -15,15 +14,14 @@ use flux_refineck as refineck;
 use refineck::CheckerConfig;
 use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
-use rustc_errors::ErrorGuaranteed;
+use rustc_errors::{ErrorGuaranteed, FatalError};
 use rustc_hir::{self as hir, def::DefKind, def_id::LocalDefId, OwnerId};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::{query, ty::TyCtxt};
 use rustc_session::config::OutputType;
-use rustc_span::Symbol;
 
 use crate::{
-    collector::{IgnoreKey, Ignores, SpecCollector, Specs},
+    collector::{SpecCollector, Specs},
     DEFAULT_LOCALE_RESOURCES,
 };
 
@@ -79,6 +77,7 @@ impl FluxCallbacks {
 
             let mut providers = Providers::default();
             flux_fhir_analysis::provide(&mut providers);
+            providers.fhir_crate = desugar_crate;
 
             let cstore = CStore::load(tcx, &sess);
             let arena = fhir::Arena::new();
@@ -92,21 +91,16 @@ impl FluxCallbacks {
 
 fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     tracing::info_span!("check_crate").in_scope(move || {
-        let specs = SpecCollector::collect(genv.tcx(), genv.sess())?;
-
-        // Ignore everything and go home
-        if specs.ignores.contains(&IgnoreKey::Crate) {
-            return Ok(());
-        }
-
-        let resolver_output = resolve_crate(genv, &specs)?;
-        desugar_crate(genv, &specs, &resolver_output)?;
-
-        flux_fhir_analysis::check_crate_wf(genv)?;
-
         tracing::info!("Callbacks::check_wf");
 
-        let mut ck = CrateChecker::new(genv, specs.ignores, specs.crate_config);
+        let fhir = genv.fhir_crate();
+
+        // Ignore everything and go home
+        if fhir.ignores.contains(&fhir::IgnoreKey::Crate) {
+            return Ok(());
+        }
+        flux_fhir_analysis::check_crate_wf(genv)?;
+        let mut ck = CrateChecker::new(genv, fhir);
 
         let crate_items = genv.tcx().hir_crate_items(());
         let items = crate_items.items().map(|item| item.owner_id.def_id);
@@ -182,24 +176,42 @@ fn resolve_crate(genv: GlobalEnv, specs: &Specs) -> Result<ResolverOutput, Error
     Ok(resolver_output)
 }
 
-fn desugar_crate(
-    genv: GlobalEnv,
-    specs: &Specs,
-    resolver_output: &ResolverOutput,
-) -> Result<(), ErrorGuaranteed> {
+fn desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> fhir::Crate<'genv> {
+    match desugar_crate_inner(genv) {
+        Ok(fhir) => fhir,
+        Err(_) => {
+            // There's too much code down the pipeline that relies on having the fhir, so we abort
+            // if there are any error during desugaring to avoid propagating the error back the query
+            // system. We should probably move away from desugaring the entire crate in one go and
+            // instead desugar items on demand so we can fail on a per item basis.
+            genv.sess().abort_if_errors();
+            FatalError.raise()
+        }
+    }
+}
+
+fn desugar_crate_inner<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+) -> Result<fhir::Crate<'genv>, ErrorGuaranteed> {
+    let mut specs = SpecCollector::collect(genv.tcx(), genv.sess())?;
+
+    let resolver_output = resolve_crate(genv, &specs)?;
+
+    let mut fhir = fhir::Crate::new(std::mem::take(&mut specs.ignores), specs.crate_config);
+
     let mut err: Option<ErrorGuaranteed> = None;
 
     for defn in &specs.func_defs {
         let name = defn.name;
-        let func_decl = desugar::func_def_to_func_decl(genv, resolver_output, defn)?;
-        genv.map().insert_func_decl(name.name, func_decl);
+        let func_decl = desugar::func_def_to_func_decl(genv, &resolver_output, defn)?;
+        fhir.func_decls.insert(name.name, genv.alloc(func_decl));
     }
 
     for (def_id, const_sig) in &specs.consts {
         let did = def_id.to_def_id();
         let sym = def_id_symbol(genv.tcx(), *def_id);
-        genv.map()
-            .insert_const(ConstInfo { def_id: did, sym, val: const_sig.val });
+        fhir.consts
+            .insert(sym, ConstInfo { def_id: did, sym, val: const_sig.val });
     }
 
     // Defns
@@ -208,8 +220,9 @@ fn desugar_crate(
         .iter()
         .try_for_each_exhaust(|defn| {
             let name = defn.name;
-            if let Some(defn) = desugar::desugar_defn(genv, resolver_output, defn)? {
-                genv.map().insert_defn(name.name, defn);
+            if let Some(defn) = desugar::desugar_defn(genv, &resolver_output, defn)? {
+                fhir.flux_items
+                    .insert(name.name, genv.alloc(fhir::FluxItem::Defn(defn)));
             }
             Ok(())
         })
@@ -221,8 +234,9 @@ fn desugar_crate(
         .qualifs
         .iter()
         .try_for_each_exhaust(|qualifier| {
-            let qualifier = desugar::desugar_qualifier(genv, resolver_output, qualifier)?;
-            genv.map().insert_qualifier(qualifier);
+            let qualifier = desugar::desugar_qualifier(genv, &resolver_output, qualifier)?;
+            fhir.flux_items
+                .insert(qualifier.name, genv.alloc(fhir::FluxItem::Qualifier(qualifier)));
             Ok(())
         })
         .err()
@@ -232,7 +246,9 @@ fn desugar_crate(
         .tcx()
         .hir_crate_items(())
         .items()
-        .try_for_each_exhaust(|item_id| desugar_item(genv, specs, item_id, resolver_output))
+        .try_for_each_exhaust(|item_id| {
+            desugar_item(genv, &specs, item_id, &resolver_output, &mut fhir)
+        })
         .err()
         .or(err);
 
@@ -240,46 +256,53 @@ fn desugar_crate(
         .extern_specs
         .iter()
         .for_each(|(extern_def_id, local_def_id)| {
-            genv.map().insert_extern(*extern_def_id, *local_def_id);
+            fhir.externs.insert(*extern_def_id, *local_def_id);
         });
 
     if let Some(err) = err {
         Err(err)
     } else {
-        Ok(())
+        Ok(fhir)
     }
 }
 
-fn desugar_item(
-    genv: GlobalEnv,
+fn desugar_item<'genv>(
+    genv: GlobalEnv<'genv, '_>,
     specs: &Specs,
     item_id: hir::ItemId,
     resolver_output: &ResolverOutput,
+    fhir: &mut fhir::Crate<'genv>,
 ) -> Result<(), ErrorGuaranteed> {
     let owner_id = item_id.owner_id;
     let item = genv.hir().item(item_id);
 
     match item.kind {
         hir::ItemKind::Fn(..) => {
-            desugar_fn_sig(genv, specs, owner_id, resolver_output)?;
+            desugar_fn_sig(genv, specs, owner_id, resolver_output, fhir)?;
         }
         hir::ItemKind::TyAlias(..) => {
             let ty_alias = specs.ty_aliases[&owner_id].as_ref();
-            desugar::desugar_type_alias(genv, owner_id, ty_alias, resolver_output)?;
+            desugar::desugar_type_alias(genv, owner_id, ty_alias, resolver_output, fhir)?;
         }
         hir::ItemKind::OpaqueTy(_) => {
             // Opaque types are desugared as part of the desugaring of their defining function
         }
         hir::ItemKind::Enum(..) => {
             let enum_def = &specs.enums[&owner_id];
-            desugar::desugar_enum_def(genv, owner_id, enum_def, resolver_output)?;
+            desugar::desugar_enum_def(genv, owner_id, enum_def, resolver_output, fhir)?;
         }
         hir::ItemKind::Struct(..) => {
             let struct_def = &specs.structs[&owner_id];
-            desugar::desugar_struct_def(genv, owner_id, struct_def, resolver_output)?;
+            desugar::desugar_struct_def(genv, owner_id, struct_def, resolver_output, fhir)?;
         }
         hir::ItemKind::Trait(.., items) => {
-            desugar::desugar_trait(genv, owner_id, resolver_output, &specs.traits[&owner_id])?;
+            desugar::desugar_trait(
+                genv,
+                owner_id,
+                resolver_output,
+                &specs.traits[&owner_id],
+                fhir,
+            )?;
             items.iter().try_for_each_exhaust(|trait_item| {
                 desugar_assoc_item(
                     genv,
@@ -287,11 +310,12 @@ fn desugar_item(
                     trait_item.id.owner_id,
                     trait_item.kind,
                     resolver_output,
+                    fhir,
                 )
             })?;
         }
         hir::ItemKind::Impl(impl_) => {
-            desugar::desugar_impl(genv, owner_id, resolver_output, &specs.impls[&owner_id])?;
+            desugar::desugar_impl(genv, owner_id, resolver_output, &specs.impls[&owner_id], fhir)?;
             impl_.items.iter().try_for_each_exhaust(|impl_item| {
                 desugar_assoc_item(
                     genv,
@@ -299,6 +323,7 @@ fn desugar_item(
                     impl_item.id.owner_id,
                     impl_item.kind,
                     resolver_output,
+                    fhir,
                 )
             })?;
         }
@@ -307,41 +332,46 @@ fn desugar_item(
     Ok(())
 }
 
-fn desugar_assoc_item(
-    genv: GlobalEnv,
+fn desugar_assoc_item<'genv>(
+    genv: GlobalEnv<'genv, '_>,
     specs: &Specs,
     owner_id: OwnerId,
     kind: hir::AssocItemKind,
     resolver_output: &ResolverOutput,
+    fhir: &mut fhir::Crate<'genv>,
 ) -> Result<(), ErrorGuaranteed> {
     match kind {
-        hir::AssocItemKind::Fn { .. } => desugar_fn_sig(genv, specs, owner_id, resolver_output),
+        hir::AssocItemKind::Fn { .. } => {
+            desugar_fn_sig(genv, specs, owner_id, resolver_output, fhir)
+        }
         hir::AssocItemKind::Type => {
             let generics = lift::lift_generics(genv, owner_id)?;
             let assoc_ty = fhir::AssocType { generics };
-            genv.map().insert_assoc_type(owner_id.def_id, assoc_ty);
+            fhir.assoc_types
+                .insert(owner_id.def_id, genv.alloc(assoc_ty));
             Ok(())
         }
         hir::AssocItemKind::Const => Ok(()),
     }
 }
 
-fn desugar_fn_sig(
-    genv: GlobalEnv,
+fn desugar_fn_sig<'genv>(
+    genv: GlobalEnv<'genv, '_>,
     specs: &Specs,
     owner_id: OwnerId,
     resolver_output: &ResolverOutput,
+    fhir: &mut fhir::Crate<'genv>,
 ) -> Result<(), ErrorGuaranteed> {
     let spec = specs.fn_sigs.get(&owner_id).unwrap();
     let def_id = owner_id.def_id;
     if spec.trusted {
-        genv.map().add_trusted(def_id);
+        fhir.trusted.insert(def_id);
     }
 
-    desugar::desugar_fn_sig(genv, owner_id, spec.fn_sig.as_ref(), resolver_output)?;
+    desugar::desugar_fn_sig(genv, owner_id, spec.fn_sig.as_ref(), resolver_output, fhir)?;
 
     if let Some(quals) = &spec.qual_names {
-        genv.map().insert_fn_quals(def_id, &quals.names);
+        fhir.fn_quals.insert(def_id, genv.alloc_slice(&quals.names));
     }
     Ok(())
 }
@@ -361,23 +391,18 @@ fn save_metadata(genv: &GlobalEnv) {
 
 struct CrateChecker<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    ignores: Ignores,
+    fhir: &'genv fhir::Crate<'genv>,
     cache: QueryCache,
     checker_config: CheckerConfig,
 }
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
-    fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        ignores: Ignores,
-        crate_config: Option<CrateConfig>,
-    ) -> Self {
-        let crate_config = crate_config.unwrap_or_default();
+    fn new(genv: GlobalEnv<'genv, 'tcx>, fhir: &'genv fhir::Crate<'genv>) -> Self {
         let checker_config = CheckerConfig {
-            check_overflow: crate_config.check_overflow,
-            scrape_quals: crate_config.scrape_quals,
+            check_overflow: fhir.crate_config.check_overflow,
+            scrape_quals: fhir.crate_config.scrape_quals,
         };
-        CrateChecker { genv, ignores, cache: QueryCache::load(), checker_config }
+        CrateChecker { genv, fhir, cache: QueryCache::load(), checker_config }
     }
 
     /// `is_ignored` transitively follows the `def_id`'s parent-chain to check if
@@ -391,7 +416,9 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         if parent_def_id == def_id {
             false
         } else {
-            self.ignores.contains(&IgnoreKey::Module(parent_def_id))
+            self.fhir
+                .ignores
+                .contains(&fhir::IgnoreKey::Module(parent_def_id))
                 || self.is_ignored(parent_def_id)
         }
     }

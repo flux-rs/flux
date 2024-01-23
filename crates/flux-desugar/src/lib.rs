@@ -14,6 +14,7 @@ use flux_common::dbg;
 use flux_config as config;
 use flux_macros::fluent_messages;
 use resolver::ResolverOutput;
+use rustc_data_structures::unord::ExtendUnord;
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -32,11 +33,12 @@ use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::OwnerId;
 
-pub fn desugar_struct_def(
-    genv: GlobalEnv,
+pub fn desugar_struct_def<'genv>(
+    genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
     struct_def: &surface::StructDef,
     resolver_output: &ResolverOutput,
+    fhir: &mut fhir::Crate<'genv>,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
@@ -47,17 +49,18 @@ pub fn desugar_struct_def(
         dbg::dump_item_info(genv.tcx(), owner_id, "fhir", struct_def).unwrap();
     }
 
-    genv.map().insert_struct(def_id, struct_def);
-    genv.map().insert_refined_by(def_id, refined_by);
+    fhir.structs.insert(def_id, genv.alloc(struct_def));
+    fhir.refined_by.insert(def_id, genv.alloc(refined_by));
 
     Ok(())
 }
 
-pub fn desugar_enum_def(
-    genv: GlobalEnv,
+pub fn desugar_enum_def<'genv>(
+    genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
     enum_def: &surface::EnumDef,
     resolver_output: &ResolverOutput,
+    fhir: &mut fhir::Crate<'genv>,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
@@ -68,17 +71,18 @@ pub fn desugar_enum_def(
         dbg::dump_item_info(genv.tcx(), owner_id, "fhir", &enum_def).unwrap();
     }
 
-    genv.map().insert_enum(def_id, enum_def);
-    genv.map().insert_refined_by(def_id, refined_by);
+    fhir.enums.insert(def_id, genv.alloc(enum_def));
+    fhir.refined_by.insert(def_id, genv.alloc(refined_by));
 
     Ok(())
 }
 
-pub fn desugar_type_alias(
-    genv: GlobalEnv,
+pub fn desugar_type_alias<'genv>(
+    genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
     ty_alias: Option<&surface::TyAlias>,
     resolver_output: &ResolverOutput,
+    fhir: &mut fhir::Crate<'genv>,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
@@ -93,17 +97,18 @@ pub fn desugar_type_alias(
         dbg::dump_item_info(genv.tcx(), owner_id, "fhir", &ty_alias).unwrap();
     }
 
-    genv.map().insert_type_alias(def_id, ty_alias);
-    genv.map().insert_refined_by(def_id, refined_by);
+    fhir.type_aliases.insert(def_id, genv.alloc(ty_alias));
+    fhir.refined_by.insert(def_id, genv.alloc(refined_by));
 
     Ok(())
 }
 
-pub fn desugar_fn_sig(
-    genv: GlobalEnv,
+pub fn desugar_fn_sig<'genv>(
+    genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
     fn_sig: Option<&surface::FnSig>,
     resolver_output: &ResolverOutput,
+    fhir: &mut fhir::Crate<'genv>,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
@@ -122,41 +127,42 @@ pub fn desugar_fn_sig(
         dbg::dump_item_info(genv.tcx(), def_id, "fhir", fn_sig).unwrap();
     }
 
-    let map = &mut genv.map();
-    map.insert_fn_sig(def_id, fn_sig);
-    map.insert_opaque_tys(opaque_tys);
+    fhir.fns.insert(def_id, genv.alloc(fn_sig));
+    fhir.opaque_tys.extend_unord(opaque_tys.into_items());
 
     Ok(())
 }
 
-pub fn desugar_trait(
-    genv: GlobalEnv,
+pub fn desugar_trait<'genv>(
+    genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
     resolver_output: &ResolverOutput,
     trait_: &surface::Trait,
+    fhir: &mut fhir::Crate<'genv>,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
     let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
     let trait_ = cx.desugar_trait(trait_)?;
 
-    genv.map().insert_trait(def_id, trait_);
+    fhir.traits.insert(def_id, genv.alloc(trait_));
 
     Ok(())
 }
 
-pub fn desugar_impl(
-    genv: GlobalEnv,
+pub fn desugar_impl<'genv>(
+    genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
     resolver_output: &ResolverOutput,
     impl_: &surface::Impl,
+    fhir: &mut fhir::Crate<'genv>,
 ) -> Result<(), ErrorGuaranteed> {
     let def_id = owner_id.def_id;
 
     let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
     let impl_ = cx.desugar_impl(impl_)?;
 
-    genv.map().insert_impl(def_id, impl_);
+    fhir.impls.insert(def_id, genv.alloc(impl_));
 
     Ok(())
 }

@@ -61,7 +61,7 @@ pub fn scrape_quals() -> bool {
     CONFIG.scrape_quals
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct CrateConfig {
     pub check_overflow: bool,
     pub scrape_quals: bool,

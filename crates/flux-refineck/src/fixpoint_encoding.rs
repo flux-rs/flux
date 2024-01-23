@@ -642,7 +642,6 @@ fn fixpoint_const_map(genv: GlobalEnv, global_var_gen: &IndexGen<fixpoint::Globa
     let consts = genv
         .map()
         .consts()
-        .into_iter()
         .sorted_by(|a, b| Ord::cmp(&a.sym, &b.sym))
         .map(|const_info| {
             let cinfo = ConstInfo {

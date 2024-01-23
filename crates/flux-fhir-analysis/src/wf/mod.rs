@@ -14,7 +14,10 @@ use flux_middle::{
     global_env::GlobalEnv,
     rty::{self, GenericParamDefKind, WfckResults},
 };
-use rustc_data_structures::snapshot_map::{self, SnapshotMap};
+use rustc_data_structures::{
+    snapshot_map::{self, SnapshotMap},
+    unord::UnordSet,
+};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
 use rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
@@ -66,7 +69,7 @@ pub(crate) fn check_defn<'genv>(
 
 pub(crate) fn check_fn_quals(
     sess: &FluxSession,
-    qualifiers: &FxHashSet<Symbol>,
+    qualifiers: &UnordSet<Symbol>,
     fn_quals: &[SurfaceIdent],
 ) -> Result<(), ErrorGuaranteed> {
     for qual in fn_quals {

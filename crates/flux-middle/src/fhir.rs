@@ -22,6 +22,7 @@ pub mod visit;
 use std::{borrow::Cow, fmt};
 
 use flux_common::{bug, span_bug};
+use flux_config as config;
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_data_structures::{
@@ -180,26 +181,60 @@ pub struct OpaqueTy<'fhir> {
 
 pub type Arena = bumpalo::Bump;
 
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
+pub enum IgnoreKey {
+    /// Ignore the entire crate
+    Crate,
+    /// (Transitively) ignore the module named `LocalDefId`
+    Module(LocalDefId),
+}
+
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default)]
 pub struct Crate<'fhir> {
     pub assoc_types: UnordMap<LocalDefId, &'fhir AssocType<'fhir>>,
-    pub traits: UnordMap<LocalDefId, &'fhir Trait<'fhir>>,
+    pub consts: FxHashMap<Symbol, ConstInfo>,
+    pub enums: FxHashMap<LocalDefId, &'fhir EnumDef<'fhir>>,
+    pub externs: UnordMap<DefId, LocalDefId>,
+    pub flux_items: FxHashMap<Symbol, &'fhir FluxItem<'fhir>>,
+    pub fn_quals: FxHashMap<LocalDefId, &'fhir [SurfaceIdent]>,
+    pub fns: FxHashMap<LocalDefId, &'fhir FnSig<'fhir>>,
+    pub func_decls: FxHashMap<Symbol, &'fhir FuncDecl<'fhir>>,
     pub impls: UnordMap<LocalDefId, &'fhir Impl<'fhir>>,
     pub opaque_tys: UnordMap<LocalDefId, &'fhir OpaqueTy<'fhir>>,
-    pub func_decls: FxHashMap<Symbol, &'fhir FuncDecl<'fhir>>,
-    pub flux_items: FxHashMap<Symbol, &'fhir FluxItem<'fhir>>,
-    pub consts: FxHashMap<Symbol, ConstInfo>,
     pub refined_by: UnordMap<LocalDefId, &'fhir RefinedBy<'fhir>>,
-    pub type_aliases: FxHashMap<LocalDefId, &'fhir TyAlias<'fhir>>,
     pub structs: FxHashMap<LocalDefId, &'fhir StructDef<'fhir>>,
-    pub enums: FxHashMap<LocalDefId, &'fhir EnumDef<'fhir>>,
-    pub fns: FxHashMap<LocalDefId, &'fhir FnSig<'fhir>>,
-    pub fn_quals: FxHashMap<LocalDefId, &'fhir [SurfaceIdent]>,
+    pub traits: UnordMap<LocalDefId, &'fhir Trait<'fhir>>,
     pub trusted: UnordSet<LocalDefId>,
-    pub externs: UnordMap<DefId, LocalDefId>,
+    pub type_aliases: FxHashMap<LocalDefId, &'fhir TyAlias<'fhir>>,
+    pub ignores: UnordSet<IgnoreKey>,
+    pub crate_config: config::CrateConfig,
+}
+
+impl<'fhir> Crate<'fhir> {
+    pub fn new(ignores: UnordSet<IgnoreKey>, crate_config: Option<config::CrateConfig>) -> Self {
+        Self {
+            assoc_types: Default::default(),
+            consts: Default::default(),
+            enums: Default::default(),
+            externs: Default::default(),
+            flux_items: Default::default(),
+            fn_quals: Default::default(),
+            fns: Default::default(),
+            func_decls: Default::default(),
+            impls: Default::default(),
+            opaque_tys: Default::default(),
+            refined_by: Default::default(),
+            structs: Default::default(),
+            traits: Default::default(),
+            trusted: Default::default(),
+            type_aliases: Default::default(),
+            ignores,
+            crate_config: crate_config.unwrap_or_default(),
+        }
+    }
 }
 
 #[derive(Debug)]

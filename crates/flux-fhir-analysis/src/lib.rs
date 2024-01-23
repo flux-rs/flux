@@ -35,24 +35,22 @@ use rustc_span::Symbol;
 fluent_messages! { "../locales/en-US.ftl" }
 
 pub fn provide(providers: &mut Providers) {
-    *providers = Providers {
-        defns,
-        qualifiers,
-        func_decls,
-        adt_sort_def_of,
-        check_wf,
-        adt_def,
-        type_of,
-        variants_of,
-        fn_sig,
-        generics_of,
-        refinement_generics_of,
-        predicates_of,
-        assoc_predicates_of,
-        sort_of_assoc_pred,
-        assoc_predicate_def,
-        item_bounds,
-    };
+    providers.defns = defns;
+    providers.qualifiers = qualifiers;
+    providers.func_decls = func_decls;
+    providers.adt_sort_def_of = adt_sort_def_of;
+    providers.check_wf = check_wf;
+    providers.adt_def = adt_def;
+    providers.type_of = type_of;
+    providers.variants_of = variants_of;
+    providers.fn_sig = fn_sig;
+    providers.generics_of = generics_of;
+    providers.refinement_generics_of = refinement_generics_of;
+    providers.predicates_of = predicates_of;
+    providers.assoc_predicates_of = assoc_predicates_of;
+    providers.sort_of_assoc_pred = sort_of_assoc_pred;
+    providers.assoc_predicate_def = assoc_predicate_def;
+    providers.item_bounds = item_bounds;
 }
 
 fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> rty::AdtSortDef {
@@ -80,7 +78,6 @@ fn defns(genv: GlobalEnv) -> QueryResult<rty::Defns> {
     let defns = genv
         .map()
         .defns()
-        .into_iter()
         .map(|defn| -> QueryResult<_> {
             let wfckresults = genv.check_wf(FluxLocalDefId::Flux(defn.name))?;
             let defn = conv::conv_defn(genv, defn, &wfckresults);
@@ -99,7 +96,6 @@ fn defns(genv: GlobalEnv) -> QueryResult<rty::Defns> {
 fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
     genv.map()
         .qualifiers()
-        .into_iter()
         .map(|qualifier| {
             let wfckresults = genv.check_wf(FluxLocalDefId::Flux(qualifier.name))?;
             normalize(genv, conv::conv_qualifier(genv, qualifier, &wfckresults))
@@ -460,12 +456,7 @@ fn check_wf_rust_item<'genv>(
 pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     let mut err: Option<ErrorGuaranteed> = None;
 
-    let qualifiers = genv
-        .map()
-        .qualifiers()
-        .into_iter()
-        .map(|q| q.name)
-        .collect();
+    let qualifiers = genv.map().qualifiers().map(|q| q.name).collect();
 
     for def_id in genv.tcx().hir_crate_items(()).definitions() {
         let def_kind = genv.tcx().def_kind(def_id);

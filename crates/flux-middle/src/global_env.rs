@@ -1,10 +1,6 @@
-use std::{
-    cell::{self, RefCell, RefMut},
-    rc::Rc,
-};
+use std::rc::Rc;
 
 use flux_errors::FluxSession;
-use rustc_data_structures::unord::{ExtendUnord as _, UnordMap};
 use rustc_hash::FxHashSet;
 use rustc_hir::{
     def::DefKind,
@@ -31,7 +27,6 @@ pub struct GlobalEnv<'genv, 'tcx> {
 struct GlobalEnvInner<'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'genv FluxSession,
-    fhir: RefCell<fhir::Crate<'genv>>,
     arena: &'genv fhir::Arena,
     cstore: Box<CrateStoreDyn>,
     queries: Queries<'genv, 'tcx>,
@@ -46,14 +41,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
         providers: Providers,
         f: impl for<'genv> FnOnce(GlobalEnv<'genv, 'tcx>) -> R,
     ) -> R {
-        let inner = GlobalEnvInner {
-            tcx,
-            sess,
-            cstore,
-            arena,
-            fhir: RefCell::new(fhir::Crate::default()),
-            queries: Queries::new(providers),
-        };
+        let inner = GlobalEnvInner { tcx, sess, cstore, arena, queries: Queries::new(providers) };
         f(GlobalEnv { inner: &inner })
     }
 }
@@ -71,8 +59,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.sess
     }
 
+    pub fn fhir_crate(self) -> &'genv fhir::Crate<'genv> {
+        self.inner.queries.fhir_crate(self)
+    }
+
     pub fn map(self) -> Map<'genv, 'tcx> {
-        Map { genv: self }
+        Map::new(self, self.fhir_crate())
     }
 
     pub fn alloc<T>(&self, val: T) -> &'genv T {
@@ -390,106 +382,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 #[derive(Clone, Copy)]
 pub struct Map<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
+    fhir: &'genv fhir::Crate<'genv>,
 }
 
 impl<'genv, 'tcx> Map<'genv, 'tcx> {
-    pub fn insert_assoc_type(self, def_id: LocalDefId, assoc_ty: fhir::AssocType<'genv>) {
-        self.borrow_mut()
-            .assoc_types
-            .insert(def_id, self.genv.alloc(assoc_ty));
-    }
-
-    pub fn insert_struct(&self, def_id: LocalDefId, struct_def: fhir::StructDef<'genv>) {
-        self.borrow_mut()
-            .structs
-            .insert(def_id, self.genv.alloc(struct_def));
-    }
-
-    pub fn insert_enum(&self, def_id: LocalDefId, enum_def: fhir::EnumDef<'genv>) {
-        self.borrow_mut()
-            .enums
-            .insert(def_id, self.genv.alloc(enum_def));
-    }
-
-    pub fn insert_type_alias(&self, def_id: LocalDefId, ty_alias: fhir::TyAlias<'genv>) {
-        self.borrow_mut()
-            .type_aliases
-            .insert(def_id, self.genv.alloc(ty_alias));
-    }
-
-    pub fn insert_fn_sig(&self, def_id: LocalDefId, fn_sig: fhir::FnSig<'genv>) {
-        self.borrow_mut()
-            .fns
-            .insert(def_id, self.genv.alloc(fn_sig));
-    }
-
-    pub fn insert_opaque_tys(
-        &self,
-        opaque_tys: UnordMap<LocalDefId, &'genv fhir::OpaqueTy<'genv>>,
-    ) {
-        self.borrow_mut()
-            .opaque_tys
-            .extend_unord(opaque_tys.into_items());
-    }
-
-    pub fn insert_trait(&self, def_id: LocalDefId, trait_: fhir::Trait<'genv>) {
-        self.borrow_mut()
-            .traits
-            .insert(def_id, self.genv.alloc(trait_));
-    }
-
-    pub fn insert_impl(&self, def_id: LocalDefId, impl_: fhir::Impl<'genv>) {
-        self.borrow_mut()
-            .impls
-            .insert(def_id, self.genv.alloc(impl_));
-    }
-
-    pub fn insert_const(self, c: fhir::ConstInfo) {
-        self.borrow_mut().consts.insert(c.sym, c);
-    }
-
-    pub fn insert_func_decl(self, name: Symbol, func_decl: fhir::FuncDecl<'genv>) {
-        self.borrow_mut()
-            .func_decls
-            .insert(name, self.genv.alloc(func_decl));
-    }
-
-    pub fn insert_refined_by(self, def_id: LocalDefId, refined_by: fhir::RefinedBy<'genv>) {
-        self.borrow_mut()
-            .refined_by
-            .insert(def_id, self.genv.alloc(refined_by));
-    }
-
-    pub fn insert_extern(self, extern_def_id: DefId, local_def_id: LocalDefId) {
-        self.borrow_mut()
-            .externs
-            .insert(extern_def_id, local_def_id);
-    }
-
-    pub fn insert_defn(self, name: Symbol, defn: fhir::Defn<'genv>) {
-        self.borrow_mut()
-            .flux_items
-            .insert(name, self.genv.alloc(fhir::FluxItem::Defn(defn)));
-    }
-
-    pub fn insert_qualifier(self, qualifier: fhir::Qualifier<'genv>) {
-        self.borrow_mut()
-            .flux_items
-            .insert(qualifier.name, self.genv.alloc(fhir::FluxItem::Qualifier(qualifier)));
-    }
-
-    pub fn add_trusted(self, def_id: LocalDefId) {
-        self.borrow_mut().trusted.insert(def_id);
-    }
-
-    pub fn insert_fn_quals(self, def_id: LocalDefId, quals: &[Ident]) {
-        self.borrow_mut()
-            .fn_quals
-            .insert(def_id, self.genv.alloc_slice(quals));
-    }
-
-    fn borrow_mut(self) -> RefMut<'genv, fhir::Crate<'genv>> {
-        self.genv.inner.fhir.borrow_mut()
+    fn new(genv: GlobalEnv<'genv, 'tcx>, fhir: &'genv fhir::Crate<'genv>) -> Self {
+        Self { genv, fhir }
     }
 
     pub fn get_generics(self, def_id: LocalDefId) -> Option<&'genv fhir::Generics<'genv>> {
@@ -506,16 +404,16 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         }
     }
 
-    pub fn get_local_id_for_extern(&self, extern_def_id: DefId) -> Option<LocalDefId> {
-        self.borrow().externs.get(&extern_def_id).copied()
+    pub fn get_local_id_for_extern(self, extern_def_id: DefId) -> Option<LocalDefId> {
+        self.fhir.externs.get(&extern_def_id).copied()
     }
 
     pub fn get_flux_item(self, name: Symbol) -> Option<&'genv fhir::FluxItem<'genv>> {
-        self.borrow().flux_items.get(&name).copied()
+        self.fhir.flux_items.get(&name).copied()
     }
 
     pub fn refined_by(self, def_id: LocalDefId) -> &'genv fhir::RefinedBy<'genv> {
-        self.borrow()
+        self.fhir
             .refined_by
             .get(&def_id)
             .unwrap_or_else(|| panic!("{def_id:?}"))
@@ -529,24 +427,12 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         }
     }
 
-    pub fn func_decls(self) -> Vec<&'genv fhir::FuncDecl<'genv>> {
-        // FIXME(nilehmann) avoid the allocation
-        self.borrow().func_decls.values().copied().collect()
+    pub fn func_decls(self) -> impl Iterator<Item = &'genv fhir::FuncDecl<'genv>> {
+        self.fhir.func_decls.values().copied()
     }
 
-    pub fn defns(self) -> Vec<&'genv fhir::Defn<'genv>> {
-        // FIXME(nilehmann) avoid the allocation
-        self.borrow()
-            .flux_items
-            .values()
-            .filter_map(
-                |item| if let fhir::FluxItem::Defn(defn) = item { Some(defn) } else { None },
-            )
-            .collect()
-    }
-
-    pub fn defn(&self, name: Symbol) -> Option<&'genv fhir::Defn<'genv>> {
-        self.borrow().flux_items.get(&name).and_then(|item| {
+    pub fn defns(self) -> impl Iterator<Item = &'genv fhir::Defn<'genv>> {
+        self.fhir.flux_items.values().filter_map(|item| {
             if let fhir::FluxItem::Defn(defn) = item {
                 Some(defn)
             } else {
@@ -555,63 +441,67 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         })
     }
 
-    pub fn qualifiers(&self) -> Vec<&'genv fhir::Qualifier<'genv>> {
-        // FIXME(nilehmann) avoid the allocation
-        self.borrow()
-            .flux_items
-            .values()
-            .filter_map(
-                |item| if let fhir::FluxItem::Qualifier(qual) = item { Some(qual) } else { None },
-            )
-            .collect()
+    pub fn defn(&self, name: Symbol) -> Option<&'genv fhir::Defn<'genv>> {
+        self.fhir.flux_items.get(&name).and_then(|item| {
+            if let fhir::FluxItem::Defn(defn) = item {
+                Some(defn)
+            } else {
+                None
+            }
+        })
     }
 
-    pub fn fn_quals_for(&self, def_id: LocalDefId) -> &'genv [fhir::SurfaceIdent] {
-        self.borrow().fn_quals.get(&def_id).copied().unwrap_or(&[])
+    pub fn qualifiers(self) -> impl Iterator<Item = &'genv fhir::Qualifier<'genv>> {
+        self.fhir.flux_items.values().filter_map(|item| {
+            if let fhir::FluxItem::Qualifier(qual) = item {
+                Some(qual)
+            } else {
+                None
+            }
+        })
     }
 
-    pub fn consts(&self) -> Vec<fhir::ConstInfo> {
-        // FIXME(nilehmann) avoid the allocation
-        self.borrow().consts.values().copied().collect()
+    pub fn fn_quals_for(self, def_id: LocalDefId) -> &'genv [fhir::SurfaceIdent] {
+        self.fhir.fn_quals.get(&def_id).copied().unwrap_or(&[])
     }
 
-    pub fn is_trusted(&self, def_id: LocalDefId) -> bool {
-        self.borrow().trusted.contains(&def_id)
+    pub fn consts(self) -> impl Iterator<Item = fhir::ConstInfo> + 'genv {
+        self.fhir.consts.values().copied()
     }
 
-    pub fn expect_enum(&self, def_id: LocalDefId) -> &'genv fhir::EnumDef<'genv> {
-        self.borrow().enums[&def_id]
+    pub fn is_trusted(self, def_id: LocalDefId) -> bool {
+        self.fhir.trusted.contains(&def_id)
     }
 
-    pub fn expect_struct(&self, def_id: LocalDefId) -> &'genv fhir::StructDef<'genv> {
-        self.borrow().structs[&def_id]
+    pub fn expect_enum(self, def_id: LocalDefId) -> &'genv fhir::EnumDef<'genv> {
+        self.fhir.enums[&def_id]
     }
 
-    pub fn expect_impl(&self, def_id: LocalDefId) -> &'genv fhir::Impl<'genv> {
-        self.borrow().impls[&def_id]
+    pub fn expect_struct(self, def_id: LocalDefId) -> &'genv fhir::StructDef<'genv> {
+        self.fhir.structs[&def_id]
     }
 
-    pub fn expect_trait(&self, def_id: LocalDefId) -> &'genv fhir::Trait<'genv> {
-        self.borrow().traits[&def_id]
+    pub fn expect_impl(self, def_id: LocalDefId) -> &'genv fhir::Impl<'genv> {
+        self.fhir.impls[&def_id]
     }
 
-    pub fn expect_opaque_ty(&self, def_id: LocalDefId) -> &'genv fhir::OpaqueTy<'genv> {
-        self.borrow().opaque_tys[&def_id]
+    pub fn expect_trait(self, def_id: LocalDefId) -> &'genv fhir::Trait<'genv> {
+        self.fhir.traits[&def_id]
     }
 
-    pub fn expect_fn_like(&self, def_id: LocalDefId) -> &'genv fhir::FnSig<'genv> {
-        self.borrow().fns[&def_id]
+    pub fn expect_opaque_ty(self, def_id: LocalDefId) -> &'genv fhir::OpaqueTy<'genv> {
+        self.fhir.opaque_tys[&def_id]
     }
 
-    pub fn expect_type_alias(&self, def_id: LocalDefId) -> &'genv fhir::TyAlias<'genv> {
-        self.borrow().type_aliases[&def_id]
+    pub fn expect_fn_like(self, def_id: LocalDefId) -> &'genv fhir::FnSig<'genv> {
+        self.fhir.fns[&def_id]
     }
 
-    pub fn expect_assoc_type(&self, def_id: LocalDefId) -> &'genv fhir::AssocType<'genv> {
-        self.borrow().assoc_types[&def_id]
+    pub fn expect_type_alias(self, def_id: LocalDefId) -> &'genv fhir::TyAlias<'genv> {
+        self.fhir.type_aliases[&def_id]
     }
 
-    fn borrow(&self) -> cell::Ref<'genv, fhir::Crate<'genv>> {
-        self.genv.inner.fhir.borrow()
+    pub fn expect_assoc_type(self, def_id: LocalDefId) -> &'genv fhir::AssocType<'genv> {
+        self.fhir.assoc_types[&def_id]
     }
 }

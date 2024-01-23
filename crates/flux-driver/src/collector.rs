@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use flux_common::iter::IterExt;
 use flux_config::{self as config, CrateConfig};
 use flux_errors::{FluxSession, ResultExt};
-use flux_middle::{const_eval::scalar_int_to_rty_constant, rty::Constant};
+use flux_middle::{const_eval::scalar_int_to_rty_constant, fhir, rty::Constant};
 use flux_syntax::{surface, ParseResult, ParseSess};
 use itertools::Itertools;
 use rustc_ast::{
@@ -28,16 +28,8 @@ pub(crate) struct SpecCollector<'tcx, 'a> {
     error_guaranteed: Option<ErrorGuaranteed>,
 }
 
-#[derive(PartialEq, Eq, Hash)]
-pub enum IgnoreKey {
-    /// Ignore the entire crate
-    Crate,
-    /// (Transitively) ignore the module named `LocalDefId`
-    Module(LocalDefId),
-}
-
 /// Set of module (`LocalDefId`) that should be ignored by flux
-pub type Ignores = UnordSet<IgnoreKey>;
+pub type Ignores = UnordSet<fhir::IgnoreKey>;
 
 pub(crate) struct Specs {
     pub fn_sigs: UnordMap<OwnerId, FnSpec>,
@@ -146,7 +138,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Mod)?;
         if attrs.ignore() {
-            self.specs.ignores.insert(IgnoreKey::Crate);
+            self.specs.ignores.insert(fhir::IgnoreKey::Crate);
         }
 
         self.specs.extend_items(attrs.items());
@@ -164,7 +156,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Mod)?;
         self.specs.extend_items(attrs.items());
         if attrs.ignore() {
-            self.specs.ignores.insert(IgnoreKey::Module(def_id));
+            self.specs.ignores.insert(fhir::IgnoreKey::Module(def_id));
         }
         Ok(())
     }
