@@ -13,6 +13,8 @@ use rustc_middle::middle::resolve_bound_vars::ResolvedArg;
 use super::{FhirId, FluxOwnerId};
 use crate::{fhir, global_env::GlobalEnv, try_alloc_slice};
 
+type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
+
 pub struct LiftCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
@@ -23,14 +25,14 @@ pub struct LiftCtxt<'a, 'genv, 'tcx> {
 pub fn lift_generics<'genv>(
     genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
-) -> Result<fhir::Generics<'genv>, ErrorGuaranteed> {
+) -> Result<fhir::Generics<'genv>> {
     LiftCtxt::new(genv, owner_id, &IndexGen::new(), None).lift_generics()
 }
 
 pub fn lift_type_alias<'genv>(
     genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
-) -> Result<fhir::TyAlias<'genv>, ErrorGuaranteed> {
+) -> Result<fhir::TyAlias<'genv>> {
     let def_id = owner_id.def_id;
     let item = genv.hir().expect_item(def_id);
     let hir::ItemKind::TyAlias(ty, _) = item.kind else {
@@ -56,7 +58,7 @@ pub fn lift_type_alias<'genv>(
 pub fn lift_fn<'genv>(
     genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
-) -> Result<(fhir::FnSig<'genv>, UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>), ErrorGuaranteed> {
+) -> Result<(fhir::FnSig<'genv>, UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>)> {
     let mut opaque_tys = Default::default();
     let local_id_gen = IndexGen::new();
     let mut cx = LiftCtxt::new(genv, owner_id, &local_id_gen, Some(&mut opaque_tys));
@@ -82,7 +84,7 @@ pub fn lift_fn<'genv>(
 pub fn lift_self_ty<'genv>(
     genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
-) -> Result<Option<fhir::Ty<'genv>>, ErrorGuaranteed> {
+) -> Result<Option<fhir::Ty<'genv>>> {
     if let Some(def_id) = genv.tcx().impl_of_method(owner_id.to_def_id()) {
         let owner_id = OwnerId { def_id: def_id.expect_local() };
         let local_id_gen = IndexGen::new();
@@ -134,7 +136,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         LiftCtxt::new(self.genv, owner, local_id_gen, self.opaque_tys.as_deref_mut())
     }
 
-    pub fn lift_generics(&mut self) -> Result<fhir::Generics<'genv>, ErrorGuaranteed> {
+    pub fn lift_generics(&mut self) -> Result<fhir::Generics<'genv>> {
         let generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
         self.lift_generics_inner(generics)
     }
@@ -155,7 +157,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn lift_generic_param(
         &mut self,
         param: &hir::GenericParam,
-    ) -> Result<fhir::GenericParam<'genv>, ErrorGuaranteed> {
+    ) -> Result<fhir::GenericParam<'genv>> {
         let kind = match param.kind {
             hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamKind::Lifetime,
             hir::GenericParamKind::Type { default, synthetic: false } => {
@@ -181,10 +183,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::GenericParam { def_id: param.def_id, kind })
     }
 
-    fn lift_generics_inner(
-        &mut self,
-        generics: &hir::Generics,
-    ) -> Result<fhir::Generics<'genv>, ErrorGuaranteed> {
+    fn lift_generics_inner(&mut self, generics: &hir::Generics) -> Result<fhir::Generics<'genv>> {
         let params =
             try_alloc_slice!(self.genv, &generics.params, |param| self.lift_generic_param(param))?;
         let predicates = try_alloc_slice!(self.genv, &generics.predicates, |pred| {
@@ -197,7 +196,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn lift_where_predicate(
         &mut self,
         pred: &hir::WherePredicate,
-    ) -> Result<fhir::WhereBoundPredicate<'genv>, ErrorGuaranteed> {
+    ) -> Result<fhir::WhereBoundPredicate<'genv>> {
         if let hir::WherePredicate::BoundPredicate(bound) = pred {
             if !bound.bound_generic_params.is_empty() {
                 return self.emit_unsupported("higher-rank trait bounds are not supported");
@@ -215,7 +214,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn lift_generic_bound(
         &mut self,
         bound: &hir::GenericBound,
-    ) -> Result<fhir::GenericBound<'genv>, ErrorGuaranteed> {
+    ) -> Result<fhir::GenericBound<'genv>> {
         match bound {
             hir::GenericBound::Trait(poly_trait_ref, hir::TraitBoundModifier::None) => {
                 Ok(fhir::GenericBound::Trait(
@@ -243,7 +242,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn lift_poly_trait_ref(
         &mut self,
         poly_trait_ref: hir::PolyTraitRef,
-    ) -> Result<fhir::PolyTraitRef<'genv>, ErrorGuaranteed> {
+    ) -> Result<fhir::PolyTraitRef<'genv>> {
         let bound_generic_params =
             try_alloc_slice!(self.genv, &poly_trait_ref.bound_generic_params, |param| {
                 self.lift_generic_param(param)
@@ -254,7 +253,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         })
     }
 
-    fn lift_opaque_ty(&mut self) -> Result<fhir::OpaqueTy<'genv>, ErrorGuaranteed> {
+    fn lift_opaque_ty(&mut self) -> Result<fhir::OpaqueTy<'genv>> {
         let hir::ItemKind::OpaqueTy(opaque_ty) =
             self.genv.hir().expect_item(self.owner.def_id).kind
         else {
@@ -269,7 +268,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         Ok(opaque_ty)
     }
 
-    fn lift_fn_sig(&mut self, fn_sig: &hir::FnSig) -> Result<fhir::FnSig<'genv>, ErrorGuaranteed> {
+    fn lift_fn_sig(&mut self, fn_sig: &hir::FnSig) -> Result<fhir::FnSig<'genv>> {
         let generics = self.lift_generics()?;
         let args = try_alloc_slice!(self.genv, &fn_sig.decl.inputs, |ty| self.lift_ty(ty))?;
 
@@ -284,10 +283,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         Ok(fn_sig)
     }
 
-    fn lift_fn_ret_ty(
-        &mut self,
-        ret_ty: &hir::FnRetTy,
-    ) -> Result<fhir::Ty<'genv>, ErrorGuaranteed> {
+    fn lift_fn_ret_ty(&mut self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty<'genv>> {
         match ret_ty {
             hir::FnRetTy::DefaultReturn(_) => {
                 let kind = fhir::TyKind::Tuple(&[]);
@@ -297,38 +293,26 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    pub fn lift_field_def_id(
-        &mut self,
-        def_id: LocalDefId,
-    ) -> Result<fhir::FieldDef<'genv>, ErrorGuaranteed> {
+    pub fn lift_field_def_id(&mut self, def_id: LocalDefId) -> Result<fhir::FieldDef<'genv>> {
         let hir = self.genv.hir();
         let hir_id = hir.local_def_id_to_hir_id(def_id);
         let hir::Node::Field(field_def) = hir.get(hir_id) else { bug!("expected a field") };
         Ok(fhir::FieldDef { def_id, ty: self.lift_ty(field_def.ty)?, lifted: true })
     }
 
-    pub fn lift_field_def(
-        &mut self,
-        field_def: &hir::FieldDef,
-    ) -> Result<fhir::FieldDef<'genv>, ErrorGuaranteed> {
+    pub fn lift_field_def(&mut self, field_def: &hir::FieldDef) -> Result<fhir::FieldDef<'genv>> {
         let ty = self.lift_ty(field_def.ty)?;
         Ok(fhir::FieldDef { def_id: field_def.def_id, ty, lifted: true })
     }
 
-    pub fn lift_enum_variant_id(
-        &mut self,
-        def_id: LocalDefId,
-    ) -> Result<fhir::VariantDef<'genv>, ErrorGuaranteed> {
+    pub fn lift_enum_variant_id(&mut self, def_id: LocalDefId) -> Result<fhir::VariantDef<'genv>> {
         let hir_id = self.genv.hir().local_def_id_to_hir_id(def_id);
         let node = self.genv.hir().get(hir_id);
         let hir::Node::Variant(variant) = node else { bug!("expected a variant") };
         self.lift_enum_variant(variant)
     }
 
-    pub fn lift_enum_variant(
-        &mut self,
-        variant: &hir::Variant,
-    ) -> Result<fhir::VariantDef<'genv>, ErrorGuaranteed> {
+    pub fn lift_enum_variant(&mut self, variant: &hir::Variant) -> Result<fhir::VariantDef<'genv>> {
         let item = self.genv.hir().expect_item(self.owner.def_id);
         let hir::ItemKind::Enum(_, generics) = &item.kind else { bug!("expected an enum") };
 
@@ -379,7 +363,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn lift_ty(&mut self, ty: &hir::Ty) -> Result<fhir::Ty<'genv>, ErrorGuaranteed> {
+    fn lift_ty(&mut self, ty: &hir::Ty) -> Result<fhir::Ty<'genv>> {
         let kind = match ty.kind {
             hir::TyKind::Slice(ty) => {
                 let ty = self.lift_ty(ty)?;
@@ -423,7 +407,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::Ty { kind, span: ty.span })
     }
 
-    fn lift_lifetime(&self, lft: &hir::Lifetime) -> Result<fhir::Lifetime, ErrorGuaranteed> {
+    fn lift_lifetime(&self, lft: &hir::Lifetime) -> Result<fhir::Lifetime> {
         self.genv
             .tcx()
             .named_bound_var(lft.hir_id)
@@ -438,12 +422,12 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             })
     }
 
-    fn lift_mut_ty(&mut self, mut_ty: hir::MutTy) -> Result<fhir::MutTy<'genv>, ErrorGuaranteed> {
+    fn lift_mut_ty(&mut self, mut_ty: hir::MutTy) -> Result<fhir::MutTy<'genv>> {
         let ty = self.lift_ty(mut_ty.ty)?;
         Ok(fhir::MutTy { ty: self.genv.alloc(ty), mutbl: mut_ty.mutbl })
     }
 
-    fn lift_qpath(&mut self, qpath: hir::QPath) -> Result<fhir::Ty<'genv>, ErrorGuaranteed> {
+    fn lift_qpath(&mut self, qpath: hir::QPath) -> Result<fhir::Ty<'genv>> {
         match qpath {
             hir::QPath::Resolved(self_ty, path) => self.lift_path_to_ty(self_ty, path),
             hir::QPath::TypeRelative(_, _) | hir::QPath::LangItem(_, _, _) => {
@@ -455,7 +439,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn lift_path(&mut self, path: &hir::Path) -> Result<fhir::Path<'genv>, ErrorGuaranteed> {
+    fn lift_path(&mut self, path: &hir::Path) -> Result<fhir::Path<'genv>> {
         let Ok(res) = path.res.try_into() else {
             return self.emit_unsupported(&format!("unsupported res: `{:?}`", path.res));
         };
@@ -473,7 +457,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         &mut self,
         self_ty: Option<&hir::Ty>,
         path: &hir::Path,
-    ) -> Result<fhir::Ty<'genv>, ErrorGuaranteed> {
+    ) -> Result<fhir::Ty<'genv>> {
         let path = self.lift_path(path)?;
         let self_ty = self_ty
             .map(|ty| {
@@ -490,7 +474,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn lift_generic_args(
         &mut self,
         args: &[hir::GenericArg<'_>],
-    ) -> Result<&'genv [fhir::GenericArg<'genv>], ErrorGuaranteed> {
+    ) -> Result<&'genv [fhir::GenericArg<'genv>]> {
         try_alloc_slice!(self.genv, args, |arg| {
             match arg {
                 hir::GenericArg::Lifetime(lft) => {
@@ -514,7 +498,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn lift_type_bindings(
         &mut self,
         bindings: &[hir::TypeBinding<'_>],
-    ) -> Result<&'genv [fhir::TypeBinding<'genv>], ErrorGuaranteed> {
+    ) -> Result<&'genv [fhir::TypeBinding<'genv>]> {
         try_alloc_slice!(self.genv, bindings, |binding| {
             let hir::TypeBindingKind::Equality { term } = binding.kind else {
                 return self.emit_unsupported("unsupported type binding");
@@ -527,7 +511,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         })
     }
 
-    fn lift_array_len(&self, len: hir::ArrayLen) -> Result<fhir::ArrayLen, ErrorGuaranteed> {
+    fn lift_array_len(&self, len: hir::ArrayLen) -> Result<fhir::ArrayLen> {
         let body = match len {
             hir::ArrayLen::Body(anon_const) => self.genv.hir().body(anon_const.body),
             hir::ArrayLen::Infer(_, _) => bug!("unexpected `ArrayLen::Infer`"),
@@ -545,7 +529,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn generic_params_into_args(
         &self,
         generics: &hir::Generics,
-    ) -> Result<&'genv [fhir::GenericArg<'genv>], ErrorGuaranteed> {
+    ) -> Result<&'genv [fhir::GenericArg<'genv>]> {
         try_alloc_slice!(self.genv, generics.params, |param| {
             match param.kind {
                 hir::GenericParamKind::Type { .. } => {
@@ -576,12 +560,12 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     }
 
     #[track_caller]
-    fn emit_unsupported<T>(&self, msg: &str) -> Result<T, ErrorGuaranteed> {
+    fn emit_unsupported<T>(&self, msg: &str) -> Result<T> {
         self.emit_err(errors::UnsupportedHir::new(self.genv.tcx(), self.owner, msg))
     }
 
     #[track_caller]
-    fn emit_err<'b, T>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<T, ErrorGuaranteed> {
+    fn emit_err<'b, T>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<T> {
         Err(self.genv.sess().emit_err(err))
     }
 

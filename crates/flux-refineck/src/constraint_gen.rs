@@ -6,7 +6,7 @@ use flux_middle::{
     intern::List,
     rty::{
         self,
-        evars::{EVarCxId, EVarSol, UnsolvedEvar},
+        evars::{EVarCxId, EVarSol},
         fold::TypeFoldable,
         AliasTy, BaseTy, BinOp, Binder, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
         FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, GenericParamDefKind, HoleKind,
@@ -28,6 +28,8 @@ use crate::{
     refine_tree::{RefineCtxt, Scope, Snapshot},
     type_env::TypeEnv,
 };
+
+type Result<T = ()> = std::result::Result<T, CheckerErrKind>;
 
 pub struct ConstrGen<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
@@ -131,7 +133,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         &mut self,
         env: &mut TypeEnv,
         operands: &[Ty],
-    ) -> Result<Vec<Ty>, CheckerErrKind> {
+    ) -> Result<Vec<Ty>> {
         let mut res = Vec::new();
         for ty in operands {
             let packed_ty = match ty.kind() {
@@ -146,11 +148,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         Ok(res)
     }
 
-    fn check_generic_args(
-        &self,
-        did: DefId,
-        generic_args: &[GenericArg],
-    ) -> Result<(), CheckerErrKind> {
+    fn check_generic_args(&self, did: DefId, generic_args: &[GenericArg]) -> Result {
         let generics = self.genv.generics_of(did)?;
         for (idx, arg) in generic_args.iter().enumerate() {
             let param = generics.param_at(idx, self.genv)?;
@@ -175,7 +173,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
         actuals: &[Ty],
-    ) -> Result<(Binder<FnOutput>, Obligations), CheckerErrKind> {
+    ) -> Result<(Binder<FnOutput>, Obligations)> {
         let genv = self.genv;
         let span = self.span;
 
@@ -285,7 +283,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         output: &Binder<FnOutput>,
-    ) -> Result<Obligations, CheckerErrKind> {
+    ) -> Result<Obligations> {
         let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
 
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
@@ -312,7 +310,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         variant: EarlyBinder<PolyVariant>,
         generic_args: &[GenericArg],
         fields: &[Ty],
-    ) -> Result<Ty, CheckerErrKind> {
+    ) -> Result<Ty> {
         // rn we are only calling `check_constructor` when folding so we mark this as a folding error.
         let mut infcx = self.infcx(rcx, ConstrReason::Fold);
 
@@ -341,7 +339,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         env: &mut TypeEnv,
         args: &[Ty],
         arr_ty: Ty,
-    ) -> Result<Ty, CheckerErrKind> {
+    ) -> Result<Ty> {
         let mut infcx = self.infcx(rcx, ConstrReason::Other);
 
         let arr_ty =
@@ -428,7 +426,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         &mut self,
         genv: GlobalEnv,
         callee_def_id: Option<DefId>,
-    ) -> Result<Vec<Expr>, CheckerErrKind> {
+    ) -> Result<Vec<Expr>> {
         if let Some(callee_id) = callee_def_id {
             Ok(genv
                 .refinement_generics_of(callee_id)?
@@ -485,7 +483,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         env: &mut TypeEnv,
         path: &Path,
         ty: &Ty,
-    ) -> Result<(), CheckerErrKind> {
+    ) -> Result {
         let actual_ty = env.get(path);
         self.subtyping(rcx, &actual_ty, ty)
     }
@@ -495,7 +493,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         constraint: &Constraint,
-    ) -> Result<(), CheckerErrKind> {
+    ) -> Result {
         let rcx = &mut rcx.branch();
         match constraint {
             Constraint::Type(path, ty, _) => self.check_type_constr(rcx, env, path, ty),
@@ -506,12 +504,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    pub(crate) fn subtyping(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        ty1: &Ty,
-        ty2: &Ty,
-    ) -> Result<(), CheckerErrKind> {
+    pub(crate) fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) -> Result {
         let rcx = &mut rcx.branch();
 
         match (ty1.kind(), ty2.kind()) {
@@ -580,12 +573,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn bty_subtyping(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        bty1: &BaseTy,
-        bty2: &BaseTy,
-    ) -> Result<(), CheckerErrKind> {
+    fn bty_subtyping(&mut self, rcx: &mut RefineCtxt, bty1: &BaseTy, bty2: &BaseTy) -> Result {
         match (bty1, bty2) {
             (BaseTy::Int(int_ty1), BaseTy::Int(int_ty2)) => {
                 debug_assert_eq!(int_ty1, int_ty2);
@@ -649,7 +637,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn project_bty(&mut self, self_ty: &Ty, def_id: DefId) -> Result<Ty, CheckerErrKind> {
+    fn project_bty(&mut self, self_ty: &Ty, def_id: DefId) -> Result<Ty> {
         let args = vec![GenericArg::Ty(self_ty.clone())];
         let alias_ty = rty::AliasTy::new(def_id, args, List::empty());
         Ok(Ty::projection(alias_ty).normalize_projections(
@@ -660,12 +648,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         )?)
     }
 
-    fn opaque_subtyping(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        ty: &Ty,
-        alias_ty: &AliasTy,
-    ) -> Result<(), CheckerErrKind> {
+    fn opaque_subtyping(&mut self, rcx: &mut RefineCtxt, ty: &Ty, alias_ty: &AliasTy) -> Result {
         if let Some(BaseTy::Coroutine(def_id, args)) = ty.as_bty_skipping_existentials() {
             let obligs = mk_generator_obligations(self.genv, def_id, args, &alias_ty.def_id)?;
             self.insert_obligations(obligs);
@@ -691,7 +674,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         variance: Variance,
         arg1: &GenericArg,
         arg2: &GenericArg,
-    ) -> Result<(), CheckerErrKind> {
+    ) -> Result {
         match (arg1, arg2) {
             (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => {
                 match variance {
@@ -767,8 +750,8 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    pub(crate) fn solve(self) -> Result<EVarSol, UnsolvedEvar> {
-        self.evar_gen.solve()
+    pub(crate) fn solve(self) -> Result<EVarSol> {
+        Ok(self.evar_gen.solve()?)
     }
 }
 
@@ -783,7 +766,7 @@ fn mk_generator_obligations(
     generator_did: &DefId,
     generator_args: &GenericArgs,
     opaque_def_id: &DefId,
-) -> Result<Vec<rty::Clause>, CheckerErrKind> {
+) -> Result<Vec<rty::Clause>> {
     let bounds = genv.item_bounds(*opaque_def_id)?;
     let pred = if let rty::ClauseKind::Projection(proj) = bounds.skip_binder()[0].kind() {
         let output = proj.term;
@@ -800,7 +783,7 @@ fn mk_obligations(
     did: DefId,
     args: &[GenericArg],
     refine_args: &[Expr],
-) -> Result<List<rty::Clause>, CheckerErrKind> {
+) -> Result<List<rty::Clause>> {
     Ok(genv
         .predicates_of(did)?
         .predicates()

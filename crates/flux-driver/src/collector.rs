@@ -18,6 +18,8 @@ use rustc_hir::{
 use rustc_middle::ty::{ScalarInt, TyCtxt};
 use rustc_span::{Span, Symbol, SyntaxContext};
 
+type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
+
 pub(crate) struct SpecCollector<'tcx, 'a> {
     tcx: TyCtxt<'tcx>,
     parse_sess: ParseSess,
@@ -34,10 +36,7 @@ macro_rules! attr_name {
 }
 
 impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
-    pub(crate) fn collect(
-        tcx: TyCtxt<'tcx>,
-        sess: &'a FluxSession,
-    ) -> Result<Specs, ErrorGuaranteed> {
+    pub(crate) fn collect(tcx: TyCtxt<'tcx>, sess: &'a FluxSession) -> Result<Specs> {
         let mut collector = Self {
             tcx,
             parse_sess: ParseSess::default(),
@@ -98,7 +97,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn parse_crate_spec(&mut self, attrs: &[Attribute]) -> Result<(), ErrorGuaranteed> {
+    fn parse_crate_spec(&mut self, attrs: &[Attribute]) -> Result {
         // TODO(atgeller) error if non-crate attributes
         // TODO(atgeller) error if >1 cfg attributes
 
@@ -114,11 +113,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_mod_spec(
-        &mut self,
-        def_id: LocalDefId,
-        attrs: &[Attribute],
-    ) -> Result<(), ErrorGuaranteed> {
+    fn parse_mod_spec(&mut self, def_id: LocalDefId, attrs: &[Attribute]) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Mod)?;
         self.specs.extend_items(attrs.items());
         if attrs.ignore() {
@@ -127,11 +122,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_const_spec(
-        &mut self,
-        item: &Item,
-        attrs: &[Attribute],
-    ) -> Result<(), ErrorGuaranteed> {
+    fn parse_const_spec(&mut self, item: &Item, attrs: &[Attribute]) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Const)?;
         self.report_dups(&attrs)?;
 
@@ -154,11 +145,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn parse_trait_specs(
-        &mut self,
-        owner_id: OwnerId,
-        attrs: &[Attribute],
-    ) -> Result<(), ErrorGuaranteed> {
+    fn parse_trait_specs(&mut self, owner_id: OwnerId, attrs: &[Attribute]) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Trait)?;
         self.report_dups(&attrs)?;
 
@@ -177,7 +164,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         owner_id: OwnerId,
         attrs: &[Attribute],
         def_kind: DefKind,
-    ) -> Result<(), ErrorGuaranteed> {
+    ) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, def_kind)?;
         self.report_dups(&attrs)?;
 
@@ -191,11 +178,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_tyalias_spec(
-        &mut self,
-        owner_id: OwnerId,
-        attrs: &[Attribute],
-    ) -> Result<(), ErrorGuaranteed> {
+    fn parse_tyalias_spec(&mut self, owner_id: OwnerId, attrs: &[Attribute]) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::TyAlias)?;
         self.specs.ty_aliases.insert(owner_id, attrs.ty_alias());
         Ok(())
@@ -206,7 +189,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         owner_id: OwnerId,
         attrs: &[Attribute],
         data: &VariantData,
-    ) -> Result<(), ErrorGuaranteed> {
+    ) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Struct)?;
         self.report_dups(&attrs)?;
         // TODO(nilehmann) error if it has non-struct attrs
@@ -257,7 +240,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         field: &rustc_hir::FieldDef,
         opaque: bool,
-    ) -> Result<Option<surface::Ty>, ErrorGuaranteed> {
+    ) -> Result<Option<surface::Ty>> {
         let attrs = self.tcx.hir().attrs(field.hir_id);
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Field)?;
         self.report_dups(&attrs)?;
@@ -280,7 +263,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         owner_id: OwnerId,
         attrs: &[Attribute],
         enum_def: &EnumDef,
-    ) -> Result<(), ErrorGuaranteed> {
+    ) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Enum)?;
         self.report_dups(&attrs)?;
 
@@ -328,7 +311,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         hir_variant: &rustc_hir::Variant,
         has_refined_by: bool,
-    ) -> Result<Option<surface::VariantDef>, ErrorGuaranteed> {
+    ) -> Result<Option<surface::VariantDef>> {
         let attrs = self.tcx.hir().attrs(hir_variant.hir_id);
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Variant)?;
         self.report_dups(&attrs)?;
@@ -347,7 +330,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         owner_id: OwnerId,
         attrs: &[Attribute],
         def_kind: DefKind,
-    ) -> Result<(), ErrorGuaranteed> {
+    ) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, def_kind)?;
         self.report_dups(&attrs)?;
         // TODO(nilehmann) error if it has non-fun attrs
@@ -374,11 +357,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_flux_attrs(
-        &mut self,
-        attrs: &[Attribute],
-        def_kind: DefKind,
-    ) -> Result<FluxAttrs, ErrorGuaranteed> {
+    fn parse_flux_attrs(&mut self, attrs: &[Attribute], def_kind: DefKind) -> Result<FluxAttrs> {
         let attrs: Vec<_> = attrs
             .iter()
             .filter_map(|attr| {
@@ -404,11 +383,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(FluxAttrs::new(attrs))
     }
 
-    fn parse_flux_attr(
-        &mut self,
-        attr_item: &AttrItem,
-        def_kind: DefKind,
-    ) -> Result<FluxAttr, ErrorGuaranteed> {
+    fn parse_flux_attr(&mut self, attr_item: &AttrItem, def_kind: DefKind) -> Result<FluxAttr> {
         let [_, segment] = &attr_item.path.segments[..] else {
             return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() }));
         };
@@ -483,10 +458,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
     // In Prusti they suggested looking into doing this instead of using a Visitor...
     // it seems more brittle but I guess conversely their version is a little permissive.
-    fn extract_extern_def_id_from_extern_spec_fn(
-        &mut self,
-        def_id: LocalDefId,
-    ) -> Result<DefId, ErrorGuaranteed> {
+    fn extract_extern_def_id_from_extern_spec_fn(&mut self, def_id: LocalDefId) -> Result<DefId> {
         use rustc_hir::{def, ExprKind, Node};
         // Regular functions
         if let Node::Item(i) = self.tcx.hir().find_by_def_id(def_id).unwrap()
@@ -523,7 +495,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         def_id: LocalDefId,
         data: &VariantData,
-    ) -> Result<DefId, ErrorGuaranteed> {
+    ) -> Result<DefId> {
         if let Some(extern_field) = data.fields().first() {
             let ty = self.tcx.type_of(extern_field.def_id);
             if let Some(adt_def) = ty.skip_binder().ty_adt_def() {
@@ -537,7 +509,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         def_id: LocalDefId,
         enum_def: &EnumDef,
-    ) -> Result<DefId, ErrorGuaranteed> {
+    ) -> Result<DefId> {
         if let Some(fake) = enum_def.variants.last() {
             let zog = self.extract_extern_def_id_from_extern_spec_struct(def_id, &fake.data)?;
             return Ok(zog);
@@ -550,14 +522,14 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         dargs: &rustc_ast::DelimArgs,
         parser: impl FnOnce(&mut ParseSess, &TokenStream, Span) -> ParseResult<T>,
         ctor: impl FnOnce(T) -> FluxAttrKind,
-    ) -> Result<FluxAttrKind, ErrorGuaranteed> {
+    ) -> Result<FluxAttrKind> {
         let entire = dargs.dspan.entire().with_ctxt(SyntaxContext::root());
         parser(&mut self.parse_sess, &dargs.tokens, entire)
             .map(ctor)
             .map_err(|err| self.emit_err(errors::SyntaxErr::from(err)))
     }
 
-    fn report_dups(&mut self, attrs: &FluxAttrs) -> Result<(), ErrorGuaranteed> {
+    fn report_dups(&mut self, attrs: &FluxAttrs) -> Result {
         let mut err = None;
         for (name, dups) in attrs.dups() {
             for attr in dups {
@@ -788,9 +760,11 @@ macro_rules! try_read_setting {
     };
 }
 
+type CFGResult<T = ()> = std::result::Result<T, errors::CFGError>;
+
 impl FluxAttrCFG {
     // TODO: Ugly that we have to access the collector for error reporting
-    fn parse_cfg(attr_item: &AttrItem) -> Result<Self, errors::CFGError> {
+    fn parse_cfg(attr_item: &AttrItem) -> CFGResult<Self> {
         let mut cfg = Self { map: HashMap::new() };
         let meta_item_kind = attr_item.meta_kind();
         match meta_item_kind {
@@ -811,7 +785,7 @@ impl FluxAttrCFG {
         Ok(cfg)
     }
 
-    fn parse_cfg_item(&mut self, nested_item: &NestedMetaItem) -> Result<(), errors::CFGError> {
+    fn parse_cfg_item(&mut self, nested_item: &NestedMetaItem) -> CFGResult {
         match nested_item {
             NestedMetaItem::MetaItem(item) => {
                 let name = item.name_or_empty().to_ident_string();
@@ -844,7 +818,7 @@ impl FluxAttrCFG {
         }
     }
 
-    fn try_into_crate_cfg(&mut self) -> Result<config::CrateConfig, errors::CFGError> {
+    fn try_into_crate_cfg(&mut self) -> CFGResult<config::CrateConfig> {
         let mut crate_config = CrateConfig::default();
         try_read_setting!(self, check_overflow, bool, crate_config);
         try_read_setting!(self, scrape_quals, bool, crate_config);
