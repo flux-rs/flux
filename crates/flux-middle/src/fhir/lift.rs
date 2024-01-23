@@ -15,7 +15,7 @@ use crate::{fhir, global_env::GlobalEnv};
 
 pub struct LiftCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    opaque_tys: Option<&'a mut UnordMap<LocalDefId, &'genv fhir::OpaqueTy<'genv>>>,
+    opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
     local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
 }
@@ -67,8 +67,7 @@ pub fn lift_type_alias<'genv>(
 pub fn lift_fn<'genv>(
     genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
-) -> Result<(fhir::FnSig<'genv>, UnordMap<LocalDefId, &'genv fhir::OpaqueTy<'genv>>), ErrorGuaranteed>
-{
+) -> Result<(fhir::FnSig<'genv>, UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>), ErrorGuaranteed> {
     let mut opaque_tys = Default::default();
     let local_id_gen = IndexGen::new();
     let mut cx = LiftCtxt::new(genv, owner_id, &local_id_gen, Some(&mut opaque_tys));
@@ -133,7 +132,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         owner: OwnerId,
         local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
-        opaque_tys: Option<&'a mut UnordMap<LocalDefId, &'genv fhir::OpaqueTy<'genv>>>,
+        opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
     ) -> Self {
         Self { genv, opaque_tys, local_id_gen, owner }
     }
@@ -629,7 +628,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         self.opaque_tys
             .as_mut()
             .unwrap_or_else(|| bug!("`impl Trait` not supported in this item {def_id:?}"))
-            .insert(def_id, self.genv.alloc(opaque_ty));
+            .insert(def_id, opaque_ty);
     }
 
     #[track_caller]

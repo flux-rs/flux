@@ -49,8 +49,8 @@ pub fn desugar_struct_def<'genv>(
         dbg::dump_item_info(genv.tcx(), owner_id, "fhir", struct_def).unwrap();
     }
 
-    fhir.structs.insert(def_id, genv.alloc(struct_def));
-    fhir.refined_by.insert(def_id, genv.alloc(refined_by));
+    fhir.structs.insert(def_id, struct_def);
+    fhir.refined_by.insert(def_id, refined_by);
 
     Ok(())
 }
@@ -71,8 +71,8 @@ pub fn desugar_enum_def<'genv>(
         dbg::dump_item_info(genv.tcx(), owner_id, "fhir", &enum_def).unwrap();
     }
 
-    fhir.enums.insert(def_id, genv.alloc(enum_def));
-    fhir.refined_by.insert(def_id, genv.alloc(refined_by));
+    fhir.enums.insert(def_id, enum_def);
+    fhir.refined_by.insert(def_id, refined_by);
 
     Ok(())
 }
@@ -97,8 +97,8 @@ pub fn desugar_type_alias<'genv>(
         dbg::dump_item_info(genv.tcx(), owner_id, "fhir", &ty_alias).unwrap();
     }
 
-    fhir.type_aliases.insert(def_id, genv.alloc(ty_alias));
-    fhir.refined_by.insert(def_id, genv.alloc(refined_by));
+    fhir.type_aliases.insert(def_id, ty_alias);
+    fhir.refined_by.insert(def_id, refined_by);
 
     Ok(())
 }
@@ -127,7 +127,7 @@ pub fn desugar_fn_sig<'genv>(
         dbg::dump_item_info(genv.tcx(), def_id, "fhir", fn_sig).unwrap();
     }
 
-    fhir.fns.insert(def_id, genv.alloc(fn_sig));
+    fhir.fns.insert(def_id, fn_sig);
     fhir.opaque_tys.extend_unord(opaque_tys.into_items());
 
     Ok(())
@@ -145,7 +145,7 @@ pub fn desugar_trait<'genv>(
     let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
     let trait_ = cx.desugar_trait(trait_)?;
 
-    fhir.traits.insert(def_id, genv.alloc(trait_));
+    fhir.traits.insert(def_id, trait_);
 
     Ok(())
 }
@@ -162,7 +162,7 @@ pub fn desugar_impl<'genv>(
     let mut cx = RustItemCtxt::new(genv, owner_id, resolver_output, None);
     let impl_ = cx.desugar_impl(impl_)?;
 
-    fhir.impls.insert(def_id, genv.alloc(impl_));
+    fhir.impls.insert(def_id, impl_);
 
     Ok(())
 }

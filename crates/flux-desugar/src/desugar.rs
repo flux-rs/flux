@@ -129,7 +129,7 @@ pub(crate) struct RustItemCtxt<'a, 'genv, 'tcx> {
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
     resolver_output: &'a ResolverOutput,
-    opaque_tys: Option<&'a mut UnordMap<LocalDefId, &'genv fhir::OpaqueTy<'genv>>>,
+    opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
     sort_resolver: SortResolver<'a, 'genv, 'tcx>,
 }
 
@@ -181,7 +181,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         owner: OwnerId,
         resolver_output: &'a ResolverOutput,
-        opaque_tys: Option<&'a mut UnordMap<LocalDefId, &'genv fhir::OpaqueTy<'genv>>>,
+        opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
     ) -> Self {
         let generics = genv.tcx().generics_of(owner);
         let self_res = self_res(genv.tcx(), owner);
@@ -1109,7 +1109,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         self.opaque_tys
             .as_mut()
             .unwrap_or_else(|| bug!("`impl Trait` not supported in this item {def_id:?}"))
-            .insert(def_id, self.genv.alloc(opaque_ty));
+            .insert(def_id, opaque_ty);
     }
 
     #[track_caller]

@@ -204,7 +204,7 @@ fn desugar_crate_inner<'genv>(
     for defn in &specs.func_defs {
         let name = defn.name;
         let func_decl = desugar::func_def_to_func_decl(genv, &resolver_output, defn)?;
-        fhir.func_decls.insert(name.name, genv.alloc(func_decl));
+        fhir.func_decls.insert(name.name, func_decl);
     }
 
     for (def_id, const_sig) in &specs.consts {
@@ -222,7 +222,7 @@ fn desugar_crate_inner<'genv>(
             let name = defn.name;
             if let Some(defn) = desugar::desugar_defn(genv, &resolver_output, defn)? {
                 fhir.flux_items
-                    .insert(name.name, genv.alloc(fhir::FluxItem::Defn(defn)));
+                    .insert(name.name, fhir::FluxItem::Defn(defn));
             }
             Ok(())
         })
@@ -236,7 +236,7 @@ fn desugar_crate_inner<'genv>(
         .try_for_each_exhaust(|qualifier| {
             let qualifier = desugar::desugar_qualifier(genv, &resolver_output, qualifier)?;
             fhir.flux_items
-                .insert(qualifier.name, genv.alloc(fhir::FluxItem::Qualifier(qualifier)));
+                .insert(qualifier.name, fhir::FluxItem::Qualifier(qualifier));
             Ok(())
         })
         .err()
@@ -347,8 +347,7 @@ fn desugar_assoc_item<'genv>(
         hir::AssocItemKind::Type => {
             let generics = lift::lift_generics(genv, owner_id)?;
             let assoc_ty = fhir::AssocType { generics };
-            fhir.assoc_types
-                .insert(owner_id.def_id, genv.alloc(assoc_ty));
+            fhir.assoc_types.insert(owner_id.def_id, assoc_ty);
             Ok(())
         }
         hir::AssocItemKind::Const => Ok(()),

@@ -409,7 +409,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn get_flux_item(self, name: Symbol) -> Option<&'genv fhir::FluxItem<'genv>> {
-        self.fhir.flux_items.get(&name).copied()
+        self.fhir.flux_items.get(&name).as_ref().copied()
     }
 
     pub fn refined_by(self, def_id: LocalDefId) -> &'genv fhir::RefinedBy<'genv> {
@@ -428,7 +428,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn func_decls(self) -> impl Iterator<Item = &'genv fhir::FuncDecl<'genv>> {
-        self.fhir.func_decls.values().copied()
+        self.fhir.func_decls.values()
     }
 
     pub fn defns(self) -> impl Iterator<Item = &'genv fhir::Defn<'genv>> {
@@ -474,34 +474,34 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn expect_enum(self, def_id: LocalDefId) -> &'genv fhir::EnumDef<'genv> {
-        self.fhir.enums[&def_id]
+        &self.fhir.enums[&def_id]
     }
 
     pub fn expect_struct(self, def_id: LocalDefId) -> &'genv fhir::StructDef<'genv> {
-        self.fhir.structs[&def_id]
+        &self.fhir.structs[&def_id]
     }
 
     pub fn expect_impl(self, def_id: LocalDefId) -> &'genv fhir::Impl<'genv> {
-        self.fhir.impls[&def_id]
+        &self.fhir.impls[&def_id]
     }
 
     pub fn expect_trait(self, def_id: LocalDefId) -> &'genv fhir::Trait<'genv> {
-        self.fhir.traits[&def_id]
+        &self.fhir.traits[&def_id]
     }
 
     pub fn expect_opaque_ty(self, def_id: LocalDefId) -> &'genv fhir::OpaqueTy<'genv> {
-        self.fhir.opaque_tys[&def_id]
+        &self.fhir.opaque_tys[&def_id]
     }
 
     pub fn expect_fn_like(self, def_id: LocalDefId) -> &'genv fhir::FnSig<'genv> {
-        self.fhir.fns[&def_id]
+        &self.fhir.fns[&def_id]
     }
 
     pub fn expect_type_alias(self, def_id: LocalDefId) -> &'genv fhir::TyAlias<'genv> {
-        self.fhir.type_aliases[&def_id]
+        &self.fhir.type_aliases[&def_id]
     }
 
     pub fn expect_assoc_type(self, def_id: LocalDefId) -> &'genv fhir::AssocType<'genv> {
-        self.fhir.assoc_types[&def_id]
+        &self.fhir.assoc_types[&def_id]
     }
 }
