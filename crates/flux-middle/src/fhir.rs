@@ -870,16 +870,15 @@ impl<'fhir> Generics<'fhir> {
     }
 
     pub fn with_refined_by(self, genv: GlobalEnv<'fhir, '_>, refined_by: &RefinedBy) -> Self {
-        let mut params = vec![];
-        for param in self.params {
+        let params = genv.alloc_slice_fill_iter(self.params.iter().map(|param| {
             let kind = if refined_by.is_base_generic(param.def_id.to_def_id()) {
                 GenericParamKind::SplTy
             } else {
                 param.kind
             };
-            params.push(GenericParam { def_id: param.def_id, kind });
-        }
-        Generics { params: genv.alloc_slice(&params), ..self }
+            GenericParam { def_id: param.def_id, kind }
+        }));
+        Generics { params, ..self }
     }
 }
 

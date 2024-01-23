@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{alloc, ptr, rc::Rc, slice};
 
 use flux_common::bug;
 use flux_errors::FluxSession;
@@ -76,16 +76,42 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.arena.alloc(val)
     }
 
-    pub fn alloc_slice<T: Copy>(&self, slice: &[T]) -> &'genv [T] {
+    pub fn alloc_slice<T: Copy>(self, slice: &[T]) -> &'genv [T] {
         self.inner.arena.alloc_slice_copy(slice)
     }
 
-    pub fn alloc_slice_fill_iter<T, I>(&self, it: I) -> &'genv [T]
+    pub fn alloc_slice_fill_iter<T, I>(self, it: I) -> &'genv [T]
     where
         I: IntoIterator<Item = T>,
         I::IntoIter: ExactSizeIterator,
     {
         self.inner.arena.alloc_slice_fill_iter(it)
+    }
+
+    /// Allocates space to store `cap` elements of type `T`.
+    ///
+    /// The elements are initialized using the supplied iterator. At most `cap` elements will be
+    /// retrived from the iterator. If the iterator yields fewer than `cap` elements, the returned
+    /// slice will be of length less than the allocated capacity.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if reserving space for the slice fails.
+    pub fn alloc_slice_with_capacity<T, I>(self, cap: usize, it: I) -> &'genv [T]
+    where
+        I: IntoIterator<Item = T>,
+    {
+        let layout = alloc::Layout::array::<T>(cap).unwrap_or_else(|_| panic!("out of memory"));
+        let dst = self.inner.arena.alloc_layout(layout).cast::<T>();
+        unsafe {
+            let mut len = 0;
+            for (i, v) in it.into_iter().take(cap).enumerate() {
+                len += 1;
+                ptr::write(dst.as_ptr().add(i), v);
+            }
+
+            slice::from_raw_parts(dst.as_ptr(), len)
+        }
     }
 
     pub fn defns(&self) -> QueryResult<&Defns> {
@@ -511,4 +537,17 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     pub fn expect_assoc_type(self, def_id: LocalDefId) -> &'genv fhir::AssocType<'genv> {
         &self.fhir.assoc_types[&def_id]
     }
+}
+
+#[macro_export]
+macro_rules! try_alloc_slice {
+    ($genv:expr, $slice:expr, $map:expr $(,)?) => {{
+        let slice = $slice;
+        $crate::try_alloc_slice!($genv, cap: slice.len(), slice.into_iter().map($map))
+    }};
+    ($genv:expr, cap: $cap:expr, $it:expr $(,)?) => {{
+        let mut err = None;
+        let slice = $genv.alloc_slice_with_capacity($cap, $it.into_iter().collect_errors(&mut err));
+        err.map_or(Ok(slice), Err)
+    }};
 }

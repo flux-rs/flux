@@ -1,7 +1,10 @@
+use std::iter;
+
 use flux_common::iter::IterExt;
 use flux_middle::{
     fhir::{self},
     global_env::GlobalEnv,
+    try_alloc_slice,
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
@@ -81,12 +84,15 @@ impl<'a, 'genv, 'tcx> SortResolver<'a, 'genv, 'tcx> {
         inputs: &[surface::BaseSort],
         output: &surface::BaseSort,
     ) -> Result<fhir::PolyFuncSort<'genv>> {
-        let mut inputs_and_output: Vec<fhir::Sort> = inputs
-            .iter()
-            .map(|sort| self.resolve_base_sort(sort))
-            .try_collect_exhaust()?;
-        inputs_and_output.push(self.resolve_base_sort(output)?);
-        Ok(fhir::PolyFuncSort::new(0, self.genv.alloc_slice(&inputs_and_output)))
+        let inputs_and_output = try_alloc_slice!(
+            self.genv,
+            cap: inputs.len() + 1,
+            inputs
+                .iter()
+                .chain(iter::once(output))
+                .map(|sort| self.resolve_base_sort(sort)),
+        )?;
+        Ok(fhir::PolyFuncSort::new(0, inputs_and_output))
     }
 
     fn resolve_base_sort(&self, base: &surface::BaseSort) -> Result<fhir::Sort<'genv>> {
@@ -118,11 +124,8 @@ impl<'a, 'genv, 'tcx> SortResolver<'a, 'genv, 'tcx> {
         let ctor = self.resolve_sort_ctor(ident)?;
         let arity = ctor.arity();
         if args.len() == arity {
-            let args: Vec<_> = args
-                .iter()
-                .map(|arg| self.resolve_base_sort(arg))
-                .try_collect_exhaust()?;
-            Ok(fhir::Sort::App(ctor, self.genv.alloc_slice(&args)))
+            let args = try_alloc_slice!(self.genv, args, |arg| self.resolve_base_sort(arg))?;
+            Ok(fhir::Sort::App(ctor, args))
         } else {
             Err(self.genv.sess().emit_err(errors::SortArityMismatch::new(
                 ident.span,
@@ -156,7 +159,7 @@ impl<'a, 'genv, 'tcx> SortResolver<'a, 'genv, 'tcx> {
             Ok(fhir::Sort::Var(*idx))
         } else if self.resolver_output.sort_decls.get(&ident.name).is_some() {
             let ctor = fhir::SortCtor::User { name: ident.name };
-            Ok(fhir::Sort::App(ctor, self.genv.alloc_slice(&[])))
+            Ok(fhir::Sort::App(ctor, &[]))
         } else {
             Err(self
                 .genv

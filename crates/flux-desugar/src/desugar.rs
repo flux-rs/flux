@@ -7,6 +7,7 @@ use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, lift::LiftCtxt, ExprKind, FhirId, FluxOwnerId, Res},
     global_env::{self, GlobalEnv},
+    try_alloc_slice,
 };
 use flux_syntax::surface;
 use hir::{def::DefKind, ItemKind};
@@ -85,13 +86,16 @@ pub fn func_def_to_func_decl<'genv>(
     let params = defn.sort_vars.len();
     let sort_vars = defn.sort_vars.iter().map(|ident| ident.name).collect_vec();
     let sr = SortResolver::with_sort_params(genv, resolver_output, &sort_vars);
-    let mut inputs_and_output: Vec<fhir::Sort> = defn
-        .args
-        .iter()
-        .map(|arg| sr.resolve_sort(&arg.sort))
-        .try_collect_exhaust()?;
-    inputs_and_output.push(sr.resolve_sort(&defn.output)?);
-    let sort = fhir::PolyFuncSort::new(params, genv.alloc_slice(&inputs_and_output));
+    let inputs_and_output = try_alloc_slice!(
+        genv,
+        cap: defn.args.len() + 1,
+        defn.args
+            .iter()
+            .map(|arg| &arg.sort)
+            .chain(iter::once(&defn.output))
+            .map(|sort| sr.resolve_sort(sort))
+    )?;
+    let sort = fhir::PolyFuncSort::new(params, inputs_and_output);
     let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
 }
@@ -215,26 +219,18 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         &self,
         assoc_predicates: &[surface::TraitAssocPredicate],
     ) -> Result<&'genv [fhir::TraitAssocPredicate<'genv>]> {
-        let assoc_predicates: Vec<_> = assoc_predicates
-            .iter()
-            .map(|assoc_pred| {
-                let name = assoc_pred.name.name;
-                let sort = self.sort_resolver.resolve_sort(&assoc_pred.sort)?;
-                if let fhir::Sort::Func(func_sort) = sort
-                    && let fhir::Sort::Bool = func_sort.fsort.output()
-                    && func_sort.params == 0
-                {
-                    Ok(fhir::TraitAssocPredicate {
-                        name,
-                        sort: func_sort.fsort,
-                        span: assoc_pred.span,
-                    })
-                } else {
-                    Err(self.emit_err(errors::InvalidAssocPredicate::new(assoc_pred.span, name)))
-                }
-            })
-            .try_collect_exhaust()?;
-        Ok(self.genv.alloc_slice(&assoc_predicates))
+        try_alloc_slice!(self.genv, assoc_predicates, |assoc_pred| {
+            let name = assoc_pred.name.name;
+            let sort = self.sort_resolver.resolve_sort(&assoc_pred.sort)?;
+            if let fhir::Sort::Func(func_sort) = sort
+                && let fhir::Sort::Bool = func_sort.fsort.output()
+                && func_sort.params == 0
+            {
+                Ok(fhir::TraitAssocPredicate { name, sort: func_sort.fsort, span: assoc_pred.span })
+            } else {
+                Err(self.emit_err(errors::InvalidAssocPredicate::new(assoc_pred.span, name)))
+            }
+        })
     }
 
     pub(crate) fn desugar_impl(&mut self, impl_: &surface::Impl) -> Result<fhir::Impl<'genv>> {
@@ -252,18 +248,13 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         &self,
         assoc_predicates: &[surface::ImplAssocPredicate],
     ) -> Result<&'genv [fhir::ImplAssocPredicate<'genv>]> {
-        let assoc_predicates: Vec<_> = assoc_predicates
-            .iter()
-            .map(|assoc_pred| {
-                let name = assoc_pred.name.name;
-                let mut env =
-                    Env::from_params(&self.sort_resolver, ScopeId::Misc, &assoc_pred.params)?;
-                let body = self.desugar_expr(&mut env, &assoc_pred.body)?;
-                let params = env.into_root().into_params(self);
-                Ok(fhir::ImplAssocPredicate { name, params, body, span: assoc_pred.span })
-            })
-            .try_collect_exhaust()?;
-        Ok(self.genv.alloc_slice(&assoc_predicates))
+        try_alloc_slice!(self.genv, assoc_predicates, |assoc_pred| {
+            let name = assoc_pred.name.name;
+            let mut env = Env::from_params(&self.sort_resolver, ScopeId::Misc, &assoc_pred.params)?;
+            let body = self.desugar_expr(&mut env, &assoc_pred.body)?;
+            let params = env.into_root().into_params(self);
+            Ok(fhir::ImplAssocPredicate { name, params, body, span: assoc_pred.span })
+        })
     }
 
     /// [desugar_generics] starts with the `lifted_generics` and "updates" it with the surface `generics`
@@ -336,12 +327,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         }
         let params = self.genv.alloc_slice(&params);
         let predicates = self.desugar_generic_predicates(&generics.predicates, env)?;
-        Ok(fhir::Generics {
-            params,
-            self_kind,
-            refinement_params: self.genv.alloc_slice(&[]),
-            predicates,
-        })
+        Ok(fhir::Generics { params, self_kind, refinement_params: &[], predicates })
     }
 
     fn desugar_generic_predicates(
@@ -349,15 +335,11 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         predicates: &[surface::WhereBoundPredicate],
         env: &mut Env<'genv>,
     ) -> Result<&'genv [fhir::WhereBoundPredicate<'genv>]> {
-        let predicates: Vec<_> = predicates
-            .iter()
-            .map(|pred| {
-                let bounded_ty = self.desugar_ty(None, &pred.bounded_ty, env)?;
-                let bounds = self.desugar_generic_bounds(&pred.bounds, env)?;
-                Ok(fhir::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
-            })
-            .try_collect_exhaust()?;
-        Ok(self.genv.alloc_slice(&predicates))
+        try_alloc_slice!(self.genv, predicates, |pred| {
+            let bounded_ty = self.desugar_ty(None, &pred.bounded_ty, env)?;
+            let bounds = self.desugar_generic_bounds(&pred.bounds, env)?;
+            Ok(fhir::WhereBoundPredicate { span: pred.span, bounded_ty, bounds })
+        })
     }
 
     fn desugar_generic_bounds(
@@ -365,16 +347,12 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         bounds: &surface::GenericBounds,
         env: &mut Env<'genv>,
     ) -> Result<fhir::GenericBounds<'genv>> {
-        let bounds: Vec<_> = bounds
-            .iter()
-            .map(|bound| {
-                Ok(fhir::GenericBound::Trait(
-                    self.desugar_trait_ref(bound, env)?,
-                    fhir::TraitBoundModifier::None,
-                ))
-            })
-            .try_collect_exhaust()?;
-        Ok(self.genv.alloc_slice(&bounds))
+        try_alloc_slice!(self.genv, bounds, |bound| {
+            Ok(fhir::GenericBound::Trait(
+                self.desugar_trait_ref(bound, env)?,
+                fhir::TraitBoundModifier::None,
+            ))
+        })
     }
 
     fn desugar_trait_ref(
@@ -383,7 +361,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         env: &mut Env<'genv>,
     ) -> Result<fhir::PolyTraitRef<'genv>> {
         Ok(fhir::PolyTraitRef {
-            bound_generic_params: self.genv.alloc_slice(&[]),
+            bound_generic_params: &[],
             trait_ref: self.desugar_path(&trait_ref.path, env)?,
         })
     }
@@ -427,11 +405,9 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         let generics =
             self.desugar_generics_for_adt(struct_def.generics.as_ref(), &refined_by, &mut env)?;
 
-        let invariants: Vec<_> = struct_def
-            .invariants
-            .iter()
-            .map(|invariant| self.desugar_expr(&mut env, invariant))
-            .try_collect_exhaust()?;
+        let invariants = try_alloc_slice!(self.genv, &struct_def.invariants, |invariant| {
+            self.desugar_expr(&mut env, invariant)
+        })?;
 
         let kind = if struct_def.opaque {
             fhir::StructKind::Opaque
@@ -442,8 +418,10 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
                 bug!("expected struct")
             };
             debug_assert_eq!(struct_def.fields.len(), variant_data.fields().len());
-            let fields: Vec<_> = iter::zip(&struct_def.fields, variant_data.fields())
-                .map(|(ty, hir_field)| {
+            let fields = try_alloc_slice!(
+                self.genv,
+                iter::zip(&struct_def.fields, variant_data.fields()),
+                |(ty, hir_field)| {
                     if let Some(ty) = ty {
                         Ok(fhir::FieldDef {
                             ty: self.desugar_ty(None, ty, &mut env)?,
@@ -453,9 +431,9 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
                     } else {
                         self.as_lift_cx().lift_field_def(hir_field)
                     }
-                })
-                .try_collect_exhaust()?;
-            fhir::StructKind::Transparent { fields: self.genv.alloc_slice(&fields) }
+                },
+            )?;
+            fhir::StructKind::Transparent { fields }
         };
         let struct_def = fhir::StructDef {
             owner_id: self.owner,
@@ -463,7 +441,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
             refined_by: self.genv.alloc(refined_by),
             params: env.into_root().into_params(self),
             kind,
-            invariants: self.genv.alloc_slice(&invariants),
+            invariants,
             extern_id: struct_def.extern_id,
         };
         Ok(struct_def)
@@ -477,9 +455,11 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         let ItemKind::Enum(hir_enum, _) = self.genv.hir().expect_item(def_id).kind else {
             bug!("expected enum");
         };
-        let variants: Vec<_> = iter::zip(&enum_def.variants, hir_enum.variants)
-            .map(|(variant, hir_variant)| self.desugar_enum_variant_def(variant, hir_variant))
-            .try_collect_exhaust()?;
+        let variants = try_alloc_slice!(
+            self.genv,
+            iter::zip(&enum_def.variants, hir_enum.variants),
+            |(variant, hir_variant)| self.desugar_enum_variant_def(variant, hir_variant)
+        )?;
 
         let mut env = Env::from_params(
             &self.sort_resolver,
@@ -496,19 +476,17 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         let generics =
             self.desugar_generics_for_adt(enum_def.generics.as_ref(), &refined_by, &mut env)?;
 
-        let invariants: Vec<_> = enum_def
-            .invariants
-            .iter()
-            .map(|invariant| self.desugar_expr(&mut env, invariant))
-            .try_collect_exhaust()?;
+        let invariants = try_alloc_slice!(self.genv, &enum_def.invariants, |invariant| {
+            self.desugar_expr(&mut env, invariant)
+        })?;
 
         let enum_def = fhir::EnumDef {
             owner_id: self.owner,
             generics,
             refined_by: self.genv.alloc(refined_by),
             params: env.into_root().into_params(self),
-            variants: self.genv.alloc_slice(&variants),
-            invariants: self.genv.alloc_slice(&invariants),
+            variants,
+            invariants,
             extern_id: enum_def.extern_id,
         };
         Ok(enum_def)
@@ -522,15 +500,17 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         if let Some(variant_def) = variant_def {
             let mut env = self.gather_params_variant(variant_def)?;
 
-            let fields: Vec<_> = iter::zip(&variant_def.fields, hir_variant.data.fields())
-                .map(|(ty, hir_field)| {
+            let fields = try_alloc_slice!(
+                self.genv,
+                iter::zip(&variant_def.fields, hir_variant.data.fields()),
+                |(ty, hir_field)| {
                     Ok(fhir::FieldDef {
                         ty: self.desugar_ty(None, ty, &mut env)?,
                         def_id: hir_field.def_id,
                         lifted: false,
                     })
-                })
-                .try_collect_exhaust()?;
+                }
+            )?;
 
             let ret = if let Some(ret) = &variant_def.ret {
                 self.desugar_variant_ret(ret, &mut env)?
@@ -541,7 +521,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
             Ok(fhir::VariantDef {
                 def_id: hir_variant.def_id,
                 params: env.into_root().into_params(self),
-                fields: self.genv.alloc_slice(&fields),
+                fields,
                 ret,
                 span: variant_def.span,
                 lifted: false,
@@ -607,34 +587,26 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         }
 
         // Bail out if there's an error in the arguments to avoid confusing error messages
-        let args: Vec<_> = fn_sig
-            .args
-            .iter()
-            .map(|arg| self.desugar_fun_arg(arg, &mut env, &mut requires))
-            .try_collect_exhaust()?;
+        let args = try_alloc_slice!(self.genv, &fn_sig.args, |arg| {
+            self.desugar_fun_arg(arg, &mut env, &mut requires)
+        })?;
 
         // Desugar output
         env.enter(ScopeId::FnOutput(fn_sig.node_id));
         let ret = self.desugar_asyncness(fn_sig.asyncness, &fn_sig.returns, &mut env);
 
-        let ensures: Vec<_> = fn_sig
-            .ensures
-            .iter()
-            .map(|cstr| self.desugar_constraint(cstr, &mut env))
-            .try_collect_exhaust()?;
+        let ensures = try_alloc_slice!(self.genv, &fn_sig.ensures, |cstr| {
+            self.desugar_constraint(cstr, &mut env)
+        })?;
 
-        let output = fhir::FnOutput {
-            params: env.pop().into_params(self),
-            ret: ret?,
-            ensures: self.genv.alloc_slice(&ensures),
-        };
+        let output = fhir::FnOutput { params: env.pop().into_params(self), ret: ret?, ensures };
 
         generics.refinement_params = env.into_root().into_params(self);
 
         let fn_sig = fhir::FnSig {
             generics,
             requires: self.genv.alloc_slice(&requires),
-            args: self.genv.alloc_slice(&args),
+            args,
             output,
             span: fn_sig.span,
             lifted: false,
@@ -737,7 +709,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         let generics = self.as_lift_cx().lift_generics()?;
         let bound = fhir::GenericBound::LangItemTrait(
             hir::LangItem::Future,
-            self.genv.alloc_slice(&[]),
+            &[],
             self.genv.alloc_slice(&[fhir::TypeBinding {
                 ident: surface::Ident::with_dummy_span(sym::Output),
                 term: output,
@@ -754,7 +726,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         match returns {
             surface::FnRetTy::Ty(ty) => self.desugar_ty(None, ty, env),
             surface::FnRetTy::Default(span) => {
-                let kind = fhir::TyKind::Tuple(self.genv.alloc_slice(&[]));
+                let kind = fhir::TyKind::Tuple(&[]);
                 Ok(fhir::Ty { kind, span: *span })
             }
         }
@@ -839,11 +811,8 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
                 fhir::TyKind::Ref(self.mk_lft_hole(), mut_ty)
             }
             surface::TyKind::Tuple(tys) => {
-                let tys: Vec<_> = tys
-                    .iter()
-                    .map(|ty| self.desugar_ty(None, ty, env))
-                    .try_collect_exhaust()?;
-                fhir::TyKind::Tuple(self.genv.alloc_slice(&tys))
+                let tys = try_alloc_slice!(self.genv, tys, |ty| self.desugar_ty(None, ty, env))?;
+                fhir::TyKind::Tuple(tys)
             }
             surface::TyKind::Array(ty, len) => {
                 let ty = self.desugar_ty(None, ty, env)?;
@@ -892,13 +861,11 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         if let [arg] = &idxs.indices[..] {
             self.desugar_refine_arg(arg, env)
         } else {
-            let flds: Vec<_> = idxs
-                .indices
-                .iter()
-                .map(|arg| self.desugar_refine_arg(arg, env))
-                .try_collect_exhaust()?;
+            let flds = try_alloc_slice!(self.genv, &idxs.indices, |arg| {
+                self.desugar_refine_arg(arg, env)
+            })?;
             Ok(fhir::RefineArg {
-                kind: fhir::RefineArgKind::Record(self.genv.alloc_slice(&flds)),
+                kind: fhir::RefineArgKind::Record(flds),
                 fhir_id: self.next_fhir_id(),
                 span: idxs.span,
             })
@@ -980,18 +947,9 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> Result<fhir::Path<'genv>> {
         let res = self.resolver_output.path_res_map[&path.node_id];
         let (args, bindings) = self.desugar_generic_args(res, &path.generics, env)?;
-        let refine: Vec<_> = path
-            .refine
-            .iter()
-            .map(|arg| self.desugar_refine_arg(arg, env))
-            .try_collect_exhaust()?;
-        Ok(fhir::Path {
-            res,
-            args,
-            bindings,
-            refine: self.genv.alloc_slice(&refine),
-            span: path.span,
-        })
+        let refine =
+            try_alloc_slice!(self.genv, &path.refine, |arg| self.desugar_refine_arg(arg, env))?;
+        Ok(fhir::Path { res, args, bindings, refine, span: path.span })
     }
 
     fn desugar_path_to_bty(
@@ -1012,12 +970,10 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         if let Res::Def(DefKind::Trait, trait_id) = path.res {
             let (generic_args, _) =
                 self.desugar_generic_args(path.res, &alias_pred.generic_args, env)?;
-            let refine_args: Vec<_> = refine_args
-                .iter()
-                .map(|arg| self.desugar_refine_arg(arg, env))
-                .try_collect_exhaust()?;
+            let refine_args =
+                try_alloc_slice!(self.genv, refine_args, |arg| self.desugar_refine_arg(arg, env))?;
             let alias_pred = fhir::AliasPred { trait_id, name: alias_pred.name.name, generic_args };
-            Ok(fhir::PredKind::Alias(alias_pred, self.genv.alloc_slice(&refine_args)))
+            Ok(fhir::PredKind::Alias(alias_pred, refine_args))
         } else {
             Err(self.emit_err(errors::UnresolvedVar::from_path(&alias_pred.trait_id, "trait")))
         }
@@ -1313,11 +1269,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         env: &mut Env<'genv>,
         exprs: &[surface::Expr],
     ) -> Result<&'genv [fhir::Expr<'genv>]> {
-        let exprs: Vec<_> = exprs
-            .iter()
-            .map(|e| self.desugar_expr(env, e))
-            .try_collect_exhaust()?;
-        Ok(self.genv().alloc_slice(&exprs))
+        try_alloc_slice!(self.genv(), exprs, |e| self.desugar_expr(env, e))
     }
 
     fn try_parse_int_lit(&self, span: Span, s: &str) -> Result<i128> {
