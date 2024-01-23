@@ -29,8 +29,8 @@ use crate::{
     type_env::TypeEnv,
 };
 
-pub struct ConstrGen<'a, 'tcx> {
-    pub genv: &'a GlobalEnv<'a, 'tcx>,
+pub struct ConstrGen<'a, 'genv, 'tcx> {
+    pub genv: GlobalEnv<'genv, 'tcx>,
     region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
     def_id: DefId,
     refparams: &'a [Expr],
@@ -48,8 +48,8 @@ pub trait KVarGen {
     fn fresh(&mut self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr;
 }
 
-pub(crate) struct InferCtxt<'a, 'tcx> {
-    genv: &'a GlobalEnv<'a, 'tcx>,
+pub(crate) struct InferCtxt<'a, 'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
     region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
     def_id: DefId,
     refparams: &'a [Expr],
@@ -91,9 +91,9 @@ pub enum ConstrReason {
     Other,
 }
 
-impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
+impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
     pub fn new<G>(
-        genv: &'a GlobalEnv<'a, 'tcx>,
+        genv: GlobalEnv<'genv, 'tcx>,
         region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         def_id: DefId,
         refparams: &'a [Expr],
@@ -382,10 +382,14 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
         }
         rcx.replace_evars(&infcx.solve()?);
 
-        Ok(Ty::array(arr_ty, rty::Const::from_array_len(self.genv.tcx, args.len())))
+        Ok(Ty::array(arr_ty, rty::Const::from_array_len(self.genv.tcx(), args.len())))
     }
 
-    pub(crate) fn infcx(&mut self, rcx: &RefineCtxt, reason: ConstrReason) -> InferCtxt<'_, 'tcx> {
+    pub(crate) fn infcx(
+        &mut self,
+        rcx: &RefineCtxt,
+        reason: ConstrReason,
+    ) -> InferCtxt<'_, 'genv, 'tcx> {
         InferCtxt::new(
             self.genv,
             self.region_infcx,
@@ -398,9 +402,9 @@ impl<'a, 'tcx> ConstrGen<'a, 'tcx> {
     }
 }
 
-impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
+impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
     fn new(
-        genv: &'a GlobalEnv<'a, 'tcx>,
+        genv: GlobalEnv<'genv, 'tcx>,
         region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         def_id: DefId,
         refparams: &'a [Expr],
@@ -442,7 +446,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
 
     fn instantiate_refine_args(
         &mut self,
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         callee_def_id: Option<DefId>,
     ) -> Result<Vec<Expr>, CheckerErrKind> {
         if let Some(callee_id) = callee_def_id {
@@ -795,7 +799,7 @@ impl Obligations {
 }
 
 fn mk_generator_obligations(
-    genv: &GlobalEnv<'_, '_>,
+    genv: GlobalEnv,
     generator_did: &DefId,
     generator_args: &GenericArgs,
     opaque_def_id: &DefId,
@@ -812,7 +816,7 @@ fn mk_generator_obligations(
 }
 
 fn mk_obligations(
-    genv: &GlobalEnv<'_, '_>,
+    genv: GlobalEnv,
     did: DefId,
     args: &[GenericArg],
     refine_args: &[Expr],

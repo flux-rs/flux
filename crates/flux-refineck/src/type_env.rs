@@ -78,7 +78,7 @@ impl TypeEnv<'_> {
 
     pub(crate) fn lookup_place(
         &mut self,
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         rcx: &mut RefineCtxt,
         place: &Place,
     ) -> Result<Ty, CheckerErrKind> {
@@ -98,7 +98,7 @@ impl TypeEnv<'_> {
     /// and then replaced by the region in the type of the `x` after the assignment.
     pub(crate) fn borrow(
         &mut self,
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         rcx: &mut RefineCtxt,
         re: Region,
         mutbl: Mutability,
@@ -185,7 +185,7 @@ impl TypeEnv<'_> {
 
     pub(crate) fn move_place(
         &mut self,
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         rcx: &mut RefineCtxt,
         place: &Place,
     ) -> Result<Ty, CheckerErrKind> {
@@ -209,7 +209,7 @@ impl TypeEnv<'_> {
 
     pub(crate) fn block_with(
         &mut self,
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         path: &Path,
         new_ty: Ty,
     ) -> Result<Ty, CheckerErrKind> {
@@ -262,7 +262,7 @@ impl TypeEnv<'_> {
 
     pub(crate) fn unfold(
         &mut self,
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         rcx: &mut RefineCtxt,
         place: &Place,
         checker_conf: CheckerConfig,
@@ -272,7 +272,7 @@ impl TypeEnv<'_> {
 
     pub(crate) fn downcast(
         &mut self,
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         rcx: &mut RefineCtxt,
         place: &Place,
         variant_idx: VariantIdx,

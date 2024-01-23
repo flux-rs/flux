@@ -1,6 +1,8 @@
 use flux_common::iter::IterExt;
-use flux_errors::FluxSession;
-use flux_middle::fhir::{self};
+use flux_middle::{
+    fhir::{self},
+    global_env::GlobalEnv,
+};
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -12,7 +14,7 @@ use rustc_span::{
     Symbol,
 };
 
-use crate::errors;
+use crate::{errors, resolver::ResolverOutput};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -26,18 +28,18 @@ pub enum SelfRes {
     None,
 }
 
-pub(crate) struct SortResolver<'a> {
-    sess: &'a FluxSession,
-    sort_decls: &'a fhir::SortDecls,
+pub(crate) struct SortResolver<'a, 'genv, 'tcx> {
+    pub genv: GlobalEnv<'genv, 'tcx>,
+    resolver_output: &'a ResolverOutput,
     generic_params: FxHashMap<Symbol, DefId>,
     sort_params: FxHashMap<Symbol, usize>,
     self_res: SelfRes,
 }
 
-impl<'a> SortResolver<'a> {
+impl<'a, 'genv, 'tcx> SortResolver<'a, 'genv, 'tcx> {
     pub(crate) fn with_sort_params(
-        sess: &'a FluxSession,
-        sort_decls: &'a fhir::SortDecls,
+        genv: GlobalEnv<'genv, 'tcx>,
+        resolver_output: &'a ResolverOutput,
         sort_params: &[Symbol],
     ) -> Self {
         let sort_params = sort_params
@@ -46,8 +48,8 @@ impl<'a> SortResolver<'a> {
             .map(|(i, v)| (*v, i))
             .collect();
         Self {
-            sess,
-            sort_decls,
+            genv,
+            resolver_output,
             generic_params: Default::default(),
             sort_params,
             self_res: SelfRes::None,
@@ -55,16 +57,16 @@ impl<'a> SortResolver<'a> {
     }
 
     pub(crate) fn with_generics(
-        sess: &'a FluxSession,
-        sort_decls: &'a fhir::SortDecls,
-        generics: &'a Generics,
+        genv: GlobalEnv<'genv, 'tcx>,
+        resolver_output: &'a ResolverOutput,
+        generics: &Generics,
         self_res: SelfRes,
     ) -> Self {
         let generic_params = generics.params.iter().map(|p| (p.name, p.def_id)).collect();
-        Self { sess, sort_decls, sort_params: Default::default(), generic_params, self_res }
+        Self { genv, resolver_output, sort_params: Default::default(), generic_params, self_res }
     }
 
-    pub(crate) fn resolve_sort(&self, sort: &surface::Sort) -> Result<fhir::Sort> {
+    pub(crate) fn resolve_sort(&self, sort: &surface::Sort) -> Result<fhir::Sort<'genv>> {
         match sort {
             surface::Sort::Base(sort) => self.resolve_base_sort(sort),
             surface::Sort::Func { inputs, output } => {
@@ -78,16 +80,16 @@ impl<'a> SortResolver<'a> {
         &self,
         inputs: &[surface::BaseSort],
         output: &surface::BaseSort,
-    ) -> Result<fhir::PolyFuncSort> {
-        let inputs: Vec<fhir::Sort> = inputs
+    ) -> Result<fhir::PolyFuncSort<'genv>> {
+        let mut inputs_and_output: Vec<fhir::Sort> = inputs
             .iter()
             .map(|sort| self.resolve_base_sort(sort))
             .try_collect_exhaust()?;
-        let output = self.resolve_base_sort(output)?;
-        Ok(fhir::PolyFuncSort::new(0, inputs, output))
+        inputs_and_output.push(self.resolve_base_sort(output)?);
+        Ok(fhir::PolyFuncSort::new(0, self.genv.alloc_slice(&inputs_and_output)))
     }
 
-    fn resolve_base_sort(&self, base: &surface::BaseSort) -> Result<fhir::Sort> {
+    fn resolve_base_sort(&self, base: &surface::BaseSort) -> Result<fhir::Sort<'genv>> {
         match base {
             surface::BaseSort::Ident(ident) => self.resolve_base_sort_ident(ident),
             surface::BaseSort::BitVec(w) => Ok(fhir::Sort::BitVec(*w)),
@@ -101,7 +103,10 @@ impl<'a> SortResolver<'a> {
         } else if ident.name == SORTS.map {
             Ok(fhir::SortCtor::Map)
         } else {
-            Err(self.sess.emit_err(errors::UnresolvedSort::new(ident)))
+            Err(self
+                .genv
+                .sess()
+                .emit_err(errors::UnresolvedSort::new(ident)))
         }
     }
 
@@ -109,23 +114,25 @@ impl<'a> SortResolver<'a> {
         &self,
         ident: surface::Ident,
         args: &Vec<surface::BaseSort>,
-    ) -> Result<fhir::Sort> {
+    ) -> Result<fhir::Sort<'genv>> {
         let ctor = self.resolve_sort_ctor(ident)?;
         let arity = ctor.arity();
         if args.len() == arity {
-            let args = args
+            let args: Vec<_> = args
                 .iter()
                 .map(|arg| self.resolve_base_sort(arg))
                 .try_collect_exhaust()?;
-            Ok(fhir::Sort::App(ctor, args))
+            Ok(fhir::Sort::App(ctor, self.genv.alloc_slice(&args)))
         } else {
-            Err(self
-                .sess
-                .emit_err(errors::SortArityMismatch::new(ident.span, arity, args.len())))
+            Err(self.genv.sess().emit_err(errors::SortArityMismatch::new(
+                ident.span,
+                arity,
+                args.len(),
+            )))
         }
     }
 
-    fn resolve_base_sort_ident(&self, ident: &surface::Ident) -> Result<fhir::Sort> {
+    fn resolve_base_sort_ident(&self, ident: &surface::Ident) -> Result<fhir::Sort<'genv>> {
         if ident.name == SORTS.int {
             Ok(fhir::Sort::Int)
         } else if ident.name == sym::bool {
@@ -136,17 +143,25 @@ impl<'a> SortResolver<'a> {
             match self.self_res {
                 SelfRes::Param { trait_id } => Ok(fhir::Sort::SelfParam { trait_id }),
                 SelfRes::Alias { alias_to } => Ok(fhir::Sort::SelfAlias { alias_to }),
-                SelfRes::None => Err(self.sess.emit_err(errors::UnresolvedSort::new(*ident))),
+                SelfRes::None => {
+                    Err(self
+                        .genv
+                        .sess()
+                        .emit_err(errors::UnresolvedSort::new(*ident)))
+                }
             }
         } else if let Some(def_id) = self.generic_params.get(&ident.name) {
             Ok(fhir::Sort::Param(*def_id))
         } else if let Some(idx) = self.sort_params.get(&ident.name) {
             Ok(fhir::Sort::Var(*idx))
-        } else if self.sort_decls.get(&ident.name).is_some() {
+        } else if self.resolver_output.sort_decls.get(&ident.name).is_some() {
             let ctor = fhir::SortCtor::User { name: ident.name };
-            Ok(fhir::Sort::App(ctor, vec![]))
+            Ok(fhir::Sort::App(ctor, self.genv.alloc_slice(&[])))
         } else {
-            Err(self.sess.emit_err(errors::UnresolvedSort::new(*ident)))
+            Err(self
+                .genv
+                .sess()
+                .emit_err(errors::UnresolvedSort::new(*ident)))
         }
     }
 }

@@ -211,6 +211,13 @@ pub struct TraitAssocPredicate {
 }
 
 #[derive(Debug)]
+pub struct FnSpec {
+    pub fn_sig: Option<FnSig>,
+    pub trusted: bool,
+    pub qual_names: Option<QualNames>,
+}
+
+#[derive(Debug)]
 pub struct FnSig {
     pub asyncness: Async,
     pub generics: Generics,

@@ -1,6 +1,9 @@
 use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
-use flux_middle::fhir::Res;
+use flux_middle::{
+    fhir::{self, Res},
+    Specs,
+};
 use flux_syntax::surface::{self, AliasPred, BaseTy, BaseTyKind, Ident, Path, Pred, PredKind, Ty};
 use hir::{def::DefKind, ItemId, ItemKind, OwnerId, PathSegment};
 use itertools::Itertools;
@@ -8,20 +11,82 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir as hir;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::Span;
+use rustc_span::{def_id::DefId, Span, Symbol};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub struct Resolver<'a, 'tcx> {
+pub(crate) fn resolve_crate(
+    tcx: TyCtxt,
+    sess: &FluxSession,
+    specs: &Specs,
+) -> Result<ResolverOutput> {
+    let mut resolver = Resolver::new(tcx, sess);
+    tcx.hir_crate_items(())
+        .owners()
+        .try_for_each_exhaust(|id| {
+            match tcx.def_kind(id) {
+                DefKind::Struct => resolver.resolve_struct_def(id, &specs.structs[&id])?,
+                DefKind::Enum => resolver.resolve_enum_def(id, &specs.enums[&id])?,
+                DefKind::TyAlias { .. } => {
+                    if let Some(type_alias) = &specs.ty_aliases[&id] {
+                        resolver.resolve_type_alias(id, type_alias)?;
+                    }
+                }
+                DefKind::Fn | DefKind::AssocFn => {
+                    if let Some(fn_sig) = specs.fn_sigs[&id].fn_sig.as_ref() {
+                        resolver.resolve_fn_sig(id, fn_sig)?;
+                    }
+                }
+                _ => {}
+            }
+            Ok(())
+        })?;
+    let mut resolver_output = resolver.into_output();
+
+    collect_flux_global_items(tcx, &mut resolver_output, specs);
+
+    Ok(resolver_output)
+}
+
+struct Resolver<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
     output: ResolverOutput,
 }
 
 #[derive(Default)]
-pub struct ResolverOutput {
+pub(crate) struct ResolverOutput {
     pub path_res_map: UnordMap<surface::NodeId, Res>,
     pub impl_trait_res_map: UnordMap<surface::NodeId, ItemId>,
+    pub func_decls: UnordMap<Symbol, fhir::FuncKind>,
+    pub sort_decls: UnordMap<Symbol, fhir::SortDecl>,
+    pub consts: UnordMap<Symbol, DefId>,
+}
+
+fn collect_flux_global_items(tcx: TyCtxt, resolver_output: &mut ResolverOutput, specs: &Specs) {
+    for sort_decl in &specs.sort_decls {
+        resolver_output.sort_decls.insert(
+            sort_decl.name.name,
+            fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
+        );
+    }
+
+    for def_id in specs.consts.keys() {
+        let did = def_id.to_def_id();
+        let sym = super::def_id_symbol(tcx, *def_id);
+        resolver_output.consts.insert(sym, did);
+    }
+
+    for defn in &specs.func_defs {
+        let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
+        resolver_output.func_decls.insert(defn.name.name, kind);
+    }
+
+    for itf in flux_middle::theory_funcs() {
+        resolver_output
+            .func_decls
+            .insert(itf.name, fhir::FuncKind::Thy(itf.fixpoint_name));
+    }
 }
 
 impl<'a, 'tcx> Resolver<'a, 'tcx> {

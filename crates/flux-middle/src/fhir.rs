@@ -19,17 +19,15 @@
 pub mod lift;
 pub mod visit;
 
-use std::{
-    borrow::{Borrow, Cow},
-    fmt,
-};
+use std::{borrow::Cow, fmt};
 
 use flux_common::{bug, span_bug};
+use flux_config as config;
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_data_structures::{
     fx::FxIndexMap,
-    unord::{ExtendUnord, UnordMap, UnordSet},
+    unord::{UnordMap, UnordSet},
 };
 use rustc_hash::FxHashMap;
 pub use rustc_hir::PrimTy;
@@ -45,31 +43,31 @@ use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
-use crate::{pretty, rty::Constant};
+use crate::{global_env::GlobalEnv, pretty, rty::Constant};
 
-#[derive(Debug)]
-pub struct Generics {
-    pub params: Vec<GenericParam>,
-    pub refinement_params: Vec<RefineParam>,
-    pub self_kind: Option<GenericParamKind>,
-    pub predicates: Vec<WhereBoundPredicate>,
+#[derive(Debug, Clone, Copy)]
+pub struct Generics<'fhir> {
+    pub params: &'fhir [GenericParam<'fhir>],
+    pub refinement_params: &'fhir [RefineParam<'fhir>],
+    pub self_kind: Option<GenericParamKind<'fhir>>,
+    pub predicates: &'fhir [WhereBoundPredicate<'fhir>],
 }
 
-#[derive(Debug)]
-pub struct GenericParam {
+#[derive(Debug, Clone, Copy)]
+pub struct GenericParam<'fhir> {
     pub def_id: LocalDefId,
-    pub kind: GenericParamKind,
+    pub kind: GenericParamKind<'fhir>,
 }
 
-#[derive(Debug, Clone)]
-pub enum GenericParamKind {
-    Type { default: Option<Ty> },
+#[derive(Debug, Clone, Copy)]
+pub enum GenericParamKind<'fhir> {
+    Type { default: Option<Ty<'fhir>> },
     SplTy,
     BaseTy,
     Lifetime,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct ConstInfo {
     pub def_id: DefId,
     pub sym: Symbol,
@@ -77,20 +75,20 @@ pub struct ConstInfo {
 }
 
 #[derive(Debug)]
-pub struct Qualifier {
+pub struct Qualifier<'fhir> {
     pub name: Symbol,
-    pub args: Vec<RefineParam>,
-    pub expr: Expr,
+    pub args: &'fhir [RefineParam<'fhir>],
+    pub expr: Expr<'fhir>,
     pub global: bool,
 }
 
 #[derive(Debug)]
-pub enum FluxItem {
-    Qualifier(Qualifier),
-    Defn(Defn),
+pub enum FluxItem<'fhir> {
+    Qualifier(Qualifier<'fhir>),
+    Defn(Defn<'fhir>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct SortDecl {
     pub name: Symbol,
     pub span: Span,
@@ -99,29 +97,29 @@ pub struct SortDecl {
 pub type SortDecls = FxHashMap<Symbol, SortDecl>;
 
 #[derive(Debug)]
-pub struct GenericPredicates {
-    pub predicates: Vec<WhereBoundPredicate>,
+pub struct GenericPredicates<'fhir> {
+    pub predicates: &'fhir [WhereBoundPredicate<'fhir>],
 }
 
-#[derive(Debug)]
-pub struct WhereBoundPredicate {
+#[derive(Debug, Clone, Copy)]
+pub struct WhereBoundPredicate<'fhir> {
     pub span: Span,
-    pub bounded_ty: Ty,
-    pub bounds: GenericBounds,
+    pub bounded_ty: Ty<'fhir>,
+    pub bounds: GenericBounds<'fhir>,
 }
 
-pub type GenericBounds = Vec<GenericBound>;
+pub type GenericBounds<'fhir> = &'fhir [GenericBound<'fhir>];
 
-#[derive(Debug)]
-pub enum GenericBound {
-    Trait(PolyTraitRef, TraitBoundModifier),
-    LangItemTrait(LangItem, Vec<GenericArg>, Vec<TypeBinding>),
+#[derive(Debug, Clone, Copy)]
+pub enum GenericBound<'fhir> {
+    Trait(PolyTraitRef<'fhir>, TraitBoundModifier),
+    LangItemTrait(LangItem, &'fhir [GenericArg<'fhir>], &'fhir [TypeBinding<'fhir>]),
 }
 
-#[derive(Debug)]
-pub struct PolyTraitRef {
-    pub bound_generic_params: Vec<GenericParam>,
-    pub trait_ref: Path,
+#[derive(Debug, Clone, Copy)]
+pub struct PolyTraitRef<'fhir> {
+    pub bound_generic_params: &'fhir [GenericParam<'fhir>],
+    pub trait_ref: Path<'fhir>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -130,113 +128,149 @@ pub enum TraitBoundModifier {
     Maybe,
 }
 
-pub struct Trait {
-    pub generics: Generics,
-    pub assoc_predicates: Vec<TraitAssocPredicate>,
+pub struct Trait<'fhir> {
+    pub generics: Generics<'fhir>,
+    pub assoc_predicates: &'fhir [TraitAssocPredicate<'fhir>],
 }
 
-impl Trait {
-    pub fn find_assoc_predicate(&self, name: Symbol) -> Option<&TraitAssocPredicate> {
+impl<'fhir> Trait<'fhir> {
+    pub fn find_assoc_predicate(&self, name: Symbol) -> Option<&'fhir TraitAssocPredicate<'fhir>> {
         self.assoc_predicates
             .iter()
             .find(|assoc_pred| assoc_pred.name == name)
     }
 }
 
-#[derive(Debug)]
-pub struct TraitAssocPredicate {
+#[derive(Debug, Clone, Copy)]
+pub struct TraitAssocPredicate<'fhir> {
     pub name: Symbol,
-    pub sort: FuncSort,
+    pub sort: FuncSort<'fhir>,
     pub span: Span,
 }
 
-pub struct Impl {
-    pub generics: Generics,
-    pub assoc_predicates: Vec<ImplAssocPredicate>,
+pub struct Impl<'fhir> {
+    pub generics: Generics<'fhir>,
+    pub assoc_predicates: &'fhir [ImplAssocPredicate<'fhir>],
 }
 
-impl Impl {
-    pub fn find_assoc_predicate(&self, name: Symbol) -> Option<&ImplAssocPredicate> {
+impl<'fhir> Impl<'fhir> {
+    pub fn find_assoc_predicate(&self, name: Symbol) -> Option<&'fhir ImplAssocPredicate<'fhir>> {
         self.assoc_predicates
             .iter()
             .find(|assoc_pred| assoc_pred.name == name)
     }
 }
 
-pub struct ImplAssocPredicate {
+#[derive(Clone, Copy)]
+pub struct ImplAssocPredicate<'fhir> {
     pub name: Symbol,
-    pub params: Vec<RefineParam>,
-    pub body: Expr,
+    pub params: &'fhir [RefineParam<'fhir>],
+    pub body: Expr<'fhir>,
     pub span: Span,
 }
 
-pub struct AssocType {
-    pub generics: Generics,
+pub struct AssocType<'fhir> {
+    pub generics: Generics<'fhir>,
 }
 
 #[derive(Debug)]
-pub struct OpaqueTy {
-    pub generics: Generics,
-    pub bounds: GenericBounds,
+pub struct OpaqueTy<'fhir> {
+    pub generics: Generics<'fhir>,
+    pub bounds: GenericBounds<'fhir>,
+}
+
+pub type Arena = bumpalo::Bump;
+
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
+pub enum IgnoreKey {
+    /// Ignore the entire crate
+    Crate,
+    /// (Transitively) ignore the module named `LocalDefId`
+    Module(LocalDefId),
 }
 
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default)]
-pub struct Map {
-    assoc_types: UnordMap<LocalDefId, AssocType>,
-    traits: UnordMap<LocalDefId, Trait>,
-    impls: UnordMap<LocalDefId, Impl>,
-    opaque_tys: UnordMap<LocalDefId, OpaqueTy>,
-    func_decls: FxHashMap<Symbol, FuncDecl>,
-    sort_decls: SortDecls,
-    flux_items: FxHashMap<Symbol, FluxItem>,
-    consts: FxHashMap<Symbol, ConstInfo>,
-    refined_by: UnordMap<LocalDefId, RefinedBy>,
-    type_aliases: FxHashMap<LocalDefId, TyAlias>,
-    structs: FxHashMap<LocalDefId, StructDef>,
-    enums: FxHashMap<LocalDefId, EnumDef>,
-    fns: FxHashMap<LocalDefId, FnSig>,
-    fn_quals: FxHashMap<LocalDefId, Vec<SurfaceIdent>>,
-    trusted: UnordSet<LocalDefId>,
-    externs: UnordMap<DefId, LocalDefId>,
+pub struct Crate<'fhir> {
+    pub assoc_types: UnordMap<LocalDefId, AssocType<'fhir>>,
+    pub consts: FxHashMap<Symbol, ConstInfo>,
+    pub enums: FxHashMap<LocalDefId, EnumDef<'fhir>>,
+    pub externs: UnordMap<DefId, LocalDefId>,
+    pub flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
+    pub fn_quals: FxHashMap<LocalDefId, &'fhir [SurfaceIdent]>,
+    pub fns: FxHashMap<LocalDefId, FnSig<'fhir>>,
+    pub func_decls: FxHashMap<Symbol, FuncDecl<'fhir>>,
+    pub impls: UnordMap<LocalDefId, Impl<'fhir>>,
+    pub opaque_tys: UnordMap<LocalDefId, OpaqueTy<'fhir>>,
+    pub structs: FxHashMap<LocalDefId, StructDef<'fhir>>,
+    pub traits: UnordMap<LocalDefId, Trait<'fhir>>,
+    pub trusted: UnordSet<LocalDefId>,
+    pub type_aliases: FxHashMap<LocalDefId, TyAlias<'fhir>>,
+    pub ignores: UnordSet<IgnoreKey>,
+    pub crate_config: config::CrateConfig,
+}
+
+impl<'fhir> Crate<'fhir> {
+    pub fn new(ignores: UnordSet<IgnoreKey>, crate_config: Option<config::CrateConfig>) -> Self {
+        Self {
+            assoc_types: Default::default(),
+            consts: Default::default(),
+            enums: Default::default(),
+            externs: Default::default(),
+            flux_items: Default::default(),
+            fn_quals: Default::default(),
+            fns: Default::default(),
+            func_decls: Default::default(),
+            impls: Default::default(),
+            opaque_tys: Default::default(),
+            structs: Default::default(),
+            traits: Default::default(),
+            trusted: Default::default(),
+            type_aliases: Default::default(),
+            ignores,
+            crate_config: crate_config.unwrap_or_default(),
+        }
+    }
 }
 
 #[derive(Debug)]
-pub struct TyAlias {
+pub struct TyAlias<'fhir> {
     pub owner_id: OwnerId,
-    pub generics: Generics,
-    pub ty: Ty,
+    pub generics: Generics<'fhir>,
+    pub refined_by: &'fhir RefinedBy<'fhir>,
+    pub ty: Ty<'fhir>,
     pub span: Span,
-    pub index_params: Vec<RefineParam>,
+    pub index_params: &'fhir [RefineParam<'fhir>],
     /// Whether this alias was [lifted] from a `hir` alias
     ///
     /// [lifted]: lift::lift_type_alias
     pub lifted: bool,
 }
 
-#[derive(Debug)]
-pub struct StructDef {
+#[derive(Debug, Clone, Copy)]
+pub struct StructDef<'fhir> {
     pub owner_id: OwnerId,
-    pub generics: Generics,
-    pub params: Vec<RefineParam>,
-    pub kind: StructKind,
-    pub invariants: Vec<Expr>,
+    pub generics: Generics<'fhir>,
+    pub refined_by: &'fhir RefinedBy<'fhir>,
+    pub params: &'fhir [RefineParam<'fhir>],
+    pub kind: StructKind<'fhir>,
+    pub invariants: &'fhir [Expr<'fhir>],
     /// Whether this is a spec for an extern struct
     pub extern_id: Option<DefId>,
 }
 
-#[derive(Debug)]
-pub enum StructKind {
-    Transparent { fields: Vec<FieldDef> },
+#[derive(Debug, Clone, Copy)]
+pub enum StructKind<'fhir> {
+    Transparent { fields: &'fhir [FieldDef<'fhir>] },
     Opaque,
 }
 
-#[derive(Debug)]
-pub struct FieldDef {
+#[derive(Debug, Clone, Copy)]
+pub struct FieldDef<'fhir> {
     pub def_id: LocalDefId,
-    pub ty: Ty,
+    pub ty: Ty<'fhir>,
     /// Whether this field was [lifted] from a `hir` field
     ///
     /// [lifted]: lift::LiftCtxt::lift_field_def
@@ -244,22 +278,23 @@ pub struct FieldDef {
 }
 
 #[derive(Debug)]
-pub struct EnumDef {
+pub struct EnumDef<'fhir> {
     pub owner_id: OwnerId,
-    pub generics: Generics,
-    pub params: Vec<RefineParam>,
-    pub variants: Vec<VariantDef>,
-    pub invariants: Vec<Expr>,
+    pub generics: Generics<'fhir>,
+    pub refined_by: &'fhir RefinedBy<'fhir>,
+    pub params: &'fhir [RefineParam<'fhir>],
+    pub variants: &'fhir [VariantDef<'fhir>],
+    pub invariants: &'fhir [Expr<'fhir>],
     /// Whether this is a expecr for an extern enum
     pub extern_id: Option<DefId>,
 }
 
-#[derive(Debug)]
-pub struct VariantDef {
+#[derive(Debug, Clone, Copy)]
+pub struct VariantDef<'fhir> {
     pub def_id: LocalDefId,
-    pub params: Vec<RefineParam>,
-    pub fields: Vec<FieldDef>,
-    pub ret: VariantRet,
+    pub params: &'fhir [RefineParam<'fhir>],
+    pub fields: &'fhir [FieldDef<'fhir>],
+    pub ret: VariantRet<'fhir>,
     pub span: Span,
     /// Whether this variant was [lifted] from a hir variant
     ///
@@ -267,19 +302,20 @@ pub struct VariantDef {
     pub lifted: bool,
 }
 
-#[derive(Debug)]
-pub struct VariantRet {
-    pub bty: BaseTy,
-    pub idx: RefineArg,
+#[derive(Debug, Clone, Copy)]
+pub struct VariantRet<'fhir> {
+    pub bty: BaseTy<'fhir>,
+    pub idx: RefineArg<'fhir>,
 }
 
-pub struct FnSig {
-    pub generics: Generics,
+#[derive(Clone, Copy)]
+pub struct FnSig<'fhir> {
+    pub generics: Generics<'fhir>,
     /// example: vec![(0 <= n), (l: i32)]
-    pub requires: Vec<Constraint>,
+    pub requires: &'fhir [Constraint<'fhir>],
     /// example: vec![(x: StrRef(l))]
-    pub args: Vec<Ty>,
-    pub output: FnOutput,
+    pub args: &'fhir [Ty<'fhir>],
+    pub output: FnOutput<'fhir>,
     /// Whether the sig was [lifted] from a hir signature
     ///
     /// [lifted]: lift::LiftCtxt::lift_fn_sig
@@ -287,32 +323,34 @@ pub struct FnSig {
     pub span: Span,
 }
 
-pub struct FnOutput {
-    pub params: Vec<RefineParam>,
-    pub ret: Ty,
-    pub ensures: Vec<Constraint>,
+#[derive(Clone, Copy)]
+pub struct FnOutput<'fhir> {
+    pub params: &'fhir [RefineParam<'fhir>],
+    pub ret: Ty<'fhir>,
+    pub ensures: &'fhir [Constraint<'fhir>],
 }
 
-pub enum Constraint {
+#[derive(Clone, Copy)]
+pub enum Constraint<'fhir> {
     /// A type constraint on a location
     Type(
         Ident,
-        Ty,
+        Ty<'fhir>,
         /// The index of the argument corresponding to the constraint.
         usize,
     ),
     /// A predicate that needs to hold
-    Pred(Expr),
+    Pred(Expr<'fhir>),
 }
 
-#[derive(Clone)]
-pub struct Ty {
-    pub kind: TyKind,
+#[derive(Clone, Copy)]
+pub struct Ty<'fhir> {
+    pub kind: TyKind<'fhir>,
     pub span: Span,
 }
 
-#[derive(Clone)]
-pub enum TyKind {
+#[derive(Clone, Copy)]
+pub enum TyKind<'fhir> {
     /// A type that parses as a [`BaseTy`] but was written without refinements. Most types in
     /// this category are base types and will be converted into an [existential], e.g., `i32` is
     /// converted into `∃v:int. i32[v]`. However, this category also contains generic variables
@@ -322,25 +360,25 @@ pub enum TyKind {
     /// [existential]: crate::rty::TyKind::Exists
     /// [type]: GenericParamKind::Type
     /// [*special*]: GenericParamKind::SplTy
-    BaseTy(BaseTy),
-    Indexed(BaseTy, RefineArg),
-    Exists(Vec<RefineParam>, Box<Ty>),
+    BaseTy(BaseTy<'fhir>),
+    Indexed(BaseTy<'fhir>, RefineArg<'fhir>),
+    Exists(&'fhir [RefineParam<'fhir>], &'fhir Ty<'fhir>),
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
-    Constr(Pred, Box<Ty>),
+    Constr(Pred<'fhir>, &'fhir Ty<'fhir>),
     Ptr(Lifetime, Ident),
-    Ref(Lifetime, MutTy),
-    Tuple(Vec<Ty>),
-    Array(Box<Ty>, ArrayLen),
-    RawPtr(Box<Ty>, Mutability),
-    OpaqueDef(ItemId, Vec<GenericArg>, Vec<RefineArg>, bool),
+    Ref(Lifetime, MutTy<'fhir>),
+    Tuple(&'fhir [Ty<'fhir>]),
+    Array(&'fhir Ty<'fhir>, ArrayLen),
+    RawPtr(&'fhir Ty<'fhir>, Mutability),
+    OpaqueDef(ItemId, &'fhir [GenericArg<'fhir>], &'fhir [RefineArg<'fhir>], bool),
     Never,
     Hole(FhirId),
 }
 
-#[derive(Clone)]
-pub struct MutTy {
-    pub ty: Box<Ty>,
+#[derive(Clone, Copy)]
+pub struct MutTy<'fhir> {
+    pub ty: &'fhir Ty<'fhir>,
     pub mutbl: Mutability,
 }
 
@@ -354,26 +392,10 @@ pub enum Lifetime {
     Resolved(ResolvedArg),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct ArrayLen {
     pub val: usize,
     pub span: Span,
-}
-
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-pub enum WeakKind {
-    Shr,
-    Mut,
-    Arr,
-}
-
-impl From<Mutability> for WeakKind {
-    fn from(mutbl: Mutability) -> WeakKind {
-        match mutbl {
-            Mutability::Not => WeakKind::Shr,
-            Mutability::Mut => WeakKind::Mut,
-        }
-    }
 }
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -409,14 +431,14 @@ newtype_index! {
     pub struct ItemLocalId {}
 }
 
-#[derive(Clone)]
-pub struct RefineArg {
-    pub kind: RefineArgKind,
+#[derive(Clone, Copy)]
+pub struct RefineArg<'fhir> {
+    pub kind: RefineArgKind<'fhir>,
     pub fhir_id: FhirId,
     pub span: Span,
 }
 
-impl RefineArg {
+impl<'fhir> RefineArg<'fhir> {
     pub fn is_colon_param(&self) -> Option<Ident> {
         if let RefineArgKind::Expr(expr) = &self.kind
             && let ExprKind::Var(var, Some(ParamKind::Colon)) = &expr.kind
@@ -428,50 +450,50 @@ impl RefineArg {
     }
 }
 
-#[derive(Clone)]
-pub enum RefineArgKind {
-    Expr(Expr),
-    Abs(Vec<RefineParam>, Expr),
-    Record(Vec<RefineArg>),
+#[derive(Clone, Copy)]
+pub enum RefineArgKind<'fhir> {
+    Expr(Expr<'fhir>),
+    Abs(&'fhir [RefineParam<'fhir>], Expr<'fhir>),
+    Record(&'fhir [RefineArg<'fhir>]),
 }
 
 /// These are types of things that may be refined with indices or existentials
-#[derive(Clone)]
-pub struct BaseTy {
-    pub kind: BaseTyKind,
+#[derive(Clone, Copy)]
+pub struct BaseTy<'fhir> {
+    pub kind: BaseTyKind<'fhir>,
     pub span: Span,
 }
 
-#[derive(Clone)]
-pub enum BaseTyKind {
-    Path(QPath),
-    Slice(Box<Ty>),
+#[derive(Clone, Copy)]
+pub enum BaseTyKind<'fhir> {
+    Path(QPath<'fhir>),
+    Slice(&'fhir Ty<'fhir>),
 }
 
-#[derive(Clone)]
-pub enum QPath {
-    Resolved(Option<Box<Ty>>, Path),
+#[derive(Clone, Copy)]
+pub enum QPath<'fhir> {
+    Resolved(Option<&'fhir Ty<'fhir>>, Path<'fhir>),
 }
 
-#[derive(Clone)]
-pub struct Path {
+#[derive(Clone, Copy)]
+pub struct Path<'fhir> {
     pub res: Res,
-    pub args: Vec<GenericArg>,
-    pub bindings: Vec<TypeBinding>,
-    pub refine: Vec<RefineArg>,
+    pub args: &'fhir [GenericArg<'fhir>],
+    pub bindings: &'fhir [TypeBinding<'fhir>],
+    pub refine: &'fhir [RefineArg<'fhir>],
     pub span: Span,
 }
 
-#[derive(Clone)]
-pub struct TypeBinding {
+#[derive(Clone, Copy)]
+pub struct TypeBinding<'fhir> {
     pub ident: SurfaceIdent,
-    pub term: Ty,
+    pub term: Ty<'fhir>,
 }
 
-#[derive(Clone)]
-pub enum GenericArg {
+#[derive(Clone, Copy)]
+pub enum GenericArg<'fhir> {
     Lifetime(Lifetime),
-    Type(Ty),
+    Type(&'fhir Ty<'fhir>),
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -482,16 +504,16 @@ pub enum Res {
     SelfTyParam { trait_: DefId },
 }
 
-#[derive(Debug, Clone)]
-pub struct RefineParam {
+#[derive(Debug, Clone, Copy)]
+pub struct RefineParam<'fhir> {
     pub ident: Ident,
-    pub sort: Sort,
+    pub sort: Sort<'fhir>,
     pub kind: ParamKind,
     pub fhir_id: FhirId,
     pub span: Span,
 }
 
-impl RefineParam {
+impl<'fhir> RefineParam<'fhir> {
     pub fn name(&self) -> Name {
         self.ident.name
     }
@@ -534,7 +556,7 @@ pub enum InferMode {
     KVar,
 }
 
-#[derive(Clone, Copy, TyEncodable, TyDecodable)]
+#[derive(Clone, Copy)]
 pub enum SortCtor {
     Set,
     Map,
@@ -544,22 +566,22 @@ pub enum SortCtor {
     },
 }
 
-#[derive(Clone, TyEncodable, TyDecodable)]
-pub enum Sort {
+#[derive(Clone, Copy)]
+pub enum Sort<'fhir> {
     Int,
     Bool,
     Real,
     Loc,
     BitVec(usize),
     /// Sort constructor application (e.g. `Set<int>` or `Map<int, int>`)
-    App(SortCtor, Vec<Sort>),
-    Func(PolyFuncSort),
+    App(SortCtor, &'fhir [Sort<'fhir>]),
+    Func(PolyFuncSort<'fhir>),
     /// sort variable
     Var(usize),
     /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
     /// Values of a record sort can be projected using dot notation to extract their fields.
     /// the `List<Sort>` is for the type parameters of (generic) record sorts
-    Record(DefId, Vec<Sort>),
+    Record(DefId, &'fhir [Sort<'fhir>]),
     /// The sort associated to a type variable
     Param(DefId),
     /// The sort of the `Self` type, as used within a trait.
@@ -576,65 +598,65 @@ pub enum Sort {
     Infer,
 }
 
-#[derive(Clone, TyEncodable, TyDecodable)]
-pub struct FuncSort {
+#[derive(Clone, Copy)]
+pub struct FuncSort<'fhir> {
     /// inputs and output in order
-    pub inputs_and_output: Vec<Sort>,
+    pub inputs_and_output: &'fhir [Sort<'fhir>],
 }
 
-#[derive(Clone, TyEncodable, TyDecodable)]
-pub struct PolyFuncSort {
+#[derive(Clone, Copy)]
+pub struct PolyFuncSort<'fhir> {
     pub params: usize,
-    pub fsort: FuncSort,
+    pub fsort: FuncSort<'fhir>,
 }
 
-impl PolyFuncSort {
-    pub fn new(params: usize, inputs: Vec<Sort>, output: Sort) -> Self {
-        let fsort = FuncSort::new(inputs, output);
+impl<'fhir> PolyFuncSort<'fhir> {
+    pub fn new(params: usize, inputs_and_output: &'fhir [Sort]) -> Self {
+        let fsort = FuncSort { inputs_and_output };
         Self { params, fsort }
     }
 }
 
-#[derive(Clone)]
-pub struct Pred {
-    pub kind: PredKind,
+#[derive(Clone, Copy)]
+pub struct Pred<'fhir> {
+    pub kind: PredKind<'fhir>,
     pub span: Span,
     pub fhir_id: FhirId,
 }
 
-#[derive(Clone)]
-pub enum PredKind {
-    Expr(Expr),
-    Alias(AliasPred, Vec<RefineArg>),
+#[derive(Clone, Copy)]
+pub enum PredKind<'fhir> {
+    Expr(Expr<'fhir>),
+    Alias(AliasPred<'fhir>, &'fhir [RefineArg<'fhir>]),
 }
 
-#[derive(Clone)]
-pub struct AliasPred {
+#[derive(Clone, Copy)]
+pub struct AliasPred<'fhir> {
     pub trait_id: DefId,
     pub name: Symbol,
-    pub generic_args: Vec<GenericArg>,
+    pub generic_args: &'fhir [GenericArg<'fhir>],
 }
 
-#[derive(Clone)]
-pub struct Expr {
-    pub kind: ExprKind,
+#[derive(Clone, Copy)]
+pub struct Expr<'fhir> {
+    pub kind: ExprKind<'fhir>,
     pub span: Span,
     pub fhir_id: FhirId,
 }
 
-#[derive(Clone)]
-pub enum ExprKind {
+#[derive(Clone, Copy)]
+pub enum ExprKind<'fhir> {
     Const(DefId, Span),
     Var(Ident, Option<ParamKind>),
     Dot(Ident, SurfaceIdent),
     Literal(Lit),
-    BinaryOp(BinOp, Box<[Expr; 2]>),
-    UnaryOp(UnOp, Box<Expr>),
-    App(Func, Vec<Expr>),
-    IfThenElse(Box<[Expr; 3]>),
+    BinaryOp(BinOp, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
+    UnaryOp(UnOp, &'fhir Expr<'fhir>),
+    App(Func, &'fhir [Expr<'fhir>]),
+    IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum Func {
     /// A function coming from a refinement parameter.
     Var(Ident, FhirId),
@@ -662,7 +684,7 @@ newtype_index! {
     pub struct Name {}
 }
 
-impl PolyTraitRef {
+impl<'fhir> PolyTraitRef<'fhir> {
     pub fn trait_def_id(&self) -> DefId {
         let path = &self.trait_ref;
         if let Res::Def(DefKind::Trait, did) = path.res {
@@ -704,8 +726,8 @@ impl SortCtor {
     }
 }
 
-impl Ty {
-    pub fn as_path(&self) -> Option<&Path> {
+impl<'fhir> Ty<'fhir> {
+    pub fn as_path(&self) -> Option<Path<'fhir>> {
         match &self.kind {
             TyKind::BaseTy(bty) => bty.as_path(),
             _ => None,
@@ -713,9 +735,9 @@ impl Ty {
     }
 }
 
-impl BaseTy {
-    fn as_path(&self) -> Option<&Path> {
-        match &self.kind {
+impl<'fhir> BaseTy<'fhir> {
+    fn as_path(&self) -> Option<Path<'fhir>> {
+        match self.kind {
             BaseTyKind::Path(QPath::Resolved(None, path)) => Some(path),
             _ => None,
         }
@@ -756,7 +778,7 @@ impl TryFrom<rustc_hir::def::Res> for Res {
     }
 }
 
-impl QPath {
+impl<'fhir> QPath<'fhir> {
     pub fn span(&self) -> Span {
         match self {
             QPath::Resolved(_, path) => path.span,
@@ -764,8 +786,8 @@ impl QPath {
     }
 }
 
-impl From<QPath> for BaseTy {
-    fn from(qpath: QPath) -> Self {
+impl<'fhir> From<QPath<'fhir>> for BaseTy<'fhir> {
+    fn from(qpath: QPath<'fhir>) -> Self {
         let span = qpath.span();
         Self { kind: BaseTyKind::Path(qpath), span }
     }
@@ -799,8 +821,8 @@ impl Ident {
 }
 
 /// Information about the refinement parameters associated with a type alias or a struct/enum.
-#[derive(Clone, Debug, TyEncodable, TyDecodable)]
-pub struct RefinedBy {
+#[derive(Clone, Debug)]
+pub struct RefinedBy<'fhir> {
     pub def_id: LocalDefId,
     pub span: Span,
     /// Tracks the mapping from bound var to generic def ids. e.g. if we have
@@ -813,13 +835,13 @@ pub struct RefinedBy {
     /// and `sort_params` will be `vec![K]`,  i.e., it maps `Var(0)` to `K`.
     pub sort_params: Vec<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
-    pub index_params: FxIndexMap<Symbol, Sort>,
+    pub index_params: FxIndexMap<Symbol, Sort<'fhir>>,
 }
 
 #[derive(Debug)]
-pub struct FuncDecl {
+pub struct FuncDecl<'fhir> {
     pub name: Symbol,
-    pub sort: PolyFuncSort,
+    pub sort: PolyFuncSort<'fhir>,
     pub kind: FuncKind,
 }
 
@@ -834,20 +856,20 @@ pub enum FuncKind {
 }
 
 #[derive(Debug)]
-pub struct Defn {
+pub struct Defn<'fhir> {
     pub name: Symbol,
     pub params: usize,
-    pub args: Vec<RefineParam>,
-    pub sort: Sort,
-    pub expr: Expr,
+    pub args: &'fhir [RefineParam<'fhir>],
+    pub sort: Sort<'fhir>,
+    pub expr: Expr<'fhir>,
 }
 
-impl Generics {
-    pub(crate) fn get_param(&self, def_id: LocalDefId) -> &GenericParam {
+impl<'fhir> Generics<'fhir> {
+    pub(crate) fn get_param(&self, def_id: LocalDefId) -> &'fhir GenericParam<'fhir> {
         self.params.iter().find(|p| p.def_id == def_id).unwrap()
     }
 
-    pub fn with_refined_by(self, refined_by: &RefinedBy) -> Self {
+    pub fn with_refined_by(self, genv: GlobalEnv<'fhir, '_>, refined_by: &RefinedBy) -> Self {
         let mut params = vec![];
         for param in self.params {
             let kind = if refined_by.is_base_generic(param.def_id.to_def_id()) {
@@ -857,14 +879,14 @@ impl Generics {
             };
             params.push(GenericParam { def_id: param.def_id, kind });
         }
-        Generics { params, ..self }
+        Generics { params: genv.alloc_slice(&params), ..self }
     }
 }
 
-impl RefinedBy {
+impl<'fhir> RefinedBy<'fhir> {
     pub fn new(
         def_id: LocalDefId,
-        index_params: impl IntoIterator<Item = (Symbol, Sort)>,
+        index_params: impl IntoIterator<Item = (Symbol, Sort<'fhir>)>,
         sort_params: Vec<DefId>,
         span: Span,
     ) -> Self {
@@ -886,28 +908,13 @@ impl RefinedBy {
     }
 }
 
-impl Sort {
-    pub fn set(t: Sort) -> Self {
-        Self::App(SortCtor::Set, vec![t])
-    }
-
-    pub fn map(k: Sort, v: Sort) -> Self {
-        Self::App(SortCtor::Map, vec![k, v])
-    }
-}
-
-impl From<PolyFuncSort> for Sort {
-    fn from(fsort: PolyFuncSort) -> Self {
+impl<'fhir> From<PolyFuncSort<'fhir>> for Sort<'fhir> {
+    fn from(fsort: PolyFuncSort<'fhir>) -> Self {
         Self::Func(fsort)
     }
 }
 
-impl FuncSort {
-    pub fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
-        inputs.push(output);
-        FuncSort { inputs_and_output: inputs }
-    }
-
+impl<'fhir> FuncSort<'fhir> {
     pub fn inputs(&self) -> &[Sort] {
         &self.inputs_and_output[..self.inputs_and_output.len() - 1]
     }
@@ -917,20 +924,20 @@ impl FuncSort {
     }
 }
 
-impl rustc_errors::IntoDiagnosticArg for &Ty {
+impl rustc_errors::IntoDiagnosticArg for Ty<'_> {
     fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
         rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 
-impl rustc_errors::IntoDiagnosticArg for &Path {
+impl rustc_errors::IntoDiagnosticArg for Path<'_> {
     fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
         rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 
-impl GenericArg {
-    pub fn expect_type(&self) -> &Ty {
+impl<'fhir> GenericArg<'fhir> {
+    pub fn expect_type(&self) -> &'fhir Ty<'fhir> {
         if let GenericArg::Type(ty) = self {
             ty
         } else {
@@ -939,341 +946,13 @@ impl GenericArg {
     }
 }
 
-impl Map {
-    pub fn new() -> Self {
-        let mut me = Self::default();
-        me.insert_theory_funcs();
-        me
-    }
-
-    pub fn insert_trait(&mut self, def_id: LocalDefId, trait_: Trait) {
-        self.traits.insert(def_id, trait_);
-    }
-
-    pub fn get_trait(&self, def_id: LocalDefId) -> &Trait {
-        self.traits.get(&def_id).unwrap()
-    }
-
-    pub fn insert_impl(&mut self, def_id: LocalDefId, impl_: Impl) {
-        self.impls.insert(def_id, impl_);
-    }
-
-    pub fn get_impl(&self, def_id: LocalDefId) -> &Impl {
-        self.impls.get(&def_id).unwrap()
-    }
-
-    pub fn insert_assoc_type(&mut self, def_id: LocalDefId, assoc_ty: AssocType) {
-        self.assoc_types.insert(def_id, assoc_ty);
-    }
-
-    pub fn insert_opaque_tys(&mut self, opaque_tys: UnordMap<LocalDefId, OpaqueTy>) {
-        self.opaque_tys.extend_unord(opaque_tys.into_items());
-    }
-
-    pub fn get_generics(&self, tcx: TyCtxt, def_id: LocalDefId) -> Option<&Generics> {
-        match tcx.def_kind(def_id) {
-            DefKind::Struct => Some(&self.get_struct(def_id).generics),
-            DefKind::Enum => Some(&self.get_enum(def_id).generics),
-            DefKind::Impl { .. } => Some(&self.impls[&def_id].generics),
-            DefKind::Trait => Some(&self.traits[&def_id].generics),
-            DefKind::TyAlias => Some(&self.type_aliases[&def_id].generics),
-            DefKind::AssocTy => Some(&self.assoc_types[&def_id].generics),
-            DefKind::Fn => Some(&self.get_fn_sig(def_id).generics),
-            DefKind::AssocFn => Some(&self.get_fn_sig(def_id).generics),
-            DefKind::OpaqueTy => Some(&self.get_opaque_ty(def_id).generics),
-            _ => None,
-        }
-    }
-
-    pub fn get_opaque_ty(&self, def_id: LocalDefId) -> &OpaqueTy {
-        self.opaque_tys.get(&def_id).unwrap()
-    }
-
-    // Qualifiers
-
-    pub fn insert_qualifier(&mut self, qualifier: Qualifier) {
-        self.flux_items
-            .insert(qualifier.name, FluxItem::Qualifier(qualifier));
-    }
-
-    pub fn qualifiers(&self) -> impl Iterator<Item = &Qualifier> {
-        self.flux_items.values().filter_map(|item| {
-            if let FluxItem::Qualifier(qual) = item {
-                Some(qual)
-            } else {
-                None
-            }
-        })
-    }
-
-    // FnSigs
-
-    pub fn insert_fn_sig(&mut self, def_id: LocalDefId, fn_sig: FnSig) {
-        self.fns.insert(def_id, fn_sig);
-    }
-
-    pub fn insert_fn_quals(&mut self, def_id: LocalDefId, quals: Vec<SurfaceIdent>) {
-        self.fn_quals.insert(def_id, quals);
-    }
-
-    pub fn add_trusted(&mut self, def_id: LocalDefId) {
-        self.trusted.insert(def_id);
-    }
-
-    pub fn get_fn_sig(&self, def_id: LocalDefId) -> &FnSig {
-        self.fns
-            .get(&def_id)
-            .unwrap_or_else(|| bug!("no fn_sig found for `{def_id:?}`"))
-    }
-
-    pub fn fn_quals(&self) -> impl Iterator<Item = (LocalDefId, &Vec<SurfaceIdent>)> {
-        self.fn_quals.iter().map(|(def_id, quals)| (*def_id, quals))
-    }
-
-    pub fn get_fn_quals(&self, def_id: LocalDefId) -> impl Iterator<Item = SurfaceIdent> + '_ {
-        self.fn_quals
-            .get(&def_id)
-            .map_or(&[][..], Vec::as_slice)
-            .iter()
-            .copied()
-    }
-
-    pub fn is_trusted(&self, def_id: LocalDefId) -> bool {
-        self.trusted.contains(&def_id)
-    }
-
-    pub fn insert_extern(&mut self, extern_def_id: DefId, local_def_id: LocalDefId) {
-        self.externs.insert(extern_def_id, local_def_id);
-    }
-
-    pub fn get_extern(&self, extern_def_id: DefId) -> Option<LocalDefId> {
-        self.externs.get(&extern_def_id).copied()
-    }
-
-    /// Return whether the local_def_id is a spec for an extern item. This is the inverse of
-    /// [`Map::get_extern`]. This currently only works for structs or enums
-    pub fn extern_id_of(&self, tcx: TyCtxt, local_def_id: LocalDefId) -> Option<DefId> {
-        match tcx.def_kind(local_def_id) {
-            DefKind::Struct => self.get_struct(local_def_id).extern_id,
-            DefKind::Enum => self.get_enum(local_def_id).extern_id,
-            _ => None,
-        }
-    }
-
-    // ADT
-
-    pub fn insert_refined_by(&mut self, def_id: LocalDefId, refined_by: RefinedBy) {
-        self.refined_by.insert(def_id, refined_by);
-    }
-
-    pub fn refined_by(&self, def_id: LocalDefId) -> &RefinedBy {
-        &self.refined_by[&def_id]
-    }
-
-    // Aliases
-
-    pub fn insert_type_alias(&mut self, def_id: LocalDefId, alias: TyAlias) {
-        self.type_aliases.insert(def_id, alias);
-    }
-
-    pub fn get_type_alias(&self, def_id: impl Borrow<LocalDefId>) -> &TyAlias {
-        &self.type_aliases[def_id.borrow()]
-    }
-
-    // Structs
-
-    pub fn insert_struct(&mut self, def_id: LocalDefId, struct_def: StructDef) {
-        self.structs.insert(def_id, struct_def);
-    }
-
-    pub fn get_struct(&self, def_id: impl Borrow<LocalDefId>) -> &StructDef {
-        &self.structs[def_id.borrow()]
-    }
-
-    // Enums
-
-    pub fn insert_enum(&mut self, def_id: LocalDefId, enum_def: EnumDef) {
-        self.enums.insert(def_id, enum_def);
-    }
-
-    pub fn get_enum(&self, def_id: impl Borrow<LocalDefId>) -> &EnumDef {
-        &self.enums[def_id.borrow()]
-    }
-
-    // Consts
-
-    pub fn insert_const(&mut self, c: ConstInfo) {
-        self.consts.insert(c.sym, c);
-    }
-
-    pub fn consts(&self) -> impl Iterator<Item = &ConstInfo> {
-        self.consts.values()
-    }
-
-    pub fn const_by_name(&self, name: impl Borrow<Symbol>) -> Option<&ConstInfo> {
-        self.consts.get(name.borrow())
-    }
-
-    // Theory Symbols
-    fn insert_theory_func(
-        &mut self,
-        name: Symbol,
-        fixpoint_name: Symbol,
-        params: usize,
-        inputs: Vec<Sort>,
-        output: Sort,
-    ) {
-        let sort = PolyFuncSort::new(params, inputs, output);
-        self.func_decls
-            .insert(name, FuncDecl { name, sort, kind: FuncKind::Thy(fixpoint_name) });
-    }
-
-    fn insert_theory_funcs(&mut self) {
-        // Bitvector operations
-        self.insert_theory_func(
-            Symbol::intern("bv_int_to_bv32"),
-            Symbol::intern("int_to_bv32"),
-            0,
-            vec![Sort::Int],
-            Sort::BitVec(32),
-        );
-        self.insert_theory_func(
-            Symbol::intern("bv_bv32_to_int"),
-            Symbol::intern("bv32_to_int"),
-            0,
-            vec![Sort::BitVec(32)],
-            Sort::Int,
-        );
-        self.insert_theory_func(
-            Symbol::intern("bv_sub"),
-            Symbol::intern("bvsub"),
-            0,
-            vec![Sort::BitVec(32), Sort::BitVec(32)],
-            Sort::BitVec(32),
-        );
-        self.insert_theory_func(
-            Symbol::intern("bv_and"),
-            Symbol::intern("bvand"),
-            0,
-            vec![Sort::BitVec(32), Sort::BitVec(32)],
-            Sort::BitVec(32),
-        );
-
-        // Set operations
-        self.insert_theory_func(
-            Symbol::intern("set_empty"),
-            Symbol::intern("Set_empty"),
-            1,
-            vec![Sort::Int],
-            Sort::set(Sort::Var(0)),
-        );
-        self.insert_theory_func(
-            Symbol::intern("set_singleton"),
-            Symbol::intern("Set_sng"),
-            1,
-            vec![Sort::Var(0)],
-            Sort::set(Sort::Var(0)),
-        );
-        self.insert_theory_func(
-            Symbol::intern("set_union"),
-            Symbol::intern("Set_cup"),
-            1,
-            vec![Sort::set(Sort::Var(0)), Sort::set(Sort::Var(0))],
-            Sort::set(Sort::Var(0)),
-        );
-        self.insert_theory_func(
-            Symbol::intern("set_is_in"),
-            Symbol::intern("Set_mem"),
-            1,
-            vec![Sort::Var(0), Sort::set(Sort::Var(0))],
-            Sort::Bool,
-        );
-
-        // Map operations
-        self.insert_theory_func(
-            Symbol::intern("map_default"),
-            Symbol::intern("Map_default"),
-            2,
-            vec![Sort::Var(1)],
-            Sort::map(Sort::Var(0), Sort::Var(1)),
-        );
-        self.insert_theory_func(
-            Symbol::intern("map_select"),
-            Symbol::intern("Map_select"),
-            2,
-            vec![Sort::map(Sort::Var(0), Sort::Var(1)), Sort::Var(0)],
-            Sort::Var(1),
-        );
-        self.insert_theory_func(
-            Symbol::intern("map_store"),
-            Symbol::intern("Map_store"),
-            2,
-            vec![Sort::map(Sort::Var(0), Sort::Var(1)), Sort::Var(0), Sort::Var(1)],
-            Sort::map(Sort::Var(0), Sort::Var(1)),
-        );
-    }
-
-    // UIF
-
-    pub fn insert_func_decl(&mut self, symb: Symbol, uif: FuncDecl) {
-        self.func_decls.insert(symb, uif);
-    }
-
-    pub fn func_decls(&self) -> impl Iterator<Item = &FuncDecl> {
-        self.func_decls.values()
-    }
-
-    pub fn func_decl(&self, sym: impl Borrow<Symbol>) -> Option<&FuncDecl> {
-        self.func_decls.get(sym.borrow())
-    }
-
-    // Defn
-    pub fn insert_defn(&mut self, symb: Symbol, defn: Defn) {
-        self.flux_items.insert(symb, FluxItem::Defn(defn));
-    }
-
-    pub fn defns(&self) -> impl Iterator<Item = &Defn> {
-        self.flux_items.values().filter_map(|item| {
-            if let FluxItem::Defn(defn) = item {
-                Some(defn)
-            } else {
-                None
-            }
-        })
-    }
-
-    pub fn defn(&self, sym: impl Borrow<Symbol>) -> Option<&Defn> {
-        self.flux_items.get(sym.borrow()).and_then(|item| {
-            if let FluxItem::Defn(defn) = item {
-                Some(defn)
-            } else {
-                None
-            }
-        })
-    }
-
-    // Sorts
-
-    pub fn insert_sort_decl(&mut self, sort_decl: SortDecl) {
-        self.sort_decls.insert(sort_decl.name, sort_decl);
-    }
-
-    pub fn sort_decls(&self) -> &SortDecls {
-        &self.sort_decls
-    }
-
-    pub fn get_flux_item(&self, name: impl Borrow<Symbol>) -> Option<&FluxItem> {
-        self.flux_items.get(name.borrow())
-    }
-}
-
-impl StructDef {
+impl<'fhir> StructDef<'fhir> {
     pub fn is_opaque(&self) -> bool {
         matches!(self.kind, StructKind::Opaque)
     }
 }
 
-impl fmt::Debug for FnSig {
+impl fmt::Debug for FnSig<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if !self.generics.refinement_params.is_empty() {
             write!(
@@ -1294,7 +973,7 @@ impl fmt::Debug for FnSig {
     }
 }
 
-impl fmt::Debug for FnOutput {
+impl fmt::Debug for FnOutput<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if !self.params.is_empty() {
             write!(
@@ -1314,7 +993,7 @@ impl fmt::Debug for FnOutput {
     }
 }
 
-impl fmt::Debug for Constraint {
+impl fmt::Debug for Constraint<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Constraint::Type(loc, _, ty) => write!(f, "{loc:?}: {ty:?}"),
@@ -1323,7 +1002,7 @@ impl fmt::Debug for Constraint {
     }
 }
 
-impl fmt::Debug for Ty {
+impl fmt::Debug for Ty<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             TyKind::BaseTy(bty) => write!(f, "{bty:?}"),
@@ -1379,7 +1058,7 @@ impl fmt::Debug for ArrayLen {
     }
 }
 
-impl fmt::Debug for BaseTy {
+impl fmt::Debug for BaseTy<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             BaseTyKind::Path(qpath) => write!(f, "{qpath:?}"),
@@ -1388,7 +1067,7 @@ impl fmt::Debug for BaseTy {
     }
 }
 
-impl fmt::Debug for QPath {
+impl fmt::Debug for QPath<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             QPath::Resolved(_self_ty, path) => {
@@ -1398,7 +1077,7 @@ impl fmt::Debug for QPath {
     }
 }
 
-impl fmt::Debug for Path {
+impl fmt::Debug for Path<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.res {
             Res::PrimTy(PrimTy::Int(int_ty)) => {
@@ -1434,7 +1113,7 @@ impl fmt::Debug for Path {
     }
 }
 
-impl fmt::Debug for GenericArg {
+impl fmt::Debug for GenericArg<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             GenericArg::Type(ty) => write!(f, "{ty:?}"),
@@ -1443,13 +1122,13 @@ impl fmt::Debug for GenericArg {
     }
 }
 
-impl fmt::Debug for TypeBinding {
+impl fmt::Debug for TypeBinding<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?} = {:?}", self.ident, self.term)
     }
 }
 
-impl fmt::Debug for RefineArg {
+impl fmt::Debug for RefineArg<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             RefineArgKind::Expr(expr) => {
@@ -1471,13 +1150,13 @@ impl fmt::Debug for RefineArg {
     }
 }
 
-impl fmt::Debug for AliasPred {
+impl fmt::Debug for AliasPred<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "<{:?} as <{:?}>::{:?}", self.generic_args[0], self.trait_id, self.name)
     }
 }
 
-impl fmt::Debug for Pred {
+impl fmt::Debug for Pred<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             PredKind::Expr(expr) => write!(f, "{expr:?}"),
@@ -1488,16 +1167,16 @@ impl fmt::Debug for Pred {
     }
 }
 
-impl fmt::Debug for Expr {
+impl fmt::Debug for Expr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             ExprKind::Var(x, ..) => write!(f, "{x:?}"),
-            ExprKind::BinaryOp(op, box [e1, e2]) => write!(f, "({e1:?} {op:?} {e2:?})"),
+            ExprKind::BinaryOp(op, e1, e2) => write!(f, "({e1:?} {op:?} {e2:?})"),
             ExprKind::UnaryOp(op, e) => write!(f, "{op:?}{e:?}"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
             ExprKind::Const(x, _) => write!(f, "{}", pretty::def_id_to_string(*x)),
             ExprKind::App(uf, es) => write!(f, "{uf:?}({:?})", es.iter().format(", ")),
-            ExprKind::IfThenElse(box [p, e1, e2]) => {
+            ExprKind::IfThenElse(p, e1, e2) => {
                 write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")
             }
             ExprKind::Dot(var, fld) => write!(f, "{var:?}.{fld}"),
@@ -1540,7 +1219,7 @@ impl fmt::Debug for SortCtor {
     }
 }
 
-impl fmt::Debug for Sort {
+impl fmt::Debug for Sort<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Sort::Bool => write!(f, "bool"),
@@ -1575,7 +1254,7 @@ impl fmt::Debug for Sort {
     }
 }
 
-impl fmt::Debug for PolyFuncSort {
+impl fmt::Debug for PolyFuncSort<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.params > 0 {
             write!(f, "for<{}>{:?}", self.params, self.fsort)
@@ -1585,7 +1264,7 @@ impl fmt::Debug for PolyFuncSort {
     }
 }
 
-impl fmt::Debug for FuncSort {
+impl fmt::Debug for FuncSort<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inputs() {
             [input] => {

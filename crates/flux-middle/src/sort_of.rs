@@ -5,7 +5,7 @@ use rustc_span::def_id::{DefId, LocalDefId};
 use crate::{fhir, global_env::GlobalEnv, intern::List, queries::QueryResult, rty};
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
-    pub fn sort_of_alias_pred(&self, alias_pred: &fhir::AliasPred) -> QueryResult<rty::FuncSort> {
+    pub fn sort_of_alias_pred(self, alias_pred: &fhir::AliasPred) -> QueryResult<rty::FuncSort> {
         let trait_id = alias_pred.trait_id;
         let name = alias_pred.name;
         let fsort = self.sort_of_assoc_pred(trait_id, name);
@@ -15,14 +15,14 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }))
     }
 
-    pub fn sort_of_bty(&self, bty: &fhir::BaseTy) -> Option<rty::Sort> {
+    pub fn sort_of_bty(self, bty: &fhir::BaseTy) -> Option<rty::Sort> {
         match &bty.kind {
             fhir::BaseTyKind::Path(fhir::QPath::Resolved(_, path)) => self.sort_of_path(path),
             fhir::BaseTyKind::Slice(_) => Some(rty::Sort::Int),
         }
     }
 
-    fn sort_of_path(&self, path: &fhir::Path) -> Option<rty::Sort> {
+    fn sort_of_path(self, path: &fhir::Path) -> Option<rty::Sort> {
         match path.res {
             fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => Some(rty::Sort::Int),
             fhir::Res::PrimTy(PrimTy::Bool) => Some(rty::Sort::Bool),
@@ -32,7 +32,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
                 let mut sort_args = vec![];
                 let sort_def = self.adt_sort_def_of(def_id);
-                for arg in sort_def.filter_generic_args(&path.args) {
+                for arg in sort_def.filter_generic_args(path.args) {
                     sort_args.push(self.sort_of_ty(arg.expect_type())?);
                 }
                 Some(rty::Sort::Adt(self.adt_sort_def_of(def_id), List::from_vec(sort_args)))
@@ -47,12 +47,12 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    pub fn sort_of_self_ty_alias(&self, alias_to: DefId) -> Option<rty::Sort> {
-        let self_ty = self.tcx.type_of(alias_to).instantiate_identity();
+    pub fn sort_of_self_ty_alias(self, alias_to: DefId) -> Option<rty::Sort> {
+        let self_ty = self.tcx().type_of(alias_to).instantiate_identity();
         self.sort_of_self_ty(alias_to, self_ty)
     }
 
-    fn sort_of_generic_param(&self, def_id: LocalDefId) -> Option<rty::Sort> {
+    fn sort_of_generic_param(self, def_id: LocalDefId) -> Option<rty::Sort> {
         let param = self.get_generic_param(def_id);
         match &param.kind {
             fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy => {
@@ -62,8 +62,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    fn sort_of_self_param(&self, owner: DefId) -> Option<rty::Sort> {
-        let generics = self.map().get_generics(self.tcx, owner.expect_local())?;
+    fn sort_of_self_param(self, owner: DefId) -> Option<rty::Sort> {
+        let generics = self.map().get_generics(owner.expect_local())?;
         let kind = generics.self_kind.as_ref()?;
         match kind {
             fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy => {
@@ -73,14 +73,14 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    fn sort_of_generic_arg(&self, arg: &fhir::GenericArg) -> Option<rty::Sort> {
+    fn sort_of_generic_arg(self, arg: &fhir::GenericArg) -> Option<rty::Sort> {
         match arg {
             fhir::GenericArg::Lifetime(_) => None,
             fhir::GenericArg::Type(ty) => self.sort_of_ty(ty),
         }
     }
 
-    pub fn sort_of_ty(&self, ty: &fhir::Ty) -> Option<rty::Sort> {
+    pub fn sort_of_ty(self, ty: &fhir::Ty) -> Option<rty::Sort> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, _) => self.sort_of_bty(bty),
             fhir::TyKind::Exists(_, ty) | fhir::TyKind::Constr(_, ty) => self.sort_of_ty(ty),
@@ -95,7 +95,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         }
     }
 
-    fn sort_of_self_ty(&self, def_id: DefId, ty: rustc_middle::ty::Ty) -> Option<rty::Sort> {
+    fn sort_of_self_ty(self, def_id: DefId, ty: rustc_middle::ty::Ty) -> Option<rty::Sort> {
         use rustc_middle::ty;
         match ty.kind() {
             ty::TyKind::Bool => Some(rty::Sort::Bool),
@@ -110,9 +110,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             }
             ty::TyKind::Param(p) => {
                 let generic_param_def = self
-                    .tcx
+                    .tcx()
                     .generics_of(def_id)
-                    .param_at(p.index as usize, self.tcx);
+                    .param_at(p.index as usize, self.tcx());
                 self.sort_of_generic_param(generic_param_def.def_id.expect_local())
             }
             ty::TyKind::Float(_)

@@ -13,7 +13,7 @@ use crate::{
 };
 
 pub fn check_invariants(
-    genv: &GlobalEnv,
+    genv: GlobalEnv,
     cache: &mut QueryCache,
     def_id: LocalDefId,
     invariants: &[fhir::Expr],
@@ -31,7 +31,7 @@ pub fn check_invariants(
 }
 
 fn check_invariant(
-    genv: &GlobalEnv,
+    genv: GlobalEnv,
     cache: &mut QueryCache,
     def_id: LocalDefId,
     adt_def: &rty::AdtDef,
@@ -46,7 +46,7 @@ fn check_invariant(
 
         let variant = genv
             .variant_sig(adt_def.did(), variant_idx)
-            .emit(genv.sess)?
+            .emit(genv.sess())?
             .expect("cannot check opaque structs")
             .instantiate_identity(&[])
             .replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
@@ -60,17 +60,17 @@ fn check_invariant(
     }
     let mut fcx = FixpointCtxt::new(genv, def_id, KVarStore::default());
     if config::dump_constraint() {
-        dbg::dump_item_info(genv.tcx, def_id, "fluxc", &refine_tree).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id, "fluxc", &refine_tree).unwrap();
     }
 
     let constraint = refine_tree.into_fixpoint(&mut fcx);
     let errors = fcx
         .check(cache, constraint, &checker_config)
-        .emit(genv.sess)?;
+        .emit(genv.sess())?;
     if errors.is_empty() {
         Ok(())
     } else {
-        Err(genv.sess.emit_err(errors::Invalid { span }))
+        Err(genv.sess().emit_err(errors::Invalid { span }))
     }
 }
 

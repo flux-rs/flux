@@ -201,14 +201,14 @@ impl<'a> InvalidPrimitiveDotAccess<'a> {
 
 #[derive(Diagnostic)]
 #[diag(fhir_analysis_invalid_base_instance, code = "FLUX")]
-pub(super) struct InvalidBaseInstance<'a> {
+pub(super) struct InvalidBaseInstance<'fhir> {
     #[primary_span]
     span: Span,
-    ty: &'a fhir::Ty,
+    ty: fhir::Ty<'fhir>,
 }
 
-impl<'a> InvalidBaseInstance<'a> {
-    pub(super) fn new(ty: &'a fhir::Ty) -> Self {
+impl<'fhir> InvalidBaseInstance<'fhir> {
+    pub(super) fn new(ty: fhir::Ty<'fhir>) -> Self {
         Self { ty, span: ty.span }
     }
 }

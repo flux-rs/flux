@@ -105,7 +105,7 @@ impl CrateStore for CStore {
 
 impl CrateMetadata {
     fn new(genv: &GlobalEnv) -> Self {
-        let tcx = genv.tcx;
+        let tcx = genv.tcx();
         let mut fn_sigs = FxHashMap::default();
         let mut adts = FxHashMap::default();
         let mut type_of = FxHashMap::default();

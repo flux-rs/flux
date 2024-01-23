@@ -42,18 +42,18 @@ pub(crate) enum Point {
 }
 
 pub(crate) fn compute_ghost_statements(
-    genv: &GlobalEnv,
+    genv: GlobalEnv,
     def_id: LocalDefId,
 ) -> QueryResult<UnordMap<LocalDefId, GhostStatements>> {
     let mut data = UnordMap::default();
-    for def_id in all_nested_bodies(genv.tcx, def_id) {
+    for def_id in all_nested_bodies(genv.tcx(), def_id) {
         data.insert(def_id, GhostStatements::new(genv, def_id)?);
     }
     Ok(data)
 }
 
 impl GhostStatements {
-    fn new(genv: &GlobalEnv, def_id: LocalDefId) -> QueryResult<Self> {
+    fn new(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Self> {
         let body = genv.mir(def_id)?;
 
         let mut stmts = Self { at_location: LocationMap::default(), at_edge: EdgeMap::default() };
@@ -64,8 +64,8 @@ impl GhostStatements {
 
         if config::dump_mir() {
             let mut writer =
-                dbg::writer_for_item(genv.tcx, def_id.to_def_id(), "ghost.mir").unwrap();
-            stmts.write_mir(genv.tcx, &body, &mut writer).unwrap();
+                dbg::writer_for_item(genv.tcx(), def_id.to_def_id(), "ghost.mir").unwrap();
+            stmts.write_mir(genv.tcx(), &body, &mut writer).unwrap();
         }
         Ok(stmts)
     }

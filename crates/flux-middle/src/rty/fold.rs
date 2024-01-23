@@ -243,7 +243,7 @@ pub trait TypeFoldable: TypeVisitable {
 
     fn normalize_projections<'tcx>(
         &self,
-        genv: &GlobalEnv<'_, 'tcx>,
+        genv: GlobalEnv<'_, 'tcx>,
         infcx: &rustc_infer::infer::InferCtxt<'tcx>,
         callsite_def_id: DefId,
         refine_params: &[Expr],

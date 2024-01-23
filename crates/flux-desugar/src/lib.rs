@@ -14,6 +14,7 @@ use flux_common::dbg;
 use flux_config as config;
 use flux_macros::fluent_messages;
 use resolver::ResolverOutput;
+use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -23,153 +24,322 @@ mod errors;
 pub mod resolver;
 mod sort_resolver;
 
-pub use desugar::{desugar_defn, desugar_qualifier, desugar_refined_by, func_def_to_func_decl};
 use flux_middle::{
     fhir::{self, lift},
     global_env::GlobalEnv,
+    queries::Providers,
+    Specs,
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::OwnerId;
+use rustc_hir::{self as hir, OwnerId};
+use rustc_middle::ty::TyCtxt;
+use rustc_span::def_id::LocalDefId;
 
-pub fn desugar_struct_def(
-    genv: &mut GlobalEnv,
-    owner_id: OwnerId,
-    struct_def: &surface::StructDef,
-    resolver_output: &ResolverOutput,
-) -> Result<(), ErrorGuaranteed> {
-    let def_id = owner_id.def_id;
+type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-    let mut cx =
-        RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
-    let struct_def = cx.desugar_struct_def(struct_def)?;
-
-    if config::dump_fhir() {
-        dbg::dump_item_info(genv.tcx, owner_id, "fhir", &struct_def).unwrap();
-    }
-
-    genv.map_mut().insert_struct(def_id, struct_def);
-
-    Ok(())
+pub fn provide(providers: &mut Providers) {
+    providers.fhir_crate = desugar_crate;
 }
 
-pub fn desugar_enum_def(
-    genv: &mut GlobalEnv,
-    owner_id: OwnerId,
-    enum_def: &surface::EnumDef,
-    resolver_output: &ResolverOutput,
-) -> Result<(), ErrorGuaranteed> {
-    let def_id = owner_id.def_id;
-
-    let mut cx =
-        RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
-    let enum_def = cx.desugar_enum_def(enum_def)?;
-
-    if config::dump_fhir() {
-        dbg::dump_item_info(genv.tcx, owner_id, "fhir", &enum_def).unwrap();
+fn desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> fhir::Crate<'genv> {
+    match desugar_crate_inner(genv) {
+        Ok(fhir) => fhir,
+        Err(err) => {
+            // There's too much code down the pipeline that relies on having the fhir, so we abort
+            // if there are any error during desugaring to avoid propagating the error back the query
+            // system. We should probably move away from desugaring the entire crate in one go and
+            // instead desugar items on demand so we can fail on a per item basis.
+            genv.sess().abort(err);
+        }
     }
-
-    genv.map_mut().insert_enum(def_id, enum_def);
-
-    Ok(())
 }
 
-pub fn desugar_type_alias(
-    genv: &mut GlobalEnv,
-    owner_id: OwnerId,
-    ty_alias: Option<&surface::TyAlias>,
-    resolver_output: &ResolverOutput,
-) -> Result<(), ErrorGuaranteed> {
-    let def_id = owner_id.def_id;
-
-    let ty_alias = if let Some(ty_alias) = ty_alias {
-        let mut cx =
-            RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
-        cx.desugar_type_alias(ty_alias)?
-    } else {
-        lift::lift_type_alias(genv.tcx, genv.sess, owner_id)?
+macro_rules! collect_err {
+    ($self:expr, $body:expr) => {
+        $self.err = $body.err().or($self.err)
     };
-
-    if config::dump_fhir() {
-        dbg::dump_item_info(genv.tcx, owner_id, "fhir", &ty_alias).unwrap();
-    }
-
-    genv.map_mut().insert_type_alias(def_id, ty_alias);
-
-    Ok(())
 }
 
-pub fn desugar_fn_sig(
-    genv: &mut GlobalEnv,
-    owner_id: OwnerId,
-    fn_sig: Option<&surface::FnSig>,
-    resolver_output: &ResolverOutput,
-) -> Result<(), ErrorGuaranteed> {
-    let def_id = owner_id.def_id;
+struct CrateDesugar<'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
+    fhir: fhir::Crate<'genv>,
+    resolver_output: ResolverOutput,
+    err: Option<ErrorGuaranteed>,
+}
 
-    let (fn_sig, opaque_tys) = if let Some(fn_sig) = fn_sig {
-        let mut opaque_tys = Default::default();
-        let mut cx = RustItemCtxt::new(
-            genv.tcx,
-            genv.sess,
-            genv.map(),
-            owner_id,
-            resolver_output,
-            Some(&mut opaque_tys),
-        );
+impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
+    fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        fhir: fhir::Crate<'genv>,
+        resolver_output: ResolverOutput,
+    ) -> Self {
+        Self { genv, fhir, resolver_output, err: None }
+    }
+}
 
-        let fn_sig = cx.desugar_fn_sig(fn_sig)?;
+fn desugar_crate_inner<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::Crate<'genv>> {
+    let specs = genv.collect_specs();
+    let fhir = fhir::Crate::new(specs.ignores.clone(), specs.crate_config);
+    let resolver_output = resolver::resolve_crate(genv.tcx(), genv.sess(), specs)?;
+    let mut cx = CrateDesugar::new(genv, fhir, resolver_output);
+    cx.desugar_flux_items(specs);
+    cx.desugar_rust_items(specs);
 
-        (fn_sig, opaque_tys)
+    for (extern_def_id, local_def_id) in &specs.extern_specs {
+        cx.fhir.externs.insert(*extern_def_id, *local_def_id);
+    }
+
+    if let Some(err) = cx.err {
+        Err(err)
     } else {
-        lift::lift_fn(genv.tcx, genv.sess, owner_id)?
-    };
+        Ok(cx.fhir)
+    }
+}
 
-    if config::dump_fhir() {
-        dbg::dump_item_info(genv.tcx, def_id, "fhir", &fn_sig).unwrap();
+impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
+    fn desugar_flux_items(&mut self, specs: &Specs) {
+        for defn in &specs.func_defs {
+            collect_err!(self, self.desugar_func_defn(defn));
+        }
+
+        for (def_id, const_sig) in &specs.consts {
+            let did = def_id.to_def_id();
+            let sym = def_id_symbol(self.genv.tcx(), *def_id);
+            self.fhir
+                .consts
+                .insert(sym, fhir::ConstInfo { def_id: did, sym, val: const_sig.val });
+        }
+
+        for qualifier in &specs.qualifs {
+            collect_err!(self, self.desugar_qualifier(qualifier));
+        }
     }
 
-    let map = genv.map_mut();
-    map.insert_fn_sig(def_id, fn_sig);
-    map.insert_opaque_tys(opaque_tys);
+    fn desugar_func_defn(&mut self, defn: &surface::FuncDef) -> Result {
+        let func_decl = desugar::func_def_to_func_decl(self.genv, &self.resolver_output, defn)?;
+        self.fhir.func_decls.insert(defn.name.name, func_decl);
 
-    Ok(())
+        if let Some(defn) = desugar::desugar_defn(self.genv, &self.resolver_output, defn)? {
+            self.fhir
+                .flux_items
+                .insert(defn.name, fhir::FluxItem::Defn(defn));
+        }
+
+        Ok(())
+    }
+
+    fn desugar_qualifier(&mut self, qualifier: &surface::Qualifier) -> Result {
+        let qualifier = desugar::desugar_qualifier(self.genv, &self.resolver_output, qualifier)?;
+        self.fhir
+            .flux_items
+            .insert(qualifier.name, fhir::FluxItem::Qualifier(qualifier));
+        Ok(())
+    }
+
+    fn desugar_rust_items(&mut self, specs: &Specs) {
+        for item_id in self.genv.tcx().hir_crate_items(()).items() {
+            self.desugar_rust_item(item_id, specs);
+        }
+    }
+
+    fn desugar_rust_item(&mut self, item_id: hir::ItemId, specs: &Specs) {
+        let owner_id = item_id.owner_id;
+        let item = self.genv.hir().item(item_id);
+
+        match item.kind {
+            hir::ItemKind::Fn(..) => {
+                let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
+                collect_err!(self, self.desugar_fn_sig(owner_id, fn_spec));
+            }
+            hir::ItemKind::TyAlias(..) => {
+                let ty_alias = specs.ty_aliases[&owner_id].as_ref();
+                collect_err!(self, self.desugar_type_alias(owner_id, ty_alias));
+            }
+            hir::ItemKind::OpaqueTy(_) => {
+                // Opaque types are desugared as part of the desugaring of their defining function
+            }
+            hir::ItemKind::Enum(..) => {
+                let enum_def = &specs.enums[&owner_id];
+                collect_err!(self, self.desugar_enum_def(owner_id, enum_def));
+            }
+            hir::ItemKind::Struct(..) => {
+                let struct_def = &specs.structs[&owner_id];
+                collect_err!(self, self.desugar_struct_def(owner_id, struct_def));
+            }
+            hir::ItemKind::Trait(.., items) => {
+                collect_err!(self, self.desugar_trait(owner_id, &specs.traits[&owner_id]));
+                for trait_item in items {
+                    collect_err!(
+                        self,
+                        self.desugar_assoc_item(trait_item.id.owner_id, trait_item.kind, specs)
+                    );
+                }
+            }
+            hir::ItemKind::Impl(impl_) => {
+                collect_err!(self, self.desugar_impl(owner_id, &specs.impls[&owner_id]));
+                for impl_item in impl_.items {
+                    collect_err!(
+                        self,
+                        self.desugar_assoc_item(impl_item.id.owner_id, impl_item.kind, specs)
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn desugar_assoc_item(
+        &mut self,
+        owner_id: OwnerId,
+        kind: hir::AssocItemKind,
+        specs: &Specs,
+    ) -> Result {
+        match kind {
+            hir::AssocItemKind::Fn { .. } => {
+                let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
+                self.desugar_fn_sig(owner_id, fn_spec)?;
+            }
+            hir::AssocItemKind::Type => {
+                let generics = lift::lift_generics(self.genv, owner_id)?;
+                let assoc_ty = fhir::AssocType { generics };
+                self.fhir.assoc_types.insert(owner_id.def_id, assoc_ty);
+            }
+            hir::AssocItemKind::Const => {}
+        }
+        Ok(())
+    }
+
+    pub fn desugar_struct_def(
+        &mut self,
+        owner_id: OwnerId,
+        struct_def: &surface::StructDef,
+    ) -> Result {
+        let def_id = owner_id.def_id;
+
+        let mut cx = self.as_rust_item_ctxt(owner_id, None);
+        let struct_def = cx.desugar_struct_def(struct_def)?;
+
+        if config::dump_fhir() {
+            dbg::dump_item_info(self.genv.tcx(), owner_id, "fhir", struct_def).unwrap();
+        }
+
+        self.fhir.structs.insert(def_id, struct_def);
+
+        Ok(())
+    }
+
+    pub fn desugar_enum_def(&mut self, owner_id: OwnerId, enum_def: &surface::EnumDef) -> Result {
+        let def_id = owner_id.def_id;
+
+        let mut cx = self.as_rust_item_ctxt(owner_id, None);
+        let enum_def = cx.desugar_enum_def(enum_def)?;
+
+        if config::dump_fhir() {
+            dbg::dump_item_info(self.genv.tcx(), owner_id, "fhir", &enum_def).unwrap();
+        }
+
+        self.fhir.enums.insert(def_id, enum_def);
+
+        Ok(())
+    }
+
+    pub fn desugar_type_alias(
+        &mut self,
+        owner_id: OwnerId,
+        ty_alias: Option<&surface::TyAlias>,
+    ) -> Result {
+        let def_id = owner_id.def_id;
+
+        let ty_alias = if let Some(ty_alias) = ty_alias {
+            let mut cx = self.as_rust_item_ctxt(owner_id, None);
+            cx.desugar_type_alias(ty_alias)?
+        } else {
+            lift::lift_type_alias(self.genv, owner_id)?
+        };
+
+        if config::dump_fhir() {
+            dbg::dump_item_info(self.genv.tcx(), owner_id, "fhir", &ty_alias).unwrap();
+        }
+
+        self.fhir.type_aliases.insert(def_id, ty_alias);
+
+        Ok(())
+    }
+
+    pub fn desugar_fn_sig(&mut self, owner_id: OwnerId, fn_spec: &surface::FnSpec) -> Result {
+        let def_id = owner_id.def_id;
+
+        if fn_spec.trusted {
+            self.fhir.trusted.insert(def_id);
+        }
+
+        if let Some(quals) = &fn_spec.qual_names {
+            self.fhir
+                .fn_quals
+                .insert(def_id, self.genv.alloc_slice(&quals.names));
+        }
+
+        let (fn_sig, opaque_tys) = if let Some(fn_sig) = &fn_spec.fn_sig {
+            let mut opaque_tys = Default::default();
+            let mut cx = self.as_rust_item_ctxt(owner_id, Some(&mut opaque_tys));
+
+            let fn_sig = cx.desugar_fn_sig(fn_sig)?;
+
+            (fn_sig, opaque_tys)
+        } else {
+            lift::lift_fn(self.genv, owner_id)?
+        };
+
+        if config::dump_fhir() {
+            dbg::dump_item_info(self.genv.tcx(), def_id, "fhir", fn_sig).unwrap();
+        }
+
+        self.fhir.fns.insert(def_id, fn_sig);
+        self.fhir.opaque_tys.extend_unord(opaque_tys.into_items());
+
+        Ok(())
+    }
+
+    pub fn desugar_trait(&mut self, owner_id: OwnerId, trait_: &surface::Trait) -> Result {
+        let def_id = owner_id.def_id;
+
+        let mut cx = self.as_rust_item_ctxt(owner_id, None);
+        let trait_ = cx.desugar_trait(trait_)?;
+
+        self.fhir.traits.insert(def_id, trait_);
+
+        Ok(())
+    }
+
+    pub fn desugar_impl(&mut self, owner_id: OwnerId, impl_: &surface::Impl) -> Result {
+        let def_id = owner_id.def_id;
+
+        let mut cx = self.as_rust_item_ctxt(owner_id, None);
+        let impl_ = cx.desugar_impl(impl_)?;
+
+        self.fhir.impls.insert(def_id, impl_);
+
+        Ok(())
+    }
+
+    fn as_rust_item_ctxt<'a>(
+        &'a self,
+        owner_id: OwnerId,
+        opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
+    ) -> RustItemCtxt<'_, 'genv, 'tcx> {
+        RustItemCtxt::new(self.genv, owner_id, &self.resolver_output, opaque_tys)
+    }
 }
 
-pub fn desugar_trait(
-    genv: &mut GlobalEnv,
-    owner_id: OwnerId,
-    resolver_output: &ResolverOutput,
-    trait_: &surface::Trait,
-) -> Result<(), ErrorGuaranteed> {
-    let def_id = owner_id.def_id;
-
-    let mut cx =
-        RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
-    let trait_ = cx.desugar_trait(trait_)?;
-
-    genv.map_mut().insert_trait(def_id, trait_);
-
-    Ok(())
-}
-
-pub fn desugar_impl(
-    genv: &mut GlobalEnv,
-    owner_id: OwnerId,
-    resolver_output: &ResolverOutput,
-    impl_: &surface::Impl,
-) -> Result<(), ErrorGuaranteed> {
-    let def_id = owner_id.def_id;
-
-    let mut cx =
-        RustItemCtxt::new(genv.tcx, genv.sess, genv.map(), owner_id, resolver_output, None);
-    let impl_ = cx.desugar_impl(impl_)?;
-
-    genv.map_mut().insert_impl(def_id, impl_);
-
-    Ok(())
-}
-
-pub fn desugar_sort_decl(sort_decl: &surface::SortDecl) -> fhir::SortDecl {
-    fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span }
+fn def_id_symbol(tcx: TyCtxt, def_id: LocalDefId) -> rustc_span::Symbol {
+    let did = def_id.to_def_id();
+    // TODO(RJ) use fully qualified names: Symbol::intern(&tcx.def_path_str(did))
+    let def_path = tcx.def_path(did);
+    if let Some(dp) = def_path.data.last() {
+        if let rustc_hir::definitions::DefPathData::ValueNs(sym) = dp.data {
+            return sym;
+        }
+    }
+    panic!("def_id_symbol fails on {did:?}")
 }

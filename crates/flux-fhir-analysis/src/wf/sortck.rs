@@ -16,17 +16,17 @@ use rustc_span::{def_id::DefId, Span};
 use super::errors;
 use crate::conv;
 
-pub(super) struct InferCtxt<'a, 'tcx> {
-    pub genv: &'a GlobalEnv<'a, 'tcx>,
+pub(super) struct InferCtxt<'genv, 'tcx> {
+    pub genv: GlobalEnv<'genv, 'tcx>,
     params: UnordMap<fhir::Name, (rty::Sort, fhir::ParamKind)>,
     pub(super) unification_table: InPlaceUnificationTable<rty::SortVid>,
-    pub wfckresults: WfckResults,
+    pub wfckresults: WfckResults<'genv>,
     /// sort variables that can only be instantiated to sorts that support equality (i.e. non `FuncSort`)
     eq_vids: HashSet<rty::SortVid>,
 }
 
-impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
-    pub(super) fn new(genv: &'a GlobalEnv<'a, 'tcx>, owner: FluxOwnerId) -> Self {
+impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
+    pub(super) fn new(genv: GlobalEnv<'genv, 'tcx>, owner: FluxOwnerId) -> Self {
         Self {
             genv,
             wfckresults: WfckResults::new(owner),
@@ -51,7 +51,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     fn check_abs(
         &mut self,
         arg: &fhir::RefineArg,
-        params: &Vec<fhir::RefineParam>,
+        params: &[fhir::RefineParam],
         body: &fhir::Expr,
         expected: &rty::Sort,
     ) -> Result<(), ErrorGuaranteed> {
@@ -119,10 +119,10 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         expected: &rty::Sort,
     ) -> Result<(), ErrorGuaranteed> {
         match &expr.kind {
-            fhir::ExprKind::BinaryOp(op, box [e1, e2]) => {
+            fhir::ExprKind::BinaryOp(op, e1, e2) => {
                 self.check_binary_op(expr, *op, e1, e2, expected)?;
             }
-            fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
+            fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 self.check_expr(p, &rty::Sort::Bool)?;
                 self.check_expr(e1, expected)?;
                 self.check_expr(e2, expected)?;
@@ -199,11 +199,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         match &expr.kind {
             fhir::ExprKind::Var(var, _) => Ok(self.lookup_var(*var)),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
-            fhir::ExprKind::BinaryOp(op, box [e1, e2]) => self.synth_binary_op(expr, *op, e1, e2),
+            fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
             fhir::ExprKind::Const(_, _) => Ok(rty::Sort::Int), // TODO: generalize const sorts
             fhir::ExprKind::App(f, es) => self.synth_app(f, es, expr.span),
-            fhir::ExprKind::IfThenElse(box [p, e1, e2]) => {
+            fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 self.check_expr(p, &rty::Sort::Bool)?;
                 let sort = self.synth_expr(e1)?;
                 self.check_expr(e2, &sort)?;
@@ -321,7 +321,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                 };
                 fsort
             }
-            fhir::Func::Global(func, ..) => self.genv.func_decl(func).sort.clone(),
+            fhir::Func::Global(func, ..) => self.genv.func_decl(*func).sort.clone(),
         };
         Ok(self.instantiate_func_sort(poly_fsort))
     }
@@ -335,7 +335,7 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
     }
 }
 
-impl<'a> InferCtxt<'a, '_> {
+impl<'genv> InferCtxt<'genv, '_> {
     /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
     pub(super) fn insert_params(&mut self, params: &[fhir::RefineParam]) {
         for param in params {
@@ -594,7 +594,7 @@ impl<'a> InferCtxt<'a, '_> {
             .map_or(false, |s| self.genv.has_equality(&s))
     }
 
-    pub(crate) fn into_results(self) -> WfckResults {
+    pub(crate) fn into_results(self) -> WfckResults<'genv> {
         self.wfckresults
     }
 
@@ -627,7 +627,7 @@ impl<'a, 'b, 'tcx> ImplicitParamInferer<'a, 'b, 'tcx> {
         idx: &fhir::RefineArg,
         expected: &rty::Sort,
     ) -> Result<(), ErrorGuaranteed> {
-        match &idx.kind {
+        match idx.kind {
             fhir::RefineArgKind::Expr(expr) => {
                 if let fhir::ExprKind::Var(var, Some(_)) = &expr.kind {
                     let found = self.infcx.lookup_var(*var);
@@ -712,7 +712,7 @@ impl InferCtxt<'_, '_> {
 
     #[track_caller]
     fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
-        self.genv.sess.emit_err(err)
+        self.genv.sess().emit_err(err)
     }
 }
 

@@ -384,7 +384,7 @@ impl Place {
         Place { local, projection }
     }
 
-    pub fn ty(&self, genv: &GlobalEnv, local_decls: &LocalDecls) -> QueryResult<PlaceTy> {
+    pub fn ty(&self, genv: GlobalEnv, local_decls: &LocalDecls) -> QueryResult<PlaceTy> {
         self.projection
             .iter()
             .try_fold(PlaceTy::from_ty(local_decls[self.local].ty.clone()), |place_ty, elem| {
@@ -392,7 +392,7 @@ impl Place {
             })
     }
 
-    pub fn behind_raw_ptr(&self, genv: &GlobalEnv, local_decls: &LocalDecls) -> QueryResult<bool> {
+    pub fn behind_raw_ptr(&self, genv: GlobalEnv, local_decls: &LocalDecls) -> QueryResult<bool> {
         let mut place_ty = PlaceTy::from_ty(local_decls[self.local].ty.clone());
         for elem in &self.projection {
             if let (PlaceElem::Deref, TyKind::RawPtr(..)) = (elem, place_ty.ty.kind()) {
@@ -409,7 +409,7 @@ impl PlaceTy {
         PlaceTy { ty, variant_index: None }
     }
 
-    fn projection_ty(&self, genv: &GlobalEnv, elem: PlaceElem) -> QueryResult<PlaceTy> {
+    fn projection_ty(&self, genv: GlobalEnv, elem: PlaceElem) -> QueryResult<PlaceTy> {
         if self.variant_index.is_some() && !matches!(elem, PlaceElem::Field(..)) {
             bug!("cannot use non field projection on downcasted place");
         }
@@ -430,7 +430,7 @@ impl PlaceTy {
         Ok(place_ty)
     }
 
-    fn field_ty(&self, genv: &GlobalEnv, f: FieldIdx) -> QueryResult<Ty> {
+    fn field_ty(&self, genv: GlobalEnv, f: FieldIdx) -> QueryResult<Ty> {
         match self.ty.kind() {
             TyKind::Adt(adt_def, args) => {
                 let variant_def = match self.variant_index {

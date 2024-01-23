@@ -35,29 +35,29 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> QueryResult<rty
     Ok(rty::Generics { params, parent: generics.parent(), parent_count: generics.parent_count() })
 }
 
-pub struct Refiner<'a, 'tcx> {
-    genv: &'a GlobalEnv<'a, 'tcx>,
-    generics: &'a rty::Generics,
+pub struct Refiner<'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
+    generics: rty::Generics,
     refine: fn(rty::BaseTy) -> rty::Binder<rty::Ty>,
 }
 
-impl<'a, 'tcx> Refiner<'a, 'tcx> {
+impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     pub(crate) fn new(
-        genv: &'a GlobalEnv<'a, 'tcx>,
-        generics: &'a rty::Generics,
+        genv: GlobalEnv<'genv, 'tcx>,
+        generics: &rty::Generics,
         refine: fn(rty::BaseTy) -> rty::Binder<rty::Ty>,
     ) -> Self {
-        Self { genv, generics, refine }
+        Self { genv, generics: generics.clone(), refine }
     }
 
-    pub fn default(genv: &'a GlobalEnv<'a, 'tcx>, generics: &'a rty::Generics) -> Self {
-        Self { genv, generics, refine: refine_default }
+    pub fn default(genv: GlobalEnv<'genv, 'tcx>, generics: &rty::Generics) -> Self {
+        Self { genv, generics: generics.clone(), refine: refine_default }
     }
 
-    pub(crate) fn with_holes(genv: &'a GlobalEnv<'a, 'tcx>, generics: &'a rty::Generics) -> Self {
+    pub(crate) fn with_holes(genv: GlobalEnv<'genv, 'tcx>, generics: &rty::Generics) -> Self {
         Self {
             genv,
-            generics,
+            generics: generics.clone(),
             refine: |bty| {
                 let sort = bty.sort();
                 let indexed = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
@@ -97,7 +97,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
         let kind = match &clause.kind {
             rustc::ty::ClauseKind::Trait(trait_pred) => {
                 let trait_ref = &trait_pred.trait_ref;
-                if let Some(kind) = self.genv.tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
+                if let Some(kind) = self.genv.tcx().fn_trait_kind_from_def_id(trait_ref.def_id) {
                     self.refine_fn_trait_pred(clauses, kind, trait_ref)?
                 } else {
                     let pred = rty::TraitPredicate { trait_ref: self.refine_trait_ref(trait_ref)? };
@@ -362,7 +362,7 @@ impl<'a, 'tcx> Refiner<'a, 'tcx> {
     }
 
     fn as_default(&self) -> Self {
-        Refiner { refine: refine_default, ..*self }
+        Refiner { refine: refine_default, generics: self.generics.clone(), ..*self }
     }
 
     fn adt_def(&self, def_id: DefId) -> QueryResult<rty::AdtDef> {

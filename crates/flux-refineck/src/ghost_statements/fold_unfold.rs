@@ -30,7 +30,7 @@ use crate::{
 
 pub(crate) fn add_ghost_statements<'tcx>(
     stmts: &mut GhostStatements,
-    genv: &GlobalEnv<'_, 'tcx>,
+    genv: GlobalEnv<'_, 'tcx>,
     body: &Body<'tcx>,
 ) -> QueryResult {
     let mut bb_envs = FxHashMap::default();
@@ -44,8 +44,8 @@ struct Env {
     map: IndexVec<Local, PlaceNode>,
 }
 
-struct FoldUnfoldAnalysis<'a, 'tcx, M> {
-    genv: &'a GlobalEnv<'a, 'tcx>,
+struct FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
+    genv: GlobalEnv<'genv, 'tcx>,
     body: &'a Body<'tcx>,
     bb_envs: &'a mut FxHashMap<BasicBlock, Env>,
     visited: BitSet<BasicBlock>,
@@ -191,7 +191,7 @@ enum PlaceNode {
     Ty(Ty),
 }
 
-impl<'a, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'tcx, M> {
+impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
     fn run(mut self) -> QueryResult {
         self.goto(START_BLOCK, START_BLOCK, Env::new(self.body))?;
         while let Some(bb) = self.queue.pop() {
@@ -351,9 +351,9 @@ impl<'a, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'tcx, M> {
     }
 }
 
-impl<'a, 'tcx, M> FoldUnfoldAnalysis<'a, 'tcx, M> {
+impl<'a, 'genv, 'tcx, M> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
     pub(crate) fn new(
-        genv: &'a GlobalEnv<'a, 'tcx>,
+        genv: GlobalEnv<'genv, 'tcx>,
         body: &'a Body<'tcx>,
         bb_envs: &'a mut FxHashMap<BasicBlock, Env>,
         mode: M,
@@ -388,7 +388,7 @@ impl Env {
         }
     }
 
-    fn projection(&mut self, genv: &GlobalEnv, place: &Place) -> QueryResult<ProjResult> {
+    fn projection(&mut self, genv: GlobalEnv, place: &Place) -> QueryResult<ProjResult> {
         let (node, unfolded) = self.unfold(genv, place)?;
         if unfolded {
             Ok(ProjResult::Unfold)
@@ -399,18 +399,13 @@ impl Env {
         }
     }
 
-    fn downcast(
-        &mut self,
-        genv: &GlobalEnv,
-        place: &Place,
-        variant_idx: VariantIdx,
-    ) -> QueryResult {
+    fn downcast(&mut self, genv: GlobalEnv, place: &Place, variant_idx: VariantIdx) -> QueryResult {
         let (node, _) = self.unfold(genv, place)?;
         node.downcast(genv, variant_idx)?;
         Ok(())
     }
 
-    fn unfold(&mut self, genv: &GlobalEnv, place: &Place) -> QueryResult<(&mut PlaceNode, bool)> {
+    fn unfold(&mut self, genv: GlobalEnv, place: &Place) -> QueryResult<(&mut PlaceNode, bool)> {
         let mut node = &mut self.map[place.local];
         let mut unfolded = false;
         for elem in &place.projection {
@@ -426,7 +421,7 @@ impl Env {
         Ok((node, unfolded))
     }
 
-    fn join(&mut self, genv: &GlobalEnv, mut other: Env) -> QueryResult<bool> {
+    fn join(&mut self, genv: GlobalEnv, mut other: Env) -> QueryResult<bool> {
         let mut modified = false;
         for (local, node) in self.map.iter_enumerated_mut() {
             let (m, _) = node.join(genv, &mut other.map[local], false)?;
@@ -463,7 +458,7 @@ impl PlaceNode {
 
     fn downcast(
         &mut self,
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         idx: VariantIdx,
     ) -> QueryResult<(&mut PlaceNode, bool)> {
         match self {
@@ -484,12 +479,12 @@ impl PlaceNode {
         }
     }
 
-    fn field(&mut self, genv: &GlobalEnv, f: FieldIdx) -> QueryResult<(&mut PlaceNode, bool)> {
+    fn field(&mut self, genv: GlobalEnv, f: FieldIdx) -> QueryResult<(&mut PlaceNode, bool)> {
         let (fields, unfolded) = self.fields(genv)?;
         Ok((&mut fields[f.as_usize()], unfolded))
     }
 
-    fn fields(&mut self, genv: &GlobalEnv) -> QueryResult<(&mut Vec<PlaceNode>, bool)> {
+    fn fields(&mut self, genv: GlobalEnv) -> QueryResult<(&mut Vec<PlaceNode>, bool)> {
         match self {
             PlaceNode::Ty(ty) => {
                 let fields = match ty.kind() {
@@ -575,7 +570,7 @@ impl PlaceNode {
 
     fn join(
         &mut self,
-        genv: &GlobalEnv,
+        genv: GlobalEnv,
         other: &mut PlaceNode,
         in_mut_ref: bool,
     ) -> QueryResult<(bool, bool)> {
@@ -764,7 +759,7 @@ impl PlaceNode {
 }
 
 fn downcast(
-    genv: &GlobalEnv,
+    genv: GlobalEnv,
     adt_def: &AdtDef,
     args: &GenericArgs,
     variant: VariantIdx,
@@ -781,7 +776,7 @@ fn downcast(
 }
 
 fn downcast_struct(
-    genv: &GlobalEnv,
+    genv: GlobalEnv,
     adt_def: &AdtDef,
     args: &GenericArgs,
 ) -> QueryResult<Vec<PlaceNode>> {

@@ -7,8 +7,8 @@ use rustc_span::{
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub fn check_impl_against_trait(genv: &GlobalEnv, impl_id: LocalDefId) -> Result {
-    let trait_id = genv.tcx.trait_id_of_impl(impl_id.to_def_id()).unwrap();
+pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result {
+    let trait_id = genv.tcx().trait_id_of_impl(impl_id.to_def_id()).unwrap();
 
     let impl_assoc_preds = genv.assoc_predicates_of(impl_id);
     let trait_assoc_preds = genv.assoc_predicates_of(trait_id);
@@ -18,10 +18,10 @@ pub fn check_impl_against_trait(genv: &GlobalEnv, impl_id: LocalDefId) -> Result
         if trait_assoc_preds.find(name).is_none() {
             let fhir_impl_assoc_pred = genv
                 .map()
-                .get_impl(impl_id)
+                .expect_impl(impl_id)
                 .find_assoc_predicate(name)
                 .unwrap();
-            return Err(genv.sess.emit_err(errors::InvalidAssocPredicate::new(
+            return Err(genv.sess().emit_err(errors::InvalidAssocPredicate::new(
                 fhir_impl_assoc_pred.span,
                 name,
                 pretty::def_id_to_string(trait_id),
@@ -34,14 +34,14 @@ pub fn check_impl_against_trait(genv: &GlobalEnv, impl_id: LocalDefId) -> Result
 }
 
 fn check_assoc_predicate(
-    genv: &GlobalEnv,
+    genv: GlobalEnv,
     impl_id: LocalDefId,
     trait_id: DefId,
     name: Symbol,
 ) -> Result {
     let impl_trait_ref = genv
         .impl_trait_ref(impl_id.to_def_id())
-        .emit(genv.sess)?
+        .emit(genv.sess())?
         .unwrap()
         .instantiate_identity(&[]);
 
@@ -56,12 +56,12 @@ fn check_assoc_predicate(
     if impl_sort != trait_sort {
         let impl_span = genv
             .map()
-            .get_impl(impl_id)
+            .expect_impl(impl_id)
             .find_assoc_predicate(name)
             .unwrap()
             .span;
         return Err(genv
-            .sess
+            .sess()
             .emit_err(errors::IncompatibleSort::new(impl_span, name, trait_sort, impl_sort)));
     }
 
