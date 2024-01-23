@@ -3,15 +3,13 @@ use std::collections::HashMap;
 use flux_common::iter::IterExt;
 use flux_config::{self as config, CrateConfig};
 use flux_errors::{FluxSession, ResultExt};
-use flux_middle::{const_eval::scalar_int_to_rty_constant, fhir, rty::Constant};
+use flux_middle::{const_eval::scalar_int_to_rty_constant, fhir, ConstSig, Specs};
 use flux_syntax::{surface, ParseResult, ParseSess};
 use itertools::Itertools;
 use rustc_ast::{
     tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, Attribute, MetaItemKind, NestedMetaItem,
 };
-use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
-use rustc_hash::FxHashMap;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
@@ -26,38 +24,6 @@ pub(crate) struct SpecCollector<'tcx, 'a> {
     specs: Specs,
     sess: &'a FluxSession,
     error_guaranteed: Option<ErrorGuaranteed>,
-}
-
-/// Set of module (`LocalDefId`) that should be ignored by flux
-pub type Ignores = UnordSet<fhir::IgnoreKey>;
-
-pub(crate) struct Specs {
-    pub fn_sigs: UnordMap<OwnerId, FnSpec>,
-    pub structs: UnordMap<OwnerId, surface::StructDef>,
-    pub traits: UnordMap<OwnerId, surface::Trait>,
-    pub impls: UnordMap<OwnerId, surface::Impl>,
-    pub enums: UnordMap<OwnerId, surface::EnumDef>,
-    pub qualifs: Vec<surface::Qualifier>,
-    pub func_defs: Vec<surface::FuncDef>,
-    pub sort_decls: Vec<surface::SortDecl>,
-    pub ty_aliases: UnordMap<OwnerId, Option<surface::TyAlias>>,
-    pub ignores: Ignores,
-    pub consts: FxHashMap<LocalDefId, ConstSig>,
-    pub crate_config: Option<config::CrateConfig>,
-    pub extern_specs: FxHashMap<DefId, LocalDefId>,
-}
-
-#[derive(Debug)]
-pub(crate) struct FnSpec {
-    pub fn_sig: Option<surface::FnSig>,
-    pub trusted: bool,
-    pub qual_names: Option<surface::QualNames>,
-}
-
-#[derive(Debug)]
-pub(crate) struct ConstSig {
-    pub _ty: surface::ConstSig,
-    pub val: Constant,
 }
 
 macro_rules! attr_name {
@@ -76,7 +42,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             tcx,
             parse_sess: ParseSess::default(),
             sess,
-            specs: Specs::new(),
+            specs: Specs::default(),
             error_guaranteed: None,
         };
 
@@ -404,7 +370,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
         self.specs
             .fn_sigs
-            .insert(owner_id, FnSpec { fn_sig, trusted, qual_names });
+            .insert(owner_id, surface::FnSpec { fn_sig, trusted, qual_names });
         Ok(())
     }
 
@@ -622,36 +588,6 @@ fn eval_const(tcx: TyCtxt, did: LocalDefId) -> Option<ScalarInt> {
         return const_val.try_to_scalar_int();
     }
     None
-}
-
-impl Specs {
-    fn new() -> Specs {
-        Specs {
-            fn_sigs: Default::default(),
-            traits: Default::default(),
-            impls: Default::default(),
-            structs: Default::default(),
-            enums: Default::default(),
-            qualifs: Vec::default(),
-            sort_decls: Vec::default(),
-            func_defs: Vec::default(),
-            ty_aliases: Default::default(),
-            ignores: Default::default(),
-            consts: Default::default(),
-            crate_config: None,
-            extern_specs: Default::default(),
-        }
-    }
-
-    fn extend_items(&mut self, items: impl IntoIterator<Item = surface::Item>) {
-        for item in items {
-            match item {
-                surface::Item::Qualifier(qualifier) => self.qualifs.push(qualifier),
-                surface::Item::FuncDef(defn) => self.func_defs.push(defn),
-                surface::Item::SortDecl(sort_decl) => self.sort_decls.push(sort_decl),
-            }
-        }
-    }
 }
 
 #[derive(Debug)]

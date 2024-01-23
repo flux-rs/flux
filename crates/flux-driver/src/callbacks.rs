@@ -1,29 +1,20 @@
-use desugar::resolver::{Resolver, ResolverOutput};
 use flux_common::{cache::QueryCache, dbg, iter::IterExt};
 use flux_config as config;
-use flux_desugar as desugar;
 use flux_errors::{FluxSession, ResultExt};
 use flux_fhir_analysis::compare_impl_item;
 use flux_metadata::CStore;
-use flux_middle::{
-    fhir::{self, lift, ConstInfo},
-    global_env::GlobalEnv,
-    queries::Providers,
-};
+use flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
 use flux_refineck as refineck;
 use refineck::CheckerConfig;
 use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
-use rustc_errors::{ErrorGuaranteed, FatalError};
-use rustc_hir::{self as hir, def::DefKind, def_id::LocalDefId, OwnerId};
+use rustc_errors::ErrorGuaranteed;
+use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_interface::{interface::Compiler, Queries};
 use rustc_middle::{query, ty::TyCtxt};
 use rustc_session::config::OutputType;
 
-use crate::{
-    collector::{SpecCollector, Specs},
-    DEFAULT_LOCALE_RESOURCES,
-};
+use crate::{collector::SpecCollector, DEFAULT_LOCALE_RESOURCES};
 
 #[derive(Default)]
 pub struct FluxCallbacks {
@@ -76,8 +67,9 @@ impl FluxCallbacks {
             );
 
             let mut providers = Providers::default();
+            flux_desugar::provide(&mut providers);
             flux_fhir_analysis::provide(&mut providers);
-            providers.fhir_crate = desugar_crate;
+            providers.collect_specs = collect_specs;
 
             let cstore = CStore::load(tcx, &sess);
             let arena = fhir::Arena::new();
@@ -121,258 +113,13 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     })
 }
 
-fn collect_global_items(tcx: TyCtxt, resolver_output: &mut ResolverOutput, specs: &Specs) {
-    for sort_decl in &specs.sort_decls {
-        resolver_output
-            .sort_decls
-            .insert(sort_decl.name.name, desugar::desugar_sort_decl(sort_decl));
-    }
-
-    for def_id in specs.consts.keys() {
-        let did = def_id.to_def_id();
-        let sym = def_id_symbol(tcx, *def_id);
-        resolver_output.consts.insert(sym, did);
-    }
-
-    for defn in &specs.func_defs {
-        let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
-        resolver_output.func_decls.insert(defn.name.name, kind);
-    }
-
-    for itf in flux_middle::theory_funcs() {
-        resolver_output
-            .func_decls
-            .insert(itf.name, fhir::FuncKind::Thy(itf.fixpoint_name));
-    }
-}
-
-fn resolve_crate(genv: GlobalEnv, specs: &Specs) -> Result<ResolverOutput, ErrorGuaranteed> {
-    let mut resolver = Resolver::new(genv.tcx(), genv.sess());
-    genv.tcx()
-        .hir_crate_items(())
-        .owners()
-        .try_for_each_exhaust(|id| {
-            match genv.tcx().def_kind(id) {
-                DefKind::Struct => resolver.resolve_struct_def(id, &specs.structs[&id])?,
-                DefKind::Enum => resolver.resolve_enum_def(id, &specs.enums[&id])?,
-                DefKind::TyAlias { .. } => {
-                    if let Some(type_alias) = &specs.ty_aliases[&id] {
-                        resolver.resolve_type_alias(id, type_alias)?;
-                    }
-                }
-                DefKind::Fn | DefKind::AssocFn => {
-                    if let Some(fn_sig) = specs.fn_sigs[&id].fn_sig.as_ref() {
-                        resolver.resolve_fn_sig(id, fn_sig)?;
-                    }
-                }
-                _ => {}
-            }
-            Ok(())
-        })?;
-    let mut resolver_output = resolver.into_output();
-
-    collect_global_items(genv.tcx(), &mut resolver_output, specs);
-
-    Ok(resolver_output)
-}
-
-fn desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> fhir::Crate<'genv> {
-    match desugar_crate_inner(genv) {
-        Ok(fhir) => fhir,
-        Err(_) => {
-            // There's too much code down the pipeline that relies on having the fhir, so we abort
-            // if there are any error during desugaring to avoid propagating the error back the query
-            // system. We should probably move away from desugaring the entire crate in one go and
-            // instead desugar items on demand so we can fail on a per item basis.
-            genv.sess().abort_if_errors();
-            FatalError.raise()
+fn collect_specs(genv: GlobalEnv) -> Specs {
+    match SpecCollector::collect(genv.tcx(), genv.sess()) {
+        Ok(specs) => specs,
+        Err(err) => {
+            genv.sess().abort(err);
         }
     }
-}
-
-fn desugar_crate_inner<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-) -> Result<fhir::Crate<'genv>, ErrorGuaranteed> {
-    let mut specs = SpecCollector::collect(genv.tcx(), genv.sess())?;
-
-    let resolver_output = resolve_crate(genv, &specs)?;
-
-    let mut fhir = fhir::Crate::new(std::mem::take(&mut specs.ignores), specs.crate_config);
-
-    let mut err: Option<ErrorGuaranteed> = None;
-
-    for defn in &specs.func_defs {
-        let name = defn.name;
-        let func_decl = desugar::func_def_to_func_decl(genv, &resolver_output, defn)?;
-        fhir.func_decls.insert(name.name, func_decl);
-    }
-
-    for (def_id, const_sig) in &specs.consts {
-        let did = def_id.to_def_id();
-        let sym = def_id_symbol(genv.tcx(), *def_id);
-        fhir.consts
-            .insert(sym, ConstInfo { def_id: did, sym, val: const_sig.val });
-    }
-
-    // Defns
-    err = specs
-        .func_defs
-        .iter()
-        .try_for_each_exhaust(|defn| {
-            let name = defn.name;
-            if let Some(defn) = desugar::desugar_defn(genv, &resolver_output, defn)? {
-                fhir.flux_items
-                    .insert(name.name, fhir::FluxItem::Defn(defn));
-            }
-            Ok(())
-        })
-        .err()
-        .or(err);
-
-    // Qualifiers
-    err = specs
-        .qualifs
-        .iter()
-        .try_for_each_exhaust(|qualifier| {
-            let qualifier = desugar::desugar_qualifier(genv, &resolver_output, qualifier)?;
-            fhir.flux_items
-                .insert(qualifier.name, fhir::FluxItem::Qualifier(qualifier));
-            Ok(())
-        })
-        .err()
-        .or(err);
-
-    err = genv
-        .tcx()
-        .hir_crate_items(())
-        .items()
-        .try_for_each_exhaust(|item_id| {
-            desugar_item(genv, &specs, item_id, &resolver_output, &mut fhir)
-        })
-        .err()
-        .or(err);
-
-    specs
-        .extern_specs
-        .iter()
-        .for_each(|(extern_def_id, local_def_id)| {
-            fhir.externs.insert(*extern_def_id, *local_def_id);
-        });
-
-    if let Some(err) = err {
-        Err(err)
-    } else {
-        Ok(fhir)
-    }
-}
-
-fn desugar_item<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    specs: &Specs,
-    item_id: hir::ItemId,
-    resolver_output: &ResolverOutput,
-    fhir: &mut fhir::Crate<'genv>,
-) -> Result<(), ErrorGuaranteed> {
-    let owner_id = item_id.owner_id;
-    let item = genv.hir().item(item_id);
-
-    match item.kind {
-        hir::ItemKind::Fn(..) => {
-            desugar_fn_sig(genv, specs, owner_id, resolver_output, fhir)?;
-        }
-        hir::ItemKind::TyAlias(..) => {
-            let ty_alias = specs.ty_aliases[&owner_id].as_ref();
-            desugar::desugar_type_alias(genv, owner_id, ty_alias, resolver_output, fhir)?;
-        }
-        hir::ItemKind::OpaqueTy(_) => {
-            // Opaque types are desugared as part of the desugaring of their defining function
-        }
-        hir::ItemKind::Enum(..) => {
-            let enum_def = &specs.enums[&owner_id];
-            desugar::desugar_enum_def(genv, owner_id, enum_def, resolver_output, fhir)?;
-        }
-        hir::ItemKind::Struct(..) => {
-            let struct_def = &specs.structs[&owner_id];
-            desugar::desugar_struct_def(genv, owner_id, struct_def, resolver_output, fhir)?;
-        }
-        hir::ItemKind::Trait(.., items) => {
-            desugar::desugar_trait(
-                genv,
-                owner_id,
-                resolver_output,
-                &specs.traits[&owner_id],
-                fhir,
-            )?;
-            items.iter().try_for_each_exhaust(|trait_item| {
-                desugar_assoc_item(
-                    genv,
-                    specs,
-                    trait_item.id.owner_id,
-                    trait_item.kind,
-                    resolver_output,
-                    fhir,
-                )
-            })?;
-        }
-        hir::ItemKind::Impl(impl_) => {
-            desugar::desugar_impl(genv, owner_id, resolver_output, &specs.impls[&owner_id], fhir)?;
-            impl_.items.iter().try_for_each_exhaust(|impl_item| {
-                desugar_assoc_item(
-                    genv,
-                    specs,
-                    impl_item.id.owner_id,
-                    impl_item.kind,
-                    resolver_output,
-                    fhir,
-                )
-            })?;
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
-fn desugar_assoc_item<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    specs: &Specs,
-    owner_id: OwnerId,
-    kind: hir::AssocItemKind,
-    resolver_output: &ResolverOutput,
-    fhir: &mut fhir::Crate<'genv>,
-) -> Result<(), ErrorGuaranteed> {
-    match kind {
-        hir::AssocItemKind::Fn { .. } => {
-            desugar_fn_sig(genv, specs, owner_id, resolver_output, fhir)
-        }
-        hir::AssocItemKind::Type => {
-            let generics = lift::lift_generics(genv, owner_id)?;
-            let assoc_ty = fhir::AssocType { generics };
-            fhir.assoc_types.insert(owner_id.def_id, assoc_ty);
-            Ok(())
-        }
-        hir::AssocItemKind::Const => Ok(()),
-    }
-}
-
-fn desugar_fn_sig<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    specs: &Specs,
-    owner_id: OwnerId,
-    resolver_output: &ResolverOutput,
-    fhir: &mut fhir::Crate<'genv>,
-) -> Result<(), ErrorGuaranteed> {
-    let spec = specs.fn_sigs.get(&owner_id).unwrap();
-    let def_id = owner_id.def_id;
-    if spec.trusted {
-        fhir.trusted.insert(def_id);
-    }
-
-    desugar::desugar_fn_sig(genv, owner_id, spec.fn_sig.as_ref(), resolver_output, fhir)?;
-
-    if let Some(quals) = &spec.qual_names {
-        fhir.fn_quals.insert(def_id, genv.alloc_slice(&quals.names));
-    }
-    Ok(())
 }
 
 fn save_metadata(genv: &GlobalEnv) {
@@ -478,18 +225,6 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             _ => Ok(()),
         }
     }
-}
-
-fn def_id_symbol(tcx: TyCtxt, def_id: LocalDefId) -> rustc_span::Symbol {
-    let did = def_id.to_def_id();
-    // TODO(RJ) use fully qualified names: Symbol::intern(&tcx.def_path_str(did))
-    let def_path = tcx.def_path(did);
-    if let Some(dp) = def_path.data.last() {
-        if let rustc_hir::definitions::DefPathData::ValueNs(sym) = dp.data {
-            return sym;
-        }
-    }
-    panic!("def_id_symbol fails on {did:?}")
 }
 
 #[allow(clippy::needless_lifetimes)]

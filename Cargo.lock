@@ -599,6 +599,7 @@ dependencies = [
  "flux-errors",
  "flux-fixpoint",
  "flux-macros",
+ "flux-syntax",
  "hashbrown 0.14.3",
  "itertools",
  "toposort-scc",

@@ -42,9 +42,17 @@ mod sort_of;
 
 use std::sync::OnceLock;
 
+use flux_config as config;
 use flux_macros::fluent_messages;
+use flux_syntax::surface;
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
-use rustc_span::Symbol;
+use rustc_hash::FxHashMap;
+use rustc_hir::OwnerId;
+use rustc_span::{
+    def_id::{DefId, LocalDefId},
+    Symbol,
+};
 
 fluent_messages! { "../locales/en-US.ftl" }
 
@@ -181,4 +189,39 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
             },
         ]
     })
+}
+
+#[derive(Default)]
+pub struct Specs {
+    pub fn_sigs: UnordMap<OwnerId, surface::FnSpec>,
+    pub structs: UnordMap<OwnerId, surface::StructDef>,
+    pub traits: UnordMap<OwnerId, surface::Trait>,
+    pub impls: UnordMap<OwnerId, surface::Impl>,
+    pub enums: UnordMap<OwnerId, surface::EnumDef>,
+    pub qualifs: Vec<surface::Qualifier>,
+    pub func_defs: Vec<surface::FuncDef>,
+    pub sort_decls: Vec<surface::SortDecl>,
+    pub ty_aliases: UnordMap<OwnerId, Option<surface::TyAlias>>,
+    pub ignores: UnordSet<fhir::IgnoreKey>,
+    pub consts: FxHashMap<LocalDefId, ConstSig>,
+    pub crate_config: Option<config::CrateConfig>,
+    pub extern_specs: FxHashMap<DefId, LocalDefId>,
+}
+
+#[derive(Debug)]
+pub struct ConstSig {
+    pub _ty: surface::ConstSig,
+    pub val: rty::Constant,
+}
+
+impl Specs {
+    pub fn extend_items(&mut self, items: impl IntoIterator<Item = surface::Item>) {
+        for item in items {
+            match item {
+                surface::Item::Qualifier(qualifier) => self.qualifs.push(qualifier),
+                surface::Item::FuncDef(defn) => self.func_defs.push(defn),
+                surface::Item::SortDecl(sort_decl) => self.sort_decls.push(sort_decl),
+            }
+        }
+    }
 }

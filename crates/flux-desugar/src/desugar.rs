@@ -37,7 +37,7 @@ use crate::{
     sort_resolver::{SelfRes, SortResolver, SORTS},
 };
 
-pub fn desugar_qualifier<'genv>(
+pub(crate) fn desugar_qualifier<'genv>(
     genv: GlobalEnv<'genv, '_>,
     resolver_output: &ResolverOutput,
     qualifier: &surface::Qualifier,
@@ -58,7 +58,7 @@ pub fn desugar_qualifier<'genv>(
     })
 }
 
-pub fn desugar_defn<'genv>(
+pub(crate) fn desugar_defn<'genv>(
     genv: GlobalEnv<'genv, '_>,
     resolver_output: &ResolverOutput,
     defn: &surface::FuncDef,

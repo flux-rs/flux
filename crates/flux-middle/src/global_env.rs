@@ -59,6 +59,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.sess
     }
 
+    pub fn collect_specs(self) -> &'genv crate::Specs {
+        self.inner.queries.collect_specs(self)
+    }
+
     pub fn fhir_crate(self) -> &'genv fhir::Crate<'genv> {
         self.inner.queries.fhir_crate(self)
     }

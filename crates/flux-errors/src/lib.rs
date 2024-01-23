@@ -14,7 +14,7 @@ use rustc_errors::{
     emitter::{Emitter, EmitterWriter, HumanReadableErrorType},
     json::JsonEmitter,
     registry::Registry,
-    DiagnosticId, IntoDiagnostic, LazyFallbackBundle,
+    DiagnosticId, FatalError, IntoDiagnostic, LazyFallbackBundle,
 };
 use rustc_session::{
     config::{self, ErrorOutputType},
@@ -49,6 +49,11 @@ impl FluxSession {
     #[track_caller]
     pub fn emit_fatal<'a>(&'a self, fatal: impl IntoDiagnostic<'a, !>) -> ! {
         self.parse_sess.emit_fatal(fatal)
+    }
+
+    pub fn abort(&self, _: ErrorGuaranteed) -> ! {
+        self.parse_sess.span_diagnostic.abort_if_errors();
+        FatalError.raise()
     }
 
     pub fn abort_if_errors(&self) {
