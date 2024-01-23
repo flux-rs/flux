@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use flux_common::bug;
 use flux_errors::FluxSession;
 use rustc_hash::FxHashSet;
 use rustc_hir::{
@@ -417,10 +418,12 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn refined_by(self, def_id: LocalDefId) -> &'genv fhir::RefinedBy<'genv> {
-        self.fhir
-            .refined_by
-            .get(&def_id)
-            .unwrap_or_else(|| panic!("{def_id:?}"))
+        match self.genv.tcx().def_kind(def_id) {
+            DefKind::Struct => self.expect_struct(def_id).refined_by,
+            DefKind::Enum => self.expect_enum(def_id).refined_by,
+            DefKind::TyAlias => self.expect_type_alias(def_id).refined_by,
+            _ => bug!("expected struct, enum or type alias"),
+        }
     }
 
     pub fn extern_id_of(self, def_id: LocalDefId) -> Option<DefId> {

@@ -218,14 +218,13 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         let def_id = owner_id.def_id;
 
         let mut cx = self.as_rust_item_ctxt(owner_id, None);
-        let (struct_def, refined_by) = cx.desugar_struct_def(struct_def)?;
+        let struct_def = cx.desugar_struct_def(struct_def)?;
 
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), owner_id, "fhir", struct_def).unwrap();
         }
 
         self.fhir.structs.insert(def_id, struct_def);
-        self.fhir.refined_by.insert(def_id, refined_by);
 
         Ok(())
     }
@@ -234,14 +233,13 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         let def_id = owner_id.def_id;
 
         let mut cx = self.as_rust_item_ctxt(owner_id, None);
-        let (enum_def, refined_by) = cx.desugar_enum_def(enum_def)?;
+        let enum_def = cx.desugar_enum_def(enum_def)?;
 
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), owner_id, "fhir", &enum_def).unwrap();
         }
 
         self.fhir.enums.insert(def_id, enum_def);
-        self.fhir.refined_by.insert(def_id, refined_by);
 
         Ok(())
     }
@@ -253,14 +251,11 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     ) -> Result {
         let def_id = owner_id.def_id;
 
-        let (ty_alias, refined_by) = if let Some(ty_alias) = ty_alias {
+        let ty_alias = if let Some(ty_alias) = ty_alias {
             let mut cx = self.as_rust_item_ctxt(owner_id, None);
             cx.desugar_type_alias(ty_alias)?
         } else {
-            (
-                lift::lift_type_alias(self.genv, owner_id)?,
-                lift::lift_refined_by(self.genv.tcx(), owner_id),
-            )
+            lift::lift_type_alias(self.genv, owner_id)?
         };
 
         if config::dump_fhir() {
@@ -268,7 +263,6 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         }
 
         self.fhir.type_aliases.insert(def_id, ty_alias);
-        self.fhir.refined_by.insert(def_id, refined_by);
 
         Ok(())
     }

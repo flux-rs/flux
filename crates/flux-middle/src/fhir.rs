@@ -204,7 +204,6 @@ pub struct Crate<'fhir> {
     pub func_decls: FxHashMap<Symbol, FuncDecl<'fhir>>,
     pub impls: UnordMap<LocalDefId, Impl<'fhir>>,
     pub opaque_tys: UnordMap<LocalDefId, OpaqueTy<'fhir>>,
-    pub refined_by: UnordMap<LocalDefId, RefinedBy<'fhir>>,
     pub structs: FxHashMap<LocalDefId, StructDef<'fhir>>,
     pub traits: UnordMap<LocalDefId, Trait<'fhir>>,
     pub trusted: UnordSet<LocalDefId>,
@@ -226,7 +225,6 @@ impl<'fhir> Crate<'fhir> {
             func_decls: Default::default(),
             impls: Default::default(),
             opaque_tys: Default::default(),
-            refined_by: Default::default(),
             structs: Default::default(),
             traits: Default::default(),
             trusted: Default::default(),
@@ -241,6 +239,7 @@ impl<'fhir> Crate<'fhir> {
 pub struct TyAlias<'fhir> {
     pub owner_id: OwnerId,
     pub generics: Generics<'fhir>,
+    pub refined_by: &'fhir RefinedBy<'fhir>,
     pub ty: Ty<'fhir>,
     pub span: Span,
     pub index_params: &'fhir [RefineParam<'fhir>],
@@ -254,6 +253,7 @@ pub struct TyAlias<'fhir> {
 pub struct StructDef<'fhir> {
     pub owner_id: OwnerId,
     pub generics: Generics<'fhir>,
+    pub refined_by: &'fhir RefinedBy<'fhir>,
     pub params: &'fhir [RefineParam<'fhir>],
     pub kind: StructKind<'fhir>,
     pub invariants: &'fhir [Expr<'fhir>],
@@ -281,6 +281,7 @@ pub struct FieldDef<'fhir> {
 pub struct EnumDef<'fhir> {
     pub owner_id: OwnerId,
     pub generics: Generics<'fhir>,
+    pub refined_by: &'fhir RefinedBy<'fhir>,
     pub params: &'fhir [RefineParam<'fhir>],
     pub variants: &'fhir [VariantDef<'fhir>],
     pub invariants: &'fhir [Expr<'fhir>],

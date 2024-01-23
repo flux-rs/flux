@@ -53,10 +53,12 @@ pub fn lift_type_alias<'genv>(
     let mut cx = LiftCtxt::new(genv, owner_id, &local_id_gen, None);
 
     let generics = cx.lift_generics()?;
+    let refined_by = lift_refined_by(genv.tcx(), owner_id);
     let ty = cx.lift_ty(ty)?;
     Ok(fhir::TyAlias {
         owner_id,
         generics,
+        refined_by: genv.alloc(refined_by),
         index_params: genv.alloc_slice(&[]),
         ty,
         span: item.span,

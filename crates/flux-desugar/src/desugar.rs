@@ -419,7 +419,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn desugar_struct_def(
         &mut self,
         struct_def: &surface::StructDef,
-    ) -> Result<(fhir::StructDef<'genv>, fhir::RefinedBy<'genv>)> {
+    ) -> Result<fhir::StructDef<'genv>> {
         let mut env = self.gather_params_struct(struct_def)?;
 
         let refined_by = if let Some(refined_by) = &struct_def.refined_by {
@@ -464,18 +464,19 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         let struct_def = fhir::StructDef {
             owner_id: self.owner,
             generics,
+            refined_by: self.genv.alloc(refined_by),
             params: env.into_root().into_params(self),
             kind,
             invariants: self.genv.alloc_slice(&invariants),
             extern_id: struct_def.extern_id,
         };
-        Ok((struct_def, refined_by))
+        Ok(struct_def)
     }
 
     pub(crate) fn desugar_enum_def(
         &mut self,
         enum_def: &surface::EnumDef,
-    ) -> Result<(fhir::EnumDef<'genv>, fhir::RefinedBy<'genv>)> {
+    ) -> Result<fhir::EnumDef<'genv>> {
         let def_id = self.owner.def_id;
         let ItemKind::Enum(hir_enum, _) = &self.genv.hir().expect_item(def_id).kind else {
             bug!("expected enum");
@@ -508,12 +509,13 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         let enum_def = fhir::EnumDef {
             owner_id: self.owner,
             generics,
+            refined_by: self.genv.alloc(refined_by),
             params: env.into_root().into_params(self),
             variants: self.genv.alloc_slice(&variants),
             invariants: self.genv.alloc_slice(&invariants),
             extern_id: enum_def.extern_id,
         };
-        Ok((enum_def, refined_by))
+        Ok(enum_def)
     }
 
     fn desugar_enum_variant_def(
@@ -570,7 +572,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn desugar_type_alias(
         &mut self,
         ty_alias: &surface::TyAlias,
-    ) -> Result<(fhir::TyAlias<'genv>, fhir::RefinedBy<'genv>)> {
+    ) -> Result<fhir::TyAlias<'genv>> {
         let mut env = self.gather_params_type_alias(ty_alias)?;
 
         let refined_by = self.desugar_refined_by(&ty_alias.refined_by)?;
@@ -585,13 +587,14 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
 
         let ty_alias = fhir::TyAlias {
             owner_id: self.owner,
+            refined_by: self.genv.alloc(refined_by),
             generics,
             index_params,
             ty,
             span: ty_alias.span,
             lifted: false,
         };
-        Ok((ty_alias, refined_by))
+        Ok(ty_alias)
     }
 
     pub(crate) fn desugar_fn_sig(&mut self, fn_sig: &surface::FnSig) -> Result<fhir::FnSig<'genv>> {
