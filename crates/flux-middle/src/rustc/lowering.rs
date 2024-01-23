@@ -1,9 +1,9 @@
 use flux_errors::{FluxSession, ResultExt};
 use itertools::Itertools;
-use rustc_borrowck::consumers::BodyWithBorrowckFacts;
+use rustc_borrowck::consumers::{BodyWithBorrowckFacts, ConsumerOptions};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
-use rustc_infer::traits::Obligation;
+use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
 use rustc_middle::{
     mir::{self as rustc_mir, ConstValue},
     traits::{ImplSource, ObligationCause},
@@ -12,7 +12,7 @@ use rustc_middle::{
         TyCtxt, ValTree,
     },
 };
-use rustc_span::Span;
+use rustc_span::{def_id::LocalDefId, Span};
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
@@ -72,6 +72,50 @@ impl UnsupportedErr {
         self.span = Some(span);
         self
     }
+}
+
+fn resolve_call_query<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    selcx: &mut SelectionContext<'_, 'tcx>,
+    param_env: ParamEnv<'tcx>,
+    callee_id: DefId,
+    args: rustc_middle::ty::GenericArgsRef<'tcx>,
+) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
+    let mut try_resolve = || {
+        if let Some(trait_id) = tcx.trait_of_item(callee_id) {
+            let trait_ref = rustc_ty::TraitRef::from_method(tcx, trait_id, args);
+            let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
+            let impl_source = selcx.select(&obligation).ok()??;
+            let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
+            let ImplSource::UserDefined(impl_data) = impl_source else { return None };
+
+            let assoc_id = tcx
+                .impl_item_implementor_ids(impl_data.impl_def_id)
+                .get(&callee_id)?;
+            let assoc_item = tcx.associated_item(assoc_id);
+
+            Some((assoc_item.def_id, impl_data.args))
+        } else {
+            None
+        }
+    };
+    try_resolve()
+}
+
+pub fn resolve_call_from<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    caller_id: LocalDefId,
+    callee_id: DefId,
+    args: rustc_middle::ty::GenericArgsRef<'tcx>,
+) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
+    // let body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(
+    //     tcx,
+    //     caller_id,
+    //     ConsumerOptions::RegionInferenceContext,
+    // );
+    let param_env = tcx.param_env(caller_id.to_def_id());
+    let infcx = tcx.infer_ctxt().build(); // replicate_infer_ctxt(tcx, &body_with_facts);
+    resolve_call_query(tcx, &mut SelectionContext::new(&infcx), param_env, callee_id, args)
 }
 
 impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
@@ -333,29 +377,9 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         callee_id: DefId,
         args: rustc_middle::ty::GenericArgsRef<'tcx>,
     ) -> Result<(DefId, CallArgs<'tcx>), UnsupportedReason> {
-        let tcx = self.tcx;
-        let mut try_resolve = || {
-            if let Some(trait_id) = tcx.trait_of_item(callee_id) {
-                let trait_ref = rustc_ty::TraitRef::from_method(self.tcx, trait_id, args);
-                let obligation =
-                    Obligation::new(self.tcx, ObligationCause::dummy(), self.param_env, trait_ref);
-                let impl_source = self.selcx.select(&obligation).ok()??;
-                let impl_source = self.selcx.infcx.resolve_vars_if_possible(impl_source);
-                let ImplSource::UserDefined(impl_data) = impl_source else { return None };
-
-                let assoc_id = tcx
-                    .impl_item_implementor_ids(impl_data.impl_def_id)
-                    .get(&callee_id)?;
-                let assoc_item = tcx.associated_item(assoc_id);
-
-                Some((assoc_item.def_id, impl_data.args))
-            } else {
-                None
-            }
-        };
-
-        let (resolved_id, resolved_args) = try_resolve().unwrap_or((callee_id, args));
-
+        let (resolved_id, resolved_args) =
+            resolve_call_query(self.tcx, &mut self.selcx, self.param_env, callee_id, args)
+                .unwrap_or((callee_id, args));
         let call_args =
             CallArgs { lowered: lower_generic_args(self.tcx, resolved_args)?, orig: resolved_args };
         Ok((resolved_id, call_args))

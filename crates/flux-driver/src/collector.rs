@@ -371,7 +371,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let mut trusted = attrs.trusted();
         let fn_sig = attrs.fn_sig();
-        let qual_names = attrs.qual_names();
+        let qual_names: Option<surface::QualNames> = attrs.qual_names();
         if attrs.extern_spec() {
             if fn_sig.is_none() {
                 return Err(self.emit_err(errors::MissingFnSigForExternSpec {
@@ -503,6 +503,14 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             && let ExprKind::Path(qself) = &callee.kind
         {
             let typeck_result = self.tcx.typeck(def_id);
+
+            if let rustc_middle::ty::FnDef(fn_def, args) =
+                typeck_result.node_type(callee.hir_id).kind()
+                && let Some((callee_id, _)) =
+                    flux_middle::rustc::lowering::resolve_call_from(self.tcx, def_id, *fn_def, args)
+            {
+                return Ok(callee_id);
+            }
             if let def::Res::Def(_, def_id) = typeck_result.qpath_res(qself, callee.hir_id) {
                 return Ok(def_id);
             }
