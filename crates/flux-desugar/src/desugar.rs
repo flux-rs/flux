@@ -5,11 +5,7 @@ use std::iter;
 use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
-    fhir::{
-        self,
-        lift::{self, LiftCtxt},
-        ExprKind, FhirId, FluxOwnerId, Res,
-    },
+    fhir::{self, lift::LiftCtxt, ExprKind, FhirId, FluxOwnerId, Res},
     global_env::{self, GlobalEnv},
 };
 use flux_syntax::surface;
@@ -425,7 +421,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         let refined_by = if let Some(refined_by) = &struct_def.refined_by {
             self.desugar_refined_by(refined_by)?
         } else {
-            lift::lift_refined_by(self.genv.tcx(), self.owner)
+            self.as_lift_cx().lift_refined_by()
         };
 
         let generics =
@@ -478,7 +474,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         enum_def: &surface::EnumDef,
     ) -> Result<fhir::EnumDef<'genv>> {
         let def_id = self.owner.def_id;
-        let ItemKind::Enum(hir_enum, _) = &self.genv.hir().expect_item(def_id).kind else {
+        let ItemKind::Enum(hir_enum, _) = self.genv.hir().expect_item(def_id).kind else {
             bug!("expected enum");
         };
         let variants: Vec<_> = iter::zip(&enum_def.variants, hir_enum.variants)
@@ -494,7 +490,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         let refined_by = if let Some(refined_by) = &enum_def.refined_by {
             self.desugar_refined_by(refined_by)?
         } else {
-            lift::lift_refined_by(self.genv.tcx(), self.owner)
+            self.as_lift_cx().lift_refined_by()
         };
 
         let generics =

@@ -8,7 +8,7 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
 use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
-use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
+use rustc_middle::middle::resolve_bound_vars::ResolvedArg;
 
 use super::{FhirId, FluxOwnerId};
 use crate::{fhir, global_env::GlobalEnv};
@@ -18,19 +18,6 @@ pub struct LiftCtxt<'a, 'genv, 'tcx> {
     opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
     local_id_gen: &'a IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
-}
-
-pub fn lift_refined_by<'fhir>(tcx: TyCtxt, owner_id: OwnerId) -> fhir::RefinedBy<'fhir> {
-    let def_id = owner_id.def_id;
-    let item = tcx.hir().expect_item(def_id);
-    match item.kind {
-        hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) => {
-            fhir::RefinedBy::trivial(def_id, item.ident.span)
-        }
-        _ => {
-            bug!("expected struct, enum or type alias");
-        }
-    }
 }
 
 pub fn lift_generics<'genv>(
@@ -53,7 +40,7 @@ pub fn lift_type_alias<'genv>(
     let mut cx = LiftCtxt::new(genv, owner_id, &local_id_gen, None);
 
     let generics = cx.lift_generics()?;
-    let refined_by = lift_refined_by(genv.tcx(), owner_id);
+    let refined_by = cx.lift_refined_by();
     let ty = cx.lift_ty(ty)?;
     Ok(fhir::TyAlias {
         owner_id,
@@ -150,6 +137,19 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     pub fn lift_generics(&mut self) -> Result<fhir::Generics<'genv>, ErrorGuaranteed> {
         let generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
         self.lift_generics_inner(generics)
+    }
+
+    pub fn lift_refined_by<'fhir>(&self) -> fhir::RefinedBy<'fhir> {
+        let def_id = self.owner.def_id;
+        let item = self.genv.hir().expect_item(def_id);
+        match item.kind {
+            hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) => {
+                fhir::RefinedBy::trivial(def_id, item.ident.span)
+            }
+            _ => {
+                bug!("expected struct, enum, or type alias");
+            }
+        }
     }
 
     fn lift_generic_param(
