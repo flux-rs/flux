@@ -81,25 +81,18 @@ fn resolve_call_query<'tcx>(
     callee_id: DefId,
     args: rustc_middle::ty::GenericArgsRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
-    let mut try_resolve = || {
-        if let Some(trait_id) = tcx.trait_of_item(callee_id) {
-            let trait_ref = rustc_ty::TraitRef::from_method(tcx, trait_id, args);
-            let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
-            let impl_source = selcx.select(&obligation).ok()??;
-            let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
-            let ImplSource::UserDefined(impl_data) = impl_source else { return None };
+    let trait_id = tcx.trait_of_item(callee_id)?;
+    let trait_ref = rustc_ty::TraitRef::from_method(tcx, trait_id, args);
+    let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
+    let impl_source = selcx.select(&obligation).ok()??;
+    let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
+    let ImplSource::UserDefined(impl_data) = impl_source else { return None };
 
-            let assoc_id = tcx
-                .impl_item_implementor_ids(impl_data.impl_def_id)
-                .get(&callee_id)?;
-            let assoc_item = tcx.associated_item(assoc_id);
-
-            Some((assoc_item.def_id, impl_data.args))
-        } else {
-            None
-        }
-    };
-    try_resolve()
+    let assoc_id = tcx
+        .impl_item_implementor_ids(impl_data.impl_def_id)
+        .get(&callee_id)?;
+    let assoc_item = tcx.associated_item(assoc_id);
+    Some((assoc_item.def_id, impl_data.args))
 }
 
 pub fn resolve_call_from<'tcx>(
