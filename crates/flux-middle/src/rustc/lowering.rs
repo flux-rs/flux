@@ -109,7 +109,7 @@ pub fn resolve_call_from<'tcx>(
     args: rustc_middle::ty::GenericArgsRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
     let param_env = tcx.param_env(caller_id.to_def_id());
-    let infcx = tcx.infer_ctxt().build(); // replicate_infer_ctxt(tcx, &body_with_facts);
+    let infcx = tcx.infer_ctxt().build();
     resolve_call_query(tcx, &mut SelectionContext::new(&infcx), param_env, callee_id, args)
 }
 
