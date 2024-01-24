@@ -15,6 +15,7 @@ mod wf;
 
 use std::rc::Rc;
 
+use compare_impl_item::errors::InvalidAssocPredicate;
 use flux_common::{bug, dbg};
 use flux_config as config;
 use flux_errors::ResultExt;
@@ -23,14 +24,15 @@ use flux_middle::{
     fhir::{self, FluxLocalDefId},
     global_env::GlobalEnv,
     intern::List,
-    queries::{Providers, QueryResult},
+    pretty,
+    queries::{Providers, QueryErr, QueryResult},
     rty::{self, fold::TypeFoldable, refining::Refiner, WfckResults},
 };
 use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
 use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, def_id::LocalDefId, OwnerId};
-use rustc_span::Symbol;
+use rustc_span::{Span, Symbol};
 
 fluent_messages! { "../locales/en-US.ftl" }
 
@@ -161,6 +163,7 @@ fn assoc_predicates_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocPredi
                     rty::AssocPredicate {
                         container_def_id: local_id.to_def_id(),
                         name: assoc_pred.name,
+                        span: assoc_pred.span,
                     }
                 })
                 .collect()
@@ -174,6 +177,7 @@ fn assoc_predicates_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocPredi
                     rty::AssocPredicate {
                         container_def_id: local_id.to_def_id(),
                         name: assoc_pred.name,
+                        span: assoc_pred.span,
                     }
                 })
                 .collect()
@@ -201,19 +205,23 @@ fn sort_of_assoc_pred(
     genv: GlobalEnv,
     def_id: LocalDefId,
     name: Symbol,
-) -> rty::EarlyBinder<rty::FuncSort> {
+    span: Span,
+) -> QueryResult<rty::EarlyBinder<rty::FuncSort>> {
     match genv.tcx().def_kind(def_id) {
         DefKind::Trait => {
-            let assoc_pred = genv
-                .map()
-                .expect_trait(def_id)
-                .find_assoc_predicate(name)
-                .unwrap();
-            rty::EarlyBinder(conv::conv_func_sort(
-                genv,
-                &assoc_pred.sort,
-                &mut conv::bug_on_sort_vid,
-            ))
+            if let Some(assoc_pred) = genv.map().expect_trait(def_id).find_assoc_predicate(name) {
+                Ok(rty::EarlyBinder(conv::conv_func_sort(
+                    genv,
+                    &assoc_pred.sort,
+                    &mut conv::bug_on_sort_vid,
+                )))
+            } else {
+                Err(QueryErr::Emitted(genv.sess().emit_err(InvalidAssocPredicate::new(
+                    span,
+                    name,
+                    pretty::def_id_to_string(def_id.to_def_id()),
+                ))))
+            }
         }
         DefKind::Impl { .. } => {
             let assoc_pred = genv
@@ -226,7 +234,7 @@ fn sort_of_assoc_pred(
                 .iter()
                 .map(|p| conv::resolve_param_sort(genv, p, None))
                 .collect_vec();
-            rty::EarlyBinder(rty::FuncSort::new(inputs, rty::Sort::Bool))
+            Ok(rty::EarlyBinder(rty::FuncSort::new(inputs, rty::Sort::Bool)))
         }
         _ => {
             bug!("expected trait or impl");

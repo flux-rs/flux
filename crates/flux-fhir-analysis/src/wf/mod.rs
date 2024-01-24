@@ -560,7 +560,7 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
     ) -> Result<(), ErrorGuaranteed> {
         let fsort = self
             .genv
-            .sort_of_alias_pred(alias_pred)
+            .sort_of_alias_pred(alias_pred, span)
             .emit(self.genv.sess())?;
         if args.len() != fsort.inputs().len() {
             return self.emit_err(errors::ArgCountMismatch::new(

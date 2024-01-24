@@ -2,7 +2,7 @@ use flux_errors::ResultExt as _;
 use flux_middle::{global_env::GlobalEnv, pretty};
 use rustc_span::{
     def_id::{DefId, LocalDefId},
-    ErrorGuaranteed, Symbol,
+    ErrorGuaranteed, Span, Symbol,
 };
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -27,7 +27,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result 
                 pretty::def_id_to_string(trait_id),
             )));
         }
-        check_assoc_predicate(genv, impl_id, trait_id, impl_assoc_pred.name)?;
+        check_assoc_predicate(genv, impl_id, trait_id, impl_assoc_pred.name, impl_assoc_pred.span)?;
     }
 
     Ok(())
@@ -38,6 +38,7 @@ fn check_assoc_predicate(
     impl_id: LocalDefId,
     trait_id: DefId,
     name: Symbol,
+    span: Span,
 ) -> Result {
     let impl_trait_ref = genv
         .impl_trait_ref(impl_id.to_def_id())
@@ -46,11 +47,13 @@ fn check_assoc_predicate(
         .instantiate_identity(&[]);
 
     let impl_sort = genv
-        .sort_of_assoc_pred(impl_id.to_def_id(), name)
+        .sort_of_assoc_pred(impl_id.to_def_id(), name, span)
+        .emit(genv.sess())?
         .instantiate_identity(&[]);
 
     let trait_sort = genv
-        .sort_of_assoc_pred(trait_id, name)
+        .sort_of_assoc_pred(trait_id, name, span)
+        .emit(genv.sess())?
         .instantiate(&impl_trait_ref.args, &[]);
 
     if impl_sort != trait_sort {
@@ -68,7 +71,7 @@ fn check_assoc_predicate(
     Ok(())
 }
 
-mod errors {
+pub(crate) mod errors {
     use flux_macros::Diagnostic;
     use flux_middle::rty;
     use rustc_span::{Span, Symbol};
@@ -97,7 +100,7 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(fhir_analysis_invalid_assoc_predicate, code = "FLUX")]
-    pub(super) struct InvalidAssocPredicate {
+    pub struct InvalidAssocPredicate {
         #[primary_span]
         span: Span,
         trait_id: String,
@@ -105,7 +108,7 @@ mod errors {
     }
 
     impl InvalidAssocPredicate {
-        pub(super) fn new(span: Span, name: Symbol, trait_id: String) -> InvalidAssocPredicate {
+        pub(crate) fn new(span: Span, name: Symbol, trait_id: String) -> InvalidAssocPredicate {
             Self { span, trait_id, name }
         }
     }
