@@ -170,7 +170,6 @@ impl Parse for ExternItem {
         let mut item = if lookahead.peek(Token![fn]) {
             ExternItem::Fn(input.parse()?)
         } else if lookahead.peek(Token![impl]) {
-            println!("TRACE: ExternItem::parse: impl");
             ExternItem::Impl(input.parse()?)
         } else if lookahead.peek(Token![struct]) {
             ExternItem::Struct(input.parse()?)

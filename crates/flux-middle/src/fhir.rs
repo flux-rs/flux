@@ -1023,7 +1023,6 @@ impl Map {
     }
 
     pub fn insert_extern(&mut self, extern_def_id: DefId, local_def_id: LocalDefId) {
-        // println!("TRACE: insert_extern {extern_def_id:?} ==> {local_def_id:?}");
         self.externs.insert(extern_def_id, local_def_id);
     }
 
