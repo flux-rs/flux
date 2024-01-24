@@ -14,9 +14,9 @@ use super::{
     normalize::{Defns, Normalizer},
     projections,
     subst::EVarSubstFolder,
-    AliasPred, AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint, Expr,
-    ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort, GeneratorObligPredicate, GenericArg,
-    Invariant, KVar, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate, PolyFuncSort,
+    AliasPred, AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
+    CoroutineObligPredicate, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
+    GenericArg, Invariant, KVar, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate, PolyFuncSort,
     ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef,
     Ty, TyKind,
 };
@@ -434,7 +434,7 @@ impl TypeVisitable for ClauseKind {
             ClauseKind::FnTrait(pred) => pred.visit_with(visitor),
             ClauseKind::Trait(pred) => pred.visit_with(visitor),
             ClauseKind::Projection(pred) => pred.visit_with(visitor),
-            ClauseKind::GeneratorOblig(pred) => pred.visit_with(visitor),
+            ClauseKind::CoroutineOblig(pred) => pred.visit_with(visitor),
             ClauseKind::TypeOutlives(pred) => pred.visit_with(visitor),
         }
     }
@@ -446,8 +446,8 @@ impl TypeFoldable for ClauseKind {
             ClauseKind::FnTrait(pred) => Ok(ClauseKind::FnTrait(pred.try_fold_with(folder)?)),
             ClauseKind::Trait(pred) => Ok(ClauseKind::Trait(pred.try_fold_with(folder)?)),
             ClauseKind::Projection(pred) => Ok(ClauseKind::Projection(pred.try_fold_with(folder)?)),
-            ClauseKind::GeneratorOblig(pred) => {
-                Ok(ClauseKind::GeneratorOblig(pred.try_fold_with(folder)?))
+            ClauseKind::CoroutineOblig(pred) => {
+                Ok(ClauseKind::CoroutineOblig(pred.try_fold_with(folder)?))
             }
             ClauseKind::TypeOutlives(pred) => {
                 Ok(ClauseKind::TypeOutlives(pred.try_fold_with(folder)?))
@@ -493,18 +493,19 @@ impl TypeFoldable for TraitRef {
     }
 }
 
-impl TypeVisitable for GeneratorObligPredicate {
+impl TypeVisitable for CoroutineObligPredicate {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
-        self.args.visit_with(visitor)?;
+        self.upvar_tys.visit_with(visitor)?;
         self.output.visit_with(visitor)
     }
 }
 
-impl TypeFoldable for GeneratorObligPredicate {
+impl TypeFoldable for CoroutineObligPredicate {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(GeneratorObligPredicate {
+        Ok(CoroutineObligPredicate {
             def_id: self.def_id,
-            args: self.args.try_fold_with(folder)?,
+            resume_ty: self.resume_ty.try_fold_with(folder)?,
+            upvar_tys: self.upvar_tys.try_fold_with(folder)?,
             output: self.output.try_fold_with(folder)?,
         })
     }
@@ -899,6 +900,10 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
             BaseTy::Tuple(tys) => tys.visit_with(visitor),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
+            BaseTy::Coroutine(_, resume_ty, upvars) => {
+                resume_ty.visit_with(visitor)?;
+                upvars.visit_with(visitor)
+            }
             BaseTy::Int(_)
             | BaseTy::Uint(_)
             | BaseTy::Bool
@@ -906,8 +911,6 @@ impl TypeSuperVisitable for BaseTy {
             | BaseTy::Str
             | BaseTy::Char
             | BaseTy::Closure(_, _)
-            | BaseTy::Coroutine(_, _)
-            | BaseTy::CoroutineWitness(_, _)
             | BaseTy::Never
             | BaseTy::Param(_) => ControlFlow::Continue(()),
         }
@@ -940,9 +943,12 @@ impl TypeSuperFoldable for BaseTy {
             | BaseTy::Char
             | BaseTy::Never => self.clone(),
             BaseTy::Closure(did, args) => BaseTy::Closure(*did, args.try_fold_with(folder)?),
-            BaseTy::Coroutine(did, args) => BaseTy::Coroutine(*did, args.try_fold_with(folder)?),
-            BaseTy::CoroutineWitness(did, args) => {
-                BaseTy::CoroutineWitness(*did, args.try_fold_with(folder)?)
+            BaseTy::Coroutine(did, resume_ty, args) => {
+                BaseTy::Coroutine(
+                    *did,
+                    resume_ty.try_fold_with(folder)?,
+                    args.try_fold_with(folder)?,
+                )
             }
         };
         Ok(bty)

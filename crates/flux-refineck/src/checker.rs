@@ -6,10 +6,10 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        self, fold::TypeFoldable, BaseTy, BinOp, Binder, Bool, Constraint, EarlyBinder, Expr,
-        Float, FnOutput, FnSig, FnTraitPredicate, GeneratorArgs, GeneratorObligPredicate,
-        GenericArg, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref, Region::ReStatic,
-        Ty, TyKind, Uint, UintTy, VariantIdx,
+        self, fold::TypeFoldable, BaseTy, BinOp, Binder, Bool, Constraint, CoroutineObligPredicate,
+        EarlyBinder, Expr, Float, FnOutput, FnSig, FnTraitPredicate, GenericArg, Generics,
+        HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref, Region::ReStatic, Ty, TyKind, Uint,
+        UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -18,7 +18,7 @@ use flux_middle::{
             Location, Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
             TerminatorKind, RETURN_PLACE, START_BLOCK,
         },
-        ty::{ConstKind, GeneratorArgsParts},
+        ty::ConstKind,
     },
 };
 use itertools::Itertools;
@@ -540,9 +540,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         rcx: &mut RefineCtxt,
         snapshot: &Snapshot,
-        gen_pred: GeneratorObligPredicate,
+        gen_pred: CoroutineObligPredicate,
     ) -> Result {
-        let poly_sig = gen_pred.to_closure_sig();
+        let poly_sig = gen_pred.to_poly_fn_sig();
         let refine_tree = rcx.subtree_at(snapshot).unwrap();
         Checker::run(
             self.genv,
@@ -563,7 +563,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             fn_trait_pred.self_ty.as_bty_skipping_existentials()
         {
             let refine_tree = rcx.subtree_at(snapshot).unwrap();
-            let poly_sig = fn_trait_pred.to_closure_sig(*def_id, tys.clone());
+            let poly_sig = fn_trait_pred.to_poly_fn_sig(*def_id, tys.clone());
             Checker::run(
                 self.genv,
                 refine_tree,
@@ -584,7 +584,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 rty::ClauseKind::FnTrait(fn_trait_pred) => {
                     self.check_oblig_fn_trait_pred(rcx, &obligs.snapshot, fn_trait_pred)?;
                 }
-                rty::ClauseKind::GeneratorOblig(gen_pred) => {
+                rty::ClauseKind::CoroutineOblig(gen_pred) => {
                     self.check_oblig_generator_pred(rcx, &obligs.snapshot, gen_pred)?;
                 }
                 rty::ClauseKind::Projection(_)
@@ -788,23 +788,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(Ty::tuple(tys))
             }
             Rvalue::Aggregate(AggregateKind::Closure(did, _), operands) => {
-                let tys = self.check_aggregate_operands(rcx, env, stmt_span, operands)?;
-                let res = Ty::closure(*did, tys);
+                let upvar_tys = self.check_aggregate_operands(rcx, env, stmt_span, operands)?;
+                let res = Ty::closure(*did, upvar_tys);
                 Ok(res)
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
-                let tys = self.check_aggregate_operands(rcx, env, stmt_span, ops)?;
-                let generics = genv.generics_of(*did).unwrap();
-                let args = genv.refine_default_generic_args(&generics, args).unwrap();
-                let args = args.as_generator();
-                let args = args.split();
-
-                let args_parts = GeneratorArgsParts {
-                    tupled_upvars_ty: &GenericArg::Ty(Ty::tuple(tys)),
-                    ..args
-                };
-                let args = GeneratorArgs::new(args_parts);
-                Ok(Ty::generator(*did, args.args))
+                let args = args.as_coroutine();
+                let resume_ty = self
+                    .genv
+                    .refine_default(&self.generics, args.resume_ty())
+                    .with_span(stmt_span)?;
+                let upvar_tys = self.check_aggregate_operands(rcx, env, stmt_span, ops)?;
+                Ok(Ty::coroutine(*did, resume_ty, upvar_tys))
             }
 
             Rvalue::Discriminant(place) => {
@@ -828,10 +823,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env: &mut TypeEnv<'_>,
         stmt_span: Span,
         args: &[Operand],
-    ) -> Result<Vec<flux_middle::intern::Interned<rty::TyS>>> {
+    ) -> Result<List<flux_middle::intern::Interned<rty::TyS>>> {
         let tys = self.check_operands(rcx, env, stmt_span, args)?;
         let mut gen = self.constr_gen(rcx, stmt_span);
-        let tys = gen.pack_closure_operands(env, &tys).with_span(stmt_span)?;
+        let tys = gen.pack_closure_operands(env, &tys);
         Ok(tys)
     }
 

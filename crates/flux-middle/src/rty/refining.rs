@@ -300,18 +300,16 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 rty::BaseTy::Closure(*did, upvar_tys)
             }
             rustc::ty::TyKind::Coroutine(did, args) => {
-                let args = args
-                    .iter()
-                    .map(|arg| self.refine_generic_arg_raw(arg))
+                let args = args.as_coroutine();
+                let resume_ty = self.refine_ty(args.resume_ty())?;
+                let upvar_tys = args
+                    .upvar_tys()
+                    .map(|ty| self.refine_ty(ty))
                     .try_collect()?;
-                rty::BaseTy::Coroutine(*did, args)
+                rty::BaseTy::Coroutine(*did, resume_ty, upvar_tys)
             }
-            rustc::ty::TyKind::CoroutineWitness(did, args) => {
-                let args = args
-                    .iter()
-                    .map(|arg| self.refine_generic_arg_raw(arg))
-                    .try_collect()?;
-                rty::BaseTy::CoroutineWitness(*did, args)
+            rustc::ty::TyKind::CoroutineWitness(..) => {
+                bug!("implement when we know what this is");
             }
             rustc::ty::TyKind::Never => rty::BaseTy::Never,
             rustc::ty::TyKind::Ref(r, ty, mutbl) => {

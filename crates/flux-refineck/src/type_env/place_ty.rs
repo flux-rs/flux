@@ -181,13 +181,10 @@ impl PlacesTree {
                 }
                 PlaceElem::Field(f) => {
                     match ty.kind() {
-                        TyKind::Indexed(BaseTy::Tuple(fields), _) => {
-                            ty = fields[f.as_usize()].clone();
-                        }
-                        TyKind::Indexed(BaseTy::Closure(_, fields), _) => {
-                            ty = fields[f.as_usize()].clone();
-                        }
-                        TyKind::Downcast(.., fields) => {
+                        TyKind::Indexed(BaseTy::Tuple(fields), _)
+                        | TyKind::Indexed(BaseTy::Closure(_, fields), _)
+                        | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _)
+                        | TyKind::Downcast(.., fields) => {
                             ty = fields[f.as_usize()].clone();
                         }
                         TyKind::Indexed(BaseTy::Adt(adt, args), idx) => {
@@ -239,7 +236,9 @@ impl PlacesTree {
         for f in path.projection() {
             match ty.kind() {
                 TyKind::Downcast(.., fields)
-                | TyKind::Indexed(BaseTy::Closure(_, fields) | BaseTy::Tuple(fields), _) => {
+                | TyKind::Indexed(BaseTy::Tuple(fields), _)
+                | TyKind::Indexed(BaseTy::Closure(_, fields), _)
+                | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _) => {
                     ty = &fields[f.as_usize()];
                 }
                 TyKind::Uninit => return Ty::uninit(),
@@ -289,7 +288,9 @@ impl PlacesTree {
         ) {
             match ty.kind() {
                 TyKind::Downcast(.., fields)
-                | TyKind::Indexed(BaseTy::Tuple(fields) | BaseTy::Closure(_, fields), _) => {
+                | TyKind::Indexed(BaseTy::Tuple(fields), _)
+                | TyKind::Indexed(BaseTy::Closure(_, fields), _)
+                | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _) => {
                     for (idx, ty) in fields.iter().enumerate() {
                         proj.push(idx.into());
                         go(loc, kind, ty, proj, f);
@@ -491,10 +492,18 @@ impl<'a, 'rcx, 'genv, 'tcx> Unfolder<'a, 'rcx, 'genv, 'tcx> {
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
                 Ty::indexed(BaseTy::Tuple(fields.into()), idx.clone())
             }
-            TyKind::Indexed(BaseTy::Closure(def_id, fields), idx) => {
-                let mut fields = fields.to_vec();
-                fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
-                Ty::indexed(BaseTy::Closure(*def_id, fields.into()), idx.clone())
+            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys), idx) => {
+                let mut upvar_tys = upvar_tys.to_vec();
+                upvar_tys[f.as_usize()] = upvar_tys[f.as_usize()].try_fold_with(self)?;
+                Ty::indexed(BaseTy::Closure(*def_id, upvar_tys.into()), idx.clone())
+            }
+            TyKind::Indexed(BaseTy::Coroutine(def_id, resume_ty, upvar_tys), idx) => {
+                let mut upvar_tys = upvar_tys.to_vec();
+                upvar_tys[f.as_usize()] = upvar_tys[f.as_usize()].try_fold_with(self)?;
+                Ty::indexed(
+                    BaseTy::Coroutine(*def_id, resume_ty.clone(), upvar_tys.into()),
+                    idx.clone(),
+                )
             }
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) => {
                 let mut fields = downcast_struct(self.genv, adt, args, idx)?
@@ -635,9 +644,13 @@ impl<'a> Updater<'a> {
                 let fields = self.fold_field_at(fields, f);
                 Ty::indexed(BaseTy::Tuple(fields), idx.clone())
             }
-            TyKind::Indexed(BaseTy::Closure(def_id, fields), idx) => {
-                let fields = self.fold_field_at(fields, f);
-                Ty::indexed(BaseTy::Closure(*def_id, fields), idx.clone())
+            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys), idx) => {
+                let upvar_tys = self.fold_field_at(upvar_tys, f);
+                Ty::indexed(BaseTy::Closure(*def_id, upvar_tys), idx.clone())
+            }
+            TyKind::Indexed(BaseTy::Coroutine(def_id, resume_ty, upvar_tys), idx) => {
+                let upvar_tys = self.fold_field_at(upvar_tys, f);
+                Ty::indexed(BaseTy::Coroutine(*def_id, resume_ty.clone(), upvar_tys), idx.clone())
             }
             TyKind::Downcast(adt, args, ty, variant, fields) => {
                 let fields = self.fold_field_at(fields, f);

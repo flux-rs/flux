@@ -519,7 +519,7 @@ impl PlaceNode {
                     }
                     TyKind::Coroutine(def_id, args) => {
                         let fields = args
-                            .as_generator()
+                            .as_coroutine()
                             .upvar_tys()
                             .cloned()
                             .map(PlaceNode::Ty)

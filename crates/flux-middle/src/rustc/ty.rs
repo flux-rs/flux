@@ -202,11 +202,11 @@ impl GenericArgs {
         ClosureArgs { args: self.clone() }
     }
 
-    pub fn as_generator(&self) -> GeneratorArgs {
-        GeneratorArgs { args: self.clone() }
+    pub fn as_coroutine(&self) -> CoroutineArgs {
+        CoroutineArgs { args: self.clone() }
     }
 }
-pub struct GeneratorArgs {
+pub struct CoroutineArgs {
     pub args: GenericArgs,
 }
 
@@ -223,13 +223,13 @@ pub struct ClosureArgsParts<'a, T> {
 }
 
 #[derive(Debug)]
-pub struct GeneratorArgsParts<'a, T> {
-    pub parent_args: &'a [T],
-    pub resume_ty: &'a T,
-    pub yield_ty: &'a T,
-    pub return_ty: &'a T,
-    pub witness: &'a T,
-    pub tupled_upvars_ty: &'a T,
+pub struct CoroutineArgsParts<'a> {
+    pub parent_args: &'a [GenericArg],
+    pub resume_ty: &'a Ty,
+    pub yield_ty: &'a Ty,
+    pub return_ty: &'a Ty,
+    pub witness: &'a Ty,
+    pub tupled_upvars_ty: &'a Ty,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -339,25 +339,29 @@ impl GenericArg {
     }
 }
 
-impl GeneratorArgs {
+impl CoroutineArgs {
     pub fn tupled_upvars_ty(&self) -> &Ty {
-        self.split().tupled_upvars_ty.expect_type()
+        self.split().tupled_upvars_ty
     }
 
     pub fn upvar_tys(&self) -> impl Iterator<Item = &Ty> {
         self.tupled_upvars_ty().tuple_fields().iter()
     }
 
-    fn split(&self) -> GeneratorArgsParts<GenericArg> {
+    pub fn resume_ty(&self) -> &Ty {
+        self.split().resume_ty
+    }
+
+    fn split(&self) -> CoroutineArgsParts {
         match &self.args[..] {
             [ref parent_args @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
-                GeneratorArgsParts {
+                CoroutineArgsParts {
                     parent_args,
-                    resume_ty,
-                    yield_ty,
-                    return_ty,
-                    witness,
-                    tupled_upvars_ty,
+                    resume_ty: resume_ty.expect_type(),
+                    yield_ty: yield_ty.expect_type(),
+                    return_ty: return_ty.expect_type(),
+                    witness: witness.expect_type(),
+                    tupled_upvars_ty: tupled_upvars_ty.expect_type(),
                 }
             }
             _ => bug!("generator args missing synthetics"),

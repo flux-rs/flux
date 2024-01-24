@@ -57,7 +57,7 @@ use crate::{
     rustc::{
         self,
         mir::{Local, Place},
-        ty::{ConstKind, GeneratorArgsParts, VariantDef},
+        ty::{ConstKind, VariantDef},
     },
 };
 
@@ -173,7 +173,7 @@ pub enum ClauseKind {
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
     TypeOutlives(TypeOutlivesPredicate),
-    GeneratorOblig(GeneratorObligPredicate),
+    CoroutineOblig(CoroutineObligPredicate),
 }
 
 pub type TypeOutlivesPredicate = OutlivesPredicate<Ty, Region>;
@@ -204,9 +204,10 @@ pub struct FnTraitPredicate {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct GeneratorObligPredicate {
+pub struct CoroutineObligPredicate {
     pub def_id: DefId,
-    pub args: GenericArgs,
+    pub resume_ty: Ty,
+    pub upvar_tys: List<Ty>,
     pub output: Ty,
 }
 
@@ -532,8 +533,7 @@ pub enum BaseTy {
     Array(Ty, Const),
     Never,
     Closure(DefId, List<Ty>),
-    Coroutine(DefId, GenericArgs),
-    CoroutineWitness(DefId, GenericArgs),
+    Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
     Param(ParamTy),
 }
 
@@ -656,62 +656,8 @@ impl Clause {
     }
 }
 
-pub struct GeneratorArgs {
-    pub args: GenericArgs,
-}
-
-impl GeneratorArgs {
-    pub fn new(parts: GeneratorArgsParts<GenericArg>) -> Self {
-        let args = parts
-            .parent_args
-            .iter()
-            .cloned()
-            .chain([
-                parts.resume_ty.clone(),
-                parts.yield_ty.clone(),
-                parts.return_ty.clone(),
-                parts.witness.clone(),
-                parts.tupled_upvars_ty.clone(),
-            ])
-            .collect();
-        GeneratorArgs { args }
-    }
-
-    pub fn resume_ty(&self) -> Ty {
-        self.split().resume_ty.expect_type().clone()
-    }
-
-    pub fn tupled_upvars_ty(&self) -> Ty {
-        self.split().tupled_upvars_ty.expect_type().clone()
-    }
-}
-
-impl GeneratorArgs {
-    pub fn split(&self) -> GeneratorArgsParts<GenericArg> {
-        match &self.args[..] {
-            [ref parent_args @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
-                GeneratorArgsParts {
-                    parent_args,
-                    resume_ty,
-                    yield_ty,
-                    return_ty,
-                    witness,
-                    tupled_upvars_ty,
-                }
-            }
-            _ => bug!("generator args missing synthetics"),
-        }
-    }
-}
-
-impl GenericArgs {
-    pub fn as_generator(&self) -> GeneratorArgs {
-        GeneratorArgs { args: self.clone() }
-    }
-}
-
 impl FnTraitPredicate {
-    pub fn to_closure_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
+    pub fn to_poly_fn_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
         let mut vars = vec![];
 
         let closure_ty = Ty::closure(closure_id, tys);
@@ -748,27 +694,17 @@ impl FnTraitPredicate {
     }
 }
 
-impl GeneratorObligPredicate {
-    pub fn to_closure_sig(&self) -> PolyFnSig {
+impl CoroutineObligPredicate {
+    pub fn to_poly_fn_sig(&self) -> PolyFnSig {
         let vars = vec![];
-        let pred_args = self.args.as_generator();
 
-        let tys = pred_args
-            .tupled_upvars_ty()
-            .expect_tuple()
-            .iter()
-            .cloned()
-            .collect_vec();
+        let resume_ty = &self.resume_ty;
+        let env_ty = Ty::coroutine(self.def_id, resume_ty.clone(), self.upvar_tys.clone());
 
-        let env_ty = Ty::closure(self.def_id, tys);
-        let resume_ty = pred_args.resume_ty();
-        let requires = vec![];
-
-        let inputs = vec![env_ty, resume_ty];
-
+        let inputs = vec![env_ty, resume_ty.clone()];
         let output = Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
-        PolyFnSig::new(FnSig::new(requires, inputs, output), List::from(vars))
+        PolyFnSig::new(FnSig::new(vec![], inputs, output), List::from(vars))
     }
 }
 
@@ -1432,8 +1368,8 @@ impl Ty {
         BaseTy::Closure(did, tys.into()).into_ty()
     }
 
-    pub fn generator(did: DefId, args: impl Into<List<GenericArg>>) -> Ty {
-        BaseTy::Coroutine(did, args.into()).into_ty()
+    pub fn coroutine(did: DefId, resume_ty: Ty, upvar_tys: List<Ty>) -> Ty {
+        BaseTy::Coroutine(did, resume_ty, upvar_tys).into_ty()
     }
 
     pub fn never() -> Ty {
@@ -1643,8 +1579,7 @@ impl BaseTy {
             | BaseTy::Tuple(_)
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
-            | BaseTy::Coroutine(_, _)
-            | BaseTy::CoroutineWitness(_, _)
+            | BaseTy::Coroutine(..)
             | BaseTy::Never => Sort::unit(),
         }
     }
@@ -1918,7 +1853,7 @@ mod pretty {
                 ClauseKind::FnTrait(pred) => w!("FnTrait ({pred:?})"),
                 ClauseKind::Trait(pred) => w!("Trait ({pred:?})"),
                 ClauseKind::Projection(pred) => w!("Projection ({pred:?})"),
-                ClauseKind::GeneratorOblig(pred) => w!("Projection ({pred:?})"),
+                ClauseKind::CoroutineOblig(pred) => w!("Projection ({pred:?})"),
                 ClauseKind::TypeOutlives(pred) => w!("Outlives ({:?}, {:?})", &pred.0, &pred.1),
             }
         }
@@ -2261,25 +2196,10 @@ mod pretty {
                 BaseTy::Closure(did, args) => {
                     w!("Closure {:?}<{:?}>", did, args)
                 }
-                BaseTy::Coroutine(did, args) => {
-                    w!("Coroutine({:?})", did)?;
-                    let args = args
-                        .iter()
-                        .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
-                        .collect_vec();
-                    if !args.is_empty() {
-                        w!("<{:?}>", join!(", ", args))?;
-                    }
-                    Ok(())
-                }
-                BaseTy::CoroutineWitness(did, args) => {
-                    w!("CoroutineWitness({:?})", did)?;
-                    let args = args
-                        .iter()
-                        .filter(|arg| !cx.hide_regions || !matches!(arg, GenericArg::Lifetime(_)))
-                        .collect_vec();
-                    if !args.is_empty() {
-                        w!("<{:?}>", join!(", ", args))?;
+                BaseTy::Coroutine(did, resume_ty, upvars) => {
+                    w!("Coroutine({:?}, {:?})", did, resume_ty)?;
+                    if !upvars.is_empty() {
+                        w!("<{:?}>", join!(", ", upvars))?;
                     }
                     Ok(())
                 }

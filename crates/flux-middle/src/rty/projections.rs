@@ -344,13 +344,12 @@ fn into_rustc_bty<'tcx>(tcx: TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::Ty
         BaseTy::Array(_, _) => todo!(),
         BaseTy::Never => tcx.types.never,
         BaseTy::Closure(_, _) => todo!(),
-        BaseTy::Coroutine(def_id, args) => {
-            todo!("Generator {:?} {:?}", def_id, args)
+        BaseTy::Coroutine(def_id, resume_ty, upvars) => {
+            todo!("Generator {def_id:?} {resume_ty:?} {upvars:?}")
             // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
             // let args = tcx.mk_args_from_iter(args);
             // ty::Ty::new_generator(*tcx, *def_id, args, mov)
         }
-        BaseTy::CoroutineWitness(..) => todo!(),
     }
 }
 

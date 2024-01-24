@@ -8,8 +8,8 @@ use flux_middle::{
         self,
         evars::{EVarCxId, EVarSol},
         fold::TypeFoldable,
-        AliasTy, BaseTy, BinOp, Binder, Constraint, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
-        FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, GenericParamDefKind, HoleKind,
+        AliasTy, BaseTy, BinOp, Binder, Constraint, CoroutineObligPredicate, ESpan, EVarGen,
+        EarlyBinder, Expr, ExprKind, FnOutput, GenericArg, GenericParamDefKind, HoleKind,
         InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
@@ -129,23 +129,19 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         rcx.replace_evars(&infcx.solve().unwrap());
     }
 
-    pub(crate) fn pack_closure_operands(
-        &mut self,
-        env: &mut TypeEnv,
-        operands: &[Ty],
-    ) -> Result<Vec<Ty>> {
-        let mut res = Vec::new();
-        for ty in operands {
-            let packed_ty = match ty.kind() {
-                TyKind::Ptr(PtrKind::Shr(region), path) => {
-                    let ty = env.get(path);
-                    rty::Ty::mk_ref(*region, ty, Mutability::Not)
+    pub(crate) fn pack_closure_operands(&mut self, env: &mut TypeEnv, operands: &[Ty]) -> List<Ty> {
+        operands
+            .into_iter()
+            .map(|ty| {
+                match ty.kind() {
+                    TyKind::Ptr(PtrKind::Shr(region), path) => {
+                        let ty = env.get(path);
+                        rty::Ty::mk_ref(*region, ty, Mutability::Not)
+                    }
+                    _ => ty.clone(),
                 }
-                _ => ty.clone(),
-            };
-            res.push(packed_ty);
-        }
-        Ok(res)
+            })
+            .collect()
     }
 
     fn check_generic_args(&self, did: DefId, generic_args: &[GenericArg]) -> Result {
@@ -649,8 +645,16 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
     }
 
     fn opaque_subtyping(&mut self, rcx: &mut RefineCtxt, ty: &Ty, alias_ty: &AliasTy) -> Result {
-        if let Some(BaseTy::Coroutine(def_id, args)) = ty.as_bty_skipping_existentials() {
-            let obligs = mk_generator_obligations(self.genv, def_id, args, &alias_ty.def_id)?;
+        if let Some(BaseTy::Coroutine(def_id, resume_ty, upvar_tys)) =
+            ty.as_bty_skipping_existentials()
+        {
+            let obligs = mk_generator_obligations(
+                self.genv,
+                def_id,
+                resume_ty,
+                upvar_tys,
+                &alias_ty.def_id,
+            )?;
             self.insert_obligations(obligs);
         } else {
             let bounds = self
@@ -764,17 +768,23 @@ impl Obligations {
 fn mk_generator_obligations(
     genv: GlobalEnv,
     generator_did: &DefId,
-    generator_args: &GenericArgs,
+    resume_ty: &Ty,
+    upvar_tys: &List<Ty>,
     opaque_def_id: &DefId,
 ) -> Result<Vec<rty::Clause>> {
     let bounds = genv.item_bounds(*opaque_def_id)?;
     let pred = if let rty::ClauseKind::Projection(proj) = bounds.skip_binder()[0].kind() {
         let output = proj.term;
-        GeneratorObligPredicate { def_id: *generator_did, args: generator_args.clone(), output }
+        CoroutineObligPredicate {
+            def_id: *generator_did,
+            resume_ty: resume_ty.clone(),
+            upvar_tys: upvar_tys.clone(),
+            output,
+        }
     } else {
         panic!("mk_generator_obligations: unexpected bounds")
     };
-    let clause = rty::Clause::new(vec![], rty::ClauseKind::GeneratorOblig(pred));
+    let clause = rty::Clause::new(vec![], rty::ClauseKind::CoroutineOblig(pred));
     Ok(vec![clause])
 }
 
