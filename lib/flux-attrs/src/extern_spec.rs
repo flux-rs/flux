@@ -10,7 +10,7 @@ use syn::{
     spanned::Spanned,
     token::Brace,
     Attribute, Expr, FnArg, GenericArgument, GenericParam, Generics, ItemStruct, Signature, Token,
-    Type,
+    Type, TypePath,
 };
 
 enum ExternItem {
@@ -30,6 +30,7 @@ struct ExternItemImpl {
     attrs: Vec<Attribute>,
     impl_token: Token![impl],
     generics: Generics,
+    trait_: Option<(Option<Token![!]>, syn::Path, Token![for])>,
     self_ty: Box<Type>,
     brace_token: Brace,
     items: Vec<ExternFn>,
@@ -55,8 +56,9 @@ impl ExternItemImpl {
         // for multiple impl blocks for the same type (see rset03.rs)
         let mut dummy_prefix = format!("__FluxExternImplStruct{:?}", self.generics.params.len());
         self.dummy_ident = Some(create_dummy_ident(&mut dummy_prefix, &self.self_ty)?);
+        let trait_ = self.trait_.as_ref().map(|(_, path, _)| path.clone());
         for item in &mut self.items {
-            item.prepare(&self.mod_path, Some(&self.self_ty), false);
+            item.prepare(&self.mod_path, Some(&self.self_ty), &trait_, false);
         }
         Ok(())
     }
@@ -111,21 +113,38 @@ impl ToTokens for ExternItemImpl {
 }
 
 impl ExternFn {
-    fn prepare(&mut self, mod_path: &Option<syn::Path>, self_ty: Option<&syn::Type>, mangle: bool) {
-        self.fill_body(mod_path, self_ty);
+    fn prepare(
+        &mut self,
+        mod_path: &Option<syn::Path>,
+        self_ty: Option<&syn::Type>,
+        trait_: &Option<syn::Path>,
+        mangle: bool,
+    ) {
+        self.fill_body(mod_path, self_ty, trait_);
         if mangle {
             self.sig.ident = format_ident!("__flux_extern_spec_{}", self.sig.ident);
         }
     }
 
-    fn fill_body(&mut self, mod_path: &Option<syn::Path>, self_ty: Option<&syn::Type>) {
+    fn fill_body(
+        &mut self,
+        mod_path: &Option<syn::Path>,
+        self_ty: Option<&syn::Type>,
+        trait_: &Option<syn::Path>,
+    ) {
         let ident = &self.sig.ident;
-        let fn_path = match (mod_path, self_ty) {
-            (None, None) => quote_spanned! { ident.span() => #ident },
-            (Some(mod_path), None) => quote_spanned!(ident.span()=> #mod_path :: #ident ),
-            (None, Some(self_ty)) => quote_spanned!(ident.span()=> < #self_ty > :: #ident ),
-            (Some(mod_path), Some(self_ty)) => {
+        let fn_path = match (mod_path, self_ty, trait_) {
+            (None, None, _) => quote_spanned! { ident.span() => #ident },
+            (Some(mod_path), None, _) => quote_spanned!(ident.span()=> #mod_path :: #ident ),
+            (None, Some(self_ty), None) => quote_spanned!(ident.span()=> < #self_ty > :: #ident ),
+            (None, Some(self_ty), Some(trait_)) => {
+                quote_spanned!(ident.span()=> < #self_ty as #trait_ > :: #ident )
+            }
+            (Some(mod_path), Some(self_ty), None) => {
                 quote_spanned!(ident.span()=> < #mod_path :: #self_ty > :: #ident )
+            }
+            (Some(mod_path), Some(self_ty), Some(trait_)) => {
+                quote_spanned!(ident.span()=> < #mod_path :: #self_ty as #trait_ > :: #ident )
             }
         };
         let generic_args = generic_params_to_args(&self.sig.generics.params);
@@ -151,6 +170,7 @@ impl Parse for ExternItem {
         let mut item = if lookahead.peek(Token![fn]) {
             ExternItem::Fn(input.parse()?)
         } else if lookahead.peek(Token![impl]) {
+            println!("TRACE: ExternItem::parse: impl");
             ExternItem::Impl(input.parse()?)
         } else if lookahead.peek(Token![struct]) {
             ExternItem::Struct(input.parse()?)
@@ -179,7 +199,36 @@ impl Parse for ExternItemImpl {
         let attrs = input.call(Attribute::parse_outer)?;
         let impl_token = input.parse()?;
         let generics = input.parse()?;
-        let self_ty = input.parse()?;
+
+        let mut first_ty: Type = input.parse()?;
+        let self_ty: Type;
+        let trait_;
+
+        let is_impl_for = input.peek(Token![for]);
+        if is_impl_for {
+            let for_token: Token![for] = input.parse()?;
+            let mut first_ty_ref = &first_ty;
+            while let Type::Group(ty) = first_ty_ref {
+                first_ty_ref = &ty.elem;
+            }
+            if let Type::Path(TypePath { qself: None, .. }) = first_ty_ref {
+                while let Type::Group(ty) = first_ty {
+                    first_ty = *ty.elem;
+                }
+                if let Type::Path(TypePath { qself: None, path }) = first_ty {
+                    trait_ = Some((None, path, for_token));
+                } else {
+                    unreachable!();
+                }
+            } else {
+                trait_ = None;
+            }
+            self_ty = input.parse()?;
+        } else {
+            trait_ = None;
+            self_ty = first_ty;
+        }
+
         let content;
         let brace_token = braced!(content in input);
         let mut items = Vec::new();
@@ -191,7 +240,8 @@ impl Parse for ExternItemImpl {
             attrs,
             impl_token,
             generics,
-            self_ty,
+            trait_,
+            self_ty: Box::new(self_ty),
             brace_token,
             items,
             mod_path: None,
@@ -210,7 +260,7 @@ pub(crate) fn transform_extern_spec(
         ExternItem::Struct(item_struct) => create_dummy_struct(mod_path, item_struct),
         ExternItem::Enum(item_enum) => create_dummy_enum(mod_path, item_enum),
         ExternItem::Fn(mut extern_fn) => {
-            extern_fn.prepare(&mod_path, None, true);
+            extern_fn.prepare(&mod_path, None, &None, true);
             Ok(extern_fn.into_token_stream())
         }
         ExternItem::Impl(mut extern_item_impl) => {

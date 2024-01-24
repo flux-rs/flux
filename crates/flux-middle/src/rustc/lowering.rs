@@ -1,6 +1,6 @@
 use flux_errors::{FluxSession, ResultExt};
 use itertools::Itertools;
-use rustc_borrowck::consumers::{BodyWithBorrowckFacts, ConsumerOptions};
+use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
@@ -108,11 +108,6 @@ pub fn resolve_call_from<'tcx>(
     callee_id: DefId,
     args: rustc_middle::ty::GenericArgsRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
-    // let body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(
-    //     tcx,
-    //     caller_id,
-    //     ConsumerOptions::RegionInferenceContext,
-    // );
     let param_env = tcx.param_env(caller_id.to_def_id());
     let infcx = tcx.infer_ctxt().build(); // replicate_infer_ctxt(tcx, &body_with_facts);
     resolve_call_query(tcx, &mut SelectionContext::new(&infcx), param_env, callee_id, args)
