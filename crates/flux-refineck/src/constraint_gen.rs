@@ -131,7 +131,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
 
     pub(crate) fn pack_closure_operands(&mut self, env: &mut TypeEnv, operands: &[Ty]) -> List<Ty> {
         operands
-            .into_iter()
+            .iter()
             .map(|ty| {
                 match ty.kind() {
                     TyKind::Ptr(PtrKind::Shr(region), path) => {

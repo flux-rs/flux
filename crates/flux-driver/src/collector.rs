@@ -545,7 +545,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         def_id: LocalDefId,
         bounds: &GenericBounds,
     ) -> Result<DefId> {
-        if let Some(bound) = bounds.get(0)
+        if let Some(bound) = bounds.first()
             && let Some(trait_ref) = bound.trait_ref()
             && let Some(trait_id) = trait_ref.trait_def_id()
         {
