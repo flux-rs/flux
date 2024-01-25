@@ -16,6 +16,7 @@ use syn::{
 enum ExternItem {
     Struct(syn::ItemStruct),
     Enum(syn::ItemEnum),
+    Trait(syn::ItemTrait),
     Fn(ExternFn),
     Impl(ExternItemImpl),
 }
@@ -43,6 +44,7 @@ impl ExternItem {
         match self {
             ExternItem::Struct(ItemStruct { attrs, .. })
             | ExternItem::Enum(syn::ItemEnum { attrs, .. })
+            | ExternItem::Trait(syn::ItemTrait { attrs, .. })
             | ExternItem::Fn(ExternFn { attrs, .. })
             | ExternItem::Impl(ExternItemImpl { attrs, .. }) => mem::replace(attrs, new),
         }
@@ -176,6 +178,8 @@ impl Parse for ExternItem {
         } else if lookahead.peek(Token![enum]) {
             let enm = input.parse();
             ExternItem::Enum(enm?)
+        } else if lookahead.peek(Token![trait]) {
+            ExternItem::Trait(input.parse()?)
         } else {
             return Err(lookahead.error());
         };
@@ -258,6 +262,7 @@ pub(crate) fn transform_extern_spec(
     match syn::parse2::<ExternItem>(tokens)? {
         ExternItem::Struct(item_struct) => create_dummy_struct(mod_path, item_struct),
         ExternItem::Enum(item_enum) => create_dummy_enum(mod_path, item_enum),
+        ExternItem::Trait(item_trait) => create_dummy_trait(mod_path, item_trait),
         ExternItem::Fn(mut extern_fn) => {
             extern_fn.prepare(&mod_path, None, &None, true);
             Ok(extern_fn.into_token_stream())
@@ -453,6 +458,68 @@ fn create_dummy_struct(
                                                                           #dummy_struct
     };
     Ok(dummy_struct_with_attrs.to_token_stream())
+}
+
+/// Create a dummy trait with a single super-trait that is the external trait
+///
+/// Example:
+///
+/// ```ignore
+/// #[extern_spec(std::vec)]
+/// #[flux::generics(Self as base)]
+/// #[flux::predicate(f: (Self) -> bool)]
+/// trait MyTrait {}
+///
+/// =>
+///
+/// #[flux::extern_spec]
+/// #[allow(unused, dead_code)]
+/// #[flux::generics(Self as base)]
+/// #[flux::predicate(f: (Self) -> bool)]
+/// trait __FluxExternTraitMyTrait: MyTrait {}
+/// ```
+fn create_dummy_trait(
+    mod_path: Option<syn::Path>,
+    item_trait: syn::ItemTrait,
+) -> syn::Result<TokenStream> {
+    let item_trait_span = item_trait.span();
+    if !item_trait.supertraits.is_empty() {
+        return Err(syn::Error::new(
+            item_trait.supertraits.span(),
+            "invalid extern spec: extern specs on traits cannot have supertraits",
+        ));
+    }
+    if !item_trait.items.is_empty() {
+        return Err(syn::Error::new(
+            item_trait_span,
+            "invalid extern spec: extern specs on traits cannot have items",
+        ));
+    }
+
+    let mut dummy_trait = item_trait.clone();
+    let ident = item_trait.ident;
+    let mut generics = item_trait.generics;
+    strip_generics_eq_default(&mut generics);
+
+    dummy_trait.ident = format_ident!("__FluxExternTrait{}", ident);
+    dummy_trait.auto_token = None;
+
+    let dummy_super: syn::TypeParamBound = if let Some(mod_path) = mod_path {
+        parse_quote_spanned! {item_trait_span =>
+                              ( #mod_path :: #ident #generics )
+        }
+    } else {
+        parse_quote_spanned! {item_trait_span =>
+                              ( #ident #generics )
+        }
+    };
+    dummy_trait.supertraits.push(dummy_super);
+    let dummy_trait_with_attrs: syn::ItemTrait = parse_quote_spanned! { item_trait_span =>
+        #[flux::extern_spec]
+        #[allow(unused, dead_code)]
+        #dummy_trait
+    };
+    Ok(dummy_trait_with_attrs.to_token_stream())
 }
 
 // Cribbed from Prusti's extern_spec_rewriter

@@ -1,4 +1,4 @@
-// use flux_rs::extern_spec;
+use flux_rs::extern_spec;
 
 // the "existing" trait
 pub trait MyTrait {
@@ -6,16 +6,16 @@ pub trait MyTrait {
 }
 
 // the "extern" spec
-// #[extern_spec]
-// #[flux::generics(Self as base)]
-// #[flux::predicate(f: (Self) -> bool)]
-// trait MyTrait {}
-
-// the "generated" wrapper trait
-#[flux::extern_spec]
+#[extern_spec]
 #[flux::generics(Self as base)]
 #[flux::predicate(f: (Self) -> bool)]
-trait __FluxExternTraitMyTrait: MyTrait {}
+trait MyTrait {}
+
+// // the "generated" wrapper trait
+// #[flux::extern_spec]
+// #[flux::generics(Self as base)]
+// #[flux::predicate(f: (Self) -> bool)]
+// trait __FluxExternTraitMyTrait: MyTrait {}
 
 // -----------------------------------------------------------------------------------
 // client code
