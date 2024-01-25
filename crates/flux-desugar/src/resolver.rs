@@ -431,13 +431,18 @@ impl<'sess> NameResTable<'sess> {
 
         table.collect_from_generics(impl_item.generics)?;
 
-        // Insert generics from parent impl
-        if let Some(parent_impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
-            let parent_impl_item = tcx.hir().expect_item(parent_impl_did.expect_local());
-            if let ItemKind::Impl(parent) = &parent_impl_item.kind {
-                table.collect_from_generics(parent.generics)?;
-                table.collect_from_ty(parent.self_ty)?;
+        // Insert paths from parent impl
+        let impl_did = tcx.local_parent(def_id);
+        if let ItemKind::Impl(impl_) = &tcx.hir().expect_item(impl_did).kind {
+            if let Some(trait_ref) = impl_.of_trait {
+                let trait_id = trait_ref.trait_def_id().unwrap();
+                table.insert(
+                    ResKey::from_hir_path(sess, trait_ref.path)?,
+                    Res::Def(DefKind::Trait, trait_id),
+                );
             }
+            table.collect_from_generics(impl_.generics)?;
+            table.collect_from_ty(impl_.self_ty)?;
         }
 
         match &impl_item.kind {
@@ -465,7 +470,7 @@ impl<'sess> NameResTable<'sess> {
             let parent_impl_item = tcx.hir().expect_item(parent_impl_did.expect_local());
 
             // Insert NAME of parent trait
-            if let ItemKind::Trait(_, _, _, _, _) = &parent_impl_item.kind {
+            if let ItemKind::Trait(..) = &parent_impl_item.kind {
                 table.insert(
                     ResKey::from_ident(parent_impl_item.ident),
                     Res::Def(DefKind::Trait, parent_impl_did),
