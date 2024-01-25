@@ -22,13 +22,6 @@ pub struct LiftCtxt<'a, 'genv, 'tcx> {
     owner: OwnerId,
 }
 
-pub fn lift_generics<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    owner_id: OwnerId,
-) -> Result<fhir::Generics<'genv>> {
-    LiftCtxt::new(genv, owner_id, &IndexGen::new(), None).lift_generics()
-}
-
 pub fn lift_type_alias<'genv>(
     genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
@@ -62,16 +55,7 @@ pub fn lift_fn<'genv>(
     let mut opaque_tys = Default::default();
     let local_id_gen = IndexGen::new();
     let mut cx = LiftCtxt::new(genv, owner_id, &local_id_gen, Some(&mut opaque_tys));
-
-    let def_id = owner_id.def_id;
-    let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
-
-    let fn_sig = genv
-        .hir()
-        .fn_sig_by_hir_id(hir_id)
-        .expect("item does not have a `FnDecl`");
-
-    let fn_sig = cx.lift_fn_sig(fn_sig)?;
+    let fn_sig = cx.lift_fn_sig()?;
     Ok((fn_sig, opaque_tys))
 }
 
@@ -268,7 +252,14 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         Ok(opaque_ty)
     }
 
-    fn lift_fn_sig(&mut self, fn_sig: &hir::FnSig) -> Result<fhir::FnSig<'genv>> {
+    pub fn lift_fn_sig(&mut self) -> Result<fhir::FnSig<'genv>> {
+        let hir_id = self.genv.hir().local_def_id_to_hir_id(self.owner.def_id);
+        let fn_sig = self
+            .genv
+            .hir()
+            .fn_sig_by_hir_id(hir_id)
+            .expect("item does not have a `FnDecl`");
+
         let generics = self.lift_generics()?;
         let args = try_alloc_slice!(self.genv, &fn_sig.decl.inputs, |ty| self.lift_ty(ty))?;
 
@@ -291,6 +282,26 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             }
             hir::FnRetTy::Return(ty) => self.lift_ty(ty),
         }
+    }
+
+    pub fn lift_type_alias(&mut self) -> Result<fhir::TyAlias<'genv>> {
+        let item = self.genv.hir().expect_item(self.owner.def_id);
+        let hir::ItemKind::TyAlias(ty, _) = item.kind else {
+            bug!("expected type alias");
+        };
+
+        let generics = self.lift_generics()?;
+        let refined_by = self.lift_refined_by();
+        let ty = self.lift_ty(ty)?;
+        Ok(fhir::TyAlias {
+            owner_id: self.owner,
+            generics,
+            refined_by: self.genv.alloc(refined_by),
+            index_params: &[],
+            ty,
+            span: item.span,
+            lifted: true,
+        })
     }
 
     pub fn lift_field_def_id(&mut self, def_id: LocalDefId) -> Result<fhir::FieldDef<'genv>> {

@@ -547,8 +547,12 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
 
     pub(crate) fn desugar_type_alias(
         &mut self,
-        ty_alias: &surface::TyAlias,
+        ty_alias: Option<&surface::TyAlias>,
     ) -> Result<fhir::TyAlias<'genv>> {
+        let Some(ty_alias) = ty_alias else {
+            return self.as_lift_cx().lift_type_alias();
+        };
+
         let mut env = self.gather_params_type_alias(ty_alias)?;
 
         let refined_by = self.desugar_refined_by(&ty_alias.refined_by)?;
@@ -573,7 +577,19 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok(ty_alias)
     }
 
-    pub(crate) fn desugar_fn_sig(&mut self, fn_sig: &surface::FnSig) -> Result<fhir::FnSig<'genv>> {
+    pub(crate) fn desugar_assoc_type(&mut self) -> Result<fhir::AssocType<'genv>> {
+        let generics = self.as_lift_cx().lift_generics()?;
+        Ok(fhir::AssocType { generics })
+    }
+
+    pub(crate) fn desugar_fn_sig(
+        &mut self,
+        fn_sig: Option<&surface::FnSig>,
+    ) -> Result<fhir::FnSig<'genv>> {
+        let Some(fn_sig) = fn_sig else {
+            return self.as_lift_cx().lift_fn_sig();
+        };
+
         let mut env = self.gather_params_fn_sig(fn_sig)?;
 
         let mut requires = vec![];

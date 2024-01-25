@@ -24,12 +24,7 @@ mod errors;
 pub mod resolver;
 mod sort_resolver;
 
-use flux_middle::{
-    fhir::{self, lift},
-    global_env::GlobalEnv,
-    queries::Providers,
-    Specs,
-};
+use flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{self as hir, OwnerId};
@@ -150,7 +145,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         match item.kind {
             hir::ItemKind::Fn(..) => {
                 let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
-                collect_err!(self, self.desugar_fn_sig(owner_id, fn_spec));
+                collect_err!(self, self.desugar_fn_spec(owner_id, fn_spec));
             }
             hir::ItemKind::TyAlias(..) => {
                 let ty_alias = specs.ty_aliases[&owner_id].as_ref();
@@ -198,11 +193,12 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         match kind {
             hir::AssocItemKind::Fn { .. } => {
                 let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
-                self.desugar_fn_sig(owner_id, fn_spec)?;
+                self.desugar_fn_spec(owner_id, fn_spec)?;
             }
             hir::AssocItemKind::Type => {
-                let generics = lift::lift_generics(self.genv, owner_id)?;
-                let assoc_ty = fhir::AssocType { generics };
+                let assoc_ty = self
+                    .as_rust_item_ctxt(owner_id, None)
+                    .desugar_assoc_type()?;
                 self.fhir.assoc_types.insert(owner_id.def_id, assoc_ty);
             }
             hir::AssocItemKind::Const => {}
@@ -217,8 +213,9 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     ) -> Result {
         let def_id = owner_id.def_id;
 
-        let mut cx = self.as_rust_item_ctxt(owner_id, None);
-        let struct_def = cx.desugar_struct_def(struct_def)?;
+        let struct_def = self
+            .as_rust_item_ctxt(owner_id, None)
+            .desugar_struct_def(struct_def)?;
 
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), owner_id, "fhir", struct_def).unwrap();
@@ -232,8 +229,9 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     pub fn desugar_enum_def(&mut self, owner_id: OwnerId, enum_def: &surface::EnumDef) -> Result {
         let def_id = owner_id.def_id;
 
-        let mut cx = self.as_rust_item_ctxt(owner_id, None);
-        let enum_def = cx.desugar_enum_def(enum_def)?;
+        let enum_def = self
+            .as_rust_item_ctxt(owner_id, None)
+            .desugar_enum_def(enum_def)?;
 
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), owner_id, "fhir", &enum_def).unwrap();
@@ -251,12 +249,9 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     ) -> Result {
         let def_id = owner_id.def_id;
 
-        let ty_alias = if let Some(ty_alias) = ty_alias {
-            let mut cx = self.as_rust_item_ctxt(owner_id, None);
-            cx.desugar_type_alias(ty_alias)?
-        } else {
-            lift::lift_type_alias(self.genv, owner_id)?
-        };
+        let ty_alias = self
+            .as_rust_item_ctxt(owner_id, None)
+            .desugar_type_alias(ty_alias)?;
 
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), owner_id, "fhir", &ty_alias).unwrap();
@@ -267,7 +262,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         Ok(())
     }
 
-    pub fn desugar_fn_sig(&mut self, owner_id: OwnerId, fn_spec: &surface::FnSpec) -> Result {
+    pub fn desugar_fn_spec(&mut self, owner_id: OwnerId, fn_spec: &surface::FnSpec) -> Result {
         let def_id = owner_id.def_id;
 
         if fn_spec.trusted {
@@ -280,16 +275,10 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
                 .insert(def_id, self.genv.alloc_slice(&quals.names));
         }
 
-        let (fn_sig, opaque_tys) = if let Some(fn_sig) = &fn_spec.fn_sig {
-            let mut opaque_tys = Default::default();
-            let mut cx = self.as_rust_item_ctxt(owner_id, Some(&mut opaque_tys));
-
-            let fn_sig = cx.desugar_fn_sig(fn_sig)?;
-
-            (fn_sig, opaque_tys)
-        } else {
-            lift::lift_fn(self.genv, owner_id)?
-        };
+        let mut opaque_tys = Default::default();
+        let fn_sig = self
+            .as_rust_item_ctxt(owner_id, Some(&mut opaque_tys))
+            .desugar_fn_sig(fn_spec.fn_sig.as_ref())?;
 
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), def_id, "fhir", fn_sig).unwrap();
@@ -304,8 +293,9 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     pub fn desugar_trait(&mut self, owner_id: OwnerId, trait_: &surface::Trait) -> Result {
         let def_id = owner_id.def_id;
 
-        let mut cx = self.as_rust_item_ctxt(owner_id, None);
-        let trait_ = cx.desugar_trait(trait_)?;
+        let trait_ = self
+            .as_rust_item_ctxt(owner_id, None)
+            .desugar_trait(trait_)?;
 
         self.fhir.traits.insert(def_id, trait_);
 
@@ -315,8 +305,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     pub fn desugar_impl(&mut self, owner_id: OwnerId, impl_: &surface::Impl) -> Result {
         let def_id = owner_id.def_id;
 
-        let mut cx = self.as_rust_item_ctxt(owner_id, None);
-        let impl_ = cx.desugar_impl(impl_)?;
+        let impl_ = self.as_rust_item_ctxt(owner_id, None).desugar_impl(impl_)?;
 
         self.fhir.impls.insert(def_id, impl_);
 
