@@ -1,6 +1,6 @@
 use std::iter;
 
-use flux_common::tracked_span_bug;
+use flux_common::{bug, tracked_span_bug};
 use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
@@ -25,7 +25,7 @@ use rustc_span::Span;
 use crate::{
     checker::errors::CheckerErrKind,
     fixpoint_encoding::KVarEncoding,
-    refine_tree::{RefineCtxt, Scope, Snapshot},
+    refine_tree::{AssumeInvariants, RefineCtxt, Scope, Snapshot},
     type_env::TypeEnv,
 };
 
@@ -131,7 +131,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
 
     pub(crate) fn pack_closure_operands(&mut self, env: &mut TypeEnv, operands: &[Ty]) -> List<Ty> {
         operands
-            .into_iter()
+            .iter()
             .map(|ty| {
                 match ty.kind() {
                     TyKind::Ptr(PtrKind::Shr(region), path) => {
@@ -503,20 +503,23 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) -> Result {
         let rcx = &mut rcx.branch();
 
+        // We *fully* unpack the rhs before continuing to be able to prove goals like this
+        // ∃a. (i32[a], ∃b. {i32[b] | a > b})} <: ∃a,b. ({i32[a] | b < a}, i32[b])
+        // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
+        let ty1 = rcx.unpack(ty1, AssumeInvariants::No);
+
         match (ty1.kind(), ty2.kind()) {
-            (TyKind::Exists(ty1), _) => {
-                let ty1 = ty1.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
-                self.subtyping(rcx, &ty1, ty2)
+            (TyKind::Exists(..), _) => {
+                bug!("existentials should be removed by the unpack");
             }
-            (TyKind::Constr(p1, ty1), _) => {
-                rcx.assume_pred(p1.clone());
-                self.subtyping(rcx, ty1, ty2)
+            (TyKind::Constr(..), _) => {
+                bug!("constraint types should removed by the unpack");
             }
             (_, TyKind::Exists(ty2)) => {
                 self.push_scope(rcx);
                 let ty2 =
                     ty2.replace_bound_exprs_with(|sort, mode| self.fresh_infer_var(sort, mode));
-                self.subtyping(rcx, ty1, &ty2)?;
+                self.subtyping(rcx, &ty1, &ty2)?;
                 self.pop_scope();
                 Ok(())
             }
@@ -540,7 +543,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
             }
             (_, TyKind::Constr(p2, ty2)) => {
                 rcx.check_pred(p2.clone(), self.tag);
-                self.subtyping(rcx, ty1, ty2)
+                self.subtyping(rcx, &ty1, ty2)
             }
             (TyKind::Downcast(.., fields1), TyKind::Downcast(.., fields2)) => {
                 debug_assert_eq!(fields1.len(), fields2.len());
@@ -556,7 +559,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                         .for_each(|(e1, e2)| self.unify_exprs(e1, e2));
                 }
 
-                self.opaque_subtyping(rcx, ty1, alias_ty)
+                self.opaque_subtyping(rcx, &ty1, alias_ty)
             }
             (
                 TyKind::Alias(rty::AliasKind::Projection, alias_ty1),
