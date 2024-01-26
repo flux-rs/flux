@@ -519,8 +519,8 @@ impl<'fhir> RefineParam<'fhir> {
     }
 }
 
-/// How the declared parameter in the surface syntax. This is used to adjust how errors are reported
-/// and to control the [inference mode].
+/// How the parameter was declared in the surface syntax. This is used to adjust how errors are
+/// reported and to control the [inference mode].
 ///
 /// [inference mode]: InferMode
 #[derive(Debug, Clone, Copy)]
@@ -543,7 +543,7 @@ impl ParamKind {
     }
 }
 
-/// *Infer*ence *mode* for parameter at function calls
+/// *Infer*ence *mode* for a parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum InferMode {
     /// Generate a fresh evar for the parameter and solve it via syntactic unification. The parameter
@@ -552,7 +552,7 @@ pub enum InferMode {
     EVar,
     /// Generate a fresh kvar and let fixpoint infer it. This mode can only be used with abstract
     /// refinement predicates. If the parameter is marked as kvar then it can only appear in
-    /// positions that result in a _horn_ constraint as required by fixpoint.
+    /// positions that will result in a _horn_ constraint as required by fixpoint.
     KVar,
 }
 

@@ -34,7 +34,7 @@ impl<P> Env<P> {
     }
 
     /// Extends the current scope with a list of parameters reporting an error if there are any
-    /// dupliates.
+    /// duplicates.
     pub(crate) fn extend(
         &mut self,
         sess: &FluxSession,
@@ -79,14 +79,19 @@ impl<P> Env<P> {
     /// # Panics
     ///
     /// Panics if `id` is already in the enrvionment
+    #[track_caller]
     pub(crate) fn push(&mut self, id: ScopeId) {
-        assert!(self.scopes.insert(id, Scope::new()).is_none());
+        assert!(
+            self.scopes.insert(id, Scope::new()).is_none(),
+            "scope id already in the environment: {id:?}"
+        );
         self.children.entry(self.curr).or_default().insert(id);
         self.parent.insert(id, self.curr);
         self.curr = id;
     }
 
-    /// Remove the current scope and return it. Then set the current scope to the parent scope.
+    /// Remove the current scope and return it. Then set the current scope to the parent scope. Only
+    /// scope without children (leaf scopes) can be popped.
     ///
     /// # Panics
     ///
@@ -103,7 +108,7 @@ impl<P> Env<P> {
         self.scopes.remove(&id).unwrap()
     }
 
-    /// Enter a child scope.
+    /// Enter a child of the current scope.
     ///
     /// # Panics
     ///
@@ -159,8 +164,8 @@ impl<P> Env<P> {
         self.scopes.get_mut(&self.curr).unwrap()
     }
 
-    pub(crate) fn root(&mut self) -> &mut Scope<P> {
-        self.scopes.get_mut(&self.root).unwrap()
+    pub(crate) fn root(&self) -> &Scope<P> {
+        self.scopes.get(&self.root).unwrap()
     }
 
     pub(crate) fn into_root(mut self) -> Scope<P> {
@@ -222,27 +227,31 @@ pub(crate) struct Scope<P> {
 pub(crate) enum ScopeId {
     /// The scope introduced by a function's input parameters. It contains explicit parameters plus
     /// implicitly scoped parameters declared with `@x` or `x: T`.
-    FnInput(NodeId),
+    FnInput,
     /// The scope introduced by a function's output parameters. It contains implicitly scoped
     /// parameters declared with `#n` syntax.
-    FnOutput(NodeId),
-    /// The scope introduced by the `refined_by` annotation in a struct.
-    Struct(NodeId),
-    /// The scope introduced by the `refined_by` annotation in a struct. This scope is not relevant
-    /// for variants, but only for the invariants of the type.
-    Enum(NodeId),
-    /// The scope introduced by variant. It includes parameters introduced with `@n` syntax.
-    Variant(NodeId),
-    /// The scope introduced by type alias. It includes the early bound and index parameters.
-    TyAlias(NodeId),
-    /// The scope introduced by lambda abstraction. It includes the parameters of the lambda.
+    FnOutput,
+    /// The scope introduced by the `refined_by` annotation in a struct. These parameters are in
+    /// scope for all the fields of the struct.
+    Struct,
+    /// The scope introduced by the `refined_by` annotation in an enum. This scope is not relevant
+    /// for the variants of the enum, only for the invariants of the type.
+    Enum,
+    /// The scope introduced by a variant. It includes parameters introduced with `@n` syntax.
+    Variant,
+    /// The scope introduced by type alias. It includes the generic and index parameters.
+    TyAlias,
+    /// The scope introduced by a lambda abstraction. It includes the parameters of the lambda.
+    /// Disambiguated by the `NodeId` as an item can have multiple lambdas.
     Abs(NodeId),
-    /// The scope introduced by an existential type. Either the shorthand syntax or the general syntax.
+    /// The scope introduced by an existential type. Either the shorthand syntax or the general
+    /// existential syntax. Disambiguated by the `NodeId` as an item can have multiple existentials.
     Exists(NodeId),
-    /// The scope introduced by a flux item like a func definition or a qualifier. It includes
-    /// parameters of the item
-    FluxItem,
-    /// Other scope we don't care to clasify
+    /// The scope introduced by an impl block. It doesn't include any parameters.
+    Impl,
+    /// The scope introduced by a trait. It doesn't include any parameters.
+    Trait,
+    /// A scope we don't care to classify.
     Misc,
 }
 
@@ -297,15 +306,16 @@ impl<P: fmt::Debug> fmt::Debug for Env<P> {
 impl fmt::Debug for ScopeId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ScopeId::FnInput(node_id) => write!(f, "FnInput({})", node_id.as_usize()),
-            ScopeId::FnOutput(node_id) => write!(f, "FnOutput({})", node_id.as_usize()),
-            ScopeId::Struct(node_id) => write!(f, "Struct({})", node_id.as_usize()),
-            ScopeId::Enum(node_id) => write!(f, "Enum({})", node_id.as_usize()),
-            ScopeId::Variant(node_id) => write!(f, "Variant({})", node_id.as_usize()),
-            ScopeId::TyAlias(node_id) => write!(f, "TyAlias({})", node_id.as_usize()),
+            ScopeId::FnInput => write!(f, "FnInput"),
+            ScopeId::FnOutput => write!(f, "FnOutput"),
+            ScopeId::Struct => write!(f, "Struct"),
+            ScopeId::Enum => write!(f, "Enum"),
+            ScopeId::Variant => write!(f, "Variant"),
+            ScopeId::TyAlias => write!(f, "TyAlias"),
             ScopeId::Abs(node_id) => write!(f, "Abs({})", node_id.as_usize()),
             ScopeId::Exists(node_id) => write!(f, "Exists({})", node_id.as_usize()),
-            ScopeId::FluxItem => write!(f, "FluxItem"),
+            ScopeId::Impl => write!(f, "Impl"),
+            ScopeId::Trait => write!(f, "Trait"),
             ScopeId::Misc => write!(f, "Misc"),
         }
     }

@@ -1,3 +1,5 @@
+use std::collections::hash_map;
+
 use flux_common::{bug, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::{
@@ -189,7 +191,7 @@ struct NameResTable<'sess> {
     sess: &'sess FluxSession,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum ResEntry {
     Res(Res),
     Unsupported { reason: String, span: Span },
@@ -494,7 +496,17 @@ impl<'sess> NameResTable<'sess> {
     }
 
     fn insert(&mut self, key: ResKey, res: impl Into<ResEntry>) {
-        self.res.insert(key, res.into());
+        let res = res.into();
+        match self.res.entry(key) {
+            hash_map::Entry::Occupied(entry) => {
+                if let ResEntry::Res(_) = res {
+                    assert_eq!(entry.get(), &res);
+                }
+            }
+            hash_map::Entry::Vacant(entry) => {
+                entry.insert(res);
+            }
+        }
     }
 
     fn get(&self, key: &ResKey) -> Option<&ResEntry> {

@@ -42,7 +42,7 @@ pub(crate) fn desugar_qualifier<'genv>(
     let sort_params = &[];
     let sort_resolver = SortResolver::with_sort_params(genv, resolver_output, sort_params);
 
-    let mut env = Env::from_params(&sort_resolver, ScopeId::FluxItem, &qualifier.args)?;
+    let mut env = Env::from_params(&sort_resolver, ScopeId::Misc, &qualifier.args)?;
 
     let cx = FluxItemCtxt::new(genv, resolver_output, qualifier.name.name);
     let expr = cx.desugar_expr(&mut env, &qualifier.expr);
@@ -63,7 +63,7 @@ pub(crate) fn desugar_defn<'genv>(
     if let Some(body) = &defn.body {
         let sort_params = defn.sort_vars.iter().map(|ident| ident.name).collect_vec();
         let sort_resolver = SortResolver::with_sort_params(genv, resolver_output, &sort_params);
-        let mut env = Env::from_params(&sort_resolver, ScopeId::FluxItem, &defn.args)?;
+        let mut env = Env::from_params(&sort_resolver, ScopeId::Misc, &defn.args)?;
 
         let cx = FluxItemCtxt::new(genv, resolver_output, defn.name.name);
         let expr = cx.desugar_expr(&mut env, body)?;
@@ -205,7 +205,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
     }
 
     pub(crate) fn desugar_trait(&mut self, trait_: &surface::Trait) -> Result<fhir::Trait<'genv>> {
-        let mut env = Env::new(ScopeId::Misc);
+        let mut env = Env::new(ScopeId::Trait);
         let generics = if let Some(generics) = &trait_.generics {
             self.desugar_generics(generics, &mut env)?
         } else {
@@ -234,7 +234,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
     }
 
     pub(crate) fn desugar_impl(&mut self, impl_: &surface::Impl) -> Result<fhir::Impl<'genv>> {
-        let mut env = Env::new(ScopeId::Misc);
+        let mut env = Env::new(ScopeId::Impl);
         let generics = if let Some(generics) = &impl_.generics {
             self.desugar_generics(generics, &mut env)?
         } else {
@@ -464,7 +464,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
 
         let mut env = Env::from_params(
             &self.sort_resolver,
-            ScopeId::Enum(enum_def.node_id),
+            ScopeId::Enum,
             enum_def.refined_by.iter().flat_map(|it| &it.index_params),
         )?;
 
@@ -609,7 +609,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         })?;
 
         // Desugar output
-        env.enter(ScopeId::FnOutput(fn_sig.node_id));
+        env.enter(ScopeId::FnOutput);
         let ret = self.desugar_asyncness(fn_sig.asyncness, &fn_sig.returns, &mut env);
 
         let ensures = try_alloc_slice!(self.genv, &fn_sig.ensures, |cstr| {

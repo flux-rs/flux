@@ -9,19 +9,21 @@
 //! # The `x: T` syntax
 //!
 //! Dealing with the `x: T` syntax requires special care as it can be used to declare parameters
-//! for types that don't have a sort which we can only determine in later phases. For example,
-//! consider the following:
+//! for types that don't have an associated sort, which we can only determine in later phases. For
+//! example, consider the following:
 //!
 //! ```ignore
 //! fn foo<T as type>(x: T) { }
 //! ```
 //!
 //! If `T` is declared with kind `type`, the name `x` cannot bind a refinement parameter. We want to
-//! allow to write `x: T` but report an error if `x` is ever used. This is in contrast with writing
-//! `T[@n]` where we report an error at the definition site. To partially deal with this, during
-//! gathering we check if parameters declared with `x: T` are ever used. If they are not, we avoid
-//! generating a parameter in the resulting env.
+//! allow user to write `x: T` but report an error if `x` is ever used. This is in contrast with
+//! writing `T[@n]` where we report an error at the definition site. To partially deal with this,
+//! during gathering we check if parameters declared with `x: T` are ever used. If they are not, we
+//! avoid generating a parameter in the resulting env.
 //!
+//! [`Env`]: env::Env
+
 use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
 use flux_middle::fhir;
@@ -109,7 +111,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         &self,
         ty_alias: &surface::TyAlias,
     ) -> Result<super::Env<'genv>> {
-        let mut env = Env::new(ScopeId::TyAlias(ty_alias.node_id));
+        let mut env = Env::new(ScopeId::TyAlias);
         self.gather_refinement_generics(&ty_alias.generics.params, &mut env)?;
 
         env.extend(self.sess(), self.resolve_params(&ty_alias.refined_by.index_params)?)?;
@@ -123,7 +125,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         &self,
         struct_def: &surface::StructDef,
     ) -> Result<super::Env<'genv>> {
-        let mut env = Env::new(ScopeId::Struct(struct_def.node_id));
+        let mut env = Env::new(ScopeId::Struct);
         env.extend(
             self.sess(),
             self.resolve_params(
@@ -147,7 +149,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         &self,
         variant_def: &surface::VariantDef,
     ) -> Result<super::Env<'genv>> {
-        let mut env = Env::new(ScopeId::Variant(variant_def.node_id));
+        let mut env = Env::new(ScopeId::Variant);
 
         for ty in &variant_def.fields {
             self.gather_params_ty(None, ty, TypePos::Input, &mut env)?;
@@ -171,11 +173,11 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         &mut self,
         fn_sig: &surface::FnSig,
     ) -> Result<super::Env<'genv>> {
-        let mut env = Env::new(ScopeId::FnInput(fn_sig.node_id));
+        let mut env = Env::new(ScopeId::FnInput);
 
         self.gather_params_fn_sig_input(fn_sig, &mut env)?;
 
-        env.push(ScopeId::FnOutput(fn_sig.node_id));
+        env.push(ScopeId::FnOutput);
         self.gather_params_fn_sig_output(fn_sig, &mut env)?;
         env.exit();
 
@@ -508,14 +510,14 @@ impl<'a, 'fhir> CheckParamUses<'a, 'fhir> {
 impl Visitor for CheckParamUses<'_, '_> {
     fn visit_fn_sig(&mut self, fn_sig: &surface::FnSig) {
         let surface::FnSig {
-            asyncness: _asyncness,
+            asyncness: _,
             generics,
             requires,
             args,
             returns,
             ensures,
-            span: _span,
-            node_id,
+            span: _,
+            node_id: _,
         } = fn_sig;
 
         walk_list!(self, visit_where_predicate, &generics.predicates);
@@ -524,7 +526,7 @@ impl Visitor for CheckParamUses<'_, '_> {
         }
         walk_list!(self, visit_fun_arg, args);
 
-        self.env.enter(ScopeId::FnOutput(*node_id));
+        self.env.enter(ScopeId::FnOutput);
         self.visit_fn_ret_ty(returns);
         walk_list!(self, visit_constraint, ensures);
 
