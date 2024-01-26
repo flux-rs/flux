@@ -33,7 +33,7 @@ pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, OutlivesPredicate, ParamTy, ScalarInt, UintTy},
 };
-use rustc_span::{symbol::kw, Span, Symbol};
+use rustc_span::{symbol::kw, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 pub use rustc_type_ir::INNERMOST;
 
@@ -233,7 +233,6 @@ pub struct AssocPredicate {
     /// [`DefId`] of the container, i.e., the impl block or trait.
     pub container_def_id: DefId,
     pub name: Symbol,
-    pub span: Span,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]

@@ -161,7 +161,6 @@ fn assoc_predicates_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocPredi
                     rty::AssocPredicate {
                         container_def_id: local_id.to_def_id(),
                         name: assoc_pred.name,
-                        span: assoc_pred.span,
                     }
                 })
                 .collect()
@@ -175,7 +174,6 @@ fn assoc_predicates_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocPredi
                     rty::AssocPredicate {
                         container_def_id: local_id.to_def_id(),
                         name: assoc_pred.name,
-                        span: assoc_pred.span,
                     }
                 })
                 .collect()
