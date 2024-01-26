@@ -138,7 +138,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn lift_generic_param(
+    pub fn lift_generic_param(
         &mut self,
         param: &hir::GenericParam,
     ) -> Result<fhir::GenericParam<'genv>> {
@@ -374,7 +374,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn lift_ty(&mut self, ty: &hir::Ty) -> Result<fhir::Ty<'genv>> {
+    pub fn lift_ty(&mut self, ty: &hir::Ty) -> Result<fhir::Ty<'genv>> {
         let kind = match ty.kind {
             hir::TyKind::Slice(ty) => {
                 let ty = self.lift_ty(ty)?;

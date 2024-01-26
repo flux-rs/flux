@@ -257,75 +257,76 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         })
     }
 
-    /// [desugar_generics] starts with the `lifted_generics` and "updates" it with the surface `generics`
     fn desugar_generics(
         &mut self,
         generics: &surface::Generics,
         env: &mut Env<'genv>,
     ) -> Result<fhir::Generics<'genv>> {
-        // Step 1: desugar the surface generics by themselves
-        let generics = self.desugar_surface_generics(generics, env)?;
-
-        // Step 2: map each (surface) generic to its specified kind
-        let mut generic_kinds: FxHashMap<_, _> = generics
-            .params
-            .iter()
-            .map(|param| (param.def_id, param.kind))
-            .collect();
-
-        // Step 3: traverse lifted_generics, using the surface-kind, if specified, and lifted kind otherwise
-        let lifted_generics = self.as_lift_cx().lift_generics()?;
-        let params = self
-            .genv
-            .alloc_slice_fill_iter(lifted_generics.params.iter().map(|lifted_param| {
-                let def_id = lifted_param.def_id;
-                let kind = generic_kinds.remove(&def_id).unwrap_or(lifted_param.kind);
-                fhir::GenericParam { def_id, kind }
-            }));
-
-        Ok(fhir::Generics { params, ..generics })
-    }
-
-    fn desugar_surface_generics(
-        &mut self,
-        generics: &surface::Generics,
-        env: &mut Env<'genv>,
-    ) -> Result<fhir::Generics<'genv>> {
         let hir_generics = self.genv.hir().get_generics(self.owner.def_id).unwrap();
-        let generics_map: FxHashMap<_, _> = hir_generics
+
+        // 1. Collect generic type parameters by their name
+        let hir_params_map: FxHashMap<_, _> = hir_generics
             .params
             .iter()
             .flat_map(|param| {
-                if let hir::ParamName::Plain(name) = param.name {
-                    Some((name, param.def_id))
+                if let hir::ParamName::Plain(name) = param.name
+                    && let hir::GenericParamKind::Type { default, .. } = param.kind
+                {
+                    Some((name, (param.def_id, default)))
                 } else {
                     None
                 }
             })
             .collect();
 
-        let mut params = vec![];
+        // 2. Desugar surface params and resolve them to its corresponding def id or self param.
+        let mut surface_params = FxHashMap::default();
         let mut self_kind = None;
         for param in &generics.params {
-            let kind = match &param.kind {
-                surface::GenericParamKind::Type => fhir::GenericParamKind::Type { default: None },
-                surface::GenericParamKind::Base => fhir::GenericParamKind::BaseTy,
-                surface::GenericParamKind::Spl => fhir::GenericParamKind::SplTy,
-                surface::GenericParamKind::Refine { .. } => {
-                    continue;
-                }
-            };
+            if let surface::GenericParamKind::Refine { .. } = &param.kind {
+                continue;
+            }
 
             if param.name.name == kw::SelfUpper {
+                let kind = match &param.kind {
+                    surface::GenericParamKind::Type => {
+                        fhir::GenericParamKind::Type { default: None }
+                    }
+                    surface::GenericParamKind::Spl => fhir::GenericParamKind::SplTy,
+                    surface::GenericParamKind::Base => fhir::GenericParamKind::BaseTy,
+                    surface::GenericParamKind::Refine { .. } => unreachable!(),
+                };
                 self_kind = Some(kind);
             } else {
-                let def_id = *generics_map.get(&param.name).ok_or_else(|| {
-                    self.emit_err(errors::UnresolvedGenericParam::new(param.name))
-                })?;
-                params.push(fhir::GenericParam { def_id, kind });
+                let Some(&(def_id, default)) = hir_params_map.get(&param.name) else {
+                    return Err(self.emit_err(errors::UnresolvedGenericParam::new(param.name)));
+                };
+
+                let kind = match &param.kind {
+                    surface::GenericParamKind::Type => {
+                        fhir::GenericParamKind::Type {
+                            default: default
+                                .map(|ty| self.as_lift_cx().lift_ty(ty))
+                                .transpose()?,
+                        }
+                    }
+                    surface::GenericParamKind::Base => fhir::GenericParamKind::BaseTy,
+                    surface::GenericParamKind::Spl => fhir::GenericParamKind::SplTy,
+                    surface::GenericParamKind::Refine { .. } => unreachable!(),
+                };
+                surface_params.insert(def_id, fhir::GenericParam { def_id, kind });
             }
         }
-        let params = self.genv.alloc_slice(&params);
+
+        // 3. Return desugared generic if we have one or else lift it from hir
+        let params = try_alloc_slice!(self.genv, hir_generics.params, |hir_param| {
+            if let Some(surface_param) = surface_params.remove(&hir_param.def_id) {
+                Ok(surface_param)
+            } else {
+                self.as_lift_cx().lift_generic_param(hir_param)
+            }
+        })?;
+
         let predicates = self.desugar_generic_predicates(&generics.predicates, env)?;
         Ok(fhir::Generics { params, self_kind, refinement_params: &[], predicates })
     }
