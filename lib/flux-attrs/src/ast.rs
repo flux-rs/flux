@@ -2001,18 +2001,22 @@ impl TypeExists {
 
 impl TypeGeneralExists {
     fn to_tokens_inner(&self, tokens: &mut TokenStream, mode: Mode) {
-        self.ty.to_tokens_inner(tokens, mode);
-        if mode == Mode::Flux {
-            self.brace_token.surround(tokens, |tokens| {
-                for fn_arg in self.params.pairs() {
-                    fn_arg.value().to_tokens_inner(tokens);
-                    fn_arg.punct().to_tokens(tokens);
-                }
-                self.dot_token.to_tokens(tokens);
+        match mode {
+            Mode::Flux => {
+                self.brace_token.surround(tokens, |tokens| {
+                    for param in self.params.pairs() {
+                        param.value().to_tokens_inner(tokens);
+                        param.punct().to_tokens(tokens);
+                    }
+                    self.dot_token.to_tokens(tokens);
+                    self.ty.to_tokens_inner(tokens, mode);
+                    self.or_token.to_tokens(tokens);
+                    self.pred.to_tokens(tokens);
+                });
+            }
+            Mode::Rust => {
                 self.ty.to_tokens_inner(tokens, mode);
-                self.or_token.to_tokens(tokens);
-                self.pred.to_tokens(tokens);
-            });
+            }
         }
     }
 }
