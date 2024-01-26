@@ -103,6 +103,10 @@ impl ToTokens for ExternItemImpl {
         tokens.append_all(&self.attrs);
         self.impl_token.to_tokens(tokens);
         impl_generics.to_tokens(tokens);
+        if let Some((_, trait_, for_token)) = &self.trait_ {
+            trait_.to_tokens(tokens);
+            for_token.to_tokens(tokens);
+        }
         let dummy_ident = self.dummy_ident.as_ref().unwrap();
         quote!(#dummy_ident #ty_generics).to_tokens(tokens);
         where_clause.to_tokens(tokens);
