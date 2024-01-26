@@ -1036,7 +1036,6 @@ fn parse_index_params(input: ParseStream) -> Result<Option<IndexParams>> {
 
 impl Parse for ItemImpl {
     fn parse(input: ParseStream) -> Result<Self> {
-        panic!("TUCKED");
         let content;
         let attrs = input.call(Attribute::parse_outer)?;
         let impl_token = input.parse()?;
