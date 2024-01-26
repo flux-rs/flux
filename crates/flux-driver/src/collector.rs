@@ -164,8 +164,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             .insert(owner_id, surface::Trait { generics, assoc_predicates });
 
         if attrs.extern_spec() {
-            // extern_spec dummy structs are always opaque because they contain
-            // one field: the external struct they are meant to represent.
             let extern_id =
                 self.extract_extern_def_id_from_extern_spec_trait(owner_id.def_id, bounds)?;
             self.specs.extern_specs.insert(extern_id, owner_id.def_id);
