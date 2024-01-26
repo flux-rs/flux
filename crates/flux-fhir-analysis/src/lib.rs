@@ -201,19 +201,15 @@ fn sort_of_assoc_pred(
     genv: GlobalEnv,
     def_id: LocalDefId,
     name: Symbol,
-) -> rty::EarlyBinder<rty::FuncSort> {
+) -> Option<rty::EarlyBinder<rty::FuncSort>> {
     match genv.tcx().def_kind(def_id) {
         DefKind::Trait => {
-            let assoc_pred = genv
-                .map()
-                .expect_trait(def_id)
-                .find_assoc_predicate(name)
-                .unwrap();
-            rty::EarlyBinder(conv::conv_func_sort(
+            let assoc_pred = genv.map().expect_trait(def_id).find_assoc_predicate(name)?;
+            Some(rty::EarlyBinder(conv::conv_func_sort(
                 genv,
                 &assoc_pred.sort,
                 &mut conv::bug_on_sort_vid,
-            ))
+            )))
         }
         DefKind::Impl { .. } => {
             let assoc_pred = genv
@@ -226,7 +222,7 @@ fn sort_of_assoc_pred(
                 .iter()
                 .map(|p| conv::resolve_param_sort(genv, p, None))
                 .collect_vec();
-            rty::EarlyBinder(rty::FuncSort::new(inputs, rty::Sort::Bool))
+            Some(rty::EarlyBinder(rty::FuncSort::new(inputs, rty::Sort::Bool)))
         }
         _ => {
             bug!("expected trait or impl");

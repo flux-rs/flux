@@ -13,7 +13,7 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
+    EnumDef, GenericBounds, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
 };
 use rustc_middle::ty::{ScalarInt, TyCtxt};
 use rustc_span::{Span, Symbol, SyntaxContext};
@@ -68,7 +68,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                         DefKind::Impl { of_trait: impl_.of_trait.is_some() },
                     )
                 }
-                ItemKind::Trait(..) => collector.parse_trait_specs(owner_id, attrs),
+                ItemKind::Trait(_, _, _, bounds, _) => {
+                    collector.parse_trait_specs(owner_id, attrs, bounds)
+                }
                 _ => Ok(()),
             };
         }
@@ -145,7 +147,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn parse_trait_specs(&mut self, owner_id: OwnerId, attrs: &[Attribute]) -> Result {
+    fn parse_trait_specs(
+        &mut self,
+        owner_id: OwnerId,
+        attrs: &[Attribute],
+        bounds: &GenericBounds,
+    ) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Trait)?;
         self.report_dups(&attrs)?;
 
@@ -155,6 +162,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.specs
             .traits
             .insert(owner_id, surface::Trait { generics, assoc_predicates });
+
+        if attrs.extern_spec() {
+            let extern_id =
+                self.extract_extern_def_id_from_extern_spec_trait(owner_id.def_id, bounds)?;
+            self.specs.extern_specs.insert(extern_id, owner_id.def_id);
+        };
 
         Ok(())
     }
@@ -523,6 +536,21 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             return Ok(zog);
         }
         Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
+    }
+
+    fn extract_extern_def_id_from_extern_spec_trait(
+        &mut self,
+        def_id: LocalDefId,
+        bounds: &GenericBounds,
+    ) -> Result<DefId> {
+        if let Some(bound) = bounds.first()
+            && let Some(trait_ref) = bound.trait_ref()
+            && let Some(trait_id) = trait_ref.trait_def_id()
+        {
+            Ok(trait_id)
+        } else {
+            Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
+        }
     }
 
     fn parse<T>(

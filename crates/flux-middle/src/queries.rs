@@ -66,7 +66,8 @@ pub struct Providers {
     pub predicates_of:
         fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>>,
     pub assoc_predicates_of: fn(GlobalEnv, LocalDefId) -> rty::AssocPredicates,
-    pub sort_of_assoc_pred: fn(GlobalEnv, LocalDefId, Symbol) -> rty::EarlyBinder<rty::FuncSort>,
+    pub sort_of_assoc_pred:
+        fn(GlobalEnv, LocalDefId, Symbol) -> Option<rty::EarlyBinder<rty::FuncSort>>,
     pub assoc_predicate_def:
         fn(GlobalEnv, LocalDefId, Symbol) -> QueryResult<rty::EarlyBinder<rty::Lambda>>,
     pub item_bounds: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
@@ -123,7 +124,7 @@ pub struct Queries<'genv, 'tcx> {
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     assoc_predicates_of: Cache<DefId, rty::AssocPredicates>,
     assoc_predicate_def: Cache<(DefId, Symbol), QueryResult<rty::EarlyBinder<rty::Lambda>>>,
-    sort_of_assoc_pred: Cache<(DefId, Symbol), rty::EarlyBinder<rty::FuncSort>>,
+    sort_of_assoc_pred: Cache<(DefId, Symbol), Option<rty::EarlyBinder<rty::FuncSort>>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
@@ -415,7 +416,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         genv: GlobalEnv,
         def_id: DefId,
         name: Symbol,
-    ) -> rty::EarlyBinder<rty::FuncSort> {
+    ) -> Option<rty::EarlyBinder<rty::FuncSort>> {
         run_with_cache(&self.sort_of_assoc_pred, (def_id, name), || {
             let impl_id = genv.lookup_extern(def_id).unwrap_or(def_id);
             if let Some(local_id) = impl_id.as_local() {

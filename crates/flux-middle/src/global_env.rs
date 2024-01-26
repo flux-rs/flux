@@ -247,7 +247,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         def_id: impl Into<DefId>,
         name: Symbol,
-    ) -> rty::EarlyBinder<rty::FuncSort> {
+    ) -> Option<rty::EarlyBinder<rty::FuncSort>> {
         self.inner
             .queries
             .sort_of_assoc_pred(self, def_id.into(), name)

@@ -2,14 +2,14 @@ use flux_common::bug;
 use rustc_hir::{def::DefKind, PrimTy};
 use rustc_span::def_id::{DefId, LocalDefId};
 
-use crate::{fhir, global_env::GlobalEnv, intern::List, queries::QueryResult, rty};
+use crate::{fhir, global_env::GlobalEnv, intern::List, rty};
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
-    pub fn sort_of_alias_pred(self, alias_pred: &fhir::AliasPred) -> QueryResult<rty::FuncSort> {
+    pub fn sort_of_alias_pred(self, alias_pred: &fhir::AliasPred) -> Option<rty::FuncSort> {
         let trait_id = alias_pred.trait_id;
         let name = alias_pred.name;
-        let fsort = self.sort_of_assoc_pred(trait_id, name);
-        Ok(fsort.instantiate_func_sort(|param_ty| {
+        let fsort = self.sort_of_assoc_pred(trait_id, name)?;
+        Some(fsort.instantiate_func_sort(|param_ty| {
             self.sort_of_generic_arg(&alias_pred.generic_args[param_ty.index as usize])
                 .unwrap()
         }))
