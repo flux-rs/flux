@@ -12,6 +12,7 @@ use flux_errors::{FluxSession, ResultExt};
 use flux_middle::{
     fhir::{self, FluxOwnerId, SurfaceIdent},
     global_env::GlobalEnv,
+    pretty::def_id_to_string,
     rty::{self, GenericParamDefKind, WfckResults},
 };
 use rustc_data_structures::{
@@ -24,7 +25,7 @@ use rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
 use rustc_span::{Span, Symbol};
 
 use self::sortck::InferCtxt;
-use crate::conv;
+use crate::{compare_impl_item::errors::InvalidAssocPredicate, conv};
 
 struct Wf<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
@@ -558,10 +559,13 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
         args: &[fhir::RefineArg],
         span: Span,
     ) -> Result<(), ErrorGuaranteed> {
-        let fsort = self
-            .genv
-            .sort_of_alias_pred(alias_pred, span)
-            .emit(self.genv.sess())?;
+        let Some(fsort) = self.genv.sort_of_alias_pred(alias_pred) else {
+            return self.emit_err(InvalidAssocPredicate::new(
+                span,
+                alias_pred.name,
+                def_id_to_string(alias_pred.trait_id),
+            ));
+        };
         if args.len() != fsort.inputs().len() {
             return self.emit_err(errors::ArgCountMismatch::new(
                 Some(span),

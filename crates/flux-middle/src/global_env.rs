@@ -9,7 +9,6 @@ use rustc_hir::{
     LangItem,
 };
 use rustc_middle::ty::{TyCtxt, Variance};
-use rustc_span::Span;
 pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
@@ -248,11 +247,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         def_id: impl Into<DefId>,
         name: Symbol,
-        span: Span,
-    ) -> QueryResult<rty::EarlyBinder<rty::FuncSort>> {
+    ) -> Option<rty::EarlyBinder<rty::FuncSort>> {
         self.inner
             .queries
-            .sort_of_assoc_pred(self, def_id.into(), name, span)
+            .sort_of_assoc_pred(self, def_id.into(), name)
     }
 
     pub fn item_bounds(self, def_id: DefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {

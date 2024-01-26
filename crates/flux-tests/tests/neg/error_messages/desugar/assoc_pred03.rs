@@ -1,9 +1,9 @@
 pub trait MyTrait {
-    fn method(&self) -> Self;
+    fn method(&self) -> i32;
 }
 
 #[flux::trusted]
-#[flux::sig(fn<T as base>(&T{v: <T as MyTrait>::f(v)}) -> T{v: <T as MyTrait>::f(v)})] //~ ERROR associated predicate `f` is not a member of trait `MyTrait`
-pub fn lib<T: MyTrait>(x: &T) -> T {
+#[flux::sig(fn<T as base>(&T{v: <T as MyTrait>::f(v)}) -> i32)] //~ ERROR associated predicate `f` is not a member of trait `MyTrait`
+pub fn lib<T: MyTrait>(x: &T) -> i32 {
     x.method()
 }

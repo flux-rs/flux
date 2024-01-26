@@ -2,7 +2,7 @@ use flux_errors::ResultExt as _;
 use flux_middle::{global_env::GlobalEnv, pretty};
 use rustc_span::{
     def_id::{DefId, LocalDefId},
-    ErrorGuaranteed, Span, Symbol,
+    ErrorGuaranteed, Symbol,
 };
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -27,7 +27,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result 
                 pretty::def_id_to_string(trait_id),
             )));
         }
-        check_assoc_predicate(genv, impl_id, trait_id, impl_assoc_pred.name, impl_assoc_pred.span)?;
+        check_assoc_predicate(genv, impl_id, trait_id, impl_assoc_pred.name)?;
     }
 
     Ok(())
@@ -38,31 +38,39 @@ fn check_assoc_predicate(
     impl_id: LocalDefId,
     trait_id: DefId,
     name: Symbol,
-    span: Span,
 ) -> Result {
+    let impl_span = genv
+        .map()
+        .expect_impl(impl_id)
+        .find_assoc_predicate(name)
+        .unwrap()
+        .span;
     let impl_trait_ref = genv
         .impl_trait_ref(impl_id.to_def_id())
         .emit(genv.sess())?
         .unwrap()
         .instantiate_identity(&[]);
 
-    let impl_sort = genv
-        .sort_of_assoc_pred(impl_id.to_def_id(), name, span)
-        .emit(genv.sess())?
-        .instantiate_identity(&[]);
+    let Some(impl_sort) = genv.sort_of_assoc_pred(impl_id.to_def_id(), name) else {
+        return Err(genv.sess().emit_err(errors::InvalidAssocPredicate::new(
+            impl_span,
+            name,
+            pretty::def_id_to_string(trait_id),
+        )));
+    };
 
-    let trait_sort = genv
-        .sort_of_assoc_pred(trait_id, name, span)
-        .emit(genv.sess())?
-        .instantiate(&impl_trait_ref.args, &[]);
+    let impl_sort = impl_sort.instantiate_identity(&[]);
+
+    let Some(trait_sort) = genv.sort_of_assoc_pred(trait_id, name) else {
+        return Err(genv.sess().emit_err(errors::InvalidAssocPredicate::new(
+            impl_span,
+            name,
+            pretty::def_id_to_string(trait_id),
+        )));
+    };
+    let trait_sort = trait_sort.instantiate(&impl_trait_ref.args, &[]);
 
     if impl_sort != trait_sort {
-        let impl_span = genv
-            .map()
-            .expect_impl(impl_id)
-            .find_assoc_predicate(name)
-            .unwrap()
-            .span;
         return Err(genv
             .sess()
             .emit_err(errors::IncompatibleSort::new(impl_span, name, trait_sort, impl_sort)));
