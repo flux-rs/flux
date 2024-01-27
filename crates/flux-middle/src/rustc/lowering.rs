@@ -74,6 +74,29 @@ impl UnsupportedErr {
     }
 }
 
+fn trait_ref_impl_id<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    selcx: &mut SelectionContext<'_, 'tcx>,
+    param_env: ParamEnv<'tcx>,
+    trait_ref: rustc_ty::TraitRef<'tcx>,
+) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
+    let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
+    let impl_source = selcx.select(&obligation).ok()??;
+    let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
+    let ImplSource::UserDefined(impl_data) = impl_source else { return None };
+    Some((impl_data.impl_def_id, impl_data.args))
+}
+
+pub fn resolve_trait_ref_impl_id<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    caller_id: LocalDefId,
+    trait_ref: rustc_ty::TraitRef<'tcx>,
+) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
+    let param_env = tcx.param_env(caller_id.to_def_id());
+    let infcx = tcx.infer_ctxt().build();
+    trait_ref_impl_id(tcx, &mut SelectionContext::new(&infcx), param_env, trait_ref)
+}
+
 fn resolve_call_query<'tcx>(
     tcx: TyCtxt<'tcx>,
     selcx: &mut SelectionContext<'_, 'tcx>,
@@ -83,16 +106,10 @@ fn resolve_call_query<'tcx>(
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
     let trait_id = tcx.trait_of_item(callee_id)?;
     let trait_ref = rustc_ty::TraitRef::from_method(tcx, trait_id, args);
-    let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
-    let impl_source = selcx.select(&obligation).ok()??;
-    let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
-    let ImplSource::UserDefined(impl_data) = impl_source else { return None };
-
-    let assoc_id = tcx
-        .impl_item_implementor_ids(impl_data.impl_def_id)
-        .get(&callee_id)?;
+    let (impl_def_id, impl_args) = trait_ref_impl_id(tcx, selcx, param_env, trait_ref)?;
+    let assoc_id = tcx.impl_item_implementor_ids(impl_def_id).get(&callee_id)?;
     let assoc_item = tcx.associated_item(assoc_id);
-    Some((assoc_item.def_id, impl_data.args))
+    Some((assoc_item.def_id, impl_args))
 }
 
 pub fn resolve_call_from<'tcx>(

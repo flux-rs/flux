@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use flux_common::iter::IterExt;
 use flux_config::{self as config, CrateConfig};
 use flux_errors::{FluxSession, ResultExt};
-use flux_middle::{const_eval::scalar_int_to_rty_constant, fhir, ConstSig, Specs};
+use flux_middle::{
+    const_eval::scalar_int_to_rty_constant, fhir, rustc::lowering::resolve_trait_ref_impl_id,
+    ConstSig, Specs,
+};
 use flux_syntax::{surface, ParseResult, ParseSess};
 use itertools::Itertools;
 use rustc_ast::{
@@ -13,7 +16,8 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    EnumDef, GenericBounds, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
+    AssocItemKind, EnumDef, GenericBounds, ImplItemKind, ImplItemRef, Item, ItemKind, OwnerId,
+    VariantData,
 };
 use rustc_middle::ty::{ScalarInt, TyCtxt};
 use rustc_span::{Span, Symbol, SyntaxContext};
@@ -66,6 +70,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                         owner_id,
                         attrs,
                         DefKind::Impl { of_trait: impl_.of_trait.is_some() },
+                        impl_.items,
                     )
                 }
                 ItemKind::Trait(_, _, _, bounds, _) => {
@@ -177,12 +182,19 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         owner_id: OwnerId,
         attrs: &[Attribute],
         def_kind: DefKind,
+        items: &[ImplItemRef],
     ) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, def_kind)?;
         self.report_dups(&attrs)?;
 
         let generics = attrs.generics();
         let assoc_predicates = attrs.impl_assoc_predicates();
+
+        if attrs.extern_spec() {
+            let extern_id =
+                self.extract_extern_def_id_from_extern_spec_impl(owner_id.def_id, items)?;
+            self.specs.extern_specs.insert(extern_id, owner_id.def_id);
+        };
 
         self.specs
             .impls
@@ -538,6 +550,47 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
     }
 
+    fn fake_method_of(&self, items: &[ImplItemRef]) -> Option<LocalDefId> {
+        for item in items {
+            // let attrs = self.tcx.hir().attrs(item.id.hir_id());
+            let def_id = item.id.owner_id.def_id;
+            let is_fake_method = self
+                .tcx
+                .def_path_str(def_id)
+                .contains("__flux_extern_impl_fake_method"); // TODO(RJ): use attr!
+            if let AssocItemKind::Fn { .. } = item.kind
+                && is_fake_method
+            // && attrs.fake_impl()
+            {
+                return Some(def_id);
+            }
+        }
+        None
+    }
+
+    fn extract_extern_def_id_from_extern_spec_impl(
+        &mut self,
+        _def_id: LocalDefId,
+        items: &[ImplItemRef],
+    ) -> Result<DefId> {
+        // 1. Find the fake_method's def_id
+        let fake_method_def_id = self.fake_method_of(items).unwrap();
+
+        // 2. Get the fake_method's type
+        let trait_ref = {
+            let generics = self.tcx.generics_of(fake_method_def_id);
+            let bounds = self.tcx.predicates_of(fake_method_def_id);
+            todo!("TODO: get impl_id from {generics:?} => {bounds:#?}")
+        };
+
+        //        self.fake_traitref_of(fake_method_def_id).unwrap();
+
+        // 3. Resolve the trait_ref to an impl_id
+        let (impl_id, _) =
+            resolve_trait_ref_impl_id(self.tcx, fake_method_def_id, trait_ref).unwrap();
+        Ok(impl_id)
+    }
+
     fn extract_extern_def_id_from_extern_spec_trait(
         &mut self,
         def_id: LocalDefId,
@@ -627,6 +680,7 @@ enum FluxAttrKind {
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
     Ignore,
+    _FakeImpl,
     ExternSpec,
 }
 
@@ -678,6 +732,10 @@ impl FluxAttrs {
 
     fn ignore(&mut self) -> bool {
         read_flag!(self, Ignore)
+    }
+
+    fn _fake_impl(&mut self) -> bool {
+        read_flag!(self, _FakeImpl)
     }
 
     fn opaque(&mut self) -> bool {
@@ -761,6 +819,7 @@ impl FluxAttrKind {
             FluxAttrKind::Ignore => attr_name!(Ignore),
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
+            FluxAttrKind::_FakeImpl => attr_name!(_FakeImpl),
         }
     }
 }
