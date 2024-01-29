@@ -6,7 +6,7 @@ use flux_middle::{
     fhir::{self, Res},
     Specs,
 };
-use flux_syntax::surface::{self, AliasPred, BaseTy, BaseTyKind, Ident, Path, Pred, PredKind, Ty};
+use flux_syntax::surface::{self, visit::Visitor, BaseTyKind, Ident, Path, Ty};
 use hir::{
     def::{DefKind, Namespace::TypeNS},
     ItemId, ItemKind, OwnerId, PathSegment,
@@ -24,18 +24,12 @@ use rustc_span::{
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-macro_rules! collect_err {
-    ($self:expr, $body:expr) => {
-        $self.err = $body.err().or($self.err)
-    };
-}
-
 pub(crate) fn resolve_crate(
     tcx: TyCtxt,
     sess: &FluxSession,
     specs: &Specs,
 ) -> Result<ResolverOutput> {
-    let mut resolver = Resolver::new(tcx, sess, specs);
+    let mut resolver = CrateResolver::new(tcx, sess, specs);
 
     tcx.hir().walk_toplevel_module(&mut resolver);
     if let Some(err) = resolver.err {
@@ -48,7 +42,7 @@ pub(crate) fn resolve_crate(
     Ok(resolver_output)
 }
 
-struct Resolver<'a, 'tcx> {
+struct CrateResolver<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'a FluxSession,
     specs: &'a Specs,
@@ -63,7 +57,7 @@ struct Rib {
     type_ns_bindings: FxHashMap<Symbol, hir::def::Res>,
 }
 
-impl<'tcx> hir::intravisit::Visitor<'tcx> for Resolver<'_, 'tcx> {
+impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     type NestedFilter = rustc_middle::hir::nested_filter::All;
 
     fn nested_visit_map(&mut self) -> Self::Map {
@@ -120,16 +114,16 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for Resolver<'_, 'tcx> {
     fn visit_item(&mut self, item: &'tcx hir::Item<'tcx>) {
         match item.kind {
             ItemKind::TyAlias(_, _) => {
-                collect_err!(self, self.resolve_type_alias(item.owner_id));
+                self.resolve_type_alias(item.owner_id);
             }
             ItemKind::Enum(_, _) => {
-                collect_err!(self, self.resolve_enum_def(item.owner_id));
+                self.resolve_enum_def(item.owner_id);
             }
             ItemKind::Struct(_, _) => {
-                collect_err!(self, self.resolve_struct_def(item.owner_id));
+                self.resolve_struct_def(item.owner_id);
             }
             ItemKind::Fn(..) => {
-                collect_err!(self, self.resolve_fn_sig(item.owner_id));
+                self.resolve_fn_sig(item.owner_id);
             }
             _ => {}
         }
@@ -138,14 +132,14 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for Resolver<'_, 'tcx> {
 
     fn visit_impl_item(&mut self, impl_item: &'tcx hir::ImplItem<'tcx>) {
         if let hir::ImplItemKind::Fn(..) = impl_item.kind {
-            collect_err!(self, self.resolve_fn_sig(impl_item.owner_id));
+            self.resolve_fn_sig(impl_item.owner_id);
         }
         hir::intravisit::walk_impl_item(self, impl_item);
     }
 
     fn visit_trait_item(&mut self, trait_item: &'tcx hir::TraitItem<'tcx>) {
         if let hir::TraitItemKind::Fn(..) = trait_item.kind {
-            collect_err!(self, self.resolve_fn_sig(trait_item.owner_id));
+            self.resolve_fn_sig(trait_item.owner_id);
         }
         hir::intravisit::walk_trait_item(self, trait_item);
     }
@@ -194,7 +188,7 @@ fn collect_flux_global_items(tcx: TyCtxt, resolver_output: &mut ResolverOutput, 
     }
 }
 
-impl<'a, 'tcx> Resolver<'a, 'tcx> {
+impl<'a, 'tcx> CrateResolver<'a, 'tcx> {
     pub fn new(tcx: TyCtxt<'tcx>, sess: &'a FluxSession, specs: &'a Specs) -> Self {
         let mut extern_crates = UnordMap::default();
         for cnum in tcx.crates(()) {
@@ -233,74 +227,49 @@ impl<'a, 'tcx> Resolver<'a, 'tcx> {
         self.ribs.pop();
     }
 
-    fn resolve_type_alias(&mut self, owner_id: OwnerId) -> Result {
-        if let Some(ty_alias) = &self.specs.ty_aliases[&owner_id] {
-            ItemLikeResolver::new(self, owner_id)?.resolve_ty(&ty_alias.ty)?;
+    fn with_item_resolver(&mut self, owner_id: OwnerId, f: impl FnOnce(&mut ItemResolver)) {
+        match ItemResolver::new(self, owner_id) {
+            Ok(mut item_resolver) => f(&mut item_resolver),
+            Err(err) => self.err = self.err.or(Some(err)),
         }
-        Ok(())
     }
 
-    fn resolve_struct_def(&mut self, owner_id: OwnerId) -> Result {
+    fn resolve_type_alias(&mut self, owner_id: OwnerId) {
+        if let Some(ty_alias) = &self.specs.ty_aliases[&owner_id] {
+            self.with_item_resolver(owner_id, |item_resolver| {
+                item_resolver.visit_ty_alias(ty_alias);
+            });
+        };
+    }
+
+    fn resolve_struct_def(&mut self, owner_id: OwnerId) {
         let struct_def = &self.specs.structs[&owner_id];
         if !struct_def.needs_resolving() {
-            return Ok(());
+            return;
         }
 
-        let mut item_resolver = ItemLikeResolver::new(self, owner_id)?;
-        struct_def.fields.iter().try_for_each_exhaust(|ty| {
-            if let Some(ty) = ty {
-                item_resolver.resolve_ty(ty)?;
-            }
-            Ok(())
-        })
+        self.with_item_resolver(owner_id, |item_resolver| {
+            item_resolver.visit_struct_def(struct_def);
+        });
     }
 
-    fn resolve_enum_def(&mut self, owner_id: OwnerId) -> Result {
+    fn resolve_enum_def(&mut self, owner_id: OwnerId) {
         let enum_def = &self.specs.enums[&owner_id];
         if !enum_def.needs_resolving() {
-            return Ok(());
+            return;
         }
 
-        let mut item_resolver = ItemLikeResolver::new(self, owner_id)?;
-        enum_def
-            .variants
-            .iter()
-            .try_for_each_exhaust(|variant| item_resolver.resolve_variant(variant.as_ref()))
+        self.with_item_resolver(owner_id, |item_resolver| {
+            item_resolver.visit_enum_def(enum_def);
+        });
     }
 
-    fn resolve_fn_sig(&mut self, owner_id: OwnerId) -> Result {
-        let Some(fn_sig) = &self.specs.fn_sigs[&owner_id].fn_sig else {
-            return Ok(());
+    fn resolve_fn_sig(&mut self, owner_id: OwnerId) {
+        if let Some(fn_sig) = &self.specs.fn_sigs[&owner_id].fn_sig {
+            self.with_item_resolver(owner_id, |item_resolver| {
+                item_resolver.visit_fn_sig(fn_sig);
+            });
         };
-
-        let mut item_resolver = ItemLikeResolver::new(self, owner_id)?;
-        let asyncness = item_resolver.resolve_asyncness(&fn_sig.asyncness);
-
-        let args = fn_sig
-            .args
-            .iter()
-            .try_for_each_exhaust(|arg| item_resolver.resolve_arg(arg));
-
-        let ensures = fn_sig
-            .ensures
-            .iter()
-            .try_for_each_exhaust(|cstr| item_resolver.resolve_constraint(cstr));
-
-        let predicates = fn_sig
-            .generics
-            .predicates
-            .iter()
-            .try_for_each_exhaust(|pred| item_resolver.resolve_where_bound_predicate(pred));
-
-        let returns = item_resolver.resolve_fn_ret_ty(&fn_sig.returns);
-
-        asyncness?;
-        args?;
-        returns?;
-        predicates?;
-        ensures?;
-
-        Ok(())
     }
 
     fn resolve_path(&self, path: &Path) -> Option<hir::def::Res> {
@@ -361,11 +330,15 @@ impl<'a, 'tcx> Resolver<'a, 'tcx> {
     pub fn into_output(self) -> ResolverOutput {
         self.output
     }
+
+    fn emit(&mut self, err: impl IntoDiagnostic<'a>) {
+        self.err = self.err.or(Some(self.sess.emit_err(err)));
+    }
 }
 
-struct ItemLikeResolver<'a, 'sess, 'tcx> {
+struct ItemResolver<'a, 'b, 'tcx> {
     table: NameResTable<'a>,
-    resolver: &'a mut Resolver<'sess, 'tcx>,
+    resolver: &'a mut CrateResolver<'b, 'tcx>,
 }
 
 #[derive(Hash, Eq, PartialEq, Debug)]
@@ -385,8 +358,8 @@ enum ResEntry {
     Unsupported { reason: String, span: Span },
 }
 
-impl<'a, 'sess, 'tcx> ItemLikeResolver<'a, 'sess, 'tcx> {
-    fn new(resolver: &'a mut Resolver<'sess, 'tcx>, owner_id: OwnerId) -> Result<Self> {
+impl<'a, 'b, 'tcx> ItemResolver<'a, 'b, 'tcx> {
+    fn new(resolver: &'a mut CrateResolver<'b, 'tcx>, owner_id: OwnerId) -> Result<Self> {
         let tcx = resolver.tcx;
         let sess = resolver.sess;
         let table = match tcx.hir().owner(owner_id) {
@@ -405,83 +378,53 @@ impl<'a, 'sess, 'tcx> ItemLikeResolver<'a, 'sess, 'tcx> {
         Ok(Self { table, resolver })
     }
 
-    fn resolve_variant(&mut self, variant_def: Option<&surface::VariantDef>) -> Result {
-        if let Some(variant_def) = variant_def {
-            variant_def
-                .fields
-                .iter()
-                .try_for_each_exhaust(|ty| self.resolve_ty(ty))?;
-            if let Some(ret) = &variant_def.ret {
-                self.resolve_variant_ret(ret)?;
+    fn resolve_opaque_impl(&mut self, node_id: surface::NodeId, span: Span) {
+        if let Some(def_id) = self.table.opaque {
+            self.resolver
+                .output
+                .impl_trait_res_map
+                .insert(node_id, def_id);
+        } else {
+            self.resolver
+                .emit(errors::UnresolvedPath { span, path: "opaque type".into() });
+        }
+    }
+
+    fn resolve_path(&mut self, path: &Path) {
+        if let Some(res) = self.table.get(&ResKey::from_path(path)) {
+            match res {
+                &ResEntry::Res(res) => {
+                    self.resolver.output.path_res_map.insert(path.node_id, res);
+                }
+                ResEntry::Unsupported { reason, span } => {
+                    self.resolver
+                        .emit(errors::UnsupportedSignature::new(*span, reason));
+                }
             }
+        } else if let Some(res) = self.resolver.resolve_path(path) {
+            match res.try_into() {
+                Ok(res) => {
+                    self.resolver.output.path_res_map.insert(path.node_id, res);
+                }
+                Err(_) => {
+                    self.resolver
+                        .emit(errors::UnsupportedSignature::new(path.span, "unsupported path"));
+                }
+            }
+        } else {
+            self.resolver.emit(errors::UnresolvedPath::new(path));
         }
-        Ok(())
     }
+}
 
-    fn resolve_variant_ret(&mut self, ret: &surface::VariantRet) -> Result {
-        self.resolve_path(&ret.path)
-    }
-
-    fn resolve_where_bound_predicate(&mut self, pred: &surface::WhereBoundPredicate) -> Result {
-        self.resolve_ty(&pred.bounded_ty)?;
-        self.resolve_bounds(&pred.bounds)
-    }
-
-    fn resolve_bounds(&mut self, bounds: &surface::GenericBounds) -> Result {
-        bounds
-            .iter()
-            .try_for_each_exhaust(|trait_ref| self.resolve_trait_ref(trait_ref))
-    }
-
-    fn resolve_trait_ref(&mut self, trait_ref: &surface::TraitRef) -> Result {
-        self.resolve_path(&trait_ref.path)
-    }
-
-    fn resolve_constraint(&mut self, cstr: &surface::Constraint) -> Result {
-        match cstr {
-            surface::Constraint::Type(_, ty) => self.resolve_ty(ty),
-            surface::Constraint::Pred(_) => Ok(()),
+impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
+    fn visit_async(&mut self, asyncness: &surface::Async) {
+        if let surface::Async::Yes { node_id, span } = asyncness {
+            self.resolve_opaque_impl(*node_id, *span);
         }
     }
 
-    fn resolve_asyncness(&mut self, asyncness: &surface::Async) -> Result {
-        match asyncness {
-            surface::Async::Yes { node_id, span } => self.resolve_opaque_impl(*node_id, *span),
-            surface::Async::No => Ok(()),
-        }
-    }
-
-    fn resolve_arg(&mut self, arg: &surface::Arg) -> Result {
-        match arg {
-            surface::Arg::Constr(_, path, _) => self.resolve_path(path),
-            surface::Arg::StrgRef(_, ty) => self.resolve_ty(ty),
-            surface::Arg::Ty(_, ty) => self.resolve_ty(ty),
-        }
-    }
-
-    fn resolve_fn_ret_ty(&mut self, returns: &surface::FnRetTy) -> Result {
-        match returns {
-            surface::FnRetTy::Default(_) => Ok(()),
-            surface::FnRetTy::Ty(ty) => self.resolve_ty(ty),
-        }
-    }
-
-    fn resolve_alias_pred(&mut self, alias_pred: &AliasPred) -> Result {
-        self.resolve_path(&alias_pred.trait_id)?;
-        alias_pred
-            .generic_args
-            .iter()
-            .try_for_each_exhaust(|arg| self.resolve_generic_arg(arg))
-    }
-
-    fn resolve_pred(&mut self, pred: &Pred) -> Result {
-        match &pred.kind {
-            PredKind::Expr(_) => Ok(()),
-            PredKind::Alias(alias_pred, _) => self.resolve_alias_pred(alias_pred),
-        }
-    }
-
-    fn resolve_ty(&mut self, ty: &Ty) -> Result {
+    fn visit_ty(&mut self, ty: &Ty) {
         match &ty.kind {
             surface::TyKind::Base(bty) => {
                 // CODESYNC(type-holes, 3) we don't resolve type holes because they will be desugared
@@ -491,90 +434,20 @@ impl<'a, 'sess, 'tcx> ItemLikeResolver<'a, 'sess, 'tcx> {
                 if let BaseTyKind::Path(path) = &bty.kind
                     && path.is_hole()
                 {
-                    Ok(())
-                } else {
-                    self.resolve_bty(bty)
+                    return;
                 }
             }
-            surface::TyKind::Indexed { bty, .. } => self.resolve_bty(bty),
-            surface::TyKind::Exists { bty, pred, .. } => {
-                self.resolve_bty(bty)?;
-                self.resolve_pred(pred)
+            surface::TyKind::ImplTrait(node_id, _) => {
+                self.resolve_opaque_impl(*node_id, ty.span);
             }
-            surface::TyKind::GeneralExists { ty, .. } => self.resolve_ty(ty),
-            surface::TyKind::Ref(_, ty) => self.resolve_ty(ty),
-            surface::TyKind::Constr(pred, ty) => {
-                self.resolve_pred(pred)?;
-                self.resolve_ty(ty)
-            }
-            surface::TyKind::Tuple(tys) => {
-                tys.iter().try_for_each_exhaust(|ty| self.resolve_ty(ty))
-            }
-            surface::TyKind::Array(ty, _) => self.resolve_ty(ty),
-            surface::TyKind::ImplTrait(node_id, bounds) => {
-                self.resolve_bounds(bounds)?;
-                self.resolve_opaque_impl(*node_id, ty.span)
-            }
+            _ => {}
         }
+        surface::visit::walk_ty(self, ty);
     }
 
-    fn resolve_opaque_impl(&mut self, node_id: surface::NodeId, span: Span) -> Result {
-        if let Some(def_id) = self.table.opaque {
-            self.resolver
-                .output
-                .impl_trait_res_map
-                .insert(node_id, def_id);
-            Ok(())
-        } else {
-            Err(self.emit(errors::UnresolvedPath { span, path: "opaque type".into() }))
-        }
-    }
-
-    fn resolve_bty(&mut self, bty: &BaseTy) -> Result {
-        match &bty.kind {
-            BaseTyKind::Path(path) => self.resolve_path(path),
-            BaseTyKind::Slice(ty) => self.resolve_ty(ty),
-        }
-    }
-
-    fn resolve_generic_arg(&mut self, arg: &surface::GenericArg) -> Result {
-        match arg {
-            surface::GenericArg::Type(ty) => self.resolve_ty(ty),
-            surface::GenericArg::Constraint(_, ty) => self.resolve_ty(ty),
-        }
-    }
-
-    fn resolve_path(&mut self, path: &Path) -> Result {
-        if let Some(res) = self.table.get(&ResKey::from_path(path)) {
-            match res {
-                &ResEntry::Res(res) => {
-                    self.resolver.output.path_res_map.insert(path.node_id, res);
-                }
-                ResEntry::Unsupported { reason, span } => {
-                    return Err(self.emit(errors::UnsupportedSignature::new(*span, reason)))
-                }
-            }
-        } else if let Some(res) = self.resolver.resolve_path(path) {
-            match res.try_into() {
-                Ok(res) => {
-                    self.resolver.output.path_res_map.insert(path.node_id, res);
-                }
-                Err(_) => {
-                    return Err(
-                        self.emit(errors::UnsupportedSignature::new(path.span, "unsupported path"))
-                    )
-                }
-            }
-        } else {
-            return Err(self.emit(errors::UnresolvedPath::new(path)));
-        }
-        path.generics
-            .iter()
-            .try_for_each_exhaust(|arg| self.resolve_generic_arg(arg))
-    }
-
-    fn emit(&self, err: impl IntoDiagnostic<'sess>) -> ErrorGuaranteed {
-        self.resolver.sess.emit_err(err)
+    fn visit_path(&mut self, path: &Path) {
+        self.resolve_path(path);
+        surface::visit::walk_path(self, path);
     }
 }
 
