@@ -82,6 +82,37 @@ pub struct Qualifier<'fhir> {
     pub global: bool,
 }
 
+pub struct Item<'fhir> {
+    pub kind: ItemKind<'fhir>,
+}
+
+pub enum ItemKind<'fhir> {
+    Enum(EnumDef<'fhir>),
+    Struct(StructDef<'fhir>),
+    TyAlias(TyAlias<'fhir>),
+    Trait(Trait<'fhir>),
+    Impl(Impl<'fhir>),
+    Fn(FnSig<'fhir>),
+    OpaqueTy(OpaqueTy<'fhir>),
+}
+
+pub struct TraitItem<'fhir> {
+    pub kind: TraitItemKind<'fhir>,
+}
+
+pub enum TraitItemKind<'fhir> {
+    Fn(FnSig<'fhir>),
+    Type(AssocType<'fhir>),
+}
+
+pub struct ImplItem<'fhir> {
+    pub kind: ImplItemKind<'fhir>,
+}
+
+pub enum ImplItemKind<'fhir> {
+    Fn(FnSig<'fhir>),
+}
+
 #[derive(Debug)]
 pub enum FluxItem<'fhir> {
     Qualifier(Qualifier<'fhir>),
@@ -194,20 +225,15 @@ pub enum IgnoreKey {
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default)]
 pub struct Crate<'fhir> {
-    pub assoc_types: UnordMap<LocalDefId, AssocType<'fhir>>,
+    pub items: UnordMap<LocalDefId, Item<'fhir>>,
+    pub trait_items: UnordMap<LocalDefId, TraitItem<'fhir>>,
+    pub impl_items: UnordMap<LocalDefId, ImplItem<'fhir>>,
     pub consts: FxHashMap<Symbol, ConstInfo>,
-    pub enums: FxHashMap<LocalDefId, EnumDef<'fhir>>,
     pub externs: UnordMap<DefId, LocalDefId>,
     pub flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
     pub fn_quals: FxHashMap<LocalDefId, &'fhir [SurfaceIdent]>,
-    pub fns: FxHashMap<LocalDefId, FnSig<'fhir>>,
     pub func_decls: FxHashMap<Symbol, FuncDecl<'fhir>>,
-    pub impls: UnordMap<LocalDefId, Impl<'fhir>>,
-    pub opaque_tys: UnordMap<LocalDefId, OpaqueTy<'fhir>>,
-    pub structs: FxHashMap<LocalDefId, StructDef<'fhir>>,
-    pub traits: UnordMap<LocalDefId, Trait<'fhir>>,
     pub trusted: UnordSet<LocalDefId>,
-    pub type_aliases: FxHashMap<LocalDefId, TyAlias<'fhir>>,
     pub ignores: UnordSet<IgnoreKey>,
     pub crate_config: config::CrateConfig,
 }
@@ -215,20 +241,15 @@ pub struct Crate<'fhir> {
 impl<'fhir> Crate<'fhir> {
     pub fn new(ignores: UnordSet<IgnoreKey>, crate_config: Option<config::CrateConfig>) -> Self {
         Self {
-            assoc_types: Default::default(),
+            items: Default::default(),
+            trait_items: Default::default(),
+            impl_items: Default::default(),
             consts: Default::default(),
-            enums: Default::default(),
             externs: Default::default(),
             flux_items: Default::default(),
             fn_quals: Default::default(),
-            fns: Default::default(),
             func_decls: Default::default(),
-            impls: Default::default(),
-            opaque_tys: Default::default(),
-            structs: Default::default(),
-            traits: Default::default(),
             trusted: Default::default(),
-            type_aliases: Default::default(),
             ignores,
             crate_config: crate_config.unwrap_or_default(),
         }

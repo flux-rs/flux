@@ -507,35 +507,76 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn expect_enum(self, def_id: LocalDefId) -> &'genv fhir::EnumDef<'genv> {
-        &self.fhir.enums[&def_id]
+        if let fhir::ItemKind::Enum(enum_def) = &self.fhir.items[&def_id].kind {
+            enum_def
+        } else {
+            bug!("expected `fhir::ItemKind:Enum`")
+        }
     }
 
     pub fn expect_struct(self, def_id: LocalDefId) -> &'genv fhir::StructDef<'genv> {
-        &self.fhir.structs[&def_id]
+        if let fhir::ItemKind::Struct(struct_def) = &self.fhir.items[&def_id].kind {
+            struct_def
+        } else {
+            bug!("expected `fhir::ItemKind::Struct`")
+        }
     }
 
     pub fn expect_impl(self, def_id: LocalDefId) -> &'genv fhir::Impl<'genv> {
-        &self.fhir.impls[&def_id]
+        if let fhir::ItemKind::Impl(impl_) = &self.fhir.items[&def_id].kind {
+            impl_
+        } else {
+            bug!("expected `fhir::ItemKind::Impl`")
+        }
     }
 
     pub fn expect_trait(self, def_id: LocalDefId) -> &'genv fhir::Trait<'genv> {
-        &self.fhir.traits[&def_id]
+        if let fhir::ItemKind::Trait(trait_) = &self.fhir.items[&def_id].kind {
+            trait_
+        } else {
+            bug!("expected `fhir::ItemKind::Trait`")
+        }
     }
 
     pub fn expect_opaque_ty(self, def_id: LocalDefId) -> &'genv fhir::OpaqueTy<'genv> {
-        &self.fhir.opaque_tys[&def_id]
+        if let fhir::ItemKind::OpaqueTy(opaque_ty) = &self.fhir.items[&def_id].kind {
+            opaque_ty
+        } else {
+            bug!("expected `fhir::ItemKind::OpaqueTy`")
+        }
     }
 
     pub fn expect_fn_like(self, def_id: LocalDefId) -> &'genv fhir::FnSig<'genv> {
-        &self.fhir.fns[&def_id]
+        if let Some(item) = self.fhir.items.get(&def_id)
+            && let fhir::ItemKind::Fn(fn_sig) = &item.kind
+        {
+            fn_sig
+        } else if let Some(trait_item) = self.fhir.trait_items.get(&def_id)
+            && let fhir::TraitItemKind::Fn(fn_sig) = &trait_item.kind
+        {
+            fn_sig
+        } else if let Some(impl_item) = self.fhir.impl_items.get(&def_id) {
+            let fhir::ImplItemKind::Fn(fn_sig) = &impl_item.kind;
+            fn_sig
+        } else {
+            bug!("expected `fhir::ItemKind::Fn`, `fhir::TraitItemKind::Fn` or `fhir::ImpItemKind::Fn`");
+        }
     }
 
     pub fn expect_type_alias(self, def_id: LocalDefId) -> &'genv fhir::TyAlias<'genv> {
-        &self.fhir.type_aliases[&def_id]
+        if let fhir::ItemKind::TyAlias(ty_alias) = &self.fhir.items[&def_id].kind {
+            ty_alias
+        } else {
+            bug!("expected `fhir::ItemKind::TyAlias`")
+        }
     }
 
     pub fn expect_assoc_type(self, def_id: LocalDefId) -> &'genv fhir::AssocType<'genv> {
-        &self.fhir.assoc_types[&def_id]
+        if let fhir::TraitItemKind::Type(assoc_type) = &self.fhir.trait_items[&def_id].kind {
+            assoc_type
+        } else {
+            bug!("expected `fhir::TraitItemKind::Type`")
+        }
     }
 }
 
