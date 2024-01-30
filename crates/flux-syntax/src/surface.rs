@@ -188,6 +188,8 @@ pub struct ConstSig {
 pub struct Impl {
     pub generics: Option<Generics>,
     pub assoc_predicates: Vec<ImplAssocPredicate>,
+    /// Whether the enum is an extern spec for some [DefId]
+    pub extern_id: Option<DefId>,
 }
 
 #[derive(Debug)]

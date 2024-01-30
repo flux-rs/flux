@@ -190,15 +190,18 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let generics = attrs.generics();
         let assoc_predicates = attrs.impl_assoc_predicates();
 
-        if attrs.extern_spec() {
+        let extern_id = if attrs.extern_spec() {
             let extern_id =
                 self.extract_extern_def_id_from_extern_spec_impl(owner_id.def_id, items)?;
             self.specs.extern_specs.insert(extern_id, owner_id.def_id);
+            Some(extern_id)
+        } else {
+            None
         };
 
         self.specs
             .impls
-            .insert(owner_id, surface::Impl { generics, assoc_predicates });
+            .insert(owner_id, surface::Impl { generics, assoc_predicates, extern_id });
 
         Ok(())
     }
@@ -569,7 +572,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     }
 
     fn is_good_trait_predicate(trait_predicate: &TraitPredicate) -> bool {
-        println!("TRACE: is_good_trait_predicate({trait_predicate:#?})");
         let def_id = trait_predicate.trait_ref.def_id;
         !pretty::def_id_to_string(def_id).contains("Sized") // TODO: use LangItem::Sized?
     }
@@ -622,7 +624,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         // 4. Resolve the trait_ref to an impl_id
         let (impl_id, _) =
             resolve_trait_ref_impl_id(self.tcx, fake_method_def_id, trait_ref).unwrap();
-        println!("TRACE: extract_extern_def_id_from_extern_spec_impl {_def_id:?} ==> {impl_id:#?}");
         Ok(impl_id)
     }
 

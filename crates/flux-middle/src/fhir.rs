@@ -151,6 +151,8 @@ pub struct TraitAssocPredicate<'fhir> {
 pub struct Impl<'fhir> {
     pub generics: Generics<'fhir>,
     pub assoc_predicates: &'fhir [ImplAssocPredicate<'fhir>],
+    /// Whether this is a expecr for an extern enum
+    pub extern_id: Option<DefId>,
 }
 
 impl<'fhir> Impl<'fhir> {

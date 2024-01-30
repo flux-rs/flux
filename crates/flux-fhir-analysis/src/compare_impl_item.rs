@@ -39,14 +39,20 @@ fn check_assoc_predicate(
     trait_id: DefId,
     name: Symbol,
 ) -> Result {
+    let fake_impl_id = genv
+        .map()
+        .get_local_id_for_extern(impl_id.into())
+        .unwrap_or(impl_id);
+
     let impl_span = genv
         .map()
-        .expect_impl(impl_id)
+        .expect_impl(fake_impl_id)
         .find_assoc_predicate(name)
         .unwrap()
         .span;
+
     let impl_trait_ref = genv
-        .impl_trait_ref(impl_id.to_def_id())
+        .impl_trait_ref(impl_id)
         .emit(genv.sess())?
         .unwrap()
         .instantiate_identity(&[]);

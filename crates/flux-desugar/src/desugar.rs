@@ -241,7 +241,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
             self.as_lift_cx().lift_generics()?
         };
         let assoc_predicates = self.desugar_impl_assoc_predicates(&impl_.assoc_predicates)?;
-        Ok(fhir::Impl { generics, assoc_predicates })
+        Ok(fhir::Impl { generics, assoc_predicates, extern_id: impl_.extern_id })
     }
 
     fn desugar_impl_assoc_predicates(

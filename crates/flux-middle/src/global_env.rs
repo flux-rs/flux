@@ -198,8 +198,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn impl_trait_ref(
         self,
-        impl_id: DefId,
+        impl_id: LocalDefId,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::TraitRef>>> {
+        let impl_id = self
+            .map()
+            .extern_id_of(impl_id)
+            .unwrap_or(impl_id.to_def_id());
+
         let Some(poly_trait_ref) = self.tcx().impl_trait_ref(impl_id) else { return Ok(None) };
 
         let impl_generics = self.generics_of(impl_id)?;
