@@ -1,15 +1,16 @@
 use std::collections::hash_map;
 
-use flux_common::{bug, iter::IterExt};
+use flux_common::bug;
 use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, Res},
     Specs,
 };
-use flux_syntax::surface::{self, visit::Visitor, BaseTyKind, Ident, Path, Ty};
+use flux_syntax::surface::{self, visit::Visitor as _, BaseTyKind, Ident, Path, Ty};
 use hir::{
     def::{DefKind, Namespace::TypeNS},
-    ItemId, ItemKind, OwnerId, PathSegment,
+    intravisit::Visitor as _,
+    ItemId, ItemKind, OwnerId,
 };
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
@@ -337,7 +338,7 @@ impl<'a, 'tcx> CrateResolver<'a, 'tcx> {
 }
 
 struct ItemResolver<'a, 'b, 'tcx> {
-    table: NameResTable<'a>,
+    table: NameResTable,
     resolver: &'a mut CrateResolver<'b, 'tcx>,
 }
 
@@ -346,10 +347,10 @@ pub struct ResKey {
     s: String,
 }
 
-struct NameResTable<'sess> {
+#[derive(Default)]
+struct NameResTable {
     res: UnordMap<ResKey, ResEntry>,
     opaque: Option<ItemId>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
-    sess: &'sess FluxSession,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -467,94 +468,164 @@ fn map_res(res: hir::def::Res<!>) -> hir::def::Res {
     }
 }
 
-impl<'sess> NameResTable<'sess> {
-    fn new(sess: &'sess FluxSession) -> NameResTable<'sess> {
-        NameResTable { sess, opaque: None, res: UnordMap::default() }
+struct NameResCollector<'a, 'tcx> {
+    tcx: TyCtxt<'tcx>,
+    sess: &'a FluxSession,
+    table: NameResTable,
+    err: Option<ErrorGuaranteed>,
+}
+
+impl<'a, 'tcx> NameResCollector<'a, 'tcx> {
+    fn new(tcx: TyCtxt<'tcx>, sess: &'a FluxSession) -> Self {
+        Self { tcx, sess, table: NameResTable::default(), err: None }
     }
 
-    fn from_item(tcx: TyCtxt, sess: &'sess FluxSession, item: &hir::Item) -> Result<Self> {
-        let mut table = Self::new(sess);
-        let def_id = item.owner_id.def_id;
-        match &item.kind {
-            ItemKind::TyAlias(ty, _) => {
-                table.collect_from_ty(ty)?;
+    fn collect_from_opaque_impl(&mut self) -> Result {
+        if let Some(item_id) = self.table.opaque {
+            let item = self.tcx.hir().item(item_id);
+            if let ItemKind::OpaqueTy(_) = item.kind {
+                self.visit_item(item);
             }
-            ItemKind::Struct(data, _) => {
-                table.insert(
+        }
+        Ok(())
+    }
+
+    fn emit(&mut self, err: impl IntoDiagnostic<'a>) {
+        self.err = self.err.or(Some(self.sess.emit_err(err)));
+    }
+
+    fn into_result(self) -> Result<NameResTable> {
+        if let Some(err) = self.err {
+            Err(err)
+        } else {
+            Ok(self.table)
+        }
+    }
+}
+
+impl<'tcx> hir::intravisit::Visitor<'tcx> for NameResCollector<'_, 'tcx> {
+    fn visit_ty(&mut self, ty: &'tcx hir::Ty<'tcx>) {
+        if let hir::TyKind::OpaqueDef(item_id, ..) = ty.kind {
+            if self.table.opaque.is_some() {
+                self.emit(errors::UnsupportedSignature::new(
+                    ty.span,
+                    "duplicate opaque types in signature",
+                ));
+            } else {
+                self.table.opaque = Some(item_id);
+            }
+        }
+        hir::intravisit::walk_ty(self, ty);
+    }
+
+    fn visit_path(&mut self, path: &hir::Path<'tcx>, _id: hir::HirId) {
+        match ResKey::from_hir_path(self.sess, path) {
+            Ok(key) => {
+                let res = path
+                    .res
+                    .try_into()
+                    .map_or_else(|_| ResEntry::unsupported(*path), ResEntry::Res);
+                self.table.insert(key, res);
+            }
+            Err(err) => {
+                self.err = self.err.or(Some(err));
+            }
+        }
+        hir::intravisit::walk_path(self, path);
+    }
+}
+
+impl NameResTable {
+    fn from_item<'tcx>(
+        tcx: TyCtxt<'tcx>,
+        sess: &FluxSession,
+        item: &'tcx hir::Item,
+    ) -> Result<Self> {
+        let def_id = item.owner_id.def_id;
+
+        let mut collector = NameResCollector::new(tcx, sess);
+
+        match &item.kind {
+            ItemKind::Struct(variant, generics) => {
+                collector.table.insert(
                     ResKey::from_ident(item.ident),
                     Res::Def(DefKind::Struct, def_id.to_def_id()),
                 );
-
-                for field in data.fields() {
-                    table.collect_from_ty(field.ty)?;
-                }
+                collector.visit_generics(generics);
+                collector.visit_variant_data(variant);
             }
-            ItemKind::Enum(data, _) => {
-                table.insert(
+            ItemKind::Enum(enum_def, generics) => {
+                collector.table.insert(
                     ResKey::from_ident(item.ident),
                     Res::Def(DefKind::Enum, def_id.to_def_id()),
                 );
-
-                for variant in data.variants {
-                    for field in variant.data.fields() {
-                        table.collect_from_ty(field.ty)?;
-                    }
-                }
+                collector.visit_generics(generics);
+                collector.visit_enum_def(enum_def, item.hir_id());
             }
-            ItemKind::Fn(fn_sig, generics, ..) => {
-                table.collect_from_fn_sig(fn_sig)?;
-                table.collect_from_generics(generics)?;
-                table.collect_from_opaque_impls(tcx)?;
+            ItemKind::Fn(fn_sig, generics, _) => {
+                collector.visit_generics(generics);
+                collector.visit_fn_decl(fn_sig.decl);
+                collector.collect_from_opaque_impl()?;
+            }
+            ItemKind::TyAlias(ty, generics) => {
+                collector.visit_generics(generics);
+                collector.visit_ty(ty);
             }
             _ => {}
         }
-        Ok(table)
+        collector.into_result()
     }
 
-    fn from_impl_item(
-        tcx: TyCtxt,
-        sess: &'sess FluxSession,
-        impl_item: &hir::ImplItem,
+    fn from_impl_item<'tcx>(
+        tcx: TyCtxt<'tcx>,
+        sess: &FluxSession,
+        impl_item: &'tcx hir::ImplItem,
     ) -> Result<Self> {
         let def_id = impl_item.owner_id.def_id;
 
-        let mut table = Self::new(sess);
+        let mut collector = NameResCollector::new(tcx, sess);
 
-        table.collect_from_generics(impl_item.generics)?;
+        match impl_item.kind {
+            hir::ImplItemKind::Fn(fn_sig, _) => {
+                collector.visit_generics(impl_item.generics);
+                collector.visit_fn_decl(fn_sig.decl);
+            }
+            hir::ImplItemKind::Const(_, _) | hir::ImplItemKind::Type(_) => {}
+        }
 
         // Insert paths from parent impl
         let impl_did = tcx.local_parent(def_id);
         if let ItemKind::Impl(impl_) = &tcx.hir().expect_item(impl_did).kind {
             if let Some(trait_ref) = impl_.of_trait {
                 let trait_id = trait_ref.trait_def_id().unwrap();
-                table.insert(
+                collector.table.insert(
                     ResKey::from_hir_path(sess, trait_ref.path)?,
                     Res::Def(DefKind::Trait, trait_id),
                 );
             }
-            table.collect_from_generics(impl_.generics)?;
-            table.collect_from_ty(impl_.self_ty)?;
+            collector.visit_generics(impl_.generics);
+            collector.visit_ty(impl_.self_ty);
         }
 
-        match &impl_item.kind {
-            rustc_hir::ImplItemKind::Fn(fn_sig, _) => {
-                table.collect_from_fn_sig(fn_sig)?;
-                table.collect_from_opaque_impls(tcx)?;
+        match impl_item.kind {
+            hir::ImplItemKind::Fn(fn_sig, _) => {
+                collector.visit_generics(impl_item.generics);
+                collector.visit_fn_decl(fn_sig.decl);
             }
-            rustc_hir::ImplItemKind::Const(_, _) | rustc_hir::ImplItemKind::Type(_) => {}
+            hir::ImplItemKind::Const(_, _) | hir::ImplItemKind::Type(_) => {}
         }
 
-        Ok(table)
+        collector.into_result()
     }
 
-    fn from_trait_item(
-        tcx: TyCtxt,
-        sess: &'sess FluxSession,
-        trait_item: &hir::TraitItem,
+    fn from_trait_item<'tcx>(
+        tcx: TyCtxt<'tcx>,
+        sess: &FluxSession,
+        trait_item: &'tcx hir::TraitItem,
     ) -> Result<Self> {
         let def_id = trait_item.owner_id.def_id;
 
-        let mut table = Self::new(sess);
+        let mut collector = NameResCollector::new(tcx, sess);
 
         // Insert generics from parent trait
         if let Some(parent_impl_did) = tcx.trait_of_item(def_id.to_def_id()) {
@@ -562,26 +633,27 @@ impl<'sess> NameResTable<'sess> {
 
             // Insert NAME of parent trait
             if let ItemKind::Trait(..) = &parent_impl_item.kind {
-                table.insert(
+                collector.table.insert(
                     ResKey::from_ident(parent_impl_item.ident),
                     Res::Def(DefKind::Trait, parent_impl_did),
                 );
             }
 
             if let ItemKind::Impl(parent) = &parent_impl_item.kind {
-                table.collect_from_ty(parent.self_ty)?;
+                collector.visit_ty(parent.self_ty);
             }
         }
 
         match &trait_item.kind {
             rustc_hir::TraitItemKind::Fn(fn_sig, _) => {
-                table.collect_from_fn_sig(fn_sig)?;
-                table.collect_from_opaque_impls(tcx)?;
+                collector.visit_generics(trait_item.generics);
+                collector.visit_fn_decl(fn_sig.decl);
+                collector.collect_from_opaque_impl()?;
             }
             rustc_hir::TraitItemKind::Const(..) | rustc_hir::TraitItemKind::Type(..) => {}
         }
 
-        Ok(table)
+        collector.into_result()
     }
 
     fn insert(&mut self, key: ResKey, res: impl Into<ResEntry>) {
@@ -600,165 +672,6 @@ impl<'sess> NameResTable<'sess> {
 
     fn get(&self, key: &ResKey) -> Option<&ResEntry> {
         self.res.get(key)
-    }
-
-    fn collect_from_generics(&mut self, generics: &hir::Generics<'_>) -> Result {
-        generics
-            .predicates
-            .iter()
-            .try_for_each_exhaust(|pred| self.collect_from_where_predicate(pred))
-    }
-
-    fn collect_from_where_predicate(&mut self, clause: &hir::WherePredicate) -> Result {
-        if let hir::WherePredicate::BoundPredicate(bound) = clause {
-            self.collect_from_ty(bound.bounded_ty)?;
-            self.collect_from_generic_bounds(bound.bounds)?;
-        }
-        Ok(())
-    }
-
-    fn collect_from_generic_bounds(&mut self, bounds: &[hir::GenericBound<'_>]) -> Result {
-        bounds
-            .iter()
-            .try_for_each_exhaust(|b| self.collect_from_generic_bound(b))?;
-        Ok(())
-    }
-
-    fn collect_from_generic_bound(&mut self, bound: &hir::GenericBound) -> Result {
-        match bound {
-            hir::GenericBound::Trait(poly_trait_ref, _) => {
-                self.collect_from_path(poly_trait_ref.trait_ref.path)
-            }
-            hir::GenericBound::LangItemTrait(.., args) => self.collect_from_generic_args(args),
-            _ => Ok(()),
-        }
-    }
-
-    fn collect_from_opaque_impls(&mut self, tcx: TyCtxt) -> Result {
-        if let Some(item_id) = self.opaque {
-            let item_kind = tcx.hir().item(item_id).kind;
-            if let ItemKind::OpaqueTy(opaque_ty) = item_kind {
-                self.collect_from_generic_bounds(opaque_ty.bounds)?;
-            }
-        }
-        Ok(())
-    }
-
-    fn collect_from_fn_sig(&mut self, fn_sig: &hir::FnSig) -> Result {
-        fn_sig
-            .decl
-            .inputs
-            .iter()
-            .try_for_each_exhaust(|ty| self.collect_from_ty(ty))?;
-
-        if let hir::FnRetTy::Return(ty) = fn_sig.decl.output {
-            self.collect_from_ty(ty)?;
-        }
-        Ok(())
-    }
-
-    fn collect_from_ty(&mut self, ty: &hir::Ty) -> Result {
-        match &ty.kind {
-            hir::TyKind::Slice(ty) | hir::TyKind::Array(ty, _) => self.collect_from_ty(ty),
-            hir::TyKind::Ptr(mut_ty) | hir::TyKind::Ref(_, mut_ty) => {
-                self.collect_from_ty(mut_ty.ty)
-            }
-            hir::TyKind::Tup(tys) => tys.iter().try_for_each(|ty| self.collect_from_ty(ty)),
-            hir::TyKind::Path(qpath) => {
-                match qpath {
-                    hir::QPath::Resolved(self_ty, path) => {
-                        self.collect_from_path(path)?;
-                        if let Some(self_ty) = self_ty {
-                            self.collect_from_ty(self_ty)?;
-                        }
-                    }
-                    hir::QPath::TypeRelative(ty, _path_segment) => {
-                        self.collect_from_ty(ty)?;
-                    }
-                    hir::QPath::LangItem(..) => {}
-                }
-                Ok(())
-            }
-            hir::TyKind::OpaqueDef(item_id, ..) => {
-                assert!(self.opaque.is_none());
-                if self.opaque.is_some() {
-                    Err(self.sess.emit_err(errors::UnsupportedSignature::new(
-                        ty.span,
-                        "duplicate opaque types in signature",
-                    )))
-                } else {
-                    self.opaque = Some(*item_id);
-                    Ok(())
-                }
-            }
-            hir::TyKind::BareFn(_)
-            | hir::TyKind::Never
-            | hir::TyKind::TraitObject(..)
-            | hir::TyKind::Typeof(_)
-            | hir::TyKind::Infer
-            | hir::TyKind::Err(_) => Ok(()),
-        }
-    }
-
-    fn collect_from_generic_args(&mut self, args: &rustc_hir::GenericArgs) -> Result {
-        args.args
-            .iter()
-            .copied()
-            .try_for_each_exhaust(|arg| self.collect_from_generic_arg(&arg))?;
-
-        args.bindings
-            .iter()
-            .copied()
-            .try_for_each_exhaust(|binding| self.collect_from_type_binding(&binding))?;
-        Ok(())
-    }
-
-    fn collect_from_path(&mut self, path: &hir::Path<'_>) -> Result {
-        let key = ResKey::from_hir_path(self.sess, path)?;
-
-        let res = path
-            .res
-            .try_into()
-            .map_or_else(|_| ResEntry::unsupported(*path), ResEntry::Res);
-        self.insert(key, res);
-
-        if let [.., PathSegment { args: Some(args), .. }] = path.segments {
-            self.collect_from_generic_args(args)?;
-        }
-        Ok(())
-    }
-
-    fn collect_from_type_binding(&mut self, binding: &hir::TypeBinding<'_>) -> Result {
-        match binding.kind {
-            hir::TypeBindingKind::Equality { term } => self.collect_from_term(&term),
-            hir::TypeBindingKind::Constraint { bounds } => {
-                bounds
-                    .iter()
-                    .try_for_each_exhaust(|bound| self.collect_from_generic_bound(bound))
-            }
-        }
-    }
-
-    fn collect_from_term(&mut self, term: &hir::Term<'_>) -> Result {
-        match term {
-            hir::Term::Ty(ty) => self.collect_from_ty(ty),
-            hir::Term::Const(_) => Ok(()),
-        }
-    }
-
-    fn collect_from_generic_arg(&mut self, arg: &hir::GenericArg) -> Result {
-        match arg {
-            hir::GenericArg::Type(ty) => self.collect_from_ty(ty),
-            hir::GenericArg::Lifetime(_) => Ok(()),
-            hir::GenericArg::Const(_) => {
-                Err(self.sess.emit_err(errors::UnsupportedSignature::new(
-                    arg.span(),
-                    "const generics are not supported yet",
-                )))
-            }
-
-            hir::GenericArg::Infer(_) => unreachable!(),
-        }
     }
 }
 
