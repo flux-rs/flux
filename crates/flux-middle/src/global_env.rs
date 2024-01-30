@@ -16,7 +16,7 @@ use crate::{
     fhir::{self, FluxLocalDefId, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryErr, QueryResult},
-    rty::{self, fold::TypeFoldable, normalize::Defns, refining::Refiner},
+    rty::{self, normalize::Defns, refining::Refiner},
     rustc::{self, lowering, ty},
 };
 
@@ -369,32 +369,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         rustc_ty: &ty::Ty,
     ) -> QueryResult<rty::Ty> {
         Refiner::with_holes(self, generics).refine_ty(rustc_ty)
-    }
-
-    pub fn instantiate_arg_for_fun(
-        self,
-        generics: &rty::Generics,
-        param: &rty::GenericParamDef,
-        arg: &ty::GenericArg,
-    ) -> QueryResult<rty::GenericArg> {
-        Refiner::new(self, generics, |bty| {
-            let sort = bty.sort();
-            let mut ty = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
-            if !sort.is_unit() {
-                ty = rty::Ty::constr(rty::Expr::hole(rty::HoleKind::Pred), ty);
-            }
-            rty::Binder::with_sort(ty, sort)
-        })
-        .refine_generic_arg(param, arg)
-    }
-
-    pub fn instantiate_arg_for_constructor(
-        self,
-        generics: &rty::Generics,
-        param: &rty::GenericParamDef,
-        arg: &ty::GenericArg,
-    ) -> QueryResult<rty::GenericArg> {
-        Refiner::with_holes(self, generics).refine_generic_arg(param, arg)
     }
 
     pub(crate) fn cstore(self) -> &'genv CrateStoreDyn {
