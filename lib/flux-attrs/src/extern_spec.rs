@@ -117,11 +117,9 @@ impl ToTokens for ExternItemImpl {
 
             if let Some((_, trait_, _for_token)) = &self.trait_ {
                 let self_ty = &self.self_ty;
-            // trait_.to_tokens(tokens);
-            // for_token.to_tokens(tokens);
             quote!(#[allow(unused_variables)]).to_tokens(tokens);
             let fake_fn =
-                 quote!(fn __flux_extern_impl_fake_method<__fluxFakeVar : #trait_>(x: #self_ty) {});
+                 quote!(fn __flux_extern_impl_fake_method<FluxFakeVar : #trait_>(x: #self_ty) {});
             fake_fn.to_tokens(tokens);
             }
 

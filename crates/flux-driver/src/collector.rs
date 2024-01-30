@@ -190,9 +190,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let generics = attrs.generics();
         let assoc_predicates = attrs.impl_assoc_predicates();
 
-        let extern_id = if attrs.extern_spec() {
-            let extern_id =
-                self.extract_extern_def_id_from_extern_spec_impl(owner_id.def_id, items)?;
+        let extern_id = if attrs.extern_spec()
+            && let Some(extern_id) =
+                self.extract_extern_def_id_from_extern_spec_impl(owner_id.def_id, items)
+        {
             self.specs.extern_specs.insert(extern_id, owner_id.def_id);
             Some(extern_id)
         } else {
@@ -586,9 +587,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         _def_id: LocalDefId,
         items: &[ImplItemRef],
-    ) -> Result<DefId> {
+    ) -> Option<DefId> {
         // 1. Find the fake_method's def_id
-        let fake_method_def_id = self.fake_method_of(items).unwrap();
+        let fake_method_def_id = self.fake_method_of(items)?;
 
         // 2. Get the fake_method's input type
         let ty = self
@@ -624,7 +625,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         // 4. Resolve the trait_ref to an impl_id
         let (impl_id, _) =
             resolve_trait_ref_impl_id(self.tcx, fake_method_def_id, trait_ref).unwrap();
-        Ok(impl_id)
+        Some(impl_id)
     }
 
     fn extract_extern_def_id_from_extern_spec_trait(
