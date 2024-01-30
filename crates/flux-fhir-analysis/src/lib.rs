@@ -144,7 +144,7 @@ fn predicates_of(
         conv::conv_generic_predicates(genv, local_id, generics.predicates, &wfckresults)
     } else {
         Ok(rty::EarlyBinder(rty::GenericPredicates {
-            parent: genv.tcx().opt_parent(local_id.to_def_id()),
+            parent: genv.tcx().predicates_of(local_id.to_def_id()).parent,
             predicates: List::empty(),
         }))
     }
@@ -281,7 +281,7 @@ fn refinement_generics_of(
         if let Some(def_id) = parent { genv.refinement_generics_of(def_id)?.count() } else { 0 };
     match genv.def_kind(local_id) {
         DefKind::Fn | DefKind::AssocFn => {
-            let fn_sig = genv.map().expect_fn_like(local_id);
+            let fn_sig = genv.map().node(local_id).fn_sig().unwrap();
             let wfckresults = genv.check_wf(local_id)?;
             let params = conv::conv_refinement_generics(
                 genv,
@@ -360,7 +360,7 @@ fn variants_of(
 }
 
 fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-    let fn_sig = genv.map().expect_fn_like(def_id);
+    let fn_sig = genv.map().node(def_id).fn_sig().unwrap();
     let wfckresults = genv.check_wf(def_id)?;
     let defns = genv.defns()?;
     let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?
@@ -421,7 +421,7 @@ fn check_wf_rust_item<'genv>(
         }
         DefKind::Fn | DefKind::AssocFn => {
             let owner_id = OwnerId { def_id };
-            let fn_sig = genv.map().expect_fn_like(def_id);
+            let fn_sig = genv.map().node(def_id).fn_sig().unwrap();
             let mut wfckresults = wf::check_fn_sig(genv, fn_sig, owner_id)?;
             annot_check::check_fn_sig(genv, &mut wfckresults, owner_id, fn_sig)?;
             wfckresults

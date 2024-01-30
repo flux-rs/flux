@@ -82,8 +82,48 @@ pub struct Qualifier<'fhir> {
     pub global: bool,
 }
 
+#[derive(Clone, Copy)]
+pub enum Node<'fhir> {
+    Item(&'fhir Item<'fhir>),
+    TraitItem(&'fhir TraitItem<'fhir>),
+    ImplItem(&'fhir ImplItem<'fhir>),
+}
+
+impl<'fhir> Node<'fhir> {
+    pub fn fn_sig(&self) -> Option<&'fhir FnSig<'fhir>> {
+        match self {
+            Node::Item(Item { kind: ItemKind::Fn(fn_sig, ..) })
+            | Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig) })
+            | Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig) }) => Some(fn_sig),
+            _ => None,
+        }
+    }
+
+    pub fn generics(self) -> &'fhir Generics<'fhir> {
+        match self {
+            Node::Item(item) => item.generics(),
+            Node::TraitItem(trait_item) => trait_item.generics(),
+            Node::ImplItem(impl_item) => impl_item.generics(),
+        }
+    }
+}
+
 pub struct Item<'fhir> {
     pub kind: ItemKind<'fhir>,
+}
+
+impl<'fhir> Item<'fhir> {
+    pub fn generics(&self) -> &Generics<'fhir> {
+        match &self.kind {
+            ItemKind::Enum(enum_def) => &enum_def.generics,
+            ItemKind::Struct(struct_def) => &struct_def.generics,
+            ItemKind::TyAlias(ty_alias) => &ty_alias.generics,
+            ItemKind::Trait(trait_) => &trait_.generics,
+            ItemKind::Impl(impl_) => &impl_.generics,
+            ItemKind::Fn(fn_sig) => &fn_sig.generics,
+            ItemKind::OpaqueTy(opaque_ty) => &opaque_ty.generics,
+        }
+    }
 }
 
 pub enum ItemKind<'fhir> {
@@ -100,6 +140,15 @@ pub struct TraitItem<'fhir> {
     pub kind: TraitItemKind<'fhir>,
 }
 
+impl<'fhir> TraitItem<'fhir> {
+    pub fn generics(&self) -> &Generics<'fhir> {
+        match &self.kind {
+            TraitItemKind::Fn(fn_sig) => &fn_sig.generics,
+            TraitItemKind::Type(assoc_ty) => &assoc_ty.generics,
+        }
+    }
+}
+
 pub enum TraitItemKind<'fhir> {
     Fn(FnSig<'fhir>),
     Type(AssocType<'fhir>),
@@ -107,6 +156,14 @@ pub enum TraitItemKind<'fhir> {
 
 pub struct ImplItem<'fhir> {
     pub kind: ImplItemKind<'fhir>,
+}
+
+impl<'fhir> ImplItem<'fhir> {
+    pub fn generics(&self) -> &Generics<'fhir> {
+        match &self.kind {
+            ImplItemKind::Fn(fn_sig) => &fn_sig.generics,
+        }
+    }
 }
 
 pub enum ImplItemKind<'fhir> {

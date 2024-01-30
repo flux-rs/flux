@@ -400,16 +400,11 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn get_generics(self, def_id: LocalDefId) -> Option<&'genv fhir::Generics<'genv>> {
-        match self.genv.def_kind(def_id) {
-            DefKind::Struct => Some(&self.expect_struct(def_id).generics),
-            DefKind::Enum => Some(&self.expect_enum(def_id).generics),
-            DefKind::Impl { .. } => Some(&self.expect_impl(def_id).generics),
-            DefKind::Trait => Some(&self.expect_trait(def_id).generics),
-            DefKind::TyAlias => Some(&self.expect_type_alias(def_id).generics),
-            DefKind::AssocTy => Some(&self.expect_assoc_type(def_id).generics),
-            DefKind::Fn | DefKind::AssocFn => Some(&self.expect_fn_like(def_id).generics),
-            DefKind::OpaqueTy => Some(&self.expect_opaque_ty(def_id).generics),
-            _ => None,
+        // We don't have nodes for closures and coroutines
+        if matches!(self.genv.def_kind(def_id), DefKind::Closure | DefKind::Coroutine) {
+            None
+        } else {
+            Some(self.node(def_id).generics())
         }
     }
 
@@ -524,20 +519,15 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         }
     }
 
-    pub fn expect_fn_like(self, def_id: LocalDefId) -> &'genv fhir::FnSig<'genv> {
-        if let Some(item) = self.fhir.items.get(&def_id)
-            && let fhir::ItemKind::Fn(fn_sig) = &item.kind
-        {
-            fn_sig
-        } else if let Some(trait_item) = self.fhir.trait_items.get(&def_id)
-            && let fhir::TraitItemKind::Fn(fn_sig) = &trait_item.kind
-        {
-            fn_sig
+    pub fn node(self, def_id: LocalDefId) -> fhir::Node<'genv> {
+        if let Some(item) = self.fhir.items.get(&def_id) {
+            fhir::Node::Item(item)
+        } else if let Some(trait_item) = self.fhir.trait_items.get(&def_id) {
+            fhir::Node::TraitItem(trait_item)
         } else if let Some(impl_item) = self.fhir.impl_items.get(&def_id) {
-            let fhir::ImplItemKind::Fn(fn_sig) = &impl_item.kind;
-            fn_sig
+            fhir::Node::ImplItem(impl_item)
         } else {
-            bug!("expected `fhir::ItemKind::Fn`, `fhir::TraitItemKind::Fn` or `fhir::ImpItemKind::Fn`");
+            bug!("node not found {def_id:?}");
         }
     }
 
