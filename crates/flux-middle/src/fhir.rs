@@ -525,7 +525,7 @@ impl<'fhir> RefineParam<'fhir> {
 /// [inference mode]: InferMode
 #[derive(Debug, Clone, Copy)]
 pub enum ParamKind {
-    /// A parameter declared in an explicit scope
+    /// A parameter declared in an explicit scope, e.g., `fn foo<refine n: int>(x: i32[n])`
     Explicit,
     /// An implicitly scoped parameter declared with `@a` syntax
     At,
@@ -762,10 +762,10 @@ impl Res {
     }
 }
 
-impl TryFrom<rustc_hir::def::Res> for Res {
+impl<Id> TryFrom<rustc_hir::def::Res<Id>> for Res {
     type Error = ();
 
-    fn try_from(res: rustc_hir::def::Res) -> Result<Self, Self::Error> {
+    fn try_from(res: rustc_hir::def::Res<Id>) -> Result<Self, Self::Error> {
         match res {
             rustc_hir::def::Res::Def(kind, did) => Ok(Res::Def(kind, did)),
             rustc_hir::def::Res::PrimTy(prim_ty) => Ok(Res::PrimTy(prim_ty)),

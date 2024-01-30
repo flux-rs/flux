@@ -4,7 +4,7 @@ use super::{
     AliasPred, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
     ExprKind, FnRetTy, FnSig, GenericArg, GenericParam, GenericParamKind, Generics, Indices, Lit,
     Path, Pred, PredKind, QPathExpr, RefineArg, RefineParam, RefinedBy, Sort, StructDef, TraitRef,
-    Ty, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -42,6 +42,10 @@ pub trait Visitor: Sized {
 
     fn visit_base_sort(&mut self, bsort: &BaseSort) {
         walk_base_sort(self, bsort);
+    }
+
+    fn visit_ty_alias(&mut self, ty_alias: &TyAlias) {
+        walk_ty_alias(self, ty_alias);
     }
 
     fn visit_struct_def(&mut self, struct_def: &StructDef) {
@@ -174,6 +178,13 @@ pub fn walk_base_sort<V: Visitor>(vis: &mut V, bsort: &BaseSort) {
             walk_list!(vis, visit_base_sort, args);
         }
     }
+}
+
+pub fn walk_ty_alias<V: Visitor>(vis: &mut V, ty_alias: &TyAlias) {
+    vis.visit_ident(ty_alias.ident);
+    vis.visit_generics(&ty_alias.generics);
+    vis.visit_refined_by(&ty_alias.refined_by);
+    vis.visit_ty(&ty_alias.ty);
 }
 
 pub fn walk_struct_def<V: Visitor>(vis: &mut V, struct_def: &StructDef) {
