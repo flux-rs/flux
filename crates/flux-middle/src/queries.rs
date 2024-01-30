@@ -45,6 +45,7 @@ pub enum QueryErr {
 
 pub struct Providers {
     pub collect_specs: fn(GlobalEnv) -> crate::Specs,
+    pub resolve_crate: fn(GlobalEnv) -> crate::ResolverOutput,
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::Crate<'genv>,
     pub defns: fn(GlobalEnv) -> QueryResult<rty::Defns>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
@@ -84,6 +85,7 @@ impl Default for Providers {
         Self {
             collect_specs: |_| empty_query!(),
             fhir_crate: |_| empty_query!(),
+            resolve_crate: |_| empty_query!(),
             defns: |_| empty_query!(),
             func_decls: |_| empty_query!(),
             qualifiers: |_| empty_query!(),
@@ -108,6 +110,7 @@ pub struct Queries<'genv, 'tcx> {
     pub(crate) providers: Providers,
     mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
     collect_specs: OnceCell<crate::Specs>,
+    resolve_crate: OnceCell<crate::ResolverOutput>,
     fhir_crate: OnceCell<fhir::Crate<'genv>>,
     lower_generics_of: Cache<DefId, QueryResult<ty::Generics<'tcx>>>,
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
@@ -139,6 +142,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             mir: Default::default(),
             collect_specs: Default::default(),
             fhir_crate: Default::default(),
+            resolve_crate: Default::default(),
             lower_generics_of: Default::default(),
             lower_predicates_of: Default::default(),
             lower_type_of: Default::default(),
@@ -178,6 +182,14 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     pub(crate) fn collect_specs(&'genv self, genv: GlobalEnv<'genv, 'tcx>) -> &'genv crate::Specs {
         self.collect_specs
             .get_or_init(|| (self.providers.collect_specs)(genv))
+    }
+
+    pub(crate) fn resolve_crate(
+        &'genv self,
+        genv: GlobalEnv<'genv, 'tcx>,
+    ) -> &'genv crate::ResolverOutput {
+        self.resolve_crate
+            .get_or_init(|| (self.providers.resolve_crate)(genv))
     }
 
     pub(crate) fn fhir_crate(

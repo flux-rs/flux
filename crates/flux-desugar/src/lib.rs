@@ -13,7 +13,6 @@ use desugar::RustItemCtxt;
 use flux_common::dbg;
 use flux_config as config;
 use flux_macros::fluent_messages;
-use resolver::ResolverOutput;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 
@@ -24,7 +23,9 @@ mod errors;
 pub mod resolver;
 mod sort_resolver;
 
-use flux_middle::{const_eval, fhir, global_env::GlobalEnv, queries::Providers, rty, Specs};
+use flux_middle::{
+    const_eval, fhir, global_env::GlobalEnv, queries::Providers, rty, ResolverOutput, Specs,
+};
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{self as hir, OwnerId};
@@ -34,11 +35,12 @@ use rustc_span::def_id::LocalDefId;
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub fn provide(providers: &mut Providers) {
+    providers.resolve_crate = resolver::resolve_crate;
     providers.fhir_crate = desugar_crate;
 }
 
 fn desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> fhir::Crate<'genv> {
-    match desugar_crate_inner(genv) {
+    match try_desugar_crate(genv) {
         Ok(fhir) => fhir,
         Err(err) => {
             // There's too much code down the pipeline that relies on having the fhir, so we abort
@@ -50,33 +52,10 @@ fn desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> fhir::Crate<'genv> {
     }
 }
 
-macro_rules! collect_err {
-    ($self:expr, $body:expr) => {
-        $self.err = $body.err().or($self.err)
-    };
-}
-
-struct CrateDesugar<'genv, 'tcx> {
-    genv: GlobalEnv<'genv, 'tcx>,
-    fhir: fhir::Crate<'genv>,
-    resolver_output: ResolverOutput,
-    err: Option<ErrorGuaranteed>,
-}
-
-impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
-    fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        fhir: fhir::Crate<'genv>,
-        resolver_output: ResolverOutput,
-    ) -> Self {
-        Self { genv, fhir, resolver_output, err: None }
-    }
-}
-
-fn desugar_crate_inner<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::Crate<'genv>> {
+fn try_desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::Crate<'genv>> {
     let specs = genv.collect_specs();
     let fhir = fhir::Crate::new(specs.ignores.clone(), specs.crate_config);
-    let resolver_output = resolver::resolve_crate(genv.tcx(), genv.sess(), specs)?;
+    let resolver_output = genv.resolve_crate();
     let mut cx = CrateDesugar::new(genv, fhir, resolver_output);
     cx.desugar_flux_items(specs);
     cx.desugar_rust_items(specs);
@@ -92,7 +71,30 @@ fn desugar_crate_inner<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::Crate<
     }
 }
 
-impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
+macro_rules! collect_err {
+    ($self:expr, $body:expr) => {
+        $self.err = $body.err().or($self.err)
+    };
+}
+
+struct CrateDesugar<'a, 'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
+    fhir: fhir::Crate<'genv>,
+    resolver_output: &'a ResolverOutput,
+    err: Option<ErrorGuaranteed>,
+}
+
+impl<'a, 'genv, 'tcx> CrateDesugar<'a, 'genv, 'tcx> {
+    fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        fhir: fhir::Crate<'genv>,
+        resolver_output: &'a ResolverOutput,
+    ) -> Self {
+        Self { genv, fhir, resolver_output, err: None }
+    }
+}
+
+impl<'genv, 'tcx> CrateDesugar<'_, 'genv, 'tcx> {
     fn desugar_flux_items(&mut self, specs: &Specs) {
         for defn in &specs.func_defs {
             collect_err!(self, self.desugar_func_defn(defn));
@@ -128,10 +130,10 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     }
 
     fn desugar_func_defn(&mut self, defn: &surface::FuncDef) -> Result {
-        let func_decl = desugar::func_def_to_func_decl(self.genv, &self.resolver_output, defn)?;
+        let func_decl = desugar::func_def_to_func_decl(self.genv, self.resolver_output, defn)?;
         self.fhir.func_decls.insert(defn.name.name, func_decl);
 
-        if let Some(defn) = desugar::desugar_defn(self.genv, &self.resolver_output, defn)? {
+        if let Some(defn) = desugar::desugar_defn(self.genv, self.resolver_output, defn)? {
             self.fhir
                 .flux_items
                 .insert(defn.name, fhir::FluxItem::Defn(defn));
@@ -141,7 +143,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     }
 
     fn desugar_qualifier(&mut self, qualifier: &surface::Qualifier) -> Result {
-        let qualifier = desugar::desugar_qualifier(self.genv, &self.resolver_output, qualifier)?;
+        let qualifier = desugar::desugar_qualifier(self.genv, self.resolver_output, qualifier)?;
         self.fhir
             .flux_items
             .insert(qualifier.name, fhir::FluxItem::Qualifier(qualifier));
@@ -387,7 +389,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         owner_id: OwnerId,
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
     ) -> RustItemCtxt<'_, 'genv, 'tcx> {
-        RustItemCtxt::new(self.genv, owner_id, &self.resolver_output, opaque_tys)
+        RustItemCtxt::new(self.genv, owner_id, self.resolver_output, opaque_tys)
     }
 }
 

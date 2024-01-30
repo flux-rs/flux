@@ -64,6 +64,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.collect_specs(self)
     }
 
+    pub fn resolve_crate(self) -> &'genv crate::ResolverOutput {
+        self.inner.queries.resolve_crate(self)
+    }
+
     pub fn fhir_crate(self) -> &'genv fhir::Crate<'genv> {
         self.inner.queries.fhir_crate(self)
     }

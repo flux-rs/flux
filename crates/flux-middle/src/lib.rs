@@ -48,6 +48,7 @@ use flux_syntax::surface;
 use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{
     def_id::{DefId, LocalDefId},
@@ -218,4 +219,13 @@ impl Specs {
             }
         }
     }
+}
+
+#[derive(Default)]
+pub struct ResolverOutput {
+    pub path_res_map: UnordMap<surface::NodeId, fhir::Res>,
+    pub impl_trait_res_map: UnordMap<surface::NodeId, hir::ItemId>,
+    pub func_decls: UnordMap<Symbol, fhir::FuncKind>,
+    pub sort_decls: UnordMap<Symbol, fhir::SortDecl>,
+    pub consts: UnordMap<Symbol, DefId>,
 }

@@ -4,7 +4,8 @@ use flux_common::bug;
 use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, Res},
-    Specs,
+    global_env::GlobalEnv,
+    ResolverOutput, Specs,
 };
 use flux_syntax::surface::{self, visit::Visitor as _, BaseTyKind, Ident, Path, Ty};
 use hir::{
@@ -25,11 +26,15 @@ use rustc_span::{
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) fn resolve_crate(
-    tcx: TyCtxt,
-    sess: &FluxSession,
-    specs: &Specs,
-) -> Result<ResolverOutput> {
+pub(crate) fn resolve_crate(genv: GlobalEnv) -> ResolverOutput {
+    let specs = genv.collect_specs();
+    match try_resolve_crate(genv.tcx(), genv.sess(), specs) {
+        Ok(output) => output,
+        Err(err) => genv.sess().abort(err),
+    }
+}
+
+fn try_resolve_crate(tcx: TyCtxt, sess: &FluxSession, specs: &Specs) -> Result<ResolverOutput> {
     let mut resolver = CrateResolver::new(tcx, sess, specs);
 
     tcx.hir().walk_toplevel_module(&mut resolver);
@@ -152,15 +157,6 @@ fn module_children(tcx: TyCtxt, def_id: DefId) -> &[ModChild] {
     } else {
         tcx.module_children(def_id)
     }
-}
-
-#[derive(Default)]
-pub(crate) struct ResolverOutput {
-    pub path_res_map: UnordMap<surface::NodeId, Res>,
-    pub impl_trait_res_map: UnordMap<surface::NodeId, ItemId>,
-    pub func_decls: UnordMap<Symbol, fhir::FuncKind>,
-    pub sort_decls: UnordMap<Symbol, fhir::SortDecl>,
-    pub consts: UnordMap<Symbol, DefId>,
 }
 
 fn collect_flux_global_items(tcx: TyCtxt, resolver_output: &mut ResolverOutput, specs: &Specs) {
