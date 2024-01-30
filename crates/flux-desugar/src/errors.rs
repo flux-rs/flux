@@ -178,3 +178,16 @@ impl InvalidAssocPredicate {
         Self { span, name }
     }
 }
+
+#[derive(Diagnostic)]
+#[diag(desugar_invalid_constant, code = "FLUX")]
+pub(super) struct InvalidConstant {
+    #[primary_span]
+    span: Span,
+}
+
+impl InvalidConstant {
+    pub(super) fn new(span: Span) -> Self {
+        Self { span }
+    }
+}

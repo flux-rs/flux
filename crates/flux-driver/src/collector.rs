@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use flux_common::iter::IterExt;
 use flux_config::{self as config, CrateConfig};
 use flux_errors::{FluxSession, ResultExt};
-use flux_middle::{const_eval::scalar_int_to_rty_constant, fhir, ConstSig, Specs};
+use flux_middle::{fhir, Specs};
 use flux_syntax::{surface, ParseResult, ParseSess};
 use itertools::Itertools;
 use rustc_ast::{
@@ -15,7 +15,7 @@ use rustc_hir::{
     def_id::{DefId, LocalDefId},
     EnumDef, GenericBounds, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
 };
-use rustc_middle::ty::{ScalarInt, TyCtxt};
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol, SyntaxContext};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -133,18 +133,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         };
 
         let def_id = item.owner_id.def_id;
-        let span = item.span;
-        let Some(val) = eval_const(self.tcx, def_id) else {
-            return Err(self.emit_err(errors::InvalidConstant { span }));
-        };
-
-        let ty = self.tcx.type_of(def_id).instantiate_identity();
-        if let Some(val) = scalar_int_to_rty_constant(self.tcx, val, ty) {
-            self.specs.consts.insert(def_id, ConstSig { _ty, val });
-            Ok(())
-        } else {
-            Err(self.emit_err(errors::InvalidConstant { span }))
-        }
+        self.specs.consts.insert(def_id);
+        Ok(())
     }
 
     fn parse_trait_specs(
@@ -590,14 +580,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     }
 }
 
-fn eval_const(tcx: TyCtxt, did: LocalDefId) -> Option<ScalarInt> {
-    let const_result = tcx.const_eval_poly(did.to_def_id());
-    if let Ok(const_val) = const_result {
-        return const_val.try_to_scalar_int();
-    }
-    None
-}
-
 #[derive(Debug)]
 struct FluxAttrs {
     map: HashMap<&'static str, Vec<FluxAttr>>,
@@ -876,7 +858,7 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(driver_duplicated_attr, code = "FLUX")]
-    pub struct DuplicatedAttr {
+    pub(super) struct DuplicatedAttr {
         #[primary_span]
         pub span: Span,
         pub name: &'static str,
@@ -884,21 +866,14 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(driver_invalid_attr, code = "FLUX")]
-    pub struct InvalidAttr {
-        #[primary_span]
-        pub span: Span,
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(driver_invalid_constant, code = "FLUX")]
-    pub struct InvalidConstant {
+    pub(super) struct InvalidAttr {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
     #[diag(driver_cfg_error, code = "FLUX")]
-    pub struct CFGError {
+    pub(super) struct CFGError {
         #[primary_span]
         pub span: Span,
         pub message: String,
@@ -906,7 +881,7 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(driver_syntax_err, code = "FLUX")]
-    pub struct SyntaxErr {
+    pub(super) struct SyntaxErr {
         #[primary_span]
         pub span: Span,
         pub msg: &'static str,
@@ -914,14 +889,14 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(driver_malformed_extern_spec, code = "FLUX")]
-    pub struct MalformedExternSpec {
+    pub(super) struct MalformedExternSpec {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
     #[diag(driver_missing_fn_sig_for_extern_spec, code = "FLUX")]
-    pub struct MissingFnSigForExternSpec {
+    pub(super) struct MissingFnSigForExternSpec {
         #[primary_span]
         pub span: Span,
     }

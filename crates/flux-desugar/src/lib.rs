@@ -24,7 +24,7 @@ mod errors;
 pub mod resolver;
 mod sort_resolver;
 
-use flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
+use flux_middle::{const_eval, fhir, global_env::GlobalEnv, queries::Providers, rty, Specs};
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{self as hir, OwnerId};
@@ -98,16 +98,32 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
             collect_err!(self, self.desugar_func_defn(defn));
         }
 
-        for (def_id, const_sig) in &specs.consts {
-            let did = def_id.to_def_id();
-            let sym = def_id_symbol(self.genv.tcx(), *def_id);
-            self.fhir
-                .consts
-                .insert(sym, fhir::ConstInfo { def_id: did, sym, val: const_sig.val });
+        for def_id in &specs.consts {
+            collect_err!(self, self.desugar_const(*def_id));
         }
 
         for qualifier in &specs.qualifs {
             collect_err!(self, self.desugar_qualifier(qualifier));
+        }
+    }
+
+    fn desugar_const(&mut self, def_id: LocalDefId) -> Result<rty::Constant> {
+        let ty = self.genv.tcx().type_of(def_id).instantiate_identity();
+        if let Ok(const_result) = self.genv.tcx().const_eval_poly(def_id.to_def_id())
+            && let Some(val) = const_result.try_to_scalar_int()
+            && let Some(val) = const_eval::scalar_int_to_rty_constant(self.genv.tcx(), val, ty)
+        {
+            let sym = def_id_symbol(self.genv.tcx(), def_id);
+            self.fhir
+                .consts
+                .insert(sym, fhir::ConstInfo { def_id: def_id.to_def_id(), sym, val });
+            Ok(val)
+        } else {
+            let span = self.genv.tcx().def_span(def_id);
+            Err(self
+                .genv
+                .sess()
+                .emit_err(errors::InvalidConstant::new(span)))
         }
     }
 

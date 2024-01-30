@@ -171,7 +171,7 @@ fn collect_flux_global_items(tcx: TyCtxt, resolver_output: &mut ResolverOutput, 
         );
     }
 
-    for def_id in specs.consts.keys() {
+    for def_id in &specs.consts {
         let did = def_id.to_def_id();
         let sym = super::def_id_symbol(tcx, *def_id);
         resolver_output.consts.insert(sym, did);

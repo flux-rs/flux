@@ -47,7 +47,7 @@ use flux_macros::fluent_messages;
 use flux_syntax::surface;
 use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::OwnerId;
 use rustc_span::{
     def_id::{DefId, LocalDefId},
@@ -203,15 +203,9 @@ pub struct Specs {
     pub sort_decls: Vec<surface::SortDecl>,
     pub ty_aliases: UnordMap<OwnerId, Option<surface::TyAlias>>,
     pub ignores: UnordSet<fhir::IgnoreKey>,
-    pub consts: FxHashMap<LocalDefId, ConstSig>,
+    pub consts: FxHashSet<LocalDefId>,
     pub crate_config: Option<config::CrateConfig>,
     pub extern_specs: FxHashMap<DefId, LocalDefId>,
-}
-
-#[derive(Debug)]
-pub struct ConstSig {
-    pub _ty: surface::ConstSig,
-    pub val: rty::Constant,
 }
 
 impl Specs {
