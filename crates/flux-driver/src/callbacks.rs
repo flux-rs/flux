@@ -179,7 +179,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             return Ok(());
         }
 
-        match self.genv.tcx().def_kind(def_id) {
+        match self.genv.def_kind(def_id) {
             DefKind::Fn | DefKind::AssocFn => {
                 refineck::check_fn(self.genv, &mut self.cache, def_id, self.checker_config)
             }

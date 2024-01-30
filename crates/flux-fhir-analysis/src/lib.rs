@@ -104,7 +104,7 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
 }
 
 fn invariants_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::Invariant>> {
-    let (params, invariants) = match genv.tcx().def_kind(def_id) {
+    let (params, invariants) = match genv.def_kind(def_id) {
         DefKind::Enum => {
             let enum_def = genv.map().expect_enum(def_id);
             (&enum_def.params, &enum_def.invariants)
@@ -124,7 +124,7 @@ fn invariants_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::In
 
 fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
     let invariants = invariants_of(genv, def_id)?;
-    match genv.tcx().def_kind(def_id) {
+    match genv.def_kind(def_id) {
         DefKind::Enum => {
             Ok(conv::adt_def_for_enum(genv, invariants, genv.map().expect_enum(def_id)))
         }
@@ -151,7 +151,7 @@ fn predicates_of(
 }
 
 fn assoc_predicates_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocPredicates {
-    let predicates = match genv.tcx().def_kind(local_id) {
+    let predicates = match genv.def_kind(local_id) {
         DefKind::Impl { .. } => {
             genv.map()
                 .expect_impl(local_id)
@@ -202,7 +202,7 @@ fn sort_of_assoc_pred(
     def_id: LocalDefId,
     name: Symbol,
 ) -> Option<rty::EarlyBinder<rty::FuncSort>> {
-    match genv.tcx().def_kind(def_id) {
+    match genv.def_kind(def_id) {
         DefKind::Trait => {
             let assoc_pred = genv.map().expect_trait(def_id).find_assoc_predicate(name)?;
             Some(rty::EarlyBinder(conv::conv_func_sort(
@@ -243,7 +243,7 @@ fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generi
     let def_id = local_id.to_def_id();
     let rustc_generics = genv.lower_generics_of(local_id)?;
 
-    let def_kind = genv.tcx().def_kind(def_id);
+    let def_kind = genv.def_kind(def_id);
     match def_kind {
         DefKind::Impl { .. }
         | DefKind::Struct
@@ -279,7 +279,7 @@ fn refinement_generics_of(
     let parent = genv.tcx().generics_of(local_id).parent;
     let parent_count =
         if let Some(def_id) = parent { genv.refinement_generics_of(def_id)?.count() } else { 0 };
-    match genv.tcx().def_kind(local_id) {
+    match genv.def_kind(local_id) {
         DefKind::Fn | DefKind::AssocFn => {
             let fn_sig = genv.map().expect_fn_like(local_id);
             let wfckresults = genv.check_wf(local_id)?;
@@ -301,7 +301,7 @@ fn refinement_generics_of(
 }
 
 fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
-    let ty = match genv.tcx().def_kind(def_id) {
+    let ty = match genv.def_kind(def_id) {
         DefKind::TyAlias { .. } => {
             let alias = genv.map().expect_type_alias(def_id);
             let wfckresults = genv.check_wf(def_id)?;
@@ -332,7 +332,7 @@ fn variants_of(
     genv: GlobalEnv,
     def_id: LocalDefId,
 ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
-    let variants = match genv.tcx().def_kind(def_id) {
+    let variants = match genv.def_kind(def_id) {
         DefKind::Enum => {
             let enum_def = genv.map().expect_enum(def_id);
             let wfckresults = genv.check_wf(def_id)?;
@@ -400,7 +400,7 @@ fn check_wf_rust_item<'genv>(
     genv: GlobalEnv<'genv, '_>,
     def_id: LocalDefId,
 ) -> QueryResult<Rc<WfckResults<'genv>>> {
-    let wfckresults = match genv.tcx().def_kind(def_id) {
+    let wfckresults = match genv.def_kind(def_id) {
         DefKind::TyAlias { .. } => {
             let alias = genv.map().expect_type_alias(def_id);
             let mut wfckresults = wf::check_ty_alias(genv, alias)?;
@@ -455,7 +455,7 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     let qualifiers = genv.map().qualifiers().map(|q| q.name).collect();
 
     for def_id in genv.tcx().hir_crate_items(()).definitions() {
-        let def_kind = genv.tcx().def_kind(def_id);
+        let def_kind = genv.def_kind(def_id);
         match def_kind {
             DefKind::TyAlias { .. }
             | DefKind::Struct

@@ -54,7 +54,7 @@ pub(crate) fn add_ghost_statements<'tcx>(
 
     // We have fn_sig for function items, but not for closures or generators.
     let fn_sig =
-        if genv.tcx().def_kind(def_id) == DefKind::Fn { Some(genv.fn_sig(def_id)?) } else { None };
+        if genv.def_kind(def_id) == DefKind::Fn { Some(genv.fn_sig(def_id)?) } else { None };
 
     PointsToAnalysis::new(&map, fn_sig)
         .into_engine(genv.tcx(), body)

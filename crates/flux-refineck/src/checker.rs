@@ -258,7 +258,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
         //    to the `resume_arg` place..."
-        let resume_ty = if genv.tcx().def_kind(def_id) == DefKind::Coroutine {
+        let resume_ty = if genv.def_kind(def_id) == DefKind::Coroutine {
             Some(fn_sig.args()[1].clone())
         } else {
             None

@@ -88,6 +88,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.arena.alloc_slice_fill_iter(it)
     }
 
+    pub fn def_kind(&self, def_id: impl Into<DefId>) -> DefKind {
+        self.tcx().def_kind(def_id.into())
+    }
+
     /// Allocates space to store `cap` elements of type `T`.
     ///
     /// The elements are initialized using the supplied iterator. At most `cap` elements will be
@@ -422,7 +426,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn get_generics(self, def_id: LocalDefId) -> Option<&'genv fhir::Generics<'genv>> {
-        match self.genv.tcx().def_kind(def_id) {
+        match self.genv.def_kind(def_id) {
             DefKind::Struct => Some(&self.expect_struct(def_id).generics),
             DefKind::Enum => Some(&self.expect_enum(def_id).generics),
             DefKind::Impl { .. } => Some(&self.expect_impl(def_id).generics),
@@ -444,7 +448,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn refined_by(self, def_id: LocalDefId) -> &'genv fhir::RefinedBy<'genv> {
-        match self.genv.tcx().def_kind(def_id) {
+        match self.genv.def_kind(def_id) {
             DefKind::Struct => self.expect_struct(def_id).refined_by,
             DefKind::Enum => self.expect_enum(def_id).refined_by,
             DefKind::TyAlias => self.expect_type_alias(def_id).refined_by,
@@ -453,7 +457,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn extern_id_of(self, def_id: LocalDefId) -> Option<DefId> {
-        match self.genv.tcx().def_kind(def_id) {
+        match self.genv.def_kind(def_id) {
             DefKind::Struct => self.expect_struct(def_id).extern_id,
             DefKind::Enum => self.expect_enum(def_id).extern_id,
             _ => None,

@@ -439,7 +439,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 Ok(ty.clone())
             } else {
                 // If we're given a type parameter, provide the generics of the parent container.
-                let generics_def_id = match genv.tcx().def_kind(def_id) {
+                let generics_def_id = match genv.def_kind(def_id) {
                     DefKind::TyParam => genv.tcx().parent(def_id),
                     _ => def_id,
                 };
