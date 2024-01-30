@@ -104,16 +104,10 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
 }
 
 fn invariants_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::Invariant>> {
-    let (params, invariants) = match genv.def_kind(def_id) {
-        DefKind::Enum => {
-            let enum_def = genv.map().expect_enum(def_id);
-            (&enum_def.params, &enum_def.invariants)
-        }
-        DefKind::Struct => {
-            let struct_def = genv.map().expect_struct(def_id);
-            (&struct_def.params, &struct_def.invariants)
-        }
-        kind => bug!("expected struct or enum found `{kind:?}`"),
+    let (params, invariants) = match &genv.map().expect_item(def_id).kind {
+        fhir::ItemKind::Enum(enum_def) => (&enum_def.params, &enum_def.invariants),
+        fhir::ItemKind::Struct(struct_def) => (&struct_def.params, &struct_def.invariants),
+        _ => bug!("expected struct or enum"),
     };
     let wfckresults = genv.check_wf(def_id)?;
     conv::conv_invariants(genv, def_id, params, invariants, &wfckresults)
@@ -124,14 +118,12 @@ fn invariants_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::In
 
 fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
     let invariants = invariants_of(genv, def_id)?;
-    match genv.def_kind(def_id) {
-        DefKind::Enum => {
-            Ok(conv::adt_def_for_enum(genv, invariants, genv.map().expect_enum(def_id)))
+    match &genv.map().expect_item(def_id).kind {
+        fhir::ItemKind::Enum(enum_def) => Ok(conv::adt_def_for_enum(genv, invariants, enum_def)),
+        fhir::ItemKind::Struct(struct_def) => {
+            Ok(conv::adt_def_for_struct(genv, invariants, struct_def))
         }
-        DefKind::Struct => {
-            Ok(conv::adt_def_for_struct(genv, invariants, genv.map().expect_struct(def_id)))
-        }
-        kind => bug!("expected struct or enum found `{kind:?}`"),
+        _ => bug!("expected struct or enum"),
     }
 }
 
@@ -151,10 +143,9 @@ fn predicates_of(
 }
 
 fn assoc_predicates_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocPredicates {
-    let predicates = match genv.def_kind(local_id) {
-        DefKind::Impl { .. } => {
-            genv.map()
-                .expect_impl(local_id)
+    let predicates = match &genv.map().expect_item(local_id).kind {
+        fhir::ItemKind::Trait(trait_) => {
+            trait_
                 .assoc_predicates
                 .iter()
                 .map(|assoc_pred| {
@@ -165,9 +156,8 @@ fn assoc_predicates_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocPredi
                 })
                 .collect()
         }
-        DefKind::Trait => {
-            genv.map()
-                .expect_trait(local_id)
+        fhir::ItemKind::Impl(impl_) => {
+            impl_
                 .assoc_predicates
                 .iter()
                 .map(|assoc_pred| {
@@ -178,7 +168,9 @@ fn assoc_predicates_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocPredi
                 })
                 .collect()
         }
-        _ => bug!("expected trait or impl"),
+        _ => {
+            bug!("expected trait or impl");
+        }
     };
     rty::AssocPredicates { predicates }
 }
@@ -190,7 +182,8 @@ fn assoc_predicate_def(
 ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
     let assoc_pred = genv
         .map()
-        .expect_impl(impl_id)
+        .expect_item(impl_id)
+        .expect_impl()
         .find_assoc_predicate(name)
         .unwrap();
     let wfckresults = genv.check_wf(impl_id)?;
@@ -202,21 +195,17 @@ fn sort_of_assoc_pred(
     def_id: LocalDefId,
     name: Symbol,
 ) -> Option<rty::EarlyBinder<rty::FuncSort>> {
-    match genv.def_kind(def_id) {
-        DefKind::Trait => {
-            let assoc_pred = genv.map().expect_trait(def_id).find_assoc_predicate(name)?;
+    match &genv.map().expect_item(def_id).kind {
+        fhir::ItemKind::Trait(trait_) => {
+            let assoc_pred = trait_.find_assoc_predicate(name)?;
             Some(rty::EarlyBinder(conv::conv_func_sort(
                 genv,
                 &assoc_pred.sort,
                 &mut conv::bug_on_sort_vid,
             )))
         }
-        DefKind::Impl { .. } => {
-            let assoc_pred = genv
-                .map()
-                .expect_impl(def_id)
-                .find_assoc_predicate(name)
-                .unwrap();
+        fhir::ItemKind::Impl(impl_) => {
+            let assoc_pred = impl_.find_assoc_predicate(name).unwrap();
             let inputs = assoc_pred
                 .params
                 .iter()
@@ -235,7 +224,7 @@ fn item_bounds(
     local_id: LocalDefId,
 ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
     let wfckresults = genv.check_wf(local_id)?;
-    let opaque_ty = genv.map().expect_opaque_ty(local_id);
+    let opaque_ty = genv.map().expect_item(local_id).expect_opaque_ty();
     Ok(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id, opaque_ty, &wfckresults)?))
 }
 
@@ -279,9 +268,10 @@ fn refinement_generics_of(
     let parent = genv.tcx().generics_of(local_id).parent;
     let parent_count =
         if let Some(def_id) = parent { genv.refinement_generics_of(def_id)?.count() } else { 0 };
-    match genv.def_kind(local_id) {
-        DefKind::Fn | DefKind::AssocFn => {
-            let fn_sig = genv.map().node(local_id).fn_sig().unwrap();
+    match genv.map().node(local_id) {
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Fn(fn_sig) })
+        | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Fn(fn_sig) })
+        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig) }) => {
             let wfckresults = genv.check_wf(local_id)?;
             let params = conv::conv_refinement_generics(
                 genv,
@@ -290,8 +280,7 @@ fn refinement_generics_of(
             );
             Ok(rty::RefinementGenerics { parent, parent_count, params })
         }
-        DefKind::TyAlias => {
-            let ty_alias = genv.map().expect_type_alias(local_id);
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias) }) => {
             let params =
                 conv::conv_refinement_generics(genv, ty_alias.generics.refinement_params, None);
             Ok(rty::RefinementGenerics { parent, parent_count, params })
@@ -303,7 +292,7 @@ fn refinement_generics_of(
 fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
     let ty = match genv.def_kind(def_id) {
         DefKind::TyAlias { .. } => {
-            let alias = genv.map().expect_type_alias(def_id);
+            let alias = genv.map().expect_item(def_id).expect_type_alias();
             let wfckresults = genv.check_wf(def_id)?;
             conv::expand_type_alias(genv, alias, &wfckresults)?
         }
@@ -332,9 +321,8 @@ fn variants_of(
     genv: GlobalEnv,
     def_id: LocalDefId,
 ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
-    let variants = match genv.def_kind(def_id) {
-        DefKind::Enum => {
-            let enum_def = genv.map().expect_enum(def_id);
+    let variants = match &genv.map().expect_item(def_id).kind {
+        fhir::ItemKind::Enum(enum_def) => {
             let wfckresults = genv.check_wf(def_id)?;
             let variants = conv::ConvCtxt::conv_enum_def_variants(genv, enum_def, &wfckresults)?
                 .into_iter()
@@ -342,16 +330,13 @@ fn variants_of(
                 .try_collect()?;
             rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
         }
-        DefKind::Struct => {
-            let struct_def = genv.map().expect_struct(def_id);
+        fhir::ItemKind::Struct(struct_def) => {
             let wfckresults = genv.check_wf(def_id)?;
             conv::ConvCtxt::conv_struct_def_variant(genv, struct_def, &wfckresults)?
                 .normalize(genv.defns()?)
                 .map(|variant| rty::EarlyBinder(List::singleton(variant)))
         }
-        kind => {
-            bug!("expected struct or enum found `{kind:?}`")
-        }
+        _ => bug!("expected struct or enum"),
     };
     if config::dump_rty() {
         dbg::dump_item_info(genv.tcx(), def_id, "rty", &variants).unwrap();
@@ -400,51 +385,48 @@ fn check_wf_rust_item<'genv>(
     genv: GlobalEnv<'genv, '_>,
     def_id: LocalDefId,
 ) -> QueryResult<Rc<WfckResults<'genv>>> {
-    let wfckresults = match genv.def_kind(def_id) {
-        DefKind::TyAlias { .. } => {
-            let alias = genv.map().expect_type_alias(def_id);
-            let mut wfckresults = wf::check_ty_alias(genv, alias)?;
-            annot_check::check_alias(genv, &mut wfckresults, alias)?;
-            wfckresults
-        }
-        DefKind::Struct => {
-            let struct_def = genv.map().expect_struct(def_id);
-            let mut wfckresults = wf::check_struct_def(genv, struct_def)?;
-            annot_check::check_struct_def(genv, &mut wfckresults, struct_def)?;
-            wfckresults
-        }
-        DefKind::Enum => {
-            let enum_def = genv.map().expect_enum(def_id);
-            let mut wfckresults = wf::check_enum_def(genv, enum_def)?;
-            annot_check::check_enum_def(genv, &mut wfckresults, enum_def)?;
-            wfckresults
-        }
-        DefKind::Fn | DefKind::AssocFn => {
+    if matches!(genv.def_kind(def_id), DefKind::Closure | DefKind::Coroutine | DefKind::TyParam) {
+        let parent = genv.tcx().local_parent(def_id);
+        return genv.check_wf(parent);
+    }
+    let wfckresults = match genv.map().node(def_id) {
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Fn(fn_sig, ..) })
+        | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Fn(fn_sig) })
+        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig) }) => {
             let owner_id = OwnerId { def_id };
-            let fn_sig = genv.map().node(def_id).fn_sig().unwrap();
             let mut wfckresults = wf::check_fn_sig(genv, fn_sig, owner_id)?;
             annot_check::check_fn_sig(genv, &mut wfckresults, owner_id, fn_sig)?;
             wfckresults
         }
-        DefKind::OpaqueTy => {
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias) }) => {
+            let mut wfckresults = wf::check_ty_alias(genv, ty_alias)?;
+            annot_check::check_alias(genv, &mut wfckresults, ty_alias)?;
+            wfckresults
+        }
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Struct(struct_def) }) => {
+            let mut wfckresults = wf::check_struct_def(genv, struct_def)?;
+            annot_check::check_struct_def(genv, &mut wfckresults, struct_def)?;
+            wfckresults
+        }
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Enum(enum_def) }) => {
+            let mut wfckresults = wf::check_enum_def(genv, enum_def)?;
+            annot_check::check_enum_def(genv, &mut wfckresults, enum_def)?;
+            wfckresults
+        }
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::OpaqueTy(opaque_ty) }) => {
             let owner_id = OwnerId { def_id };
-            let opaque_ty = genv.map().expect_opaque_ty(def_id);
             wf::check_opaque_ty(genv, opaque_ty, owner_id)?
         }
-        DefKind::Impl { .. } => {
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Impl(impl_) }) => {
             let owner_id = OwnerId { def_id };
-            wf::check_impl(genv, genv.map().expect_impl(def_id), owner_id)?
+            wf::check_impl(genv, impl_, owner_id)?
         }
-        DefKind::Trait { .. } => {
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Trait(..) }) => {
             // TODO(nilehmann) we should check the sorts of associated predicates are well-formed.
             let owner_id = OwnerId { def_id };
             WfckResults::new(owner_id)
         }
-        DefKind::Closure | DefKind::Coroutine | DefKind::TyParam => {
-            let parent = genv.tcx().local_parent(def_id);
-            return genv.check_wf(parent);
-        }
-        kind => panic!("unexpected def kind `{kind:?}`"),
+        _ => panic!("unexpected item `{def_id:?}`"),
     };
     Ok(Rc::new(wfckresults))
 }

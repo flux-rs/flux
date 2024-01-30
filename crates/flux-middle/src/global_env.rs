@@ -417,18 +417,18 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn refined_by(self, def_id: LocalDefId) -> &'genv fhir::RefinedBy<'genv> {
-        match self.genv.def_kind(def_id) {
-            DefKind::Struct => self.expect_struct(def_id).refined_by,
-            DefKind::Enum => self.expect_enum(def_id).refined_by,
-            DefKind::TyAlias => self.expect_type_alias(def_id).refined_by,
+        match &self.expect_item(def_id).kind {
+            fhir::ItemKind::Enum(enum_def) => enum_def.refined_by,
+            fhir::ItemKind::Struct(struct_def) => struct_def.refined_by,
+            fhir::ItemKind::TyAlias(ty_alias) => ty_alias.refined_by,
             _ => bug!("expected struct, enum or type alias"),
         }
     }
 
     pub fn extern_id_of(self, def_id: LocalDefId) -> Option<DefId> {
-        match self.genv.def_kind(def_id) {
-            DefKind::Struct => self.expect_struct(def_id).extern_id,
-            DefKind::Enum => self.expect_enum(def_id).extern_id,
+        match &self.expect_item(def_id).kind {
+            fhir::ItemKind::Enum(enum_def) => enum_def.extern_id,
+            fhir::ItemKind::Struct(struct_def) => struct_def.extern_id,
             _ => None,
         }
     }
@@ -479,44 +479,8 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         self.fhir.trusted.contains(&def_id)
     }
 
-    pub fn expect_enum(self, def_id: LocalDefId) -> &'genv fhir::EnumDef<'genv> {
-        if let fhir::ItemKind::Enum(enum_def) = &self.fhir.items[&def_id].kind {
-            enum_def
-        } else {
-            bug!("expected `fhir::ItemKind:Enum`")
-        }
-    }
-
-    pub fn expect_struct(self, def_id: LocalDefId) -> &'genv fhir::StructDef<'genv> {
-        if let fhir::ItemKind::Struct(struct_def) = &self.fhir.items[&def_id].kind {
-            struct_def
-        } else {
-            bug!("expected `fhir::ItemKind::Struct`")
-        }
-    }
-
-    pub fn expect_impl(self, def_id: LocalDefId) -> &'genv fhir::Impl<'genv> {
-        if let fhir::ItemKind::Impl(impl_) = &self.fhir.items[&def_id].kind {
-            impl_
-        } else {
-            bug!("expected `fhir::ItemKind::Impl`")
-        }
-    }
-
-    pub fn expect_trait(self, def_id: LocalDefId) -> &'genv fhir::Trait<'genv> {
-        if let fhir::ItemKind::Trait(trait_) = &self.fhir.items[&def_id].kind {
-            trait_
-        } else {
-            bug!("expected `fhir::ItemKind::Trait`")
-        }
-    }
-
-    pub fn expect_opaque_ty(self, def_id: LocalDefId) -> &'genv fhir::OpaqueTy<'genv> {
-        if let fhir::ItemKind::OpaqueTy(opaque_ty) = &self.fhir.items[&def_id].kind {
-            opaque_ty
-        } else {
-            bug!("expected `fhir::ItemKind::OpaqueTy`")
-        }
+    pub fn expect_item(self, def_id: LocalDefId) -> &'genv fhir::Item<'genv> {
+        self.fhir.items.get(&def_id).unwrap()
     }
 
     pub fn node(self, def_id: LocalDefId) -> fhir::Node<'genv> {
@@ -528,22 +492,6 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
             fhir::Node::ImplItem(impl_item)
         } else {
             bug!("node not found {def_id:?}");
-        }
-    }
-
-    pub fn expect_type_alias(self, def_id: LocalDefId) -> &'genv fhir::TyAlias<'genv> {
-        if let fhir::ItemKind::TyAlias(ty_alias) = &self.fhir.items[&def_id].kind {
-            ty_alias
-        } else {
-            bug!("expected `fhir::ItemKind::TyAlias`")
-        }
-    }
-
-    pub fn expect_assoc_type(self, def_id: LocalDefId) -> &'genv fhir::AssocType<'genv> {
-        if let fhir::TraitItemKind::Type(assoc_type) = &self.fhir.trait_items[&def_id].kind {
-            assoc_type
-        } else {
-            bug!("expected `fhir::TraitItemKind::Type`")
         }
     }
 }

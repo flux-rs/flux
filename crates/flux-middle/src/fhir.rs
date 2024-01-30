@@ -124,6 +124,46 @@ impl<'fhir> Item<'fhir> {
             ItemKind::OpaqueTy(opaque_ty) => &opaque_ty.generics,
         }
     }
+
+    pub fn expect_enum(&self) -> &EnumDef<'fhir> {
+        if let ItemKind::Enum(enum_def) = &self.kind {
+            enum_def
+        } else {
+            bug!("expected enum")
+        }
+    }
+
+    pub fn expect_struct(&self) -> &StructDef<'fhir> {
+        if let ItemKind::Struct(struct_def) = &self.kind {
+            struct_def
+        } else {
+            bug!("expected struct")
+        }
+    }
+
+    pub fn expect_type_alias(&self) -> &TyAlias<'fhir> {
+        if let ItemKind::TyAlias(ty_alias) = &self.kind {
+            ty_alias
+        } else {
+            bug!("expected type alias")
+        }
+    }
+
+    pub fn expect_opaque_ty(&self) -> &OpaqueTy<'fhir> {
+        if let ItemKind::OpaqueTy(opaque_ty) = &self.kind {
+            opaque_ty
+        } else {
+            bug!("expected opaque type")
+        }
+    }
+
+    pub fn expect_impl(&self) -> &Impl<'fhir> {
+        if let ItemKind::Impl(impl_) = &self.kind {
+            impl_
+        } else {
+            bug!("expected impl")
+        }
+    }
 }
 
 pub enum ItemKind<'fhir> {
