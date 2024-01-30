@@ -4,8 +4,8 @@ use flux_common::iter::IterExt;
 use flux_config::{self as config, CrateConfig};
 use flux_errors::{FluxSession, ResultExt};
 use flux_middle::{
-    const_eval::scalar_int_to_rty_constant, fhir, rustc::lowering::resolve_trait_ref_impl_id,
-    ConstSig, Specs,
+    const_eval::scalar_int_to_rty_constant, fhir, pretty,
+    rustc::lowering::resolve_trait_ref_impl_id, ConstSig, Specs,
 };
 use flux_syntax::{surface, ParseResult, ParseSess};
 use itertools::Itertools;
@@ -19,7 +19,7 @@ use rustc_hir::{
     AssocItemKind, EnumDef, GenericBounds, ImplItemKind, ImplItemRef, Item, ItemKind, OwnerId,
     VariantData,
 };
-use rustc_middle::ty::{ScalarInt, TyCtxt};
+use rustc_middle::ty::{ScalarInt, TraitPredicate, TyCtxt};
 use rustc_span::{Span, Symbol, SyntaxContext};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -568,6 +568,18 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         None
     }
 
+    fn is_good_trait_predicate(trait_predicate: &TraitPredicate) -> bool {
+        println!("TRACE: is_good_trait_predicate({trait_predicate:#?})");
+        let def_id = trait_predicate.trait_ref.def_id;
+        !pretty::def_id_to_string(def_id).contains("Sized") // TODO: use LangItem::Sized?
+    }
+
+    /// Given as input a fake_method_def_id `fake` where
+    ///     fn fake<A: Trait<..>>(x: Ty) {}
+    /// we want to
+    /// 1. build the [TraitRef] for `<Ty as Trait<...>>` and then
+    /// 2. query [resolve_trait_ref_impl_id] to get the impl_id for the above trait-implementation.
+
     fn extract_extern_def_id_from_extern_spec_impl(
         &mut self,
         _def_id: LocalDefId,
@@ -576,18 +588,41 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         // 1. Find the fake_method's def_id
         let fake_method_def_id = self.fake_method_of(items).unwrap();
 
-        // 2. Get the fake_method's type
-        let trait_ref = {
-            let generics = self.tcx.generics_of(fake_method_def_id);
-            let bounds = self.tcx.predicates_of(fake_method_def_id);
-            todo!("TODO: get impl_id from {generics:?} => {bounds:#?}")
+        // 2. Get the fake_method's input type
+        let ty = self
+            .tcx
+            .fn_sig(fake_method_def_id)
+            .instantiate_identity()
+            .skip_binder()
+            .inputs()
+            .first()
+            .unwrap();
+        let arg = rustc_middle::ty::GenericArg::from(*ty);
+
+        // 3. Get the fake_method's trait_ref
+        let orig_trait_ref = {
+            // let _generics = self.tcx.generics_of(fake_method_def_id);
+            self.tcx
+                .predicates_of(fake_method_def_id)
+                .predicates
+                .iter()
+                .filter_map(|(c, _)| c.as_trait_clause()?.no_bound_vars())
+                .find(|p| Self::is_good_trait_predicate(p))
+                .unwrap()
+                .trait_ref
         };
 
-        //        self.fake_traitref_of(fake_method_def_id).unwrap();
+        // 4. Splice in the type from step 2 to create query trait_ref
+        let mut args = vec![arg];
+        for arg in orig_trait_ref.args.as_slice().iter().skip(1) {
+            args.push(*arg);
+        }
+        let trait_ref = rustc_middle::ty::TraitRef::new(self.tcx, orig_trait_ref.def_id, args);
 
-        // 3. Resolve the trait_ref to an impl_id
+        // 4. Resolve the trait_ref to an impl_id
         let (impl_id, _) =
             resolve_trait_ref_impl_id(self.tcx, fake_method_def_id, trait_ref).unwrap();
+        println!("TRACE: extract_extern_def_id_from_extern_spec_impl {_def_id:?} ==> {impl_id:#?}");
         Ok(impl_id)
     }
 
