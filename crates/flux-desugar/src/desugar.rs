@@ -18,7 +18,6 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
-use rustc_middle::ty::TyCtxt;
 use rustc_span::{
     def_id::{DefId, LocalDefId},
     sym::{self},
@@ -31,12 +30,12 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 use self::env::{Scope, ScopeId};
 use crate::{
     errors,
-    sort_resolver::{SelfRes, SortResolver, SORTS},
+    sort_resolver::{SortResolver, SORTS},
 };
 
 pub(crate) fn desugar_qualifier<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    resolver_output: &ResolverOutput,
+    resolver_output: &ResolverOutput<'genv>,
     qualifier: &surface::Qualifier,
 ) -> Result<fhir::Qualifier<'genv>> {
     let sort_params = &[];
@@ -57,7 +56,7 @@ pub(crate) fn desugar_qualifier<'genv>(
 
 pub(crate) fn desugar_defn<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    resolver_output: &ResolverOutput,
+    resolver_output: &ResolverOutput<'genv>,
     defn: &surface::FuncDef,
 ) -> Result<Option<fhir::Defn<'genv>>> {
     if let Some(body) = &defn.body {
@@ -80,7 +79,7 @@ pub(crate) fn desugar_defn<'genv>(
 
 pub fn func_def_to_func_decl<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    resolver_output: &ResolverOutput,
+    resolver_output: &ResolverOutput<'genv>,
     defn: &surface::FuncDef,
 ) -> Result<fhir::FuncDecl<'genv>> {
     let params = defn.sort_vars.len();
@@ -128,7 +127,7 @@ pub(crate) struct RustItemCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
-    resolver_output: &'a ResolverOutput,
+    resolver_output: &'a ResolverOutput<'genv>,
     opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
     sort_resolver: SortResolver<'a, 'genv, 'tcx>,
 }
@@ -145,7 +144,7 @@ struct Param<'fhir> {
 
 struct FluxItemCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    resolver_output: &'a ResolverOutput,
+    resolver_output: &'a ResolverOutput<'genv>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: Symbol,
 }
@@ -161,31 +160,14 @@ enum QPathRes {
     NumConst(i128),
 }
 
-fn self_res(tcx: TyCtxt, owner: OwnerId) -> SelfRes {
-    let def_id = owner.def_id.to_def_id();
-    let mut opt_def_id = Some(def_id);
-    while let Some(def_id) = opt_def_id {
-        match tcx.def_kind(def_id) {
-            DefKind::Trait => return SelfRes::Param { trait_id: def_id },
-            DefKind::Impl { .. } => return SelfRes::Alias { alias_to: def_id },
-            _ => {
-                opt_def_id = tcx.opt_parent(def_id);
-            }
-        }
-    }
-    SelfRes::None
-}
-
 impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         owner: OwnerId,
-        resolver_output: &'a ResolverOutput,
+        resolver_output: &'a ResolverOutput<'genv>,
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
     ) -> Self {
-        let generics = genv.tcx().generics_of(owner);
-        let self_res = self_res(genv.tcx(), owner);
-        let sort_resolver = SortResolver::with_generics(genv, resolver_output, generics, self_res);
+        let sort_resolver = SortResolver::with_generics(genv, resolver_output, owner);
         RustItemCtxt {
             genv,
             owner,
@@ -1093,7 +1075,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
 impl<'a, 'genv, 'tcx> FluxItemCtxt<'a, 'genv, 'tcx> {
     fn new(
         genv: GlobalEnv<'genv, 'tcx>,
-        resolver_output: &'a ResolverOutput,
+        resolver_output: &'a ResolverOutput<'genv>,
         owner: Symbol,
     ) -> Self {
         Self { genv, resolver_output, local_id_gen: Default::default(), owner }

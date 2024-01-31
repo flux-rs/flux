@@ -2,9 +2,10 @@ use rustc_span::symbol::Ident;
 
 use super::{
     AliasPred, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
-    ExprKind, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, GenericParamKind,
-    Generics, Indices, Lit, Path, Pred, PredKind, QPathExpr, RefineArg, RefineParam, RefinedBy,
-    Sort, StructDef, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    ExprKind, FnOutput, FnRetTy, FnSig, FuncDef, GenericArg, GenericArgKind, GenericParam,
+    GenericParamKind, Generics, Indices, Lit, Path, Pred, PredKind, QPathExpr, Qualifier,
+    RefineArg, RefineParam, RefinedBy, Sort, StructDef, TraitRef, Ty, TyAlias, TyKind, VariantDef,
+    VariantRet, WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -20,6 +21,14 @@ macro_rules! walk_list {
 }
 
 pub trait Visitor: Sized {
+    fn visit_qualifier(&mut self, qualifier: &Qualifier) {
+        walk_qualifier(self, qualifier);
+    }
+
+    fn visit_defn(&mut self, defn: &FuncDef) {
+        walk_defn(self, defn);
+    }
+
     fn visit_refined_by(&mut self, refined_by: &RefinedBy) {
         walk_refined_by(self, refined_by);
     }
@@ -145,6 +154,22 @@ pub trait Visitor: Sized {
     fn visit_literal(&mut self, _lit: Lit) {}
 }
 
+pub fn walk_qualifier<V: Visitor>(vis: &mut V, qualifier: &Qualifier) {
+    vis.visit_ident(qualifier.name);
+    walk_list!(vis, visit_refine_param, &qualifier.args);
+    vis.visit_expr(&qualifier.expr);
+}
+
+pub fn walk_defn<V: Visitor>(vis: &mut V, defn: &FuncDef) {
+    vis.visit_ident(defn.name);
+    walk_list!(vis, visit_ident, defn.sort_vars.iter().copied());
+    walk_list!(vis, visit_refine_param, &defn.args);
+    vis.visit_sort(&defn.output);
+    if let Some(body) = &defn.body {
+        vis.visit_expr(body);
+    }
+}
+
 pub fn walk_refined_by<V: Visitor>(vis: &mut V, refined_by: &RefinedBy) {
     walk_list!(vis, visit_refine_param, &refined_by.index_params);
 }
@@ -202,22 +227,22 @@ pub fn walk_struct_def<V: Visitor>(vis: &mut V, struct_def: &StructDef) {
     if let Some(refined_by) = &struct_def.refined_by {
         vis.visit_refined_by(refined_by);
     }
+    walk_list!(vis, visit_expr, &struct_def.invariants);
     struct_def.fields.iter().flatten().for_each(|field| {
         vis.visit_ty(field);
     });
-    walk_list!(vis, visit_expr, &struct_def.invariants);
 }
 
 pub fn walk_enum_def<V: Visitor>(vis: &mut V, enum_def: &EnumDef) {
     if let Some(refined_by) = &enum_def.refined_by {
         vis.visit_refined_by(refined_by);
     }
+    walk_list!(vis, visit_expr, &enum_def.invariants);
     enum_def
         .variants
         .iter()
         .flatten()
         .for_each(|variant| vis.visit_variant(variant));
-    walk_list!(vis, visit_expr, &enum_def.invariants);
 }
 
 pub fn walk_variant<V: Visitor>(vis: &mut V, variant: &VariantDef) {

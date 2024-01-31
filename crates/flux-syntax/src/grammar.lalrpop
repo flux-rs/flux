@@ -109,16 +109,37 @@ Qualifier: surface::Qualifier = {
     "(" <args:RefineParams<"!">> ")" "{" <expr:Expr> "}"
     <hi:@R> =>? {
         let global = local.is_none();
-        Ok(surface::Qualifier { name, args, expr, global, span: cx.map_span(lo, hi) })
+        Ok(surface::Qualifier {
+            name,
+            args,
+            expr,
+            global,
+            span: cx.map_span(lo, hi),
+            node_id: cx.next_node_id(),
+        })
     }
 }
 
 FuncDef: surface::FuncDef = {
     "fn" <name:Ident> <vars:SortVars?> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> "{" <body:Expr> "}" => {
-        surface::FuncDef { name, sort_vars: vars.unwrap_or_default(), args, output, body: Some(body) }
+        surface::FuncDef {
+            name,
+            sort_vars: vars.unwrap_or_default(),
+            args,
+            output,
+            body: Some(body),
+            node_id: cx.next_node_id(),
+        }
     },
     "fn" <name:Ident> <vars:SortVars?> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> ";" => {
-        surface::FuncDef { name, sort_vars: vars.unwrap_or_default(), args, output, body: None }
+        surface::FuncDef {
+            name,
+            sort_vars: vars.unwrap_or_default(),
+            args,
+            output,
+            body: None,
+            node_id: cx.next_node_id()
+        }
     }
 }
 

@@ -9,7 +9,8 @@ use flux_middle::{
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
-use rustc_middle::ty::Generics;
+use rustc_hir::{def::DefKind, OwnerId};
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{
     def_id::DefId,
     sym::{self},
@@ -33,7 +34,7 @@ pub enum SelfRes {
 
 pub(crate) struct SortResolver<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
-    pub resolver_output: &'a ResolverOutput,
+    pub resolver_output: &'a ResolverOutput<'genv>,
     generic_params: FxHashMap<Symbol, DefId>,
     sort_params: FxHashMap<Symbol, usize>,
     self_res: SelfRes,
@@ -42,7 +43,7 @@ pub(crate) struct SortResolver<'a, 'genv, 'tcx> {
 impl<'a, 'genv, 'tcx> SortResolver<'a, 'genv, 'tcx> {
     pub(crate) fn with_sort_params(
         genv: GlobalEnv<'genv, 'tcx>,
-        resolver_output: &'a ResolverOutput,
+        resolver_output: &'a ResolverOutput<'genv>,
         sort_params: &[Symbol],
     ) -> Self {
         let sort_params = sort_params
@@ -61,10 +62,11 @@ impl<'a, 'genv, 'tcx> SortResolver<'a, 'genv, 'tcx> {
 
     pub(crate) fn with_generics(
         genv: GlobalEnv<'genv, 'tcx>,
-        resolver_output: &'a ResolverOutput,
-        generics: &Generics,
-        self_res: SelfRes,
+        resolver_output: &'a ResolverOutput<'genv>,
+        owner: OwnerId,
     ) -> Self {
+        let self_res = self_res(genv.tcx(), owner);
+        let generics = genv.tcx().generics_of(owner);
         let generic_params = generics.params.iter().map(|p| (p.name, p.def_id)).collect();
         Self { genv, resolver_output, sort_params: Default::default(), generic_params, self_res }
     }
@@ -167,6 +169,21 @@ impl<'a, 'genv, 'tcx> SortResolver<'a, 'genv, 'tcx> {
                 .emit_err(errors::UnresolvedSort::new(*ident)))
         }
     }
+}
+
+fn self_res(tcx: TyCtxt, owner: OwnerId) -> SelfRes {
+    let def_id = owner.def_id.to_def_id();
+    let mut opt_def_id = Some(def_id);
+    while let Some(def_id) = opt_def_id {
+        match tcx.def_kind(def_id) {
+            DefKind::Trait => return SelfRes::Param { trait_id: def_id },
+            DefKind::Impl { .. } => return SelfRes::Alias { alias_to: def_id },
+            _ => {
+                opt_def_id = tcx.opt_parent(def_id);
+            }
+        }
+    }
+    SelfRes::None
 }
 
 pub(crate) struct Sorts {

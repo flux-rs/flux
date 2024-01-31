@@ -64,7 +64,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.collect_specs(self)
     }
 
-    pub fn resolve_crate(self) -> &'genv crate::ResolverOutput {
+    pub fn resolve_crate(self) -> &'genv crate::ResolverOutput<'genv> {
         self.inner.queries.resolve_crate(self)
     }
 

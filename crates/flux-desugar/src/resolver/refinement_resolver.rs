@@ -1,7 +1,9 @@
 use std::ops::ControlFlow;
 
 use flux_common::index::IndexGen;
-use flux_middle::{fhir, ResolverOutput};
+use flux_middle::{
+    fhir, FuncRes, LocRes, PathRes, RefinementResolverOutput, ResolvedParam, ResolverOutput,
+};
 use flux_syntax::surface::{
     self,
     visit::{walk_ty, Visitor as _},
@@ -12,14 +14,13 @@ use rustc_data_structures::{
     unord::UnordMap,
 };
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{def_id::DefId, Span};
 
 use crate::sort_resolver::SortResolver;
 
 type ScopeId = surface::NodeId;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ScopeKind {
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum ScopeKind {
     FnInput,
     FnOutput,
     Variant,
@@ -56,7 +57,7 @@ impl<'fhir> UnresolvedParam<'fhir> {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ImplicitParam {
+pub(crate) enum ImplicitParam {
     /// A parameter declared with `@n` syntax.
     At,
     /// A parameter declared with `#n` syntax.
@@ -80,7 +81,10 @@ enum ImplicitParam {
 impl ImplicitParam {
     fn is_allowed_in(self, kind: ScopeKind) -> bool {
         match self {
-            ImplicitParam::At | ImplicitParam::Colon | ImplicitParam::Loc(_) => {
+            ImplicitParam::At => {
+                matches!(kind, ScopeKind::FnInput | ScopeKind::Variant)
+            }
+            ImplicitParam::Colon | ImplicitParam::Loc(_) => {
                 matches!(kind, ScopeKind::FnInput)
             }
             ImplicitParam::Pound => matches!(kind, ScopeKind::FnOutput),
@@ -98,7 +102,7 @@ impl From<surface::BindKind> for ImplicitParam {
     }
 }
 
-trait ScopedVisitor: Sized {
+pub(crate) trait ScopedVisitor: Sized {
     fn is_box(&self, path: &surface::Path) -> bool;
     fn enter_scope(&mut self, node_id: NodeId, kind: ScopeKind) -> ControlFlow<()>;
     fn exit_scope(&mut self) {}
@@ -110,6 +114,7 @@ trait ScopedVisitor: Sized {
     fn on_implicit_param(&mut self, _ident: Ident, _kind: ImplicitParam) {}
     fn on_generic_param(&mut self, _param: &surface::GenericParam) {}
     fn on_refine_param(&mut self, _param: &surface::RefineParam) {}
+    fn on_enum_variant(&mut self, _variant: &surface::VariantDef) {}
     fn on_fn_sig(&mut self, _fn_sig: &surface::FnSig) {}
     fn on_fn_output(&mut self, _output: &surface::FnOutput) {}
     fn on_loc(&mut self, _loc: Ident, _node_id: NodeId) {}
@@ -117,7 +122,7 @@ trait ScopedVisitor: Sized {
     fn on_path(&mut self, _path: &surface::QPathExpr) {}
 }
 
-struct ScopedVisitorWrapper<V>(V);
+pub(crate) struct ScopedVisitorWrapper<V>(V);
 
 impl<V: ScopedVisitor> ScopedVisitorWrapper<V> {
     fn with_scope(&mut self, node_id: NodeId, kind: ScopeKind, f: impl FnOnce(&mut Self)) {
@@ -125,6 +130,18 @@ impl<V: ScopedVisitor> ScopedVisitorWrapper<V> {
             f(self);
             self.0.exit_scope();
         }
+    }
+}
+
+impl<'genv> RefinementResolver<'_, 'genv, '_> {
+    #[must_use]
+    pub(crate) fn run(
+        self,
+        f: impl FnOnce(&mut ScopedVisitorWrapper<Self>),
+    ) -> RefinementResolverOutput<'genv> {
+        let mut wrapper = self.wrap();
+        f(&mut wrapper);
+        wrapper.0.into_output()
     }
 }
 
@@ -142,6 +159,18 @@ impl<V> std::ops::DerefMut for ScopedVisitorWrapper<V> {
 }
 
 impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
+    fn visit_qualifier(&mut self, qualifier: &surface::Qualifier) {
+        self.with_scope(qualifier.node_id, ScopeKind::Misc, |this| {
+            surface::visit::walk_qualifier(this, qualifier);
+        });
+    }
+
+    fn visit_defn(&mut self, defn: &surface::FuncDef) {
+        self.with_scope(defn.node_id, ScopeKind::Misc, |this| {
+            surface::visit::walk_defn(this, defn);
+        });
+    }
+
     fn visit_generic_param(&mut self, param: &surface::GenericParam) {
         self.on_generic_param(param);
         surface::visit::walk_generic_param(self, param);
@@ -172,6 +201,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
 
     fn visit_variant(&mut self, variant: &surface::VariantDef) {
         self.with_scope(variant.node_id, ScopeKind::Variant, |this| {
+            this.on_enum_variant(variant);
             surface::visit::walk_variant(this, variant);
         });
     }
@@ -222,9 +252,9 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
             surface::RefineArg::Bind(ident, kind, ..) => {
                 self.on_implicit_param(*ident, ImplicitParam::from(*kind));
             }
-            surface::RefineArg::Abs(_, body, node_id, _) => {
+            surface::RefineArg::Abs(.., node_id, _) => {
                 self.with_scope(*node_id, ScopeKind::Misc, |this| {
-                    surface::visit::walk_expr(this, body);
+                    surface::visit::walk_refine_arg(this, arg);
                 });
             }
             surface::RefineArg::Expr(expr) => surface::visit::walk_expr(self, expr),
@@ -239,7 +269,9 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
 
         let is_box = self.is_box(path);
         for (i, arg) in path.generics.iter().enumerate() {
-            if !is_box || i == 0 {
+            if is_box && i == 0 {
+                surface::visit::walk_generic_arg(self, arg);
+            } else {
                 self.with_scope(arg.node_id, ScopeKind::Misc, |this| {
                     surface::visit::walk_generic_arg(this, arg);
                 });
@@ -250,8 +282,14 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     fn visit_ty(&mut self, ty: &surface::Ty) {
         let node_id = ty.node_id;
         match &ty.kind {
-            surface::TyKind::Exists { .. } => {
+            surface::TyKind::Exists { bind, .. } => {
                 self.with_scope(node_id, ScopeKind::Misc, |this| {
+                    let param = surface::RefineParam {
+                        name: *bind,
+                        sort: surface::Sort::Infer,
+                        span: bind.span,
+                    };
+                    this.on_refine_param(&param);
                     surface::visit::walk_ty(this, ty);
                 });
             }
@@ -329,43 +367,33 @@ impl<'genv> Scope<'genv> {
     }
 }
 
-enum FuncRes {
-    Param(fhir::Ident),
-    Global(fhir::FuncKind),
-}
-
-struct LocRes {
-    pub idx: usize,
-    pub ident: fhir::Ident,
-}
-
-struct ExprResolver<'a, 'b, 'genv, 'tcx> {
+pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,
+    sort_resolver: SortResolver<'a, 'genv, 'tcx>,
     scopes: UnordMap<ScopeId, Scope<'genv>>,
     scopes_stack: Vec<ScopeId>,
     name_gen: IndexGen<fhir::Name>,
     names: UnordMap<(ScopeId, Ident), fhir::Name>,
-    sort_resolver: &'a SortResolver<'b, 'genv, 'tcx>,
     resolved_funcs: UnordMap<NodeId, FuncRes>,
     resolved_locs: UnordMap<NodeId, LocRes>,
     resolved_paths: UnordMap<NodeId, PathRes>,
 }
 
-struct ResolvedParam<'fhir> {
-    name: fhir::Name,
-    sort: fhir::Sort<'fhir>,
-    kind: fhir::ParamKind,
-    span: Span,
-}
+impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
+    pub(crate) fn new(tcx: TyCtxt<'tcx>, sort_resolver: SortResolver<'a, 'genv, 'tcx>) -> Self {
+        Self {
+            tcx,
+            sort_resolver,
+            scopes: Default::default(),
+            scopes_stack: Default::default(),
+            name_gen: Default::default(),
+            names: Default::default(),
+            resolved_funcs: Default::default(),
+            resolved_locs: Default::default(),
+            resolved_paths: Default::default(),
+        }
+    }
 
-struct ExprResolverOutput<'fhir> {
-    scopes: UnordMap<ScopeId, Vec<ResolvedParam<'fhir>>>,
-    resolved_funcs: UnordMap<NodeId, FuncRes>,
-    resolved_locs: UnordMap<NodeId, LocRes>,
-    resolved_paths: UnordMap<NodeId, PathRes>,
-}
-
-impl<'a, 'b, 'genv, 'tcx> ExprResolver<'a, 'b, 'genv, 'tcx> {
     fn insert(&mut self, ident: Ident, param: UnresolvedParam<'genv>) {
         let scope = self.scopes_stack.last().unwrap();
         let bindings = &mut self.scopes.get_mut(scope).unwrap().bindings;
@@ -381,12 +409,12 @@ impl<'a, 'b, 'genv, 'tcx> ExprResolver<'a, 'b, 'genv, 'tcx> {
         for scope_id in self.scopes_stack.iter().rev() {
             let scope = &self.scopes[scope_id];
 
-            if scope.kind.is_barrier() {
-                return None;
-            }
-
             if let Some(param) = scope.bindings.get(&ident) {
                 return Some((*scope_id, *param));
+            }
+
+            if scope.kind.is_barrier() {
+                return None;
             }
         }
         None
@@ -400,7 +428,7 @@ impl<'a, 'b, 'genv, 'tcx> ExprResolver<'a, 'b, 'genv, 'tcx> {
         fhir::Ident::new(name, ident)
     }
 
-    fn into_output(self) -> ExprResolverOutput<'genv> {
+    pub(crate) fn into_output(self) -> RefinementResolverOutput<'genv> {
         let scopes = self
             .scopes
             .into_items()
@@ -437,7 +465,7 @@ impl<'a, 'b, 'genv, 'tcx> ExprResolver<'a, 'b, 'genv, 'tcx> {
                 (scope_id, bindings)
             })
             .collect();
-        ExprResolverOutput {
+        RefinementResolverOutput {
             scopes,
             resolved_funcs: self.resolved_funcs,
             resolved_locs: self.resolved_locs,
@@ -454,7 +482,7 @@ impl<'a, 'b, 'genv, 'tcx> ExprResolver<'a, 'b, 'genv, 'tcx> {
     }
 }
 
-impl<'genv> ScopedVisitor for ExprResolver<'_, '_, 'genv, '_> {
+impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
     fn is_box(&self, path: &surface::Path) -> bool {
         let res = self.path_res_map()[&path.node_id];
         res.is_box(self.tcx)
@@ -468,6 +496,17 @@ impl<'genv> ScopedVisitor for ExprResolver<'_, '_, 'genv, '_> {
 
     fn exit_scope(&mut self) {
         self.scopes_stack.pop();
+    }
+
+    fn on_enum_variant(&mut self, variant: &surface::VariantDef) {
+        ImplicitParamCollector::new(
+            self.tcx,
+            self.path_res_map(),
+            ScopeKind::Variant,
+            |ident, param| self.insert(ident, UnresolvedParam::Implicit(param)),
+        )
+        .wrap()
+        .visit_variant(variant);
     }
 
     fn on_fn_sig(&mut self, fn_sig: &surface::FnSig) {
@@ -564,7 +603,7 @@ impl<'genv> ScopedVisitor for ExprResolver<'_, '_, 'genv, '_> {
                         .insert(path.node_id, PathRes::Const(*const_def_id));
                     return;
                 }
-                todo!("report error")
+                todo!("report error {path:?}")
             }
             [typ, name] => {
                 if let Some(res) = resolve_num_const(*typ, *name) {
@@ -579,12 +618,6 @@ impl<'genv> ScopedVisitor for ExprResolver<'_, '_, 'genv, '_> {
             }
         }
     }
-}
-
-enum PathRes {
-    Param(fhir::Ident),
-    Const(DefId),
-    NumConst(i128),
 }
 
 macro_rules! define_resolve_num_const {

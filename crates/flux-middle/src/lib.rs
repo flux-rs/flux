@@ -42,6 +42,7 @@ mod sort_of;
 
 use std::sync::OnceLock;
 
+use fhir::{FluxLocalDefId, FluxOwnerId};
 use flux_config as config;
 use flux_macros::fluent_messages;
 use flux_syntax::surface;
@@ -52,7 +53,7 @@ use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{
     def_id::{DefId, LocalDefId},
-    Symbol,
+    Span, Symbol,
 };
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -221,11 +222,44 @@ impl Specs {
     }
 }
 
+pub type ScopeId = surface::NodeId;
+
 #[derive(Default)]
-pub struct ResolverOutput {
+pub struct ResolverOutput<'fhir> {
     pub path_res_map: UnordMap<surface::NodeId, fhir::Res>,
     pub impl_trait_res_map: UnordMap<surface::NodeId, hir::ItemId>,
     pub func_decls: UnordMap<Symbol, fhir::FuncKind>,
     pub sort_decls: UnordMap<Symbol, fhir::SortDecl>,
     pub consts: UnordMap<Symbol, DefId>,
+    pub refinements: UnordMap<FluxOwnerId, RefinementResolverOutput<'fhir>>,
+}
+
+pub struct ResolvedParam<'fhir> {
+    pub name: fhir::Name,
+    pub sort: fhir::Sort<'fhir>,
+    pub kind: fhir::ParamKind,
+    pub span: Span,
+}
+
+pub enum FuncRes {
+    Param(fhir::Ident),
+    Global(fhir::FuncKind),
+}
+
+pub struct LocRes {
+    pub idx: usize,
+    pub ident: fhir::Ident,
+}
+
+pub enum PathRes {
+    Param(fhir::Ident),
+    Const(DefId),
+    NumConst(i128),
+}
+
+pub struct RefinementResolverOutput<'fhir> {
+    pub scopes: UnordMap<ScopeId, Vec<ResolvedParam<'fhir>>>,
+    pub resolved_funcs: UnordMap<surface::NodeId, FuncRes>,
+    pub resolved_locs: UnordMap<surface::NodeId, LocRes>,
+    pub resolved_paths: UnordMap<surface::NodeId, PathRes>,
 }

@@ -1,3 +1,5 @@
+mod refinement_resolver;
+
 use std::collections::hash_map;
 
 use flux_common::bug;
@@ -7,7 +9,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     ResolverOutput, Specs,
 };
-use flux_syntax::surface::{self, visit::Visitor as _, BaseTyKind, Ident, Path, Ty};
+use flux_syntax::surface::{self, visit::Visitor as _, BaseTyKind, Ident};
 use hir::{
     def::{DefKind, Namespace::TypeNS},
     intravisit::Visitor as _,
@@ -24,35 +26,44 @@ use rustc_span::{
     Span, Symbol,
 };
 
+use self::refinement_resolver::{RefinementResolver, ScopedVisitor as _};
+use crate::sort_resolver::SortResolver;
+
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) fn resolve_crate(genv: GlobalEnv) -> ResolverOutput {
-    let specs = genv.collect_specs();
-    match try_resolve_crate(genv.tcx(), genv.sess(), specs) {
+pub(crate) fn resolve_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> ResolverOutput<'genv> {
+    match try_resolve_crate(genv) {
         Ok(output) => output,
         Err(err) => genv.sess().abort(err),
     }
 }
 
-fn try_resolve_crate(tcx: TyCtxt, sess: &FluxSession, specs: &Specs) -> Result<ResolverOutput> {
-    let mut resolver = CrateResolver::new(tcx, sess, specs);
+fn try_resolve_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<ResolverOutput<'genv>> {
+    let specs = genv.collect_specs();
+    let mut resolver = CrateResolver::new(genv, specs);
 
-    tcx.hir().walk_toplevel_module(&mut resolver);
+    collect_flux_global_items(genv.tcx(), &mut resolver.output, specs);
+
+    for qualifier in &specs.qualifs {
+        resolver.resolve_qualifier(qualifier);
+    }
+
+    for defn in &specs.func_defs {
+        resolver.resolve_defn(defn);
+    }
+
+    genv.hir().walk_toplevel_module(&mut resolver);
     if let Some(err) = resolver.err {
         return Err(err);
     }
-    let mut resolver_output = resolver.into_output();
 
-    collect_flux_global_items(tcx, &mut resolver_output, specs);
-
-    Ok(resolver_output)
+    Ok(resolver.into_output())
 }
 
-struct CrateResolver<'a, 'tcx> {
-    tcx: TyCtxt<'tcx>,
-    sess: &'a FluxSession,
-    specs: &'a Specs,
-    output: ResolverOutput,
+struct CrateResolver<'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
+    specs: &'genv Specs,
+    output: ResolverOutput<'genv>,
     extern_crates: UnordMap<Symbol, CrateNum>,
     ribs: Vec<Rib>,
     err: Option<ErrorGuaranteed>,
@@ -67,13 +78,13 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     type NestedFilter = rustc_middle::hir::nested_filter::All;
 
     fn nested_visit_map(&mut self) -> Self::Map {
-        self.tcx.hir()
+        self.genv.hir()
     }
 
     fn visit_mod(&mut self, module: &'tcx hir::Mod<'tcx>, _s: Span, hir_id: hir::HirId) {
         self.push_rib();
         for item_id in module.item_ids {
-            let item = self.tcx.hir().item(*item_id);
+            let item = self.genv.hir().item(*item_id);
             let def_kind = match item.kind {
                 ItemKind::Use(path, kind) => {
                     match kind {
@@ -88,7 +99,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                             let hir::def::Res::Def(DefKind::Mod, module_id) = res else {
                                 continue;
                             };
-                            for child in module_children(self.tcx, module_id) {
+                            for child in module_children(self.genv.tcx(), module_id) {
                                 if child.res.ns() == Some(TypeNS) {
                                     self.define_res_in_type_ns(
                                         child.ident.name,
@@ -185,12 +196,12 @@ fn collect_flux_global_items(tcx: TyCtxt, resolver_output: &mut ResolverOutput, 
     }
 }
 
-impl<'a, 'tcx> CrateResolver<'a, 'tcx> {
-    pub fn new(tcx: TyCtxt<'tcx>, sess: &'a FluxSession, specs: &'a Specs) -> Self {
+impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
+    pub fn new(genv: GlobalEnv<'genv, 'tcx>, specs: &'genv Specs) -> Self {
         let mut extern_crates = UnordMap::default();
-        for cnum in tcx.crates(()) {
-            let name = tcx.crate_name(*cnum);
-            if let Some(extern_crate) = tcx.extern_crate(cnum.as_def_id())
+        for cnum in genv.tcx().crates(()) {
+            let name = genv.tcx().crate_name(*cnum);
+            if let Some(extern_crate) = genv.tcx().extern_crate(cnum.as_def_id())
                 && extern_crate.is_direct()
             {
                 extern_crates.insert(name, *cnum);
@@ -198,8 +209,7 @@ impl<'a, 'tcx> CrateResolver<'a, 'tcx> {
         }
 
         Self {
-            tcx,
-            sess,
+            genv,
             output: ResolverOutput::default(),
             specs,
             ribs: vec![],
@@ -231,10 +241,36 @@ impl<'a, 'tcx> CrateResolver<'a, 'tcx> {
         }
     }
 
+    fn resolve_qualifier(&mut self, qualifier: &surface::Qualifier) {
+        let sort_resolver = SortResolver::with_sort_params(self.genv, &self.output, &[]);
+        let output = RefinementResolver::new(self.genv.tcx(), sort_resolver)
+            .run(|r| r.visit_qualifier(qualifier));
+        self.output
+            .refinements
+            .insert(fhir::FluxOwnerId::Flux(qualifier.name.name), output);
+    }
+
+    fn resolve_defn(&mut self, defn: &surface::FuncDef) {
+        let sort_resolver = SortResolver::with_sort_params(self.genv, &self.output, &[]);
+        let output =
+            RefinementResolver::new(self.genv.tcx(), sort_resolver).run(|r| r.visit_defn(defn));
+        self.output
+            .refinements
+            .insert(fhir::FluxOwnerId::Flux(defn.name.name), output);
+    }
+
     fn resolve_type_alias(&mut self, owner_id: OwnerId) {
         if let Some(ty_alias) = &self.specs.ty_aliases[&owner_id] {
             self.with_item_resolver(owner_id, |item_resolver| {
                 item_resolver.visit_ty_alias(ty_alias);
+                let output = item_resolver
+                    .as_refinement_resolver()
+                    .run(|r| r.visit_ty_alias(ty_alias));
+                item_resolver
+                    .resolver
+                    .output
+                    .refinements
+                    .insert(owner_id.into(), output);
             });
         };
     }
@@ -247,6 +283,14 @@ impl<'a, 'tcx> CrateResolver<'a, 'tcx> {
 
         self.with_item_resolver(owner_id, |item_resolver| {
             item_resolver.visit_struct_def(struct_def);
+            let output = item_resolver
+                .as_refinement_resolver()
+                .run(|r| r.visit_struct_def(struct_def));
+            item_resolver
+                .resolver
+                .output
+                .refinements
+                .insert(owner_id.into(), output);
         });
     }
 
@@ -258,6 +302,14 @@ impl<'a, 'tcx> CrateResolver<'a, 'tcx> {
 
         self.with_item_resolver(owner_id, |item_resolver| {
             item_resolver.visit_enum_def(enum_def);
+            let output = item_resolver
+                .as_refinement_resolver()
+                .run(|r| r.visit_enum_def(enum_def));
+            item_resolver
+                .resolver
+                .output
+                .refinements
+                .insert(owner_id.into(), output);
         });
     }
 
@@ -265,11 +317,15 @@ impl<'a, 'tcx> CrateResolver<'a, 'tcx> {
         if let Some(fn_sig) = &self.specs.fn_sigs[&owner_id].fn_sig {
             self.with_item_resolver(owner_id, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
+                item_resolver
+                    .as_refinement_resolver()
+                    .wrap()
+                    .visit_fn_sig(fn_sig);
             });
         };
     }
 
-    fn resolve_path(&self, path: &Path) -> Option<hir::def::Res> {
+    fn resolve_path(&self, path: &surface::Path) -> Option<hir::def::Res> {
         let mut module: Option<DefId> = None;
         for (i, segment) in path.segments.iter().enumerate() {
             let res = if let Some(module) = module {
@@ -313,7 +369,7 @@ impl<'a, 'tcx> CrateResolver<'a, 'tcx> {
     }
 
     fn resolve_ident_in_module(&self, module_id: DefId, ident: Ident) -> Option<hir::def::Res> {
-        module_children(self.tcx, module_id)
+        module_children(self.genv.tcx(), module_id)
             .iter()
             .find_map(|child| {
                 if child.vis.is_public() && child.ident == ident {
@@ -324,18 +380,19 @@ impl<'a, 'tcx> CrateResolver<'a, 'tcx> {
             })
     }
 
-    pub fn into_output(self) -> ResolverOutput {
+    pub fn into_output(self) -> ResolverOutput<'genv> {
         self.output
     }
 
-    fn emit(&mut self, err: impl IntoDiagnostic<'a>) {
-        self.err = self.err.or(Some(self.sess.emit_err(err)));
+    fn emit(&mut self, err: impl IntoDiagnostic<'genv>) {
+        self.err = self.err.or(Some(self.genv.sess().emit_err(err)));
     }
 }
 
-struct ItemResolver<'a, 'b, 'tcx> {
+struct ItemResolver<'a, 'genv, 'tcx> {
+    owner_id: OwnerId,
     table: NameResTable,
-    resolver: &'a mut CrateResolver<'b, 'tcx>,
+    resolver: &'a mut CrateResolver<'genv, 'tcx>,
 }
 
 #[derive(Hash, Eq, PartialEq, Debug)]
@@ -355,10 +412,10 @@ enum ResEntry {
     Unsupported { reason: String, span: Span },
 }
 
-impl<'a, 'b, 'tcx> ItemResolver<'a, 'b, 'tcx> {
-    fn new(resolver: &'a mut CrateResolver<'b, 'tcx>, owner_id: OwnerId) -> Result<Self> {
-        let tcx = resolver.tcx;
-        let sess = resolver.sess;
+impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
+    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>, owner_id: OwnerId) -> Result<Self> {
+        let tcx = resolver.genv.tcx();
+        let sess = resolver.genv.sess();
         let table = match tcx.hir().owner(owner_id) {
             hir::OwnerNode::Item(item) => NameResTable::from_item(tcx, sess, item)?,
             hir::OwnerNode::ImplItem(impl_item) => {
@@ -372,7 +429,7 @@ impl<'a, 'b, 'tcx> ItemResolver<'a, 'b, 'tcx> {
             }
         };
 
-        Ok(Self { table, resolver })
+        Ok(Self { owner_id, table, resolver })
     }
 
     fn resolve_opaque_impl(&mut self, node_id: surface::NodeId, span: Span) {
@@ -387,8 +444,8 @@ impl<'a, 'b, 'tcx> ItemResolver<'a, 'b, 'tcx> {
         }
     }
 
-    fn resolve_path(&mut self, path: &Path) {
-        if let Some(res) = self.table.get(&ResKey::from_path(path)) {
+    fn resolve_path(&mut self, path: &surface::Path) {
+        if let Some(res) = self.table.get(&ResKey::from_surface_path(path)) {
             match res {
                 &ResEntry::Res(res) => {
                     self.resolver.output.path_res_map.insert(path.node_id, res);
@@ -412,6 +469,12 @@ impl<'a, 'b, 'tcx> ItemResolver<'a, 'b, 'tcx> {
             self.resolver.emit(errors::UnresolvedPath::new(path));
         }
     }
+
+    fn as_refinement_resolver(&self) -> RefinementResolver<'_, 'genv, 'tcx> {
+        let sort_resolver =
+            SortResolver::with_generics(self.resolver.genv, &self.resolver.output, self.owner_id);
+        RefinementResolver::new(self.resolver.genv.tcx(), sort_resolver)
+    }
 }
 
 impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
@@ -421,7 +484,7 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
         }
     }
 
-    fn visit_ty(&mut self, ty: &Ty) {
+    fn visit_ty(&mut self, ty: &surface::Ty) {
         match &ty.kind {
             surface::TyKind::Base(bty) => {
                 // CODESYNC(type-holes, 3) we don't resolve type holes because they will be desugared
@@ -442,7 +505,7 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
         surface::visit::walk_ty(self, ty);
     }
 
-    fn visit_path(&mut self, path: &Path) {
+    fn visit_path(&mut self, path: &surface::Path) {
         self.resolve_path(path);
         surface::visit::walk_path(self, path);
     }
@@ -676,7 +739,7 @@ impl ResKey {
         ResKey { s: format!("{ident}") }
     }
 
-    fn from_path(path: &Path) -> ResKey {
+    fn from_surface_path(path: &surface::Path) -> ResKey {
         let s = path.segments.iter().join("::");
         ResKey { s }
     }
