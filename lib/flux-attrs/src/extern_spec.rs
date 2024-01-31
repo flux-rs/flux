@@ -100,10 +100,11 @@ impl ToTokens for ExternItemImpl {
         let dummy_struct = self.dummy_struct();
         dummy_struct.to_tokens(tokens);
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
+
+        quote!(#[allow(unused, dead_code)]).to_tokens(tokens);
+        quote!(#[flux::extern_spec]).to_tokens(tokens);
         tokens.append_all(&self.attrs);
 
-        quote!(#[flux::extern_spec]).to_tokens(tokens);
-        quote!(#[allow(unused, dead_code)]).to_tokens(tokens);
         self.impl_token.to_tokens(tokens);
         impl_generics.to_tokens(tokens);
 
@@ -117,12 +118,11 @@ impl ToTokens for ExternItemImpl {
 
             if let Some((_, trait_, _for_token)) = &self.trait_ {
                 let self_ty = &self.self_ty;
-            quote!(#[allow(unused_variables)]).to_tokens(tokens);
-            let fake_fn =
-                 quote!(fn __flux_extern_impl_fake_method<FluxFakeVar : #trait_>(x: #self_ty) {});
-            fake_fn.to_tokens(tokens);
+                quote!(#[allow(unused_variables)]).to_tokens(tokens);
+                let fake_fn =
+                    quote!(fn __flux_extern_impl_fake_method() where #self_ty : #trait_, {});
+                fake_fn.to_tokens(tokens);
             }
-
         });
     }
 }

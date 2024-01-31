@@ -89,10 +89,10 @@ fn trait_ref_impl_id<'tcx>(
 
 pub fn resolve_trait_ref_impl_id<'tcx>(
     tcx: TyCtxt<'tcx>,
-    caller_id: LocalDefId,
+    def_id: LocalDefId,
     trait_ref: rustc_ty::TraitRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
-    let param_env = tcx.param_env(caller_id.to_def_id());
+    let param_env = tcx.param_env(def_id.to_def_id());
     let infcx = tcx.infer_ctxt().build();
     trait_ref_impl_id(tcx, &mut SelectionContext::new(&infcx), param_env, trait_ref)
 }

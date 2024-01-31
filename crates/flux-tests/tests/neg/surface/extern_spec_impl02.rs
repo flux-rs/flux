@@ -24,21 +24,7 @@ impl MyTrait for usize {
 // extern impl
 #[extern_spec]
 #[flux::predicate{ f = |x:int| { 10 < x } }]
-impl MyTrait for usize {
-    #[flux::sig(fn () -> i32)]
-    fn foo() -> i32;
-}
-
-// #[allow(dead_code)]
-// struct __FluxExternStruct1usize();
-//
-// #[allow(dead_code)]
-// #[flux::extern_spec]
-// #[flux::predicate{ f = |x:int| { 10 < x } }]
-// impl __FluxExternStruct1usize {
-//     #[allow(unused_variables)]
-//     fn __flux_extern_impl_fake_method<A: MyTrait>(x: usize) {}
-// }
+impl MyTrait for usize {}
 
 #[flux::sig(fn () -> i32{v: 100 < v})]
 pub fn test_fail() -> i32 {
