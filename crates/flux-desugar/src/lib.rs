@@ -77,24 +77,24 @@ macro_rules! collect_err {
     };
 }
 
-struct CrateDesugar<'a, 'genv, 'tcx> {
+struct CrateDesugar<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     fhir: fhir::Crate<'genv>,
-    resolver_output: &'a ResolverOutput<'genv>,
+    resolver_output: &'genv ResolverOutput<'genv>,
     err: Option<ErrorGuaranteed>,
 }
 
-impl<'a, 'genv, 'tcx> CrateDesugar<'a, 'genv, 'tcx> {
+impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         fhir: fhir::Crate<'genv>,
-        resolver_output: &'a ResolverOutput<'genv>,
+        resolver_output: &'genv ResolverOutput<'genv>,
     ) -> Self {
         Self { genv, fhir, resolver_output, err: None }
     }
 }
 
-impl<'genv, 'tcx> CrateDesugar<'_, 'genv, 'tcx> {
+impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     fn desugar_flux_items(&mut self, specs: &Specs) {
         for defn in &specs.func_defs {
             collect_err!(self, self.desugar_func_defn(defn));

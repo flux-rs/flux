@@ -34,7 +34,7 @@ use crate::{
 
 pub(crate) fn desugar_qualifier<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    resolver_output: &ResolverOutput<'genv>,
+    resolver_output: &'genv ResolverOutput<'genv>,
     qualifier: &surface::Qualifier,
 ) -> Result<fhir::Qualifier<'genv>> {
     let cx = FluxItemCtxt::new(genv, resolver_output, qualifier.name.name);
@@ -50,7 +50,7 @@ pub(crate) fn desugar_qualifier<'genv>(
 
 pub(crate) fn desugar_defn<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    resolver_output: &ResolverOutput<'genv>,
+    resolver_output: &'genv ResolverOutput<'genv>,
     defn: &surface::FuncDef,
 ) -> Result<Option<fhir::Defn<'genv>>> {
     if let Some(body) = &defn.body {
@@ -121,9 +121,9 @@ pub(crate) struct RustItemCtxt<'a, 'genv, 'tcx> {
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
     fn_sig_scope: Option<ScopeId>,
-    resolver_output: &'a ResolverOutput<'genv>,
+    resolver_output: &'genv ResolverOutput<'genv>,
     opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
-    sort_resolver: SortResolver<'a, 'genv, 'tcx>,
+    sort_resolver: SortResolver<'genv, 'genv, 'tcx>,
 }
 
 type Env<'genv> = env::Env<Param<'genv>>;
@@ -136,9 +136,9 @@ struct Param<'fhir> {
     span: Span,
 }
 
-struct FluxItemCtxt<'a, 'genv, 'tcx> {
+struct FluxItemCtxt<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    resolver_output: &'a ResolverOutput<'genv>,
+    resolver_output: &'genv ResolverOutput<'genv>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: Symbol,
 }
@@ -147,7 +147,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         owner: OwnerId,
-        resolver_output: &'a ResolverOutput<'genv>,
+        resolver_output: &'genv ResolverOutput<'genv>,
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
     ) -> Self {
         let sort_resolver = SortResolver::with_generics(genv, resolver_output, owner);
@@ -976,10 +976,10 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
     }
 }
 
-impl<'a, 'genv, 'tcx> FluxItemCtxt<'a, 'genv, 'tcx> {
+impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
     fn new(
         genv: GlobalEnv<'genv, 'tcx>,
-        resolver_output: &'a ResolverOutput<'genv>,
+        resolver_output: &'genv ResolverOutput<'genv>,
         owner: Symbol,
     ) -> Self {
         Self { genv, resolver_output, local_id_gen: Default::default(), owner }
@@ -1015,7 +1015,7 @@ fn desugar_un_op(op: surface::UnOp) -> fhir::UnOp {
 
 trait DesugarCtxt<'genv, 'tcx: 'genv> {
     fn genv(&self) -> GlobalEnv<'genv, 'tcx>;
-    fn resolver_output(&self) -> &ResolverOutput<'genv>;
+    fn resolver_output(&self) -> &'genv ResolverOutput<'genv>;
     fn next_fhir_id(&self) -> FhirId;
 
     fn sess(&self) -> &'genv FluxSession {
@@ -1197,12 +1197,12 @@ impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'a, 'genv, 'tcx>
         self.genv
     }
 
-    fn resolver_output(&self) -> &ResolverOutput<'genv> {
+    fn resolver_output(&self) -> &'genv ResolverOutput<'genv> {
         self.resolver_output
     }
 }
 
-impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for FluxItemCtxt<'a, 'genv, 'tcx> {
+impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for FluxItemCtxt<'genv, 'tcx> {
     fn next_fhir_id(&self) -> FhirId {
         FhirId { owner: FluxOwnerId::Flux(self.owner), local_id: self.local_id_gen.fresh() }
     }
@@ -1211,7 +1211,7 @@ impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for FluxItemCtxt<'a, 'genv, 'tcx>
         self.genv
     }
 
-    fn resolver_output(&self) -> &ResolverOutput<'genv> {
+    fn resolver_output(&self) -> &'genv ResolverOutput<'genv> {
         self.resolver_output
     }
 }
