@@ -119,8 +119,11 @@ impl ToTokens for ExternItemImpl {
             if let Some((_, trait_, _for_token)) = &self.trait_ {
                 let self_ty = &self.self_ty;
                 quote!(#[allow(unused_variables)]).to_tokens(tokens);
+                // TODO: this is simpler but somehow fails, see note in [_extract_extern_def_id_from_extern_spec_impl_new]
+                // let fake_fn =
+                //     quote!(fn __flux_extern_impl_fake_method() where #self_ty : #trait_, {});
                 let fake_fn =
-                    quote!(fn __flux_extern_impl_fake_method() where #self_ty : #trait_, {});
+                    quote!(fn __flux_extern_impl_fake_method<FluxFake : #trait_>(x: #self_ty) {});
                 fake_fn.to_tokens(tokens);
             }
         });

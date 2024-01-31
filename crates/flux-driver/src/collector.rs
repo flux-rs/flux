@@ -577,37 +577,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         !pretty::def_id_to_string(def_id).contains("Sized") // TODO: use LangItem::Sized?
     }
 
-    // /// Given as input a fake_method_def_id `fake` where
-    // ///     impl FakeStruct where Ty : Trait { ... }
-    // /// we want to
-    // /// 1. build the [TraitRef] for `<Ty as Trait>` and then
-    // /// 2. query [resolve_trait_ref_impl_id] to get the impl_id for the above trait-implementation.
-
-    // fn extract_extern_def_id_from_extern_spec_impl(
-    //     &mut self,
-    //     impl_id: LocalDefId,
-    // ) -> Option<DefId> {
-    //     let trait_ref = {
-    //         // let _generics = self.tcx.generics_of(fake_method_def_id);
-    //         self.tcx
-    //             .predicates_of(impl_id)
-    //             .predicates
-    //             .iter()
-    //             .filter_map(|(c, _)| c.as_trait_clause()?.no_bound_vars())
-    //             .find(|p| Self::is_good_trait_predicate(p))
-    //             .unwrap()
-    //             .trait_ref
-    //     };
-    //     let (impl_id, _) = resolve_trait_ref_impl_id(self.tcx, impl_id, trait_ref).unwrap();
-    //     Some(impl_id)
-    // }
-
     /// Given as input a fake_method_def_id `fake` where
     ///     fn fake<A: Trait<..>>(x: Ty) {}
     /// we want to
     /// 1. build the [TraitRef] for `<Ty as Trait<...>>` and then
     /// 2. query [resolve_trait_ref_impl_id] to get the impl_id for the above trait-implementation.
-
     fn extract_extern_def_id_from_extern_spec_impl(
         &mut self,
         _def_id: LocalDefId,
@@ -617,15 +591,15 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let fake_method_def_id = self._fake_method_of(items)?;
 
         // 2. Get the fake_method's input type
-        // let ty = self
-        //     .tcx
-        //     .fn_sig(fake_method_def_id)
-        //     .instantiate_identity()
-        //     .skip_binder()
-        //     .inputs()
-        //     .first()
-        //     .unwrap();
-        // let arg = rustc_middle::ty::GenericArg::from(*ty);
+        let ty = self
+            .tcx
+            .fn_sig(fake_method_def_id)
+            .instantiate_identity()
+            .skip_binder()
+            .inputs()
+            .first()
+            .unwrap();
+        let arg = rustc_middle::ty::GenericArg::from(*ty);
 
         // 3. Get the fake_method's trait_ref
         let trait_ref = {
@@ -640,15 +614,47 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 .trait_ref
         };
 
-        // // 4. Splice in the type from step 2 to create query trait_ref
-        // let mut args = vec![arg];
-        // for arg in orig_trait_ref.args.as_slice().iter().skip(1) {
-        //     args.push(*arg);
-        // }
-        // let trait_ref = rustc_middle::ty::TraitRef::new(self.tcx, orig_trait_ref.def_id, args);
+        // 4. Splice in the type from step 2 to create query trait_ref
+        let mut args = vec![arg];
+        for arg in trait_ref.args.as_slice().iter().skip(1) {
+            args.push(*arg);
+        }
+        let trait_ref = rustc_middle::ty::TraitRef::new(self.tcx, trait_ref.def_id, args);
 
-        // 4. Resolve the trait_ref to an impl_id
-        println!("TRACE: resolve_trait_ref_impl_id => {trait_ref:?})");
+        // 5. Resolve the trait_ref to an impl_id
+        let (impl_id, _) =
+            resolve_trait_ref_impl_id(self.tcx, fake_method_def_id, trait_ref).unwrap();
+        Some(impl_id)
+    }
+
+    /// Given as input a fake_method_def_id `fake` where
+    ///     fn fake() where Ty : Trait, {}
+    /// we want to
+    /// 1. extract the [TraitRef] for `<Ty as Trait>` and then
+    /// 2. query [resolve_trait_ref_impl_id] to get the impl_id for the above trait-implementation.
+    /// TODO: sadly the [resolve_trait_ref_impl_id] fails for this? see `extern_spec_impl01.rs`
+    fn _extract_extern_def_id_from_extern_spec_impl_new(
+        &mut self,
+        _def_id: LocalDefId,
+        items: &[ImplItemRef],
+    ) -> Option<DefId> {
+        // 1. Find the fake_method's def_id
+        let fake_method_def_id = self._fake_method_of(items)?;
+
+        // 2. Get the fake_method's trait_ref
+        let trait_ref = {
+            // let _generics = self.tcx.generics_of(fake_method_def_id);
+            self.tcx
+                .predicates_of(fake_method_def_id)
+                .predicates
+                .iter()
+                .filter_map(|(c, _)| c.as_trait_clause()?.no_bound_vars())
+                .find(|p| Self::is_good_trait_predicate(p))
+                .unwrap()
+                .trait_ref
+        };
+
+        // 3. Resolve the trait_ref to an impl_id
         let (impl_id, _) =
             resolve_trait_ref_impl_id(self.tcx, fake_method_def_id, trait_ref).unwrap();
         Some(impl_id)
