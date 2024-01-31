@@ -277,9 +277,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_struct_def(&mut self, owner_id: OwnerId) {
         let struct_def = &self.specs.structs[&owner_id];
-        if !struct_def.needs_resolving() {
-            return;
-        }
+        // if !struct_def.needs_resolving() {
+        //     return;
+        // }
 
         self.with_item_resolver(owner_id, |item_resolver| {
             item_resolver.visit_struct_def(struct_def);
@@ -296,9 +296,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_enum_def(&mut self, owner_id: OwnerId) {
         let enum_def = &self.specs.enums[&owner_id];
-        if !enum_def.needs_resolving() {
-            return;
-        }
+        // if !enum_def.needs_resolving() {
+        //     return;
+        // }
 
         self.with_item_resolver(owner_id, |item_resolver| {
             item_resolver.visit_enum_def(enum_def);
@@ -317,10 +317,14 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         if let Some(fn_sig) = &self.specs.fn_sigs[&owner_id].fn_sig {
             self.with_item_resolver(owner_id, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
-                item_resolver
+                let output = item_resolver
                     .as_refinement_resolver()
-                    .wrap()
-                    .visit_fn_sig(fn_sig);
+                    .run(|r| r.visit_fn_sig(fn_sig));
+                item_resolver
+                    .resolver
+                    .output
+                    .refinements
+                    .insert(owner_id.into(), output);
             });
         };
     }
@@ -487,13 +491,11 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
     fn visit_ty(&mut self, ty: &surface::Ty) {
         match &ty.kind {
             surface::TyKind::Base(bty) => {
-                // CODESYNC(type-holes, 3) we don't resolve type holes because they will be desugared
-                // to `fhir::TyKind::Hole`. The path won't have an entry in `path_res_map` which we
-                // should consider during desugaring. Holes in other positions (e.g., _[10] or _{v: v > 0})
-                // will fail resolving so they don't show up in desugaring.
-                if let BaseTyKind::Path(path) = &bty.kind
-                    && path.is_hole()
-                {
+                // We don't resolve type holes because they will be desugared to `fhir::TyKind::Hole`.
+                // The path won't have an entry in `path_res_map` which we should consider during
+                // desugaring. Holes in other positions (e.g., _[10] or _{v: v > 0}) will fail
+                // resolving so they don't show up in desugaring.
+                if bty.is_hole() {
                     return;
                 }
             }

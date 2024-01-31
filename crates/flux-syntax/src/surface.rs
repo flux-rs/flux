@@ -281,12 +281,12 @@ pub struct TraitRef {
 #[derive(Debug)]
 pub enum Arg {
     /// example `a: i32{a > 0}`
-    Constr(Ident, Path, Expr),
+    Constr(Ident, Path, Expr, NodeId),
     /// example `v: &strg i32`
     StrgRef(Ident, Ty, NodeId),
     /// A type with an optional binder, e.g, `i32`, `x: i32` or `x: i32{v: v > 0}`.
     /// The binder has a different meaning depending on the type.
-    Ty(Option<Ident>, Ty),
+    Ty(Option<Ident>, Ty, NodeId),
 }
 
 #[derive(Debug)]
@@ -383,6 +383,16 @@ pub struct BaseTy {
     pub span: Span,
 }
 
+impl BaseTy {
+    pub fn is_hole(&self) -> bool {
+        if let BaseTyKind::Path(path) = &self.kind {
+            path.is_hole()
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum BaseTyKind {
     Path(Path),
@@ -404,9 +414,9 @@ pub struct Indices {
 #[derive(Debug)]
 pub enum RefineArg {
     /// `@n` or `#n`, the span corresponds to the span of the identifier plus the binder token (`@` or `#`)
-    Bind(Ident, BindKind, Span),
+    Bind(Ident, BindKind, Span, NodeId),
     Expr(Expr),
-    Abs(Vec<RefineParam>, Expr, NodeId, Span),
+    Abs(Vec<RefineParam>, Expr, Span, NodeId),
 }
 
 #[derive(Debug, Clone, Copy)]

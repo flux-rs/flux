@@ -308,9 +308,9 @@ GenericBounds: surface::GenericBounds = {
 
 Arg: surface::Arg = {
     <bind:Ident> ":" "&" "strg" <ty:Ty>              => surface::Arg::StrgRef(<>, cx.next_node_id()),
-    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}" => surface::Arg::Constr(<>),
-    <bind:Ident> ":" <ty:Ty>                         => surface::Arg::Ty(Some(bind), ty),
-    <ty:Ty>                                          => surface::Arg::Ty(None, <>),
+    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}" => surface::Arg::Constr(<>, cx.next_node_id()),
+    <bind:Ident> ":" <ty:Ty>                         => surface::Arg::Ty(Some(bind), ty, cx.next_node_id()),
+    <ty:Ty>                                          => surface::Arg::Ty(None, <>, cx.next_node_id()),
 }
 
 Pred: surface::Pred = {
@@ -424,11 +424,11 @@ Indices: surface::Indices = {
 };
 
 RefineArg: surface::RefineArg = {
-    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::At, cx.map_span(lo, hi)),
-    <lo:@L> "#" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::Pound, cx.map_span(lo, hi)),
+    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::At, cx.map_span(lo, hi), cx.next_node_id()),
+    <lo:@L> "#" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::Pound, cx.map_span(lo, hi), cx.next_node_id()),
     <Expr>                           => surface::RefineArg::Expr(<>),
     <lo:@L> "|"<params:RefineParams<"?">> "|" <body:Expr> <hi:@R> => {
-        surface::RefineArg::Abs(params, body, cx.next_node_id(), cx.map_span(lo, hi))
+        surface::RefineArg::Abs(params, body, cx.map_span(lo, hi), cx.next_node_id())
     }
 };
 

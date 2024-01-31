@@ -248,7 +248,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         env: &mut Env<'genv>,
     ) -> Result {
         match arg {
-            surface::Arg::Constr(bind, path, _) => {
+            surface::Arg::Constr(bind, path, ..) => {
                 env.insert(self.sess(), *bind, Param::Colon)?;
                 self.gather_params_path(path, TypePos::Input, env)?;
             }
@@ -256,7 +256,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
                 env.insert(self.sess(), *loc, Param::Loc(idx))?;
                 self.gather_params_ty(ty, TypePos::Input, env)?;
             }
-            surface::Arg::Ty(bind, ty) => {
+            surface::Arg::Ty(bind, ty, ..) => {
                 if let Some(bind) = *bind {
                     if let surface::TyKind::Base(_) = &ty.kind {
                         env.insert(self.sess(), bind, Param::Colon)?;
@@ -342,13 +342,13 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         env: &mut Env<'genv>,
     ) -> Result {
         match arg {
-            surface::RefineArg::Bind(ident, kind, span) => {
+            surface::RefineArg::Bind(ident, kind, span, _) => {
                 if !pos.is_binder_allowed(*kind) {
                     return Err(self.emit_err(IllegalBinder::new(*span, *kind)));
                 }
                 env.insert(self.sess(), *ident, (*kind).into())?;
             }
-            surface::RefineArg::Abs(params, _, node_id, _) => {
+            surface::RefineArg::Abs(params, .., node_id) => {
                 env.push(ScopeId::Abs(*node_id));
                 env.extend(self.sess(), self.resolve_params(params)?)?;
                 env.exit();
@@ -364,14 +364,14 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         pos: TypePos,
         params: &mut Env<'genv>,
     ) -> Result {
-        // CODESYNC(type-holes, 3) type holes do not have a corresponding `Res`.
+        // type holes do not have a corresponding `Res`.
         if path.is_hole() {
             return Ok(());
         }
 
         // Check refinement args
         for arg in &path.refine {
-            if let surface::RefineArg::Bind(_, kind, span) = arg {
+            if let surface::RefineArg::Bind(_, kind, span, _) = arg {
                 return Err(self.emit_err(IllegalBinder::new(*span, *kind)));
             }
         }

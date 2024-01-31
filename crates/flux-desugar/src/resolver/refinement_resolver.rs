@@ -13,6 +13,7 @@ use rustc_data_structures::{
     fx::{FxIndexMap, IndexEntry},
     unord::UnordMap,
 };
+use rustc_hash::FxHashMap;
 use rustc_middle::ty::TyCtxt;
 
 use crate::sort_resolver::SortResolver;
@@ -47,12 +48,12 @@ enum UnresolvedParam<'fhir> {
     /// A parameter declared in an explicit scope.
     Explicit(fhir::Sort<'fhir>),
     /// An implicitly scoped parameter.
-    Implicit(ImplicitParam),
+    Implicit(ImplicitParam, NodeId),
 }
 
 impl<'fhir> UnresolvedParam<'fhir> {
     fn is_syntax_err(&self) -> bool {
-        matches!(self, UnresolvedParam::Implicit(ImplicitParam::SyntaxError))
+        matches!(self, UnresolvedParam::Implicit(ImplicitParam::SyntaxError, _))
     }
 }
 
@@ -111,7 +112,7 @@ pub(crate) trait ScopedVisitor: Sized {
         ScopedVisitorWrapper(self)
     }
 
-    fn on_implicit_param(&mut self, _ident: Ident, _kind: ImplicitParam) {}
+    fn on_implicit_param(&mut self, _ident: Ident, _kind: ImplicitParam, _node_id: NodeId) {}
     fn on_generic_param(&mut self, _param: &surface::GenericParam) {}
     fn on_refine_param(&mut self, _param: &surface::RefineParam) {}
     fn on_enum_variant(&mut self, _variant: &surface::VariantDef) {}
@@ -222,18 +223,24 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
 
     fn visit_fun_arg(&mut self, arg: &surface::Arg, idx: usize) {
         match arg {
-            surface::Arg::Constr(bind, _, _) => self.on_implicit_param(*bind, ImplicitParam::Colon),
-            surface::Arg::StrgRef(loc, _, node_id) => {
-                self.on_loc(*loc, *node_id);
-                self.on_implicit_param(*loc, ImplicitParam::Loc(idx));
+            surface::Arg::Constr(bind, _, _, node_id) => {
+                self.on_implicit_param(*bind, ImplicitParam::Colon, *node_id);
             }
-            surface::Arg::Ty(bind, ty) => {
+            surface::Arg::StrgRef(loc, _, node_id) => {
+                self.on_implicit_param(*loc, ImplicitParam::Loc(idx), *node_id);
+            }
+            surface::Arg::Ty(bind, ty, node_id) => {
                 if let &Some(bind) = bind {
-                    if let surface::TyKind::Base(_) = &ty.kind {
-                        self.on_implicit_param(bind, ImplicitParam::Colon);
+                    let param_kind = if let surface::TyKind::Base(bty) = &ty.kind {
+                        if bty.is_hole() {
+                            ImplicitParam::SyntaxError
+                        } else {
+                            ImplicitParam::Colon
+                        }
                     } else {
-                        self.on_implicit_param(bind, ImplicitParam::SyntaxError);
-                    }
+                        ImplicitParam::SyntaxError
+                    };
+                    self.on_implicit_param(bind, param_kind, *node_id);
                 }
             }
         }
@@ -249,15 +256,15 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
 
     fn visit_refine_arg(&mut self, arg: &surface::RefineArg) {
         match arg {
-            surface::RefineArg::Bind(ident, kind, ..) => {
-                self.on_implicit_param(*ident, ImplicitParam::from(*kind));
+            surface::RefineArg::Bind(ident, kind, _, node_id) => {
+                self.on_implicit_param(*ident, ImplicitParam::from(*kind), *node_id);
             }
-            surface::RefineArg::Abs(.., node_id, _) => {
+            surface::RefineArg::Abs(.., node_id) => {
                 self.with_scope(*node_id, ScopeKind::Misc, |this| {
                     surface::visit::walk_refine_arg(this, arg);
                 });
             }
-            surface::RefineArg::Expr(expr) => surface::visit::walk_expr(self, expr),
+            surface::RefineArg::Expr(expr) => self.visit_expr(expr),
         }
     }
 
@@ -270,10 +277,10 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         let is_box = self.is_box(path);
         for (i, arg) in path.generics.iter().enumerate() {
             if is_box && i == 0 {
-                surface::visit::walk_generic_arg(self, arg);
+                self.visit_generic_arg(arg);
             } else {
                 self.with_scope(arg.node_id, ScopeKind::Misc, |this| {
-                    surface::visit::walk_generic_arg(this, arg);
+                    this.visit_generic_arg(arg);
                 });
             }
         }
@@ -310,6 +317,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
             surface::ExprKind::App(func, _) => {
                 self.on_func(*func, expr.node_id);
             }
+            surface::ExprKind::Dot(path, _) => self.on_path(path),
             _ => {}
         }
         surface::visit::walk_expr(self, expr);
@@ -336,7 +344,7 @@ impl<'a, 'tcx, F> ImplicitParamCollector<'a, 'tcx, F> {
 
 impl<F> ScopedVisitor for ImplicitParamCollector<'_, '_, F>
 where
-    F: FnMut(Ident, ImplicitParam),
+    F: FnMut(Ident, ImplicitParam, NodeId),
 {
     fn is_box(&self, path: &surface::Path) -> bool {
         let res = self.path_res_map[&path.node_id];
@@ -351,8 +359,8 @@ where
         }
     }
 
-    fn on_implicit_param(&mut self, ident: Ident, param: ImplicitParam) {
-        (self.on_implicit_param)(ident, param);
+    fn on_implicit_param(&mut self, ident: Ident, param: ImplicitParam, node_id: NodeId) {
+        (self.on_implicit_param)(ident, param, node_id);
     }
 }
 
@@ -370,7 +378,7 @@ impl<'genv> Scope<'genv> {
 pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sort_resolver: SortResolver<'a, 'genv, 'tcx>,
-    scopes: UnordMap<ScopeId, Scope<'genv>>,
+    scopes: FxHashMap<ScopeId, Scope<'genv>>,
     scopes_stack: Vec<ScopeId>,
     name_gen: IndexGen<fhir::Name>,
     names: UnordMap<(ScopeId, Ident), fhir::Name>,
@@ -420,47 +428,66 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         None
     }
 
-    fn fhir_ident(&mut self, scope: ScopeId, ident: Ident) -> fhir::Ident {
-        let name = *self
+    fn name_for_ident(&mut self, scope: ScopeId, ident: Ident) -> fhir::Name {
+        *self
             .names
             .entry((scope, ident))
-            .or_insert_with(|| self.name_gen.fresh());
+            .or_insert_with(|| self.name_gen.fresh())
+    }
+
+    fn fhir_ident(&mut self, scope: ScopeId, ident: Ident) -> fhir::Ident {
+        let name = self.name_for_ident(scope, ident);
         fhir::Ident::new(name, ident)
     }
 
     pub(crate) fn into_output(self) -> RefinementResolverOutput<'genv> {
+        let mut resolved_implicit_params = UnordMap::default();
+        let name_gen = self.name_gen;
         let scopes = self
             .scopes
-            .into_items()
+            .into_iter()
             .map(|(scope_id, scope)| {
                 let bindings = scope
                     .bindings
                     .into_iter()
                     .filter_map(|(ident, param)| {
                         let name = self.names.get(&(scope_id, ident)).copied();
-                        let (sort, kind) = match param {
-                            UnresolvedParam::Explicit(sort) => (sort, fhir::ParamKind::Explicit),
-                            UnresolvedParam::Implicit(ImplicitParam::At) => {
-                                (fhir::Sort::Infer, fhir::ParamKind::At)
+                        let (sort, kind, name) = match param {
+                            UnresolvedParam::Explicit(sort) => {
+                                let name = name.unwrap_or_else(|| name_gen.fresh());
+                                (sort, fhir::ParamKind::Explicit, name)
                             }
-                            UnresolvedParam::Implicit(ImplicitParam::Pound) => {
-                                (fhir::Sort::Infer, fhir::ParamKind::Pound)
+                            UnresolvedParam::Implicit(implicit_param, node_id) => {
+                                let mut sort = fhir::Sort::Infer;
+                                let (kind, name) = match implicit_param {
+                                    ImplicitParam::At => {
+                                        let name = name.unwrap_or_else(|| name_gen.fresh());
+                                        (fhir::ParamKind::At, name)
+                                    }
+                                    ImplicitParam::Pound => {
+                                        let name = name.unwrap_or_else(|| name_gen.fresh());
+                                        (fhir::ParamKind::Pound, name)
+                                    }
+                                    ImplicitParam::Loc(idx) => {
+                                        let name = name.unwrap_or_else(|| name_gen.fresh());
+                                        sort = fhir::Sort::Loc;
+                                        (fhir::ParamKind::Loc(idx), name)
+                                    }
+                                    ImplicitParam::Colon => {
+                                        if let Some(name) = name {
+                                            (fhir::ParamKind::Colon, name)
+                                        } else {
+                                            return None;
+                                        }
+                                    }
+                                    ImplicitParam::SyntaxError => return None,
+                                };
+                                resolved_implicit_params.insert(node_id, (name, kind));
+                                (sort, kind, name)
                             }
-                            UnresolvedParam::Implicit(ImplicitParam::Colon) => {
-                                if name.is_some() {
-                                    (fhir::Sort::Infer, fhir::ParamKind::Colon)
-                                } else {
-                                    return None;
-                                }
-                            }
-                            UnresolvedParam::Implicit(ImplicitParam::Loc(idx)) => {
-                                (fhir::Sort::Infer, fhir::ParamKind::Loc(idx))
-                            }
-                            UnresolvedParam::Implicit(ImplicitParam::SyntaxError) => return None,
                         };
-                        let name = name.unwrap_or_else(|| self.name_gen.fresh());
                         let ident = fhir::Ident::new(name, ident);
-                        Some(ResolvedParam { ident, kind, sort })
+                        Some(ResolvedParam { ident, sort, kind })
                     })
                     .collect();
                 (scope_id, bindings)
@@ -468,6 +495,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             .collect();
         RefinementResolverOutput {
             scopes,
+            resolved_implicit_params,
             resolved_funcs: self.resolved_funcs,
             resolved_locs: self.resolved_locs,
             resolved_paths: self.resolved_paths,
@@ -504,7 +532,7 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
             self.tcx,
             self.path_res_map(),
             ScopeKind::Variant,
-            |ident, param| self.insert(ident, UnresolvedParam::Implicit(param)),
+            |ident, param, node_id| self.insert(ident, UnresolvedParam::Implicit(param, node_id)),
         )
         .wrap()
         .visit_variant(variant);
@@ -515,7 +543,7 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
             self.tcx,
             self.path_res_map(),
             ScopeKind::FnInput,
-            |ident, param| self.insert(ident, UnresolvedParam::Implicit(param)),
+            |ident, param, node_id| self.insert(ident, UnresolvedParam::Implicit(param, node_id)),
         )
         .wrap()
         .visit_fn_sig(fn_sig);
@@ -526,7 +554,7 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
             self.tcx,
             self.path_res_map(),
             ScopeKind::FnOutput,
-            |ident, param| self.insert(ident, UnresolvedParam::Implicit(param)),
+            |ident, param, node_id| self.insert(ident, UnresolvedParam::Implicit(param, node_id)),
         )
         .wrap()
         .visit_fn_output(output);
@@ -569,12 +597,12 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
 
     fn on_loc(&mut self, loc: Ident, node_id: NodeId) {
         match self.find(loc) {
-            Some((scope, UnresolvedParam::Implicit(ImplicitParam::Loc(idx)))) => {
+            Some((scope, UnresolvedParam::Implicit(ImplicitParam::Loc(idx), _))) => {
                 let loc = self.fhir_ident(scope, loc);
                 self.resolved_locs
                     .insert(node_id, LocRes { idx, ident: loc });
             }
-            Some((_, UnresolvedParam::Implicit(ImplicitParam::SyntaxError))) => {
+            Some((_, UnresolvedParam::Implicit(ImplicitParam::SyntaxError, _))) => {
                 todo!()
             }
             Some(_) => {
@@ -591,6 +619,7 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
         match &path.segments[..] {
             [var] => {
                 if let Some((scope, param)) = self.find(*var) {
+                    println!("resolved {path:?} {param:?}");
                     if param.is_syntax_err() {
                         todo!("report error");
                     }

@@ -285,7 +285,7 @@ pub fn walk_fun_args<V: Visitor>(vis: &mut V, args: &[Arg]) {
 
 pub fn walk_fun_arg<V: Visitor>(vis: &mut V, arg: &Arg) {
     match arg {
-        Arg::Constr(bind, path, pred) => {
+        Arg::Constr(bind, path, pred, _node_id) => {
             vis.visit_ident(*bind);
             vis.visit_path(path);
             vis.visit_expr(pred);
@@ -294,7 +294,7 @@ pub fn walk_fun_arg<V: Visitor>(vis: &mut V, arg: &Arg) {
             vis.visit_ident(*bind);
             vis.visit_ty(ty);
         }
-        Arg::Ty(bind, ty) => {
+        Arg::Ty(bind, ty, _node_id) => {
             if let Some(bind) = bind {
                 vis.visit_ident(*bind);
             }
@@ -341,7 +341,7 @@ pub fn walk_generic_arg<V: Visitor>(vis: &mut V, arg: &GenericArg) {
 
 pub fn walk_refine_arg<V: Visitor>(vis: &mut V, arg: &RefineArg) {
     match arg {
-        RefineArg::Bind(ident, _kind, _span) => {
+        RefineArg::Bind(ident, _kind, _span, _node_id) => {
             vis.visit_ident(*ident);
         }
         RefineArg::Expr(e) => {

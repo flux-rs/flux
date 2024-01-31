@@ -42,7 +42,7 @@ mod sort_of;
 
 use std::sync::OnceLock;
 
-use fhir::{FluxLocalDefId, FluxOwnerId};
+use fhir::FluxOwnerId;
 use flux_config as config;
 use flux_macros::fluent_messages;
 use flux_syntax::surface;
@@ -53,7 +53,7 @@ use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{
     def_id::{DefId, LocalDefId},
-    Span, Symbol,
+    Symbol,
 };
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -240,16 +240,19 @@ pub struct ResolvedParam<'fhir> {
     pub kind: fhir::ParamKind,
 }
 
+#[derive(Clone, Copy)]
 pub enum FuncRes {
     Param(fhir::Ident),
     Global(fhir::FuncKind),
 }
 
+#[derive(Clone, Copy)]
 pub struct LocRes {
     pub idx: usize,
     pub ident: fhir::Ident,
 }
 
+#[derive(Clone, Copy)]
 pub enum PathRes {
     Param(fhir::Ident),
     Const(DefId),
@@ -258,6 +261,7 @@ pub enum PathRes {
 
 pub struct RefinementResolverOutput<'fhir> {
     pub scopes: UnordMap<ScopeId, Vec<ResolvedParam<'fhir>>>,
+    pub resolved_implicit_params: UnordMap<surface::NodeId, (fhir::Name, fhir::ParamKind)>,
     pub resolved_funcs: UnordMap<surface::NodeId, FuncRes>,
     pub resolved_locs: UnordMap<surface::NodeId, LocRes>,
     pub resolved_paths: UnordMap<surface::NodeId, PathRes>,
