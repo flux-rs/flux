@@ -235,10 +235,9 @@ pub struct ResolverOutput<'fhir> {
 }
 
 pub struct ResolvedParam<'fhir> {
-    pub name: fhir::Name,
+    pub ident: fhir::Ident,
     pub sort: fhir::Sort<'fhir>,
     pub kind: fhir::ParamKind,
-    pub span: Span,
 }
 
 pub enum FuncRes {

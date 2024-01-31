@@ -459,7 +459,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                             UnresolvedParam::Implicit(ImplicitParam::SyntaxError) => return None,
                         };
                         let name = name.unwrap_or_else(|| self.name_gen.fresh());
-                        Some(ResolvedParam { name, kind, sort, span: ident.span })
+                        let ident = fhir::Ident::new(name, ident);
+                        Some(ResolvedParam { ident, kind, sort })
                     })
                     .collect();
                 (scope_id, bindings)

@@ -198,6 +198,7 @@ pub struct ImplAssocPredicate {
     pub params: Vec<RefineParam>,
     pub body: Expr,
     pub span: Span,
+    pub node_id: NodeId,
 }
 
 pub struct Trait {
@@ -210,6 +211,7 @@ pub struct TraitAssocPredicate {
     pub name: Ident,
     pub sort: Sort,
     pub span: Span,
+    pub node_id: NodeId,
 }
 
 #[derive(Debug)]

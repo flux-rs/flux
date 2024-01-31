@@ -187,13 +187,24 @@ Sort: surface::Sort = {
 
 pub TraitAssocPredicate: surface::TraitAssocPredicate = {
     <lo:@L> <name:Ident> ":" <sort:Sort> <hi:@R> => {
-        surface::TraitAssocPredicate { name, sort, span: cx.map_span(lo, hi) }
+        surface::TraitAssocPredicate {
+            name,
+            sort,
+            span: cx.map_span(lo, hi),
+            node_id: cx.next_node_id(),
+        }
     }
 }
 
 pub ImplAssocPredicate: surface::ImplAssocPredicate = {
     <lo:@L> <name:Ident> "=" "|"<params:RefineParams<"!">> "|" "{" <body:Expr> "}" <hi:@R> => {
-        surface::ImplAssocPredicate { name, params, body, span: cx.map_span(lo, hi) }
+        surface::ImplAssocPredicate {
+            name,
+            params,
+            body,
+            span: cx.map_span(lo, hi),
+            node_id: cx.next_node_id(),
+        }
     }
 }
 

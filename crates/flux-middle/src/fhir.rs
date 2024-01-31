@@ -628,7 +628,6 @@ pub struct RefineParam<'fhir> {
     pub sort: Sort<'fhir>,
     pub kind: ParamKind,
     pub fhir_id: FhirId,
-    pub span: Span,
 }
 
 impl<'fhir> RefineParam<'fhir> {

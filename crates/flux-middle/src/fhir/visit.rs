@@ -152,7 +152,7 @@ pub fn walk_fn_sig<V: Visitor>(vis: &mut V, sig: &FnSig) {
 }
 
 pub fn walk_refine_param<V: Visitor>(vis: &mut V, param: &RefineParam) {
-    let RefineParam { ident, sort, kind: _, fhir_id: _, span: _ } = param;
+    let RefineParam { ident, sort, kind: _, fhir_id: _ } = param;
     vis.visit_ident(*ident);
     vis.visit_sort(sort);
 }
