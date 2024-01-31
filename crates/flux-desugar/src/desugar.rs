@@ -8,7 +8,7 @@ use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, lift::LiftCtxt, FhirId, FluxOwnerId, Res},
     global_env::{self, GlobalEnv},
-    try_alloc_slice, FuncRes, LocRes, PathRes, RefinementResolverOutput, ResolverOutput, ScopeId,
+    try_alloc_slice, FuncRes, LocRes, PathRes, ResolverOutput, ScopeId,
 };
 use flux_syntax::surface::{self, NodeId};
 use hir::{def::DefKind, ItemKind};
@@ -120,6 +120,7 @@ pub(crate) struct RustItemCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
+    fn_sig_scope: Option<ScopeId>,
     resolver_output: &'a ResolverOutput<'genv>,
     opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
     sort_resolver: SortResolver<'a, 'genv, 'tcx>,
@@ -153,6 +154,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         RustItemCtxt {
             genv,
             owner,
+            fn_sig_scope: None,
             local_id_gen: IndexGen::new(),
             sort_resolver,
             resolver_output,
@@ -529,6 +531,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         let Some(fn_sig) = fn_sig else {
             return self.as_lift_cx().lift_fn_sig();
         };
+        self.fn_sig_scope = Some(fn_sig.node_id);
 
         let mut requires = vec![];
 
@@ -664,10 +667,9 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
 
                 let (args, _) = self.desugar_generic_args(res, &[])?;
                 let item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
-                // let refine_args = env.root().to_refine_args(self, span);
-                // let kind = fhir::TyKind::OpaqueDef(item_id, args, refine_args, false);
-                // Ok(fhir::Ty { kind, span })
-                todo!()
+                let refine_args = self.scope_to_refine_args(self.fn_sig_scope.unwrap());
+                let kind = fhir::TyKind::OpaqueDef(item_id, args, refine_args, false);
+                Ok(fhir::Ty { kind, span })
             }
             surface::Async::No => Ok(self.desugar_fn_ret_ty(returns)?),
         }
@@ -791,9 +793,8 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
                 self.insert_opaque_ty(def_id, opaque_ty);
 
                 let (args, _) = self.desugar_generic_args(res, &[])?;
-                // let refine_args = env.root().to_refine_args(self, ty.span);
-                // fhir::TyKind::OpaqueDef(item_id, args, refine_args, false)
-                todo!()
+                let refine_args = self.scope_to_refine_args(self.fn_sig_scope.unwrap());
+                fhir::TyKind::OpaqueDef(item_id, args, refine_args, false)
             }
         };
         Ok(fhir::Ty { kind, span })
@@ -867,15 +868,6 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
             fhir_id: self.next_fhir_id(),
             span: ident.span,
         })
-    }
-
-    fn implicit_param_into_ident(
-        &self,
-        ident: surface::Ident,
-        node_id: NodeId,
-    ) -> Option<fhir::Ident> {
-        let (name, _) = self.resolve_implicit_param(node_id)?;
-        Some(fhir::Ident::new(name, ident))
     }
 
     fn desugar_bty(&mut self, bty: &surface::BaseTy) -> Result<fhir::BaseTy<'genv>> {
@@ -1024,7 +1016,6 @@ fn desugar_un_op(op: surface::UnOp) -> fhir::UnOp {
 trait DesugarCtxt<'genv, 'tcx: 'genv> {
     fn genv(&self) -> GlobalEnv<'genv, 'tcx>;
     fn resolver_output(&self) -> &ResolverOutput<'genv>;
-    fn flux_owner_id(&self) -> FluxOwnerId;
     fn next_fhir_id(&self) -> FhirId;
 
     fn sess(&self) -> &'genv FluxSession {
@@ -1035,31 +1026,28 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         self.genv().map()
     }
 
-    fn refinement_resolver_output(&self) -> &RefinementResolverOutput<'genv> {
-        &self.resolver_output().refinements[&self.flux_owner_id()]
-    }
-
     fn resolve_implicit_param(&self, node_id: NodeId) -> Option<(fhir::Name, fhir::ParamKind)> {
-        self.refinement_resolver_output()
+        self.resolver_output()
+            .refinements
             .resolved_implicit_params
             .get(&node_id)
             .copied()
     }
 
     fn resolve_path(&self, path: &surface::QPathExpr) -> PathRes {
-        self.refinement_resolver_output().resolved_paths[&path.node_id]
+        self.resolver_output().refinements.resolved_paths[&path.node_id]
     }
 
     fn resolve_loc(&self, node_id: NodeId) -> LocRes {
-        self.refinement_resolver_output().resolved_locs[&node_id]
+        self.resolver_output().refinements.resolved_locs[&node_id]
     }
 
     fn resolve_func(&self, node_id: NodeId) -> FuncRes {
-        self.refinement_resolver_output().resolved_funcs[&node_id]
+        self.resolver_output().refinements.resolved_funcs[&node_id]
     }
 
     fn scope_to_params(&self, scope: ScopeId) -> &'genv [fhir::RefineParam<'genv>] {
-        let bindings = &self.refinement_resolver_output().scopes[&scope];
+        let bindings = &self.resolver_output().refinements.scopes[&scope];
         self.genv()
             .alloc_slice_fill_iter(bindings.iter().map(|param| {
                 let fhir_id = self.next_fhir_id();
@@ -1068,6 +1056,22 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                     sort: param.sort,
                     kind: param.kind,
                     fhir_id,
+                }
+            }))
+    }
+
+    fn scope_to_refine_args(&self, scope: ScopeId) -> &'genv [fhir::RefineArg<'genv>] {
+        let bindings = &self.resolver_output().refinements.scopes[&scope];
+        self.genv()
+            .alloc_slice_fill_iter(bindings.iter().map(|param| {
+                fhir::RefineArg {
+                    kind: fhir::RefineArgKind::Expr(fhir::Expr {
+                        kind: fhir::ExprKind::Var(param.ident, None),
+                        fhir_id: self.next_fhir_id(),
+                        span: param.ident.span(),
+                    }),
+                    fhir_id: self.next_fhir_id(),
+                    span: param.ident.span(),
                 }
             }))
     }
@@ -1186,7 +1190,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
 
 impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'a, 'genv, 'tcx> {
     fn next_fhir_id(&self) -> FhirId {
-        FhirId { owner: self.flux_owner_id(), local_id: self.local_id_gen.fresh() }
+        FhirId { owner: FluxOwnerId::Rust(self.owner), local_id: self.local_id_gen.fresh() }
     }
 
     fn genv(&self) -> GlobalEnv<'genv, 'tcx> {
@@ -1195,16 +1199,12 @@ impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'a, 'genv, 'tcx>
 
     fn resolver_output(&self) -> &ResolverOutput<'genv> {
         self.resolver_output
-    }
-
-    fn flux_owner_id(&self) -> FluxOwnerId {
-        FluxOwnerId::Rust(self.owner)
     }
 }
 
 impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for FluxItemCtxt<'a, 'genv, 'tcx> {
     fn next_fhir_id(&self) -> FhirId {
-        FhirId { owner: self.flux_owner_id(), local_id: self.local_id_gen.fresh() }
+        FhirId { owner: FluxOwnerId::Flux(self.owner), local_id: self.local_id_gen.fresh() }
     }
 
     fn genv(&self) -> GlobalEnv<'genv, 'tcx> {
@@ -1213,9 +1213,5 @@ impl<'a, 'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for FluxItemCtxt<'a, 'genv, 'tcx>
 
     fn resolver_output(&self) -> &ResolverOutput<'genv> {
         self.resolver_output
-    }
-
-    fn flux_owner_id(&self) -> FluxOwnerId {
-        FluxOwnerId::Flux(self.owner)
     }
 }

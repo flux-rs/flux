@@ -245,18 +245,14 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         let sort_resolver = SortResolver::with_sort_params(self.genv, &self.output, &[]);
         let output = RefinementResolver::new(self.genv.tcx(), sort_resolver)
             .run(|r| r.visit_qualifier(qualifier));
-        self.output
-            .refinements
-            .insert(fhir::FluxOwnerId::Flux(qualifier.name.name), output);
+        self.output.refinements.extend(output);
     }
 
     fn resolve_defn(&mut self, defn: &surface::FuncDef) {
         let sort_resolver = SortResolver::with_sort_params(self.genv, &self.output, &[]);
         let output =
             RefinementResolver::new(self.genv.tcx(), sort_resolver).run(|r| r.visit_defn(defn));
-        self.output
-            .refinements
-            .insert(fhir::FluxOwnerId::Flux(defn.name.name), output);
+        self.output.refinements.extend(output);
     }
 
     fn resolve_type_alias(&mut self, owner_id: OwnerId) {
@@ -266,11 +262,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 let output = item_resolver
                     .as_refinement_resolver()
                     .run(|r| r.visit_ty_alias(ty_alias));
-                item_resolver
-                    .resolver
-                    .output
-                    .refinements
-                    .insert(owner_id.into(), output);
+                item_resolver.resolver.output.refinements.extend(output);
             });
         };
     }
@@ -286,11 +278,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             let output = item_resolver
                 .as_refinement_resolver()
                 .run(|r| r.visit_struct_def(struct_def));
-            item_resolver
-                .resolver
-                .output
-                .refinements
-                .insert(owner_id.into(), output);
+            item_resolver.resolver.output.refinements.extend(output);
         });
     }
 
@@ -305,11 +293,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             let output = item_resolver
                 .as_refinement_resolver()
                 .run(|r| r.visit_enum_def(enum_def));
-            item_resolver
-                .resolver
-                .output
-                .refinements
-                .insert(owner_id.into(), output);
+            item_resolver.resolver.output.refinements.extend(output);
         });
     }
 
@@ -320,11 +304,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 let output = item_resolver
                     .as_refinement_resolver()
                     .run(|r| r.visit_fn_sig(fn_sig));
-                item_resolver
-                    .resolver
-                    .output
-                    .refinements
-                    .insert(owner_id.into(), output);
+                item_resolver.resolver.output.refinements.extend(output);
             });
         };
     }

@@ -42,11 +42,10 @@ mod sort_of;
 
 use std::sync::OnceLock;
 
-use fhir::FluxOwnerId;
 use flux_config as config;
 use flux_macros::fluent_messages;
 use flux_syntax::surface;
-use rustc_data_structures::unord::{UnordMap, UnordSet};
+use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
@@ -231,7 +230,7 @@ pub struct ResolverOutput<'fhir> {
     pub func_decls: UnordMap<Symbol, fhir::FuncKind>,
     pub sort_decls: UnordMap<Symbol, fhir::SortDecl>,
     pub consts: UnordMap<Symbol, DefId>,
-    pub refinements: UnordMap<FluxOwnerId, RefinementResolverOutput<'fhir>>,
+    pub refinements: RefinementResolverOutput<'fhir>,
 }
 
 pub struct ResolvedParam<'fhir> {
@@ -259,10 +258,27 @@ pub enum PathRes {
     NumConst(i128),
 }
 
+#[derive(Default)]
 pub struct RefinementResolverOutput<'fhir> {
     pub scopes: UnordMap<ScopeId, Vec<ResolvedParam<'fhir>>>,
     pub resolved_implicit_params: UnordMap<surface::NodeId, (fhir::Name, fhir::ParamKind)>,
     pub resolved_funcs: UnordMap<surface::NodeId, FuncRes>,
     pub resolved_locs: UnordMap<surface::NodeId, LocRes>,
     pub resolved_paths: UnordMap<surface::NodeId, PathRes>,
+}
+
+impl<'fhir> RefinementResolverOutput<'fhir> {
+    // FIXME(nilehmann) remove this it's kind of awkard, we should be able to push directly
+    // into the original RefinementResolverOutput
+    pub fn extend(&mut self, rhs: RefinementResolverOutput<'fhir>) {
+        self.scopes.extend_unord(rhs.scopes.into_items());
+        self.resolved_implicit_params
+            .extend_unord(rhs.resolved_implicit_params.into_items());
+        self.resolved_funcs
+            .extend_unord(rhs.resolved_funcs.into_items());
+        self.resolved_locs
+            .extend_unord(rhs.resolved_locs.into_items());
+        self.resolved_paths
+            .extend_unord(rhs.resolved_paths.into_items());
+    }
 }

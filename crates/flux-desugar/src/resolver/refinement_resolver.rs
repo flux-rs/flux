@@ -619,7 +619,6 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
         match &path.segments[..] {
             [var] => {
                 if let Some((scope, param)) = self.find(*var) {
-                    println!("resolved {path:?} {param:?}");
                     if param.is_syntax_err() {
                         todo!("report error");
                     }
