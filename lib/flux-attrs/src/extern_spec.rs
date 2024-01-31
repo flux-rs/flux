@@ -8,7 +8,7 @@ use syn::{
     parse_quote_spanned,
     punctuated::Punctuated,
     spanned::Spanned,
-    token::Brace,
+    token::{Brace, Comma},
     Attribute, Expr, FnArg, GenericArgument, GenericParam, Generics, ItemStruct, Signature, Token,
     Type, TypePath,
 };
@@ -75,12 +75,24 @@ impl ExternItemImpl {
         })
     }
 
-    fn dummy_struct(&self) -> syn::ItemStruct {
+    fn dummy_impl_struct(&self) -> syn::ItemStruct {
         let self_ty = &self.self_ty;
+
+        let mut params = self.generics.params.clone();
+        strip_generics_eq_default(&mut params);
+
         let struct_field: syn::FieldsUnnamed = if let Some(mod_path) = &self.mod_path {
-            parse_quote_spanned!(self_ty.span()=> ( #mod_path :: #self_ty ) )
+            if params.is_empty() {
+                parse_quote_spanned!(self_ty.span()=> ( #mod_path :: #self_ty ) )
+            } else {
+                parse_quote_spanned!(self_ty.span()=> ( #params, #mod_path :: #self_ty ) )
+            }
         } else {
-            parse_quote_spanned!(self_ty.span()=> ( #self_ty ) )
+            if params.is_empty() {
+                parse_quote_spanned!(self_ty.span()=> ( #self_ty ) )
+            } else {
+                parse_quote_spanned!(self_ty.span()=> ( #params, #self_ty ) )
+            }
         };
 
         syn::ItemStruct {
@@ -97,7 +109,7 @@ impl ExternItemImpl {
 
 impl ToTokens for ExternItemImpl {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let dummy_struct = self.dummy_struct();
+        let dummy_struct = self.dummy_impl_struct();
         dummy_struct.to_tokens(tokens);
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
 
@@ -341,8 +353,8 @@ fn create_dummy_ident_from_path(dummy_prefix: &str, path: &syn::Path) -> syn::Re
 /// ```ignore
 /// struct __FluxExternStructHashSet<T, S = RandomState>(HashSet<T, S>);
 /// ```
-fn strip_generics_eq_default(generics: &mut Generics) {
-    for param in &mut generics.params {
+fn strip_generics_eq_default(params: &mut Punctuated<GenericParam, Comma>) {
+    for param in params {
         match param {
             GenericParam::Type(type_param) => {
                 type_param.bounds = Punctuated::new();
@@ -397,7 +409,7 @@ fn create_dummy_enum(
     let mut dummy_enum = item_enum.clone();
     let ident = item_enum.ident;
     let mut generics = item_enum.generics;
-    strip_generics_eq_default(&mut generics);
+    strip_generics_eq_default(&mut generics.params);
 
     dummy_enum.ident = format_ident!("__FluxExternEnum{}", ident);
     let dummy_variant_name = format_ident!("FluxExternEnumFake");
@@ -453,10 +465,11 @@ fn create_dummy_struct(
     let mut dummy_struct = item_struct.clone();
     let ident = item_struct.ident;
     let mut generics = item_struct.generics;
-    strip_generics_eq_default(&mut generics);
+    strip_generics_eq_default(&mut generics.params);
 
     dummy_struct.ident = format_ident!("__FluxExternStruct{}", ident);
     dummy_struct.semi_token = None;
+
     let dummy_field: syn::FieldsUnnamed = if let Some(mod_path) = mod_path {
         parse_quote_spanned! {item_struct_span =>
                               ( #mod_path :: #ident #generics )
@@ -515,7 +528,7 @@ fn create_dummy_trait(
     let mut dummy_trait = item_trait.clone();
     let ident = item_trait.ident;
     let mut generics = item_trait.generics;
-    strip_generics_eq_default(&mut generics);
+    strip_generics_eq_default(&mut generics.params);
 
     dummy_trait.ident = format_ident!("__FluxExternTrait{}", ident);
     dummy_trait.auto_token = None;
