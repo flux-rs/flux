@@ -1,5 +1,6 @@
 mod env;
 mod gather;
+mod resolver;
 use std::iter;
 
 use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -609,9 +610,9 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
 
         // Desugar output
         env.enter(ScopeId::FnOutput);
-        let ret = self.desugar_asyncness(fn_sig.asyncness, &fn_sig.returns, &mut env);
+        let ret = self.desugar_asyncness(fn_sig.asyncness, &fn_sig.output.returns, &mut env);
 
-        let ensures = try_alloc_slice!(self.genv, &fn_sig.ensures, |cstr| {
+        let ensures = try_alloc_slice!(self.genv, &fn_sig.output.ensures, |cstr| {
             self.desugar_constraint(cstr, &mut env)
         })?;
 
@@ -636,7 +637,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
         env: &mut Env<'genv>,
     ) -> Result<fhir::Constraint<'genv>> {
         match cstr {
-            surface::Constraint::Type(bind, ty) => {
+            surface::Constraint::Type(bind, ty, _) => {
                 let (idx, loc) = self.resolve_loc(env, *bind)?;
                 let ty = self.desugar_ty(None, ty, env)?;
                 Ok(fhir::Constraint::Type(loc, ty, idx))
@@ -676,7 +677,7 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
                 let kind = fhir::TyKind::Constr(pred, self.genv.alloc(ty));
                 Ok(fhir::Ty { kind, span })
             }
-            surface::Arg::StrgRef(loc, ty) => {
+            surface::Arg::StrgRef(loc, ty, _) => {
                 let span = loc.span;
                 let (idx, loc) = self.resolve_loc(env, *loc)?;
                 let ty = self.desugar_ty(None, ty, env)?;
@@ -1031,12 +1032,12 @@ impl<'a, 'genv, 'tcx> RustItemCtxt<'a, 'genv, 'tcx> {
             }
         }
         for arg in args {
-            match arg {
-                surface::GenericArg::Type(ty) => {
+            match &arg.kind {
+                surface::GenericArgKind::Type(ty) => {
                     let ty = self.desugar_ty(None, ty, env)?;
                     fhir_args.push(fhir::GenericArg::Type(self.genv.alloc(ty)));
                 }
-                surface::GenericArg::Constraint(ident, ty) => {
+                surface::GenericArgKind::Constraint(ident, ty) => {
                     bindings.push(fhir::TypeBinding {
                         ident: *ident,
                         term: self.desugar_ty(None, ty, env)?,

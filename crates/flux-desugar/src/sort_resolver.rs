@@ -33,7 +33,7 @@ pub enum SelfRes {
 
 pub(crate) struct SortResolver<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
-    resolver_output: &'a ResolverOutput,
+    pub resolver_output: &'a ResolverOutput,
     generic_params: FxHashMap<Symbol, DefId>,
     sort_params: FxHashMap<Symbol, usize>,
     self_res: SelfRes,

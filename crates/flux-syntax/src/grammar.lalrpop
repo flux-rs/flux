@@ -196,13 +196,17 @@ pub FnSig: surface::FnSig = {
             surface::FnRetTy::Default(cx.map_span(ret_lo, ret_hi))
         };
         generics.predicates = predicates.unwrap_or_default();
+        let output = surface::FnOutput {
+            returns,
+            ensures,
+            node_id: cx.next_node_id(),
+        };
         surface::FnSig {
             asyncness,
             generics,
             args,
-            returns,
-            ensures,
             requires,
+            output,
             span: cx.map_span(lo, hi),
             node_id: cx.next_node_id(),
         }
@@ -251,7 +255,7 @@ Ensures    = <Comma<Constraint>>;
 Predicates = <Comma<WhereBoundPredicate>>;
 
 Constraint: surface::Constraint = {
-    <ident:Ident> ":" <ty:Ty> => surface::Constraint::Type(ident, ty),
+    <ident:Ident> ":" <ty:Ty> => surface::Constraint::Type(ident, ty, cx.next_node_id()),
     <expr:Expr> => surface::Constraint::Pred(expr),
 }
 
@@ -271,7 +275,7 @@ GenericBounds: surface::GenericBounds = {
 }
 
 Arg: surface::Arg = {
-    <bind:Ident> ":" "&" "strg" <ty:Ty>              => surface::Arg::StrgRef(<>),
+    <bind:Ident> ":" "&" "strg" <ty:Ty>              => surface::Arg::StrgRef(<>, cx.next_node_id()),
     <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}" => surface::Arg::Constr(<>),
     <bind:Ident> ":" <ty:Ty>                         => surface::Arg::Ty(Some(bind), ty),
     <ty:Ty>                                          => surface::Arg::Ty(None, <>),
@@ -356,8 +360,14 @@ GenericArgs: Vec<surface::GenericArg> = {
 }
 
 GenericArg: surface::GenericArg = {
-    <bind:Ident> "=" <ty:Ty> => surface::GenericArg::Constraint(bind, ty),
-    <ty:Ty> => surface::GenericArg::Type(ty),
+    <bind:Ident> "=" <ty:Ty> => surface::GenericArg {
+        kind: surface::GenericArgKind::Constraint(bind, ty),
+        node_id: cx.next_node_id(),
+    },
+    <ty:Ty> => surface::GenericArg {
+        kind: surface::GenericArgKind::Type(ty),
+        node_id: cx.next_node_id()
+    },
 }
 
 
@@ -404,6 +414,7 @@ Level9 = {
     <lo:@L> <op:UnOp> <e:Level10> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::UnaryOp(op, Box::new(e)),
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
     },
@@ -413,29 +424,34 @@ Level10: surface::Expr = {
     <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" <e2:ElseIf> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
     },
     <lo:@L> <lit:Lit> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::Literal(lit),
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
     },
     <lo:@L> <qpath:QPathExpr> "." <fld:Ident> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::Dot(qpath, fld),
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
     },
     <lo:@L> <f:Ident> "(" <args:Comma<Level1>> ")" <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::App(f, args),
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
     },
     <lo:@L> <qpath:QPathExpr> <hi:@R> => surface::Expr {
         kind: surface::ExprKind::QPath(qpath),
+        node_id: cx.next_node_id(),
         span: cx.map_span(lo, hi),
     },
     "(" <Level1> ")"
@@ -445,6 +461,7 @@ ElseIf: surface::Expr = {
     "else" <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" <e2:ElseIf> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
     },
@@ -454,6 +471,7 @@ ElseIf: surface::Expr = {
 QPathExpr: surface::QPathExpr = {
     <lo:@L> <segments:Sep1<"::", Ident>> <hi:@R> => surface::QPathExpr {
         segments,
+        node_id: cx.next_node_id(),
         span: cx.map_span(lo, hi),
     }
 }
@@ -461,6 +479,7 @@ QPathExpr: surface::QPathExpr = {
 NonAssoc<Op, NextLevel>: surface::Expr = {
     <lo:@L> <e1:NextLevel> <op:Op> <e2:NextLevel> <hi:@R> => surface::Expr {
         kind: surface::ExprKind::BinaryOp(op, Box::new([e1, e2])),
+        node_id: cx.next_node_id(),
         span: cx.map_span(lo, hi)
     },
     NextLevel
@@ -472,6 +491,7 @@ LeftAssoc<Op, NextLevel>: surface::Expr = {
                 op,
                 Box::new([e1, e2])
             ),
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         },
     NextLevel

@@ -24,17 +24,21 @@
 //!
 //! [`Env`]: env::Env
 
+mod asdf;
 use flux_common::{index::IndexGen, iter::IterExt};
 use flux_errors::FluxSession;
-use flux_middle::fhir;
+use flux_middle::{fhir, ResolverOutput};
 use flux_syntax::{
     surface::{
         self,
         visit::{walk_constraint, walk_expr, walk_ty, Visitor},
+        NodeId,
     },
     walk_list,
 };
-use rustc_errors::ErrorGuaranteed;
+use rustc_data_structures::unord::UnordMap;
+use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
+use rustc_span::{def_id::DefId, symbol::Ident};
 
 use super::{
     env::{self, ScopeId},
@@ -116,7 +120,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
 
         env.extend(self.sess(), self.resolve_params(&ty_alias.refined_by.index_params)?)?;
 
-        self.gather_params_ty(None, &ty_alias.ty, TypePos::Other, &mut env)?;
+        self.gather_params_ty(&ty_alias.ty, TypePos::Other, &mut env)?;
 
         Ok(env.into_desugar_env())
     }
@@ -140,7 +144,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             .fields
             .iter()
             .flatten()
-            .try_for_each_exhaust(|ty| self.gather_params_ty(None, ty, TypePos::Field, &mut env))?;
+            .try_for_each_exhaust(|ty| self.gather_params_ty(ty, TypePos::Field, &mut env))?;
 
         Ok(env.into_desugar_env())
     }
@@ -152,7 +156,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         let mut env = Env::new(ScopeId::Variant);
 
         for ty in &variant_def.fields {
-            self.gather_params_ty(None, ty, TypePos::Input, &mut env)?;
+            self.gather_params_ty(ty, TypePos::Input, &mut env)?;
         }
 
         if let Some(ret) = &variant_def.ret {
@@ -178,7 +182,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         self.gather_params_fn_sig_input(fn_sig, &mut env)?;
 
         env.push(ScopeId::FnOutput);
-        self.gather_params_fn_sig_output(fn_sig, &mut env)?;
+        self.gather_params_fn_sig_output(&fn_sig.output, &mut env)?;
         env.exit();
 
         self.check_param_uses(&mut env, |vis| vis.visit_fn_sig(fn_sig))?;
@@ -216,7 +220,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         env: &mut Env<'genv>,
     ) -> Result {
         for predicate in predicates {
-            self.gather_params_ty(None, &predicate.bounded_ty, TypePos::Other, env)?;
+            self.gather_params_ty(&predicate.bounded_ty, TypePos::Other, env)?;
             for bound in &predicate.bounds {
                 self.gather_params_path(&bound.path, TypePos::Other, env)?;
             }
@@ -224,13 +228,17 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         Ok(())
     }
 
-    fn gather_params_fn_sig_output(&self, fn_sig: &surface::FnSig, env: &mut Env<'genv>) -> Result {
-        if let surface::FnRetTy::Ty(ty) = &fn_sig.returns {
-            self.gather_params_ty(None, ty, TypePos::Output, env)?;
+    fn gather_params_fn_sig_output(
+        &self,
+        output: &surface::FnOutput,
+        env: &mut Env<'genv>,
+    ) -> Result {
+        if let surface::FnRetTy::Ty(ty) = &output.returns {
+            self.gather_params_ty(ty, TypePos::Output, env)?;
         }
-        for cstr in &fn_sig.ensures {
-            if let surface::Constraint::Type(_, ty) = cstr {
-                self.gather_params_ty(None, ty, TypePos::Output, env)?;
+        for cstr in &output.ensures {
+            if let surface::Constraint::Type(_, ty, _) = cstr {
+                self.gather_params_ty(ty, TypePos::Output, env)?;
             };
         }
         Ok(())
@@ -247,64 +255,43 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
                 env.insert(self.sess(), *bind, Param::Colon)?;
                 self.gather_params_path(path, TypePos::Input, env)?;
             }
-            surface::Arg::StrgRef(loc, ty) => {
+            surface::Arg::StrgRef(loc, ty, _) => {
                 env.insert(self.sess(), *loc, Param::Loc(idx))?;
-                self.gather_params_ty(None, ty, TypePos::Input, env)?;
+                self.gather_params_ty(ty, TypePos::Input, env)?;
             }
             surface::Arg::Ty(bind, ty) => {
-                self.gather_params_ty(*bind, ty, TypePos::Input, env)?;
+                if let Some(bind) = *bind {
+                    if let surface::TyKind::Base(_) = &ty.kind {
+                        env.insert(self.sess(), bind, Param::Colon)?;
+                    } else {
+                        env.insert(self.sess(), bind, Param::SyntaxError)?;
+                    }
+                }
+                self.gather_params_ty(ty, TypePos::Input, env)?;
             }
         }
         Ok(())
     }
 
-    fn gather_params_ty(
-        &self,
-        bind: Option<surface::Ident>,
-        ty: &surface::Ty,
-        pos: TypePos,
-        env: &mut Env<'genv>,
-    ) -> Result {
+    fn gather_params_ty(&self, ty: &surface::Ty, pos: TypePos, env: &mut Env<'genv>) -> Result {
         let node_id = ty.node_id;
         match &ty.kind {
             surface::TyKind::Indexed { bty, indices } => {
-                if let Some(bind) = bind {
-                    env.insert(self.sess(), bind, Param::SyntaxError)?;
-                }
                 self.gather_params_indices(indices, pos, env)?;
                 self.gather_params_bty(bty, pos, env)
             }
-            surface::TyKind::Base(bty) => {
-                if let Some(bind) = bind {
-                    env.insert(self.sess(), bind, Param::Colon)?;
-                }
-                self.gather_params_bty(bty, pos, env)
-            }
+            surface::TyKind::Base(bty) => self.gather_params_bty(bty, pos, env),
             surface::TyKind::Ref(_, ty) | surface::TyKind::Constr(_, ty) => {
-                if let Some(bind) = bind {
-                    env.insert(self.sess(), bind, Param::SyntaxError)?;
-                }
-                self.gather_params_ty(None, ty, pos, env)
+                self.gather_params_ty(ty, pos, env)
             }
             surface::TyKind::Tuple(tys) => {
-                if let Some(bind) = bind {
-                    env.insert(self.sess(), bind, Param::SyntaxError)?;
-                }
                 for ty in tys {
-                    self.gather_params_ty(None, ty, pos, env)?;
+                    self.gather_params_ty(ty, pos, env)?;
                 }
                 Ok(())
             }
-            surface::TyKind::Array(ty, _) => {
-                if let Some(bind) = bind {
-                    env.insert(self.sess(), bind, Param::SyntaxError)?;
-                }
-                self.gather_params_ty(None, ty, TypePos::Other, env)
-            }
+            surface::TyKind::Array(ty, _) => self.gather_params_ty(ty, TypePos::Other, env),
             surface::TyKind::Exists { bind: ex_bind, bty, .. } => {
-                if let Some(bind) = bind {
-                    env.insert(self.sess(), bind, Param::SyntaxError)?;
-                }
                 env.push(ScopeId::Exists(node_id));
                 env.insert(self.sess(), *ex_bind, Param::Explicit(fhir::Sort::Infer))?;
                 self.gather_params_bty(bty, pos, env)?;
@@ -312,9 +299,6 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
                 Ok(())
             }
             surface::TyKind::GeneralExists { params, ty, .. } => {
-                if let Some(bind) = bind {
-                    env.insert(self.sess(), bind, Param::SyntaxError)?;
-                }
                 env.push(ScopeId::Exists(node_id));
                 env.extend(self.sess(), self.resolve_params(params)?)?;
                 // Declaring parameters with @ inside an existential has weird behavior specially
@@ -329,7 +313,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
                 // case) under such a rule this example would be rejected because of name duplication.
                 //
                 // To keep things simple we just disallow `@` bindings inside existentials.
-                self.gather_params_ty(None, ty, TypePos::Other, env)?;
+                self.gather_params_ty(ty, TypePos::Other, env)?;
                 env.exit();
                 Ok(())
             }
@@ -409,9 +393,9 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         pos: TypePos,
         params: &mut Env<'genv>,
     ) -> Result {
-        match arg {
-            surface::GenericArg::Type(ty) => self.gather_params_ty(None, ty, pos, params),
-            surface::GenericArg::Constraint(_, ty) => self.gather_params_ty(None, ty, pos, params),
+        match &arg.kind {
+            surface::GenericArgKind::Type(ty) => self.gather_params_ty(ty, pos, params),
+            surface::GenericArgKind::Constraint(_, ty) => self.gather_params_ty(ty, pos, params),
         }
     }
 
@@ -423,9 +407,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
     ) -> Result {
         match &bty.kind {
             surface::BaseTyKind::Path(path) => self.gather_params_path(path, pos, params),
-            surface::BaseTyKind::Slice(ty) => {
-                self.gather_params_ty(None, ty, TypePos::Other, params)
-            }
+            surface::BaseTyKind::Slice(ty) => self.gather_params_ty(ty, TypePos::Other, params),
         }
     }
 
@@ -509,26 +491,15 @@ impl<'a, 'fhir> CheckParamUses<'a, 'fhir> {
 
 impl Visitor for CheckParamUses<'_, '_> {
     fn visit_fn_sig(&mut self, fn_sig: &surface::FnSig) {
-        let surface::FnSig {
-            asyncness: _,
-            generics,
-            requires,
-            args,
-            returns,
-            ensures,
-            span: _,
-            node_id: _,
-        } = fn_sig;
-
-        walk_list!(self, visit_where_predicate, &generics.predicates);
-        if let Some(requires) = requires {
+        walk_list!(self, visit_where_predicate, &fn_sig.generics.predicates);
+        if let Some(requires) = &fn_sig.requires {
             self.visit_expr(requires);
         }
-        walk_list!(self, visit_fun_arg, args);
+        self.visit_fun_args(&fn_sig.args);
 
         self.env.enter(ScopeId::FnOutput);
-        self.visit_fn_ret_ty(returns);
-        walk_list!(self, visit_constraint, ensures);
+        self.visit_fn_ret_ty(&fn_sig.output.returns);
+        walk_list!(self, visit_constraint, &fn_sig.output.ensures);
 
         self.env.exit();
     }
@@ -555,7 +526,7 @@ impl Visitor for CheckParamUses<'_, '_> {
     }
 
     fn visit_constraint(&mut self, constraint: &surface::Constraint) {
-        if let surface::Constraint::Type(loc, _) = constraint {
+        if let surface::Constraint::Type(loc, ..) = constraint {
             self.check_use(*loc);
         }
         walk_constraint(self, constraint);
@@ -574,3 +545,189 @@ impl Visitor for CheckParamUses<'_, '_> {
         }
     }
 }
+
+struct Resolver<'a, 'genv> {
+    sess: &'genv FluxSession,
+    env: env::Env<Param<'genv>>,
+    a: UnordMap<Ident, fhir::Name>,
+    resolver_output: &'a ResolverOutput,
+    resolved_locs: UnordMap<NodeId, (usize, fhir::Ident)>,
+    resolved_funcs: UnordMap<NodeId, FuncRes>,
+    resolved_paths: UnordMap<NodeId, PathRes>,
+    err: Option<ErrorGuaranteed>,
+}
+
+impl<'a, 'genv> Resolver<'a, 'genv> {
+    fn name(&self, ident: Ident, scope: ScopeId) -> fhir::Name {
+        todo!()
+    }
+
+    fn gather_fn_input() {}
+
+    fn resolve_loc(&mut self, loc: Ident, node_id: NodeId) {
+        match self.env.get_with_scope(loc) {
+            Some((scope, Param::Loc(idx))) => {
+                let loc = fhir::Ident::new(self.name(loc, scope), loc);
+                self.resolved_locs.insert(node_id, (*idx, loc));
+            }
+            Some((_, Param::SyntaxError)) => {
+                todo!()
+            }
+            Some(_) => {
+                todo!()
+            }
+            None => {
+                todo!()
+                // Err(self.emit_err(errors::UnresolvedVar::from_ident(loc, "location")))
+            }
+        }
+    }
+
+    fn resolve_func(&mut self, func: Ident, node_id: NodeId) {
+        if let Some((scope, param)) = self.env.get_with_scope(func) {
+            if let Param::SyntaxError = param {
+                todo!();
+            }
+            let func = fhir::Ident::new(self.name(func, scope), func);
+            self.resolved_funcs.insert(node_id, FuncRes::Param(func));
+            return;
+        }
+        if let Some(decl) = self.resolver_output.func_decls.get(&func.name) {
+            self.resolved_funcs.insert(node_id, FuncRes::Global(*decl));
+            return;
+        }
+        todo!("report error")
+    }
+
+    fn resolve_path(&mut self, path: &surface::QPathExpr) {
+        match &path.segments[..] {
+            [var] => {
+                if let Some((scope, param)) = self.env.get_with_scope(*var) {
+                    if let Param::SyntaxError = param {
+                        todo!("report error");
+                    }
+                    let var = fhir::Ident::new(self.name(*var, scope), *var);
+                    self.resolved_paths
+                        .insert(path.node_id, PathRes::Param(var));
+                    return;
+                }
+                if let Some(const_def_id) = self.resolver_output.consts.get(&var.name) {
+                    self.resolved_paths
+                        .insert(path.node_id, PathRes::Const(*const_def_id));
+                    return;
+                }
+                todo!("report error")
+            }
+            [typ, name] => {
+                if let Some(res) = resolve_num_const(*typ, *name) {
+                    self.resolved_paths.insert(path.node_id, res);
+                    return;
+                }
+                todo!("report error")
+            }
+            _ => {
+                todo!()
+                // Err(self.emit_err(errors::UnresolvedVar::from_qpath(path, "type-3")))
+            }
+        }
+    }
+
+    #[track_caller]
+    fn emit(&mut self, err: impl IntoDiagnostic<'genv>) {
+        self.err = self.err.or(Some(self.sess.emit_err(err)));
+    }
+}
+
+impl<'genv> surface::visit::Visitor for Resolver<'_, 'genv> {
+    fn visit_fn_sig(&mut self, fn_sig: &surface::FnSig) {
+        self.env.enter(ScopeId::FnInput);
+
+        self.visit_generics(&fn_sig.generics);
+        if let Some(requires) = &fn_sig.requires {
+            self.visit_expr(requires);
+        }
+        self.visit_fun_args(&fn_sig.args);
+
+        self.env.enter(ScopeId::FnOutput);
+        self.visit_fn_ret_ty(&fn_sig.output.returns);
+        walk_list!(self, visit_constraint, &fn_sig.output.ensures);
+        self.env.exit();
+
+        self.env.exit();
+    }
+
+    fn visit_fun_arg(&mut self, arg: &surface::Arg, _idx: usize) {
+        if let surface::Arg::StrgRef(loc, _, node_id) = arg {
+            self.resolve_loc(*loc, *node_id);
+        } else {
+            surface::visit::walk_fun_arg(self, arg);
+        }
+    }
+
+    fn visit_ty(&mut self, ty: &surface::Ty) {
+        let node_id = ty.node_id;
+        match &ty.kind {
+            surface::TyKind::Exists { .. } => {
+                self.env.enter(ScopeId::Exists(node_id));
+                surface::visit::walk_ty(self, ty);
+                self.env.exit();
+            }
+            surface::TyKind::GeneralExists { .. } => {
+                self.env.enter(ScopeId::Exists(node_id));
+                surface::visit::walk_ty(self, ty);
+                self.env.exit();
+            }
+            _ => walk_ty(self, ty),
+        }
+    }
+
+    fn visit_constraint(&mut self, constraint: &surface::Constraint) {
+        if let surface::Constraint::Type(loc, _, node_id) = constraint {
+            self.resolve_loc(*loc, *node_id);
+        }
+        walk_constraint(self, constraint);
+    }
+
+    fn visit_expr(&mut self, expr: &surface::Expr) {
+        if let surface::ExprKind::App(func, _) = &expr.kind {
+            self.resolve_func(*func, expr.node_id);
+        }
+        walk_expr(self, expr);
+    }
+
+    fn visit_qpath_expr(&mut self, path: &surface::QPathExpr) {
+        self.resolve_path(path);
+    }
+}
+
+enum FuncRes {
+    Param(fhir::Ident),
+    Global(fhir::FuncKind),
+}
+
+enum PathRes {
+    Param(fhir::Ident),
+    Const(DefId),
+    NumConst(i128),
+}
+
+macro_rules! define_resolve_num_const {
+    ($($typ:ident),*) => {
+        fn resolve_num_const(typ: surface::Ident, name: surface::Ident) -> Option<PathRes> {
+            match typ.name.as_str() {
+                $(
+                    stringify!($typ) => {
+                        match name.name.as_str() {
+                            "MAX" => Some(PathRes::NumConst($typ::MAX.try_into().unwrap())),
+                            "MIN" => Some(PathRes::NumConst($typ::MIN.try_into().unwrap())),
+                            _ => None,
+                        }
+                    },
+                )*
+                _ => None
+            }
+        }
+    };
+}
+
+define_resolve_num_const!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);

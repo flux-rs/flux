@@ -2,9 +2,9 @@ use rustc_span::symbol::Ident;
 
 use super::{
     AliasPred, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
-    ExprKind, FnRetTy, FnSig, GenericArg, GenericParam, GenericParamKind, Generics, Indices, Lit,
-    Path, Pred, PredKind, QPathExpr, RefineArg, RefineParam, RefinedBy, Sort, StructDef, TraitRef,
-    Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    ExprKind, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, GenericParamKind,
+    Generics, Indices, Lit, Path, Pred, PredKind, QPathExpr, RefineArg, RefineParam, RefinedBy,
+    Sort, StructDef, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -68,13 +68,21 @@ pub trait Visitor: Sized {
         walk_fn_sig(self, fn_sig);
     }
 
+    fn visit_fn_output(&mut self, fn_output: &FnOutput) {
+        walk_fn_output(self, fn_output);
+    }
+
     fn visit_async(&mut self, _asyncness: &Async) {}
 
     fn visit_generics(&mut self, generics: &Generics) {
         walk_generics(self, generics);
     }
 
-    fn visit_fun_arg(&mut self, arg: &Arg) {
+    fn visit_fun_args(&mut self, args: &[Arg]) {
+        walk_fun_args(self, args);
+    }
+
+    fn visit_fun_arg(&mut self, arg: &Arg, _idx: usize) {
         walk_fun_arg(self, arg);
     }
 
@@ -225,30 +233,29 @@ pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
 }
 
 pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
-    let FnSig {
-        asyncness,
-        generics,
-        requires,
-        args,
-        returns,
-        ensures,
-        span: _span,
-        node_id: _node_id,
-    } = fn_sig;
-
-    vis.visit_async(asyncness);
-    vis.visit_generics(generics);
-    if let Some(requires) = requires {
+    vis.visit_async(&fn_sig.asyncness);
+    vis.visit_generics(&fn_sig.generics);
+    if let Some(requires) = &fn_sig.requires {
         vis.visit_expr(requires);
     }
-    walk_list!(vis, visit_fun_arg, args);
-    vis.visit_fn_ret_ty(returns);
-    walk_list!(vis, visit_constraint, ensures);
+    vis.visit_fun_args(&fn_sig.args);
+    vis.visit_fn_output(&fn_sig.output);
+}
+
+pub fn walk_fn_output<V: Visitor>(vis: &mut V, fn_output: &FnOutput) {
+    vis.visit_fn_ret_ty(&fn_output.returns);
+    walk_list!(vis, visit_constraint, &fn_output.ensures);
 }
 
 pub fn walk_generics<V: Visitor>(vis: &mut V, generics: &Generics) {
     walk_list!(vis, visit_generic_param, &generics.params);
     walk_list!(vis, visit_where_predicate, &generics.predicates);
+}
+
+pub fn walk_fun_args<V: Visitor>(vis: &mut V, args: &[Arg]) {
+    for (idx, arg) in args.iter().enumerate() {
+        vis.visit_fun_arg(arg, idx);
+    }
 }
 
 pub fn walk_fun_arg<V: Visitor>(vis: &mut V, arg: &Arg) {
@@ -258,7 +265,7 @@ pub fn walk_fun_arg<V: Visitor>(vis: &mut V, arg: &Arg) {
             vis.visit_path(path);
             vis.visit_expr(pred);
         }
-        Arg::StrgRef(bind, ty) => {
+        Arg::StrgRef(bind, ty, _node_id) => {
             vis.visit_ident(*bind);
             vis.visit_ty(ty);
         }
@@ -280,7 +287,7 @@ pub fn walk_fn_ret_ty<V: Visitor>(vis: &mut V, fn_ret_ty: &FnRetTy) {
 
 pub fn walk_constraint<V: Visitor>(vis: &mut V, constraint: &Constraint) {
     match constraint {
-        Constraint::Type(bind, ty) => {
+        Constraint::Type(bind, ty, _node_id) => {
             vis.visit_ident(*bind);
             vis.visit_ty(ty);
         }
@@ -296,11 +303,11 @@ pub fn walk_where_predicate<V: Visitor>(vis: &mut V, predicate: &WhereBoundPredi
 }
 
 pub fn walk_generic_arg<V: Visitor>(vis: &mut V, arg: &GenericArg) {
-    match arg {
-        GenericArg::Type(ty) => {
+    match &arg.kind {
+        GenericArgKind::Type(ty) => {
             vis.visit_ty(ty);
         }
-        GenericArg::Constraint(ident, ty) => {
+        GenericArgKind::Constraint(ident, ty) => {
             vis.visit_ident(*ident);
             vis.visit_ty(ty);
         }

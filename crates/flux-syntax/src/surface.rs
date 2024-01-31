@@ -225,19 +225,25 @@ pub struct FnSig {
     pub requires: Option<Expr>,
     /// example: `i32<@n>`
     pub args: Vec<Arg>,
-    /// example `i32{v:v >= 0}`
-    pub returns: FnRetTy,
-    /// example: `*x: i32{v. v = n+1}` or just `x > 10`
-    pub ensures: Vec<Constraint>,
+    pub output: FnOutput,
     /// source span
     pub span: Span,
     pub node_id: NodeId,
 }
 
 #[derive(Debug)]
+pub struct FnOutput {
+    /// example `i32{v:v >= 0}`
+    pub returns: FnRetTy,
+    /// example: `*x: i32{v. v = n+1}` or just `x > 10`
+    pub ensures: Vec<Constraint>,
+    pub node_id: NodeId,
+}
+
+#[derive(Debug)]
 pub enum Constraint {
     /// A type constraint on a location
-    Type(Ident, Ty),
+    Type(Ident, Ty, NodeId),
     /// A predicate that needs to hold
     Pred(Expr),
 }
@@ -273,7 +279,7 @@ pub enum Arg {
     /// example `a: i32{a > 0}`
     Constr(Ident, Path, Expr),
     /// example `v: &strg i32`
-    StrgRef(Ident, Ty),
+    StrgRef(Ident, Ty, NodeId),
     /// A type with an optional binder, e.g, `i32`, `x: i32` or `x: i32{v: v > 0}`.
     /// The binder has a different meaning depending on the type.
     Ty(Option<Ident>, Ty),
@@ -415,7 +421,13 @@ pub struct Path {
 }
 
 #[derive(Debug)]
-pub enum GenericArg {
+pub struct GenericArg {
+    pub kind: GenericArgKind,
+    pub node_id: NodeId,
+}
+
+#[derive(Debug)]
+pub enum GenericArgKind {
     Type(Ty),
     Constraint(Ident, Ty),
 }
@@ -423,6 +435,7 @@ pub enum GenericArg {
 #[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
+    pub node_id: NodeId,
     pub span: Span,
 }
 
@@ -440,6 +453,7 @@ pub enum ExprKind {
 #[derive(Debug, Clone)]
 pub struct QPathExpr {
     pub segments: Vec<Ident>,
+    pub node_id: NodeId,
     pub span: Span,
 }
 
