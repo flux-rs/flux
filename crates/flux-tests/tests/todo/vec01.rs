@@ -31,8 +31,10 @@ impl<T> SliceIndex<[T]> for usize {}
 #[flux::generics(I as base)]
 impl<T, I: SliceIndex<[T]>, A: Allocator> Index<I> for Vec<T, A> {
     // // type Output = I::Output;
+    // fn index(z: &Vec<T, A>, index: I) -> &<Vec<T, A> as Index<I>>::Output;
+
     #[flux::sig(fn (&Vec<T,A>[@len], {I[@idx] | <I as SliceIndex<[T]>>::in_bounds(idx, len)}) -> _)]
-    fn index(z: &Vec<T, A>, index: I) -> &<Vec<T, A> as Index<I>>::Output;
+    fn index(z: &Vec<T, A>, index: I) -> &<I as SliceIndex<[T]>>::Output;
 }
 
 // #[extern_spec]
@@ -53,10 +55,12 @@ impl<T, I: SliceIndex<[T]>, A: Allocator> Index<I> for Vec<T, A> {
 //     fn is_empty(v: &Vec<T, A>) -> bool;
 // }
 
+#[flux::sig(fn (&Vec<i32>[1000]) -> &i32)]
 pub fn test_get0(xs: &Vec<i32>) -> &i32 {
     <Vec<i32> as Index<usize>>::index(xs, 10) //~ ERROR refinement type
 }
 
+#[flux::sig(fn (&Vec<i32>[50]) -> i32)]
 pub fn test_get1(xs: &Vec<i32>) -> i32 {
     xs[10] //~ ERROR refinement type
 }

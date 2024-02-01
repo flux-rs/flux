@@ -111,11 +111,9 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                     .map(|item| item.def_id)
                     .unwrap();
 
-                Ok(self
-                    .genv
-                    .type_of(assoc_type_id)?
-                    .instantiate(&args, &[])
-                    .into_ty())
+                let pty = self.genv.type_of(assoc_type_id)?;
+                println!("TRACE: confirm_candidate: {pty:?} with {args:?}");
+                Ok(pty.instantiate(&args, &[]).into_ty())
             }
         }
     }
@@ -427,6 +425,7 @@ impl TVarSubst {
 
     fn infer_from_args(&mut self, src: rustc_middle::ty::GenericArgsRef, dst: &GenericArgs) {
         debug_assert_eq!(src.len(), dst.len());
+        println!("TRACE: infer_from_args {src:?} <---> {dst:?}");
         for (src, dst) in iter::zip(src, dst) {
             self.infer_from_arg(src, dst);
         }
@@ -439,6 +438,7 @@ impl TVarSubst {
             }
             GenericArg::Lifetime(dst) => self.infer_from_region(&src.as_region().unwrap(), dst),
             GenericArg::BaseTy(bty) => {
+                println!("TRACE: infer_from_arg: {src:?} {dst:?}");
                 self.infer_from_ty(&src.as_type().unwrap(), &bty.clone().skip_binder());
             }
             _ => (),
