@@ -89,6 +89,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                 //    to infer a substitution
                 //        IntoIter<{v. i32[v] | v > 0}, Global> against IntoIter<T, A>
                 //            => {T -> {v. i32[v] | v > 0}, A -> Global}
+
                 let impl_trait_ref = self
                     .tcx()
                     .impl_trait_ref(impl_def_id)
@@ -96,6 +97,8 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                     .skip_binder();
 
                 let generics = self.tcx().generics_of(impl_def_id);
+
+                println!("TRACE: confirm_candidate {impl_def_id:?} => {generics:?}");
 
                 let mut subst = TVarSubst::new(generics);
                 subst.infer_from_args(impl_trait_ref.args, &obligation.args);
@@ -137,15 +140,21 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
     ) -> QueryResult<()> {
-        let TyKind::Alias(AliasKind::Opaque, alias_ty) = obligation.self_ty().kind() else {
-            return Ok(());
-        };
-        let bounds = self
-            .genv
-            .item_bounds(alias_ty.def_id)?
-            .instantiate(&alias_ty.args, &alias_ty.refine_args);
+        if let GenericArg::Ty(ty) = &obligation.args[0]
+            && let TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind()
+        {
+            let bounds = self
+                .genv
+                .item_bounds(alias_ty.def_id)?
+                .instantiate(&alias_ty.args, &alias_ty.refine_args);
 
-        assemble_candidates_from_predicates(&bounds, obligation, Candidate::TraitDef, candidates);
+            assemble_candidates_from_predicates(
+                &bounds,
+                obligation,
+                Candidate::TraitDef,
+                candidates,
+            );
+        }
         Ok(())
     }
 
@@ -426,11 +435,15 @@ impl TVarSubst {
     }
 
     fn infer_from_arg(&mut self, src: rustc_middle::ty::GenericArg, dst: &GenericArg) {
+        println!("TRACE: infer_from_arg {src:?} {dst:?}");
         match dst {
             GenericArg::Ty(dst) => {
                 self.infer_from_ty(&src.as_type().unwrap(), dst);
             }
             GenericArg::Lifetime(dst) => self.infer_from_region(&src.as_region().unwrap(), dst),
+            GenericArg::BaseTy(bty) => {
+                self.infer_from_ty(&src.as_type().unwrap(), &bty.clone().skip_binder());
+            }
             _ => (),
         }
     }
