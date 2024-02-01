@@ -1,6 +1,6 @@
 //! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
-#![feature(rustc_private, min_specialization, box_patterns, lazy_cell, let_chains)]
+#![feature(rustc_private, min_specialization, box_patterns, lazy_cell, let_chains, never_type)]
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
@@ -13,7 +13,6 @@ use desugar::RustItemCtxt;
 use flux_common::dbg;
 use flux_config as config;
 use flux_macros::fluent_messages;
-use resolver::ResolverOutput;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 
@@ -24,7 +23,9 @@ mod errors;
 pub mod resolver;
 mod sort_resolver;
 
-use flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
+use flux_middle::{
+    const_eval, fhir, global_env::GlobalEnv, queries::Providers, rty, ResolverOutput, Specs,
+};
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{self as hir, OwnerId};
@@ -34,11 +35,12 @@ use rustc_span::def_id::LocalDefId;
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub fn provide(providers: &mut Providers) {
+    providers.resolve_crate = resolver::resolve_crate;
     providers.fhir_crate = desugar_crate;
 }
 
 fn desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> fhir::Crate<'genv> {
-    match desugar_crate_inner(genv) {
+    match try_desugar_crate(genv) {
         Ok(fhir) => fhir,
         Err(err) => {
             // There's too much code down the pipeline that relies on having the fhir, so we abort
@@ -50,33 +52,10 @@ fn desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> fhir::Crate<'genv> {
     }
 }
 
-macro_rules! collect_err {
-    ($self:expr, $body:expr) => {
-        $self.err = $body.err().or($self.err)
-    };
-}
-
-struct CrateDesugar<'genv, 'tcx> {
-    genv: GlobalEnv<'genv, 'tcx>,
-    fhir: fhir::Crate<'genv>,
-    resolver_output: ResolverOutput,
-    err: Option<ErrorGuaranteed>,
-}
-
-impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
-    fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        fhir: fhir::Crate<'genv>,
-        resolver_output: ResolverOutput,
-    ) -> Self {
-        Self { genv, fhir, resolver_output, err: None }
-    }
-}
-
-fn desugar_crate_inner<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::Crate<'genv>> {
+fn try_desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::Crate<'genv>> {
     let specs = genv.collect_specs();
     let fhir = fhir::Crate::new(specs.ignores.clone(), specs.crate_config);
-    let resolver_output = resolver::resolve_crate(genv.tcx(), genv.sess(), specs)?;
+    let resolver_output = genv.resolve_crate();
     let mut cx = CrateDesugar::new(genv, fhir, resolver_output);
     cx.desugar_flux_items(specs);
     cx.desugar_rust_items(specs);
@@ -92,18 +71,37 @@ fn desugar_crate_inner<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::Crate<
     }
 }
 
-impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
+macro_rules! collect_err {
+    ($self:expr, $body:expr) => {
+        $self.err = $body.err().or($self.err)
+    };
+}
+
+struct CrateDesugar<'a, 'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
+    fhir: fhir::Crate<'genv>,
+    resolver_output: &'a ResolverOutput,
+    err: Option<ErrorGuaranteed>,
+}
+
+impl<'a, 'genv, 'tcx> CrateDesugar<'a, 'genv, 'tcx> {
+    fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        fhir: fhir::Crate<'genv>,
+        resolver_output: &'a ResolverOutput,
+    ) -> Self {
+        Self { genv, fhir, resolver_output, err: None }
+    }
+}
+
+impl<'genv, 'tcx> CrateDesugar<'_, 'genv, 'tcx> {
     fn desugar_flux_items(&mut self, specs: &Specs) {
         for defn in &specs.func_defs {
             collect_err!(self, self.desugar_func_defn(defn));
         }
 
-        for (def_id, const_sig) in &specs.consts {
-            let did = def_id.to_def_id();
-            let sym = def_id_symbol(self.genv.tcx(), *def_id);
-            self.fhir
-                .consts
-                .insert(sym, fhir::ConstInfo { def_id: did, sym, val: const_sig.val });
+        for def_id in &specs.consts {
+            collect_err!(self, self.desugar_const(*def_id));
         }
 
         for qualifier in &specs.qualifs {
@@ -111,11 +109,31 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         }
     }
 
+    fn desugar_const(&mut self, def_id: LocalDefId) -> Result<rty::Constant> {
+        let ty = self.genv.tcx().type_of(def_id).instantiate_identity();
+        if let Ok(const_result) = self.genv.tcx().const_eval_poly(def_id.to_def_id())
+            && let Some(val) = const_result.try_to_scalar_int()
+            && let Some(val) = const_eval::scalar_int_to_rty_constant(self.genv.tcx(), val, ty)
+        {
+            let sym = def_id_symbol(self.genv.tcx(), def_id);
+            self.fhir
+                .consts
+                .insert(sym, fhir::ConstInfo { def_id: def_id.to_def_id(), sym, val });
+            Ok(val)
+        } else {
+            let span = self.genv.tcx().def_span(def_id);
+            Err(self
+                .genv
+                .sess()
+                .emit_err(errors::InvalidConstant::new(span)))
+        }
+    }
+
     fn desugar_func_defn(&mut self, defn: &surface::FuncDef) -> Result {
-        let func_decl = desugar::func_def_to_func_decl(self.genv, &self.resolver_output, defn)?;
+        let func_decl = desugar::func_def_to_func_decl(self.genv, self.resolver_output, defn)?;
         self.fhir.func_decls.insert(defn.name.name, func_decl);
 
-        if let Some(defn) = desugar::desugar_defn(self.genv, &self.resolver_output, defn)? {
+        if let Some(defn) = desugar::desugar_defn(self.genv, self.resolver_output, defn)? {
             self.fhir
                 .flux_items
                 .insert(defn.name, fhir::FluxItem::Defn(defn));
@@ -125,7 +143,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     }
 
     fn desugar_qualifier(&mut self, qualifier: &surface::Qualifier) -> Result {
-        let qualifier = desugar::desugar_qualifier(self.genv, &self.resolver_output, qualifier)?;
+        let qualifier = desugar::desugar_qualifier(self.genv, self.resolver_output, qualifier)?;
         self.fhir
             .flux_items
             .insert(qualifier.name, fhir::FluxItem::Qualifier(qualifier));
@@ -145,7 +163,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         match item.kind {
             hir::ItemKind::Fn(..) => {
                 let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
-                collect_err!(self, self.desugar_fn_spec(owner_id, fn_spec));
+                collect_err!(self, self.desugar_item_fn(owner_id, fn_spec));
             }
             hir::ItemKind::TyAlias(..) => {
                 let ty_alias = specs.ty_aliases[&owner_id].as_ref();
@@ -167,7 +185,12 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
                 for trait_item in items {
                     collect_err!(
                         self,
-                        self.desugar_assoc_item(trait_item.id.owner_id, trait_item.kind, specs)
+                        self.desugar_assoc_item(
+                            trait_item.id.owner_id,
+                            trait_item.kind,
+                            specs,
+                            true
+                        )
                     );
                 }
             }
@@ -176,7 +199,12 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
                 for impl_item in impl_.items {
                     collect_err!(
                         self,
-                        self.desugar_assoc_item(impl_item.id.owner_id, impl_item.kind, specs)
+                        self.desugar_assoc_item(
+                            impl_item.id.owner_id,
+                            impl_item.kind,
+                            specs,
+                            false
+                        )
                     );
                 }
             }
@@ -189,17 +217,23 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         owner_id: OwnerId,
         kind: hir::AssocItemKind,
         specs: &Specs,
+        in_trait: bool,
     ) -> Result {
         match kind {
             hir::AssocItemKind::Fn { .. } => {
                 let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
-                self.desugar_fn_spec(owner_id, fn_spec)?;
+                if in_trait {
+                    self.desugar_trait_fn(owner_id, fn_spec)?;
+                } else {
+                    self.desugar_impl_fn(owner_id, fn_spec)?;
+                }
             }
             hir::AssocItemKind::Type => {
                 let assoc_ty = self
                     .as_rust_item_ctxt(owner_id, None)
                     .desugar_assoc_type()?;
-                self.fhir.assoc_types.insert(owner_id.def_id, assoc_ty);
+                let trait_item = fhir::TraitItem { kind: fhir::TraitItemKind::Type(assoc_ty) };
+                self.fhir.trait_items.insert(owner_id.def_id, trait_item);
             }
             hir::AssocItemKind::Const => {}
         }
@@ -221,7 +255,8 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
             dbg::dump_item_info(self.genv.tcx(), owner_id, "fhir", struct_def).unwrap();
         }
 
-        self.fhir.structs.insert(def_id, struct_def);
+        let item = fhir::Item { kind: fhir::ItemKind::Struct(struct_def) };
+        self.fhir.items.insert(def_id, item);
 
         Ok(())
     }
@@ -237,7 +272,8 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
             dbg::dump_item_info(self.genv.tcx(), owner_id, "fhir", &enum_def).unwrap();
         }
 
-        self.fhir.enums.insert(def_id, enum_def);
+        let item = fhir::Item { kind: fhir::ItemKind::Enum(enum_def) };
+        self.fhir.items.insert(def_id, item);
 
         Ok(())
     }
@@ -257,12 +293,43 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
             dbg::dump_item_info(self.genv.tcx(), owner_id, "fhir", &ty_alias).unwrap();
         }
 
-        self.fhir.type_aliases.insert(def_id, ty_alias);
+        let item = fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias) };
+        self.fhir.items.insert(def_id, item);
 
         Ok(())
     }
 
-    pub fn desugar_fn_spec(&mut self, owner_id: OwnerId, fn_spec: &surface::FnSpec) -> Result {
+    fn desugar_item_fn(&mut self, owner_id: OwnerId, fn_spec: &surface::FnSpec) -> Result {
+        let fn_sig = self.desugar_fn_spec(owner_id, fn_spec)?;
+
+        let item = fhir::Item { kind: fhir::ItemKind::Fn(fn_sig) };
+        self.fhir.items.insert(owner_id.def_id, item);
+        Ok(())
+    }
+
+    fn desugar_impl_fn(&mut self, owner_id: OwnerId, fn_spec: &surface::FnSpec) -> Result {
+        let fn_sig = self.desugar_fn_spec(owner_id, fn_spec)?;
+
+        let impl_item = fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig) };
+        self.fhir.impl_items.insert(owner_id.def_id, impl_item);
+
+        Ok(())
+    }
+
+    fn desugar_trait_fn(&mut self, owner_id: OwnerId, fn_spec: &surface::FnSpec) -> Result {
+        let fn_sig = self.desugar_fn_spec(owner_id, fn_spec)?;
+
+        let trait_item = fhir::TraitItem { kind: fhir::TraitItemKind::Fn(fn_sig) };
+        self.fhir.trait_items.insert(owner_id.def_id, trait_item);
+
+        Ok(())
+    }
+
+    fn desugar_fn_spec(
+        &mut self,
+        owner_id: OwnerId,
+        fn_spec: &surface::FnSpec,
+    ) -> Result<fhir::FnSig<'genv>> {
         let def_id = owner_id.def_id;
 
         if fn_spec.trusted {
@@ -284,10 +351,13 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
             dbg::dump_item_info(self.genv.tcx(), def_id, "fhir", fn_sig).unwrap();
         }
 
-        self.fhir.fns.insert(def_id, fn_sig);
-        self.fhir.opaque_tys.extend_unord(opaque_tys.into_items());
+        self.fhir
+            .items
+            .extend_unord(opaque_tys.into_items().map(|(def_id, opaque_ty)| {
+                (def_id, fhir::Item { kind: fhir::ItemKind::OpaqueTy(opaque_ty) })
+            }));
 
-        Ok(())
+        Ok(fn_sig)
     }
 
     pub fn desugar_trait(&mut self, owner_id: OwnerId, trait_: &surface::Trait) -> Result {
@@ -297,7 +367,8 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
             .as_rust_item_ctxt(owner_id, None)
             .desugar_trait(trait_)?;
 
-        self.fhir.traits.insert(def_id, trait_);
+        let item = fhir::Item { kind: fhir::ItemKind::Trait(trait_) };
+        self.fhir.items.insert(def_id, item);
 
         Ok(())
     }
@@ -307,7 +378,8 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
 
         let impl_ = self.as_rust_item_ctxt(owner_id, None).desugar_impl(impl_)?;
 
-        self.fhir.impls.insert(def_id, impl_);
+        let item = fhir::Item { kind: fhir::ItemKind::Impl(impl_) };
+        self.fhir.items.insert(def_id, item);
 
         Ok(())
     }
@@ -317,7 +389,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         owner_id: OwnerId,
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
     ) -> RustItemCtxt<'_, 'genv, 'tcx> {
-        RustItemCtxt::new(self.genv, owner_id, &self.resolver_output, opaque_tys)
+        RustItemCtxt::new(self.genv, owner_id, self.resolver_output, opaque_tys)
     }
 }
 

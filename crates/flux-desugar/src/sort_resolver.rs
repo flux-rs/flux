@@ -4,7 +4,7 @@ use flux_common::iter::IterExt;
 use flux_middle::{
     fhir::{self},
     global_env::GlobalEnv,
-    try_alloc_slice,
+    try_alloc_slice, ResolverOutput,
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
@@ -17,7 +17,7 @@ use rustc_span::{
     Symbol,
 };
 
-use crate::{errors, resolver::ResolverOutput};
+use crate::errors;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 

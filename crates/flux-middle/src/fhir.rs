@@ -82,6 +82,134 @@ pub struct Qualifier<'fhir> {
     pub global: bool,
 }
 
+#[derive(Clone, Copy)]
+pub enum Node<'fhir> {
+    Item(&'fhir Item<'fhir>),
+    TraitItem(&'fhir TraitItem<'fhir>),
+    ImplItem(&'fhir ImplItem<'fhir>),
+}
+
+impl<'fhir> Node<'fhir> {
+    pub fn fn_sig(&self) -> Option<&'fhir FnSig<'fhir>> {
+        match self {
+            Node::Item(Item { kind: ItemKind::Fn(fn_sig, ..) })
+            | Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig) })
+            | Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig) }) => Some(fn_sig),
+            _ => None,
+        }
+    }
+
+    pub fn generics(self) -> &'fhir Generics<'fhir> {
+        match self {
+            Node::Item(item) => item.generics(),
+            Node::TraitItem(trait_item) => trait_item.generics(),
+            Node::ImplItem(impl_item) => impl_item.generics(),
+        }
+    }
+}
+
+pub struct Item<'fhir> {
+    pub kind: ItemKind<'fhir>,
+}
+
+impl<'fhir> Item<'fhir> {
+    pub fn generics(&self) -> &Generics<'fhir> {
+        match &self.kind {
+            ItemKind::Enum(enum_def) => &enum_def.generics,
+            ItemKind::Struct(struct_def) => &struct_def.generics,
+            ItemKind::TyAlias(ty_alias) => &ty_alias.generics,
+            ItemKind::Trait(trait_) => &trait_.generics,
+            ItemKind::Impl(impl_) => &impl_.generics,
+            ItemKind::Fn(fn_sig) => &fn_sig.generics,
+            ItemKind::OpaqueTy(opaque_ty) => &opaque_ty.generics,
+        }
+    }
+
+    pub fn expect_enum(&self) -> &EnumDef<'fhir> {
+        if let ItemKind::Enum(enum_def) = &self.kind {
+            enum_def
+        } else {
+            bug!("expected enum")
+        }
+    }
+
+    pub fn expect_struct(&self) -> &StructDef<'fhir> {
+        if let ItemKind::Struct(struct_def) = &self.kind {
+            struct_def
+        } else {
+            bug!("expected struct")
+        }
+    }
+
+    pub fn expect_type_alias(&self) -> &TyAlias<'fhir> {
+        if let ItemKind::TyAlias(ty_alias) = &self.kind {
+            ty_alias
+        } else {
+            bug!("expected type alias")
+        }
+    }
+
+    pub fn expect_opaque_ty(&self) -> &OpaqueTy<'fhir> {
+        if let ItemKind::OpaqueTy(opaque_ty) = &self.kind {
+            opaque_ty
+        } else {
+            bug!("expected opaque type")
+        }
+    }
+
+    pub fn expect_impl(&self) -> &Impl<'fhir> {
+        if let ItemKind::Impl(impl_) = &self.kind {
+            impl_
+        } else {
+            bug!("expected impl")
+        }
+    }
+}
+
+pub enum ItemKind<'fhir> {
+    Enum(EnumDef<'fhir>),
+    Struct(StructDef<'fhir>),
+    TyAlias(TyAlias<'fhir>),
+    Trait(Trait<'fhir>),
+    Impl(Impl<'fhir>),
+    Fn(FnSig<'fhir>),
+    OpaqueTy(OpaqueTy<'fhir>),
+}
+
+pub struct TraitItem<'fhir> {
+    pub kind: TraitItemKind<'fhir>,
+}
+
+impl<'fhir> TraitItem<'fhir> {
+    pub fn generics(&self) -> &Generics<'fhir> {
+        match &self.kind {
+            TraitItemKind::Fn(fn_sig) => &fn_sig.generics,
+            TraitItemKind::Type(assoc_ty) => &assoc_ty.generics,
+        }
+    }
+}
+
+pub enum TraitItemKind<'fhir> {
+    Fn(FnSig<'fhir>),
+    Type(AssocType<'fhir>),
+}
+
+pub struct ImplItem<'fhir> {
+    pub kind: ImplItemKind<'fhir>,
+}
+
+impl<'fhir> ImplItem<'fhir> {
+    pub fn generics(&self) -> &Generics<'fhir> {
+        match &self.kind {
+            ImplItemKind::Fn(fn_sig) => &fn_sig.generics,
+        }
+    }
+}
+
+pub enum ImplItemKind<'fhir> {
+    Fn(FnSig<'fhir>),
+}
+
 #[derive(Debug)]
 pub enum FluxItem<'fhir> {
     Qualifier(Qualifier<'fhir>),
@@ -196,20 +324,15 @@ pub enum IgnoreKey {
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default)]
 pub struct Crate<'fhir> {
-    pub assoc_types: UnordMap<LocalDefId, AssocType<'fhir>>,
+    pub items: UnordMap<LocalDefId, Item<'fhir>>,
+    pub trait_items: UnordMap<LocalDefId, TraitItem<'fhir>>,
+    pub impl_items: UnordMap<LocalDefId, ImplItem<'fhir>>,
     pub consts: FxHashMap<Symbol, ConstInfo>,
-    pub enums: FxHashMap<LocalDefId, EnumDef<'fhir>>,
     pub externs: UnordMap<DefId, LocalDefId>,
     pub flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
     pub fn_quals: FxHashMap<LocalDefId, &'fhir [SurfaceIdent]>,
-    pub fns: FxHashMap<LocalDefId, FnSig<'fhir>>,
     pub func_decls: FxHashMap<Symbol, FuncDecl<'fhir>>,
-    pub impls: UnordMap<LocalDefId, Impl<'fhir>>,
-    pub opaque_tys: UnordMap<LocalDefId, OpaqueTy<'fhir>>,
-    pub structs: FxHashMap<LocalDefId, StructDef<'fhir>>,
-    pub traits: UnordMap<LocalDefId, Trait<'fhir>>,
     pub trusted: UnordSet<LocalDefId>,
-    pub type_aliases: FxHashMap<LocalDefId, TyAlias<'fhir>>,
     pub ignores: UnordSet<IgnoreKey>,
     pub crate_config: config::CrateConfig,
 }
@@ -217,20 +340,15 @@ pub struct Crate<'fhir> {
 impl<'fhir> Crate<'fhir> {
     pub fn new(ignores: UnordSet<IgnoreKey>, crate_config: Option<config::CrateConfig>) -> Self {
         Self {
-            assoc_types: Default::default(),
+            items: Default::default(),
+            trait_items: Default::default(),
+            impl_items: Default::default(),
             consts: Default::default(),
-            enums: Default::default(),
             externs: Default::default(),
             flux_items: Default::default(),
             fn_quals: Default::default(),
-            fns: Default::default(),
             func_decls: Default::default(),
-            impls: Default::default(),
-            opaque_tys: Default::default(),
-            structs: Default::default(),
-            traits: Default::default(),
             trusted: Default::default(),
-            type_aliases: Default::default(),
             ignores,
             crate_config: crate_config.unwrap_or_default(),
         }
@@ -527,7 +645,7 @@ impl<'fhir> RefineParam<'fhir> {
 /// [inference mode]: InferMode
 #[derive(Debug, Clone, Copy)]
 pub enum ParamKind {
-    /// A parameter declared in an explicit scope
+    /// A parameter declared in an explicit scope, e.g., `fn foo<refine n: int>(x: i32[n])`
     Explicit,
     /// An implicitly scoped parameter declared with `@a` syntax
     At,
@@ -764,10 +882,10 @@ impl Res {
     }
 }
 
-impl TryFrom<rustc_hir::def::Res> for Res {
+impl<Id> TryFrom<rustc_hir::def::Res<Id>> for Res {
     type Error = ();
 
-    fn try_from(res: rustc_hir::def::Res) -> Result<Self, Self::Error> {
+    fn try_from(res: rustc_hir::def::Res<Id>) -> Result<Self, Self::Error> {
         match res {
             rustc_hir::def::Res::Def(kind, did) => Ok(Res::Def(kind, did)),
             rustc_hir::def::Res::PrimTy(prim_ty) => Ok(Res::PrimTy(prim_ty)),

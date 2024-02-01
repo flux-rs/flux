@@ -10,9 +10,6 @@ driver_cfg_error =
 driver_syntax_err =
     syntax error: {$msg}
 
-driver_invalid_constant =
-    invalid constant
-
 driver_invalid_alias_application =
     invalid alias application
 

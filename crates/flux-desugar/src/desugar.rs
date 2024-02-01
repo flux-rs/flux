@@ -7,7 +7,7 @@ use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, lift::LiftCtxt, ExprKind, FhirId, FluxOwnerId, Res},
     global_env::{self, GlobalEnv},
-    try_alloc_slice,
+    try_alloc_slice, ResolverOutput,
 };
 use flux_syntax::surface;
 use hir::{def::DefKind, ItemKind};
@@ -30,7 +30,6 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 use self::env::{Scope, ScopeId};
 use crate::{
     errors,
-    resolver::ResolverOutput,
     sort_resolver::{SelfRes, SortResolver, SORTS},
 };
 

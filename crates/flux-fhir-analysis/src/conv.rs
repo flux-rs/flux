@@ -135,7 +135,7 @@ pub(crate) fn conv_generic_predicates<'genv>(
             clauses.push(clause);
         }
     }
-    let parent = genv.tcx().opt_parent(def_id.to_def_id());
+    let parent = genv.tcx().predicates_of(def_id.to_def_id()).parent;
     Ok(rty::EarlyBinder(rty::GenericPredicates { parent, predicates: List::from_vec(clauses) }))
 }
 

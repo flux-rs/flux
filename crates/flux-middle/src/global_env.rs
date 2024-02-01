@@ -16,7 +16,7 @@ use crate::{
     fhir::{self, FluxLocalDefId, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryErr, QueryResult},
-    rty::{self, fold::TypeFoldable, normalize::Defns, refining::Refiner},
+    rty::{self, normalize::Defns, refining::Refiner},
     rustc::{self, lowering, ty},
 };
 
@@ -64,6 +64,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.collect_specs(self)
     }
 
+    pub fn resolve_crate(self) -> &'genv crate::ResolverOutput {
+        self.inner.queries.resolve_crate(self)
+    }
+
     pub fn fhir_crate(self) -> &'genv fhir::Crate<'genv> {
         self.inner.queries.fhir_crate(self)
     }
@@ -86,6 +90,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         I::IntoIter: ExactSizeIterator,
     {
         self.inner.arena.alloc_slice_fill_iter(it)
+    }
+
+    pub fn def_kind(&self, def_id: impl Into<DefId>) -> DefKind {
+        self.tcx().def_kind(def_id.into())
     }
 
     /// Allocates space to store `cap` elements of type `T`.
@@ -372,32 +380,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         Refiner::with_holes(self, generics).refine_ty(rustc_ty)
     }
 
-    pub fn instantiate_arg_for_fun(
-        self,
-        generics: &rty::Generics,
-        param: &rty::GenericParamDef,
-        arg: &ty::GenericArg,
-    ) -> QueryResult<rty::GenericArg> {
-        Refiner::new(self, generics, |bty| {
-            let sort = bty.sort();
-            let mut ty = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
-            if !sort.is_unit() {
-                ty = rty::Ty::constr(rty::Expr::hole(rty::HoleKind::Pred), ty);
-            }
-            rty::Binder::with_sort(ty, sort)
-        })
-        .refine_generic_arg(param, arg)
-    }
-
-    pub fn instantiate_arg_for_constructor(
-        self,
-        generics: &rty::Generics,
-        param: &rty::GenericParamDef,
-        arg: &ty::GenericArg,
-    ) -> QueryResult<rty::GenericArg> {
-        Refiner::with_holes(self, generics).refine_generic_arg(param, arg)
-    }
-
     pub(crate) fn cstore(self) -> &'genv CrateStoreDyn {
         &*self.inner.cstore
     }
@@ -427,16 +409,11 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn get_generics(self, def_id: LocalDefId) -> Option<&'genv fhir::Generics<'genv>> {
-        match self.genv.tcx().def_kind(def_id) {
-            DefKind::Struct => Some(&self.expect_struct(def_id).generics),
-            DefKind::Enum => Some(&self.expect_enum(def_id).generics),
-            DefKind::Impl { .. } => Some(&self.expect_impl(def_id).generics),
-            DefKind::Trait => Some(&self.expect_trait(def_id).generics),
-            DefKind::TyAlias => Some(&self.expect_type_alias(def_id).generics),
-            DefKind::AssocTy => Some(&self.expect_assoc_type(def_id).generics),
-            DefKind::Fn | DefKind::AssocFn => Some(&self.expect_fn_like(def_id).generics),
-            DefKind::OpaqueTy => Some(&self.expect_opaque_ty(def_id).generics),
-            _ => None,
+        // We don't have nodes for closures and coroutines
+        if matches!(self.genv.def_kind(def_id), DefKind::Closure | DefKind::Coroutine) {
+            None
+        } else {
+            Some(self.node(def_id).generics())
         }
     }
 
@@ -449,18 +426,18 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn refined_by(self, def_id: LocalDefId) -> &'genv fhir::RefinedBy<'genv> {
-        match self.genv.tcx().def_kind(def_id) {
-            DefKind::Struct => self.expect_struct(def_id).refined_by,
-            DefKind::Enum => self.expect_enum(def_id).refined_by,
-            DefKind::TyAlias => self.expect_type_alias(def_id).refined_by,
+        match &self.expect_item(def_id).kind {
+            fhir::ItemKind::Enum(enum_def) => enum_def.refined_by,
+            fhir::ItemKind::Struct(struct_def) => struct_def.refined_by,
+            fhir::ItemKind::TyAlias(ty_alias) => ty_alias.refined_by,
             _ => bug!("expected struct, enum or type alias"),
         }
     }
 
     pub fn extern_id_of(self, def_id: LocalDefId) -> Option<DefId> {
-        match self.genv.tcx().def_kind(def_id) {
-            DefKind::Struct => self.expect_struct(def_id).extern_id,
-            DefKind::Enum => self.expect_enum(def_id).extern_id,
+        match &self.expect_item(def_id).kind {
+            fhir::ItemKind::Enum(enum_def) => enum_def.extern_id,
+            fhir::ItemKind::Struct(struct_def) => struct_def.extern_id,
             _ => None,
         }
     }
@@ -511,36 +488,20 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         self.fhir.trusted.contains(&def_id)
     }
 
-    pub fn expect_enum(self, def_id: LocalDefId) -> &'genv fhir::EnumDef<'genv> {
-        &self.fhir.enums[&def_id]
+    pub fn expect_item(self, def_id: LocalDefId) -> &'genv fhir::Item<'genv> {
+        self.fhir.items.get(&def_id).unwrap()
     }
 
-    pub fn expect_struct(self, def_id: LocalDefId) -> &'genv fhir::StructDef<'genv> {
-        &self.fhir.structs[&def_id]
-    }
-
-    pub fn expect_impl(self, def_id: LocalDefId) -> &'genv fhir::Impl<'genv> {
-        &self.fhir.impls[&def_id]
-    }
-
-    pub fn expect_trait(self, def_id: LocalDefId) -> &'genv fhir::Trait<'genv> {
-        &self.fhir.traits[&def_id]
-    }
-
-    pub fn expect_opaque_ty(self, def_id: LocalDefId) -> &'genv fhir::OpaqueTy<'genv> {
-        &self.fhir.opaque_tys[&def_id]
-    }
-
-    pub fn expect_fn_like(self, def_id: LocalDefId) -> &'genv fhir::FnSig<'genv> {
-        &self.fhir.fns[&def_id]
-    }
-
-    pub fn expect_type_alias(self, def_id: LocalDefId) -> &'genv fhir::TyAlias<'genv> {
-        &self.fhir.type_aliases[&def_id]
-    }
-
-    pub fn expect_assoc_type(self, def_id: LocalDefId) -> &'genv fhir::AssocType<'genv> {
-        &self.fhir.assoc_types[&def_id]
+    pub fn node(self, def_id: LocalDefId) -> fhir::Node<'genv> {
+        if let Some(item) = self.fhir.items.get(&def_id) {
+            fhir::Node::Item(item)
+        } else if let Some(trait_item) = self.fhir.trait_items.get(&def_id) {
+            fhir::Node::TraitItem(trait_item)
+        } else if let Some(impl_item) = self.fhir.impl_items.get(&def_id) {
+            fhir::Node::ImplItem(impl_item)
+        } else {
+            bug!("node not found {def_id:?}");
+        }
     }
 }
 

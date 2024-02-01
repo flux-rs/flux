@@ -80,7 +80,7 @@ pub fn lift_self_ty<'genv>(
         };
         let self_ty = cx.lift_ty(impl_.self_ty)?;
         Ok(Some(self_ty))
-    } else if let def_kind @ (DefKind::Struct | DefKind::Enum) = genv.tcx().def_kind(owner_id) {
+    } else if let def_kind @ (DefKind::Struct | DefKind::Enum) = genv.def_kind(owner_id) {
         let generics = genv.hir().get_generics(owner_id.def_id).unwrap();
         let item = genv.hir().expect_item(owner_id.def_id);
 

@@ -42,7 +42,7 @@ pub struct Refiner<'genv, 'tcx> {
 }
 
 impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
-    pub(crate) fn new(
+    pub fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         generics: &rty::Generics,
         refine: fn(rty::BaseTy) -> rty::Binder<rty::Ty>,
@@ -54,7 +54,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         Self { genv, generics: generics.clone(), refine: refine_default }
     }
 
-    pub(crate) fn with_holes(genv: GlobalEnv<'genv, 'tcx>, generics: &rty::Generics) -> Self {
+    pub fn with_holes(genv: GlobalEnv<'genv, 'tcx>, generics: &rty::Generics) -> Self {
         Self {
             genv,
             generics: generics.clone(),
@@ -211,7 +211,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn refine_generic_arg(
+    pub fn refine_generic_arg(
         &self,
         param: &rty::GenericParamDef,
         arg: &rustc::ty::GenericArg,

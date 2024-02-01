@@ -1,15 +1,16 @@
 use std::{collections::hash_map::Entry, iter};
 
-use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
+use flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
 use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
+    queries::QueryResult,
     rty::{
-        self, fold::TypeFoldable, BaseTy, BinOp, Binder, Bool, Constraint, CoroutineObligPredicate,
-        EarlyBinder, Expr, Float, FnOutput, FnSig, FnTraitPredicate, GenericArg, Generics,
-        HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref, Region::ReStatic, Ty, TyKind, Uint,
-        UintTy, VariantIdx,
+        self, fold::TypeFoldable, refining::Refiner, BaseTy, BinOp, Binder, Bool, Constraint,
+        CoroutineObligPredicate, EarlyBinder, Expr, Float, FnOutput, FnSig, FnTraitPredicate,
+        GenericArg, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref, Region::ReStatic,
+        Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -18,7 +19,7 @@ use flux_middle::{
             Location, Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
             TerminatorKind, RETURN_PLACE, START_BLOCK,
         },
-        ty::ConstKind,
+        ty::{self, ConstKind},
     },
 };
 use itertools::Itertools;
@@ -258,7 +259,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
         //    to the `resume_arg` place..."
-        let resume_ty = if genv.tcx().def_kind(def_id) == DefKind::Coroutine {
+        let resume_ty = if genv.def_kind(def_id) == DefKind::Coroutine {
             Some(fn_sig.args()[1].clone())
         } else {
             None
@@ -444,22 +445,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .fn_sig(*func_id)
                     .with_src_info(terminator.source_info)?;
 
-                let fn_generics = self
-                    .genv
-                    .generics_of(*func_id)
-                    .with_src_info(terminator.source_info)?;
-
-                let generic_args = call_args
-                    .lowered
-                    .iter()
-                    .enumerate()
-                    .map(|(idx, arg)| {
-                        let param = fn_generics.param_at(idx, self.genv)?;
-                        self.genv
-                            .instantiate_arg_for_fun(&self.generics, &param, arg)
-                    })
-                    .try_collect_vec()
-                    .with_src_info(terminator.source_info)?;
+                let generic_args = instantiate_args_for_fun_call(
+                    self.genv,
+                    &self.generics,
+                    *func_id,
+                    &call_args.lowered,
+                )
+                .with_src_info(terminator.source_info)?;
 
                 let ret = self.check_call(
                     rcx,
@@ -764,12 +756,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)?
                     .ok_or_else(|| CheckerError::opaque_struct(*def_id, stmt_span))?
                     .to_poly_fn_sig();
-                let adt_generics = &genv.generics_of(*def_id).with_span(stmt_span)?;
-                let args = iter::zip(&adt_generics.params, args)
-                    .map(|(param, arg)| {
-                        genv.instantiate_arg_for_constructor(&self.generics, param, arg)
-                    })
-                    .try_collect_vec()
+                let args = instantiate_args_for_constructor(genv, &self.generics, *def_id, args)
                     .with_span(stmt_span)?;
                 self.check_call(rcx, env, stmt_span, None, sig, &args, &actuals)
             }
@@ -1142,6 +1129,45 @@ fn init_env<'a>(
 
     env.alloc(RETURN_PLACE);
     env
+}
+
+fn instantiate_args_for_fun_call(
+    genv: GlobalEnv,
+    caller_generics: &rty::Generics,
+    callee_id: DefId,
+    args: &ty::GenericArgs,
+) -> QueryResult<Vec<rty::GenericArg>> {
+    let callee_generics = genv.generics_of(callee_id)?;
+
+    let refiner = Refiner::new(genv, caller_generics, |bty| {
+        let sort = bty.sort();
+        let mut ty = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
+        if !sort.is_unit() {
+            ty = rty::Ty::constr(rty::Expr::hole(rty::HoleKind::Pred), ty);
+        }
+        rty::Binder::with_sort(ty, sort)
+    });
+
+    args.iter()
+        .enumerate()
+        .map(|(idx, arg)| {
+            let param = callee_generics.param_at(idx, genv)?;
+            refiner.refine_generic_arg(&param, arg)
+        })
+        .collect()
+}
+
+fn instantiate_args_for_constructor(
+    genv: GlobalEnv,
+    caller_generics: &rty::Generics,
+    adt_id: DefId,
+    args: &ty::GenericArgs,
+) -> QueryResult<Vec<rty::GenericArg>> {
+    let adt_generics = genv.generics_of(adt_id)?;
+    let refiner = Refiner::with_holes(genv, caller_generics);
+    iter::zip(&adt_generics.params, args)
+        .map(|(param, arg)| refiner.refine_generic_arg(param, arg))
+        .collect()
 }
 
 /// HACK(nilehmann) This let us infer parameters under mutable references for the simple case

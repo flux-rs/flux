@@ -63,7 +63,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     }
 
     fn sort_of_self_param(self, owner: DefId) -> Option<rty::Sort> {
-        let generics = self.map().get_generics(owner.expect_local())?;
+        let generics = self.map().get_generics(owner.expect_local()).unwrap();
         let kind = generics.self_kind.as_ref()?;
         match kind {
             fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy => {

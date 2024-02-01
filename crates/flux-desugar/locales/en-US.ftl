@@ -1,5 +1,8 @@
 # Desugar
 
+desugar_invalid_constant =
+    invalid constant
+
 desugar_unresolved_var =
     cannot find {$kind} `{$var}` in this scope
     .label = not found in this scope
