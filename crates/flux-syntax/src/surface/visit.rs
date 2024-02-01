@@ -4,8 +4,8 @@ use super::{
     AliasPred, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
     ExprKind, FnOutput, FnRetTy, FnSig, FuncDef, GenericArg, GenericArgKind, GenericParam,
     GenericParamKind, Generics, Indices, Lit, Path, Pred, PredKind, QPathExpr, Qualifier,
-    RefineArg, RefineParam, RefinedBy, Sort, StructDef, TraitRef, Ty, TyAlias, TyKind, VariantDef,
-    VariantRet, WhereBoundPredicate,
+    RefineArg, RefineParam, RefinedBy, Sort, StructDef, Trait, TraitAssocPredicate, TraitRef, Ty,
+    TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -43,6 +43,14 @@ pub trait Visitor: Sized {
 
     fn visit_sort(&mut self, sort: &Sort) {
         walk_sort(self, sort);
+    }
+
+    fn visit_trait(&mut self, trait_: &Trait) {
+        walk_trait(self, trait_);
+    }
+
+    fn visit_trait_assoc_pred(&mut self, assoc_pred: &TraitAssocPredicate) {
+        walk_trait_assoc_pred(self, assoc_pred);
     }
 
     fn visit_trait_ref(&mut self, trait_ref: &TraitRef) {
@@ -198,15 +206,27 @@ pub fn walk_sort<V: Visitor>(vis: &mut V, sort: &Sort) {
     }
 }
 
+pub fn walk_trait<V: Visitor>(vis: &mut V, trait_: &Trait) {
+    if let Some(generics) = &trait_.generics {
+        vis.visit_generics(generics);
+    }
+    walk_list!(vis, visit_trait_assoc_pred, &trait_.assoc_predicates);
+}
+
+pub fn walk_trait_assoc_pred<V: Visitor>(vis: &mut V, assoc_pred: &TraitAssocPredicate) {
+    vis.visit_ident(assoc_pred.name);
+    vis.visit_sort(&assoc_pred.sort);
+}
+
 pub fn walk_trait_ref<V: Visitor>(vis: &mut V, trait_ref: &TraitRef) {
     vis.visit_path(&trait_ref.path);
 }
 
 pub fn walk_base_sort<V: Visitor>(vis: &mut V, bsort: &BaseSort) {
     match bsort {
-        BaseSort::Ident(ident) => vis.visit_ident(*ident),
+        BaseSort::Ident(ident, _node_id) => vis.visit_ident(*ident),
         BaseSort::BitVec(_len) => {}
-        BaseSort::App(ctor, args) => {
+        BaseSort::App(ctor, args, _node_id) => {
             vis.visit_ident(*ctor);
             walk_list!(vis, visit_base_sort, args);
         }

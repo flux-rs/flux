@@ -34,7 +34,7 @@ pub enum SelfRes {
 
 pub(crate) struct SortResolver<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
-    pub resolver_output: &'a ResolverOutput<'genv>,
+    pub resolver_output: &'a ResolverOutput,
     generic_params: FxHashMap<Symbol, DefId>,
     sort_params: FxHashMap<Symbol, usize>,
     self_res: SelfRes,
@@ -43,7 +43,7 @@ pub(crate) struct SortResolver<'a, 'genv, 'tcx> {
 impl<'a, 'genv, 'tcx> SortResolver<'a, 'genv, 'tcx> {
     pub(crate) fn with_sort_params(
         genv: GlobalEnv<'genv, 'tcx>,
-        resolver_output: &'a ResolverOutput<'genv>,
+        resolver_output: &'a ResolverOutput,
         sort_params: &[Symbol],
     ) -> Self {
         let sort_params = sort_params
@@ -62,7 +62,7 @@ impl<'a, 'genv, 'tcx> SortResolver<'a, 'genv, 'tcx> {
 
     pub(crate) fn with_generics(
         genv: GlobalEnv<'genv, 'tcx>,
-        resolver_output: &'a ResolverOutput<'genv>,
+        resolver_output: &'a ResolverOutput,
         owner: OwnerId,
     ) -> Self {
         let self_res = self_res(genv.tcx(), owner);
@@ -99,9 +99,9 @@ impl<'a, 'genv, 'tcx> SortResolver<'a, 'genv, 'tcx> {
 
     fn resolve_base_sort(&self, base: &surface::BaseSort) -> Result<fhir::Sort<'genv>> {
         match base {
-            surface::BaseSort::Ident(ident) => self.resolve_base_sort_ident(ident),
+            surface::BaseSort::Ident(ident, _) => self.resolve_base_sort_ident(ident),
             surface::BaseSort::BitVec(w) => Ok(fhir::Sort::BitVec(*w)),
-            surface::BaseSort::App(ident, args) => self.resolve_app_sort(*ident, args),
+            surface::BaseSort::App(ident, args, _) => self.resolve_app_sort(*ident, args),
         }
     }
 
@@ -171,7 +171,7 @@ impl<'a, 'genv, 'tcx> SortResolver<'a, 'genv, 'tcx> {
     }
 }
 
-fn self_res(tcx: TyCtxt, owner: OwnerId) -> SelfRes {
+pub(crate) fn self_res(tcx: TyCtxt, owner: OwnerId) -> SelfRes {
     let def_id = owner.def_id.to_def_id();
     let mut opt_def_id = Some(def_id);
     while let Some(def_id) = opt_def_id {

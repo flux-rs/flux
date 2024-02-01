@@ -45,7 +45,7 @@ pub enum QueryErr {
 
 pub struct Providers {
     pub collect_specs: fn(GlobalEnv) -> crate::Specs,
-    pub resolve_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> crate::ResolverOutput<'genv>,
+    pub resolve_crate: fn(GlobalEnv) -> crate::ResolverOutput,
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::Crate<'genv>,
     pub defns: fn(GlobalEnv) -> QueryResult<rty::Defns>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
@@ -110,7 +110,7 @@ pub struct Queries<'genv, 'tcx> {
     pub(crate) providers: Providers,
     mir: Cache<LocalDefId, QueryResult<Rc<rustc::mir::Body<'tcx>>>>,
     collect_specs: OnceCell<crate::Specs>,
-    resolve_crate: OnceCell<crate::ResolverOutput<'genv>>,
+    resolve_crate: OnceCell<crate::ResolverOutput>,
     fhir_crate: OnceCell<fhir::Crate<'genv>>,
     lower_generics_of: Cache<DefId, QueryResult<ty::Generics<'tcx>>>,
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,

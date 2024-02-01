@@ -2267,5 +2267,6 @@ mod pretty {
         VariantSig,
         PtrKind,
         FuncSort,
+        SortCtor,
     );
 }

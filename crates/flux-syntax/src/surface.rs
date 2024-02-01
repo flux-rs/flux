@@ -68,6 +68,7 @@ pub struct Generics {
 pub struct GenericParam {
     pub name: Ident,
     pub kind: GenericParamKind,
+    pub node_id: NodeId,
 }
 
 #[derive(Debug)]
@@ -157,6 +158,7 @@ pub struct RefineParam {
     pub name: Ident,
     pub sort: Sort,
     pub span: Span,
+    pub node_id: NodeId,
 }
 
 #[derive(Debug)]
@@ -175,11 +177,11 @@ pub enum Sort {
 #[derive(Debug, Clone)]
 pub enum BaseSort {
     /// a _base_ sort, e.g. `int` or `bool`
-    Ident(Ident),
+    Ident(Ident, NodeId),
     /// a bitvector sort, e.g., BitVec(32)
     BitVec(usize),
     /// a sort-constructor application, e.g., `Set<int>`
-    App(Ident, Vec<BaseSort>),
+    App(Ident, Vec<BaseSort>, NodeId),
 }
 
 #[derive(Debug)]

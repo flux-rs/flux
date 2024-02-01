@@ -32,7 +32,11 @@ GenericsWithAngleBrackets: surface::Generics = {
 }
 
 GenericParam: surface::GenericParam = {
-    <name:Ident> => surface::GenericParam { name, kind: surface::GenericParamKind::Type },
+    <name:Ident> => surface::GenericParam {
+        name,
+        kind: surface::GenericParamKind::Type,
+        node_id: cx.next_node_id(),
+    },
     <name:Ident> "as" <lo:@L> <kind:Ident> <hi:@R> =>? {
         let kind = match kind.as_str() {
             "type" => surface::GenericParamKind::Type,
@@ -40,10 +44,14 @@ GenericParam: surface::GenericParam = {
             "spl"  => surface::GenericParamKind::Spl,
             _ => return Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
         };
-        Ok(surface::GenericParam { name, kind })
+        Ok(surface::GenericParam { name, kind, node_id: cx.next_node_id() })
     },
     "refine" <name:Ident> ":" <sort:Sort> => {
-        surface::GenericParam { name, kind: surface::GenericParamKind::Refine{ sort } }
+        surface::GenericParam {
+            name,
+            kind: surface::GenericParamKind::Refine{ sort },
+            node_id: cx.next_node_id(),
+        }
     },
 }
 
@@ -65,7 +73,8 @@ pub TyAlias: surface::TyAlias = {
                 .into_iter()
                 .map(|param| surface::GenericParam {
                     name: param.name,
-                    kind: surface::GenericParamKind::Refine { sort: param.sort},
+                    kind: surface::GenericParamKind::Refine { sort: param.sort },
+                    node_id: cx.next_node_id(),
                 }
             )
         );
@@ -161,8 +170,18 @@ pub QualNames: surface::QualNames = {
 RefineParams<T>: Vec<surface::RefineParam> = Comma<RefineParam<T>>;
 
 RefineParam<T>: surface::RefineParam = {
-    <lo:@L>  <name:Ident> ":" <sort:Sort> <hi:@R> => surface::RefineParam { name, sort, span: cx.map_span(lo, hi) },
-    <name:Ident> if T == "?" => surface::RefineParam { name, sort: surface::Sort::Infer, span: name.span },
+    <lo:@L>  <name:Ident> ":" <sort:Sort> <hi:@R> => surface::RefineParam {
+        name,
+        sort,
+        span: cx.map_span(lo, hi),
+        node_id: cx.next_node_id(),
+    },
+    <name:Ident> if T == "?" => surface::RefineParam {
+        name,
+        sort: surface::Sort::Infer,
+        span: name.span,
+        node_id: cx.next_node_id(),
+    },
 };
 
 BaseSort: surface::BaseSort = {
@@ -174,9 +193,9 @@ BaseSort: surface::BaseSort = {
         }
     },
     <ctor: Ident> "<" <lo:@L> <args:Comma<BaseSort>> <hi:@R> ">" => {
-        surface::BaseSort::App(ctor, args)
+        surface::BaseSort::App(ctor, args, cx.next_node_id())
     },
-    <sort: Ident> => surface::BaseSort::Ident(sort),
+    <sort: Ident> => surface::BaseSort::Ident(sort, cx.next_node_id()),
 }
 
 Sort: surface::Sort = {

@@ -44,14 +44,15 @@ use std::sync::OnceLock;
 
 use flux_config as config;
 use flux_macros::fluent_messages;
-use flux_syntax::surface;
-use rustc_data_structures::unord::{ExtendUnord, UnordMap, UnordSet};
+use flux_syntax::surface::{self, NodeId};
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{
     def_id::{DefId, LocalDefId},
+    symbol::Ident,
     Symbol,
 };
 
@@ -221,64 +222,46 @@ impl Specs {
     }
 }
 
-pub type ScopeId = surface::NodeId;
+pub type ScopeId = NodeId;
 
 #[derive(Default)]
-pub struct ResolverOutput<'fhir> {
-    pub path_res_map: UnordMap<surface::NodeId, fhir::Res>,
-    pub impl_trait_res_map: UnordMap<surface::NodeId, hir::ItemId>,
+pub struct ResolverOutput {
+    pub path_res_map: UnordMap<NodeId, fhir::Res>,
+    pub impl_trait_res_map: UnordMap<NodeId, hir::ItemId>,
     pub func_decls: UnordMap<Symbol, fhir::FuncKind>,
     pub sort_decls: UnordMap<Symbol, fhir::SortDecl>,
     pub consts: UnordMap<Symbol, DefId>,
-    pub refinements: RefinementResolverOutput<'fhir>,
+    pub refinements: RefinementResolverOutput,
 }
 
-pub struct ResolvedParam<'fhir> {
+pub struct ResolvedParam {
     pub ident: fhir::Ident,
-    pub sort: fhir::Sort<'fhir>,
     pub kind: fhir::ParamKind,
 }
 
 #[derive(Clone, Copy)]
-pub enum FuncRes {
-    Param(fhir::Ident),
+pub enum FuncRes<Id = fhir::Name> {
+    Param(Id),
     Global(fhir::FuncKind),
 }
 
 #[derive(Clone, Copy)]
-pub struct LocRes {
-    pub idx: usize,
-    pub ident: fhir::Ident,
-}
+pub struct LocRes<Id = fhir::Name>(pub Id, pub usize);
 
 #[derive(Clone, Copy)]
-pub enum PathRes {
-    Param(fhir::Ident),
+pub enum PathRes<Id = fhir::Name> {
+    Param(Id),
     Const(DefId),
     NumConst(i128),
 }
 
 #[derive(Default)]
-pub struct RefinementResolverOutput<'fhir> {
-    pub scopes: UnordMap<ScopeId, Vec<ResolvedParam<'fhir>>>,
-    pub resolved_implicit_params: UnordMap<surface::NodeId, (fhir::Name, fhir::ParamKind)>,
-    pub resolved_funcs: UnordMap<surface::NodeId, FuncRes>,
-    pub resolved_locs: UnordMap<surface::NodeId, LocRes>,
-    pub resolved_paths: UnordMap<surface::NodeId, PathRes>,
-}
-
-impl<'fhir> RefinementResolverOutput<'fhir> {
-    // FIXME(nilehmann) remove this it's kind of awkard, we should be able to push directly
-    // into the original RefinementResolverOutput
-    pub fn extend(&mut self, rhs: RefinementResolverOutput<'fhir>) {
-        self.scopes.extend_unord(rhs.scopes.into_items());
-        self.resolved_implicit_params
-            .extend_unord(rhs.resolved_implicit_params.into_items());
-        self.resolved_funcs
-            .extend_unord(rhs.resolved_funcs.into_items());
-        self.resolved_locs
-            .extend_unord(rhs.resolved_locs.into_items());
-        self.resolved_paths
-            .extend_unord(rhs.resolved_paths.into_items());
-    }
+pub struct RefinementResolverOutput {
+    pub param_res_map: UnordMap<NodeId, (fhir::Name, fhir::ParamKind)>,
+    pub func_res_map: UnordMap<NodeId, FuncRes>,
+    pub loc_res_map: UnordMap<NodeId, LocRes>,
+    pub path_res_map: UnordMap<NodeId, PathRes>,
+    pub sort_ctor_res_map: UnordMap<NodeId, fhir::SortCtor>,
+    pub sort_res_map: UnordMap<NodeId, fhir::Sort<'static>>,
+    pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
 }

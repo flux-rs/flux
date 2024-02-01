@@ -80,7 +80,7 @@ macro_rules! collect_err {
 struct CrateDesugar<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     fhir: fhir::Crate<'genv>,
-    resolver_output: &'genv ResolverOutput<'genv>,
+    resolver_output: &'genv ResolverOutput,
     err: Option<ErrorGuaranteed>,
 }
 
@@ -88,7 +88,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         fhir: fhir::Crate<'genv>,
-        resolver_output: &'genv ResolverOutput<'genv>,
+        resolver_output: &'genv ResolverOutput,
     ) -> Self {
         Self { genv, fhir, resolver_output, err: None }
     }

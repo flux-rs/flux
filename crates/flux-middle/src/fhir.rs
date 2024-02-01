@@ -658,6 +658,10 @@ impl ParamKind {
     pub(crate) fn is_implicit(&self) -> bool {
         matches!(self, ParamKind::At | ParamKind::Pound | ParamKind::Colon)
     }
+
+    pub fn is_loc(&self) -> bool {
+        matches!(self, ParamKind::Loc(_))
+    }
 }
 
 /// *Infer*ence *mode* for a parameter.
@@ -1112,7 +1116,7 @@ impl fmt::Debug for FnOutput<'_> {
 impl fmt::Debug for Constraint<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constraint::Type(loc, _, ty) => write!(f, "{loc:?}: {ty:?}"),
+            Constraint::Type(loc, ty, _idx) => write!(f, "{loc:?}: {ty:?}"),
             Constraint::Pred(e) => write!(f, "{e:?}"),
         }
     }
@@ -1138,7 +1142,7 @@ impl fmt::Debug for Ty<'_> {
                     write!(f, ". {ty:?}}}")
                 }
             }
-            TyKind::Ptr(lft, loc) => write!(f, "ref<{lft:?}, {loc:?}>"),
+            TyKind::Ptr(lft, loc) => write!(f, "ptr<{lft:?}, {loc:?}>"),
             TyKind::Ref(lft, mut_ty) => {
                 write!(f, "&{lft:?} {}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
             }

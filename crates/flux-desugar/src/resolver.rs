@@ -9,7 +9,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     ResolverOutput, Specs,
 };
-use flux_syntax::surface::{self, visit::Visitor as _, BaseTyKind, Ident};
+use flux_syntax::surface::{self, visit::Visitor as _, Ident};
 use hir::{
     def::{DefKind, Namespace::TypeNS},
     intravisit::Visitor as _,
@@ -26,19 +26,18 @@ use rustc_span::{
     Span, Symbol,
 };
 
-use self::refinement_resolver::{RefinementResolver, ScopedVisitor as _};
-use crate::sort_resolver::SortResolver;
+use self::refinement_resolver::RefinementResolver;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) fn resolve_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> ResolverOutput<'genv> {
+pub(crate) fn resolve_crate(genv: GlobalEnv) -> ResolverOutput {
     match try_resolve_crate(genv) {
         Ok(output) => output,
         Err(err) => genv.sess().abort(err),
     }
 }
 
-fn try_resolve_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<ResolverOutput<'genv>> {
+fn try_resolve_crate(genv: GlobalEnv) -> Result<ResolverOutput> {
     let specs = genv.collect_specs();
     let mut resolver = CrateResolver::new(genv, specs);
 
@@ -63,7 +62,7 @@ fn try_resolve_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<ResolverOutput
 struct CrateResolver<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     specs: &'genv Specs,
-    output: ResolverOutput<'genv>,
+    output: ResolverOutput,
     extern_crates: UnordMap<Symbol, CrateNum>,
     ribs: Vec<Rib>,
     err: Option<ErrorGuaranteed>,
@@ -130,13 +129,16 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
 
     fn visit_item(&mut self, item: &'tcx hir::Item<'tcx>) {
         match item.kind {
-            ItemKind::TyAlias(_, _) => {
+            ItemKind::Trait(..) => {
+                self.resolve_trait(item.owner_id);
+            }
+            ItemKind::TyAlias(..) => {
                 self.resolve_type_alias(item.owner_id);
             }
-            ItemKind::Enum(_, _) => {
+            ItemKind::Enum(..) => {
                 self.resolve_enum_def(item.owner_id);
             }
-            ItemKind::Struct(_, _) => {
+            ItemKind::Struct(..) => {
                 self.resolve_struct_def(item.owner_id);
             }
             ItemKind::Fn(..) => {
@@ -242,27 +244,28 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     fn resolve_qualifier(&mut self, qualifier: &surface::Qualifier) {
-        let sort_resolver = SortResolver::with_sort_params(self.genv, &self.output, &[]);
-        let output = RefinementResolver::new(self.genv.tcx(), sort_resolver)
+        RefinementResolver::with_sort_params(self.genv.tcx(), self, &[])
             .run(|r| r.visit_qualifier(qualifier));
-        self.output.refinements.extend(output);
     }
 
     fn resolve_defn(&mut self, defn: &surface::FuncDef) {
-        let sort_resolver = SortResolver::with_sort_params(self.genv, &self.output, &[]);
-        let output =
-            RefinementResolver::new(self.genv.tcx(), sort_resolver).run(|r| r.visit_defn(defn));
-        self.output.refinements.extend(output);
+        RefinementResolver::with_sort_params(self.genv.tcx(), self, &[])
+            .run(|r| r.visit_defn(defn));
+    }
+
+    fn resolve_trait(&mut self, owner_id: OwnerId) {
+        let trait_ = &self.specs.traits[&owner_id];
+        RefinementResolver::with_generics(self.genv.tcx(), self, owner_id)
+            .run(|r| r.visit_trait(trait_));
     }
 
     fn resolve_type_alias(&mut self, owner_id: OwnerId) {
         if let Some(ty_alias) = &self.specs.ty_aliases[&owner_id] {
             self.with_item_resolver(owner_id, |item_resolver| {
                 item_resolver.visit_ty_alias(ty_alias);
-                let output = item_resolver
+                item_resolver
                     .as_refinement_resolver()
                     .run(|r| r.visit_ty_alias(ty_alias));
-                item_resolver.resolver.output.refinements.extend(output);
             });
         };
     }
@@ -275,10 +278,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
         self.with_item_resolver(owner_id, |item_resolver| {
             item_resolver.visit_struct_def(struct_def);
-            let output = item_resolver
+            item_resolver
                 .as_refinement_resolver()
                 .run(|r| r.visit_struct_def(struct_def));
-            item_resolver.resolver.output.refinements.extend(output);
         });
     }
 
@@ -290,10 +292,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
         self.with_item_resolver(owner_id, |item_resolver| {
             item_resolver.visit_enum_def(enum_def);
-            let output = item_resolver
+            item_resolver
                 .as_refinement_resolver()
                 .run(|r| r.visit_enum_def(enum_def));
-            item_resolver.resolver.output.refinements.extend(output);
         });
     }
 
@@ -301,10 +302,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         if let Some(fn_sig) = &self.specs.fn_sigs[&owner_id].fn_sig {
             self.with_item_resolver(owner_id, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
-                let output = item_resolver
+                item_resolver
                     .as_refinement_resolver()
                     .run(|r| r.visit_fn_sig(fn_sig));
-                item_resolver.resolver.output.refinements.extend(output);
             });
         };
     }
@@ -364,7 +364,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             })
     }
 
-    pub fn into_output(self) -> ResolverOutput<'genv> {
+    pub fn into_output(self) -> ResolverOutput {
         self.output
     }
 
@@ -454,10 +454,8 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         }
     }
 
-    fn as_refinement_resolver(&self) -> RefinementResolver<'_, 'genv, 'tcx> {
-        let sort_resolver =
-            SortResolver::with_generics(self.resolver.genv, &self.resolver.output, self.owner_id);
-        RefinementResolver::new(self.resolver.genv.tcx(), sort_resolver)
+    fn as_refinement_resolver(&mut self) -> RefinementResolver<'_, 'genv, 'tcx> {
+        RefinementResolver::with_generics(self.resolver.genv.tcx(), self.resolver, self.owner_id)
     }
 }
 
