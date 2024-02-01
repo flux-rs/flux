@@ -98,8 +98,6 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
 
                 let generics = self.tcx().generics_of(impl_def_id);
 
-                println!("TRACE: confirm_candidate {impl_def_id:?} => {generics:?}");
-
                 let mut subst = TVarSubst::new(generics);
                 subst.infer_from_args(impl_trait_ref.args, &obligation.args);
                 let args = subst.finish(self.tcx(), generics);
@@ -435,7 +433,6 @@ impl TVarSubst {
     }
 
     fn infer_from_arg(&mut self, src: rustc_middle::ty::GenericArg, dst: &GenericArg) {
-        println!("TRACE: infer_from_arg {src:?} {dst:?}");
         match dst {
             GenericArg::Ty(dst) => {
                 self.infer_from_ty(&src.as_type().unwrap(), dst);
