@@ -3,10 +3,7 @@ use std::collections::HashMap;
 use flux_common::iter::IterExt;
 use flux_config::{self as config, CrateConfig};
 use flux_errors::{FluxSession, ResultExt};
-use flux_middle::{
-    const_eval::scalar_int_to_rty_constant, fhir, pretty,
-    rustc::lowering::resolve_trait_ref_impl_id, ConstSig, Specs,
-};
+use flux_middle::{fhir, pretty, rustc::lowering::resolve_trait_ref_impl_id, Specs};
 use flux_syntax::{surface, ParseResult, ParseSess};
 use itertools::Itertools;
 use rustc_ast::{
@@ -19,7 +16,7 @@ use rustc_hir::{
     AssocItemKind, EnumDef, GenericBounds, ImplItemKind, ImplItemRef, Item, ItemKind, OwnerId,
     VariantData,
 };
-use rustc_middle::ty::{ScalarInt, TraitPredicate, TyCtxt};
+use rustc_middle::ty::{TraitPredicate, TyCtxt};
 use rustc_span::{Span, Symbol, SyntaxContext};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;

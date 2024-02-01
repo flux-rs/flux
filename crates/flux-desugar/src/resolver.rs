@@ -684,6 +684,7 @@ impl ResKey {
     fn from_hir_path(sess: &FluxSession, path: &rustc_hir::Path) -> Result<Self> {
         if let [prefix @ .., _] = path.segments
             && prefix.iter().any(|segment| segment.args.is_some())
+            && false
         {
             return Err(sess.emit_err(errors::UnsupportedSignature::new(
                 path.span,

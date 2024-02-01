@@ -518,7 +518,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let output = rty::FnOutput::new(ret, ensures);
 
         let vars = env.pop_layer().into_bound_vars(self.genv);
-
         Ok(rty::Binder::new(output, vars))
     }
 
@@ -726,9 +725,16 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         if let fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) = &bty.kind {
             if let fhir::Res::Def(DefKind::AssocTy, def_id) = path.res {
-                assert!(path.args.is_empty(), "generic associated types are not supported");
+                // assert!(
+                //     path.args.is_empty(),
+                //     "generic associated types are not supported {path:?}"
+                // );
                 let self_ty = self.conv_ty(env, self_ty.as_deref().unwrap())?;
-                let args = List::singleton(rty::GenericArg::Ty(self_ty));
+                let mut args = vec![rty::GenericArg::Ty(self_ty)];
+                args.append(&mut self.conv_generic_args(env, def_id, path.args)?);
+                let args = List::from_vec(args);
+                // let args = List::singleton(rty::GenericArg::Ty(self_ty));
+
                 let refine_args = List::empty();
                 let alias_ty = rty::AliasTy { args, refine_args, def_id };
                 return Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty));

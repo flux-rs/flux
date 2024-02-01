@@ -231,10 +231,8 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             try_alloc_slice!(self.genv, &poly_trait_ref.bound_generic_params, |param| {
                 self.lift_generic_param(param)
             })?;
-        Ok(fhir::PolyTraitRef {
-            bound_generic_params,
-            trait_ref: self.lift_path(poly_trait_ref.trait_ref.path)?,
-        })
+        let trait_ref = self.lift_path(poly_trait_ref.trait_ref.path)?;
+        Ok(fhir::PolyTraitRef { bound_generic_params, trait_ref })
     }
 
     fn lift_opaque_ty(&mut self) -> Result<fhir::OpaqueTy<'genv>> {
@@ -253,7 +251,8 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     }
 
     pub fn lift_fn_sig(&mut self) -> Result<fhir::FnSig<'genv>> {
-        let hir_id = self.genv.hir().local_def_id_to_hir_id(self.owner.def_id);
+        let def_id = self.owner.def_id;
+        let hir_id = self.genv.hir().local_def_id_to_hir_id(def_id);
         let fn_sig = self
             .genv
             .hir()
@@ -454,11 +453,20 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         let Ok(res) = path.res.try_into() else {
             return self.emit_unsupported(&format!("unsupported res: `{:?}`", path.res));
         };
-        let (args, bindings) = match path.segments.last().unwrap().args {
-            Some(args) => {
-                (self.lift_generic_args(args.args)?, self.lift_type_bindings(args.bindings)?)
+        // TODO(RJ):REFACTOR-PATH Gross hack to account for <Vec<T> as Index<I>>::Output
+        let args = if let fhir::Res::Def(DefKind::AssocTy, _) = res {
+            path.segments.first().unwrap().args
+        } else {
+            path.segments.last().unwrap().args
+        };
+
+        let (args, bindings) = {
+            match args {
+                Some(args) => {
+                    (self.lift_generic_args(args.args)?, self.lift_type_bindings(args.bindings)?)
+                }
+                None => ([].as_slice(), [].as_slice()),
             }
-            None => ([].as_slice(), [].as_slice()),
         };
 
         Ok(fhir::Path { res, args, bindings, refine: &[], span: path.span })
@@ -467,9 +475,10 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn lift_path_to_ty(
         &mut self,
         self_ty: Option<&hir::Ty>,
-        path: &hir::Path,
+        path0: &hir::Path,
     ) -> Result<fhir::Ty<'genv>> {
-        let path = self.lift_path(path)?;
+        let path = self.lift_path(path0)?;
+
         let self_ty = self_ty
             .map(|ty| {
                 let ty = self.lift_ty(ty)?;

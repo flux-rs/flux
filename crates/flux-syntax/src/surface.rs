@@ -292,8 +292,7 @@ pub struct Ty {
 pub struct AliasPred {
     pub trait_id: Path,
     pub name: Ident,
-    pub generic_args: Vec<GenericArg>,
-    // pub refine_args: Vec<RefineArg>,
+    pub args: Vec<GenericArg>,
 }
 
 #[derive(Debug)]

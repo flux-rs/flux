@@ -391,7 +391,7 @@ pub fn walk_pred<V: Visitor>(vis: &mut V, pred: &Pred) {
 pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasPred) {
     vis.visit_ident(alias_pred.name);
     vis.visit_path(&alias_pred.trait_id);
-    walk_list!(vis, visit_generic_arg, &alias_pred.generic_args);
+    walk_list!(vis, visit_generic_arg, &alias_pred.args);
 }
 
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
