@@ -1,4 +1,4 @@
-mod refinement_resolver;
+pub(crate) mod refinement_resolver;
 
 use std::collections::hash_map;
 
@@ -41,7 +41,7 @@ fn try_resolve_crate(genv: GlobalEnv) -> Result<ResolverOutput> {
     let specs = genv.collect_specs();
     let mut resolver = CrateResolver::new(genv, specs);
 
-    collect_flux_global_items(genv.tcx(), &mut resolver.output, specs);
+    resolver.collect_flux_global_items();
 
     for qualifier in &specs.qualifs {
         resolver.resolve_qualifier(qualifier);
@@ -65,6 +65,9 @@ struct CrateResolver<'genv, 'tcx> {
     output: ResolverOutput,
     extern_crates: UnordMap<Symbol, CrateNum>,
     ribs: Vec<Rib>,
+    func_decls: UnordMap<Symbol, fhir::FuncKind>,
+    sort_decls: UnordMap<Symbol, fhir::SortDecl>,
+    consts: UnordMap<Symbol, DefId>,
     err: Option<ErrorGuaranteed>,
 }
 
@@ -172,32 +175,6 @@ fn module_children(tcx: TyCtxt, def_id: DefId) -> &[ModChild] {
     }
 }
 
-fn collect_flux_global_items(tcx: TyCtxt, resolver_output: &mut ResolverOutput, specs: &Specs) {
-    for sort_decl in &specs.sort_decls {
-        resolver_output.sort_decls.insert(
-            sort_decl.name.name,
-            fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
-        );
-    }
-
-    for def_id in &specs.consts {
-        let did = def_id.to_def_id();
-        let sym = super::def_id_symbol(tcx, *def_id);
-        resolver_output.consts.insert(sym, did);
-    }
-
-    for defn in &specs.func_defs {
-        let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
-        resolver_output.func_decls.insert(defn.name.name, kind);
-    }
-
-    for itf in flux_middle::theory_funcs() {
-        resolver_output
-            .func_decls
-            .insert(itf.name, fhir::FuncKind::Thy(itf.fixpoint_name));
-    }
-}
-
 impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     pub fn new(genv: GlobalEnv<'genv, 'tcx>, specs: &'genv Specs) -> Self {
         let mut extern_crates = UnordMap::default();
@@ -217,6 +194,33 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             ribs: vec![],
             extern_crates,
             err: None,
+            func_decls: Default::default(),
+            sort_decls: Default::default(),
+            consts: Default::default(),
+        }
+    }
+    fn collect_flux_global_items(&mut self) {
+        for sort_decl in &self.specs.sort_decls {
+            self.sort_decls.insert(
+                sort_decl.name.name,
+                fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
+            );
+        }
+
+        for def_id in &self.specs.consts {
+            let did = def_id.to_def_id();
+            let sym = super::def_id_symbol(self.genv.tcx(), *def_id);
+            self.consts.insert(sym, did);
+        }
+
+        for defn in &self.specs.func_defs {
+            let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
+            self.func_decls.insert(defn.name.name, kind);
+        }
+
+        for itf in flux_middle::theory_funcs() {
+            self.func_decls
+                .insert(itf.name, fhir::FuncKind::Thy(itf.fixpoint_name));
         }
     }
 

@@ -228,9 +228,9 @@ pub type ScopeId = NodeId;
 pub struct ResolverOutput {
     pub path_res_map: UnordMap<NodeId, fhir::Res>,
     pub impl_trait_res_map: UnordMap<NodeId, hir::ItemId>,
-    pub func_decls: UnordMap<Symbol, fhir::FuncKind>,
-    pub sort_decls: UnordMap<Symbol, fhir::SortDecl>,
-    pub consts: UnordMap<Symbol, DefId>,
+    // pub func_decls: UnordMap<Symbol, fhir::FuncKind>,
+    // pub sort_decls: UnordMap<Symbol, fhir::SortDecl>,
+    // pub consts: UnordMap<Symbol, DefId>,
     pub refinements: RefinementResolverOutput,
 }
 

@@ -26,7 +26,7 @@ use rustc_span::{
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-use crate::{errors, sort_resolver::SORTS};
+use crate::{errors, resolver::refinement_resolver::SORTS};
 
 pub(crate) fn desugar_qualifier<'genv>(
     genv: GlobalEnv<'genv, '_>,
@@ -464,7 +464,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
             let params = self
                 .genv
-                .alloc_slice_fill_iter(self.desugar_implicit_params(variant_def.node_id));
+                .alloc_slice_fill_iter(self.implicit_params_to_params(variant_def.node_id));
             Ok(fhir::VariantDef {
                 def_id: hir_variant.def_id,
                 params,
@@ -594,7 +594,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         fn_sig: &surface::FnSig,
     ) -> &'genv [fhir::RefineParam<'genv>] {
         let explicit = self.desugar_refinement_generics(&fn_sig.generics);
-        let implicit = self.desugar_implicit_params(fn_sig.node_id);
+        let implicit = self.implicit_params_to_params(fn_sig.node_id);
 
         self.genv.alloc_slice_with_capacity(
             explicit.len() + implicit.len(),
@@ -614,7 +614,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
         let params = self
             .genv
-            .alloc_slice_fill_iter(self.desugar_implicit_params(output.node_id));
+            .alloc_slice_fill_iter(self.implicit_params_to_params(output.node_id));
         Ok(fhir::FnOutput { params, ret: ret?, ensures })
     }
 
@@ -710,7 +710,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
                 let (args, _) = self.desugar_generic_args(res, &[])?;
                 let item_id = hir::ItemId { owner_id: hir::OwnerId { def_id } };
-                let refine_args = self.scope_to_refine_args(self.fn_sig_scope.unwrap());
+                let refine_args = self.implicit_params_to_args(self.fn_sig_scope.unwrap());
                 let kind = fhir::TyKind::OpaqueDef(item_id, args, refine_args, false);
                 Ok(fhir::Ty { kind, span })
             }
@@ -842,7 +842,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 self.insert_opaque_ty(def_id, opaque_ty);
 
                 let (args, _) = self.desugar_generic_args(res, &[])?;
-                let refine_args = self.scope_to_refine_args(self.fn_sig_scope.unwrap());
+                let refine_args = self.implicit_params_to_args(self.fn_sig_scope.unwrap());
                 fhir::TyKind::OpaqueDef(item_id, args, refine_args, false)
             }
         };
@@ -1100,10 +1100,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         self.resolver_output().refinements.param_res_map[&node_id]
     }
 
-    fn desugar_implicit_params(
+    fn resolve_implicit_params(
         &self,
         scope: NodeId,
-    ) -> impl ExactSizeIterator<Item = fhir::RefineParam<'genv>> {
+    ) -> impl ExactSizeIterator<Item = (surface::Ident, fhir::Name, fhir::ParamKind)> {
         self.resolver_output()
             .refinements
             .implicit_params
@@ -1112,10 +1112,37 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             .iter()
             .map(|(ident, param_id)| {
                 let (name, kind) = self.resolve_param(*param_id);
+                (*ident, name, kind)
+            })
+    }
+
+    fn implicit_params_to_params(
+        &self,
+        scope: NodeId,
+    ) -> impl ExactSizeIterator<Item = fhir::RefineParam<'genv>> {
+        self.resolve_implicit_params(scope)
+            .map(|(ident, name, kind)| {
                 let sort = if kind.is_loc() { fhir::Sort::Loc } else { fhir::Sort::Infer };
-                let ident = fhir::Ident::new(name, *ident);
+                let ident = fhir::Ident::new(name, ident);
                 fhir::RefineParam { ident, kind, sort, fhir_id: self.next_fhir_id() }
             })
+    }
+
+    fn implicit_params_to_args(&self, scope: NodeId) -> &'genv [fhir::RefineArg<'genv>] {
+        self.genv()
+            .alloc_slice_fill_iter(self.resolve_implicit_params(scope).map(|(ident, name, _)| {
+                let span = ident.span;
+                let ident = fhir::Ident::new(name, ident);
+                fhir::RefineArg {
+                    kind: fhir::RefineArgKind::Expr(fhir::Expr {
+                        kind: fhir::ExprKind::Var(ident, None),
+                        fhir_id: self.next_fhir_id(),
+                        span,
+                    }),
+                    fhir_id: self.next_fhir_id(),
+                    span,
+                }
+            }))
     }
 
     fn desugar_refine_params(
@@ -1134,22 +1161,22 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             }))
     }
 
-    fn scope_to_refine_args(&self, scope: ScopeId) -> &'genv [fhir::RefineArg<'genv>] {
-        todo!()
-        // let bindings = &self.resolver_output().refinements.scopes[&scope];
-        // self.genv()
-        //     .alloc_slice_fill_iter(bindings.iter().map(|param| {
-        //         fhir::RefineArg {
-        //             kind: fhir::RefineArgKind::Expr(fhir::Expr {
-        //                 kind: fhir::ExprKind::Var(param.ident, None),
-        //                 fhir_id: self.next_fhir_id(),
-        //                 span: param.ident.span(),
-        //             }),
-        //             fhir_id: self.next_fhir_id(),
-        //             span: param.ident.span(),
-        //         }
-        //     }))
-    }
+    // fn scope_to_refine_args(&self, scope: ScopeId) -> &'genv [fhir::RefineArg<'genv>] {
+    //     todo!()
+    //     // let bindings = &self.resolver_output().refinements.scopes[&scope];
+    //     // self.genv()
+    //     //     .alloc_slice_fill_iter(bindings.iter().map(|param| {
+    //     //         fhir::RefineArg {
+    //     //             kind: fhir::RefineArgKind::Expr(fhir::Expr {
+    //     //                 kind: fhir::ExprKind::Var(param.ident, None),
+    //     //                 fhir_id: self.next_fhir_id(),
+    //     //                 span: param.ident.span(),
+    //     //             }),
+    //     //             fhir_id: self.next_fhir_id(),
+    //     //             span: param.ident.span(),
+    //     //         }
+    //     //     }))
+    // }
 
     fn desugar_sort(
         &self,

@@ -14,10 +14,9 @@ use rustc_data_structures::{
 use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, OwnerId};
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{def_id::DefId, sym, symbol::kw, Symbol};
+use rustc_span::{sym, symbol::kw, Symbol};
 
 use super::CrateResolver;
-use crate::sort_resolver::SelfRes;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum ScopeKind {
@@ -499,7 +498,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             SortRes::Real
         } else if let Some(res) = self.sorts_res.get(&ident.name) {
             *res
-        } else if self.resolver.output.sort_decls.get(&ident.name).is_some() {
+        } else if self.resolver.sort_decls.get(&ident.name).is_some() {
             SortRes::User
         } else {
             todo!()
@@ -693,7 +692,7 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
                 .insert(node_id, FuncRes::Param(res.node_id()));
             return;
         }
-        if let Some(decl) = self.resolver_output().func_decls.get(&func.name) {
+        if let Some(decl) = self.resolver.func_decls.get(&func.name) {
             self.func_res_map.insert(node_id, FuncRes::Global(*decl));
             return;
         }
@@ -730,7 +729,7 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
                         .insert(path.node_id, PathRes::Param(res.node_id()));
                     return;
                 }
-                if let Some(const_def_id) = self.resolver_output().consts.get(&var.name) {
+                if let Some(const_def_id) = self.resolver.consts.get(&var.name) {
                     self.path_res_map
                         .insert(path.node_id, PathRes::Const(*const_def_id));
                     return;
@@ -790,10 +789,10 @@ macro_rules! define_resolve_num_const {
 define_resolve_num_const!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
 
 pub(crate) struct Sorts {
-    int: Symbol,
-    real: Symbol,
-    set: Symbol,
-    map: Symbol,
+    pub int: Symbol,
+    pub real: Symbol,
+    pub set: Symbol,
+    pub map: Symbol,
 }
 
 pub(crate) static SORTS: std::sync::LazyLock<Sorts> = std::sync::LazyLock::new(|| {
