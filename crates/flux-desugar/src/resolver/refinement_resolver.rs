@@ -45,7 +45,7 @@ impl ScopeKind {
 struct ParamRes(ParamKind, NodeId);
 
 impl ParamRes {
-    fn node_id(self) -> NodeId {
+    fn param_id(self) -> NodeId {
         self.1
     }
 
@@ -376,9 +376,9 @@ impl Scope {
     }
 }
 
+#[derive(Clone, Copy)]
 struct ParamDef {
     ident: Ident,
-    param_id: NodeId,
     kind: ParamKind,
     scope: Option<NodeId>,
 }
@@ -402,7 +402,7 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,
     scopes: Vec<Scope>,
     sorts_res: UnordMap<Symbol, SortRes>,
-    param_defs: Vec<ParamDef>,
+    param_defs: FxIndexMap<NodeId, ParamDef>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
     func_res_map: FxHashMap<NodeId, FuncRes<NodeId>>,
     loc_res_map: FxHashMap<NodeId, LocRes<NodeId>>,
@@ -465,11 +465,15 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         scope: Option<NodeId>,
     ) {
         self.param_defs
-            .push(ParamDef { ident, param_id, kind, scope });
+            .insert(param_id, ParamDef { ident, kind, scope });
 
         let scope = self.scopes.last_mut().unwrap();
         match scope.bindings.entry(ident) {
-            IndexEntry::Occupied(_) => todo!(),
+            IndexEntry::Occupied(entry) => {
+                let param_def = self.param_defs[&entry.get().param_id()];
+                self.resolver
+                    .emit(errors::DuplicateParam::new(param_def.ident, ident));
+            }
             IndexEntry::Vacant(entry) => {
                 entry.insert(ParamRes(kind, param_id));
             }
@@ -572,8 +576,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 .insert(node_id, res);
         }
 
-        for param_def in self.param_defs {
-            let name = params.get(&param_def.param_id).copied();
+        for (param_id, param_def) in self.param_defs {
+            let name = params.get(&param_id).copied();
             let (kind, name) = match param_def.kind {
                 ParamKind::Explicit => {
                     let name = name.unwrap_or_else(|| name_gen.fresh());
@@ -601,15 +605,13 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 ParamKind::SyntaxError => continue,
             };
             let output = &mut self.resolver.output.refinements;
-            output
-                .param_res_map
-                .insert(param_def.param_id, (name, kind));
+            output.param_res_map.insert(param_id, (name, kind));
             if let Some(scope) = param_def.scope {
                 output
                     .implicit_params
                     .entry(scope)
                     .or_default()
-                    .push((param_def.ident, param_def.param_id));
+                    .push((param_def.ident, param_id));
             }
         }
     }
@@ -689,7 +691,7 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
                 todo!();
             }
             self.func_res_map
-                .insert(node_id, FuncRes::Param(res.node_id()));
+                .insert(node_id, FuncRes::Param(res.param_id()));
             return;
         }
         if let Some(decl) = self.resolver.func_decls.get(&func.name) {
@@ -704,7 +706,8 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
             Some(res) => {
                 match res {
                     ParamRes(ParamKind::Loc(idx), _) => {
-                        self.loc_res_map.insert(node_id, LocRes(res.node_id(), idx));
+                        self.loc_res_map
+                            .insert(node_id, LocRes(res.param_id(), idx));
                     }
                     _ => {
                         todo!()
@@ -726,7 +729,7 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
                         todo!("report error");
                     }
                     self.path_res_map
-                        .insert(path.node_id, PathRes::Param(res.node_id()));
+                        .insert(path.node_id, PathRes::Param(res.param_id()));
                     return;
                 }
                 if let Some(const_def_id) = self.resolver.consts.get(&var.name) {
@@ -803,3 +806,26 @@ pub(crate) static SORTS: std::sync::LazyLock<Sorts> = std::sync::LazyLock::new(|
         map: Symbol::intern("Map"),
     }
 });
+
+mod errors {
+    use flux_macros::Diagnostic;
+    use rustc_span::{symbol::Ident, Span, Symbol};
+
+    #[derive(Diagnostic)]
+    #[diag(desugar_duplicate_param, code = "FLUX")]
+    pub(super) struct DuplicateParam {
+        #[primary_span]
+        #[label]
+        span: Span,
+        name: Symbol,
+        #[label(desugar_first_use)]
+        first_use: Span,
+    }
+
+    impl DuplicateParam {
+        pub(super) fn new(old_ident: Ident, new_ident: Ident) -> Self {
+            debug_assert_eq!(old_ident.name, new_ident.name);
+            Self { span: new_ident.span, name: new_ident.name, first_use: old_ident.span }
+        }
+    }
+}

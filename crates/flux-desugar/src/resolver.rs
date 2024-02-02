@@ -59,7 +59,7 @@ fn try_resolve_crate(genv: GlobalEnv) -> Result<ResolverOutput> {
     Ok(resolver.into_output())
 }
 
-struct CrateResolver<'genv, 'tcx> {
+pub(crate) struct CrateResolver<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     specs: &'genv Specs,
     output: ResolverOutput,
