@@ -26,7 +26,7 @@ use flux_config as config;
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_data_structures::{
-    fx::FxIndexMap,
+    fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
 };
 use rustc_hash::FxHashMap;
@@ -954,7 +954,7 @@ pub struct RefinedBy<'fhir> {
     /// ```
     /// then the sort associated to `RMap` is of the form `forall #0. { keys: Set<#0> }`
     /// and `sort_params` will be `vec![K]`,  i.e., it maps `Var(0)` to `K`.
-    pub sort_params: Vec<DefId>,
+    pub sort_params: FxIndexSet<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     pub index_params: FxIndexMap<Symbol, Sort<'fhir>>,
 }
@@ -1007,7 +1007,7 @@ impl<'fhir> RefinedBy<'fhir> {
     pub fn new(
         def_id: LocalDefId,
         index_params: impl IntoIterator<Item = (Symbol, Sort<'fhir>)>,
-        sort_params: Vec<DefId>,
+        sort_params: FxIndexSet<DefId>,
         span: Span,
     ) -> Self {
         let index_params: FxIndexMap<_, _> = index_params.into_iter().collect();

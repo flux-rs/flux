@@ -100,7 +100,7 @@ impl AdtSortDef {
         self.0.sorts.fold_with(&mut SortSubst::new(args))
     }
 
-    /// Given a list of generic args returns an iterator of argument that should be used to
+    /// Given a list of generic args, returns an iterator of arguments that should be used to
     /// instantiate the sort parameters.
     pub fn filter_generic_args<'a, A>(&'a self, args: &'a [A]) -> impl Iterator<Item = &A> + 'a {
         self.0.params.iter().map(|p| &args[p.index as usize])

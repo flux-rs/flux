@@ -7,18 +7,18 @@ use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, lift::LiftCtxt, FhirId, FluxOwnerId, Res},
     global_env::{self, GlobalEnv},
-    try_alloc_slice, FuncRes, LocRes, PathRes, ResolverOutput, ScopeId,
+    try_alloc_slice, FuncRes, LocRes, PathRes, ResolverOutput, ScopeId, SortRes,
 };
 use flux_syntax::surface::{self, NodeId};
 use hir::{def::DefKind, ItemKind};
 use itertools::Itertools;
-use rustc_data_structures::unord::UnordMap;
+use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{
-    def_id::LocalDefId,
+    def_id::{DefId, LocalDefId},
     sym::{self},
     symbol::kw,
     Span, Symbol,
@@ -54,7 +54,7 @@ pub(crate) fn desugar_defn<'genv>(
         let expr = cx.desugar_expr(body)?;
         let name = defn.name.name;
         let params = defn.sort_vars.len();
-        let sort = cx.desugar_sort(&defn.output);
+        let sort = cx.desugar_sort(&defn.output, None);
         let args = cx.desugar_refine_params(&defn.args);
 
         Ok(Some(fhir::Defn { name, params, args, sort, expr }))
@@ -75,34 +75,43 @@ pub fn func_def_to_func_decl<'genv>(
             .iter()
             .map(|arg| &arg.sort)
             .chain(iter::once(&defn.output))
-            .map(|sort| desugar_sort(genv, resolver_output, sort)),
+            .map(|sort| desugar_sort(genv, resolver_output, sort, None)),
     );
     let sort = fhir::PolyFuncSort::new(params, inputs_and_output);
     let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
     Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
 }
 
-fn gather_refined_by_sort_vars(
+/// Collect all sorts resolved to a generic parameter in a [`surface::RefinedBy`]. Return the set
+/// of generic def ids used, sorted by their position in the list of generics.
+fn collect_generics_in_refined_by(
     generics: &rustc_middle::ty::Generics,
+    resolver_output: &ResolverOutput,
     refined_by: &surface::RefinedBy,
-) -> Vec<Symbol> {
-    struct IdentCollector {
-        found: FxHashSet<Symbol>,
+) -> FxIndexSet<DefId> {
+    struct ParamCollector<'a> {
+        resolver_output: &'a ResolverOutput,
+        found: FxHashSet<DefId>,
     }
-    impl surface::visit::Visitor for IdentCollector {
+    impl surface::visit::Visitor for ParamCollector<'_> {
         fn visit_base_sort(&mut self, bsort: &surface::BaseSort) {
-            if let surface::BaseSort::Ident(x, _) = bsort {
-                self.found.insert(x.name);
+            if let surface::BaseSort::Ident(_, node_id) = bsort {
+                let res = self.resolver_output.refinements.sort_res_map[node_id];
+                if let SortRes::Param(def_id) = res {
+                    self.found.insert(def_id);
+                }
             }
             surface::visit::walk_base_sort(self, bsort);
         }
     }
-    let mut vis = IdentCollector { found: FxHashSet::default() };
+    let mut vis = ParamCollector { resolver_output, found: FxHashSet::default() };
     surface::visit::Visitor::visit_refined_by(&mut vis, refined_by);
     generics
         .params
         .iter()
-        .filter_map(|param| if vis.found.contains(&param.name) { Some(param.name) } else { None })
+        .filter_map(
+            |param| if vis.found.contains(&param.def_id) { Some(param.def_id) } else { None },
+        )
         .collect()
 }
 
@@ -163,7 +172,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> Result<&'genv [fhir::TraitAssocPredicate<'genv>]> {
         try_alloc_slice!(self.genv, assoc_predicates, |assoc_pred| {
             let name = assoc_pred.name.name;
-            let sort = self.desugar_sort(&assoc_pred.sort);
+            let sort = self.desugar_sort(&assoc_pred.sort, None);
             if let fhir::Sort::Func(func_sort) = sort
                 && let fhir::Sort::Bool = func_sort.fsort.output()
                 && func_sort.params == 0
@@ -305,22 +314,23 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         refined_by: &surface::RefinedBy,
     ) -> Result<fhir::RefinedBy<'genv>> {
         let generics = self.genv.tcx().generics_of(self.owner);
-        let sort_vars = gather_refined_by_sort_vars(generics, refined_by);
+        let generic_id_to_var_idx =
+            collect_generics_in_refined_by(generics, self.resolver_output, refined_by);
 
         let index_params = refined_by
             .index_params
             .iter()
-            .map(|param| (param.name.name, self.desugar_sort(&param.sort)))
+            .map(|param| {
+                (param.name.name, self.desugar_sort(&param.sort, Some(&generic_id_to_var_idx)))
+            })
             .collect_vec();
 
-        let generic_idx: FxHashMap<Symbol, hir::def_id::DefId> = generics
-            .params
-            .iter()
-            .map(|param| (param.name, param.def_id))
-            .collect();
-        let sort_params = sort_vars.iter().map(|sym| generic_idx[&sym]).collect();
-
-        Ok(fhir::RefinedBy::new(self.owner.def_id, index_params, sort_params, refined_by.span))
+        Ok(fhir::RefinedBy::new(
+            self.owner.def_id,
+            index_params,
+            generic_id_to_var_idx,
+            refined_by.span,
+        ))
     }
 
     pub(crate) fn desugar_struct_def(
@@ -568,7 +578,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                     let (name, kind) = self.resolve_param(p.node_id);
                     Some(fhir::RefineParam {
                         ident: fhir::Ident::new(name, p.name),
-                        sort: self.desugar_sort(sort),
+                        sort: self.desugar_sort(sort, None),
                         kind,
                         fhir_id: self.next_fhir_id(),
                     })
@@ -1118,7 +1128,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 fhir::RefineParam {
                     ident: fhir::Ident::new(name, param.name),
                     kind,
-                    sort: self.desugar_sort(&param.sort),
+                    sort: self.desugar_sort(&param.sort, None),
                     fhir_id: self.next_fhir_id(),
                 }
             }))
@@ -1141,8 +1151,12 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         //     }))
     }
 
-    fn desugar_sort(&self, sort: &surface::Sort) -> fhir::Sort<'genv> {
-        desugar_sort(self.genv(), self.resolver_output(), sort)
+    fn desugar_sort(
+        &self,
+        sort: &surface::Sort,
+        generic_id_to_var_idx: Option<&FxIndexSet<DefId>>,
+    ) -> fhir::Sort<'genv> {
+        desugar_sort(self.genv(), self.resolver_output(), sort, generic_id_to_var_idx)
     }
 
     fn desugar_expr(&self, expr: &surface::Expr) -> Result<fhir::Expr<'genv>> {
@@ -1272,16 +1286,18 @@ fn desugar_sort<'genv>(
     genv: GlobalEnv<'genv, '_>,
     resolver_output: &ResolverOutput,
     sort: &surface::Sort,
+    generic_id_to_var_idx: Option<&FxIndexSet<DefId>>,
 ) -> fhir::Sort<'genv> {
     match sort {
-        surface::Sort::Base(bsort) => desugar_base_sort(genv, resolver_output, bsort),
+        surface::Sort::Base(bsort) => {
+            desugar_base_sort(genv, resolver_output, bsort, generic_id_to_var_idx)
+        }
         surface::Sort::Func { inputs, output } => {
             let inputs_and_output = genv.alloc_slice_with_capacity(
                 inputs.len() + 1,
-                inputs
-                    .iter()
-                    .chain(iter::once(output))
-                    .map(|sort| desugar_base_sort(genv, resolver_output, sort)),
+                inputs.iter().chain(iter::once(output)).map(|sort| {
+                    desugar_base_sort(genv, resolver_output, sort, generic_id_to_var_idx)
+                }),
             );
             fhir::Sort::Func(fhir::PolyFuncSort::new(0, inputs_and_output))
         }
@@ -1293,15 +1309,39 @@ fn desugar_base_sort<'genv>(
     genv: GlobalEnv<'genv, '_>,
     resolver_output: &ResolverOutput,
     bsort: &surface::BaseSort,
+    generic_id_to_var_idx: Option<&FxIndexSet<DefId>>,
 ) -> fhir::Sort<'genv> {
     match bsort {
-        surface::BaseSort::Ident(_, node_id) => resolver_output.refinements.sort_res_map[&node_id],
+        surface::BaseSort::Ident(ident, node_id) => {
+            let res = resolver_output.refinements.sort_res_map[&node_id];
+            match res {
+                SortRes::Int => fhir::Sort::Int,
+                SortRes::Bool => fhir::Sort::Bool,
+                SortRes::Real => fhir::Sort::Real,
+                SortRes::User => {
+                    let ctor = fhir::SortCtor::User { name: ident.name };
+                    fhir::Sort::App(ctor, &[])
+                }
+                SortRes::Var(idx) => fhir::Sort::Var(idx),
+                SortRes::Param(def_id) => {
+                    // In a `RefinedBy` we resolve type parameters to a sort var
+                    if let Some(generic_id_to_var_idx) = generic_id_to_var_idx {
+                        let idx = generic_id_to_var_idx.get_index_of(&def_id).unwrap();
+                        fhir::Sort::Var(idx)
+                    } else {
+                        fhir::Sort::Param(def_id)
+                    }
+                }
+                SortRes::SelfParam { trait_id } => fhir::Sort::SelfParam { trait_id },
+                SortRes::SelfAlias { alias_to } => fhir::Sort::SelfAlias { alias_to },
+            }
+        }
         surface::BaseSort::BitVec(width) => fhir::Sort::BitVec(*width),
         surface::BaseSort::App(_, args, node_id) => {
             let ctor = resolver_output.refinements.sort_ctor_res_map[&node_id];
             let args = genv.alloc_slice_fill_iter(
                 args.iter()
-                    .map(|s| desugar_base_sort(genv, resolver_output, s)),
+                    .map(|s| desugar_base_sort(genv, resolver_output, s, generic_id_to_var_idx)),
             );
             fhir::Sort::App(ctor, args)
         }

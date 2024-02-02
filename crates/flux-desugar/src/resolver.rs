@@ -244,18 +244,18 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     fn resolve_qualifier(&mut self, qualifier: &surface::Qualifier) {
-        RefinementResolver::with_sort_params(self.genv.tcx(), self, &[])
+        RefinementResolver::for_flux_item(self.genv.tcx(), self, &[])
             .run(|r| r.visit_qualifier(qualifier));
     }
 
     fn resolve_defn(&mut self, defn: &surface::FuncDef) {
-        RefinementResolver::with_sort_params(self.genv.tcx(), self, &[])
+        RefinementResolver::for_flux_item(self.genv.tcx(), self, &defn.sort_vars)
             .run(|r| r.visit_defn(defn));
     }
 
     fn resolve_trait(&mut self, owner_id: OwnerId) {
         let trait_ = &self.specs.traits[&owner_id];
-        RefinementResolver::with_generics(self.genv.tcx(), self, owner_id)
+        RefinementResolver::for_rust_item(self.genv.tcx(), self, owner_id)
             .run(|r| r.visit_trait(trait_));
     }
 
@@ -455,7 +455,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     }
 
     fn as_refinement_resolver(&mut self) -> RefinementResolver<'_, 'genv, 'tcx> {
-        RefinementResolver::with_generics(self.resolver.genv.tcx(), self.resolver, self.owner_id)
+        RefinementResolver::for_rust_item(self.resolver.genv.tcx(), self.resolver, self.owner_id)
     }
 }
 

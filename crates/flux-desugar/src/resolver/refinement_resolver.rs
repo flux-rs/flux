@@ -1,7 +1,7 @@
 use std::ops::ControlFlow;
 
 use flux_common::index::IndexGen;
-use flux_middle::{fhir, FuncRes, LocRes, PathRes, ResolverOutput};
+use flux_middle::{fhir, FuncRes, LocRes, PathRes, ResolverOutput, SortRes};
 use flux_syntax::surface::{
     self,
     visit::{walk_ty, Visitor as _},
@@ -384,19 +384,6 @@ struct ParamDef {
     scope: Option<NodeId>,
 }
 
-enum SortRes {
-    Var(usize),
-    Param(DefId),
-    /// A `Self` parameter in a trait definition.
-    SelfParam {
-        trait_id: DefId,
-    },
-    /// An alias to another sort, e.g., when used inside an impl block
-    SelfAlias {
-        alias_to: DefId,
-    },
-}
-
 fn self_res(tcx: TyCtxt, owner: OwnerId) -> Option<SortRes> {
     let def_id = owner.def_id.to_def_id();
     let mut opt_def_id = Some(def_id);
@@ -424,20 +411,20 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
 }
 
 impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
-    pub(crate) fn with_sort_params(
+    pub(crate) fn for_flux_item(
         tcx: TyCtxt<'tcx>,
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        sort_params: &[Symbol],
+        sort_params: &[Ident],
     ) -> Self {
         let sort_res = sort_params
             .iter()
             .enumerate()
-            .map(|(i, v)| (*v, SortRes::Var(i)))
+            .map(|(i, v)| (v.name, SortRes::Var(i)))
             .collect();
         Self::new(tcx, resolver, sort_res)
     }
 
-    pub(crate) fn with_generics(
+    pub(crate) fn for_rust_item(
         tcx: TyCtxt<'tcx>,
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         owner: OwnerId,
@@ -504,22 +491,16 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     }
 
     fn resolve_base_sort_ident(&mut self, ident: Ident, node_id: NodeId) {
-        let sort = if ident.name == SORTS.int {
-            fhir::Sort::Int
+        let res = if ident.name == SORTS.int {
+            SortRes::Int
         } else if ident.name == sym::bool {
-            fhir::Sort::Bool
+            SortRes::Bool
         } else if ident.name == SORTS.real {
-            fhir::Sort::Real
+            SortRes::Real
         } else if let Some(res) = self.sorts_res.get(&ident.name) {
-            match *res {
-                SortRes::Var(idx) => fhir::Sort::Var(idx),
-                SortRes::Param(def_id) => fhir::Sort::Param(def_id),
-                SortRes::SelfParam { trait_id } => fhir::Sort::SelfParam { trait_id },
-                SortRes::SelfAlias { alias_to } => fhir::Sort::SelfAlias { alias_to },
-            }
+            *res
         } else if self.resolver.output.sort_decls.get(&ident.name).is_some() {
-            let ctor = fhir::SortCtor::User { name: ident.name };
-            fhir::Sort::App(ctor, &[])
+            SortRes::User
         } else {
             todo!()
             // Err(self
@@ -531,7 +512,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             .output
             .refinements
             .sort_res_map
-            .insert(node_id, sort);
+            .insert(node_id, res);
     }
 
     fn resolve_sort_ctor(&mut self, ctor: Ident, node_id: NodeId) {

@@ -240,6 +240,24 @@ pub struct ResolvedParam {
 }
 
 #[derive(Clone, Copy)]
+pub enum SortRes {
+    Int,
+    Bool,
+    Real,
+    User,
+    Var(usize),
+    Param(DefId),
+    /// A `Self` parameter in a trait definition.
+    SelfParam {
+        trait_id: DefId,
+    },
+    /// An alias to another sort, e.g., when used inside an impl block
+    SelfAlias {
+        alias_to: DefId,
+    },
+}
+
+#[derive(Clone, Copy)]
 pub enum FuncRes<Id = fhir::Name> {
     Param(Id),
     Global(fhir::FuncKind),
@@ -262,6 +280,6 @@ pub struct RefinementResolverOutput {
     pub loc_res_map: UnordMap<NodeId, LocRes>,
     pub path_res_map: UnordMap<NodeId, PathRes>,
     pub sort_ctor_res_map: UnordMap<NodeId, fhir::SortCtor>,
-    pub sort_res_map: UnordMap<NodeId, fhir::Sort<'static>>,
+    pub sort_res_map: UnordMap<NodeId, SortRes>,
     pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
 }
