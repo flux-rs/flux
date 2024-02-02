@@ -111,8 +111,11 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                     .map(|item| item.def_id)
                     .unwrap();
 
-                let pty = self.genv.type_of(assoc_type_id)?;
-                Ok(pty.instantiate(&args, &[]).into_ty())
+                Ok(self
+                    .genv
+                    .type_of(assoc_type_id)?
+                    .instantiate(&args, &[])
+                    .into_ty())
             }
         }
     }

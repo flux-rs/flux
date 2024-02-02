@@ -681,16 +681,7 @@ impl ResKey {
         ResKey { s }
     }
 
-    fn from_hir_path(sess: &FluxSession, path: &rustc_hir::Path) -> Result<Self> {
-        if let [prefix @ .., _] = path.segments
-            && prefix.iter().any(|segment| segment.args.is_some())
-            && false
-        {
-            return Err(sess.emit_err(errors::UnsupportedSignature::new(
-                path.span,
-                "path segments with generic arguments are not supported",
-            )));
-        }
+    fn from_hir_path(_sess: &FluxSession, path: &rustc_hir::Path) -> Result<Self> {
         let s = path.segments.iter().map(|segment| segment.ident).join("::");
         Ok(ResKey { s })
     }

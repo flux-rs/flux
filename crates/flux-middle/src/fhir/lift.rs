@@ -475,9 +475,9 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn lift_path_to_ty(
         &mut self,
         self_ty: Option<&hir::Ty>,
-        path0: &hir::Path,
+        path: &hir::Path,
     ) -> Result<fhir::Ty<'genv>> {
-        let path = self.lift_path(path0)?;
+        let path = self.lift_path(path)?;
 
         let self_ty = self_ty
             .map(|ty| {

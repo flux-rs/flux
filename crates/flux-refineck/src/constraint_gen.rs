@@ -201,14 +201,8 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
                     rty::ReVar(re.as_var())
                 },
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
-            );
-
-        let inst_fn_sig = inst_fn_sig.normalize_projections(
-            genv,
-            infcx.region_infcx,
-            infcx.def_id,
-            infcx.refparams,
-        )?;
+            )
+            .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)?;
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &refine_args)?
