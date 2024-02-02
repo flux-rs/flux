@@ -186,9 +186,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         // Generate fresh inference variables for refinement arguments
         let refine_args = infcx.instantiate_refine_args(genv, callee_def_id)?;
 
-        // println!("TRACE: check_fn_call {callee_def_id:?} ({generic_args:?}) => {fn_sig:?}");
-
-        println!("TRACE: check_fn_call (1) {callee_def_id:?} / {generic_args:?} => {fn_sig:?}");
+        // println!("TRACE: check_fn_call (1) {callee_def_id:?} / {generic_args:?} => {fn_sig:?}");
 
         // Instantiate function signature and normalize it
         let inst_fn_sig = fn_sig
@@ -204,10 +202,6 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
                 },
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
             );
-
-        println!(
-            "TRACE: check_fn_call (2) {callee_def_id:?} / {generic_args:?} => {inst_fn_sig:?}"
-        );
 
         let inst_fn_sig = inst_fn_sig.normalize_projections(
             genv,

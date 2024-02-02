@@ -56,9 +56,15 @@ impl ExternItemImpl {
         self.mod_path = mod_path;
         // TODO(RJ): need a unique-id instead of this hack (#generics), to generate distinct struct (names)
         // for multiple impl blocks for the same type (see rset03.rs)
-        let mut dummy_prefix = format!("__FluxExternImplStruct{:?}", self.generics.params.len());
-        self.dummy_ident = Some(create_dummy_ident(&mut dummy_prefix, &self.self_ty)?);
+
         let trait_ = self.trait_.as_ref().map(|(_, path, _)| path.clone());
+
+        let mut dummy_prefix = format!("__FluxExternImplStruct{:?}", self.generics.params.len());
+        if let Some(trait_path) = &trait_ {
+            dummy_prefix.push_str(&create_dummy_string_from_path(trait_path)?);
+        }
+
+        self.dummy_ident = Some(create_dummy_ident(&mut dummy_prefix, &self.self_ty)?);
         for item in &mut self.items {
             item.prepare(&self.mod_path, Some(&self.self_ty), &trait_, false);
         }
@@ -323,6 +329,15 @@ fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<
                 format!("invalid extern_spec: unsupported type {:?}", ty),
             ))
         }
+    }
+}
+fn create_dummy_string_from_path(path: &syn::Path) -> syn::Result<String> {
+    if let Some(path_segment) = path.segments.last() {
+        // Mangle the identifier using the dummy_prefix
+        let str = format!("{}", path_segment.ident);
+        Ok(str)
+    } else {
+        Err(syn::Error::new(path.span(), format!("invalid extern_spec: empty Path {:?}", path)))
     }
 }
 
