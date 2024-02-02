@@ -12,7 +12,7 @@ use rustc_data_structures::{
     unord::UnordMap,
 };
 use rustc_hash::FxHashMap;
-use rustc_hir::OwnerId;
+use rustc_hir::{def::DefKind, OwnerId};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{def_id::DefId, sym, symbol::kw, Symbol};
 
@@ -384,12 +384,38 @@ struct ParamDef {
     scope: Option<NodeId>,
 }
 
+enum SortRes {
+    Var(usize),
+    Param(DefId),
+    /// A `Self` parameter in a trait definition.
+    SelfParam {
+        trait_id: DefId,
+    },
+    /// An alias to another sort, e.g., when used inside an impl block
+    SelfAlias {
+        alias_to: DefId,
+    },
+}
+
+fn self_res(tcx: TyCtxt, owner: OwnerId) -> Option<SortRes> {
+    let def_id = owner.def_id.to_def_id();
+    let mut opt_def_id = Some(def_id);
+    while let Some(def_id) = opt_def_id {
+        match tcx.def_kind(def_id) {
+            DefKind::Trait => return Some(SortRes::SelfParam { trait_id: def_id }),
+            DefKind::Impl { .. } => return Some(SortRes::SelfAlias { alias_to: def_id }),
+            _ => {
+                opt_def_id = tcx.opt_parent(def_id);
+            }
+        }
+    }
+    None
+}
+
 pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,
     scopes: Vec<Scope>,
-    self_res: SelfRes,
-    generic_params: FxHashMap<Symbol, DefId>,
-    sort_params: FxHashMap<Symbol, usize>,
+    sorts_res: UnordMap<Symbol, SortRes>,
     param_defs: Vec<ParamDef>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
     func_res_map: FxHashMap<NodeId, FuncRes<NodeId>>,
@@ -403,12 +429,12 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         sort_params: &[Symbol],
     ) -> Self {
-        let sort_params = sort_params
+        let sort_res = sort_params
             .iter()
             .enumerate()
-            .map(|(i, v)| (*v, i))
+            .map(|(i, v)| (*v, SortRes::Var(i)))
             .collect();
-        Self::new(tcx, resolver, Default::default(), sort_params, SelfRes::None)
+        Self::new(tcx, resolver, sort_res)
     }
 
     pub(crate) fn with_generics(
@@ -416,25 +442,27 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         owner: OwnerId,
     ) -> Self {
-        let self_res = crate::sort_resolver::self_res(tcx, owner);
         let generics = tcx.generics_of(owner);
-        let generic_params = generics.params.iter().map(|p| (p.name, p.def_id)).collect();
-        Self::new(tcx, resolver, generic_params, Default::default(), self_res)
+        let mut sort_res: UnordMap<_, _> = generics
+            .params
+            .iter()
+            .map(|p| (p.name, SortRes::Param(p.def_id)))
+            .collect();
+        if let Some(self_res) = self_res(tcx, owner) {
+            sort_res.insert(kw::SelfUpper, self_res);
+        }
+        Self::new(tcx, resolver, sort_res)
     }
 
     fn new(
         tcx: TyCtxt<'tcx>,
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        generic_params: FxHashMap<Symbol, DefId>,
-        sort_params: FxHashMap<Symbol, usize>,
-        self_res: SelfRes,
+        sort_res: UnordMap<Symbol, SortRes>,
     ) -> Self {
         Self {
             tcx,
             resolver,
-            sort_params,
-            generic_params,
-            self_res,
+            sorts_res: sort_res,
             param_defs: Default::default(),
             scopes: Default::default(),
             func_res_map: Default::default(),
@@ -482,22 +510,16 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             fhir::Sort::Bool
         } else if ident.name == SORTS.real {
             fhir::Sort::Real
-        } else if ident.name == kw::SelfUpper {
-            match self.self_res {
-                SelfRes::Param { trait_id } => fhir::Sort::SelfParam { trait_id },
-                SelfRes::Alias { alias_to } => fhir::Sort::SelfAlias { alias_to },
-                SelfRes::None => {
-                    todo!()
-                    // Err(self
-                    //     .genv
-                    //     .sess()
-                    //     .emit_err(errors::UnresolvedSort::new(*ident)))
-                }
+        } else if let Some(res) = self.sorts_res.get(&ident.name) {
+            match *res {
+                SortRes::Var(idx) => fhir::Sort::Var(idx),
+                SortRes::Param(def_id) => fhir::Sort::Param(def_id),
+                SortRes::SelfParam { trait_id } => fhir::Sort::SelfParam { trait_id },
+                SortRes::SelfAlias { alias_to } => fhir::Sort::SelfAlias { alias_to },
             }
-        } else if let Some(def_id) = self.generic_params.get(&ident.name) {
-            fhir::Sort::Param(*def_id)
-        } else if let Some(idx) = self.sort_params.get(&ident.name) {
-            fhir::Sort::Var(*idx)
+        } else if self.resolver.output.sort_decls.get(&ident.name).is_some() {
+            let ctor = fhir::SortCtor::User { name: ident.name };
+            fhir::Sort::App(ctor, &[])
         } else {
             todo!()
             // Err(self
@@ -517,8 +539,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             fhir::SortCtor::Set
         } else if ctor.name == SORTS.map {
             fhir::SortCtor::Map
-        } else if self.resolver.output.sort_decls.get(&ctor.name).is_some() {
-            fhir::SortCtor::User { name: ctor.name }
         } else {
             todo!()
             // Err(self
