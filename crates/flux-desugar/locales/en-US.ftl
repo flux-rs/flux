@@ -1,20 +1,16 @@
 # Desugar
 
+desugar_invalid_alias_pred =
+    invalid alias pred
+    .label = this must be a trait
+
 desugar_invalid_constant =
     invalid constant
-
-desugar_unresolved_var =
-    cannot find {$kind} `{$var}` in this scope
-    .label = not found in this scope
 
 desugar_duplicate_param =
     the name `{$name}` is already used as a parameter
     .label = already used
     .first_use = first use of `{$name}`
-
-desugar_unresolved_sort =
-    cannot find sort `{$sort}` in this scope
-    .label = not found in this scope
 
 desugar_int_too_large =
     integer literal is too large
@@ -39,10 +35,6 @@ desugar_sort_arity_mismatch =
         [one] {$expected} argument
         *[other] 1 or {$expected} arguments
     }, found {$found}
-
-desugar_invalid_unrefined_param =
-    invalid use of refinement parameter
-    .label = parameter `{$var}` refers to a type with no indices
 
 desugar_illegal_binder =
     illegal binder
@@ -69,3 +61,15 @@ desugar_unresolved_path =
 desugar_unresolved_generic_param =
     cannot resolve generic param
     .note = generic parameters in refined signature must much rust signature
+
+desugar_invalid_unrefined_param =
+    invalid use of refinement parameter
+    .label = parameter `{$var}` refers to a type with no indices
+
+desugar_unresolved_var =
+    cannot find {$kind} `{$var}` in this scope
+    .label = not found in this scope
+
+desugar_unresolved_sort =
+    cannot find sort `{$sort}` in this scope
+    .label = not found in this scope

@@ -1,72 +1,6 @@
 use flux_macros::Diagnostic;
-use flux_syntax::surface::{BindKind, Path, QPathExpr};
-use itertools::Itertools;
+use flux_syntax::surface::{self, BindKind};
 use rustc_span::{symbol::Ident, Span, Symbol};
-
-#[derive(Diagnostic)]
-#[diag(desugar_unresolved_var, code = "FLUX")]
-pub(super) struct UnresolvedVar {
-    #[primary_span]
-    #[label]
-    span: Span,
-    var: String,
-    kind: String,
-}
-
-impl UnresolvedVar {
-    pub(super) fn from_qpath(qpath: &QPathExpr, kind: &str) -> Self {
-        Self::from_segments(&qpath.segments, kind, qpath.span)
-    }
-
-    pub(super) fn from_ident(ident: Ident, kind: &str) -> Self {
-        Self { span: ident.span, kind: kind.to_string(), var: format!("{ident}") }
-    }
-
-    pub(super) fn from_path(path: &Path, kind: &str) -> Self {
-        Self::from_segments(&path.segments, kind, path.span)
-    }
-
-    fn from_segments(segments: &[Ident], kind: &str, span: Span) -> Self {
-        Self {
-            span,
-            kind: kind.to_string(),
-            var: format!("{}", segments.iter().format_with("::", |s, f| f(&s.name))),
-        }
-    }
-}
-
-#[derive(Diagnostic)]
-#[diag(desugar_duplicate_param, code = "FLUX")]
-pub(super) struct DuplicateParam {
-    #[primary_span]
-    #[label]
-    span: Span,
-    name: Symbol,
-    #[label(desugar_first_use)]
-    first_use: Span,
-}
-
-impl DuplicateParam {
-    pub(super) fn new(old_ident: Ident, new_ident: Ident) -> Self {
-        debug_assert_eq!(old_ident.name, new_ident.name);
-        Self { span: new_ident.span, name: new_ident.name, first_use: old_ident.span }
-    }
-}
-
-#[derive(Diagnostic)]
-#[diag(desugar_unresolved_sort, code = "FLUX")]
-pub(super) struct UnresolvedSort {
-    #[primary_span]
-    #[label]
-    span: Span,
-    sort: Ident,
-}
-
-impl UnresolvedSort {
-    pub(super) fn new(sort: Ident) -> Self {
-        Self { span: sort.span, sort }
-    }
-}
 
 #[derive(Diagnostic)]
 #[diag(desugar_int_too_large, code = "FLUX")]
@@ -102,21 +36,6 @@ pub(super) struct SortArityMismatch {
 impl SortArityMismatch {
     pub(super) fn new(span: Span, expected: usize, found: usize) -> Self {
         Self { span, expected, found }
-    }
-}
-
-#[derive(Diagnostic)]
-#[diag(desugar_invalid_unrefined_param, code = "FLUX")]
-pub(super) struct InvalidUnrefinedParam {
-    #[primary_span]
-    #[label]
-    span: Span,
-    var: Ident,
-}
-
-impl InvalidUnrefinedParam {
-    pub(super) fn new(var: Ident) -> Self {
-        Self { var, span: var.span }
     }
 }
 
@@ -189,5 +108,19 @@ pub(super) struct InvalidConstant {
 impl InvalidConstant {
     pub(super) fn new(span: Span) -> Self {
         Self { span }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag(desugar_invalid_alias_pred, code = "FLUX")]
+pub(super) struct InvalidAliasPred {
+    #[primary_span]
+    #[label]
+    pub(super) span: Span,
+}
+
+impl InvalidAliasPred {
+    pub(super) fn new(path: &surface::Path) -> Self {
+        Self { span: path.span }
     }
 }

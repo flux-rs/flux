@@ -41,6 +41,10 @@ impl FluxSession {
         Self { parse_sess: ParseSess::with_span_handler(handler, source_map) }
     }
 
+    pub fn err_count(&self) -> usize {
+        self.parse_sess.span_diagnostic.err_count()
+    }
+
     #[track_caller]
     pub fn emit_err<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
         self.parse_sess.emit_err(err)

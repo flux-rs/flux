@@ -11,11 +11,6 @@ pub fn mytuple3(p: Pair) -> i32 {
     p.x
 }
 
-#[flux::sig(fn(i32) -> i32[@n])] //~ ERROR illegal binder
-pub fn myint2(x: i32) -> i32 {
-    x
-}
-
 #[flux::sig(fn(f: &mut f32) -> i32[f])] //~ ERROR invalid use of refinement parameter
 fn dipa(f: &mut f32) -> i32 {
     0

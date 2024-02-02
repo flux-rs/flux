@@ -955,7 +955,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             let alias_pred = fhir::AliasPred { trait_id, name: alias_pred.name.name, generic_args };
             Ok(fhir::PredKind::Alias(alias_pred, refine_args))
         } else {
-            Err(self.emit_err(errors::UnresolvedVar::from_path(&alias_pred.trait_id, "trait")))
+            Err(self.emit_err(errors::InvalidAliasPred::new(&alias_pred.trait_id)))
         }
     }
 
@@ -1083,14 +1083,17 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             .copied()
     }
 
+    #[track_caller]
     fn resolve_path(&self, path: &surface::QPathExpr) -> PathRes {
         self.resolver_output().refinements.path_res_map[&path.node_id]
     }
 
+    #[track_caller]
     fn resolve_loc(&self, node_id: NodeId) -> LocRes {
         self.resolver_output().refinements.loc_res_map[&node_id]
     }
 
+    #[track_caller]
     fn resolve_func(&self, node_id: NodeId) -> FuncRes {
         self.resolver_output().refinements.func_res_map[&node_id]
     }
@@ -1160,23 +1163,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 }
             }))
     }
-
-    // fn scope_to_refine_args(&self, scope: ScopeId) -> &'genv [fhir::RefineArg<'genv>] {
-    //     todo!()
-    //     // let bindings = &self.resolver_output().refinements.scopes[&scope];
-    //     // self.genv()
-    //     //     .alloc_slice_fill_iter(bindings.iter().map(|param| {
-    //     //         fhir::RefineArg {
-    //     //             kind: fhir::RefineArgKind::Expr(fhir::Expr {
-    //     //                 kind: fhir::ExprKind::Var(param.ident, None),
-    //     //                 fhir_id: self.next_fhir_id(),
-    //     //                 span: param.ident.span(),
-    //     //             }),
-    //     //             fhir_id: self.next_fhir_id(),
-    //     //             span: param.ident.span(),
-    //     //         }
-    //     //     }))
-    // }
 
     fn desugar_sort(
         &self,

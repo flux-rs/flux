@@ -3,9 +3,10 @@ use rustc_span::symbol::Ident;
 use super::{
     AliasPred, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
     ExprKind, FnOutput, FnRetTy, FnSig, FuncDef, GenericArg, GenericArgKind, GenericParam,
-    GenericParamKind, Generics, Indices, Lit, Path, Pred, PredKind, QPathExpr, Qualifier,
-    RefineArg, RefineParam, RefinedBy, Sort, StructDef, Trait, TraitAssocPredicate, TraitRef, Ty,
-    TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    GenericParamKind, Generics, Impl, ImplAssocPredicate, Indices, Lit, Path, Pred, PredKind,
+    QPathExpr, Qualifier, RefineArg, RefineParam, RefinedBy, Sort, StructDef, Trait,
+    TraitAssocPredicate, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
+    WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -51,6 +52,14 @@ pub trait Visitor: Sized {
 
     fn visit_trait_assoc_pred(&mut self, assoc_pred: &TraitAssocPredicate) {
         walk_trait_assoc_pred(self, assoc_pred);
+    }
+
+    fn visit_impl(&mut self, impl_: &Impl) {
+        walk_impl(self, impl_);
+    }
+
+    fn visit_impl_assoc_pred(&mut self, assoc_pred: &ImplAssocPredicate) {
+        walk_impl_assoc_pred(self, assoc_pred);
     }
 
     fn visit_trait_ref(&mut self, trait_ref: &TraitRef) {
@@ -216,6 +225,19 @@ pub fn walk_trait<V: Visitor>(vis: &mut V, trait_: &Trait) {
 pub fn walk_trait_assoc_pred<V: Visitor>(vis: &mut V, assoc_pred: &TraitAssocPredicate) {
     vis.visit_ident(assoc_pred.name);
     vis.visit_sort(&assoc_pred.sort);
+}
+
+pub fn walk_impl<V: Visitor>(vis: &mut V, impl_: &Impl) {
+    if let Some(generics) = &impl_.generics {
+        vis.visit_generics(generics);
+    }
+    walk_list!(vis, visit_impl_assoc_pred, &impl_.assoc_predicates);
+}
+
+pub fn walk_impl_assoc_pred<V: Visitor>(vis: &mut V, assoc_pred: &ImplAssocPredicate) {
+    vis.visit_ident(assoc_pred.name);
+    walk_list!(vis, visit_refine_param, &assoc_pred.params);
+    vis.visit_expr(&assoc_pred.body);
 }
 
 pub fn walk_trait_ref<V: Visitor>(vis: &mut V, trait_ref: &TraitRef) {

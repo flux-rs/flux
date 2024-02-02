@@ -156,6 +156,12 @@ impl<V> std::ops::DerefMut for ScopedVisitorWrapper<V> {
 }
 
 impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
+    fn visit_impl_assoc_pred(&mut self, assoc_pred: &surface::ImplAssocPredicate) {
+        self.with_scope(ScopeKind::Misc, |this| {
+            surface::visit::walk_impl_assoc_pred(this, assoc_pred);
+        });
+    }
+
     fn visit_qualifier(&mut self, qualifier: &surface::Qualifier) {
         self.with_scope(ScopeKind::Misc, |this| {
             surface::visit::walk_qualifier(this, qualifier);
@@ -505,11 +511,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         } else if self.resolver.sort_decls.get(&ident.name).is_some() {
             SortRes::User
         } else {
-            todo!()
-            // Err(self
-            //     .genv
-            //     .sess()
-            //     .emit_err(errors::UnresolvedSort::new(*ident)))
+            self.resolver.emit(errors::UnresolvedSort::new(ident));
+            return;
         };
         self.resolver
             .output
@@ -524,11 +527,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         } else if ctor.name == SORTS.map {
             fhir::SortCtor::Map
         } else {
-            todo!()
-            // Err(self
-            //     .genv
-            //     .sess()
-            //     .emit_err(errors::UnresolvedSort::new(ident)))
+            self.resolver.emit(errors::UnresolvedSort::new(ctor));
+            return;
         };
         self.resolver
             .output
@@ -688,7 +688,8 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
     fn on_func(&mut self, func: Ident, node_id: NodeId) {
         if let Some(res) = self.find(func) {
             if res.is_syntax_err() {
-                todo!();
+                self.resolver.emit(errors::InvalidUnrefinedParam::new(func));
+                return;
             }
             self.func_res_map
                 .insert(node_id, FuncRes::Param(res.param_id()));
@@ -698,7 +699,8 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
             self.func_res_map.insert(node_id, FuncRes::Global(*decl));
             return;
         }
-        todo!("report error")
+        self.resolver
+            .emit(errors::UnresolvedVar::from_ident(func, "function"));
     }
 
     fn on_loc(&mut self, loc: Ident, node_id: NodeId) {
@@ -709,14 +711,18 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
                         self.loc_res_map
                             .insert(node_id, LocRes(res.param_id(), idx));
                     }
+                    ParamRes(ParamKind::SyntaxError, _) => {
+                        self.resolver.emit(errors::InvalidUnrefinedParam::new(loc));
+                    }
                     _ => {
-                        todo!()
+                        self.resolver
+                            .emit(errors::UnresolvedVar::from_ident(loc, "location"));
                     }
                 }
             }
             None => {
-                todo!()
-                // Err(self.emit_err(errors::UnresolvedVar::from_ident(loc, "location")))
+                self.resolver
+                    .emit(errors::UnresolvedVar::from_ident(loc, "location"));
             }
         }
     }
@@ -726,7 +732,8 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
             [var] => {
                 if let Some(res) = self.find(*var) {
                     if res.is_syntax_err() {
-                        todo!("report error");
+                        self.resolver.emit(errors::InvalidUnrefinedParam::new(*var));
+                        return;
                     }
                     self.path_res_map
                         .insert(path.node_id, PathRes::Param(res.param_id()));
@@ -737,7 +744,8 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
                         .insert(path.node_id, PathRes::Const(*const_def_id));
                     return;
                 }
-                todo!("report error {path:?}")
+                self.resolver
+                    .emit(errors::UnresolvedVar::from_ident(*var, "name"));
             }
             [typ, name] => {
                 if let Some(res) = resolve_num_const(*typ, *name) {
@@ -751,8 +759,8 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
                 todo!("report error")
             }
             _ => {
-                todo!()
-                // Err(self.emit_err(errors::UnresolvedVar::from_qpath(path, "type-3")))
+                self.resolver
+                    .emit(errors::UnresolvedVar::from_qpath(path, "path"));
             }
         }
     }
@@ -809,6 +817,8 @@ pub(crate) static SORTS: std::sync::LazyLock<Sorts> = std::sync::LazyLock::new(|
 
 mod errors {
     use flux_macros::Diagnostic;
+    use flux_syntax::surface;
+    use itertools::Itertools;
     use rustc_span::{symbol::Ident, Span, Symbol};
 
     #[derive(Diagnostic)]
@@ -826,6 +836,68 @@ mod errors {
         pub(super) fn new(old_ident: Ident, new_ident: Ident) -> Self {
             debug_assert_eq!(old_ident.name, new_ident.name);
             Self { span: new_ident.span, name: new_ident.name, first_use: old_ident.span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar_unresolved_sort, code = "FLUX")]
+    pub(super) struct UnresolvedSort {
+        #[primary_span]
+        #[label]
+        span: Span,
+        sort: Ident,
+    }
+
+    impl UnresolvedSort {
+        pub(super) fn new(sort: Ident) -> Self {
+            Self { span: sort.span, sort }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar_invalid_unrefined_param, code = "FLUX")]
+    pub(super) struct InvalidUnrefinedParam {
+        #[primary_span]
+        #[label]
+        span: Span,
+        var: Ident,
+    }
+
+    impl InvalidUnrefinedParam {
+        pub(super) fn new(var: Ident) -> Self {
+            Self { var, span: var.span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar_unresolved_var, code = "FLUX")]
+    pub(super) struct UnresolvedVar {
+        #[primary_span]
+        #[label]
+        span: Span,
+        var: String,
+        kind: String,
+    }
+
+    impl UnresolvedVar {
+        pub(super) fn from_qpath(qpath: &surface::QPathExpr, kind: &str) -> Self {
+            Self::from_segments(&qpath.segments, kind, qpath.span)
+        }
+
+        pub(super) fn from_ident(ident: Ident, kind: &str) -> Self {
+            Self { span: ident.span, kind: kind.to_string(), var: format!("{ident}") }
+        }
+
+        pub(super) fn from_path(path: &surface::Path, kind: &str) -> Self {
+            Self::from_segments(&path.segments, kind, path.span)
+        }
+
+        fn from_segments(segments: &[Ident], kind: &str, span: Span) -> Self {
+            Self {
+                span,
+                kind: kind.to_string(),
+                var: format!("{}", segments.iter().format_with("::", |s, f| f(&s.name))),
+            }
         }
     }
 }

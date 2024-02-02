@@ -135,6 +135,9 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             ItemKind::Trait(..) => {
                 self.resolve_trait(item.owner_id);
             }
+            ItemKind::Impl(..) => {
+                self.resolve_impl(item.owner_id);
+            }
             ItemKind::TyAlias(..) => {
                 self.resolve_type_alias(item.owner_id);
             }
@@ -240,13 +243,6 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         self.ribs.pop();
     }
 
-    fn with_item_resolver(&mut self, owner_id: OwnerId, f: impl FnOnce(&mut ItemResolver)) {
-        match ItemResolver::new(self, owner_id) {
-            Ok(mut item_resolver) => f(&mut item_resolver),
-            Err(err) => self.err = self.err.or(Some(err)),
-        }
-    }
-
     fn resolve_qualifier(&mut self, qualifier: &surface::Qualifier) {
         RefinementResolver::for_flux_item(self.genv.tcx(), self, &[])
             .run(|r| r.visit_qualifier(qualifier));
@@ -263,53 +259,55 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             .run(|r| r.visit_trait(trait_));
     }
 
+    fn resolve_impl(&mut self, owner_id: OwnerId) {
+        let impl_ = &self.specs.impls[&owner_id];
+        RefinementResolver::for_rust_item(self.genv.tcx(), self, owner_id)
+            .run(|r| r.visit_impl(impl_));
+    }
+
     fn resolve_type_alias(&mut self, owner_id: OwnerId) {
         if let Some(ty_alias) = &self.specs.ty_aliases[&owner_id] {
-            self.with_item_resolver(owner_id, |item_resolver| {
+            let has_errors = ItemResolver::run_with(self, owner_id, |item_resolver| {
                 item_resolver.visit_ty_alias(ty_alias);
-                item_resolver
-                    .as_refinement_resolver()
-                    .run(|r| r.visit_ty_alias(ty_alias));
             });
+            if !has_errors {
+                RefinementResolver::for_rust_item(self.genv.tcx(), self, owner_id)
+                    .run(|r| r.visit_ty_alias(ty_alias));
+            }
         };
     }
 
     fn resolve_struct_def(&mut self, owner_id: OwnerId) {
         let struct_def = &self.specs.structs[&owner_id];
-        // if !struct_def.needs_resolving() {
-        //     return;
-        // }
-
-        self.with_item_resolver(owner_id, |item_resolver| {
+        let has_errors = ItemResolver::run_with(self, owner_id, |item_resolver| {
             item_resolver.visit_struct_def(struct_def);
-            item_resolver
-                .as_refinement_resolver()
-                .run(|r| r.visit_struct_def(struct_def));
         });
+        if !has_errors {
+            RefinementResolver::for_rust_item(self.genv.tcx(), self, owner_id)
+                .run(|r| r.visit_struct_def(struct_def));
+        }
     }
 
     fn resolve_enum_def(&mut self, owner_id: OwnerId) {
         let enum_def = &self.specs.enums[&owner_id];
-        // if !enum_def.needs_resolving() {
-        //     return;
-        // }
-
-        self.with_item_resolver(owner_id, |item_resolver| {
+        let has_errors = ItemResolver::run_with(self, owner_id, |item_resolver| {
             item_resolver.visit_enum_def(enum_def);
-            item_resolver
-                .as_refinement_resolver()
-                .run(|r| r.visit_enum_def(enum_def));
         });
+        if !has_errors {
+            RefinementResolver::for_rust_item(self.genv.tcx(), self, owner_id)
+                .run(|r| r.visit_enum_def(enum_def));
+        }
     }
 
     fn resolve_fn_sig(&mut self, owner_id: OwnerId) {
         if let Some(fn_sig) = &self.specs.fn_sigs[&owner_id].fn_sig {
-            self.with_item_resolver(owner_id, |item_resolver| {
+            let has_errors = ItemResolver::run_with(self, owner_id, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
-                item_resolver
-                    .as_refinement_resolver()
-                    .run(|r| r.visit_fn_sig(fn_sig));
             });
+            if !has_errors {
+                RefinementResolver::for_rust_item(self.genv.tcx(), self, owner_id)
+                    .run(|r| r.visit_fn_sig(fn_sig));
+            }
         };
     }
 
@@ -372,13 +370,13 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         self.output
     }
 
+    #[track_caller]
     fn emit(&mut self, err: impl IntoDiagnostic<'genv>) {
         self.err = self.err.or(Some(self.genv.sess().emit_err(err)));
     }
 }
 
 struct ItemResolver<'a, 'genv, 'tcx> {
-    owner_id: OwnerId,
     table: NameResTable,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
 }
@@ -401,6 +399,25 @@ enum ResEntry {
 }
 
 impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
+    #[must_use]
+    fn run_with(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        owner_id: OwnerId,
+        f: impl FnOnce(&mut ItemResolver),
+    ) -> bool {
+        let errors = resolver.genv.sess().err_count();
+        match ItemResolver::new(resolver, owner_id) {
+            Ok(mut item_resolver) => {
+                f(&mut item_resolver);
+                resolver.genv.sess().err_count() > errors
+            }
+            Err(err) => {
+                resolver.err = resolver.err.or(Some(err));
+                true
+            }
+        }
+    }
+
     fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>, owner_id: OwnerId) -> Result<Self> {
         let tcx = resolver.genv.tcx();
         let sess = resolver.genv.sess();
@@ -417,7 +434,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
             }
         };
 
-        Ok(Self { owner_id, table, resolver })
+        Ok(Self { table, resolver })
     }
 
     fn resolve_opaque_impl(&mut self, node_id: surface::NodeId, span: Span) {
@@ -456,10 +473,6 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         } else {
             self.resolver.emit(errors::UnresolvedPath::new(path));
         }
-    }
-
-    fn as_refinement_resolver(&mut self) -> RefinementResolver<'_, 'genv, 'tcx> {
-        RefinementResolver::for_rust_item(self.resolver.genv.tcx(), self.resolver, self.owner_id)
     }
 }
 

@@ -11,12 +11,6 @@
 // use rustc_hash::FxHashMap;
 // use rustc_hir::{def::DefKind, OwnerId};
 // use rustc_middle::ty::TyCtxt;
-use rustc_span::{
-    // def_id::DefId,
-    // sym::{self},
-    // symbol::kw::{self},
-    Symbol,
-};
 
 // use crate::errors;
 
