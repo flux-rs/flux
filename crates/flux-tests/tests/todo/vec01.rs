@@ -54,9 +54,6 @@ impl<T, A: Allocator> Vec<T, A> {
 
     #[flux::sig(fn(&Vec<T, A>[@n]) -> usize[n])]
     fn len(v: &Vec<T, A>) -> usize;
-
-    // #[flux::sig(fn(&Vec<T, A>[@n]) -> bool[n == 0])]
-    // fn is_empty(v: &Vec<T, A>) -> bool;
 }
 
 // ---------------------------------------------------------------------------------------
