@@ -1,6 +1,6 @@
 use std::ops::ControlFlow;
 
-use flux_common::index::IndexGen;
+use flux_common::{bug, index::IndexGen};
 use flux_middle::{fhir, PathRes, ResolverOutput, SortRes};
 use flux_syntax::surface::{
     self,
@@ -758,6 +758,50 @@ pub(crate) static SORTS: std::sync::LazyLock<Sorts> = std::sync::LazyLock::new(|
     }
 });
 
+struct IllegalBinderVisitor<'a, 'genv, 'tcx> {
+    scopes: Vec<ScopeKind>,
+    resolver: &'a mut CrateResolver<'genv, 'tcx>,
+}
+
+impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
+    fn is_box(&self, path: &surface::Path) -> bool {
+        let res = self.resolver.output.path_res_map[&path.node_id];
+        res.is_box(self.resolver.genv.tcx())
+    }
+
+    fn enter_scope(&mut self, kind: ScopeKind) -> ControlFlow<()> {
+        self.scopes.push(kind);
+        ControlFlow::Continue(())
+    }
+
+    fn exit_scope(&mut self) {
+        self.scopes.pop();
+    }
+
+    fn on_implicit_param(&mut self, ident: Ident, param_kind: fhir::ParamKind, _node_id: NodeId) {
+        let Some(scope_kind) = self.scopes.last() else { return };
+        let (allowed, bind_kind) = match param_kind {
+            fhir::ParamKind::At => {
+                (
+                    matches!(scope_kind, ScopeKind::FnInput | ScopeKind::Variant),
+                    surface::BindKind::At,
+                )
+            }
+            fhir::ParamKind::Pound => {
+                (matches!(scope_kind, ScopeKind::FnOutput), surface::BindKind::Pound)
+            }
+            fhir::ParamKind::Colon
+            | fhir::ParamKind::Loc(_)
+            | fhir::ParamKind::Error
+            | fhir::ParamKind::Explicit => return,
+        };
+        if !allowed {
+            self.resolver
+                .emit(errors::IllegalBinder::new(ident.span, bind_kind));
+        }
+    }
+}
+
 mod errors {
     use flux_macros::Diagnostic;
     use flux_syntax::surface;
@@ -837,6 +881,21 @@ mod errors {
     impl InvalidUnrefinedParam {
         pub(super) fn new(var: Ident) -> Self {
             Self { var, span: var.span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar_illegal_binder, code = "FLUX")]
+    pub(super) struct IllegalBinder {
+        #[primary_span]
+        #[label]
+        span: Span,
+        kind: &'static str,
+    }
+
+    impl IllegalBinder {
+        pub(super) fn new(span: Span, kind: surface::BindKind) -> Self {
+            Self { span, kind: kind.token_str() }
         }
     }
 }

@@ -47,10 +47,6 @@ desugar_sort_arity_mismatch =
         *[other] 1 or {$expected} arguments
     }, found {$found}
 
-desugar_illegal_binder =
-    illegal binder
-    .label = `{$kind}` binder not allowed in this position
-
 desugar_invalid_numeric_suffix =
     invalid suffix `{$suffix}` for number literal
     .label = the suffix must be one of the numeric sorts `int` or `real`
@@ -84,3 +80,7 @@ desugar_unresolved_sort =
 desugar_invalid_unrefined_param =
     invalid use of refinement parameter
     .label = parameter `{$var}` refers to a type with no indices
+
+desugar_illegal_binder =
+    illegal binder
+    .label = `{$kind}` binder not allowed in this position

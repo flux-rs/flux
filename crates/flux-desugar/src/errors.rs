@@ -92,21 +92,6 @@ impl UnresolvedGenericParam {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_illegal_binder, code = "FLUX")]
-pub(super) struct IllegalBinder {
-    #[primary_span]
-    #[label]
-    span: Span,
-    kind: &'static str,
-}
-
-impl IllegalBinder {
-    pub(super) fn new(span: Span, kind: BindKind) -> Self {
-        Self { span, kind: kind.token_str() }
-    }
-}
-
-#[derive(Diagnostic)]
 #[diag(desugar_invalid_assoc_predicate, code = "FLUX")]
 pub(super) struct InvalidAssocPredicate {
     #[primary_span]
