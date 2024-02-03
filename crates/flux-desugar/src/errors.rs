@@ -24,6 +24,29 @@ pub(super) struct InvalidDotVar {
 }
 
 #[derive(Diagnostic)]
+#[diag(desugar_invalid_func_as_var, code = "FLUX")]
+pub(super) struct InvalidFuncAsVar {
+    #[primary_span]
+    #[label]
+    pub(super) span: Span,
+}
+
+#[derive(Diagnostic)]
+#[diag(desugar_invalid_func, code = "FLUX")]
+pub(super) struct InvalidFunc {
+    #[primary_span]
+    #[label]
+    pub(super) span: Span,
+}
+
+#[derive(Diagnostic)]
+#[diag(desugar_invalid_loc, code = "FLUX")]
+pub(super) struct InvalidLoc {
+    #[primary_span]
+    pub(super) span: Span,
+}
+
+#[derive(Diagnostic)]
 #[diag(desugar_sort_arity_mismatch, code = "FLUX")]
 pub(super) struct SortArityMismatch {
     #[primary_span]

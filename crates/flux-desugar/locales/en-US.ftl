@@ -21,6 +21,17 @@ desugar_unexpected_literal =
 desugar_invalid_dot_var =
     unsupported field access in refinement
 
+desugar_invalid_func_as_var =
+    invalid use of function
+    .label = function not supported in this position
+
+desugar_invalid_func =
+    invalid name in function position
+    .label = expected a function or parameter
+
+desugar_invalid_loc =
+    expected an `&strg` parameter
+
 desugar_sort_arity_mismatch =
     this sort constructor takes {$expected ->
         [0] 0 sort arguments
@@ -62,10 +73,6 @@ desugar_unresolved_generic_param =
     cannot resolve generic param
     .note = generic parameters in refined signature must much rust signature
 
-desugar_invalid_unrefined_param =
-    invalid use of refinement parameter
-    .label = parameter `{$var}` refers to a type with no indices
-
 desugar_unresolved_var =
     cannot find {$kind} `{$var}` in this scope
     .label = not found in this scope
@@ -73,3 +80,7 @@ desugar_unresolved_var =
 desugar_unresolved_sort =
     cannot find sort `{$sort}` in this scope
     .label = not found in this scope
+
+desugar_invalid_unrefined_param =
+    invalid use of refinement parameter
+    .label = parameter `{$var}` refers to a type with no indices

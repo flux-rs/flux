@@ -258,26 +258,16 @@ pub enum SortRes {
 }
 
 #[derive(Clone, Copy)]
-pub enum FuncRes<Id = fhir::Name> {
-    Param(Id),
-    Global(fhir::FuncKind),
-}
-
-#[derive(Clone, Copy)]
-pub struct LocRes<Id = fhir::Name>(pub Id, pub usize);
-
-#[derive(Clone, Copy)]
 pub enum PathRes<Id = fhir::Name> {
-    Param(Id),
+    Param(fhir::ParamKind, Id),
     Const(DefId),
     NumConst(i128),
+    GlobalFunc(fhir::FuncKind, Symbol),
 }
 
 #[derive(Default)]
 pub struct RefinementResolverOutput {
     pub param_res_map: UnordMap<NodeId, (fhir::Name, fhir::ParamKind)>,
-    pub func_res_map: UnordMap<NodeId, FuncRes>,
-    pub loc_res_map: UnordMap<NodeId, LocRes>,
     pub path_res_map: UnordMap<NodeId, PathRes>,
     pub sort_ctor_res_map: UnordMap<NodeId, fhir::SortCtor>,
     pub sort_res_map: UnordMap<NodeId, SortRes>,

@@ -7,7 +7,7 @@ use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, lift::LiftCtxt, FhirId, FluxOwnerId, Res},
     global_env::{self, GlobalEnv},
-    try_alloc_slice, FuncRes, LocRes, PathRes, ResolverOutput, ScopeId, SortRes,
+    try_alloc_slice, PathRes, ResolverOutput, ScopeId, SortRes,
 };
 use flux_syntax::surface::{self, NodeId};
 use hir::{def::DefKind, ItemKind};
@@ -624,7 +624,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> Result<fhir::Constraint<'genv>> {
         match cstr {
             surface::Constraint::Type(loc, ty, node_id) => {
-                let LocRes(name, idx) = self.resolve_loc(*node_id);
+                let (name, idx) = self.desugar_loc(*loc, *node_id)?;
                 let loc = fhir::Ident::new(name, *loc);
                 let ty = self.desugar_ty(ty)?;
                 Ok(fhir::Constraint::Type(loc, ty, idx))
@@ -1083,19 +1083,51 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             .copied()
     }
 
-    #[track_caller]
-    fn resolve_path(&self, path: &surface::QPathExpr) -> PathRes {
-        self.resolver_output().refinements.path_res_map[&path.node_id]
+    fn desugar_var(&self, path: &surface::QPathExpr) -> Result<fhir::ExprKind<'genv>> {
+        let res = self.resolver_output().refinements.path_res_map[&path.node_id];
+        match res {
+            PathRes::Param(_, name) => {
+                // FIXME(nilehmann) this is ugly. if we are storing source information we
+                // keep the entire path.
+                let ident = *path.segments.last().unwrap();
+                let var = fhir::Ident::new(name, ident);
+                Ok(fhir::ExprKind::Var(var, None))
+            }
+            PathRes::Const(const_def_id) => Ok(fhir::ExprKind::Const(const_def_id, path.span)),
+            PathRes::NumConst(val) => Ok(fhir::ExprKind::Literal(fhir::Lit::Int(val))),
+            PathRes::GlobalFunc(..) => {
+                let span = path.span;
+                Err(self.emit_err(errors::InvalidFuncAsVar { span }))
+            }
+        }
     }
 
     #[track_caller]
-    fn resolve_loc(&self, node_id: NodeId) -> LocRes {
-        self.resolver_output().refinements.loc_res_map[&node_id]
+    fn desugar_loc(&self, ident: surface::Ident, node_id: NodeId) -> Result<(fhir::Name, usize)> {
+        let res = self.resolver_output().refinements.path_res_map[&node_id];
+        if let PathRes::Param(fhir::ParamKind::Loc(idx), name) = res {
+            Ok((name, idx))
+        } else {
+            let span = ident.span;
+            Err(self.emit_err(errors::InvalidLoc { span }))
+        }
     }
 
     #[track_caller]
-    fn resolve_func(&self, node_id: NodeId) -> FuncRes {
-        self.resolver_output().refinements.func_res_map[&node_id]
+    fn desugar_func(&self, func: surface::Ident, node_id: NodeId) -> Result<fhir::Func> {
+        let res = self.resolver_output().refinements.path_res_map[&node_id];
+        match res {
+            PathRes::Param(_, name) => {
+                Ok(fhir::Func::Var(fhir::Ident::new(name, func), self.next_fhir_id()))
+            }
+            PathRes::GlobalFunc(kind, name) => {
+                Ok(fhir::Func::Global(name, kind, func.span, self.next_fhir_id()))
+            }
+            _ => {
+                let span = func.span;
+                Err(self.emit_err(errors::InvalidFunc { span }))
+            }
+        }
     }
 
     #[track_caller]
@@ -1175,19 +1207,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
     fn desugar_expr(&self, expr: &surface::Expr) -> Result<fhir::Expr<'genv>> {
         let node_id = expr.node_id;
         let kind = match &expr.kind {
-            surface::ExprKind::QPath(path) => {
-                match self.resolve_path(path) {
-                    PathRes::Param(name) => {
-                        // FIXME(nilehmann) this is ugly. if we are storing source information we
-                        // keep the entire path.
-                        let ident = *path.segments.last().unwrap();
-                        let var = fhir::Ident::new(name, ident);
-                        fhir::ExprKind::Var(var, None)
-                    }
-                    PathRes::Const(const_def_id) => fhir::ExprKind::Const(const_def_id, path.span),
-                    PathRes::NumConst(i) => fhir::ExprKind::Literal(fhir::Lit::Int(i)),
-                }
-            }
+            surface::ExprKind::QPath(path) => self.desugar_var(path)?,
             surface::ExprKind::Literal(lit) => {
                 fhir::ExprKind::Literal(self.desugar_lit(expr.span, *lit)?)
             }
@@ -1207,31 +1227,21 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 )
             }
             surface::ExprKind::Dot(path, fld) => {
-                if let PathRes::Param(name) = self.resolve_path(path) {
+                let res = self.resolver_output().refinements.path_res_map[&path.node_id];
+                if let PathRes::Param(_, name) = res {
                     // FIXME(nilehmann) this is ugly. if we are storing source information we
                     // keep the entire path.
                     let var = *path.segments.last().unwrap();
                     let var = fhir::Ident::new(name, var);
                     fhir::ExprKind::Dot(var, *fld)
                 } else {
-                    return Err(self.emit_err(errors::InvalidDotVar { span: expr.span }));
+                    return Err(self.emit_err(errors::InvalidDotVar { span: path.span }));
                 }
             }
             surface::ExprKind::App(func, args) => {
                 let args = self.desugar_exprs(args)?;
-                match self.resolve_func(node_id) {
-                    FuncRes::Global(funckind) => {
-                        fhir::ExprKind::App(
-                            fhir::Func::Global(func.name, funckind, func.span, self.next_fhir_id()),
-                            args,
-                        )
-                    }
-                    FuncRes::Param(name) => {
-                        let var = fhir::Ident::new(name, *func);
-                        let func = fhir::Func::Var(var, self.next_fhir_id());
-                        fhir::ExprKind::App(func, args)
-                    }
-                }
+                let func = self.desugar_func(*func, node_id)?;
+                fhir::ExprKind::App(func, args)
             }
             surface::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 let p = self.desugar_expr(p);

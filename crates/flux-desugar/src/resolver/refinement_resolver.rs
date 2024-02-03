@@ -1,7 +1,7 @@
 use std::ops::ControlFlow;
 
 use flux_common::index::IndexGen;
-use flux_middle::{fhir, FuncRes, LocRes, PathRes, ResolverOutput, SortRes};
+use flux_middle::{fhir, PathRes, ResolverOutput, SortRes};
 use flux_syntax::surface::{
     self,
     visit::{walk_ty, Visitor as _},
@@ -31,76 +31,67 @@ impl ScopeKind {
         matches!(self, ScopeKind::FnInput | ScopeKind::Variant)
     }
 
-    fn is_binder_allowed(self, kind: surface::BindKind) -> bool {
-        match self {
-            ScopeKind::FnInput => matches!(kind, surface::BindKind::At),
-            ScopeKind::FnOutput => matches!(kind, surface::BindKind::Pound),
-            _ => false,
-        }
-    }
+    // fn is_binder_allowed(self, kind: surface::BindKind) -> bool {
+    //     match self {
+    //         ScopeKind::FnInput => matches!(kind, surface::BindKind::At),
+    //         ScopeKind::FnOutput => matches!(kind, surface::BindKind::Pound),
+    //         _ => false,
+    //     }
+    // }
 }
 
 /// Parameters used during gathering.
 #[derive(Debug, Clone, Copy)]
-struct ParamRes(ParamKind, NodeId);
+struct ParamRes(fhir::ParamKind, NodeId);
 
 impl ParamRes {
+    fn kind(self) -> fhir::ParamKind {
+        self.0
+    }
+
     fn param_id(self) -> NodeId {
         self.1
     }
-
-    fn is_syntax_err(&self) -> bool {
-        matches!(self, ParamRes(ParamKind::SyntaxError, _))
-    }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum ParamKind {
-    Explicit,
-    /// A parameter declared with `@n` syntax.
-    At,
-    /// A parameter declared with `#n` syntax.
-    Pound,
-    /// A parameter declared with `x: T` syntax.
-    Colon,
-    /// A location declared with `x: &strg T` syntax.
-    Loc(usize),
-    /// A parameter that we know *syntactically* cannot be used inside a refinement. We track these
-    /// parameters to report errors at the use site. For example, consider the following function:
-    ///
-    /// ```ignore
-    /// fn(x: {v. i32[v] | v > 0}) -> i32[x]
-    /// ```
-    ///
-    /// In this definition, we know syntatically that `x` binds to a non-base type so it's an error
-    /// to use `x` as an index in the return type.
-    SyntaxError,
-}
+// #[derive(Debug, Clone, Copy)]
+// pub(crate) enum ParamKind {
+//     Explicit,
+//     /// A parameter declared with `@n` syntax.
+//     At,
+//     /// A parameter declared with `#n` syntax.
+//     Pound,
+//     /// A parameter declared with `x: T` syntax.
+//     Colon,
+//     /// A location declared with `x: &strg T` syntax.
+//     Loc(usize),
+//     /// A parameter that we know *syntactically* cannot be used inside a refinement. We track these
+//     /// parameters to report errors at the use site. For example, consider the following function:
+//     ///
+//     /// ```ignore
+//     /// fn(x: {v. i32[v] | v > 0}) -> i32[x]
+//     /// ```
+//     ///
+//     /// In this definition, we know syntatically that `x` binds to a non-base type so it's an error
+//     /// to use `x` as an index in the return type.
+//     SyntaxError,
+// }
 
-impl ParamKind {
-    fn is_allowed_in(self, kind: ScopeKind) -> bool {
-        match self {
-            ParamKind::At => {
-                matches!(kind, ScopeKind::FnInput | ScopeKind::Variant)
-            }
-            ParamKind::Colon | ParamKind::Loc(_) => {
-                matches!(kind, ScopeKind::FnInput)
-            }
-            ParamKind::Pound => matches!(kind, ScopeKind::FnOutput),
-            ParamKind::SyntaxError => matches!(kind, ScopeKind::FnInput | ScopeKind::FnOutput),
-            ParamKind::Explicit => todo!(),
-        }
-    }
-}
-
-impl From<surface::BindKind> for ParamKind {
-    fn from(kind: surface::BindKind) -> Self {
-        match kind {
-            surface::BindKind::At => ParamKind::At,
-            surface::BindKind::Pound => ParamKind::Pound,
-        }
-    }
-}
+// impl ParamKind {
+//     fn is_allowed_in(self, kind: ScopeKind) -> bool {
+//         match self {
+//             ParamKind::At => {
+//                 matches!(kind, ScopeKind::FnInput | ScopeKind::Variant)
+//             }
+//             ParamKind::Colon | ParamKind::Loc(_) => {
+//                 matches!(kind, ScopeKind::FnInput)
+//             }
+//             ParamKind::Pound => matches!(kind, ScopeKind::FnOutput),
+//             ParamKind::SyntaxError => matches!(kind, ScopeKind::FnInput | ScopeKind::FnOutput),
+//             ParamKind::Explicit => todo!(),
+//         }
+//     }
+// }
 
 pub(crate) trait ScopedVisitor: Sized {
     fn is_box(&self, path: &surface::Path) -> bool;
@@ -111,7 +102,7 @@ pub(crate) trait ScopedVisitor: Sized {
         ScopedVisitorWrapper(self)
     }
 
-    fn on_implicit_param(&mut self, _ident: Ident, _kind: ParamKind, _node_id: NodeId) {}
+    fn on_implicit_param(&mut self, _ident: Ident, _kind: fhir::ParamKind, _node_id: NodeId) {}
     fn on_generic_param(&mut self, _param: &surface::GenericParam) {}
     fn on_refine_param(&mut self, _name: Ident, _node_id: NodeId) {}
     fn on_enum_variant(&mut self, _variant: &surface::VariantDef) {}
@@ -226,21 +217,21 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     fn visit_fun_arg(&mut self, arg: &surface::Arg, idx: usize) {
         match arg {
             surface::Arg::Constr(bind, _, _, node_id) => {
-                self.on_implicit_param(*bind, ParamKind::Colon, *node_id);
+                self.on_implicit_param(*bind, fhir::ParamKind::Colon, *node_id);
             }
             surface::Arg::StrgRef(loc, _, node_id) => {
-                self.on_implicit_param(*loc, ParamKind::Loc(idx), *node_id);
+                self.on_implicit_param(*loc, fhir::ParamKind::Loc(idx), *node_id);
             }
             surface::Arg::Ty(bind, ty, node_id) => {
                 if let &Some(bind) = bind {
                     let param_kind = if let surface::TyKind::Base(bty) = &ty.kind {
                         if bty.is_hole() {
-                            ParamKind::SyntaxError
+                            fhir::ParamKind::Error
                         } else {
-                            ParamKind::Colon
+                            fhir::ParamKind::Colon
                         }
                     } else {
-                        ParamKind::SyntaxError
+                        fhir::ParamKind::Error
                     };
                     self.on_implicit_param(bind, param_kind, *node_id);
                 }
@@ -259,7 +250,11 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     fn visit_refine_arg(&mut self, arg: &surface::RefineArg) {
         match arg {
             surface::RefineArg::Bind(ident, kind, _, node_id) => {
-                self.on_implicit_param(*ident, ParamKind::from(*kind), *node_id);
+                let kind = match kind {
+                    surface::BindKind::At => fhir::ParamKind::At,
+                    surface::BindKind::Pound => fhir::ParamKind::Pound,
+                };
+                self.on_implicit_param(*ident, kind, *node_id);
             }
             surface::RefineArg::Abs(..) => {
                 self.with_scope(ScopeKind::Misc, |this| {
@@ -330,7 +325,7 @@ struct ImplicitParamCollector<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     path_res_map: &'a UnordMap<surface::NodeId, fhir::Res>,
     kind: ScopeKind,
-    params: Vec<(Ident, ParamKind, NodeId)>,
+    params: Vec<(Ident, fhir::ParamKind, NodeId)>,
 }
 
 impl<'a, 'tcx> ImplicitParamCollector<'a, 'tcx> {
@@ -345,7 +340,7 @@ impl<'a, 'tcx> ImplicitParamCollector<'a, 'tcx> {
     fn run(
         self,
         f: impl FnOnce(&mut ScopedVisitorWrapper<Self>),
-    ) -> Vec<(Ident, ParamKind, NodeId)> {
+    ) -> Vec<(Ident, fhir::ParamKind, NodeId)> {
         let mut wrapped = self.wrap();
         f(&mut wrapped);
         wrapped.0.params
@@ -366,7 +361,7 @@ impl ScopedVisitor for ImplicitParamCollector<'_, '_> {
         }
     }
 
-    fn on_implicit_param(&mut self, ident: Ident, param: ParamKind, node_id: NodeId) {
+    fn on_implicit_param(&mut self, ident: Ident, param: fhir::ParamKind, node_id: NodeId) {
         self.params.push((ident, param, node_id));
     }
 }
@@ -385,7 +380,7 @@ impl Scope {
 #[derive(Clone, Copy)]
 struct ParamDef {
     ident: Ident,
-    kind: ParamKind,
+    kind: fhir::ParamKind,
     scope: Option<NodeId>,
 }
 
@@ -410,8 +405,6 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     sorts_res: UnordMap<Symbol, SortRes>,
     param_defs: FxIndexMap<NodeId, ParamDef>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
-    func_res_map: FxHashMap<NodeId, FuncRes<NodeId>>,
-    loc_res_map: FxHashMap<NodeId, LocRes<NodeId>>,
     path_res_map: FxHashMap<NodeId, PathRes<NodeId>>,
 }
 
@@ -457,8 +450,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             sorts_res: sort_res,
             param_defs: Default::default(),
             scopes: Default::default(),
-            func_res_map: Default::default(),
-            loc_res_map: Default::default(),
             path_res_map: Default::default(),
         }
     }
@@ -466,7 +457,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     fn define_param(
         &mut self,
         ident: Ident,
-        kind: ParamKind,
+        kind: fhir::ParamKind,
         param_id: NodeId,
         scope: Option<NodeId>,
     ) {
@@ -497,6 +488,31 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             }
         }
         None
+    }
+
+    fn resolve_ident(&mut self, ident: Ident, node_id: NodeId) {
+        if let Some(res) = self.find(ident) {
+            if let fhir::ParamKind::Error = res.kind() {
+                self.resolver
+                    .emit(errors::InvalidUnrefinedParam::new(ident));
+                return;
+            }
+            self.path_res_map
+                .insert(node_id, PathRes::Param(res.kind(), res.param_id()));
+            return;
+        }
+        if let Some(const_def_id) = self.resolver.consts.get(&ident.name) {
+            self.path_res_map
+                .insert(node_id, PathRes::Const(*const_def_id));
+            return;
+        }
+        if let Some(decl) = self.resolver.func_decls.get(&ident.name) {
+            self.path_res_map
+                .insert(node_id, PathRes::GlobalFunc(*decl, ident.name));
+            return;
+        }
+        self.resolver
+            .emit(errors::UnresolvedVar::from_ident(ident, "name"));
     }
 
     fn resolve_base_sort_ident(&mut self, ident: Ident, node_id: NodeId) {
@@ -543,31 +559,12 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         let mut name_for_param =
             |param_id| *params.entry(param_id).or_insert_with(|| name_gen.fresh());
 
-        for (node_id, res) in self.func_res_map {
-            let res = match res {
-                FuncRes::Param(param_id) => FuncRes::Param(name_for_param(param_id)),
-                FuncRes::Global(kind) => FuncRes::Global(kind),
-            };
-            self.resolver
-                .output
-                .refinements
-                .func_res_map
-                .insert(node_id, res);
-        }
-
-        for (node_id, LocRes(param_id, idx)) in self.loc_res_map {
-            self.resolver
-                .output
-                .refinements
-                .loc_res_map
-                .insert(node_id, LocRes(name_for_param(param_id), idx));
-        }
-
         for (node_id, res) in self.path_res_map {
             let res = match res {
-                PathRes::Param(param_id) => PathRes::Param(name_for_param(param_id)),
+                PathRes::Param(kind, param_id) => PathRes::Param(kind, name_for_param(param_id)),
                 PathRes::Const(def_id) => PathRes::Const(def_id),
                 PathRes::NumConst(val) => PathRes::NumConst(val),
+                PathRes::GlobalFunc(kind, name) => PathRes::GlobalFunc(kind, name),
             };
             self.resolver
                 .output
@@ -577,35 +574,29 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         }
 
         for (param_id, param_def) in self.param_defs {
-            let name = params.get(&param_id).copied();
-            let (kind, name) = match param_def.kind {
-                ParamKind::Explicit => {
-                    let name = name.unwrap_or_else(|| name_gen.fresh());
-                    (fhir::ParamKind::Explicit, name)
-                }
-                ParamKind::At => {
-                    let name = name.unwrap_or_else(|| name_gen.fresh());
-                    (fhir::ParamKind::At, name)
-                }
-                ParamKind::Pound => {
-                    let name = name.unwrap_or_else(|| name_gen.fresh());
-                    (fhir::ParamKind::Pound, name)
-                }
-                ParamKind::Colon => {
-                    if let Some(name) = name {
-                        (fhir::ParamKind::Colon, name)
+            let name = match param_def.kind {
+                fhir::ParamKind::Colon => {
+                    if let Some(name) = params.get(&param_id) {
+                        *name
                     } else {
                         continue;
                     }
                 }
-                ParamKind::Loc(idx) => {
-                    let name = name.unwrap_or_else(|| name_gen.fresh());
-                    (fhir::ParamKind::Loc(idx), name)
+                fhir::ParamKind::Error => {
+                    continue;
                 }
-                ParamKind::SyntaxError => continue,
+                _ => {
+                    params
+                        .get(&param_id)
+                        .copied()
+                        .unwrap_or_else(|| name_gen.fresh())
+                }
             };
             let output = &mut self.resolver.output.refinements;
-            output.param_res_map.insert(param_id, (name, kind));
+            output
+                .param_res_map
+                .insert(param_id, (name, param_def.kind));
+
             if let Some(scope) = param_def.scope {
                 output
                     .implicit_params
@@ -678,74 +669,25 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
 
     fn on_generic_param(&mut self, param: &surface::GenericParam) {
         let surface::GenericParamKind::Refine { .. } = &param.kind else { return };
-        self.define_param(param.name, ParamKind::Explicit, param.node_id, None);
+        self.define_param(param.name, fhir::ParamKind::Explicit, param.node_id, None);
     }
 
     fn on_refine_param(&mut self, name: Ident, node_id: NodeId) {
-        self.define_param(name, ParamKind::Explicit, node_id, None);
+        self.define_param(name, fhir::ParamKind::Explicit, node_id, None);
     }
 
     fn on_func(&mut self, func: Ident, node_id: NodeId) {
-        if let Some(res) = self.find(func) {
-            if res.is_syntax_err() {
-                self.resolver.emit(errors::InvalidUnrefinedParam::new(func));
-                return;
-            }
-            self.func_res_map
-                .insert(node_id, FuncRes::Param(res.param_id()));
-            return;
-        }
-        if let Some(decl) = self.resolver.func_decls.get(&func.name) {
-            self.func_res_map.insert(node_id, FuncRes::Global(*decl));
-            return;
-        }
-        self.resolver
-            .emit(errors::UnresolvedVar::from_ident(func, "function"));
+        self.resolve_ident(func, node_id);
     }
 
     fn on_loc(&mut self, loc: Ident, node_id: NodeId) {
-        match self.find(loc) {
-            Some(res) => {
-                match res {
-                    ParamRes(ParamKind::Loc(idx), _) => {
-                        self.loc_res_map
-                            .insert(node_id, LocRes(res.param_id(), idx));
-                    }
-                    ParamRes(ParamKind::SyntaxError, _) => {
-                        self.resolver.emit(errors::InvalidUnrefinedParam::new(loc));
-                    }
-                    _ => {
-                        self.resolver
-                            .emit(errors::UnresolvedVar::from_ident(loc, "location"));
-                    }
-                }
-            }
-            None => {
-                self.resolver
-                    .emit(errors::UnresolvedVar::from_ident(loc, "location"));
-            }
-        }
+        self.resolve_ident(loc, node_id);
     }
 
     fn on_path(&mut self, path: &surface::QPathExpr) {
         match &path.segments[..] {
             [var] => {
-                if let Some(res) = self.find(*var) {
-                    if res.is_syntax_err() {
-                        self.resolver.emit(errors::InvalidUnrefinedParam::new(*var));
-                        return;
-                    }
-                    self.path_res_map
-                        .insert(path.node_id, PathRes::Param(res.param_id()));
-                    return;
-                }
-                if let Some(const_def_id) = self.resolver.consts.get(&var.name) {
-                    self.path_res_map
-                        .insert(path.node_id, PathRes::Const(*const_def_id));
-                    return;
-                }
-                self.resolver
-                    .emit(errors::UnresolvedVar::from_ident(*var, "name"));
+                self.resolve_ident(*var, path.node_id);
             }
             [typ, name] => {
                 if let Some(res) = resolve_num_const(*typ, *name) {
@@ -754,9 +696,10 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
                         .refinements
                         .path_res_map
                         .insert(path.node_id, res);
-                    return;
+                } else {
+                    self.resolver
+                        .emit(errors::UnresolvedVar::from_qpath(path, "path"));
                 }
-                todo!("report error")
             }
             _ => {
                 self.resolver
@@ -855,21 +798,6 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_invalid_unrefined_param, code = "FLUX")]
-    pub(super) struct InvalidUnrefinedParam {
-        #[primary_span]
-        #[label]
-        span: Span,
-        var: Ident,
-    }
-
-    impl InvalidUnrefinedParam {
-        pub(super) fn new(var: Ident) -> Self {
-            Self { var, span: var.span }
-        }
-    }
-
-    #[derive(Diagnostic)]
     #[diag(desugar_unresolved_var, code = "FLUX")]
     pub(super) struct UnresolvedVar {
         #[primary_span]
@@ -888,16 +816,27 @@ mod errors {
             Self { span: ident.span, kind: kind.to_string(), var: format!("{ident}") }
         }
 
-        pub(super) fn from_path(path: &surface::Path, kind: &str) -> Self {
-            Self::from_segments(&path.segments, kind, path.span)
-        }
-
         fn from_segments(segments: &[Ident], kind: &str, span: Span) -> Self {
             Self {
                 span,
                 kind: kind.to_string(),
                 var: format!("{}", segments.iter().format_with("::", |s, f| f(&s.name))),
             }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar_invalid_unrefined_param, code = "FLUX")]
+    pub(super) struct InvalidUnrefinedParam {
+        #[primary_span]
+        #[label]
+        span: Span,
+        var: Ident,
+    }
+
+    impl InvalidUnrefinedParam {
+        pub(super) fn new(var: Ident) -> Self {
+            Self { var, span: var.span }
         }
     }
 }

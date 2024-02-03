@@ -652,6 +652,7 @@ pub enum ParamKind {
     Colon,
     /// A location declared with `x: &strg T` syntax
     Loc(usize),
+    Error,
 }
 
 impl ParamKind {
