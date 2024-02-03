@@ -7,11 +7,6 @@ desugar_invalid_alias_pred =
 desugar_invalid_constant =
     invalid constant
 
-desugar_duplicate_param =
-    the name `{$name}` is already used as a parameter
-    .label = already used
-    .first_use = first use of `{$name}`
-
 desugar_int_too_large =
     integer literal is too large
 
@@ -32,21 +27,6 @@ desugar_invalid_func =
 desugar_invalid_loc =
     expected an `&strg` parameter
 
-desugar_sort_arity_mismatch =
-    this sort constructor takes {$expected ->
-        [0] 0 sort arguments
-        [one] 1 sort argument
-        *[other] 1 or {$expected} sort arguments
-    } but {$found ->
-        [one] {$found} was found
-        *[other] {$found} were found
-    }
-    .label = expected {$expected ->
-        [0] 0 sort arguments
-        [one] {$expected} argument
-        *[other] 1 or {$expected} arguments
-    }, found {$found}
-
 desugar_invalid_numeric_suffix =
     invalid suffix `{$suffix}` for number literal
     .label = the suffix must be one of the numeric sorts `int` or `real`
@@ -56,6 +36,11 @@ desugar_invalid_assoc_predicate =
     .label = associated predicate must be specified as `{$name} : (t1,...,tn) -> bool`
 
 # Resolve errors
+
+desugar_duplicate_param =
+    the name `{$name}` is already used as a parameter
+    .label = already used
+    .first_use = first use of `{$name}`
 
 desugar_unsupported_signature =
     unsupported function signature

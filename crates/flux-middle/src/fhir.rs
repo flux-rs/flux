@@ -648,10 +648,21 @@ pub enum ParamKind {
     At,
     /// An implicitly scoped parameter declared with `#a` syntax
     Pound,
-    /// An implicitly scoped parameter declared with `x: T` syntax
+    /// An implicitly scoped parameter declared with `x: T` syntax.
     Colon,
-    /// A location declared with `x: &strg T` syntax
+    /// A location declared with `x: &strg T` syntax, the `usize` is the position in the list of
+    /// arguments.
     Loc(usize),
+    /// A parameter introduced with `x: T` syntax that we know *syntactically* is always and error
+    /// to used inside a refinement. For example, consider the following:
+    /// ```ignore
+    /// fn(x: {v. i32[v] | v > 0}) -> i32[x]
+    /// ```
+    /// In this definition, we know syntatically that `x` binds to a non-base type so it's an error
+    /// to use `x` as an index in the return type.
+    ///
+    /// These parameters should not appear in a desugared item and we only track them during name
+    /// resolution to report errors at the use site.
     Error,
 }
 

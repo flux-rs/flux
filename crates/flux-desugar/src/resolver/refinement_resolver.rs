@@ -1,12 +1,9 @@
 use std::ops::ControlFlow;
 
-use flux_common::{bug, index::IndexGen};
+use flux_common::index::IndexGen;
+use flux_errors::ErrorCollector;
 use flux_middle::{fhir, PathRes, ResolverOutput, SortRes};
-use flux_syntax::surface::{
-    self,
-    visit::{walk_ty, Visitor as _},
-    Ident, NodeId,
-};
+use flux_syntax::surface::{self, visit::Visitor as _, Ident, NodeId};
 use rustc_data_structures::{
     fx::{FxIndexMap, IndexEntry},
     unord::UnordMap,
@@ -14,9 +11,11 @@ use rustc_data_structures::{
 use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, OwnerId};
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{sym, symbol::kw, Symbol};
+use rustc_span::{sym, symbol::kw, ErrorGuaranteed, Symbol};
 
 use super::CrateResolver;
+
+type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum ScopeKind {
@@ -30,14 +29,6 @@ impl ScopeKind {
     fn is_barrier(self) -> bool {
         matches!(self, ScopeKind::FnInput | ScopeKind::Variant)
     }
-
-    // fn is_binder_allowed(self, kind: surface::BindKind) -> bool {
-    //     match self {
-    //         ScopeKind::FnInput => matches!(kind, surface::BindKind::At),
-    //         ScopeKind::FnOutput => matches!(kind, surface::BindKind::Pound),
-    //         _ => false,
-    //     }
-    // }
 }
 
 /// Parameters used during gathering.
@@ -53,45 +44,6 @@ impl ParamRes {
         self.1
     }
 }
-
-// #[derive(Debug, Clone, Copy)]
-// pub(crate) enum ParamKind {
-//     Explicit,
-//     /// A parameter declared with `@n` syntax.
-//     At,
-//     /// A parameter declared with `#n` syntax.
-//     Pound,
-//     /// A parameter declared with `x: T` syntax.
-//     Colon,
-//     /// A location declared with `x: &strg T` syntax.
-//     Loc(usize),
-//     /// A parameter that we know *syntactically* cannot be used inside a refinement. We track these
-//     /// parameters to report errors at the use site. For example, consider the following function:
-//     ///
-//     /// ```ignore
-//     /// fn(x: {v. i32[v] | v > 0}) -> i32[x]
-//     /// ```
-//     ///
-//     /// In this definition, we know syntatically that `x` binds to a non-base type so it's an error
-//     /// to use `x` as an index in the return type.
-//     SyntaxError,
-// }
-
-// impl ParamKind {
-//     fn is_allowed_in(self, kind: ScopeKind) -> bool {
-//         match self {
-//             ParamKind::At => {
-//                 matches!(kind, ScopeKind::FnInput | ScopeKind::Variant)
-//             }
-//             ParamKind::Colon | ParamKind::Loc(_) => {
-//                 matches!(kind, ScopeKind::FnInput)
-//             }
-//             ParamKind::Pound => matches!(kind, ScopeKind::FnOutput),
-//             ParamKind::SyntaxError => matches!(kind, ScopeKind::FnInput | ScopeKind::FnOutput),
-//             ParamKind::Explicit => todo!(),
-//         }
-//     }
-// }
 
 pub(crate) trait ScopedVisitor: Sized {
     fn is_box(&self, path: &surface::Path) -> bool;
@@ -122,14 +74,6 @@ impl<V: ScopedVisitor> ScopedVisitorWrapper<V> {
             f(self);
             self.0.exit_scope();
         }
-    }
-}
-
-impl<'genv> RefinementResolver<'_, 'genv, '_> {
-    pub(crate) fn run(self, f: impl FnOnce(&mut ScopedVisitorWrapper<Self>)) {
-        let mut wrapper = self.wrap();
-        f(&mut wrapper);
-        wrapper.0.finish();
     }
 }
 
@@ -197,6 +141,12 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         self.with_scope(ScopeKind::Variant, |this| {
             this.on_enum_variant(variant);
             surface::visit::walk_variant(this, variant);
+        });
+    }
+
+    fn visit_variant_ret(&mut self, ret: &surface::VariantRet) {
+        self.with_scope(ScopeKind::Misc, |this| {
+            surface::visit::walk_variant_ret(this, ret);
         });
     }
 
@@ -297,7 +247,25 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                     surface::visit::walk_ty(this, ty);
                 });
             }
-            _ => walk_ty(self, ty),
+            surface::TyKind::Array(..) => {
+                self.with_scope(ScopeKind::Misc, |this| {
+                    surface::visit::walk_ty(this, ty);
+                });
+            }
+            _ => surface::visit::walk_ty(self, ty),
+        }
+    }
+
+    fn visit_bty(&mut self, bty: &surface::BaseTy) {
+        match &bty.kind {
+            surface::BaseTyKind::Slice(_) => {
+                self.with_scope(ScopeKind::Misc, |this| {
+                    surface::visit::walk_bty(this, bty);
+                });
+            }
+            surface::BaseTyKind::Path(_) => {
+                surface::visit::walk_bty(self, bty);
+            }
         }
     }
 
@@ -400,17 +368,16 @@ fn self_res(tcx: TyCtxt, owner: OwnerId) -> Option<SortRes> {
 }
 
 pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
-    tcx: TyCtxt<'tcx>,
     scopes: Vec<Scope>,
     sorts_res: UnordMap<Symbol, SortRes>,
     param_defs: FxIndexMap<NodeId, ParamDef>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
     path_res_map: FxHashMap<NodeId, PathRes<NodeId>>,
+    errors: ErrorCollector<'genv>,
 }
 
 impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     pub(crate) fn for_flux_item(
-        tcx: TyCtxt<'tcx>,
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         sort_params: &[Ident],
     ) -> Self {
@@ -419,14 +386,14 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             .enumerate()
             .map(|(i, v)| (v.name, SortRes::Var(i)))
             .collect();
-        Self::new(tcx, resolver, sort_res)
+        Self::new(resolver, sort_res)
     }
 
     pub(crate) fn for_rust_item(
-        tcx: TyCtxt<'tcx>,
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         owner: OwnerId,
     ) -> Self {
+        let tcx = resolver.genv.tcx();
         let generics = tcx.generics_of(owner);
         let mut sort_res: UnordMap<_, _> = generics
             .params
@@ -436,22 +403,96 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         if let Some(self_res) = self_res(tcx, owner) {
             sort_res.insert(kw::SelfUpper, self_res);
         }
-        Self::new(tcx, resolver, sort_res)
+        Self::new(resolver, sort_res)
+    }
+
+    pub(crate) fn resolve_qualifier(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        qualifier: &surface::Qualifier,
+    ) -> Result {
+        Self::for_flux_item(resolver, &[]).run(|r| r.visit_qualifier(qualifier))
+    }
+
+    pub(crate) fn resolve_defn(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        defn: &surface::FuncDef,
+    ) -> Result {
+        Self::for_flux_item(resolver, &defn.sort_vars).run(|r| r.visit_defn(defn))
+    }
+
+    pub(crate) fn resolve_fn_sig(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        owner_id: OwnerId,
+        fn_sig: &surface::FnSig,
+    ) -> Result {
+        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_fn_sig(fn_sig))?;
+        Self::for_rust_item(resolver, owner_id).run(|vis| vis.visit_fn_sig(fn_sig))
+    }
+
+    pub(crate) fn resolve_struct_def(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        owner_id: OwnerId,
+        struct_def: &surface::StructDef,
+    ) -> Result {
+        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_struct_def(struct_def))?;
+        Self::for_rust_item(resolver, owner_id).run(|vis| vis.visit_struct_def(struct_def))
+    }
+
+    pub(crate) fn resolve_enum_def(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        owner_id: OwnerId,
+        enum_def: &surface::EnumDef,
+    ) -> Result {
+        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_enum_def(enum_def))?;
+        Self::for_rust_item(resolver, owner_id).run(|vis| vis.visit_enum_def(enum_def))
+    }
+
+    pub(crate) fn resolve_ty_alias(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        owner_id: OwnerId,
+        ty_alias: &surface::TyAlias,
+    ) -> Result {
+        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_ty_alias(ty_alias))?;
+        Self::for_rust_item(resolver, owner_id).run(|vis| vis.visit_ty_alias(ty_alias))
+    }
+
+    pub(crate) fn resolve_impl(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        owner_id: OwnerId,
+        impl_: &surface::Impl,
+    ) -> Result {
+        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_impl(impl_))?;
+        Self::for_rust_item(resolver, owner_id).run(|vis| vis.visit_impl(impl_))
+    }
+
+    pub(crate) fn resolve_trait(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        owner_id: OwnerId,
+        trait_: &surface::Trait,
+    ) -> Result {
+        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_trait(trait_))?;
+        Self::for_rust_item(resolver, owner_id).run(|vis| vis.visit_trait(trait_))
     }
 
     fn new(
-        tcx: TyCtxt<'tcx>,
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         sort_res: UnordMap<Symbol, SortRes>,
     ) -> Self {
+        let errors = ErrorCollector::new(resolver.genv.sess());
         Self {
-            tcx,
             resolver,
             sorts_res: sort_res,
             param_defs: Default::default(),
             scopes: Default::default(),
             path_res_map: Default::default(),
+            errors,
         }
+    }
+
+    fn run(self, f: impl FnOnce(&mut ScopedVisitorWrapper<Self>)) -> Result {
+        let mut wrapper = self.wrap();
+        f(&mut wrapper);
+        wrapper.0.finish()
     }
 
     fn define_param(
@@ -468,7 +509,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         match scope.bindings.entry(ident) {
             IndexEntry::Occupied(entry) => {
                 let param_def = self.param_defs[&entry.get().param_id()];
-                self.resolver
+                self.errors
                     .emit(errors::DuplicateParam::new(param_def.ident, ident));
             }
             IndexEntry::Vacant(entry) => {
@@ -493,8 +534,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     fn resolve_ident(&mut self, ident: Ident, node_id: NodeId) {
         if let Some(res) = self.find(ident) {
             if let fhir::ParamKind::Error = res.kind() {
-                self.resolver
-                    .emit(errors::InvalidUnrefinedParam::new(ident));
+                self.errors.emit(errors::InvalidUnrefinedParam::new(ident));
                 return;
             }
             self.path_res_map
@@ -511,7 +551,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 .insert(node_id, PathRes::GlobalFunc(*decl, ident.name));
             return;
         }
-        self.resolver
+        self.errors
             .emit(errors::UnresolvedVar::from_ident(ident, "name"));
     }
 
@@ -527,7 +567,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         } else if self.resolver.sort_decls.get(&ident.name).is_some() {
             SortRes::User
         } else {
-            self.resolver.emit(errors::UnresolvedSort::new(ident));
+            self.errors.emit(errors::UnresolvedSort::new(ident));
             return;
         };
         self.resolver
@@ -543,7 +583,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         } else if ctor.name == SORTS.map {
             fhir::SortCtor::Map
         } else {
-            self.resolver.emit(errors::UnresolvedSort::new(ctor));
+            self.errors.emit(errors::UnresolvedSort::new(ctor));
             return;
         };
         self.resolver
@@ -553,7 +593,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             .insert(node_id, ctor);
     }
 
-    pub(crate) fn finish(self) {
+    pub(crate) fn finish(self) -> Result {
         let name_gen: IndexGen<fhir::Name> = IndexGen::new();
         let mut params = FxIndexMap::default();
         let mut name_for_param =
@@ -605,6 +645,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                     .push((param_def.ident, param_id));
             }
         }
+        self.errors.into_result()
     }
 
     fn path_res_map(&self) -> &UnordMap<NodeId, fhir::Res> {
@@ -619,7 +660,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
     fn is_box(&self, path: &surface::Path) -> bool {
         let res = self.path_res_map()[&path.node_id];
-        res.is_box(self.tcx)
+        res.is_box(self.resolver.genv.tcx())
     }
 
     fn enter_scope(&mut self, kind: ScopeKind) -> ControlFlow<()> {
@@ -633,7 +674,7 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
 
     fn on_enum_variant(&mut self, variant: &surface::VariantDef) {
         let params = ImplicitParamCollector::new(
-            self.tcx,
+            self.resolver.genv.tcx(),
             &self.resolver.output.path_res_map,
             ScopeKind::Variant,
         )
@@ -645,7 +686,7 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
 
     fn on_fn_sig(&mut self, fn_sig: &surface::FnSig) {
         let params = ImplicitParamCollector::new(
-            self.tcx,
+            self.resolver.genv.tcx(),
             &self.resolver.output.path_res_map,
             ScopeKind::FnInput,
         )
@@ -657,7 +698,7 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
 
     fn on_fn_output(&mut self, output: &surface::FnOutput) {
         let params = ImplicitParamCollector::new(
-            self.tcx,
+            self.resolver.genv.tcx(),
             &self.resolver.output.path_res_map,
             ScopeKind::FnOutput,
         )
@@ -697,12 +738,12 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
                         .path_res_map
                         .insert(path.node_id, res);
                 } else {
-                    self.resolver
+                    self.errors
                         .emit(errors::UnresolvedVar::from_qpath(path, "path"));
                 }
             }
             _ => {
-                self.resolver
+                self.errors
                     .emit(errors::UnresolvedVar::from_qpath(path, "path"));
             }
         }
@@ -760,7 +801,21 @@ pub(crate) static SORTS: std::sync::LazyLock<Sorts> = std::sync::LazyLock::new(|
 
 struct IllegalBinderVisitor<'a, 'genv, 'tcx> {
     scopes: Vec<ScopeKind>,
-    resolver: &'a mut CrateResolver<'genv, 'tcx>,
+    resolver: &'a CrateResolver<'genv, 'tcx>,
+    errors: ErrorCollector<'genv>,
+}
+
+impl<'a, 'genv, 'tcx> IllegalBinderVisitor<'a, 'genv, 'tcx> {
+    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Self {
+        let errors = ErrorCollector::new(resolver.genv.sess());
+        Self { scopes: vec![], resolver, errors }
+    }
+
+    fn run(self, f: impl FnOnce(&mut ScopedVisitorWrapper<Self>)) -> Result {
+        let mut vis = self.wrap();
+        f(&mut vis);
+        vis.0.errors.into_result()
+    }
 }
 
 impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
@@ -778,7 +833,7 @@ impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
         self.scopes.pop();
     }
 
-    fn on_implicit_param(&mut self, ident: Ident, param_kind: fhir::ParamKind, _node_id: NodeId) {
+    fn on_implicit_param(&mut self, ident: Ident, param_kind: fhir::ParamKind, _: NodeId) {
         let Some(scope_kind) = self.scopes.last() else { return };
         let (allowed, bind_kind) = match param_kind {
             fhir::ParamKind::At => {
@@ -796,7 +851,7 @@ impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
             | fhir::ParamKind::Explicit => return,
         };
         if !allowed {
-            self.resolver
+            self.errors
                 .emit(errors::IllegalBinder::new(ident.span, bind_kind));
         }
     }

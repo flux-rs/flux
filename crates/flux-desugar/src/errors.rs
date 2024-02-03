@@ -1,5 +1,5 @@
 use flux_macros::Diagnostic;
-use flux_syntax::surface::{self, BindKind};
+use flux_syntax::surface;
 use rustc_span::{symbol::Ident, Span, Symbol};
 
 #[derive(Diagnostic)]
@@ -44,22 +44,6 @@ pub(super) struct InvalidFunc {
 pub(super) struct InvalidLoc {
     #[primary_span]
     pub(super) span: Span,
-}
-
-#[derive(Diagnostic)]
-#[diag(desugar_sort_arity_mismatch, code = "FLUX")]
-pub(super) struct SortArityMismatch {
-    #[primary_span]
-    #[label]
-    span: Span,
-    expected: usize,
-    found: usize,
-}
-
-impl SortArityMismatch {
-    pub(super) fn new(span: Span, expected: usize, found: usize) -> Self {
-        Self { span, expected, found }
-    }
 }
 
 #[derive(Diagnostic)]
