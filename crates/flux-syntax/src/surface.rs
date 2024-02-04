@@ -41,7 +41,6 @@ pub struct Qualifier {
     pub expr: Expr,
     pub span: Span,
     pub global: bool,
-    pub node_id: NodeId,
 }
 
 /// A global function definition. It can be either an uninterpreted function or a *syntactic abstraction*,
@@ -54,7 +53,6 @@ pub struct FuncDef {
     pub output: Sort,
     /// Body of the function. If not present this definition corresponds to an uninterpreted function.
     pub body: Option<Expr>,
-    pub node_id: NodeId,
 }
 
 #[derive(Debug)]
@@ -200,7 +198,6 @@ pub struct ImplAssocPredicate {
     pub params: Vec<RefineParam>,
     pub body: Expr,
     pub span: Span,
-    pub node_id: NodeId,
 }
 
 pub struct Trait {
@@ -213,7 +210,6 @@ pub struct TraitAssocPredicate {
     pub name: Ident,
     pub sort: Sort,
     pub span: Span,
-    pub node_id: NodeId,
 }
 
 #[derive(Debug)]

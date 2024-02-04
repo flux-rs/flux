@@ -387,8 +387,9 @@ impl Invariant {
 
     pub fn apply(&self, idx: &Expr) -> Expr {
         // The predicate may have sort variables but we don't explicitly instantiate them. This
-        // works because sort variables can only appear in sorts and not in expressions. Since
-        // we are removing the binder (which contains the sorts) we can avoid the explicit instantiation.
+        // works because sort variables can only appear within an expression inside a lambda and
+        // invariants cannot have lambdas. It remains to instantiate variables in the sort of the
+        // binder itself but since we are removing it we can avoid the explicit instantiation.
         // Ultimately, this works because the expression we generate in fixpoint/z3 doesn't need
         // sort annotations (sorts are re-inferred).
         self.pred.replace_bound_expr(idx)
