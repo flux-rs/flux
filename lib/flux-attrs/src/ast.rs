@@ -1068,7 +1068,6 @@ impl Parse for ItemImpl {
             trait_ = None;
             self_ty = first_ty;
         }
-
         Ok(ItemImpl {
             attrs,
             impl_token,

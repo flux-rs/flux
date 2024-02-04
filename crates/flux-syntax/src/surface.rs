@@ -188,6 +188,8 @@ pub struct ConstSig {
 pub struct Impl {
     pub generics: Option<Generics>,
     pub assoc_predicates: Vec<ImplAssocPredicate>,
+    /// Whether the enum is an extern spec for some [DefId]
+    pub extern_id: Option<DefId>,
 }
 
 #[derive(Debug)]
@@ -290,8 +292,7 @@ pub struct Ty {
 pub struct AliasPred {
     pub trait_id: Path,
     pub name: Ident,
-    pub generic_args: Vec<GenericArg>,
-    // pub refine_args: Vec<RefineArg>,
+    pub args: Vec<GenericArg>,
 }
 
 #[derive(Debug)]

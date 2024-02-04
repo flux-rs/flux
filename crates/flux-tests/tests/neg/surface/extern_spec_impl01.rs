@@ -28,8 +28,13 @@ impl<T> MyTrait for Vec<T> {
 }
 
 #[flux::sig(fn () -> i32[0])]
-pub fn test_bad() -> i32 {
+pub fn test_bad1() -> i32 {
     <Vec<i32> as MyTrait>::foo() //~ ERROR refinement type
+}
+
+#[flux::sig(fn () -> i32[0])]
+pub fn test_bad2() -> i32 {
+    <Vec<i32> as OtherTrait>::foo() //~ ERROR refinement type
 }
 
 #[flux::sig(fn () -> i32[10])]

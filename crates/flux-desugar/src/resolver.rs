@@ -515,17 +515,15 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for NameResCollector<'_, 'tcx> {
     }
 
     fn visit_path(&mut self, path: &hir::Path<'tcx>, _id: hir::HirId) {
-        match ResKey::from_hir_path(self.sess, path) {
-            Ok(key) => {
-                let res = path
-                    .res
-                    .try_into()
-                    .map_or_else(|_| ResEntry::unsupported(*path), ResEntry::Res);
-                self.table.insert(key, res);
-            }
-            Err(err) => {
-                self.err = self.err.or(Some(err));
-            }
+        if let Some(key) = ResKey::from_hir_path(self.sess, path) {
+            let res = path
+                .res
+                .try_into()
+                .map_or_else(|_| ResEntry::unsupported(*path), ResEntry::Res);
+            self.table.insert(key, res);
+            // Err(err) => {
+            //     self.err = self.err.or(Some(err));
+            // }
         }
         hir::intravisit::walk_path(self, path);
     }
@@ -592,12 +590,13 @@ impl NameResTable {
         // Insert paths from parent impl
         let impl_did = tcx.local_parent(def_id);
         if let ItemKind::Impl(impl_) = &tcx.hir().expect_item(impl_did).kind {
-            if let Some(trait_ref) = impl_.of_trait {
+            if let Some(trait_ref) = impl_.of_trait
+                && let Some(key) = ResKey::from_hir_path(sess, trait_ref.path)
+            {
                 let trait_id = trait_ref.trait_def_id().unwrap();
-                collector.table.insert(
-                    ResKey::from_hir_path(sess, trait_ref.path)?,
-                    Res::Def(DefKind::Trait, trait_id),
-                );
+                collector
+                    .table
+                    .insert(key, Res::Def(DefKind::Trait, trait_id));
             }
             collector.visit_generics(impl_.generics);
             collector.visit_ty(impl_.self_ty);
@@ -681,17 +680,15 @@ impl ResKey {
         ResKey { s }
     }
 
-    fn from_hir_path(sess: &FluxSession, path: &rustc_hir::Path) -> Result<Self> {
+    fn from_hir_path(_sess: &FluxSession, path: &rustc_hir::Path) -> Option<Self> {
         if let [prefix @ .., _] = path.segments
             && prefix.iter().any(|segment| segment.args.is_some())
         {
-            return Err(sess.emit_err(errors::UnsupportedSignature::new(
-                path.span,
-                "path segments with generic arguments are not supported",
-            )));
+            None
+        } else {
+            let s = path.segments.iter().map(|segment| segment.ident).join("::");
+            Some(ResKey { s })
         }
-        let s = path.segments.iter().map(|segment| segment.ident).join("::");
-        Ok(ResKey { s })
     }
 }
 

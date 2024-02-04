@@ -208,6 +208,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         impl_id: DefId,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::TraitRef>>> {
+        let impl_id = self.extern_id_of(impl_id).unwrap_or(impl_id);
+
         let Some(poly_trait_ref) = self.tcx().impl_trait_ref(impl_id) else { return Ok(None) };
 
         let impl_generics = self.generics_of(impl_id)?;
@@ -389,6 +391,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.tcx()
             .require_lang_item(rustc_hir::LangItem::FnOnceOutput, None)
             == def_id
+    }
+
+    pub fn extern_id_of(self, def_id: DefId) -> Option<DefId> {
+        self.map().extern_id_of(def_id.as_local()?)
     }
 }
 
