@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use flux_common::iter::IterExt;
 use flux_config::{self as config, CrateConfig};
 use flux_errors::{FluxSession, ResultExt};
-use flux_middle::{fhir, pretty, rustc::lowering::resolve_trait_ref_impl_id, Specs};
+use flux_middle::{fhir, rustc::lowering::resolve_trait_ref_impl_id, Specs};
 use flux_syntax::{surface, ParseResult, ParseSess};
 use itertools::Itertools;
 use rustc_ast::{
@@ -62,14 +62,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 ItemKind::Mod(..) => collector.parse_mod_spec(owner_id.def_id, attrs),
                 ItemKind::TyAlias(..) => collector.parse_tyalias_spec(owner_id, attrs),
                 ItemKind::Const(..) => collector.parse_const_spec(item, attrs),
-                ItemKind::Impl(impl_) => {
-                    collector.parse_impl_specs(
-                        owner_id,
-                        attrs,
-                        DefKind::Impl { of_trait: impl_.of_trait.is_some() },
-                        impl_.items,
-                    )
-                }
+                ItemKind::Impl(impl_) => collector.parse_impl_specs(owner_id, attrs, impl_),
                 ItemKind::Trait(_, _, _, bounds, _) => {
                     collector.parse_trait_specs(owner_id, attrs, bounds)
                 }
@@ -168,9 +161,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         owner_id: OwnerId,
         attrs: &[Attribute],
-        def_kind: DefKind,
-        items: &[ImplItemRef],
+        impl_: &rustc_hir::Impl,
     ) -> Result {
+        let def_kind = DefKind::Impl { of_trait: impl_.of_trait.is_some() };
         let mut attrs = self.parse_flux_attrs(attrs, def_kind)?;
         self.report_dups(&attrs)?;
 
@@ -179,7 +172,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let extern_id = if attrs.extern_spec()
             && let Some(extern_id) =
-                self.extract_extern_def_id_from_extern_spec_impl(owner_id.def_id, items)
+                self.extract_extern_def_id_from_extern_spec_impl(owner_id.def_id, impl_.items)
         {
             self.specs.extern_specs.insert(extern_id, owner_id.def_id);
             Some(extern_id)
@@ -541,9 +534,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
     }
 
-    fn _fake_method_of(&self, items: &[ImplItemRef]) -> Option<LocalDefId> {
+    fn fake_method_of(&self, items: &[ImplItemRef]) -> Option<LocalDefId> {
         for item in items {
-            // let attrs = self.tcx.hir().attrs(item.id.hir_id());
             let def_id = item.id.owner_id.def_id;
             let is_fake_method = self
                 .tcx
@@ -559,9 +551,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         None
     }
 
-    fn is_good_trait_predicate(trait_predicate: &TraitPredicate) -> bool {
+    fn is_good_trait_predicate(&self, trait_predicate: &TraitPredicate) -> bool {
         let def_id = trait_predicate.trait_ref.def_id;
-        !pretty::def_id_to_string(def_id).contains("Sized") // TODO: use LangItem::Sized?
+        // !pretty::def_id_to_string(def_id).contains("Sized") // TODO: use LangItem::Sized?
+
+        self.tcx.require_lang_item(rustc_hir::LangItem::Sized, None) != def_id
     }
 
     /// Given as input a fake_method_def_id `fake` where
@@ -575,7 +569,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         items: &[ImplItemRef],
     ) -> Option<DefId> {
         // 1. Find the fake_method's def_id
-        let fake_method_def_id = self._fake_method_of(items)?;
+        let fake_method_def_id = self.fake_method_of(items)?;
 
         // 2. Get the fake_method's input type
         let ty = self
@@ -596,7 +590,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 .predicates
                 .iter()
                 .filter_map(|(c, _)| c.as_trait_clause()?.no_bound_vars())
-                .find(|p| Self::is_good_trait_predicate(p))
+                .find(|p| self.is_good_trait_predicate(p))
                 .unwrap()
                 .trait_ref
         };
@@ -626,7 +620,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         items: &[ImplItemRef],
     ) -> Option<DefId> {
         // 1. Find the fake_method's def_id
-        let fake_method_def_id = self._fake_method_of(items)?;
+        let fake_method_def_id = self.fake_method_of(items)?;
 
         // 2. Get the fake_method's trait_ref
         let trait_ref = {
@@ -636,7 +630,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 .predicates
                 .iter()
                 .filter_map(|(c, _)| c.as_trait_clause()?.no_bound_vars())
-                .find(|p| Self::is_good_trait_predicate(p))
+                .find(|p| self.is_good_trait_predicate(p))
                 .unwrap()
                 .trait_ref
         };
