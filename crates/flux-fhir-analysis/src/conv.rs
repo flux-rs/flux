@@ -83,7 +83,11 @@ enum LookupResultKind<'a> {
     EarlyBound { idx: u32, sort: rty::Sort },
 }
 
-pub(crate) fn conv_adt_sort_def(genv: GlobalEnv, refined_by: &fhir::RefinedBy) -> rty::AdtSortDef {
+pub(crate) fn conv_adt_sort_def(
+    genv: GlobalEnv,
+    def_id: LocalDefId,
+    refined_by: &fhir::RefinedBy,
+) -> rty::AdtSortDef {
     let params = refined_by
         .sort_params
         .iter()
@@ -96,8 +100,8 @@ pub(crate) fn conv_adt_sort_def(genv: GlobalEnv, refined_by: &fhir::RefinedBy) -
         .collect_vec();
     let def_id = genv
         .map()
-        .extern_id_of(refined_by.def_id)
-        .unwrap_or(refined_by.def_id.to_def_id());
+        .extern_id_of(def_id)
+        .unwrap_or(def_id.to_def_id());
     rty::AdtSortDef::new(def_id, params, fields)
 }
 

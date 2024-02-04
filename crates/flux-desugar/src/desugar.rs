@@ -323,12 +323,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             })
             .collect_vec();
 
-        Ok(fhir::RefinedBy::new(
-            self.owner.def_id,
-            index_params,
-            generic_id_to_var_idx,
-            refined_by.span,
-        ))
+        Ok(fhir::RefinedBy::new(index_params, generic_id_to_var_idx, refined_by.span))
     }
 
     pub(crate) fn desugar_struct_def(

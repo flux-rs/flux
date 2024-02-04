@@ -54,7 +54,7 @@ pub fn provide(providers: &mut Providers) {
 }
 
 fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> rty::AdtSortDef {
-    conv::conv_adt_sort_def(genv, genv.map().refined_by(def_id))
+    conv::conv_adt_sort_def(genv, def_id, genv.map().refined_by(def_id))
 }
 
 fn func_decls(genv: GlobalEnv) -> FxHashMap<Symbol, rty::FuncDecl> {

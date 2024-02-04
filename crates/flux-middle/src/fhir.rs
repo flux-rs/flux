@@ -952,7 +952,6 @@ impl Ident {
 /// Information about the refinement parameters associated with a type alias or a struct/enum.
 #[derive(Clone, Debug)]
 pub struct RefinedBy<'fhir> {
-    pub def_id: LocalDefId,
     pub span: Span,
     /// Tracks the mapping from bound var to generic def ids. e.g. if we have
     ///
@@ -1013,22 +1012,16 @@ impl<'fhir> Generics<'fhir> {
 
 impl<'fhir> RefinedBy<'fhir> {
     pub fn new(
-        def_id: LocalDefId,
         index_params: impl IntoIterator<Item = (Symbol, Sort<'fhir>)>,
         sort_params: FxIndexSet<DefId>,
         span: Span,
     ) -> Self {
         let index_params: FxIndexMap<_, _> = index_params.into_iter().collect();
-        RefinedBy { def_id, span, sort_params, index_params }
+        RefinedBy { span, sort_params, index_params }
     }
 
-    pub fn trivial(def_id: LocalDefId, span: Span) -> Self {
-        RefinedBy {
-            def_id,
-            sort_params: Default::default(),
-            span,
-            index_params: Default::default(),
-        }
+    pub fn trivial(span: Span) -> Self {
+        RefinedBy { sort_params: Default::default(), span, index_params: Default::default() }
     }
 
     fn is_base_generic(&self, def_id: DefId) -> bool {
