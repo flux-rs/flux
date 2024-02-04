@@ -711,10 +711,6 @@ pub enum Sort<'fhir> {
     Func(PolyFuncSort<'fhir>),
     /// sort variable
     Var(usize),
-    /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
-    /// Values of a record sort can be projected using dot notation to extract their fields.
-    /// the `List<Sort>` is for the type parameters of (generic) record sorts
-    Record(DefId, &'fhir [Sort<'fhir>]),
     /// The sort associated to a type variable
     Param(DefId),
     /// The sort of the `Self` type, as used within a trait.
@@ -1361,18 +1357,6 @@ impl fmt::Debug for Sort<'_> {
             Sort::BitVec(w) => write!(f, "bitvec({w})"),
             Sort::Loc => write!(f, "loc"),
             Sort::Func(fsort) => write!(f, "{fsort:?}"),
-            Sort::Record(def_id, sort_args) => {
-                if sort_args.is_empty() {
-                    write!(f, "{}", pretty::def_id_to_string(*def_id))
-                } else {
-                    write!(
-                        f,
-                        "{}<{:?}>",
-                        pretty::def_id_to_string(*def_id),
-                        sort_args.iter().format(", ")
-                    )
-                }
-            }
             Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
             Sort::SelfParam { trait_id } => {
                 write!(f, "sortof({}::Self)", pretty::def_id_to_string(*trait_id))

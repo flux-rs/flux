@@ -252,9 +252,6 @@ pub fn walk_sort<V: Visitor>(vis: &mut V, sort: &Sort) {
             walk_list!(vis, visit_sort, *args);
         }
         Sort::Func(fun) => vis.visit_poly_func_sort(fun),
-        Sort::Record(_def_id, args) => {
-            walk_list!(vis, visit_sort, *args);
-        }
         Sort::BitVec(_)
         | Sort::Int
         | Sort::Param(_)

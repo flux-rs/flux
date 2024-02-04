@@ -1291,12 +1291,6 @@ pub(crate) fn conv_sort(
         fhir::Sort::BitVec(w) => rty::Sort::BitVec(*w),
         fhir::Sort::Loc => rty::Sort::Loc,
         fhir::Sort::Func(fsort) => rty::Sort::Func(conv_poly_func_sort(genv, fsort, next_sort_vid)),
-        fhir::Sort::Record(def_id, sort_args) => {
-            rty::Sort::Adt(
-                genv.adt_sort_def_of(*def_id),
-                List::from_vec(conv_sorts(genv, sort_args, next_sort_vid)),
-            )
-        }
         fhir::Sort::App(ctor, args) => {
             let ctor = conv_sort_ctor(ctor);
             let args = args
