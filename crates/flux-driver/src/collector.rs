@@ -627,7 +627,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         // 2. Get the fake_method's trait_ref
         let trait_ref = {
-            // let _generics = self.tcx.generics_of(fake_method_def_id);
             self.tcx
                 .predicates_of(fake_method_def_id)
                 .predicates
