@@ -62,7 +62,7 @@ pub(crate) trait ScopedVisitor: Sized {
     fn on_fn_output(&mut self, _output: &surface::FnOutput) {}
     fn on_loc(&mut self, _loc: Ident, _node_id: NodeId) {}
     fn on_func(&mut self, _func: Ident, _node_id: NodeId) {}
-    fn on_path(&mut self, _path: &surface::QPathExpr) {}
+    fn on_path(&mut self, _path: &surface::PathExpr) {}
     fn on_base_sort(&mut self, _sort: &surface::BaseSort) {}
 }
 
@@ -271,7 +271,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
 
     fn visit_expr(&mut self, expr: &surface::Expr) {
         match &expr.kind {
-            surface::ExprKind::QPath(path) => {
+            surface::ExprKind::Path(path) => {
                 self.on_path(path);
             }
             surface::ExprKind::App(func, _) => {
@@ -570,11 +570,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             self.errors.emit(errors::UnresolvedSort::new(ident));
             return;
         };
-        self.resolver
-            .output
-            .refinements
-            .sort_res_map
-            .insert(node_id, res);
+        self.resolver.output.sort_res_map.insert(node_id, res);
     }
 
     fn resolve_sort_ctor(&mut self, ctor: Ident, node_id: NodeId) {
@@ -586,11 +582,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             self.errors.emit(errors::UnresolvedSort::new(ctor));
             return;
         };
-        self.resolver
-            .output
-            .refinements
-            .sort_ctor_res_map
-            .insert(node_id, ctor);
+        self.resolver.output.sort_ctor_res_map.insert(node_id, ctor);
     }
 
     pub(crate) fn finish(self) -> Result {
@@ -606,11 +598,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 PathRes::NumConst(val) => PathRes::NumConst(val),
                 PathRes::GlobalFunc(kind, name) => PathRes::GlobalFunc(kind, name),
             };
-            self.resolver
-                .output
-                .refinements
-                .path_res_map
-                .insert(node_id, res);
+            self.resolver.output.path_expr_res_map.insert(node_id, res);
         }
 
         for (param_id, param_def) in self.param_defs {
@@ -632,7 +620,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                         .unwrap_or_else(|| name_gen.fresh())
                 }
             };
-            let output = &mut self.resolver.output.refinements;
+            let output = &mut self.resolver.output;
             output
                 .param_res_map
                 .insert(param_id, (name, param_def.kind));
@@ -648,10 +636,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         self.errors.into_result()
     }
 
-    fn path_res_map(&self) -> &UnordMap<NodeId, fhir::Res> {
-        &self.resolver_output().path_res_map
-    }
-
     fn resolver_output(&self) -> &ResolverOutput {
         &self.resolver.output
     }
@@ -659,7 +643,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
 impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
     fn is_box(&self, path: &surface::Path) -> bool {
-        let res = self.path_res_map()[&path.node_id];
+        let res = self.resolver_output().path_res_map[&path.node_id];
         res.is_box(self.resolver.genv.tcx())
     }
 
@@ -725,7 +709,7 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
         self.resolve_ident(loc, node_id);
     }
 
-    fn on_path(&mut self, path: &surface::QPathExpr) {
+    fn on_path(&mut self, path: &surface::PathExpr) {
         match &path.segments[..] {
             [var] => {
                 self.resolve_ident(*var, path.node_id);
@@ -734,17 +718,16 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
                 if let Some(res) = resolve_num_const(*typ, *name) {
                     self.resolver
                         .output
-                        .refinements
-                        .path_res_map
+                        .path_expr_res_map
                         .insert(path.node_id, res);
                 } else {
                     self.errors
-                        .emit(errors::UnresolvedVar::from_qpath(path, "path"));
+                        .emit(errors::UnresolvedVar::from_path(path, "path"));
                 }
             }
             _ => {
                 self.errors
-                    .emit(errors::UnresolvedVar::from_qpath(path, "path"));
+                    .emit(errors::UnresolvedVar::from_path(path, "path"));
             }
         }
     }
@@ -907,8 +890,8 @@ mod errors {
     }
 
     impl UnresolvedVar {
-        pub(super) fn from_qpath(qpath: &surface::QPathExpr, kind: &str) -> Self {
-            Self::from_segments(&qpath.segments, kind, qpath.span)
+        pub(super) fn from_path(path: &surface::PathExpr, kind: &str) -> Self {
+            Self::from_segments(&path.segments, kind, path.span)
         }
 
         pub(super) fn from_ident(ident: Ident, kind: &str) -> Self {

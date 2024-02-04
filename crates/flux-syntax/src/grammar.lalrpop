@@ -486,9 +486,9 @@ Level10: surface::Expr = {
             span: cx.map_span(lo, hi),
         }
     },
-    <lo:@L> <qpath:QPathExpr> "." <fld:Ident> <hi:@R> => {
+    <lo:@L> <path:PathExpr> "." <fld:Ident> <hi:@R> => {
         surface::Expr {
-            kind: surface::ExprKind::Dot(qpath, fld),
+            kind: surface::ExprKind::Dot(path, fld),
             node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
@@ -500,8 +500,8 @@ Level10: surface::Expr = {
             span: cx.map_span(lo, hi),
         }
     },
-    <lo:@L> <qpath:QPathExpr> <hi:@R> => surface::Expr {
-        kind: surface::ExprKind::QPath(qpath),
+    <lo:@L> <path:PathExpr> <hi:@R> => surface::Expr {
+        kind: surface::ExprKind::Path(path),
         node_id: cx.next_node_id(),
         span: cx.map_span(lo, hi),
     },
@@ -519,8 +519,8 @@ ElseIf: surface::Expr = {
     "else" "{" <Level1> "}"
 }
 
-QPathExpr: surface::QPathExpr = {
-    <lo:@L> <segments:Sep1<"::", Ident>> <hi:@R> => surface::QPathExpr {
+PathExpr: surface::PathExpr = {
+    <lo:@L> <segments:Sep1<"::", Ident>> <hi:@R> => surface::PathExpr {
         segments,
         node_id: cx.next_node_id(),
         span: cx.map_span(lo, hi),

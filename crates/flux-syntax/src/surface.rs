@@ -457,8 +457,8 @@ pub struct Expr {
 
 #[derive(Debug, Clone)]
 pub enum ExprKind {
-    QPath(QPathExpr),
-    Dot(QPathExpr, Ident),
+    Path(PathExpr),
+    Dot(PathExpr, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
@@ -467,7 +467,7 @@ pub enum ExprKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct QPathExpr {
+pub struct PathExpr {
     pub segments: Vec<Ident>,
     pub node_id: NodeId,
     pub span: Span,

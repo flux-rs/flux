@@ -228,10 +228,11 @@ pub type ScopeId = NodeId;
 pub struct ResolverOutput {
     pub path_res_map: UnordMap<NodeId, fhir::Res>,
     pub impl_trait_res_map: UnordMap<NodeId, hir::ItemId>,
-    // pub func_decls: UnordMap<Symbol, fhir::FuncKind>,
-    // pub sort_decls: UnordMap<Symbol, fhir::SortDecl>,
-    // pub consts: UnordMap<Symbol, DefId>,
-    pub refinements: RefinementResolverOutput,
+    pub param_res_map: UnordMap<NodeId, (fhir::Name, fhir::ParamKind)>,
+    pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
+    pub sort_ctor_res_map: UnordMap<NodeId, fhir::SortCtor>,
+    pub sort_res_map: UnordMap<NodeId, SortRes>,
+    pub path_expr_res_map: UnordMap<NodeId, PathRes>,
 }
 
 pub struct ResolvedParam {
@@ -263,13 +264,4 @@ pub enum PathRes<Id = fhir::Name> {
     Const(DefId),
     NumConst(i128),
     GlobalFunc(fhir::FuncKind, Symbol),
-}
-
-#[derive(Default)]
-pub struct RefinementResolverOutput {
-    pub param_res_map: UnordMap<NodeId, (fhir::Name, fhir::ParamKind)>,
-    pub path_res_map: UnordMap<NodeId, PathRes>,
-    pub sort_ctor_res_map: UnordMap<NodeId, fhir::SortCtor>,
-    pub sort_res_map: UnordMap<NodeId, SortRes>,
-    pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
 }

@@ -94,7 +94,7 @@ fn collect_generics_in_refined_by(
     impl surface::visit::Visitor for ParamCollector<'_> {
         fn visit_base_sort(&mut self, bsort: &surface::BaseSort) {
             if let surface::BaseSort::Ident(_, node_id) = bsort {
-                let res = self.resolver_output.refinements.sort_res_map[node_id];
+                let res = self.resolver_output.sort_res_map[node_id];
                 if let SortRes::Param(def_id) = res {
                     self.found.insert(def_id);
                 }
@@ -1074,15 +1074,11 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
     }
 
     fn resolve_implicit_param(&self, node_id: NodeId) -> Option<(fhir::Name, fhir::ParamKind)> {
-        self.resolver_output()
-            .refinements
-            .param_res_map
-            .get(&node_id)
-            .copied()
+        self.resolver_output().param_res_map.get(&node_id).copied()
     }
 
-    fn desugar_var(&self, path: &surface::QPathExpr) -> Result<fhir::ExprKind<'genv>> {
-        let res = self.resolver_output().refinements.path_res_map[&path.node_id];
+    fn desugar_var(&self, path: &surface::PathExpr) -> Result<fhir::ExprKind<'genv>> {
+        let res = self.resolver_output().path_expr_res_map[&path.node_id];
         match res {
             PathRes::Param(_, name) => {
                 // FIXME(nilehmann) this is ugly. if we are storing source information we
@@ -1102,7 +1098,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
 
     #[track_caller]
     fn desugar_loc(&self, ident: surface::Ident, node_id: NodeId) -> Result<(fhir::Name, usize)> {
-        let res = self.resolver_output().refinements.path_res_map[&node_id];
+        let res = self.resolver_output().path_expr_res_map[&node_id];
         if let PathRes::Param(fhir::ParamKind::Loc(idx), name) = res {
             Ok((name, idx))
         } else {
@@ -1113,7 +1109,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
 
     #[track_caller]
     fn desugar_func(&self, func: surface::Ident, node_id: NodeId) -> Result<fhir::Func> {
-        let res = self.resolver_output().refinements.path_res_map[&node_id];
+        let res = self.resolver_output().path_expr_res_map[&node_id];
         match res {
             PathRes::Param(_, name) => {
                 Ok(fhir::Func::Var(fhir::Ident::new(name, func), self.next_fhir_id()))
@@ -1130,7 +1126,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
 
     #[track_caller]
     fn resolve_param(&self, node_id: NodeId) -> (fhir::Name, fhir::ParamKind) {
-        self.resolver_output().refinements.param_res_map[&node_id]
+        self.resolver_output().param_res_map[&node_id]
     }
 
     fn resolve_implicit_params(
@@ -1138,7 +1134,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         scope: NodeId,
     ) -> impl ExactSizeIterator<Item = (surface::Ident, fhir::Name, fhir::ParamKind)> {
         self.resolver_output()
-            .refinements
             .implicit_params
             .get(&scope)
             .map_or(&[][..], |it| it)
@@ -1205,7 +1200,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
     fn desugar_expr(&self, expr: &surface::Expr) -> Result<fhir::Expr<'genv>> {
         let node_id = expr.node_id;
         let kind = match &expr.kind {
-            surface::ExprKind::QPath(path) => self.desugar_var(path)?,
+            surface::ExprKind::Path(path) => self.desugar_var(path)?,
             surface::ExprKind::Literal(lit) => {
                 fhir::ExprKind::Literal(self.desugar_lit(expr.span, *lit)?)
             }
@@ -1225,7 +1220,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 )
             }
             surface::ExprKind::Dot(path, fld) => {
-                let res = self.resolver_output().refinements.path_res_map[&path.node_id];
+                let res = self.resolver_output().path_expr_res_map[&path.node_id];
                 if let PathRes::Param(_, name) = res {
                     // FIXME(nilehmann) this is ugly. if we are storing source information we
                     // keep the entire path.
@@ -1334,7 +1329,7 @@ fn desugar_base_sort<'genv>(
 ) -> fhir::Sort<'genv> {
     match bsort {
         surface::BaseSort::Ident(ident, node_id) => {
-            let res = resolver_output.refinements.sort_res_map[&node_id];
+            let res = resolver_output.sort_res_map[&node_id];
             match res {
                 SortRes::Int => fhir::Sort::Int,
                 SortRes::Bool => fhir::Sort::Bool,
@@ -1359,7 +1354,7 @@ fn desugar_base_sort<'genv>(
         }
         surface::BaseSort::BitVec(width) => fhir::Sort::BitVec(*width),
         surface::BaseSort::App(_, args, node_id) => {
-            let ctor = resolver_output.refinements.sort_ctor_res_map[&node_id];
+            let ctor = resolver_output.sort_ctor_res_map[&node_id];
             let args = genv.alloc_slice_fill_iter(
                 args.iter()
                     .map(|s| desugar_base_sort(genv, resolver_output, s, generic_id_to_var_idx)),

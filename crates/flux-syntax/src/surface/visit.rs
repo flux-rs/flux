@@ -3,8 +3,8 @@ use rustc_span::symbol::Ident;
 use super::{
     AliasPred, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
     ExprKind, FnOutput, FnRetTy, FnSig, FuncDef, GenericArg, GenericArgKind, GenericParam,
-    GenericParamKind, Generics, Impl, ImplAssocPredicate, Indices, Lit, Path, Pred, PredKind,
-    QPathExpr, Qualifier, RefineArg, RefineParam, RefinedBy, Sort, StructDef, Trait,
+    GenericParamKind, Generics, Impl, ImplAssocPredicate, Indices, Lit, Path, PathExpr, Pred,
+    PredKind, Qualifier, RefineArg, RefineParam, RefinedBy, Sort, StructDef, Trait,
     TraitAssocPredicate, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
     WhereBoundPredicate,
 };
@@ -162,7 +162,7 @@ pub trait Visitor: Sized {
         walk_alias_pred(self, alias_pred);
     }
 
-    fn visit_qpath_expr(&mut self, qpath: &QPathExpr) {
+    fn visit_qpath_expr(&mut self, qpath: &PathExpr) {
         walk_qpath_expr(self, qpath);
     }
 
@@ -470,7 +470,7 @@ pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasPred) {
 
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
     match &expr.kind {
-        ExprKind::QPath(qpath) => vis.visit_qpath_expr(qpath),
+        ExprKind::Path(qpath) => vis.visit_qpath_expr(qpath),
         ExprKind::Dot(qpath, fld) => {
             vis.visit_qpath_expr(qpath);
             vis.visit_ident(*fld);
@@ -494,6 +494,6 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
     }
 }
 
-pub fn walk_qpath_expr<V: Visitor>(vis: &mut V, qpath: &QPathExpr) {
+pub fn walk_qpath_expr<V: Visitor>(vis: &mut V, qpath: &PathExpr) {
     walk_list!(vis, visit_ident, qpath.segments.iter().copied());
 }
