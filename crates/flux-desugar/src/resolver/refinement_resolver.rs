@@ -565,7 +565,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         } else if let Some(res) = self.sorts_res.get(&ident.name) {
             *res
         } else if self.resolver.sort_decls.get(&ident.name).is_some() {
-            SortRes::User
+            SortRes::User { name: ident.name }
         } else {
             self.errors.emit(errors::UnresolvedSort::new(ident));
             return;

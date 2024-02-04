@@ -228,7 +228,13 @@ pub type ScopeId = NodeId;
 pub struct ResolverOutput {
     pub path_res_map: UnordMap<NodeId, fhir::Res>,
     pub impl_trait_res_map: UnordMap<NodeId, hir::ItemId>,
+    /// Resolution of parameters both explicit and implicit. The [`fhir::Name`] is unique per item.
+    /// The [`NodeId`] correspond to the node introducing the parameter. When explicit, this is the
+    /// id of the [`surface::GenericArg`] or [`surface::RefineParam`], when implicit, this is the id
+    /// of the [`surface::RefineArg::Bind`] or [`surface::Arg`].
     pub param_res_map: UnordMap<NodeId, (fhir::Name, fhir::ParamKind)>,
+    /// List of implicit params defined in a scope. The [`NodeId`] is the id of the node introducing
+    /// the scope, i.e., [`surface::FnSig`], [`surface::FnOutput`], or [`surface::VariantDef`].
     pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
     pub sort_ctor_res_map: UnordMap<NodeId, fhir::SortCtor>,
     pub sort_res_map: UnordMap<NodeId, SortRes>,
@@ -245,7 +251,9 @@ pub enum SortRes {
     Int,
     Bool,
     Real,
-    User,
+    User {
+        name: Symbol,
+    },
     Var(usize),
     Param(DefId),
     /// A `Self` parameter in a trait definition.

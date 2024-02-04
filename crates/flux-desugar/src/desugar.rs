@@ -608,7 +608,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let ret = self.desugar_asyncness(asyncness, &output.returns);
 
         let ensures =
-            try_alloc_slice!(self.genv, &output.ensures, |cstr| { self.desugar_constraint(cstr) })?;
+            try_alloc_slice!(self.genv, &output.ensures, |cstr| self.desugar_constraint(cstr))?;
 
         let params = self
             .genv
@@ -1328,14 +1328,14 @@ fn desugar_base_sort<'genv>(
     generic_id_to_var_idx: Option<&FxIndexSet<DefId>>,
 ) -> fhir::Sort<'genv> {
     match bsort {
-        surface::BaseSort::Ident(ident, node_id) => {
+        surface::BaseSort::Ident(_, node_id) => {
             let res = resolver_output.sort_res_map[&node_id];
             match res {
                 SortRes::Int => fhir::Sort::Int,
                 SortRes::Bool => fhir::Sort::Bool,
                 SortRes::Real => fhir::Sort::Real,
-                SortRes::User => {
-                    let ctor = fhir::SortCtor::User { name: ident.name };
+                SortRes::User { name } => {
+                    let ctor = fhir::SortCtor::User { name };
                     fhir::Sort::App(ctor, &[])
                 }
                 SortRes::Var(idx) => fhir::Sort::Var(idx),
