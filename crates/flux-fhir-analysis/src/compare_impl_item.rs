@@ -54,7 +54,7 @@ fn check_assoc_predicate(
         .span;
 
     let impl_trait_ref = genv
-        .impl_trait_ref(impl_id)
+        .impl_trait_ref(impl_id.to_def_id())
         .emit(genv.sess())?
         .unwrap()
         .instantiate_identity(&[]);

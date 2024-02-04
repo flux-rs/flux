@@ -536,6 +536,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
     fn fake_method_of(&self, items: &[ImplItemRef]) -> Option<LocalDefId> {
         for item in items {
+            // TODO(RJ): ask-nico, why is fake_impl() not visible?
+            // let attrs = self.tcx.hir().attrs(item.id.hir_id());
             let def_id = item.id.owner_id.def_id;
             let is_fake_method = self
                 .tcx
@@ -614,7 +616,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     /// 1. extract the [TraitRef] for `<Ty as Trait>` and then
     /// 2. query [resolve_trait_ref_impl_id] to get the impl_id for the above trait-implementation.
     /// TODO: sadly the [resolve_trait_ref_impl_id] fails for this? see `extern_spec_impl01.rs`
-    fn _extract_extern_def_id_from_extern_spec_impl_new(
+    #[allow(dead_code)]
+    fn extract_extern_def_id_from_extern_spec_impl_new(
         &mut self,
         _def_id: LocalDefId,
         items: &[ImplItemRef],
@@ -630,8 +633,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 .predicates
                 .iter()
                 .filter_map(|(c, _)| c.as_trait_clause()?.no_bound_vars())
-                .find(|p| self.is_good_trait_predicate(p))
-                .unwrap()
+                .find(|p| self.is_good_trait_predicate(p))?
                 .trait_ref
         };
 
