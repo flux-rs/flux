@@ -186,7 +186,6 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         // Generate fresh inference variables for refinement arguments
         let refine_args = infcx.instantiate_refine_args(genv, callee_def_id)?;
 
-
         // Instantiate function signature and normalize it
         let inst_fn_sig = fn_sig
             .instantiate(&generic_args, &refine_args)
