@@ -685,6 +685,17 @@ impl ResKey {
         let s = path.segments.iter().map(|segment| segment.ident).join("::");
         Ok(ResKey { s })
     }
+
+    fn from_hir_path_new(_sess: &FluxSession, path: &rustc_hir::Path) -> Option<Self> {
+        if let [prefix @ .., _] = path.segments
+            && prefix.iter().any(|segment| segment.args.is_some())
+        {
+            None
+        } else {
+            let s = path.segments.iter().map(|segment| segment.ident).join("::");
+            Some(ResKey { s })
+        }
+    }
 }
 
 impl From<Res> for ResEntry {
