@@ -1,5 +1,3 @@
-mod env;
-mod gather;
 use std::iter;
 
 use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};

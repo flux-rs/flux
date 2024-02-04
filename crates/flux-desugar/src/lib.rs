@@ -21,7 +21,6 @@ fluent_messages! { "../locales/en-US.ftl" }
 mod desugar;
 mod errors;
 pub mod resolver;
-mod sort_resolver;
 
 use flux_middle::{
     const_eval, fhir, global_env::GlobalEnv, queries::Providers, rty, ResolverOutput, Specs,
