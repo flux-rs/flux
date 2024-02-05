@@ -279,6 +279,8 @@ pub struct TraitAssocPredicate<'fhir> {
 pub struct Impl<'fhir> {
     pub generics: Generics<'fhir>,
     pub assoc_predicates: &'fhir [ImplAssocPredicate<'fhir>],
+    /// Whether this is a wrapper for an extern impl
+    pub extern_id: Option<DefId>,
 }
 
 impl<'fhir> Impl<'fhir> {

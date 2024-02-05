@@ -189,7 +189,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             self.as_lift_cx().lift_generics()?
         };
         let assoc_predicates = self.desugar_impl_assoc_predicates(&impl_.assoc_predicates)?;
-        Ok(fhir::Impl { generics, assoc_predicates })
+        Ok(fhir::Impl { generics, assoc_predicates, extern_id: impl_.extern_id })
     }
 
     fn desugar_impl_assoc_predicates(
@@ -941,8 +941,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> Result<fhir::PredKind<'genv>> {
         let path = self.desugar_path(&alias_pred.trait_id)?;
         if let Res::Def(DefKind::Trait, trait_id) = path.res {
-            let (generic_args, _) =
-                self.desugar_generic_args(path.res, &alias_pred.generic_args)?;
+            let (generic_args, _) = self.desugar_generic_args(path.res, &alias_pred.args)?;
             let refine_args =
                 try_alloc_slice!(self.genv, refine_args, |arg| self.desugar_refine_arg(arg))?;
             let alias_pred = fhir::AliasPred { trait_id, name: alias_pred.name.name, generic_args };

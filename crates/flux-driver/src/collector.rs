@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use flux_common::iter::IterExt;
 use flux_config::{self as config, CrateConfig};
 use flux_errors::{FluxSession, ResultExt};
-use flux_middle::{fhir, Specs};
+use flux_middle::{fhir, rustc::lowering::resolve_trait_ref_impl_id, Specs};
 use flux_syntax::{surface, ParseResult, ParseSess};
 use itertools::Itertools;
 use rustc_ast::{
@@ -13,9 +13,10 @@ use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    EnumDef, GenericBounds, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
+    AssocItemKind, EnumDef, GenericBounds, ImplItemKind, ImplItemRef, Item, ItemKind, OwnerId,
+    VariantData,
 };
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::ty::{TraitPredicate, TyCtxt};
 use rustc_span::{Span, Symbol, SyntaxContext};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -61,13 +62,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 ItemKind::Mod(..) => collector.parse_mod_spec(owner_id.def_id, attrs),
                 ItemKind::TyAlias(..) => collector.parse_tyalias_spec(owner_id, attrs),
                 ItemKind::Const(..) => collector.parse_const_spec(item, attrs),
-                ItemKind::Impl(impl_) => {
-                    collector.parse_impl_specs(
-                        owner_id,
-                        attrs,
-                        DefKind::Impl { of_trait: impl_.of_trait.is_some() },
-                    )
-                }
+                ItemKind::Impl(impl_) => collector.parse_impl_specs(owner_id, attrs, impl_),
                 ItemKind::Trait(_, _, _, bounds, _) => {
                     collector.parse_trait_specs(owner_id, attrs, bounds)
                 }
@@ -166,17 +161,28 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         &mut self,
         owner_id: OwnerId,
         attrs: &[Attribute],
-        def_kind: DefKind,
+        impl_: &rustc_hir::Impl,
     ) -> Result {
+        let def_kind = DefKind::Impl { of_trait: impl_.of_trait.is_some() };
         let mut attrs = self.parse_flux_attrs(attrs, def_kind)?;
         self.report_dups(&attrs)?;
 
         let generics = attrs.generics();
         let assoc_predicates = attrs.impl_assoc_predicates();
 
+        let extern_id = if attrs.extern_spec()
+            && let Some(extern_id) =
+                self.extract_extern_def_id_from_extern_spec_impl(owner_id.def_id, impl_.items)
+        {
+            self.specs.extern_specs.insert(extern_id, owner_id.def_id);
+            Some(extern_id)
+        } else {
+            None
+        };
+
         self.specs
             .impls
-            .insert(owner_id, surface::Impl { generics, assoc_predicates });
+            .insert(owner_id, surface::Impl { generics, assoc_predicates, extern_id });
 
         Ok(())
     }
@@ -528,6 +534,114 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
     }
 
+    fn fake_method_of(&self, items: &[ImplItemRef]) -> Option<LocalDefId> {
+        for item in items {
+            // TODO(RJ): ask-nico, why is fake_impl() not visible?
+            // let attrs = self.tcx.hir().attrs(item.id.hir_id());
+            let def_id = item.id.owner_id.def_id;
+            let is_fake_method = self
+                .tcx
+                .def_path_str(def_id)
+                .contains("__flux_extern_impl_fake_method"); // TODO(RJ): use attr!
+            if let AssocItemKind::Fn { .. } = item.kind
+                && is_fake_method
+            // && attrs.fake_impl()
+            {
+                return Some(def_id);
+            }
+        }
+        None
+    }
+
+    fn is_good_trait_predicate(&self, trait_predicate: &TraitPredicate) -> bool {
+        let def_id = trait_predicate.trait_ref.def_id;
+        // !pretty::def_id_to_string(def_id).contains("Sized") // TODO: use LangItem::Sized?
+
+        self.tcx.require_lang_item(rustc_hir::LangItem::Sized, None) != def_id
+    }
+
+    /// Given as input a fake_method_def_id `fake` where
+    ///     fn fake<A: Trait<..>>(x: Ty) {}
+    /// we want to
+    /// 1. build the [TraitRef] for `<Ty as Trait<...>>` and then
+    /// 2. query [resolve_trait_ref_impl_id] to get the impl_id for the above trait-implementation.
+    fn extract_extern_def_id_from_extern_spec_impl(
+        &mut self,
+        _def_id: LocalDefId,
+        items: &[ImplItemRef],
+    ) -> Option<DefId> {
+        // 1. Find the fake_method's def_id
+        let fake_method_def_id = self.fake_method_of(items)?;
+
+        // 2. Get the fake_method's input type
+        let ty = self
+            .tcx
+            .fn_sig(fake_method_def_id)
+            .instantiate_identity()
+            .skip_binder()
+            .inputs()
+            .first()
+            .unwrap();
+        let arg = rustc_middle::ty::GenericArg::from(*ty);
+
+        // 3. Get the fake_method's trait_ref
+        let trait_ref = {
+            // let _generics = self.tcx.generics_of(fake_method_def_id);
+            self.tcx
+                .predicates_of(fake_method_def_id)
+                .predicates
+                .iter()
+                .filter_map(|(c, _)| c.as_trait_clause()?.no_bound_vars())
+                .find(|p| self.is_good_trait_predicate(p))
+                .unwrap()
+                .trait_ref
+        };
+
+        // 4. Splice in the type from step 2 to create query trait_ref
+        let mut args = vec![arg];
+        for arg in trait_ref.args.as_slice().iter().skip(1) {
+            args.push(*arg);
+        }
+        let trait_ref = rustc_middle::ty::TraitRef::new(self.tcx, trait_ref.def_id, args);
+
+        // 5. Resolve the trait_ref to an impl_id
+        let (impl_id, _) =
+            resolve_trait_ref_impl_id(self.tcx, fake_method_def_id, trait_ref).unwrap();
+        Some(impl_id)
+    }
+
+    /// Given as input a fake_method_def_id `fake` where
+    ///     fn fake() where Ty : Trait, {}
+    /// we want to
+    /// 1. extract the [TraitRef] for `<Ty as Trait>` and then
+    /// 2. query [resolve_trait_ref_impl_id] to get the impl_id for the above trait-implementation.
+    /// TODO: sadly the [resolve_trait_ref_impl_id] fails for this? see `extern_spec_impl01.rs`
+    #[allow(dead_code)]
+    fn extract_extern_def_id_from_extern_spec_impl_new(
+        &mut self,
+        _def_id: LocalDefId,
+        items: &[ImplItemRef],
+    ) -> Option<DefId> {
+        // 1. Find the fake_method's def_id
+        let fake_method_def_id = self.fake_method_of(items)?;
+
+        // 2. Get the fake_method's trait_ref
+        let trait_ref = {
+            self.tcx
+                .predicates_of(fake_method_def_id)
+                .predicates
+                .iter()
+                .filter_map(|(c, _)| c.as_trait_clause()?.no_bound_vars())
+                .find(|p| self.is_good_trait_predicate(p))?
+                .trait_ref
+        };
+
+        // 3. Resolve the trait_ref to an impl_id
+        let (impl_id, _) =
+            resolve_trait_ref_impl_id(self.tcx, fake_method_def_id, trait_ref).unwrap();
+        Some(impl_id)
+    }
+
     fn extract_extern_def_id_from_extern_spec_trait(
         &mut self,
         def_id: LocalDefId,
@@ -609,6 +723,7 @@ enum FluxAttrKind {
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
     Ignore,
+    _FakeImpl,
     ExternSpec,
 }
 
@@ -660,6 +775,10 @@ impl FluxAttrs {
 
     fn ignore(&mut self) -> bool {
         read_flag!(self, Ignore)
+    }
+
+    fn _fake_impl(&mut self) -> bool {
+        read_flag!(self, _FakeImpl)
     }
 
     fn opaque(&mut self) -> bool {
@@ -743,6 +862,7 @@ impl FluxAttrKind {
             FluxAttrKind::Ignore => attr_name!(Ignore),
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
+            FluxAttrKind::_FakeImpl => attr_name!(_FakeImpl),
         }
     }
 }

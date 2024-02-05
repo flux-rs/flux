@@ -8,7 +8,7 @@ use syn::{
     parse_quote_spanned,
     punctuated::Punctuated,
     spanned::Spanned,
-    token::Brace,
+    token::{Brace, Comma},
     Attribute, Expr, FnArg, GenericArgument, GenericParam, Generics, ItemStruct, Signature, Token,
     Type, TypePath,
 };
@@ -56,9 +56,15 @@ impl ExternItemImpl {
         self.mod_path = mod_path;
         // TODO(RJ): need a unique-id instead of this hack (#generics), to generate distinct struct (names)
         // for multiple impl blocks for the same type (see rset03.rs)
-        let mut dummy_prefix = format!("__FluxExternImplStruct{:?}", self.generics.params.len());
-        self.dummy_ident = Some(create_dummy_ident(&mut dummy_prefix, &self.self_ty)?);
+
         let trait_ = self.trait_.as_ref().map(|(_, path, _)| path.clone());
+
+        let mut dummy_prefix = format!("__FluxExternImplStruct{:?}", self.generics.params.len());
+        if let Some(trait_path) = &trait_ {
+            dummy_prefix.push_str(&create_dummy_string_from_path(trait_path)?);
+        }
+
+        self.dummy_ident = Some(create_dummy_ident(&mut dummy_prefix, &self.self_ty)?);
         for item in &mut self.items {
             item.prepare(&self.mod_path, Some(&self.self_ty), &trait_, false);
         }
@@ -75,12 +81,24 @@ impl ExternItemImpl {
         })
     }
 
-    fn dummy_struct(&self) -> syn::ItemStruct {
+    fn dummy_impl_struct(&self) -> syn::ItemStruct {
         let self_ty = &self.self_ty;
+
+        let mut params = self.generics.params.clone();
+        strip_generics_eq_default(&mut params);
+
         let struct_field: syn::FieldsUnnamed = if let Some(mod_path) = &self.mod_path {
-            parse_quote_spanned!(self_ty.span()=> ( #mod_path :: #self_ty ) )
+            if params.is_empty() {
+                parse_quote_spanned!(self_ty.span()=> ( #mod_path :: #self_ty ) )
+            } else {
+                parse_quote_spanned!(self_ty.span()=> ( #params, #mod_path :: #self_ty ) )
+            }
         } else {
-            parse_quote_spanned!(self_ty.span()=> ( #self_ty ) )
+            if params.is_empty() {
+                parse_quote_spanned!(self_ty.span()=> ( #self_ty ) )
+            } else {
+                parse_quote_spanned!(self_ty.span()=> ( #params, #self_ty ) )
+            }
         };
 
         syn::ItemStruct {
@@ -97,18 +115,34 @@ impl ExternItemImpl {
 
 impl ToTokens for ExternItemImpl {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let dummy_struct = self.dummy_struct();
+        let dummy_struct = self.dummy_impl_struct();
         dummy_struct.to_tokens(tokens);
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
+
+        quote!(#[allow(unused, dead_code)]).to_tokens(tokens);
+        quote!(#[flux::extern_spec]).to_tokens(tokens);
         tokens.append_all(&self.attrs);
+
         self.impl_token.to_tokens(tokens);
         impl_generics.to_tokens(tokens);
+
         let dummy_ident = self.dummy_ident.as_ref().unwrap();
         quote!(#dummy_ident #ty_generics).to_tokens(tokens);
         where_clause.to_tokens(tokens);
         self.brace_token.surround(tokens, |tokens| {
             for item in &self.items {
                 item.to_tokens(tokens);
+            }
+
+            if let Some((_, trait_, _for_token)) = &self.trait_ {
+                let self_ty = &self.self_ty;
+                quote!(#[allow(unused_variables)]).to_tokens(tokens);
+                // TODO: this is simpler but somehow fails, see note in [_extract_extern_def_id_from_extern_spec_impl_new]
+                // let fake_fn =
+                //     quote!(fn __flux_extern_impl_fake_method() where #self_ty : #trait_, {});
+                let fake_fn =
+                    quote!(fn __flux_extern_impl_fake_method<FluxFake : #trait_>(x: #self_ty) {});
+                fake_fn.to_tokens(tokens);
             }
         });
     }
@@ -297,6 +331,15 @@ fn create_dummy_ident(dummy_prefix: &mut String, ty: &syn::Type) -> syn::Result<
         }
     }
 }
+fn create_dummy_string_from_path(path: &syn::Path) -> syn::Result<String> {
+    if let Some(path_segment) = path.segments.last() {
+        // Mangle the identifier using the dummy_prefix
+        let str = format!("{}", path_segment.ident);
+        Ok(str)
+    } else {
+        Err(syn::Error::new(path.span(), format!("invalid extern_spec: empty Path {:?}", path)))
+    }
+}
 
 fn create_dummy_ident_from_path(dummy_prefix: &str, path: &syn::Path) -> syn::Result<syn::Ident> {
     // For paths, we mangle the last identifier
@@ -325,8 +368,8 @@ fn create_dummy_ident_from_path(dummy_prefix: &str, path: &syn::Path) -> syn::Re
 /// ```ignore
 /// struct __FluxExternStructHashSet<T, S = RandomState>(HashSet<T, S>);
 /// ```
-fn strip_generics_eq_default(generics: &mut Generics) {
-    for param in &mut generics.params {
+fn strip_generics_eq_default(params: &mut Punctuated<GenericParam, Comma>) {
+    for param in params {
         match param {
             GenericParam::Type(type_param) => {
                 type_param.bounds = Punctuated::new();
@@ -381,7 +424,7 @@ fn create_dummy_enum(
     let mut dummy_enum = item_enum.clone();
     let ident = item_enum.ident;
     let mut generics = item_enum.generics;
-    strip_generics_eq_default(&mut generics);
+    strip_generics_eq_default(&mut generics.params);
 
     dummy_enum.ident = format_ident!("__FluxExternEnum{}", ident);
     let dummy_variant_name = format_ident!("FluxExternEnumFake");
@@ -437,10 +480,11 @@ fn create_dummy_struct(
     let mut dummy_struct = item_struct.clone();
     let ident = item_struct.ident;
     let mut generics = item_struct.generics;
-    strip_generics_eq_default(&mut generics);
+    strip_generics_eq_default(&mut generics.params);
 
     dummy_struct.ident = format_ident!("__FluxExternStruct{}", ident);
     dummy_struct.semi_token = None;
+
     let dummy_field: syn::FieldsUnnamed = if let Some(mod_path) = mod_path {
         parse_quote_spanned! {item_struct_span =>
                               ( #mod_path :: #ident #generics )
@@ -499,7 +543,7 @@ fn create_dummy_trait(
     let mut dummy_trait = item_trait.clone();
     let ident = item_trait.ident;
     let mut generics = item_trait.generics;
-    strip_generics_eq_default(&mut generics);
+    strip_generics_eq_default(&mut generics.params);
 
     dummy_trait.ident = format_ident!("__FluxExternTrait{}", ident);
     dummy_trait.auto_token = None;

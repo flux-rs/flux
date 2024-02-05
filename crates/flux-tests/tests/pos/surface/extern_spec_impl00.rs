@@ -37,9 +37,9 @@ impl<T> [T] {
 }
 
 #[flux::sig(fn(bool[@b]) requires b)]
-fn assert_true(_: bool) {}
+pub fn assert_true(_: bool) {}
 
-fn test_string() {
+pub fn test_string() {
     let mut s = String::new();
     assert_true(s.is_empty());
     assert_true(s.as_bytes().is_empty());
