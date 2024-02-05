@@ -140,6 +140,7 @@ impl ToTokens for ExternItemImpl {
                 //     quote!(fn __flux_extern_impl_fake_method() where #self_ty : #trait_, {});
                 let fake_fn =
                     quote!(fn __flux_extern_impl_fake_method<FluxFake : #trait_>(x: #self_ty) {});
+                quote!(#[flux::fake_impl]).to_tokens(tokens);
                 fake_fn.to_tokens(tokens);
             }
         });

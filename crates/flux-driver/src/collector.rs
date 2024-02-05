@@ -459,6 +459,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("ignore", AttrArgs::Empty) => FluxAttrKind::Ignore,
             ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
             ("trusted", AttrArgs::Empty) => FluxAttrKind::Trusted,
+            ("fake_impl", AttrArgs::Empty) => FluxAttrKind::FakeImpl,
             ("extern_spec", AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             _ => return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() })),
         };
@@ -534,20 +535,16 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Err(self.emit_err(errors::MalformedExternSpec { span: self.tcx.def_span(def_id) }))
     }
 
-    fn fake_method_of(&self, items: &[ImplItemRef]) -> Option<LocalDefId> {
+    fn fake_method_of(&mut self, items: &[ImplItemRef]) -> Option<LocalDefId> {
         for item in items {
             // TODO(RJ): ask-nico, why is fake_impl() not visible?
-            // let attrs = self.tcx.hir().attrs(item.id.hir_id());
-            let def_id = item.id.owner_id.def_id;
-            let is_fake_method = self
-                .tcx
-                .def_path_str(def_id)
-                .contains("__flux_extern_impl_fake_method"); // TODO(RJ): use attr!
-            if let AssocItemKind::Fn { .. } = item.kind
-                && is_fake_method
-            // && attrs.fake_impl()
-            {
-                return Some(def_id);
+            let attrs = self.tcx.hir().attrs(item.id.hir_id());
+            if let Ok(mut attrs) = self.parse_flux_attrs(attrs, DefKind::Impl { of_trait: false }) {
+                if let AssocItemKind::Fn { .. } = item.kind
+                    && attrs.fake_impl()
+                {
+                    return Some(item.id.owner_id.def_id);
+                }
             }
         }
         None
@@ -723,7 +720,7 @@ enum FluxAttrKind {
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
     Ignore,
-    _FakeImpl,
+    FakeImpl,
     ExternSpec,
 }
 
@@ -777,8 +774,8 @@ impl FluxAttrs {
         read_flag!(self, Ignore)
     }
 
-    fn _fake_impl(&mut self) -> bool {
-        read_flag!(self, _FakeImpl)
+    fn fake_impl(&mut self) -> bool {
+        read_flag!(self, FakeImpl)
     }
 
     fn opaque(&mut self) -> bool {
@@ -862,7 +859,7 @@ impl FluxAttrKind {
             FluxAttrKind::Ignore => attr_name!(Ignore),
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
-            FluxAttrKind::_FakeImpl => attr_name!(_FakeImpl),
+            FluxAttrKind::FakeImpl => attr_name!(FakeImpl),
         }
     }
 }

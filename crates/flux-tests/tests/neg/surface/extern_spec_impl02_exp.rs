@@ -27,6 +27,7 @@ struct __FluxExternStruct1usize();
 #[flux::extern_spec]
 #[flux::predicate{ f = |x:int| { 10 < x } }]
 impl __FluxExternStruct1usize {
+    #[flux::fake_impl]
     fn __flux_extern_impl_fake_method<FluxFake: MyTrait>(x: usize) {}
 }
 
