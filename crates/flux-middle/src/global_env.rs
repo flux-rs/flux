@@ -16,7 +16,7 @@ use crate::{
     fhir::{self, FluxLocalDefId, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryErr, QueryResult},
-    rty::{self, normalize::Defns, refining::Refiner},
+    rty::{self, normalize::SpecFuncDefns, refining::Refiner},
     rustc::{self, lowering, ty},
 };
 
@@ -122,8 +122,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn defns(&self) -> QueryResult<&Defns> {
-        self.inner.queries.defns(*self)
+    pub fn spec_func_defns(&self) -> QueryResult<&SpecFuncDefns> {
+        self.inner.queries.spec_func_defns(*self)
     }
 
     pub fn qualifiers(
@@ -144,11 +144,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .filter(move |qualifier| qualifier.global || names.contains(&qualifier.name)))
     }
 
-    pub fn func_decls(self) -> impl Iterator<Item = &'genv rty::FuncDecl> {
+    pub fn func_decls(self) -> impl Iterator<Item = &'genv rty::SpecFuncDecl> {
         self.inner.queries.func_decls(self).values()
     }
 
-    pub fn func_decl(self, name: Symbol) -> rty::FuncDecl {
+    pub fn func_decl(self, name: Symbol) -> rty::SpecFuncDecl {
         self.inner.queries.func_decls(self)[&name].clone()
     }
 
@@ -443,13 +443,13 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         }
     }
 
-    pub fn func_decls(self) -> impl Iterator<Item = &'genv fhir::FuncDecl<'genv>> {
+    pub fn func_decls(self) -> impl Iterator<Item = &'genv fhir::SpecFuncDecl<'genv>> {
         self.fhir.func_decls.values()
     }
 
-    pub fn defns(self) -> impl Iterator<Item = &'genv fhir::Defn<'genv>> {
+    pub fn spec_func_defns(self) -> impl Iterator<Item = &'genv fhir::SpecFunc<'genv>> {
         self.fhir.flux_items.values().filter_map(|item| {
-            if let fhir::FluxItem::Defn(defn) = item {
+            if let fhir::FluxItem::Func(defn) = item {
                 Some(defn)
             } else {
                 None
@@ -457,9 +457,9 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         })
     }
 
-    pub fn defn(&self, name: Symbol) -> Option<&'genv fhir::Defn<'genv>> {
+    pub fn defn(&self, name: Symbol) -> Option<&'genv fhir::SpecFunc<'genv>> {
         self.fhir.flux_items.get(&name).and_then(|item| {
-            if let fhir::FluxItem::Defn(defn) = item {
+            if let fhir::FluxItem::Func(defn) = item {
                 Some(defn)
             } else {
                 None

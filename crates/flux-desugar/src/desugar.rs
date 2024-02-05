@@ -46,7 +46,7 @@ pub(crate) fn desugar_defn<'genv>(
     genv: GlobalEnv<'genv, '_>,
     resolver_output: &'genv ResolverOutput,
     defn: &surface::FuncDef,
-) -> Result<Option<fhir::Defn<'genv>>> {
+) -> Result<Option<fhir::SpecFunc<'genv>>> {
     if let Some(body) = &defn.body {
         let cx = FluxItemCtxt::new(genv, resolver_output, defn.name.name);
         let expr = cx.desugar_expr(body)?;
@@ -55,7 +55,7 @@ pub(crate) fn desugar_defn<'genv>(
         let sort = cx.desugar_sort(&defn.output, None);
         let args = cx.desugar_refine_params(&defn.args);
 
-        Ok(Some(fhir::Defn { name, params, args, sort, expr }))
+        Ok(Some(fhir::SpecFunc { name, params, args, sort, expr }))
     } else {
         Ok(None)
     }
@@ -65,7 +65,7 @@ pub fn func_def_to_func_decl<'genv>(
     genv: GlobalEnv<'genv, '_>,
     resolver_output: &'genv ResolverOutput,
     defn: &surface::FuncDef,
-) -> Result<fhir::FuncDecl<'genv>> {
+) -> Result<fhir::SpecFuncDecl<'genv>> {
     let params = defn.sort_vars.len();
     let inputs_and_output = genv.alloc_slice_with_capacity(
         defn.args.len() + 1,
@@ -76,8 +76,8 @@ pub fn func_def_to_func_decl<'genv>(
             .map(|sort| desugar_sort(genv, resolver_output, sort, None)),
     );
     let sort = fhir::PolyFuncSort::new(params, inputs_and_output);
-    let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
-    Ok(fhir::FuncDecl { name: defn.name.name, sort, kind })
+    let kind = if defn.body.is_some() { fhir::SpecFuncKind::Def } else { fhir::SpecFuncKind::Uif };
+    Ok(fhir::SpecFuncDecl { name: defn.name.name, sort, kind })
 }
 
 /// Collect all sorts resolved to a generic parameter in a [`surface::RefinedBy`]. Return the set

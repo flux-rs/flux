@@ -59,7 +59,7 @@ pub(crate) fn check_qualifier<'genv>(
 
 pub(crate) fn check_defn<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    defn: &fhir::Defn,
+    defn: &fhir::SpecFunc,
 ) -> Result<WfckResults<'genv>> {
     let owner = FluxOwnerId::Flux(defn.name);
     let mut infcx = InferCtxt::new(genv, owner);

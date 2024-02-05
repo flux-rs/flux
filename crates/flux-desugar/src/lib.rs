@@ -136,7 +136,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         if let Some(defn) = desugar::desugar_defn(self.genv, self.resolver_output, defn)? {
             self.fhir
                 .flux_items
-                .insert(defn.name, fhir::FluxItem::Defn(defn));
+                .insert(defn.name, fhir::FluxItem::Func(defn));
         }
 
         Ok(())

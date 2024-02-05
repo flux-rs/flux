@@ -11,7 +11,7 @@ use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
     evars::EVarSol,
-    normalize::{Defns, Normalizer},
+    normalize::{Normalizer, SpecFuncDefns},
     projections,
     subst::EVarSubstFolder,
     AliasPred, AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
@@ -254,7 +254,7 @@ pub trait TypeFoldable: TypeVisitable {
     }
 
     /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
-    fn normalize(&self, defns: &Defns) -> Self {
+    fn normalize(&self, defns: &SpecFuncDefns) -> Self {
         self.fold_with(&mut Normalizer::new(defns))
     }
 

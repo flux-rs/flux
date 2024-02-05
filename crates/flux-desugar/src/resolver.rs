@@ -71,7 +71,7 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     output: ResolverOutput,
     extern_crates: UnordMap<Symbol, CrateNum>,
     ribs: Vec<Rib>,
-    func_decls: UnordMap<Symbol, fhir::FuncKind>,
+    func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
     sort_decls: UnordMap<Symbol, fhir::SortDecl>,
     consts: UnordMap<Symbol, DefId>,
     err: Option<ErrorGuaranteed>,
@@ -223,13 +223,14 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
 
         for defn in &self.specs.func_defs {
-            let kind = if defn.body.is_some() { fhir::FuncKind::Def } else { fhir::FuncKind::Uif };
+            let kind =
+                if defn.body.is_some() { fhir::SpecFuncKind::Def } else { fhir::SpecFuncKind::Uif };
             self.func_decls.insert(defn.name.name, kind);
         }
 
         for itf in flux_middle::theory_funcs() {
             self.func_decls
-                .insert(itf.name, fhir::FuncKind::Thy(itf.fixpoint_name));
+                .insert(itf.name, fhir::SpecFuncKind::Thy(itf.fixpoint_name));
         }
     }
 

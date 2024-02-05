@@ -22,7 +22,7 @@ pub use expr::{
 use flux_common::bug;
 pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
-pub use normalize::Defns;
+pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
@@ -49,7 +49,7 @@ pub use crate::{
     },
 };
 use crate::{
-    fhir::{self, FhirId, FluxOwnerId, FuncKind, ParamKind},
+    fhir::{self, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
@@ -457,16 +457,16 @@ pub struct Qualifier {
     pub global: bool,
 }
 
-pub struct Defn {
+pub struct SpecFunc {
     pub name: Symbol,
     pub expr: Binder<Expr>,
 }
 
 #[derive(Debug, Clone)]
-pub struct FuncDecl {
+pub struct SpecFuncDecl {
     pub name: Symbol,
     pub sort: PolyFuncSort,
-    pub kind: FuncKind,
+    pub kind: SpecFuncKind,
 }
 
 #[derive(Debug)]

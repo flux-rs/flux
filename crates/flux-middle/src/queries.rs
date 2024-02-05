@@ -47,9 +47,9 @@ pub struct Providers {
     pub collect_specs: fn(GlobalEnv) -> crate::Specs,
     pub resolve_crate: fn(GlobalEnv) -> crate::ResolverOutput,
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::Crate<'genv>,
-    pub defns: fn(GlobalEnv) -> QueryResult<rty::Defns>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
-    pub func_decls: fn(GlobalEnv) -> FxHashMap<Symbol, rty::FuncDecl>,
+    pub spec_func_defns: fn(GlobalEnv) -> QueryResult<rty::SpecFuncDefns>,
+    pub spec_func_decls: fn(GlobalEnv) -> FxHashMap<Symbol, rty::SpecFuncDecl>,
     pub adt_sort_def_of: fn(GlobalEnv, LocalDefId) -> rty::AdtSortDef,
     pub check_wf: for<'genv> fn(
         GlobalEnv<'genv, '_>,
@@ -86,8 +86,8 @@ impl Default for Providers {
             collect_specs: |_| empty_query!(),
             fhir_crate: |_| empty_query!(),
             resolve_crate: |_| empty_query!(),
-            defns: |_| empty_query!(),
-            func_decls: |_| empty_query!(),
+            spec_func_defns: |_| empty_query!(),
+            spec_func_decls: |_| empty_query!(),
             qualifiers: |_| empty_query!(),
             adt_sort_def_of: |_, _| empty_query!(),
             check_wf: |_, _| empty_query!(),
@@ -116,8 +116,8 @@ pub struct Queries<'genv, 'tcx> {
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
-    defns: OnceCell<QueryResult<rty::Defns>>,
-    func_decls: OnceCell<FxHashMap<Symbol, rty::FuncDecl>>,
+    defns: OnceCell<QueryResult<rty::SpecFuncDefns>>,
+    func_decls: OnceCell<FxHashMap<Symbol, rty::SpecFuncDecl>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     adt_sort_def_of: Cache<DefId, rty::AdtSortDef>,
     check_wf: Cache<FluxLocalDefId, QueryResult<Rc<rty::WfckResults<'genv>>>>,
@@ -262,16 +262,16 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn defns(&self, genv: GlobalEnv) -> QueryResult<&rty::Defns> {
+    pub(crate) fn spec_func_defns(&self, genv: GlobalEnv) -> QueryResult<&rty::SpecFuncDefns> {
         self.defns
-            .get_or_init(|| (self.providers.defns)(genv))
+            .get_or_init(|| (self.providers.spec_func_defns)(genv))
             .as_ref()
             .map_err(Clone::clone)
     }
 
-    pub(crate) fn func_decls(&self, genv: GlobalEnv) -> &FxHashMap<Symbol, rty::FuncDecl> {
+    pub(crate) fn func_decls(&self, genv: GlobalEnv) -> &FxHashMap<Symbol, rty::SpecFuncDecl> {
         self.func_decls
-            .get_or_init(|| (self.providers.func_decls)(genv))
+            .get_or_init(|| (self.providers.spec_func_decls)(genv))
     }
 
     pub(crate) fn qualifiers(&self, genv: GlobalEnv) -> QueryResult<&[rty::Qualifier]> {

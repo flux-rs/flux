@@ -12,7 +12,7 @@ use flux_common::{
 use flux_config as config;
 use flux_fixpoint::FixpointResult;
 use flux_middle::{
-    fhir::FuncKind,
+    fhir::SpecFuncKind,
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
@@ -657,7 +657,7 @@ fn fixpoint_const_map(genv: GlobalEnv, global_var_gen: &IndexGen<fixpoint::Globa
         .sorted_by(|a, b| Ord::cmp(&a.name, &b.name))
         .filter_map(|decl| {
             match decl.kind {
-                FuncKind::Uif => {
+                SpecFuncKind::Uif => {
                     let sort = func_sort_to_fixpoint(&decl.sort);
                     let cinfo = ConstInfo {
                         name: global_var_gen.fresh(),
@@ -906,8 +906,8 @@ impl<'a, 'genv, 'tcx> ExprCtxt<'a, 'genv, 'tcx> {
     fn func_to_fixpoint(&self, func: &rty::Expr) -> fixpoint::Var {
         match func.kind() {
             rty::ExprKind::Var(var) => self.var_to_fixpoint(var).into(),
-            rty::ExprKind::GlobalFunc(_, FuncKind::Thy(sym)) => fixpoint::Var::Itf(*sym),
-            rty::ExprKind::GlobalFunc(sym, FuncKind::Uif) => {
+            rty::ExprKind::GlobalFunc(_, SpecFuncKind::Thy(sym)) => fixpoint::Var::Itf(*sym),
+            rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) => {
                 let cinfo = self.const_map.get(&Key::Uif(*sym)).unwrap_or_else(|| {
                     span_bug!(
                         self.dbg_span,
@@ -916,7 +916,7 @@ impl<'a, 'genv, 'tcx> ExprCtxt<'a, 'genv, 'tcx> {
                 });
                 cinfo.name.into()
             }
-            rty::ExprKind::GlobalFunc(sym, FuncKind::Def) => {
+            rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Def) => {
                 span_bug!(self.dbg_span, "unexpected global function `{sym}`. Function must be normalized away at this point")
             }
             _ => {

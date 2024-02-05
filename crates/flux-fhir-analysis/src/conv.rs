@@ -266,15 +266,15 @@ pub(crate) fn conv_invariants<'genv>(
 
 pub(crate) fn conv_defn<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    defn: &fhir::Defn,
+    defn: &fhir::SpecFunc,
     wfckresults: &WfckResults<'genv>,
-) -> rty::Defn {
+) -> rty::SpecFunc {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults);
     env.push_layer(Layer::list(&cx, 0, defn.args, false));
     let expr = cx.conv_expr(&env, &defn.expr);
     let expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv));
-    rty::Defn { name: defn.name, expr }
+    rty::SpecFunc { name: defn.name, expr }
 }
 
 pub(crate) fn conv_qualifier<'genv>(
@@ -1238,8 +1238,8 @@ impl LookupResult<'_> {
     }
 }
 
-pub fn conv_func_decl(genv: GlobalEnv, uif: &fhir::FuncDecl) -> rty::FuncDecl {
-    rty::FuncDecl {
+pub fn conv_func_decl(genv: GlobalEnv, uif: &fhir::SpecFuncDecl) -> rty::SpecFuncDecl {
+    rty::SpecFuncDecl {
         name: uif.name,
         sort: conv_poly_func_sort(genv, &uif.sort, &mut || bug!("unexpected infer sort")),
         kind: uif.kind,

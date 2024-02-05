@@ -13,7 +13,7 @@ use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{evars::EVar, AliasPred, BaseTy, Binder, IntTy, Sort, UintTy};
 use crate::{
-    fhir::FuncKind,
+    fhir::SpecFuncKind,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     rty::fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
 };
@@ -81,7 +81,7 @@ pub enum ExprKind {
     Constant(Constant),
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
-    GlobalFunc(Symbol, FuncKind),
+    GlobalFunc(Symbol, SpecFuncKind),
     UnaryOp(UnOp, Expr),
     FieldProj(Expr, FieldProj),
     Aggregate(AggregateKind, List<Expr>),
@@ -401,7 +401,7 @@ impl Expr {
         ExprKind::App(func.into(), args.into()).intern_at(espan)
     }
 
-    pub fn global_func(func: Symbol, kind: FuncKind) -> Expr {
+    pub fn global_func(func: Symbol, kind: SpecFuncKind) -> Expr {
         ExprKind::GlobalFunc(func, kind).intern()
     }
 

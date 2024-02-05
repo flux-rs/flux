@@ -215,7 +215,7 @@ pub enum ImplItemKind<'fhir> {
 #[derive(Debug)]
 pub enum FluxItem<'fhir> {
     Qualifier(Qualifier<'fhir>),
-    Defn(Defn<'fhir>),
+    Func(SpecFunc<'fhir>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -333,7 +333,7 @@ pub struct Crate<'fhir> {
     pub externs: UnordMap<DefId, LocalDefId>,
     pub flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
     pub fn_quals: FxHashMap<LocalDefId, &'fhir [SurfaceIdent]>,
-    pub func_decls: FxHashMap<Symbol, FuncDecl<'fhir>>,
+    pub func_decls: FxHashMap<Symbol, SpecFuncDecl<'fhir>>,
     pub trusted: UnordSet<LocalDefId>,
     pub ignores: UnordSet<IgnoreKey>,
     pub crate_config: config::CrateConfig,
@@ -794,7 +794,7 @@ pub enum Func {
     /// A function coming from a refinement parameter.
     Var(Ident, FhirId),
     /// A _global_ function symbol (including possibly theory symbols).
-    Global(Symbol, FuncKind, Span, FhirId),
+    Global(Symbol, SpecFuncKind, Span, FhirId),
 }
 
 #[derive(Clone, Copy)]
@@ -971,29 +971,29 @@ pub struct RefinedBy<'fhir> {
 }
 
 #[derive(Debug)]
-pub struct FuncDecl<'fhir> {
+pub struct SpecFunc<'fhir> {
+    pub name: Symbol,
+    pub params: usize,
+    pub args: &'fhir [RefineParam<'fhir>],
+    pub sort: Sort<'fhir>,
+    pub expr: Expr<'fhir>,
+}
+
+#[derive(Debug)]
+pub struct SpecFuncDecl<'fhir> {
     pub name: Symbol,
     pub sort: PolyFuncSort<'fhir>,
-    pub kind: FuncKind,
+    pub kind: SpecFuncKind,
 }
 
 #[derive(Debug, Clone, Copy, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
-pub enum FuncKind {
+pub enum SpecFuncKind {
     /// Theory symbols "interpreted" by the SMT solver: `Symbol` is Fixpoint's name for the operation e.g. `set_cup` for flux's `set_union`
     Thy(Symbol),
     /// User-defined uninterpreted functions with no definition
     Uif,
     /// User-defined functions with a body definition
     Def,
-}
-
-#[derive(Debug)]
-pub struct Defn<'fhir> {
-    pub name: Symbol,
-    pub params: usize,
-    pub args: &'fhir [RefineParam<'fhir>],
-    pub sort: Sort<'fhir>,
-    pub expr: Expr<'fhir>,
 }
 
 impl<'fhir> Generics<'fhir> {

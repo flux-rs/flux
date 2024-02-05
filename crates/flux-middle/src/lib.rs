@@ -271,5 +271,5 @@ pub enum PathRes<Id = fhir::Name> {
     Param(fhir::ParamKind, Id),
     Const(DefId),
     NumConst(i128),
-    GlobalFunc(fhir::FuncKind, Symbol),
+    GlobalFunc(fhir::SpecFuncKind, Symbol),
 }

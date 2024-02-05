@@ -35,9 +35,9 @@ use rustc_span::Symbol;
 fluent_messages! { "../locales/en-US.ftl" }
 
 pub fn provide(providers: &mut Providers) {
-    providers.defns = defns;
+    providers.spec_func_defns = spec_func_defns;
+    providers.spec_func_decls = spec_func_decls;
     providers.qualifiers = qualifiers;
-    providers.func_decls = func_decls;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
     providers.adt_def = adt_def;
@@ -57,16 +57,16 @@ fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> rty::AdtSortDef {
     conv::conv_adt_sort_def(genv, def_id, genv.map().refined_by(def_id))
 }
 
-fn func_decls(genv: GlobalEnv) -> FxHashMap<Symbol, rty::FuncDecl> {
+fn spec_func_decls(genv: GlobalEnv) -> FxHashMap<Symbol, rty::SpecFuncDecl> {
     let mut func_decls = FxHashMap::default();
     for decl in genv.map().func_decls() {
         func_decls.insert(decl.name, conv::conv_func_decl(genv, decl));
     }
     for itf in flux_middle::theory_funcs() {
-        let func_decl = rty::FuncDecl {
+        let func_decl = rty::SpecFuncDecl {
             name: itf.name,
             sort: itf.sort.clone(),
-            kind: fhir::FuncKind::Thy(itf.fixpoint_name),
+            kind: fhir::SpecFuncKind::Thy(itf.fixpoint_name),
         };
         func_decls.insert(itf.name, func_decl);
     }
@@ -74,17 +74,17 @@ fn func_decls(genv: GlobalEnv) -> FxHashMap<Symbol, rty::FuncDecl> {
     func_decls
 }
 
-fn defns(genv: GlobalEnv) -> QueryResult<rty::Defns> {
+fn spec_func_defns(genv: GlobalEnv) -> QueryResult<rty::SpecFuncDefns> {
     let defns = genv
         .map()
-        .defns()
+        .spec_func_defns()
         .map(|defn| -> QueryResult<_> {
             let wfckresults = genv.check_wf(FluxLocalDefId::Flux(defn.name))?;
             let defn = conv::conv_defn(genv, defn, &wfckresults);
             Ok((defn.name, defn))
         })
         .try_collect()?;
-    let defns = rty::Defns::new(defns).map_err(|cycle| {
+    let defns = rty::SpecFuncDefns::new(defns).map_err(|cycle| {
         let span = genv.map().defn(cycle[0]).unwrap().expr.span;
         genv.sess()
             .emit_err(errors::DefinitionCycle::new(span, cycle))
@@ -333,7 +333,7 @@ fn variants_of(
         fhir::ItemKind::Struct(struct_def) => {
             let wfckresults = genv.check_wf(def_id)?;
             conv::ConvCtxt::conv_struct_def_variant(genv, struct_def, &wfckresults)?
-                .normalize(genv.defns()?)
+                .normalize(genv.spec_func_defns()?)
                 .map(|variant| rty::EarlyBinder(List::singleton(variant)))
         }
         _ => bug!("expected struct or enum"),
@@ -347,7 +347,7 @@ fn variants_of(
 fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let fn_sig = genv.map().node(def_id).fn_sig().unwrap();
     let wfckresults = genv.check_wf(def_id)?;
-    let defns = genv.defns()?;
+    let defns = genv.spec_func_defns()?;
     let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?
         .map(|fn_sig| fn_sig.normalize(defns));
 
@@ -376,7 +376,7 @@ fn check_wf_flux_item<'genv>(
 ) -> QueryResult<Rc<WfckResults<'genv>>> {
     let wfckresults = match genv.map().get_flux_item(sym).unwrap() {
         fhir::FluxItem::Qualifier(qualifier) => wf::check_qualifier(genv, qualifier)?,
-        fhir::FluxItem::Defn(defn) => wf::check_defn(genv, defn)?,
+        fhir::FluxItem::Func(defn) => wf::check_defn(genv, defn)?,
     };
     Ok(Rc::new(wfckresults))
 }
@@ -457,7 +457,7 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         }
     }
 
-    for defn in genv.map().defns() {
+    for defn in genv.map().spec_func_defns() {
         err = genv
             .check_wf(FluxLocalDefId::Flux(defn.name))
             .emit(genv.sess())
@@ -481,7 +481,7 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 }
 
 fn normalize<T: TypeFoldable>(genv: GlobalEnv, t: T) -> QueryResult<T> {
-    Ok(t.normalize(genv.defns()?))
+    Ok(t.normalize(genv.spec_func_defns()?))
 }
 
 mod errors {
