@@ -72,7 +72,8 @@ fn try_desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::Crate<'g
 
 macro_rules! collect_err {
     ($self:expr, $body:expr) => {
-        $self.err = $body.err().or($self.err)
+        let mut try_block = || -> std::result::Result<_, _> { $body };
+        $self.err = try_block().err().or($self.err)
     };
 }
 
@@ -150,14 +151,25 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     }
 
     fn desugar_rust_items(&mut self, specs: &Specs) {
-        for item_id in self.genv.tcx().hir_crate_items(()).items() {
-            self.desugar_rust_item(item_id, specs);
+        let crate_items = self.genv.tcx().hir_crate_items(());
+        for owner_id in crate_items.owners() {
+            match self.genv.hir().owner(owner_id) {
+                rustc_hir::OwnerNode::Item(item) => {
+                    self.desugar_rust_item(item, specs);
+                }
+                rustc_hir::OwnerNode::TraitItem(trait_item) => {
+                    self.desugar_trait_item(trait_item, specs);
+                }
+                rustc_hir::OwnerNode::ImplItem(impl_item) => {
+                    self.desugar_impl_item(impl_item, specs);
+                }
+                rustc_hir::OwnerNode::ForeignItem(_) | rustc_hir::OwnerNode::Crate(_) => {}
+            }
         }
     }
 
-    fn desugar_rust_item(&mut self, item_id: hir::ItemId, specs: &Specs) {
-        let owner_id = item_id.owner_id;
-        let item = self.genv.hir().item(item_id);
+    fn desugar_rust_item(&mut self, item: &hir::Item, specs: &Specs) {
+        let owner_id = item.owner_id;
 
         match item.kind {
             hir::ItemKind::Fn(..) => {
@@ -179,64 +191,56 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
                 let struct_def = &specs.structs[&owner_id];
                 collect_err!(self, self.desugar_struct_def(owner_id, struct_def));
             }
-            hir::ItemKind::Trait(.., items) => {
+            hir::ItemKind::Trait(..) => {
                 collect_err!(self, self.desugar_trait(owner_id, &specs.traits[&owner_id]));
-                for trait_item in items {
-                    collect_err!(
-                        self,
-                        self.desugar_assoc_item(
-                            trait_item.id.owner_id,
-                            trait_item.kind,
-                            specs,
-                            true
-                        )
-                    );
-                }
             }
-            hir::ItemKind::Impl(impl_) => {
+            hir::ItemKind::Impl(..) => {
                 collect_err!(self, self.desugar_impl(owner_id, &specs.impls[&owner_id]));
-                for impl_item in impl_.items {
-                    collect_err!(
-                        self,
-                        self.desugar_assoc_item(
-                            impl_item.id.owner_id,
-                            impl_item.kind,
-                            specs,
-                            false
-                        )
-                    );
-                }
             }
             _ => {}
         }
     }
 
-    fn desugar_assoc_item(
-        &mut self,
-        owner_id: OwnerId,
-        kind: hir::AssocItemKind,
-        specs: &Specs,
-        in_trait: bool,
-    ) -> Result {
-        match kind {
-            hir::AssocItemKind::Fn { .. } => {
+    fn desugar_trait_item(&mut self, trait_item: &hir::TraitItem, specs: &Specs) {
+        let owner_id = trait_item.owner_id;
+        match trait_item.kind {
+            rustc_hir::TraitItemKind::Fn(..) => {
                 let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
-                if in_trait {
-                    self.desugar_trait_fn(owner_id, fn_spec)?;
-                } else {
-                    self.desugar_impl_fn(owner_id, fn_spec)?;
-                }
+                collect_err!(self, self.desugar_trait_fn(owner_id, fn_spec));
             }
-            hir::AssocItemKind::Type => {
-                let assoc_ty = self
-                    .as_rust_item_ctxt(owner_id, None)
-                    .desugar_assoc_type()?;
-                let trait_item = fhir::TraitItem { kind: fhir::TraitItemKind::Type(assoc_ty) };
-                self.fhir.trait_items.insert(owner_id.def_id, trait_item);
+            rustc_hir::TraitItemKind::Type(..) => {
+                collect_err!(self, {
+                    let assoc_ty = self
+                        .as_rust_item_ctxt(owner_id, None)
+                        .desugar_assoc_type()?;
+                    let trait_item = fhir::TraitItem { kind: fhir::TraitItemKind::Type(assoc_ty) };
+                    self.fhir.trait_items.insert(owner_id.def_id, trait_item);
+                    Ok(())
+                });
             }
-            hir::AssocItemKind::Const => {}
+            rustc_hir::TraitItemKind::Const(_, _) => {}
         }
-        Ok(())
+    }
+
+    fn desugar_impl_item(&mut self, impl_item: &hir::ImplItem, specs: &Specs) {
+        let owner_id = impl_item.owner_id;
+        match &impl_item.kind {
+            rustc_hir::ImplItemKind::Fn(..) => {
+                let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
+                collect_err!(self, self.desugar_impl_fn(owner_id, fn_spec));
+            }
+            rustc_hir::ImplItemKind::Type(..) => {
+                collect_err!(self, {
+                    let assoc_ty = self
+                        .as_rust_item_ctxt(owner_id, None)
+                        .desugar_assoc_type()?;
+                    let impl_item = fhir::ImplItem { kind: fhir::ImplItemKind::Type(assoc_ty) };
+                    self.fhir.impl_items.insert(owner_id.def_id, impl_item);
+                    Ok(())
+                });
+            }
+            rustc_hir::ImplItemKind::Const(_, _) => {}
+        }
     }
 
     pub fn desugar_struct_def(

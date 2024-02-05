@@ -202,12 +202,14 @@ impl<'fhir> ImplItem<'fhir> {
     pub fn generics(&self) -> &Generics<'fhir> {
         match &self.kind {
             ImplItemKind::Fn(fn_sig) => &fn_sig.generics,
+            ImplItemKind::Type(assoc_type) => &assoc_type.generics,
         }
     }
 }
 
 pub enum ImplItemKind<'fhir> {
     Fn(FnSig<'fhir>),
+    Type(AssocType<'fhir>),
 }
 
 #[derive(Debug)]

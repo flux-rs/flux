@@ -93,12 +93,10 @@ impl ExternItemImpl {
             } else {
                 parse_quote_spanned!(self_ty.span()=> ( #params, #mod_path :: #self_ty ) )
             }
+        } else if params.is_empty() {
+            parse_quote_spanned!(self_ty.span()=> ( #self_ty ) )
         } else {
-            if params.is_empty() {
-                parse_quote_spanned!(self_ty.span()=> ( #self_ty ) )
-            } else {
-                parse_quote_spanned!(self_ty.span()=> ( #params, #self_ty ) )
-            }
+            parse_quote_spanned!(self_ty.span()=> ( #params, #self_ty ) )
         };
 
         syn::ItemStruct {
