@@ -32,7 +32,11 @@ GenericsWithAngleBrackets: surface::Generics = {
 }
 
 GenericParam: surface::GenericParam = {
-    <name:Ident> => surface::GenericParam { name, kind: surface::GenericParamKind::Type },
+    <name:Ident> => surface::GenericParam {
+        name,
+        kind: surface::GenericParamKind::Type,
+        node_id: cx.next_node_id(),
+    },
     <name:Ident> "as" <lo:@L> <kind:Ident> <hi:@R> =>? {
         let kind = match kind.as_str() {
             "type" => surface::GenericParamKind::Type,
@@ -40,10 +44,14 @@ GenericParam: surface::GenericParam = {
             "spl"  => surface::GenericParamKind::Spl,
             _ => return Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
         };
-        Ok(surface::GenericParam { name, kind })
+        Ok(surface::GenericParam { name, kind, node_id: cx.next_node_id() })
     },
     "refine" <name:Ident> ":" <sort:Sort> => {
-        surface::GenericParam { name, kind: surface::GenericParamKind::Refine{ sort } }
+        surface::GenericParam {
+            name,
+            kind: surface::GenericParamKind::Refine{ sort },
+            node_id: cx.next_node_id(),
+        }
     },
 }
 
@@ -65,7 +73,8 @@ pub TyAlias: surface::TyAlias = {
                 .into_iter()
                 .map(|param| surface::GenericParam {
                     name: param.name,
-                    kind: surface::GenericParamKind::Refine { sort: param.sort},
+                    kind: surface::GenericParamKind::Refine { sort: param.sort },
+                    node_id: cx.next_node_id(),
                 }
             )
         );
@@ -109,16 +118,34 @@ Qualifier: surface::Qualifier = {
     "(" <args:RefineParams<"!">> ")" "{" <expr:Expr> "}"
     <hi:@R> =>? {
         let global = local.is_none();
-        Ok(surface::Qualifier { name, args, expr, global, span: cx.map_span(lo, hi) })
+        Ok(surface::Qualifier {
+            name,
+            args,
+            expr,
+            global,
+            span: cx.map_span(lo, hi),
+        })
     }
 }
 
 FuncDef: surface::FuncDef = {
     "fn" <name:Ident> <vars:SortVars?> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> "{" <body:Expr> "}" => {
-        surface::FuncDef { name, sort_vars: vars.unwrap_or_default(), args, output, body: Some(body) }
+        surface::FuncDef {
+            name,
+            sort_vars: vars.unwrap_or_default(),
+            args,
+            output,
+            body: Some(body),
+        }
     },
     "fn" <name:Ident> <vars:SortVars?> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> ";" => {
-        surface::FuncDef { name, sort_vars: vars.unwrap_or_default(), args, output, body: None }
+        surface::FuncDef {
+            name,
+            sort_vars: vars.unwrap_or_default(),
+            args,
+            output,
+            body: None,
+        }
     }
 }
 
@@ -140,8 +167,18 @@ pub QualNames: surface::QualNames = {
 RefineParams<T>: Vec<surface::RefineParam> = Comma<RefineParam<T>>;
 
 RefineParam<T>: surface::RefineParam = {
-    <lo:@L>  <name:Ident> ":" <sort:Sort> <hi:@R> => surface::RefineParam { name, sort, span: cx.map_span(lo, hi) },
-    <name:Ident> if T == "?" => surface::RefineParam { name, sort: surface::Sort::Infer, span: name.span },
+    <lo:@L>  <name:Ident> ":" <sort:Sort> <hi:@R> => surface::RefineParam {
+        name,
+        sort,
+        span: cx.map_span(lo, hi),
+        node_id: cx.next_node_id(),
+    },
+    <name:Ident> if T == "?" => surface::RefineParam {
+        name,
+        sort: surface::Sort::Infer,
+        span: name.span,
+        node_id: cx.next_node_id(),
+    },
 };
 
 BaseSort: surface::BaseSort = {
@@ -153,9 +190,9 @@ BaseSort: surface::BaseSort = {
         }
     },
     <ctor: Ident> "<" <lo:@L> <args:Comma<BaseSort>> <hi:@R> ">" => {
-        surface::BaseSort::App(ctor, args)
+        surface::BaseSort::App(ctor, args, cx.next_node_id())
     },
-    <sort: Ident> => surface::BaseSort::Ident(sort),
+    <sort: Ident> => surface::BaseSort::Ident(sort, cx.next_node_id()),
 }
 
 Sort: surface::Sort = {
@@ -166,13 +203,22 @@ Sort: surface::Sort = {
 
 pub TraitAssocPredicate: surface::TraitAssocPredicate = {
     <lo:@L> <name:Ident> ":" <sort:Sort> <hi:@R> => {
-        surface::TraitAssocPredicate { name, sort, span: cx.map_span(lo, hi) }
+        surface::TraitAssocPredicate {
+            name,
+            sort,
+            span: cx.map_span(lo, hi),
+        }
     }
 }
 
 pub ImplAssocPredicate: surface::ImplAssocPredicate = {
     <lo:@L> <name:Ident> "=" "|"<params:RefineParams<"!">> "|" "{" <body:Expr> "}" <hi:@R> => {
-        surface::ImplAssocPredicate { name, params, body, span: cx.map_span(lo, hi) }
+        surface::ImplAssocPredicate {
+            name,
+            params,
+            body,
+            span: cx.map_span(lo, hi),
+        }
     }
 }
 
@@ -196,13 +242,17 @@ pub FnSig: surface::FnSig = {
             surface::FnRetTy::Default(cx.map_span(ret_lo, ret_hi))
         };
         generics.predicates = predicates.unwrap_or_default();
+        let output = surface::FnOutput {
+            returns,
+            ensures,
+            node_id: cx.next_node_id(),
+        };
         surface::FnSig {
             asyncness,
             generics,
             args,
-            returns,
-            ensures,
             requires,
+            output,
             span: cx.map_span(lo, hi),
             node_id: cx.next_node_id(),
         }
@@ -251,7 +301,7 @@ Ensures    = <Comma<Constraint>>;
 Predicates = <Comma<WhereBoundPredicate>>;
 
 Constraint: surface::Constraint = {
-    <ident:Ident> ":" <ty:Ty> => surface::Constraint::Type(ident, ty),
+    <ident:Ident> ":" <ty:Ty> => surface::Constraint::Type(ident, ty, cx.next_node_id()),
     <expr:Expr> => surface::Constraint::Pred(expr),
 }
 
@@ -271,10 +321,10 @@ GenericBounds: surface::GenericBounds = {
 }
 
 Arg: surface::Arg = {
-    <bind:Ident> ":" "&" "strg" <ty:Ty>              => surface::Arg::StrgRef(<>),
-    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}" => surface::Arg::Constr(<>),
-    <bind:Ident> ":" <ty:Ty>                         => surface::Arg::Ty(Some(bind), ty),
-    <ty:Ty>                                          => surface::Arg::Ty(None, <>),
+    <bind:Ident> ":" "&" "strg" <ty:Ty>              => surface::Arg::StrgRef(<>, cx.next_node_id()),
+    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}" => surface::Arg::Constr(<>, cx.next_node_id()),
+    <bind:Ident> ":" <ty:Ty>                         => surface::Arg::Ty(Some(bind), ty, cx.next_node_id()),
+    <ty:Ty>                                          => surface::Arg::Ty(None, <>, cx.next_node_id()),
 }
 
 Pred: surface::Pred = {
@@ -361,8 +411,14 @@ GenericArgs: Vec<surface::GenericArg> = {
 }
 
 GenericArg: surface::GenericArg = {
-    <bind:Ident> "=" <ty:Ty> => surface::GenericArg::Constraint(bind, ty),
-    <ty:Ty> => surface::GenericArg::Type(ty),
+    <bind:Ident> "=" <ty:Ty> => surface::GenericArg {
+        kind: surface::GenericArgKind::Constraint(bind, ty),
+        node_id: cx.next_node_id(),
+    },
+    <ty:Ty> => surface::GenericArg {
+        kind: surface::GenericArgKind::Type(ty),
+        node_id: cx.next_node_id()
+    },
 }
 
 
@@ -387,11 +443,11 @@ Indices: surface::Indices = {
 };
 
 RefineArg: surface::RefineArg = {
-    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::At, cx.map_span(lo, hi)),
-    <lo:@L> "#" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::Pound, cx.map_span(lo, hi)),
+    <lo:@L> "@" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::At, cx.map_span(lo, hi), cx.next_node_id()),
+    <lo:@L> "#" <bind:Ident> <hi:@R> => surface::RefineArg::Bind(bind, surface::BindKind::Pound, cx.map_span(lo, hi), cx.next_node_id()),
     <Expr>                           => surface::RefineArg::Expr(<>),
     <lo:@L> "|"<params:RefineParams<"?">> "|" <body:Expr> <hi:@R> => {
-        surface::RefineArg::Abs(params, body, cx.next_node_id(), cx.map_span(lo, hi))
+        surface::RefineArg::Abs(params, body, cx.map_span(lo, hi), cx.next_node_id())
     }
 };
 
@@ -409,6 +465,7 @@ Level9 = {
     <lo:@L> <op:UnOp> <e:Level10> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::UnaryOp(op, Box::new(e)),
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
     },
@@ -418,29 +475,34 @@ Level10: surface::Expr = {
     <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" <e2:ElseIf> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
     },
     <lo:@L> <lit:Lit> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::Literal(lit),
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
     },
-    <lo:@L> <qpath:QPathExpr> "." <fld:Ident> <hi:@R> => {
+    <lo:@L> <path:PathExpr> "." <fld:Ident> <hi:@R> => {
         surface::Expr {
-            kind: surface::ExprKind::Dot(qpath, fld),
+            kind: surface::ExprKind::Dot(path, fld),
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
     },
     <lo:@L> <f:Ident> "(" <args:Comma<Level1>> ")" <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::App(f, args),
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
     },
-    <lo:@L> <qpath:QPathExpr> <hi:@R> => surface::Expr {
-        kind: surface::ExprKind::QPath(qpath),
+    <lo:@L> <path:PathExpr> <hi:@R> => surface::Expr {
+        kind: surface::ExprKind::Path(path),
+        node_id: cx.next_node_id(),
         span: cx.map_span(lo, hi),
     },
     "(" <Level1> ")"
@@ -450,15 +512,17 @@ ElseIf: surface::Expr = {
     "else" <lo:@L> "if" <p:Level1> "{" <e1:Level1> "}" <e2:ElseIf> <hi:@R> => {
         surface::Expr {
             kind: surface::ExprKind::IfThenElse(Box::new([p, e1, e2])),
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }
     },
     "else" "{" <Level1> "}"
 }
 
-QPathExpr: surface::QPathExpr = {
-    <lo:@L> <segments:Sep1<"::", Ident>> <hi:@R> => surface::QPathExpr {
+PathExpr: surface::PathExpr = {
+    <lo:@L> <segments:Sep1<"::", Ident>> <hi:@R> => surface::PathExpr {
         segments,
+        node_id: cx.next_node_id(),
         span: cx.map_span(lo, hi),
     }
 }
@@ -466,6 +530,7 @@ QPathExpr: surface::QPathExpr = {
 NonAssoc<Op, NextLevel>: surface::Expr = {
     <lo:@L> <e1:NextLevel> <op:Op> <e2:NextLevel> <hi:@R> => surface::Expr {
         kind: surface::ExprKind::BinaryOp(op, Box::new([e1, e2])),
+        node_id: cx.next_node_id(),
         span: cx.map_span(lo, hi)
     },
     NextLevel
@@ -477,6 +542,7 @@ LeftAssoc<Op, NextLevel>: surface::Expr = {
                 op,
                 Box::new([e1, e2])
             ),
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         },
     NextLevel

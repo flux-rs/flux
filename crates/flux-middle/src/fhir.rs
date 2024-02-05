@@ -26,7 +26,7 @@ use flux_config as config;
 pub use flux_fixpoint::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_data_structures::{
-    fx::FxIndexMap,
+    fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
 };
 use rustc_hash::FxHashMap;
@@ -630,7 +630,6 @@ pub struct RefineParam<'fhir> {
     pub sort: Sort<'fhir>,
     pub kind: ParamKind,
     pub fhir_id: FhirId,
-    pub span: Span,
 }
 
 impl<'fhir> RefineParam<'fhir> {
@@ -651,15 +650,31 @@ pub enum ParamKind {
     At,
     /// An implicitly scoped parameter declared with `#a` syntax
     Pound,
-    /// An implicitly scoped parameter declared with `x: T` syntax
+    /// An implicitly scoped parameter declared with `x: T` syntax.
     Colon,
-    /// A location declared with `x: &strg T` syntax
+    /// A location declared with `x: &strg T` syntax, the `usize` is the position in the list of
+    /// arguments.
     Loc(usize),
+    /// A parameter introduced with `x: T` syntax that we know *syntactically* is always and error
+    /// to used inside a refinement. For example, consider the following:
+    /// ```ignore
+    /// fn(x: {v. i32[v] | v > 0}) -> i32[x]
+    /// ```
+    /// In this definition, we know syntatically that `x` binds to a non-base type so it's an error
+    /// to use `x` as an index in the return type.
+    ///
+    /// These parameters should not appear in a desugared item and we only track them during name
+    /// resolution to report errors at the use site.
+    Error,
 }
 
 impl ParamKind {
     pub(crate) fn is_implicit(&self) -> bool {
         matches!(self, ParamKind::At | ParamKind::Pound | ParamKind::Colon)
+    }
+
+    pub fn is_loc(&self) -> bool {
+        matches!(self, ParamKind::Loc(_))
     }
 }
 
@@ -698,10 +713,6 @@ pub enum Sort<'fhir> {
     Func(PolyFuncSort<'fhir>),
     /// sort variable
     Var(usize),
-    /// A record sort corresponds to the sort associated with a type alias or an adt (struct/enum).
-    /// Values of a record sort can be projected using dot notation to extract their fields.
-    /// the `List<Sort>` is for the type parameters of (generic) record sorts
-    Record(DefId, &'fhir [Sort<'fhir>]),
     /// The sort associated to a type variable
     Param(DefId),
     /// The sort of the `Self` type, as used within a trait.
@@ -943,7 +954,6 @@ impl Ident {
 /// Information about the refinement parameters associated with a type alias or a struct/enum.
 #[derive(Clone, Debug)]
 pub struct RefinedBy<'fhir> {
-    pub def_id: LocalDefId,
     pub span: Span,
     /// Tracks the mapping from bound var to generic def ids. e.g. if we have
     ///
@@ -953,7 +963,7 @@ pub struct RefinedBy<'fhir> {
     /// ```
     /// then the sort associated to `RMap` is of the form `forall #0. { keys: Set<#0> }`
     /// and `sort_params` will be `vec![K]`,  i.e., it maps `Var(0)` to `K`.
-    pub sort_params: Vec<DefId>,
+    pub sort_params: FxIndexSet<DefId>,
     /// Index parameters indexed by their name and in the same order they appear in the definition.
     pub index_params: FxIndexMap<Symbol, Sort<'fhir>>,
 }
@@ -1004,22 +1014,16 @@ impl<'fhir> Generics<'fhir> {
 
 impl<'fhir> RefinedBy<'fhir> {
     pub fn new(
-        def_id: LocalDefId,
         index_params: impl IntoIterator<Item = (Symbol, Sort<'fhir>)>,
-        sort_params: Vec<DefId>,
+        sort_params: FxIndexSet<DefId>,
         span: Span,
     ) -> Self {
         let index_params: FxIndexMap<_, _> = index_params.into_iter().collect();
-        RefinedBy { def_id, span, sort_params, index_params }
+        RefinedBy { span, sort_params, index_params }
     }
 
-    pub fn trivial(def_id: LocalDefId, span: Span) -> Self {
-        RefinedBy {
-            def_id,
-            sort_params: Default::default(),
-            span,
-            index_params: Default::default(),
-        }
+    pub fn trivial(span: Span) -> Self {
+        RefinedBy { sort_params: Default::default(), span, index_params: Default::default() }
     }
 
     fn is_base_generic(&self, def_id: DefId) -> bool {
@@ -1115,7 +1119,7 @@ impl fmt::Debug for FnOutput<'_> {
 impl fmt::Debug for Constraint<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constraint::Type(loc, _, ty) => write!(f, "{loc:?}: {ty:?}"),
+            Constraint::Type(loc, ty, _idx) => write!(f, "{loc:?}: {ty:?}"),
             Constraint::Pred(e) => write!(f, "{e:?}"),
         }
     }
@@ -1141,7 +1145,7 @@ impl fmt::Debug for Ty<'_> {
                     write!(f, ". {ty:?}}}")
                 }
             }
-            TyKind::Ptr(lft, loc) => write!(f, "ref<{lft:?}, {loc:?}>"),
+            TyKind::Ptr(lft, loc) => write!(f, "ptr<{lft:?}, {loc:?}>"),
             TyKind::Ref(lft, mut_ty) => {
                 write!(f, "&{lft:?} {}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
             }
@@ -1348,18 +1352,6 @@ impl fmt::Debug for Sort<'_> {
             Sort::BitVec(w) => write!(f, "bitvec({w})"),
             Sort::Loc => write!(f, "loc"),
             Sort::Func(fsort) => write!(f, "{fsort:?}"),
-            Sort::Record(def_id, sort_args) => {
-                if sort_args.is_empty() {
-                    write!(f, "{}", pretty::def_id_to_string(*def_id))
-                } else {
-                    write!(
-                        f,
-                        "{}<{:?}>",
-                        pretty::def_id_to_string(*def_id),
-                        sort_args.iter().format(", ")
-                    )
-                }
-            }
             Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
             Sort::SelfParam { trait_id } => {
                 write!(f, "sortof({}::Self)", pretty::def_id_to_string(*trait_id))

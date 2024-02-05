@@ -41,6 +41,10 @@ impl FluxSession {
         Self { parse_sess: ParseSess::with_span_handler(handler, source_map) }
     }
 
+    pub fn err_count(&self) -> usize {
+        self.parse_sess.span_diagnostic.err_count()
+    }
+
     #[track_caller]
     pub fn emit_err<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
         self.parse_sess.emit_err(err)
@@ -133,6 +137,30 @@ impl<T, E> ResultExt<T, E> for Result<T, E> {
         match self {
             Ok(v) => Ok(v),
             Err(err) => Err(sess.emit_err(err)),
+        }
+    }
+}
+
+pub struct ErrorCollector<'sess> {
+    sess: &'sess FluxSession,
+    err: Option<ErrorGuaranteed>,
+}
+
+impl<'sess> ErrorCollector<'sess> {
+    pub fn new(sess: &'sess FluxSession) -> Self {
+        Self { sess, err: None }
+    }
+
+    #[track_caller]
+    pub fn emit(&mut self, err: impl IntoDiagnostic<'sess>) {
+        self.err = self.err.or(Some(self.sess.emit_err(err)));
+    }
+
+    pub fn into_result(self) -> Result<(), ErrorGuaranteed> {
+        if let Some(err) = self.err {
+            Err(err)
+        } else {
+            Ok(())
         }
     }
 }

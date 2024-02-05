@@ -2,7 +2,7 @@ use std::{collections::HashSet, iter};
 
 use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt};
-use flux_errors::ErrorGuaranteed;
+use flux_errors::{ErrorCollector, ErrorGuaranteed};
 use flux_middle::{
     fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
@@ -15,6 +15,8 @@ use rustc_span::{def_id::DefId, Span};
 
 use super::errors;
 use crate::conv;
+
+type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(super) struct InferCtxt<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
@@ -40,7 +42,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         &mut self,
         arg: &fhir::RefineArg,
         expected: &rty::Sort,
-    ) -> Result<(), ErrorGuaranteed> {
+    ) -> Result {
         match &arg.kind {
             fhir::RefineArgKind::Expr(expr) => self.check_expr(expr, expected),
             fhir::RefineArgKind::Abs(params, body) => self.check_abs(arg, params, body, expected),
@@ -54,7 +56,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         params: &[fhir::RefineParam],
         body: &fhir::Expr,
         expected: &rty::Sort,
-    ) -> Result<(), ErrorGuaranteed> {
+    ) -> Result {
         if let Some(fsort) = self.is_coercible_from_func(expected, arg.fhir_id) {
             let fsort = fsort.instantiate_identity();
             self.insert_params(params);
@@ -85,7 +87,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         arg: &fhir::RefineArg,
         flds: &[fhir::RefineArg],
         expected: &rty::Sort,
-    ) -> Result<(), ErrorGuaranteed> {
+    ) -> Result {
         if let rty::Sort::Adt(sort_def, sort_args) = expected {
             let sorts = sort_def.sorts(sort_args);
             if flds.len() != sorts.len() {
@@ -113,11 +115,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    pub(super) fn check_expr(
-        &mut self,
-        expr: &fhir::Expr,
-        expected: &rty::Sort,
-    ) -> Result<(), ErrorGuaranteed> {
+    pub(super) fn check_expr(&mut self, expr: &fhir::Expr, expected: &rty::Sort) -> Result {
         match &expr.kind {
             fhir::ExprKind::BinaryOp(op, e1, e2) => {
                 self.check_binary_op(expr, *op, e1, e2, expected)?;
@@ -149,7 +147,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         e1: &fhir::Expr,
         e2: &fhir::Expr,
         expected: &rty::Sort,
-    ) -> Result<(), ErrorGuaranteed> {
+    ) -> Result {
         match op {
             fhir::BinOp::Or | fhir::BinOp::And | fhir::BinOp::Iff | fhir::BinOp::Imp => {
                 if self.is_bool(expected) {
@@ -186,7 +184,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         Ok(())
     }
 
-    pub(super) fn check_loc(&mut self, loc: fhir::Ident) -> Result<(), ErrorGuaranteed> {
+    pub(super) fn check_loc(&mut self, loc: fhir::Ident) -> Result {
         let found = self.lookup_var(loc);
         if found == rty::Sort::Loc {
             Ok(())
@@ -195,7 +193,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    fn synth_expr(&mut self, expr: &fhir::Expr) -> Result<rty::Sort, ErrorGuaranteed> {
+    fn synth_expr(&mut self, expr: &fhir::Expr) -> Result<rty::Sort> {
         match &expr.kind {
             fhir::ExprKind::Var(var, _) => Ok(self.lookup_var(*var)),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
@@ -232,7 +230,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         op: fhir::BinOp,
         e1: &fhir::Expr,
         e2: &fhir::Expr,
-    ) -> Result<rty::Sort, ErrorGuaranteed> {
+    ) -> Result<rty::Sort> {
         match op {
             fhir::BinOp::Or | fhir::BinOp::And | fhir::BinOp::Iff | fhir::BinOp::Imp => {
                 self.check_expr(e1, &rty::Sort::Bool)?;
@@ -273,11 +271,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    fn synth_unary_op(
-        &mut self,
-        op: fhir::UnOp,
-        e: &fhir::Expr,
-    ) -> Result<rty::Sort, ErrorGuaranteed> {
+    fn synth_unary_op(&mut self, op: fhir::UnOp, e: &fhir::Expr) -> Result<rty::Sort> {
         match op {
             fhir::UnOp::Not => {
                 self.check_expr(e, &rty::Sort::Bool)?;
@@ -295,7 +289,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         func: &fhir::Func,
         args: &[fhir::Expr],
         span: Span,
-    ) -> Result<rty::Sort, ErrorGuaranteed> {
+    ) -> Result<rty::Sort> {
         let fsort = self.synth_func(func)?;
         if args.len() != fsort.inputs().len() {
             return Err(self.emit_err(errors::ArgCountMismatch::new(
@@ -312,7 +306,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         Ok(fsort.output().clone())
     }
 
-    fn synth_func(&mut self, func: &fhir::Func) -> Result<rty::FuncSort, ErrorGuaranteed> {
+    fn synth_func(&mut self, func: &fhir::Func) -> Result<rty::FuncSort> {
         let poly_fsort = match func {
             fhir::Func::Var(var, fhir_id) => {
                 let sort = self.lookup_var(*var);
@@ -496,10 +490,7 @@ impl<'genv> InferCtxt<'genv, '_> {
         self.eq_vids.contains(&vid)
     }
 
-    pub(crate) fn resolve_params_sorts(
-        &mut self,
-        params: &[fhir::RefineParam],
-    ) -> Result<(), ErrorGuaranteed> {
+    pub(crate) fn resolve_params_sorts(&mut self, params: &[fhir::RefineParam]) -> Result {
         params.iter().try_for_each_exhaust(|param| {
             if let fhir::Sort::Infer = param.sort {
                 let sort = self.lookup_var(param.ident);
@@ -519,7 +510,7 @@ impl<'genv> InferCtxt<'genv, '_> {
         self.resolve_sort(&sort).unwrap_or(sort)
     }
 
-    fn ensure_resolved_var(&mut self, var: fhir::Ident) -> Result<rty::Sort, ErrorGuaranteed> {
+    fn ensure_resolved_var(&mut self, var: fhir::Ident) -> Result<rty::Sort> {
         let sort = self.params[&var.name].0.clone();
         if let Some(sort) = self.resolve_sort(&sort) {
             Ok(sort)
@@ -571,19 +562,13 @@ impl<'genv> InferCtxt<'genv, '_> {
         })
     }
 
-    pub(crate) fn infer_implicit_params_ty(
-        &mut self,
-        ty: &fhir::Ty,
-    ) -> Result<(), ErrorGuaranteed> {
+    pub(crate) fn infer_implicit_params_ty(&mut self, ty: &fhir::Ty) -> Result {
         let mut vis = ImplicitParamInferer::new(self);
         fhir::visit::Visitor::visit_ty(&mut vis, ty);
         vis.into_result()
     }
 
-    pub(crate) fn infer_implicit_params_constraint(
-        &mut self,
-        constr: &fhir::Constraint,
-    ) -> Result<(), ErrorGuaranteed> {
+    pub(crate) fn infer_implicit_params_constraint(&mut self, constr: &fhir::Constraint) -> Result {
         let mut vis = ImplicitParamInferer::new(self);
         fhir::visit::Visitor::visit_constraint(&mut vis, constr);
         vis.into_result()
@@ -604,29 +589,22 @@ impl<'genv> InferCtxt<'genv, '_> {
     }
 }
 
-struct ImplicitParamInferer<'a, 'b, 'tcx> {
-    infcx: &'a mut InferCtxt<'b, 'tcx>,
-    err: Option<ErrorGuaranteed>,
+struct ImplicitParamInferer<'a, 'genv, 'tcx> {
+    infcx: &'a mut InferCtxt<'genv, 'tcx>,
+    errors: ErrorCollector<'genv>,
 }
 
-impl<'a, 'b, 'tcx> ImplicitParamInferer<'a, 'b, 'tcx> {
-    fn new(infcx: &'a mut InferCtxt<'b, 'tcx>) -> Self {
-        Self { infcx, err: None }
+impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
+    fn new(infcx: &'a mut InferCtxt<'genv, 'tcx>) -> Self {
+        let errors = ErrorCollector::new(infcx.genv.sess());
+        Self { infcx, errors }
     }
 
-    fn into_result(self) -> Result<(), ErrorGuaranteed> {
-        if let Some(err) = self.err {
-            Err(err)
-        } else {
-            Ok(())
-        }
+    fn into_result(self) -> Result {
+        self.errors.into_result()
     }
 
-    fn infer_implicit_params(
-        &mut self,
-        idx: &fhir::RefineArg,
-        expected: &rty::Sort,
-    ) -> Result<(), ErrorGuaranteed> {
+    fn infer_implicit_params(&mut self, idx: &fhir::RefineArg, expected: &rty::Sort) {
         match idx.kind {
             fhir::RefineArgKind::Expr(expr) => {
                 if let fhir::ExprKind::Var(var, Some(_)) = &expr.kind {
@@ -639,34 +617,27 @@ impl<'a, 'b, 'tcx> ImplicitParamInferer<'a, 'b, 'tcx> {
                 if let rty::Sort::Adt(sort_def, sort_args) = expected {
                     let sorts = sort_def.sorts(sort_args);
                     if flds.len() != sorts.len() {
-                        return Err(self.emit_err(errors::ArgCountMismatch::new(
+                        self.errors.emit(errors::ArgCountMismatch::new(
                             Some(idx.span),
                             String::from("type"),
                             sorts.len(),
                             flds.len(),
-                        )));
+                        ));
+                        return;
                     }
                     for (f, sort) in iter::zip(flds, &sorts) {
-                        self.infer_implicit_params(f, sort)?;
+                        self.infer_implicit_params(f, sort);
                     }
                 } else {
-                    return Err(self.emit_err(errors::ArgCountMismatch::new(
+                    self.errors.emit(errors::ArgCountMismatch::new(
                         Some(idx.span),
                         String::from("type"),
                         1,
                         flds.len(),
-                    )));
+                    ));
                 }
             }
         }
-        Ok(())
-    }
-
-    #[track_caller]
-    fn emit_err<'c>(&'c mut self, err: impl IntoDiagnostic<'c>) -> ErrorGuaranteed {
-        let err = self.infcx.emit_err(err);
-        self.err = Some(err);
-        err
     }
 }
 
@@ -674,12 +645,13 @@ impl fhir::visit::Visitor for ImplicitParamInferer<'_, '_, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty) {
         if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
             if let Some(expected) = self.infcx.genv.sort_of_bty(bty) {
-                let _ = self.infer_implicit_params(idx, &expected);
+                self.infer_implicit_params(idx, &expected);
             } else if let Some(var) = idx.is_colon_param() {
                 let found = self.infcx.lookup_var(var);
                 self.infcx.equate(&found, &rty::Sort::Err);
             } else {
-                let _ = self.emit_err(errors::RefinedUnrefinableType::new(bty.span));
+                self.errors
+                    .emit(errors::RefinedUnrefinableType::new(bty.span));
             }
         }
         fhir::visit::walk_ty(self, ty);

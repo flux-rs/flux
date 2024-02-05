@@ -44,7 +44,7 @@ use std::sync::OnceLock;
 
 use flux_config as config;
 use flux_macros::fluent_messages;
-use flux_syntax::surface;
+use flux_syntax::surface::{self, NodeId};
 use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -52,6 +52,7 @@ use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{
     def_id::{DefId, LocalDefId},
+    symbol::Ident,
     Symbol,
 };
 
@@ -221,11 +222,54 @@ impl Specs {
     }
 }
 
+pub type ScopeId = NodeId;
+
 #[derive(Default)]
 pub struct ResolverOutput {
-    pub path_res_map: UnordMap<surface::NodeId, fhir::Res>,
-    pub impl_trait_res_map: UnordMap<surface::NodeId, hir::ItemId>,
-    pub func_decls: UnordMap<Symbol, fhir::FuncKind>,
-    pub sort_decls: UnordMap<Symbol, fhir::SortDecl>,
-    pub consts: UnordMap<Symbol, DefId>,
+    pub path_res_map: UnordMap<NodeId, fhir::Res>,
+    pub impl_trait_res_map: UnordMap<NodeId, hir::ItemId>,
+    /// Resolution of parameters both explicit and implicit. The [`fhir::Name`] is unique per item.
+    /// The [`NodeId`] correspond to the node introducing the parameter. When explicit, this is the
+    /// id of the [`surface::GenericArg`] or [`surface::RefineParam`], when implicit, this is the id
+    /// of the [`surface::RefineArg::Bind`] or [`surface::Arg`].
+    pub param_res_map: UnordMap<NodeId, (fhir::Name, fhir::ParamKind)>,
+    /// List of implicit params defined in a scope. The [`NodeId`] is the id of the node introducing
+    /// the scope, i.e., [`surface::FnSig`], [`surface::FnOutput`], or [`surface::VariantDef`].
+    pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
+    pub sort_ctor_res_map: UnordMap<NodeId, fhir::SortCtor>,
+    pub sort_res_map: UnordMap<NodeId, SortRes>,
+    pub path_expr_res_map: UnordMap<NodeId, PathRes>,
+}
+
+pub struct ResolvedParam {
+    pub ident: fhir::Ident,
+    pub kind: fhir::ParamKind,
+}
+
+#[derive(Clone, Copy)]
+pub enum SortRes {
+    Int,
+    Bool,
+    Real,
+    User {
+        name: Symbol,
+    },
+    Var(usize),
+    Param(DefId),
+    /// A `Self` parameter in a trait definition.
+    SelfParam {
+        trait_id: DefId,
+    },
+    /// An alias to another sort, e.g., when used inside an impl block
+    SelfAlias {
+        alias_to: DefId,
+    },
+}
+
+#[derive(Clone, Copy)]
+pub enum PathRes<Id = fhir::Name> {
+    Param(fhir::ParamKind, Id),
+    Const(DefId),
+    NumConst(i128),
+    GlobalFunc(fhir::FuncKind, Symbol),
 }

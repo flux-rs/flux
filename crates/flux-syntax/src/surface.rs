@@ -66,6 +66,7 @@ pub struct Generics {
 pub struct GenericParam {
     pub name: Ident,
     pub kind: GenericParamKind,
+    pub node_id: NodeId,
 }
 
 #[derive(Debug)]
@@ -155,6 +156,7 @@ pub struct RefineParam {
     pub name: Ident,
     pub sort: Sort,
     pub span: Span,
+    pub node_id: NodeId,
 }
 
 #[derive(Debug)]
@@ -173,11 +175,11 @@ pub enum Sort {
 #[derive(Debug, Clone)]
 pub enum BaseSort {
     /// a _base_ sort, e.g. `int` or `bool`
-    Ident(Ident),
+    Ident(Ident, NodeId),
     /// a bitvector sort, e.g., BitVec(32)
     BitVec(usize),
     /// a sort-constructor application, e.g., `Set<int>`
-    App(Ident, Vec<BaseSort>),
+    App(Ident, Vec<BaseSort>, NodeId),
 }
 
 #[derive(Debug)]
@@ -227,19 +229,25 @@ pub struct FnSig {
     pub requires: Option<Expr>,
     /// example: `i32<@n>`
     pub args: Vec<Arg>,
-    /// example `i32{v:v >= 0}`
-    pub returns: FnRetTy,
-    /// example: `*x: i32{v. v = n+1}` or just `x > 10`
-    pub ensures: Vec<Constraint>,
+    pub output: FnOutput,
     /// source span
     pub span: Span,
     pub node_id: NodeId,
 }
 
 #[derive(Debug)]
+pub struct FnOutput {
+    /// example `i32{v:v >= 0}`
+    pub returns: FnRetTy,
+    /// example: `*x: i32{v. v = n+1}` or just `x > 10`
+    pub ensures: Vec<Constraint>,
+    pub node_id: NodeId,
+}
+
+#[derive(Debug)]
 pub enum Constraint {
     /// A type constraint on a location
-    Type(Ident, Ty),
+    Type(Ident, Ty, NodeId),
     /// A predicate that needs to hold
     Pred(Expr),
 }
@@ -273,12 +281,12 @@ pub struct TraitRef {
 #[derive(Debug)]
 pub enum Arg {
     /// example `a: i32{a > 0}`
-    Constr(Ident, Path, Expr),
+    Constr(Ident, Path, Expr, NodeId),
     /// example `v: &strg i32`
-    StrgRef(Ident, Ty),
+    StrgRef(Ident, Ty, NodeId),
     /// A type with an optional binder, e.g, `i32`, `x: i32` or `x: i32{v: v > 0}`.
     /// The binder has a different meaning depending on the type.
-    Ty(Option<Ident>, Ty),
+    Ty(Option<Ident>, Ty, NodeId),
 }
 
 #[derive(Debug)]
@@ -374,6 +382,16 @@ pub struct BaseTy {
     pub span: Span,
 }
 
+impl BaseTy {
+    pub fn is_hole(&self) -> bool {
+        if let BaseTyKind::Path(path) = &self.kind {
+            path.is_hole()
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum BaseTyKind {
     Path(Path),
@@ -395,9 +413,9 @@ pub struct Indices {
 #[derive(Debug)]
 pub enum RefineArg {
     /// `@n` or `#n`, the span corresponds to the span of the identifier plus the binder token (`@` or `#`)
-    Bind(Ident, BindKind, Span),
+    Bind(Ident, BindKind, Span, NodeId),
     Expr(Expr),
-    Abs(Vec<RefineParam>, Expr, NodeId, Span),
+    Abs(Vec<RefineParam>, Expr, Span, NodeId),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -416,7 +434,13 @@ pub struct Path {
 }
 
 #[derive(Debug)]
-pub enum GenericArg {
+pub struct GenericArg {
+    pub kind: GenericArgKind,
+    pub node_id: NodeId,
+}
+
+#[derive(Debug)]
+pub enum GenericArgKind {
     Type(Ty),
     Constraint(Ident, Ty),
 }
@@ -424,13 +448,14 @@ pub enum GenericArg {
 #[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
+    pub node_id: NodeId,
     pub span: Span,
 }
 
 #[derive(Debug, Clone)]
 pub enum ExprKind {
-    QPath(QPathExpr),
-    Dot(QPathExpr, Ident),
+    Path(PathExpr),
+    Dot(PathExpr, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
@@ -439,8 +464,9 @@ pub enum ExprKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct QPathExpr {
+pub struct PathExpr {
     pub segments: Vec<Ident>,
+    pub node_id: NodeId,
     pub span: Span,
 }
 

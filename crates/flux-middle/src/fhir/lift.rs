@@ -130,7 +130,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         let item = self.genv.hir().expect_item(def_id);
         match item.kind {
             hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) => {
-                fhir::RefinedBy::trivial(def_id, item.ident.span)
+                fhir::RefinedBy::trivial(item.ident.span)
             }
             _ => {
                 bug!("expected struct, enum, or type alias");
