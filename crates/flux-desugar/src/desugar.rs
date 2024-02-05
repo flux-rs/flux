@@ -503,41 +503,43 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     pub(crate) fn desugar_fn_sig(
         &mut self,
-        fn_sig: Option<&surface::FnSig>,
+        fn_spec: &surface::FnSpec,
     ) -> Result<fhir::FnSig<'genv>> {
-        let Some(fn_sig) = fn_sig else {
-            return self.as_lift_cx().lift_fn_sig();
+        let decl = if let Some(fn_sig) = &fn_spec.fn_sig {
+            self.fn_sig_scope = Some(fn_sig.node_id);
+
+            let mut requires = vec![];
+
+            // Desugar generics after we have gathered the input params
+            let mut generics = self.desugar_generics(&fn_sig.generics)?;
+
+            if let Some(expr) = &fn_sig.requires {
+                let pred = self.desugar_expr(expr)?;
+                requires.push(fhir::Constraint::Pred(pred));
+            }
+
+            // Bail out if there's an error in the arguments to avoid confusing error messages
+            let args = try_alloc_slice!(self.genv, &fn_sig.args, |arg| {
+                self.desugar_fun_arg(arg, &mut requires)
+            })?;
+
+            let output = self.desugar_fn_output(fn_sig.asyncness, &fn_sig.output)?;
+
+            generics.refinement_params = self.desugar_fn_sig_refine_params(fn_sig);
+
+            let decl = fhir::FnDecl {
+                generics,
+                requires: self.genv.alloc_slice(&requires),
+                args,
+                output,
+                span: fn_sig.span,
+                lifted: false,
+            };
+            decl
+        } else {
+            self.as_lift_cx().lift_fn_decl()?
         };
-        self.fn_sig_scope = Some(fn_sig.node_id);
-
-        let mut requires = vec![];
-
-        // Desugar generics after we have gathered the input params
-        let mut generics = self.desugar_generics(&fn_sig.generics)?;
-
-        if let Some(expr) = &fn_sig.requires {
-            let pred = self.desugar_expr(expr)?;
-            requires.push(fhir::Constraint::Pred(pred));
-        }
-
-        // Bail out if there's an error in the arguments to avoid confusing error messages
-        let args = try_alloc_slice!(self.genv, &fn_sig.args, |arg| {
-            self.desugar_fun_arg(arg, &mut requires)
-        })?;
-
-        let output = self.desugar_fn_output(fn_sig.asyncness, &fn_sig.output)?;
-
-        generics.refinement_params = self.desugar_fn_sig_refine_params(fn_sig);
-
-        let fn_sig = fhir::FnSig {
-            generics,
-            requires: self.genv.alloc_slice(&requires),
-            args,
-            output,
-            span: fn_sig.span,
-            lifted: false,
-        };
-        Ok(fn_sig)
+        Ok(fhir::FnSig { trusted: fn_spec.trusted, decl: self.genv.alloc(decl) })
     }
 
     fn desugar_refinement_generics(

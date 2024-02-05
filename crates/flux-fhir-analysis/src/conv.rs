@@ -294,30 +294,30 @@ pub(crate) fn conv_qualifier<'genv>(
     rty::Qualifier { name: qualifier.name, body, global: qualifier.global }
 }
 
-pub(crate) fn conv_fn_sig<'genv>(
+pub(crate) fn conv_fn_decl<'genv>(
     genv: GlobalEnv<'genv, '_>,
     def_id: LocalDefId,
-    fn_sig: &fhir::FnSig,
+    decl: &fhir::FnDecl,
     wfckresults: &WfckResults<'genv>,
 ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
     let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
 
-    let mut env = Env::new(genv, fn_sig.generics.refinement_params, wfckresults);
+    let mut env = Env::new(genv, decl.generics.refinement_params, wfckresults);
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[], true));
 
     let mut requires = vec![];
-    for constr in fn_sig.requires {
+    for constr in decl.requires {
         requires.push(cx.conv_constr(&mut env, constr)?);
     }
 
     let mut args = vec![];
-    for ty in fn_sig.args {
+    for ty in decl.args {
         args.push(cx.conv_ty(&mut env, ty)?);
     }
 
-    let output = cx.conv_fn_output(&mut env, &fn_sig.output)?;
+    let output = cx.conv_fn_output(&mut env, &decl.output)?;
 
     let vars = late_bound_regions
         .iter()

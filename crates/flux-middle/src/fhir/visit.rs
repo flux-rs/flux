@@ -1,8 +1,8 @@
 use super::{
-    AliasPred, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnOutput, FnSig,
-    FuncSort, GenericArg, Generics, Ident, Lifetime, Lit, PolyFuncSort, Pred, PredKind, QPath,
-    RefineArg, RefineArgKind, RefineParam, Sort, StructDef, Ty, TyKind, TypeBinding, VariantDef,
-    VariantRet,
+    AliasPred, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
+    FnSig, FuncSort, GenericArg, Generics, Ident, Lifetime, Lit, PolyFuncSort, Pred, PredKind,
+    QPath, RefineArg, RefineArgKind, RefineParam, Sort, StructDef, Ty, TyKind, TypeBinding,
+    VariantDef, VariantRet,
 };
 
 #[macro_export]
@@ -44,6 +44,10 @@ pub trait Visitor: Sized {
 
     fn visit_fn_sig(&mut self, sig: &FnSig) {
         walk_fn_sig(self, sig);
+    }
+
+    fn visit_fn_decl(&mut self, decl: &FnDecl) {
+        walk_fn_decl(self, decl);
     }
 
     fn visit_refine_param(&mut self, param: &RefineParam) {
@@ -146,9 +150,13 @@ pub fn walk_generics<V: Visitor>(vis: &mut V, generics: &Generics) {
 }
 
 pub fn walk_fn_sig<V: Visitor>(vis: &mut V, sig: &FnSig) {
-    walk_list!(vis, visit_constraint, sig.requires);
-    walk_list!(vis, visit_ty, sig.args);
-    vis.visit_fn_output(&sig.output);
+    vis.visit_fn_decl(sig.decl);
+}
+
+pub fn walk_fn_decl<V: Visitor>(vis: &mut V, decl: &FnDecl) {
+    walk_list!(vis, visit_constraint, decl.requires);
+    walk_list!(vis, visit_ty, decl.args);
+    vis.visit_fn_output(&decl.output);
 }
 
 pub fn walk_refine_param<V: Visitor>(vis: &mut V, param: &RefineParam) {

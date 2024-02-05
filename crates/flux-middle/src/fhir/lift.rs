@@ -48,15 +48,15 @@ pub fn lift_type_alias<'genv>(
     })
 }
 
-pub fn lift_fn<'genv>(
+pub fn lift_fn_decl<'genv>(
     genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
-) -> Result<(fhir::FnSig<'genv>, UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>)> {
+) -> Result<(fhir::FnDecl<'genv>, UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>)> {
     let mut opaque_tys = Default::default();
     let local_id_gen = IndexGen::new();
     let mut cx = LiftCtxt::new(genv, owner_id, &local_id_gen, Some(&mut opaque_tys));
-    let fn_sig = cx.lift_fn_sig()?;
-    Ok((fn_sig, opaque_tys))
+    let fn_decl = cx.lift_fn_decl()?;
+    Ok((fn_decl, opaque_tys))
 }
 
 /// HACK(nilehmann) this is used during annot check to allow an explicit type to refine [`Self`].
@@ -250,7 +250,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         Ok(opaque_ty)
     }
 
-    pub fn lift_fn_sig(&mut self) -> Result<fhir::FnSig<'genv>> {
+    pub fn lift_fn_decl(&mut self) -> Result<fhir::FnDecl<'genv>> {
         let def_id = self.owner.def_id;
         let hir_id = self.genv.hir().local_def_id_to_hir_id(def_id);
         let fn_sig = self
@@ -268,9 +268,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             ret: self.lift_fn_ret_ty(&fn_sig.decl.output)?,
         };
 
-        let fn_sig =
-            fhir::FnSig { generics, requires: &[], args, output, lifted: true, span: fn_sig.span };
-        Ok(fn_sig)
+        Ok(fhir::FnDecl { generics, requires: &[], args, output, span: fn_sig.span, lifted: true })
     }
 
     fn lift_fn_ret_ty(&mut self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty<'genv>> {

@@ -120,7 +120,7 @@ impl<'fhir> Item<'fhir> {
             ItemKind::TyAlias(ty_alias) => &ty_alias.generics,
             ItemKind::Trait(trait_) => &trait_.generics,
             ItemKind::Impl(impl_) => &impl_.generics,
-            ItemKind::Fn(fn_sig) => &fn_sig.generics,
+            ItemKind::Fn(fn_sig) => &fn_sig.decl.generics,
             ItemKind::OpaqueTy(opaque_ty) => &opaque_ty.generics,
         }
     }
@@ -183,7 +183,7 @@ pub struct TraitItem<'fhir> {
 impl<'fhir> TraitItem<'fhir> {
     pub fn generics(&self) -> &Generics<'fhir> {
         match &self.kind {
-            TraitItemKind::Fn(fn_sig) => &fn_sig.generics,
+            TraitItemKind::Fn(fn_sig) => &fn_sig.decl.generics,
             TraitItemKind::Type(assoc_ty) => &assoc_ty.generics,
         }
     }
@@ -201,7 +201,7 @@ pub struct ImplItem<'fhir> {
 impl<'fhir> ImplItem<'fhir> {
     pub fn generics(&self) -> &Generics<'fhir> {
         match &self.kind {
-            ImplItemKind::Fn(fn_sig) => &fn_sig.generics,
+            ImplItemKind::Fn(fn_sig) => &fn_sig.decl.generics,
             ImplItemKind::Type(assoc_type) => &assoc_type.generics,
         }
     }
@@ -333,7 +333,6 @@ pub struct Crate<'fhir> {
     pub externs: UnordMap<DefId, LocalDefId>,
     pub flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
     pub fn_quals: FxHashMap<LocalDefId, &'fhir [SurfaceIdent]>,
-    pub trusted: UnordSet<LocalDefId>,
     pub ignores: UnordSet<IgnoreKey>,
     pub crate_config: config::CrateConfig,
 }
@@ -348,7 +347,6 @@ impl<'fhir> Crate<'fhir> {
             externs: Default::default(),
             flux_items: Default::default(),
             fn_quals: Default::default(),
-            trusted: Default::default(),
             ignores,
             crate_config: crate_config.unwrap_or_default(),
         }
@@ -429,18 +427,24 @@ pub struct VariantRet<'fhir> {
 }
 
 #[derive(Clone, Copy)]
-pub struct FnSig<'fhir> {
+pub struct FnDecl<'fhir> {
     pub generics: Generics<'fhir>,
     /// example: vec![(0 <= n), (l: i32)]
     pub requires: &'fhir [Constraint<'fhir>],
     /// example: vec![(x: StrRef(l))]
     pub args: &'fhir [Ty<'fhir>],
     pub output: FnOutput<'fhir>,
+    pub span: Span,
     /// Whether the sig was [lifted] from a hir signature
     ///
     /// [lifted]: lift::LiftCtxt::lift_fn_sig
     pub lifted: bool,
-    pub span: Span,
+}
+
+#[derive(Clone, Copy)]
+pub struct FnSig<'fhir> {
+    pub trusted: bool,
+    pub decl: &'fhir FnDecl<'fhir>,
 }
 
 #[derive(Clone, Copy)]
@@ -1076,6 +1080,12 @@ impl<'fhir> StructDef<'fhir> {
 }
 
 impl fmt::Debug for FnSig<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.decl)
+    }
+}
+
+impl fmt::Debug for FnDecl<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if !self.generics.refinement_params.is_empty() {
             write!(

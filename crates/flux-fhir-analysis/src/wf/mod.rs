@@ -184,46 +184,46 @@ pub(crate) fn check_impl<'genv>(
     Ok(infcx.into_results())
 }
 
-pub(crate) fn check_fn_sig<'genv>(
+pub(crate) fn check_fn_decl<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    fn_sig: &fhir::FnSig,
+    decl: &fhir::FnDecl,
     owner_id: OwnerId,
 ) -> Result<WfckResults<'genv>> {
     let mut infcx = InferCtxt::new(genv, owner_id.into());
     let mut wf = Wf::new(genv);
 
-    infcx.insert_params(fn_sig.generics.refinement_params);
+    infcx.insert_params(decl.generics.refinement_params);
 
-    for arg in fn_sig.args {
+    for arg in decl.args {
         infcx.infer_implicit_params_ty(arg)?;
     }
-    for constr in fn_sig.requires {
+    for constr in decl.requires {
         infcx.infer_implicit_params_constraint(constr)?;
     }
 
-    let args = fn_sig
+    let args = decl
         .args
         .iter()
         .try_for_each_exhaust(|ty| wf.check_type(&mut infcx, ty));
 
-    let requires = fn_sig
+    let requires = decl
         .requires
         .iter()
         .try_for_each_exhaust(|constr| wf.check_constraint(&mut infcx, constr));
 
-    wf.check_generic_predicates(&mut infcx, fn_sig.generics.predicates)?;
+    wf.check_generic_predicates(&mut infcx, decl.generics.predicates)?;
 
-    let output = wf.check_fn_output(&mut infcx, &fn_sig.output);
+    let output = wf.check_fn_output(&mut infcx, &decl.output);
 
-    let constrs = wf.check_output_locs(fn_sig);
+    let constrs = wf.check_output_locs(decl);
 
     args?;
     output?;
     requires?;
     constrs?;
 
-    infcx.resolve_params_sorts(fn_sig.generics.refinement_params)?;
-    wf.check_params_are_determined(&infcx, fn_sig.generics.refinement_params)?;
+    infcx.resolve_params_sorts(decl.generics.refinement_params)?;
+    wf.check_params_are_determined(&infcx, decl.generics.refinement_params)?;
 
     Ok(infcx.into_results())
 }
@@ -317,9 +317,9 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
         params
     }
 
-    fn check_output_locs(&self, fn_sig: &fhir::FnSig) -> Result {
+    fn check_output_locs(&self, fn_decl: &fhir::FnDecl) -> Result {
         let mut output_locs = FxHashSet::default();
-        fn_sig
+        fn_decl
             .output
             .ensures
             .iter()
@@ -333,7 +333,7 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
                 }
             })?;
 
-        fn_sig.requires.iter().try_for_each_exhaust(|constr| {
+        fn_decl.requires.iter().try_for_each_exhaust(|constr| {
             if let fhir::Constraint::Type(loc, ..) = constr
                 && !output_locs.contains(&loc.name)
             {

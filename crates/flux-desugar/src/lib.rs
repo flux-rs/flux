@@ -330,10 +330,6 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     ) -> Result<fhir::FnSig<'genv>> {
         let def_id = owner_id.def_id;
 
-        if fn_spec.trusted {
-            self.fhir.trusted.insert(def_id);
-        }
-
         if let Some(quals) = &fn_spec.qual_names {
             self.fhir
                 .fn_quals
@@ -343,7 +339,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         let mut opaque_tys = Default::default();
         let fn_sig = self
             .as_rust_item_ctxt(owner_id, Some(&mut opaque_tys))
-            .desugar_fn_sig(fn_spec.fn_sig.as_ref())?;
+            .desugar_fn_sig(fn_spec)?;
 
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), def_id, "fhir", fn_sig).unwrap();

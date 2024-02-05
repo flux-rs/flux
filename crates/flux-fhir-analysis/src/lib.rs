@@ -273,7 +273,7 @@ fn refinement_generics_of(
             let wfckresults = genv.check_wf(local_id)?;
             let params = conv::conv_refinement_generics(
                 genv,
-                fn_sig.generics.refinement_params,
+                fn_sig.decl.generics.refinement_params,
                 Some(&wfckresults),
             );
             Ok(rty::RefinementGenerics { parent, parent_count, params })
@@ -346,7 +346,7 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
     let fn_sig = genv.map().node(def_id).fn_sig().unwrap();
     let wfckresults = genv.check_wf(def_id)?;
     let defns = genv.spec_func_defns()?;
-    let fn_sig = conv::conv_fn_sig(genv, def_id, fn_sig, &wfckresults)?
+    let fn_sig = conv::conv_fn_decl(genv, def_id, fn_sig.decl, &wfckresults)?
         .map(|fn_sig| fn_sig.normalize(defns));
 
     if config::dump_rty() {
@@ -392,7 +392,7 @@ fn check_wf_rust_item<'genv>(
         | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Fn(fn_sig) })
         | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig) }) => {
             let owner_id = OwnerId { def_id };
-            let mut wfckresults = wf::check_fn_sig(genv, fn_sig, owner_id)?;
+            let mut wfckresults = wf::check_fn_decl(genv, fn_sig.decl, owner_id)?;
             annot_check::check_fn_sig(genv, &mut wfckresults, owner_id, fn_sig)?;
             wfckresults
         }

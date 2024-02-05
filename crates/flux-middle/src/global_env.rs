@@ -482,7 +482,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn is_trusted(self, def_id: LocalDefId) -> bool {
-        self.fhir.trusted.contains(&def_id)
+        self.node(def_id).fn_sig().unwrap().trusted
     }
 
     pub fn expect_item(self, def_id: LocalDefId) -> &'genv fhir::Item<'genv> {

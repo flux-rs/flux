@@ -28,12 +28,12 @@ pub fn check_fn_sig<'genv>(
     owner_id: OwnerId,
     fn_sig: &fhir::FnSig,
 ) -> Result<(), ErrorGuaranteed> {
-    if fn_sig.lifted {
+    if fn_sig.decl.lifted {
         return Ok(());
     }
     let self_ty = lift::lift_self_ty(genv, owner_id)?;
-    let expected_fn_sig = &lift::lift_fn(genv, owner_id)?.0;
-    Zipper::new(genv, wfckresults, self_ty).zip_fn_sig(fn_sig, expected_fn_sig)
+    let expected_fn_decl = &lift::lift_fn_decl(genv, owner_id)?.0;
+    Zipper::new(genv, wfckresults, self_ty).zip_fn_decl(fn_sig.decl, expected_fn_decl)
 }
 
 pub fn check_alias<'genv>(
@@ -122,19 +122,19 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
         self.zip_bty(&variant.ret.bty, &expected_variant.ret.bty)
     }
 
-    fn zip_fn_sig(
+    fn zip_fn_decl(
         &mut self,
-        fn_sig: &fhir::FnSig,
-        expected_fn_sig: &fhir::FnSig<'genv>,
+        fn_decl: &fhir::FnDecl,
+        expected_fn_sig: &fhir::FnDecl<'genv>,
     ) -> Result<(), ErrorGuaranteed> {
-        if fn_sig.args.len() != expected_fn_sig.args.len() {
-            return Err(self.emit_err(errors::FunArgCountMismatch::new(fn_sig, expected_fn_sig)));
+        if fn_decl.args.len() != expected_fn_sig.args.len() {
+            return Err(self.emit_err(errors::FunArgCountMismatch::new(fn_decl, expected_fn_sig)));
         }
-        self.zip_tys(fn_sig.args, expected_fn_sig.args)?;
-        self.zip_constraints(fn_sig.requires)?;
+        self.zip_tys(fn_decl.args, expected_fn_sig.args)?;
+        self.zip_constraints(fn_decl.requires)?;
 
-        self.zip_ty(&fn_sig.output.ret, &expected_fn_sig.output.ret)?;
-        self.zip_constraints(fn_sig.output.ensures)
+        self.zip_ty(&fn_decl.output.ret, &expected_fn_sig.output.ret)?;
+        self.zip_constraints(fn_decl.output.ensures)
     }
 
     fn zip_constraints(&mut self, constrs: &[fhir::Constraint]) -> Result<(), ErrorGuaranteed> {
@@ -440,12 +440,12 @@ mod errors {
     }
 
     impl FunArgCountMismatch {
-        pub(super) fn new(fn_sig: &fhir::FnSig, expected_fn_sig: &fhir::FnSig) -> Self {
+        pub(super) fn new(decl: &fhir::FnDecl, expected_decl: &fhir::FnDecl) -> Self {
             Self {
-                span: fn_sig.span,
-                args: fn_sig.args.len(),
-                expected_span: expected_fn_sig.span,
-                expected_args: expected_fn_sig.args.len(),
+                span: decl.span,
+                args: decl.args.len(),
+                expected_span: expected_decl.span,
+                expected_args: expected_decl.args.len(),
             }
         }
     }
