@@ -330,12 +330,6 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     ) -> Result<fhir::FnSig<'genv>> {
         let def_id = owner_id.def_id;
 
-        if let Some(quals) = &fn_spec.qual_names {
-            self.fhir
-                .fn_quals
-                .insert(def_id, self.genv.alloc_slice(&quals.names));
-        }
-
         let mut opaque_tys = Default::default();
         let fn_sig = self
             .as_rust_item_ctxt(owner_id, Some(&mut opaque_tys))

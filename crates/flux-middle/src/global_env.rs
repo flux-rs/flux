@@ -126,7 +126,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.spec_func_defns(*self)
     }
 
-    pub fn qualifiers(
+    /// Return all the qualifiers that apply to an item, including both global and local qualifiers.
+    pub fn qualifiers_for(
         self,
         did: LocalDefId,
     ) -> QueryResult<impl Iterator<Item = &'genv rty::Qualifier>> {
@@ -473,16 +474,21 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         })
     }
 
-    pub fn fn_quals_for(self, def_id: LocalDefId) -> &'genv [fhir::SurfaceIdent] {
-        self.fhir.fn_quals.get(&def_id).copied().unwrap_or(&[])
-    }
-
     pub fn consts(self) -> impl Iterator<Item = fhir::ConstInfo> + 'genv {
         self.fhir.consts.values().copied()
     }
 
     pub fn is_trusted(self, def_id: LocalDefId) -> bool {
         self.node(def_id).fn_sig().unwrap().trusted
+    }
+
+    pub fn fn_quals_for(self, def_id: LocalDefId) -> &'genv [fhir::SurfaceIdent] {
+        // This is called on adts when checking invariants
+        if let Some(fn_sig) = self.node(def_id).fn_sig() {
+            fn_sig.qualifiers
+        } else {
+            &[]
+        }
     }
 
     pub fn expect_item(self, def_id: LocalDefId) -> &'genv fhir::Item<'genv> {

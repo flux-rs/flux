@@ -539,7 +539,12 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         } else {
             self.as_lift_cx().lift_fn_decl()?
         };
-        Ok(fhir::FnSig { trusted: fn_spec.trusted, decl: self.genv.alloc(decl) })
+        let qual_names = fn_spec.qual_names.as_ref().map_or(&[][..], |it| &it.names);
+        Ok(fhir::FnSig {
+            trusted: fn_spec.trusted,
+            qualifiers: self.genv.alloc_slice(qual_names),
+            decl: self.genv.alloc(decl),
+        })
     }
 
     fn desugar_refinement_generics(

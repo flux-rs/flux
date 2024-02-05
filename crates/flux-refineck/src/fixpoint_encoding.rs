@@ -397,7 +397,7 @@ where
 
         let qualifiers = self
             .genv
-            .qualifiers(self.def_id)?
+            .qualifiers_for(self.def_id)?
             .map(|qual| qualifier_to_fixpoint(self.genv, span, &self.const_map, qual))
             .collect();
 

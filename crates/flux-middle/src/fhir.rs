@@ -332,7 +332,6 @@ pub struct Crate<'fhir> {
     pub consts: FxHashMap<Symbol, ConstInfo>,
     pub externs: UnordMap<DefId, LocalDefId>,
     pub flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
-    pub fn_quals: FxHashMap<LocalDefId, &'fhir [SurfaceIdent]>,
     pub ignores: UnordSet<IgnoreKey>,
     pub crate_config: config::CrateConfig,
 }
@@ -346,7 +345,6 @@ impl<'fhir> Crate<'fhir> {
             consts: Default::default(),
             externs: Default::default(),
             flux_items: Default::default(),
-            fn_quals: Default::default(),
             ignores,
             crate_config: crate_config.unwrap_or_default(),
         }
@@ -444,6 +442,8 @@ pub struct FnDecl<'fhir> {
 #[derive(Clone, Copy)]
 pub struct FnSig<'fhir> {
     pub trusted: bool,
+    //// List of local qualifiers for this function
+    pub qualifiers: &'fhir [SurfaceIdent],
     pub decl: &'fhir FnDecl<'fhir>,
 }
 
