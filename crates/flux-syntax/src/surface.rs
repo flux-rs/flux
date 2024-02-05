@@ -30,7 +30,7 @@ pub struct SortDecl {
 #[derive(Debug)]
 pub enum Item {
     Qualifier(Qualifier),
-    FuncDef(FuncDef),
+    FuncDef(SpecFunc),
     SortDecl(SortDecl),
 }
 
@@ -46,7 +46,7 @@ pub struct Qualifier {
 /// A global function definition. It can be either an uninterpreted function or a *syntactic abstraction*,
 /// i.e., a function with a body.
 #[derive(Debug)]
-pub struct FuncDef {
+pub struct SpecFunc {
     pub name: Ident,
     pub sort_vars: Vec<Ident>,
     pub args: Vec<RefineParam>,

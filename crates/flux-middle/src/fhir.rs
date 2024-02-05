@@ -333,7 +333,6 @@ pub struct Crate<'fhir> {
     pub externs: UnordMap<DefId, LocalDefId>,
     pub flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
     pub fn_quals: FxHashMap<LocalDefId, &'fhir [SurfaceIdent]>,
-    pub func_decls: FxHashMap<Symbol, SpecFuncDecl<'fhir>>,
     pub trusted: UnordSet<LocalDefId>,
     pub ignores: UnordSet<IgnoreKey>,
     pub crate_config: config::CrateConfig,
@@ -349,7 +348,6 @@ impl<'fhir> Crate<'fhir> {
             externs: Default::default(),
             flux_items: Default::default(),
             fn_quals: Default::default(),
-            func_decls: Default::default(),
             trusted: Default::default(),
             ignores,
             crate_config: crate_config.unwrap_or_default(),
@@ -976,7 +974,7 @@ pub struct SpecFunc<'fhir> {
     pub params: usize,
     pub args: &'fhir [RefineParam<'fhir>],
     pub sort: Sort<'fhir>,
-    pub expr: Expr<'fhir>,
+    pub body: Option<Expr<'fhir>>,
 }
 
 #[derive(Debug)]

@@ -7,7 +7,7 @@
 //!    refinement predicates, aka abstract refinements, since the syntax in [`rty`] has
 //!    syntactic restrictions on predicates.
 //! 3. Refinements are well-sorted.
-use std::borrow::Borrow;
+use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
@@ -266,15 +266,19 @@ pub(crate) fn conv_invariants<'genv>(
 
 pub(crate) fn conv_defn<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    defn: &fhir::SpecFunc,
+    func: &fhir::SpecFunc,
     wfckresults: &WfckResults<'genv>,
-) -> rty::SpecFunc {
-    let cx = ConvCtxt::new(genv, wfckresults);
-    let mut env = Env::new(genv, &[], wfckresults);
-    env.push_layer(Layer::list(&cx, 0, defn.args, false));
-    let expr = cx.conv_expr(&env, &defn.expr);
-    let expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv));
-    rty::SpecFunc { name: defn.name, expr }
+) -> Option<rty::SpecFunc> {
+    if let Some(body) = &func.body {
+        let cx = ConvCtxt::new(genv, wfckresults);
+        let mut env = Env::new(genv, &[], wfckresults);
+        env.push_layer(Layer::list(&cx, 0, func.args, false));
+        let expr = cx.conv_expr(&env, body);
+        let expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv));
+        Some(rty::SpecFunc { name: func.name, expr })
+    } else {
+        None
+    }
 }
 
 pub(crate) fn conv_qualifier<'genv>(
@@ -1238,12 +1242,17 @@ impl LookupResult<'_> {
     }
 }
 
-pub fn conv_func_decl(genv: GlobalEnv, uif: &fhir::SpecFuncDecl) -> rty::SpecFuncDecl {
-    rty::SpecFuncDecl {
-        name: uif.name,
-        sort: conv_poly_func_sort(genv, &uif.sort, &mut || bug!("unexpected infer sort")),
-        kind: uif.kind,
-    }
+pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> rty::SpecFuncDecl {
+    let inputs_and_output = func
+        .args
+        .iter()
+        .map(|p| &p.sort)
+        .chain(iter::once(&func.sort))
+        .map(|sort| conv_sort(genv, sort, &mut bug_on_sort_vid))
+        .collect();
+    let sort = rty::PolyFuncSort::new(func.params, rty::FuncSort { inputs_and_output });
+    let kind = if func.body.is_some() { fhir::SpecFuncKind::Def } else { fhir::SpecFuncKind::Uif };
+    rty::SpecFuncDecl { name: func.name, sort, kind }
 }
 
 fn conv_sorts(

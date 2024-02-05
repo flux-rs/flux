@@ -443,11 +443,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         }
     }
 
-    pub fn func_decls(self) -> impl Iterator<Item = &'genv fhir::SpecFuncDecl<'genv>> {
-        self.fhir.func_decls.values()
-    }
-
-    pub fn spec_func_defns(self) -> impl Iterator<Item = &'genv fhir::SpecFunc<'genv>> {
+    pub fn spec_funcs(self) -> impl Iterator<Item = &'genv fhir::SpecFunc<'genv>> {
         self.fhir.flux_items.values().filter_map(|item| {
             if let fhir::FluxItem::Func(defn) = item {
                 Some(defn)
@@ -457,7 +453,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         })
     }
 
-    pub fn defn(&self, name: Symbol) -> Option<&'genv fhir::SpecFunc<'genv>> {
+    pub fn spec_func(&self, name: Symbol) -> Option<&'genv fhir::SpecFunc<'genv>> {
         self.fhir.flux_items.get(&name).and_then(|item| {
             if let fhir::FluxItem::Func(defn) = item {
                 Some(defn)

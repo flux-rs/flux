@@ -254,7 +254,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         RefinementResolver::resolve_qualifier(self, qualifier)
     }
 
-    fn resolve_defn(&mut self, defn: &surface::FuncDef) -> Result {
+    fn resolve_defn(&mut self, defn: &surface::SpecFunc) -> Result {
         RefinementResolver::resolve_defn(self, defn)
     }
 

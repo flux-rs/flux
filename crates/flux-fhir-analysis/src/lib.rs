@@ -59,8 +59,8 @@ fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> rty::AdtSortDef {
 
 fn spec_func_decls(genv: GlobalEnv) -> FxHashMap<Symbol, rty::SpecFuncDecl> {
     let mut func_decls = FxHashMap::default();
-    for decl in genv.map().func_decls() {
-        func_decls.insert(decl.name, conv::conv_func_decl(genv, decl));
+    for func in genv.map().spec_funcs() {
+        func_decls.insert(func.name, conv::conv_func_decl(genv, func));
     }
     for itf in flux_middle::theory_funcs() {
         let func_decl = rty::SpecFuncDecl {
@@ -75,17 +75,15 @@ fn spec_func_decls(genv: GlobalEnv) -> FxHashMap<Symbol, rty::SpecFuncDecl> {
 }
 
 fn spec_func_defns(genv: GlobalEnv) -> QueryResult<rty::SpecFuncDefns> {
-    let defns = genv
-        .map()
-        .spec_func_defns()
-        .map(|defn| -> QueryResult<_> {
-            let wfckresults = genv.check_wf(FluxLocalDefId::Flux(defn.name))?;
-            let defn = conv::conv_defn(genv, defn, &wfckresults);
-            Ok((defn.name, defn))
-        })
-        .try_collect()?;
+    let mut defns = FxHashMap::default();
+    for func in genv.map().spec_funcs() {
+        let wfckresults = genv.check_wf(FluxLocalDefId::Flux(func.name))?;
+        if let Some(defn) = conv::conv_defn(genv, func, &wfckresults) {
+            defns.insert(defn.name, defn);
+        }
+    }
     let defns = rty::SpecFuncDefns::new(defns).map_err(|cycle| {
-        let span = genv.map().defn(cycle[0]).unwrap().expr.span;
+        let span = genv.map().spec_func(cycle[0]).unwrap().body.unwrap().span;
         genv.sess()
             .emit_err(errors::DefinitionCycle::new(span, cycle))
     })?;
@@ -457,7 +455,7 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         }
     }
 
-    for defn in genv.map().spec_func_defns() {
+    for defn in genv.map().spec_funcs() {
         err = genv
             .check_wf(FluxLocalDefId::Flux(defn.name))
             .emit(genv.sess())

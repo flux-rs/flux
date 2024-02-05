@@ -7,7 +7,7 @@ mod sortck;
 
 use std::iter;
 
-use flux_common::{bug, iter::IterExt, span_bug};
+use flux_common::{iter::IterExt, span_bug};
 use flux_errors::{FluxSession, ResultExt};
 use flux_middle::{
     fhir::{self, FluxOwnerId, SurfaceIdent},
@@ -25,7 +25,10 @@ use rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
 use rustc_span::{Span, Symbol};
 
 use self::sortck::InferCtxt;
-use crate::{compare_impl_item::errors::InvalidAssocPredicate, conv};
+use crate::{
+    compare_impl_item::errors::InvalidAssocPredicate,
+    conv::{self, bug_on_sort_vid},
+};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -59,14 +62,15 @@ pub(crate) fn check_qualifier<'genv>(
 
 pub(crate) fn check_defn<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    defn: &fhir::SpecFunc,
+    func: &fhir::SpecFunc,
 ) -> Result<WfckResults<'genv>> {
-    let owner = FluxOwnerId::Flux(defn.name);
+    let owner = FluxOwnerId::Flux(func.name);
     let mut infcx = InferCtxt::new(genv, owner);
-    infcx.insert_params(defn.args);
-
-    let output = conv::conv_sort(genv, &defn.sort, &mut || bug!("unexpected infer sort"));
-    infcx.check_expr(&defn.expr, &output)?;
+    if let Some(body) = &func.body {
+        infcx.insert_params(func.args);
+        let output = conv::conv_sort(genv, &func.sort, &mut bug_on_sort_vid);
+        infcx.check_expr(body, &output)?;
+    }
     Ok(infcx.into_results())
 }
 

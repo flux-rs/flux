@@ -103,7 +103,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         });
     }
 
-    fn visit_defn(&mut self, defn: &surface::FuncDef) {
+    fn visit_defn(&mut self, defn: &surface::SpecFunc) {
         self.with_scope(ScopeKind::Misc, |this| {
             surface::visit::walk_defn(this, defn);
         });
@@ -415,7 +415,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     pub(crate) fn resolve_defn(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        defn: &surface::FuncDef,
+        defn: &surface::SpecFunc,
     ) -> Result {
         Self::for_flux_item(resolver, &defn.sort_vars).run(|r| r.visit_defn(defn))
     }

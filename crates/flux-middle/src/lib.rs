@@ -201,7 +201,7 @@ pub struct Specs {
     pub impls: UnordMap<OwnerId, surface::Impl>,
     pub enums: UnordMap<OwnerId, surface::EnumDef>,
     pub qualifs: Vec<surface::Qualifier>,
-    pub func_defs: Vec<surface::FuncDef>,
+    pub func_defs: Vec<surface::SpecFunc>,
     pub sort_decls: Vec<surface::SortDecl>,
     pub ty_aliases: UnordMap<OwnerId, Option<surface::TyAlias>>,
     pub ignores: UnordSet<fhir::IgnoreKey>,

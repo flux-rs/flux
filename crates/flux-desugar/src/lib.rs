@@ -129,16 +129,11 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         }
     }
 
-    fn desugar_func_defn(&mut self, defn: &surface::FuncDef) -> Result {
-        let func_decl = desugar::func_def_to_func_decl(self.genv, self.resolver_output, defn)?;
-        self.fhir.func_decls.insert(defn.name.name, func_decl);
-
-        if let Some(defn) = desugar::desugar_defn(self.genv, self.resolver_output, defn)? {
-            self.fhir
-                .flux_items
-                .insert(defn.name, fhir::FluxItem::Func(defn));
-        }
-
+    fn desugar_func_defn(&mut self, func: &surface::SpecFunc) -> Result {
+        let func = desugar::desugar_spec_func(self.genv, self.resolver_output, func)?;
+        self.fhir
+            .flux_items
+            .insert(func.name, fhir::FluxItem::Func(func));
         Ok(())
     }
 

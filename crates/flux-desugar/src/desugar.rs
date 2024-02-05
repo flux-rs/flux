@@ -42,42 +42,23 @@ pub(crate) fn desugar_qualifier<'genv>(
     })
 }
 
-pub(crate) fn desugar_defn<'genv>(
+pub(crate) fn desugar_spec_func<'genv>(
     genv: GlobalEnv<'genv, '_>,
     resolver_output: &'genv ResolverOutput,
-    defn: &surface::FuncDef,
-) -> Result<Option<fhir::SpecFunc<'genv>>> {
-    if let Some(body) = &defn.body {
-        let cx = FluxItemCtxt::new(genv, resolver_output, defn.name.name);
-        let expr = cx.desugar_expr(body)?;
-        let name = defn.name.name;
-        let params = defn.sort_vars.len();
-        let sort = cx.desugar_sort(&defn.output, None);
-        let args = cx.desugar_refine_params(&defn.args);
+    spec_func: &surface::SpecFunc,
+) -> Result<fhir::SpecFunc<'genv>> {
+    let cx = FluxItemCtxt::new(genv, resolver_output, spec_func.name.name);
+    let body = spec_func
+        .body
+        .as_ref()
+        .map(|body| cx.desugar_expr(body))
+        .transpose()?;
+    let name = spec_func.name.name;
+    let params = spec_func.sort_vars.len();
+    let sort = cx.desugar_sort(&spec_func.output, None);
+    let args = cx.desugar_refine_params(&spec_func.args);
 
-        Ok(Some(fhir::SpecFunc { name, params, args, sort, expr }))
-    } else {
-        Ok(None)
-    }
-}
-
-pub fn func_def_to_func_decl<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    resolver_output: &'genv ResolverOutput,
-    defn: &surface::FuncDef,
-) -> Result<fhir::SpecFuncDecl<'genv>> {
-    let params = defn.sort_vars.len();
-    let inputs_and_output = genv.alloc_slice_with_capacity(
-        defn.args.len() + 1,
-        defn.args
-            .iter()
-            .map(|arg| &arg.sort)
-            .chain(iter::once(&defn.output))
-            .map(|sort| desugar_sort(genv, resolver_output, sort, None)),
-    );
-    let sort = fhir::PolyFuncSort::new(params, inputs_and_output);
-    let kind = if defn.body.is_some() { fhir::SpecFuncKind::Def } else { fhir::SpecFuncKind::Uif };
-    Ok(fhir::SpecFuncDecl { name: defn.name.name, sort, kind })
+    Ok(fhir::SpecFunc { name, params, args, sort, body })
 }
 
 /// Collect all sorts resolved to a generic parameter in a [`surface::RefinedBy`]. Return the set

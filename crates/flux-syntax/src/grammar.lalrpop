@@ -106,7 +106,7 @@ pub Items: Vec<surface::Item> = {
 
 Item: surface::Item = {
     <Qualifier> => surface::Item::Qualifier(<>),
-    <FuncDef>   => surface::Item::FuncDef(<>),
+    <SpecFunc>  => surface::Item::FuncDef(<>),
     <SortDecl>  => surface::Item::SortDecl(<>),
 }
 
@@ -128,9 +128,9 @@ Qualifier: surface::Qualifier = {
     }
 }
 
-FuncDef: surface::FuncDef = {
+SpecFunc: surface::SpecFunc = {
     "fn" <name:Ident> <vars:SortVars?> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> "{" <body:Expr> "}" => {
-        surface::FuncDef {
+        surface::SpecFunc {
             name,
             sort_vars: vars.unwrap_or_default(),
             args,
@@ -139,7 +139,7 @@ FuncDef: surface::FuncDef = {
         }
     },
     "fn" <name:Ident> <vars:SortVars?> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> ";" => {
-        surface::FuncDef {
+        surface::SpecFunc {
             name,
             sort_vars: vars.unwrap_or_default(),
             args,

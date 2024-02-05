@@ -2,11 +2,10 @@ use rustc_span::symbol::Ident;
 
 use super::{
     AliasPred, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
-    ExprKind, FnOutput, FnRetTy, FnSig, FuncDef, GenericArg, GenericArgKind, GenericParam,
-    GenericParamKind, Generics, Impl, ImplAssocPredicate, Indices, Lit, Path, PathExpr, Pred,
-    PredKind, Qualifier, RefineArg, RefineParam, RefinedBy, Sort, StructDef, Trait,
-    TraitAssocPredicate, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
-    WhereBoundPredicate,
+    ExprKind, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, GenericParamKind,
+    Generics, Impl, ImplAssocPredicate, Indices, Lit, Path, PathExpr, Pred, PredKind, Qualifier,
+    RefineArg, RefineParam, RefinedBy, Sort, SpecFunc, StructDef, Trait, TraitAssocPredicate,
+    TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -26,7 +25,7 @@ pub trait Visitor: Sized {
         walk_qualifier(self, qualifier);
     }
 
-    fn visit_defn(&mut self, defn: &FuncDef) {
+    fn visit_defn(&mut self, defn: &SpecFunc) {
         walk_defn(self, defn);
     }
 
@@ -177,7 +176,7 @@ pub fn walk_qualifier<V: Visitor>(vis: &mut V, qualifier: &Qualifier) {
     vis.visit_expr(&qualifier.expr);
 }
 
-pub fn walk_defn<V: Visitor>(vis: &mut V, defn: &FuncDef) {
+pub fn walk_defn<V: Visitor>(vis: &mut V, defn: &SpecFunc) {
     vis.visit_ident(defn.name);
     walk_list!(vis, visit_ident, defn.sort_vars.iter().copied());
     walk_list!(vis, visit_refine_param, &defn.args);
