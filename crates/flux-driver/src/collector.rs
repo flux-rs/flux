@@ -537,7 +537,6 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
     fn fake_method_of(&mut self, items: &[ImplItemRef]) -> Option<LocalDefId> {
         for item in items {
-            // TODO(RJ): ask-nico, why is fake_impl() not visible?
             let attrs = self.tcx.hir().attrs(item.id.hir_id());
             if let Ok(mut attrs) = self.parse_flux_attrs(attrs, DefKind::Impl { of_trait: false }) {
                 if let AssocItemKind::Fn { .. } = item.kind
