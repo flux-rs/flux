@@ -435,7 +435,7 @@ pub struct FnDecl<'fhir> {
     pub span: Span,
     /// Whether the sig was [lifted] from a hir signature
     ///
-    /// [lifted]: lift::LiftCtxt::lift_fn_sig
+    /// [lifted]: lift::LiftCtxt::lift_fn_decl
     pub lifted: bool,
 }
 

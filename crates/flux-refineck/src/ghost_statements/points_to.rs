@@ -341,7 +341,7 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
     }
 }
 
-/// Partial mapping from [`Place`] to [`PlaceIndex`], where some places also have a [`ValueIndex`].
+/// Partial mapping from `Place` to [`PlaceIndex`], where some places also have a [`ValueIndex`].
 ///
 /// This data structure essentially maintains a tree of places and their projections. Some
 /// additional bookkeeping is done, to speed up traversal over this tree:
@@ -707,7 +707,7 @@ impl Clone for StateData {
     }
 }
 
-/// The dataflow state for an instance of [`ValueAnalysis`].
+/// The dataflow state for the [`PointsToAnalysis`].
 ///
 /// Every instance specifies a lattice that represents the possible values of a single tracked
 /// place. If we call this lattice `V` and set of tracked places `P`, then a [`State`] is an
