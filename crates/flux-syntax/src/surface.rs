@@ -342,7 +342,7 @@ pub struct Pred {
 #[derive(Debug)]
 pub enum PredKind {
     Expr(Expr),
-    Alias(AliasPred, Vec<RefineArg>),
+    Alias(AliasPred, Vec<Expr>),
 }
 
 impl Ty {

@@ -522,7 +522,7 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
         &mut self,
         infcx: &mut InferCtxt,
         alias_pred: &fhir::AliasPred,
-        args: &[fhir::RefineArg],
+        args: &[fhir::Expr],
         span: Span,
     ) -> Result {
         let Some(fsort) = self.genv.sort_of_alias_pred(alias_pred) else {
@@ -541,7 +541,7 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
             ));
         }
         iter::zip(args, fsort.inputs())
-            .try_for_each_exhaust(|(arg, formal)| self.check_refine_arg(infcx, arg, formal))
+            .try_for_each_exhaust(|(arg, formal)| infcx.check_expr(arg, formal))
     }
 
     fn check_pred(&mut self, infcx: &mut InferCtxt, pred: &fhir::Pred) -> Result {

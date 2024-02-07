@@ -762,7 +762,7 @@ pub struct Pred<'fhir> {
 #[derive(Clone, Copy)]
 pub enum PredKind<'fhir> {
     Expr(Expr<'fhir>),
-    Alias(AliasPred<'fhir>, &'fhir [RefineArg<'fhir>]),
+    Alias(AliasPred<'fhir>, &'fhir [Expr<'fhir>]),
 }
 
 #[derive(Clone, Copy)]

@@ -925,15 +925,14 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     fn desugar_alias_pred(
         &mut self,
         alias_pred: &surface::AliasPred,
-        refine_args: &[surface::RefineArg],
+        func_args: &[surface::Expr],
     ) -> Result<fhir::PredKind<'genv>> {
         let path = self.desugar_path(&alias_pred.trait_id)?;
         if let Res::Def(DefKind::Trait, trait_id) = path.res {
             let (generic_args, _) = self.desugar_generic_args(path.res, &alias_pred.args)?;
-            let refine_args =
-                try_alloc_slice!(self.genv, refine_args, |arg| self.desugar_refine_arg(arg))?;
+            let args = try_alloc_slice!(self.genv, func_args, |e| self.desugar_expr(e))?;
             let alias_pred = fhir::AliasPred { trait_id, name: alias_pred.name.name, generic_args };
-            Ok(fhir::PredKind::Alias(alias_pred, refine_args))
+            Ok(fhir::PredKind::Alias(alias_pred, args))
         } else {
             Err(self.emit_err(errors::InvalidAliasPred::new(&alias_pred.trait_id)))
         }

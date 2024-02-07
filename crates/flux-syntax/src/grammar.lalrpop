@@ -336,7 +336,7 @@ Pred: surface::Pred = {
 
 PredKind: surface::PredKind = {
     <expr:Expr> => surface::PredKind::Expr(expr),
-    "<" <arg:GenericArg> "as" <trait_id:Path> ">" "::" <name:Ident> <refine_args:RefineArgs> => {
+    "<" <arg:GenericArg> "as" <trait_id:Path> ">" "::" <name:Ident> "(" <fun_args:Comma<Expr>> ")" => {
         let mut trait_id = trait_id;
         let mut args = vec![arg];
         let mut trait_args = std::mem::take(&mut trait_id.generics);
@@ -348,7 +348,7 @@ PredKind: surface::PredKind = {
             name,
             args,
         };
-        surface::PredKind::Alias(alias_pred, refine_args)
+        surface::PredKind::Alias(alias_pred, fun_args)
     }
 }
 

@@ -454,9 +454,9 @@ pub fn walk_path<V: Visitor>(vis: &mut V, path: &Path) {
 pub fn walk_pred<V: Visitor>(vis: &mut V, pred: &Pred) {
     match &pred.kind {
         PredKind::Expr(expr) => vis.visit_expr(expr),
-        PredKind::Alias(alias_pred, refine_args) => {
+        PredKind::Alias(alias_pred, args) => {
             vis.visit_alias_pred(alias_pred);
-            walk_list!(vis, visit_refine_arg, refine_args);
+            walk_list!(vis, visit_expr, args);
         }
     }
 }
