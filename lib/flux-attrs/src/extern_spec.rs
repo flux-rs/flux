@@ -510,7 +510,7 @@ fn create_dummy_struct(
 /// ```ignore
 /// #[extern_spec(std::vec)]
 /// #[flux::generics(Self as base)]
-/// #[flux::predicate(f: (Self) -> bool)]
+/// #[flux::assoc(fn f(self: Self) -> bool)]
 /// trait MyTrait {}
 ///
 /// =>
@@ -518,7 +518,7 @@ fn create_dummy_struct(
 /// #[flux::extern_spec]
 /// #[allow(unused, dead_code)]
 /// #[flux::generics(Self as base)]
-/// #[flux::predicate(f: (Self) -> bool)]
+/// #[flux::assoc(fn f(self: Self) -> bool)]
 /// trait __FluxExternTraitMyTrait: MyTrait {}
 /// ```
 fn create_dummy_trait(

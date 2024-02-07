@@ -14,7 +14,7 @@ struct Vec<T, A: Allocator = Global>;
 
 #[extern_spec]
 #[flux::generics(Self as base, T as base)]
-#[flux::predicate{in_bounds : (Self, T) -> bool}]
+#[flux::assoc(fn in_bounds(idx: Self, v: T) -> bool)]
 trait SliceIndex<T>
 where
     T: ?Sized,
@@ -22,7 +22,7 @@ where
 }
 
 #[extern_spec]
-#[flux::predicate{in_bounds = |idx:int, len:int| {idx < len} }]
+#[flux::assoc(fn in_bounds(idx: int, len: int) -> bool {idx < len} )]
 impl<T> SliceIndex<[T]> for usize {}
 
 #[extern_spec]

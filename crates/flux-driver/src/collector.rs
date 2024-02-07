@@ -142,11 +142,11 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.report_dups(&attrs)?;
 
         let generics = attrs.generics();
-        let assoc_predicates = attrs.trait_assoc_predicates();
+        let assoc_refinements = attrs.trait_assoc_refts();
 
         self.specs
             .traits
-            .insert(owner_id, surface::Trait { generics, assoc_predicates });
+            .insert(owner_id, surface::Trait { generics, assoc_refinements });
 
         if attrs.extern_spec() {
             let extern_id =
@@ -168,7 +168,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.report_dups(&attrs)?;
 
         let generics = attrs.generics();
-        let assoc_predicates = attrs.impl_assoc_predicates();
+        let assoc_refinements = attrs.impl_assoc_refts();
 
         let extern_id = if attrs.extern_spec()
             && let Some(extern_id) =
@@ -182,7 +182,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         self.specs
             .impls
-            .insert(owner_id, surface::Impl { generics, assoc_predicates, extern_id });
+            .insert(owner_id, surface::Impl { generics, assoc_refinements, extern_id });
 
         Ok(())
     }
@@ -404,20 +404,20 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("sig", AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_fn_sig, FluxAttrKind::FnSig)?
             }
-            ("predicate", AttrArgs::Delimited(dargs)) => {
+            ("assoc", AttrArgs::Delimited(dargs)) => {
                 match def_kind {
                     DefKind::Trait => {
                         self.parse(
                             dargs,
-                            ParseSess::parse_trait_assoc_pred,
-                            FluxAttrKind::TraitAssocPred,
+                            ParseSess::parse_trait_assoc_reft,
+                            FluxAttrKind::TraitAssocReft,
                         )?
                     }
                     DefKind::Impl { .. } => {
                         self.parse(
                             dargs,
-                            ParseSess::parse_impl_assoc_pred,
-                            FluxAttrKind::ImplAssocPred,
+                            ParseSess::parse_impl_assoc_reft,
+                            FluxAttrKind::ImplAssocReft,
                         )?
                     }
                     _ => {
@@ -710,8 +710,8 @@ enum FluxAttrKind {
     Trusted,
     Opaque,
     FnSig(surface::FnSig),
-    TraitAssocPred(surface::TraitAssocPredicate),
-    ImplAssocPred(surface::ImplAssocPredicate),
+    TraitAssocReft(surface::TraitAssocReft),
+    ImplAssocReft(surface::ImplAssocReft),
     RefinedBy(surface::RefinedBy),
     Generics(surface::Generics),
     QualNames(surface::QualNames),
@@ -813,12 +813,12 @@ impl FluxAttrs {
         read_attr!(self, Generics)
     }
 
-    fn trait_assoc_predicates(&mut self) -> Vec<surface::TraitAssocPredicate> {
-        read_attrs!(self, TraitAssocPred)
+    fn trait_assoc_refts(&mut self) -> Vec<surface::TraitAssocReft> {
+        read_attrs!(self, TraitAssocReft)
     }
 
-    fn impl_assoc_predicates(&mut self) -> Vec<surface::ImplAssocPredicate> {
-        read_attrs!(self, ImplAssocPred)
+    fn impl_assoc_refts(&mut self) -> Vec<surface::ImplAssocReft> {
+        read_attrs!(self, ImplAssocReft)
     }
 
     fn field(&mut self) -> Option<surface::Ty> {
@@ -848,8 +848,8 @@ impl FluxAttrKind {
             FluxAttrKind::Trusted => attr_name!(Trusted),
             FluxAttrKind::Opaque => attr_name!(Opaque),
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),
-            FluxAttrKind::TraitAssocPred(_) => attr_name!(TraitAssocPred),
-            FluxAttrKind::ImplAssocPred(_) => attr_name!(ImplAssocPred),
+            FluxAttrKind::TraitAssocReft(_) => attr_name!(TraitAssocReft),
+            FluxAttrKind::ImplAssocReft(_) => attr_name!(ImplAssocReft),
             FluxAttrKind::ConstSig(_) => attr_name!(ConstSig),
             FluxAttrKind::RefinedBy(_) => attr_name!(RefinedBy),
             FluxAttrKind::Generics(_) => attr_name!(Generics),

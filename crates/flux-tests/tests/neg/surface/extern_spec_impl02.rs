@@ -1,7 +1,7 @@
 use flux_rs::extern_spec;
 
 // Trait with assoc-pred
-#[flux::predicate{ f : (int) -> bool }]
+#[flux::assoc(fn f(x: int) -> bool )]
 pub trait MyTrait {
     fn foo() -> i32;
 }
@@ -23,7 +23,7 @@ impl MyTrait for usize {
 
 // extern impl
 #[extern_spec]
-#[flux::predicate{ f = |x:int| { 10 < x } }]
+#[flux::assoc(fn f(x: int) -> bool { 10 < x } )]
 impl MyTrait for usize {}
 
 #[flux::sig(fn () -> i32{v: 100 < v})]

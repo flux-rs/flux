@@ -3,9 +3,9 @@ use rustc_span::symbol::Ident;
 use super::{
     AliasPred, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
     ExprKind, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, GenericParamKind,
-    Generics, Impl, ImplAssocPredicate, Indices, Lit, Path, PathExpr, Pred, PredKind, Qualifier,
-    RefineArg, RefineParam, RefinedBy, Sort, SpecFunc, StructDef, Trait, TraitAssocPredicate,
-    TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathExpr, Qualifier, RefineArg, RefineParam,
+    RefinedBy, Sort, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind,
+    VariantDef, VariantRet, WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -49,16 +49,16 @@ pub trait Visitor: Sized {
         walk_trait(self, trait_);
     }
 
-    fn visit_trait_assoc_pred(&mut self, assoc_pred: &TraitAssocPredicate) {
-        walk_trait_assoc_pred(self, assoc_pred);
+    fn visit_trait_assoc_reft(&mut self, assoc_reft: &TraitAssocReft) {
+        walk_trait_assoc_reft(self, assoc_reft);
     }
 
     fn visit_impl(&mut self, impl_: &Impl) {
         walk_impl(self, impl_);
     }
 
-    fn visit_impl_assoc_pred(&mut self, assoc_pred: &ImplAssocPredicate) {
-        walk_impl_assoc_pred(self, assoc_pred);
+    fn visit_impl_assoc_reft(&mut self, assoc_reft: &ImplAssocReft) {
+        walk_impl_assoc_reft(self, assoc_reft);
     }
 
     fn visit_trait_ref(&mut self, trait_ref: &TraitRef) {
@@ -153,10 +153,6 @@ pub trait Visitor: Sized {
         walk_expr(self, expr);
     }
 
-    fn visit_pred(&mut self, pred: &Pred) {
-        walk_pred(self, pred);
-    }
-
     fn visit_alias_pred(&mut self, alias_pred: &AliasPred) {
         walk_alias_pred(self, alias_pred);
     }
@@ -218,25 +214,27 @@ pub fn walk_trait<V: Visitor>(vis: &mut V, trait_: &Trait) {
     if let Some(generics) = &trait_.generics {
         vis.visit_generics(generics);
     }
-    walk_list!(vis, visit_trait_assoc_pred, &trait_.assoc_predicates);
+    walk_list!(vis, visit_trait_assoc_reft, &trait_.assoc_refinements);
 }
 
-pub fn walk_trait_assoc_pred<V: Visitor>(vis: &mut V, assoc_pred: &TraitAssocPredicate) {
-    vis.visit_ident(assoc_pred.name);
-    vis.visit_sort(&assoc_pred.sort);
+pub fn walk_trait_assoc_reft<V: Visitor>(vis: &mut V, assoc_reft: &TraitAssocReft) {
+    vis.visit_ident(assoc_reft.name);
+    walk_list!(vis, visit_refine_param, &assoc_reft.params);
+    vis.visit_base_sort(&assoc_reft.output);
 }
 
 pub fn walk_impl<V: Visitor>(vis: &mut V, impl_: &Impl) {
     if let Some(generics) = &impl_.generics {
         vis.visit_generics(generics);
     }
-    walk_list!(vis, visit_impl_assoc_pred, &impl_.assoc_predicates);
+    walk_list!(vis, visit_impl_assoc_reft, &impl_.assoc_refinements);
 }
 
-pub fn walk_impl_assoc_pred<V: Visitor>(vis: &mut V, assoc_pred: &ImplAssocPredicate) {
-    vis.visit_ident(assoc_pred.name);
-    walk_list!(vis, visit_refine_param, &assoc_pred.params);
-    vis.visit_expr(&assoc_pred.body);
+pub fn walk_impl_assoc_reft<V: Visitor>(vis: &mut V, assoc_reft: &ImplAssocReft) {
+    vis.visit_ident(assoc_reft.name);
+    walk_list!(vis, visit_refine_param, &assoc_reft.params);
+    vis.visit_expr(&assoc_reft.body);
+    vis.visit_base_sort(&assoc_reft.output);
 }
 
 pub fn walk_trait_ref<V: Visitor>(vis: &mut V, trait_ref: &TraitRef) {
@@ -409,7 +407,7 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
         TyKind::Exists { bind, bty, pred } => {
             vis.visit_ident(*bind);
             vis.visit_bty(bty);
-            vis.visit_pred(pred);
+            vis.visit_expr(pred);
         }
         TyKind::GeneralExists { params, ty, pred } => {
             walk_list!(vis, visit_refine_param, params);
@@ -422,7 +420,7 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
             vis.visit_ty(ty);
         }
         TyKind::Constr(pred, ty) => {
-            vis.visit_pred(pred);
+            vis.visit_expr(pred);
             vis.visit_ty(ty);
         }
         TyKind::Tuple(tys) => {
@@ -451,16 +449,6 @@ pub fn walk_path<V: Visitor>(vis: &mut V, path: &Path) {
     walk_list!(vis, visit_refine_arg, &path.refine);
 }
 
-pub fn walk_pred<V: Visitor>(vis: &mut V, pred: &Pred) {
-    match &pred.kind {
-        PredKind::Expr(expr) => vis.visit_expr(expr),
-        PredKind::Alias(alias_pred, args) => {
-            vis.visit_alias_pred(alias_pred);
-            walk_list!(vis, visit_expr, args);
-        }
-    }
-}
-
 pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasPred) {
     vis.visit_ident(alias_pred.name);
     vis.visit_path(&alias_pred.trait_id);
@@ -486,6 +474,10 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         ExprKind::App(fun, exprs) => {
             vis.visit_ident(*fun);
             walk_list!(vis, visit_expr, exprs);
+        }
+        ExprKind::Alias(alias_pred, args) => {
+            vis.visit_alias_pred(alias_pred);
+            walk_list!(vis, visit_expr, args);
         }
         ExprKind::IfThenElse(box exprs) => {
             walk_list!(vis, visit_expr, exprs);

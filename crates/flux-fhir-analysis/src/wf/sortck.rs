@@ -15,7 +15,7 @@ use rustc_errors::IntoDiagnostic;
 use rustc_span::{def_id::DefId, Span};
 
 use super::errors;
-use crate::{compare_impl_item::errors::InvalidAssocPredicate, conv};
+use crate::{compare_impl_item::errors::InvalidAssocReft, conv};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -318,7 +318,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         span: Span,
     ) -> Result<rty::Sort> {
         let Some(fsort) = self.genv.sort_of_alias_pred(alias_pred) else {
-            return Err(self.emit_err(InvalidAssocPredicate::new(
+            return Err(self.emit_err(InvalidAssocReft::new(
                 span,
                 alias_pred.name,
                 pretty::def_id_to_string(alias_pred.trait_id),

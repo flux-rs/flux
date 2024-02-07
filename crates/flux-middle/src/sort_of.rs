@@ -8,7 +8,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn sort_of_alias_pred(self, alias_pred: &fhir::AliasPred) -> Option<rty::FuncSort> {
         let trait_id = alias_pred.trait_id;
         let name = alias_pred.name;
-        let fsort = self.sort_of_assoc_pred(trait_id, name)?;
+        let fsort = self.sort_of_assoc_reft(trait_id, name)?;
         Some(fsort.instantiate_func_sort(|param_ty| {
             self.sort_of_generic_arg(&alias_pred.generic_args[param_ty.index as usize])
                 .unwrap()

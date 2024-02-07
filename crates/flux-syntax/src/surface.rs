@@ -189,28 +189,30 @@ pub struct ConstSig {
 
 pub struct Impl {
     pub generics: Option<Generics>,
-    pub assoc_predicates: Vec<ImplAssocPredicate>,
+    pub assoc_refinements: Vec<ImplAssocReft>,
     /// Whether the enum is an extern spec for some [DefId]
     pub extern_id: Option<DefId>,
 }
 
 #[derive(Debug)]
-pub struct ImplAssocPredicate {
+pub struct ImplAssocReft {
     pub name: Ident,
     pub params: Vec<RefineParam>,
+    pub output: BaseSort,
     pub body: Expr,
     pub span: Span,
 }
 
 pub struct Trait {
     pub generics: Option<Generics>,
-    pub assoc_predicates: Vec<TraitAssocPredicate>,
+    pub assoc_refinements: Vec<TraitAssocReft>,
 }
 
 #[derive(Debug)]
-pub struct TraitAssocPredicate {
+pub struct TraitAssocReft {
     pub name: Ident,
-    pub sort: Sort,
+    pub params: Vec<RefineParam>,
+    pub output: BaseSort,
     pub span: Span,
 }
 
@@ -316,7 +318,7 @@ pub enum TyKind {
     Exists {
         bind: Ident,
         bty: BaseTy,
-        pred: Pred,
+        pred: Expr,
     },
     GeneralExists {
         params: Vec<RefineParam>,
@@ -326,23 +328,11 @@ pub enum TyKind {
     /// Mutable or shared reference
     Ref(Mutability, Box<Ty>),
     /// Constrained type: an exists without binder
-    Constr(Pred, Box<Ty>),
+    Constr(Expr, Box<Ty>),
     Tuple(Vec<Ty>),
     Array(Box<Ty>, ArrayLen),
     /// The `NodeId` is used to resolve the type to a corresponding `OpaqueTy`
     ImplTrait(NodeId, GenericBounds),
-}
-
-#[derive(Debug)]
-pub struct Pred {
-    pub kind: PredKind,
-    pub span: Span,
-}
-
-#[derive(Debug)]
-pub enum PredKind {
-    Expr(Expr),
-    Alias(AliasPred, Vec<Expr>),
 }
 
 impl Ty {
@@ -445,14 +435,14 @@ pub enum GenericArgKind {
     Constraint(Ident, Ty),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Expr {
     pub kind: ExprKind,
     pub node_id: NodeId,
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ExprKind {
     Path(PathExpr),
     Dot(PathExpr, Ident),
@@ -460,6 +450,7 @@ pub enum ExprKind {
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
     App(Ident, Vec<Expr>),
+    Alias(AliasPred, Vec<Expr>),
     IfThenElse(Box<[Expr; 3]>),
 }
 

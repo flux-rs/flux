@@ -15,6 +15,7 @@ mod wf;
 
 use std::rc::Rc;
 
+use conv::bug_on_infer_sort;
 use flux_common::{bug, dbg};
 use flux_config as config;
 use flux_errors::ResultExt;
@@ -47,9 +48,9 @@ pub fn provide(providers: &mut Providers) {
     providers.generics_of = generics_of;
     providers.refinement_generics_of = refinement_generics_of;
     providers.predicates_of = predicates_of;
-    providers.assoc_predicates_of = assoc_predicates_of;
-    providers.sort_of_assoc_pred = sort_of_assoc_pred;
-    providers.assoc_predicate_def = assoc_predicate_def;
+    providers.assoc_refinements_of = assoc_refinements_of;
+    providers.sort_of_assoc_reft = sort_of_assoc_reft;
+    providers.assoc_refinement_def = assoc_refinement_def;
     providers.item_bounds = item_bounds;
 }
 
@@ -140,28 +141,28 @@ fn predicates_of(
     }
 }
 
-fn assoc_predicates_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocPredicates {
+fn assoc_refinements_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocPredicates {
     let predicates = match &genv.map().expect_item(local_id).kind {
         fhir::ItemKind::Trait(trait_) => {
             trait_
-                .assoc_predicates
+                .assoc_refinements
                 .iter()
-                .map(|assoc_pred| {
+                .map(|assoc_reft| {
                     rty::AssocPredicate {
                         container_def_id: local_id.to_def_id(),
-                        name: assoc_pred.name,
+                        name: assoc_reft.name,
                     }
                 })
                 .collect()
         }
         fhir::ItemKind::Impl(impl_) => {
             impl_
-                .assoc_predicates
+                .assoc_refinements
                 .iter()
-                .map(|assoc_pred| {
+                .map(|assoc_reft| {
                     rty::AssocPredicate {
                         container_def_id: local_id.to_def_id(),
-                        name: assoc_pred.name,
+                        name: assoc_reft.name,
                     }
                 })
                 .collect()
@@ -173,43 +174,46 @@ fn assoc_predicates_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocPredi
     rty::AssocPredicates { predicates }
 }
 
-fn assoc_predicate_def(
+fn assoc_refinement_def(
     genv: GlobalEnv,
     impl_id: LocalDefId,
     name: Symbol,
 ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
-    let assoc_pred = genv
+    let assoc_reft = genv
         .map()
         .expect_item(impl_id)
         .expect_impl()
-        .find_assoc_predicate(name)
+        .find_assoc_reft(name)
         .unwrap();
     let wfckresults = genv.check_wf(impl_id)?;
-    Ok(rty::EarlyBinder(conv::conv_assoc_pred_def(genv, assoc_pred, &wfckresults)?))
+    Ok(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?))
 }
 
-fn sort_of_assoc_pred(
+fn sort_of_assoc_reft(
     genv: GlobalEnv,
     def_id: LocalDefId,
     name: Symbol,
 ) -> Option<rty::EarlyBinder<rty::FuncSort>> {
     match &genv.map().expect_item(def_id).kind {
         fhir::ItemKind::Trait(trait_) => {
-            let assoc_pred = trait_.find_assoc_predicate(name)?;
-            Some(rty::EarlyBinder(conv::conv_func_sort(
-                genv,
-                &assoc_pred.sort,
-                &mut conv::bug_on_sort_vid,
-            )))
-        }
-        fhir::ItemKind::Impl(impl_) => {
-            let assoc_pred = impl_.find_assoc_predicate(name).unwrap();
-            let inputs = assoc_pred
+            let assoc_reft = trait_.find_assoc_reft(name)?;
+            let inputs = assoc_reft
                 .params
                 .iter()
                 .map(|p| conv::resolve_param_sort(genv, p, None))
                 .collect_vec();
-            Some(rty::EarlyBinder(rty::FuncSort::new(inputs, rty::Sort::Bool)))
+            let output = conv::conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort);
+            Some(rty::EarlyBinder(rty::FuncSort::new(inputs, output)))
+        }
+        fhir::ItemKind::Impl(impl_) => {
+            let assoc_reft = impl_.find_assoc_reft(name).unwrap();
+            let inputs = assoc_reft
+                .params
+                .iter()
+                .map(|p| conv::resolve_param_sort(genv, p, None))
+                .collect_vec();
+            let output = conv::conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort);
+            Some(rty::EarlyBinder(rty::FuncSort::new(inputs, output)))
         }
         _ => {
             bug!("expected trait or impl");
@@ -374,7 +378,7 @@ fn check_wf_flux_item<'genv>(
 ) -> QueryResult<Rc<WfckResults<'genv>>> {
     let wfckresults = match genv.map().get_flux_item(sym).unwrap() {
         fhir::FluxItem::Qualifier(qualifier) => wf::check_qualifier(genv, qualifier)?,
-        fhir::FluxItem::Func(defn) => wf::check_defn(genv, defn)?,
+        fhir::FluxItem::Func(defn) => wf::check_spec_func(genv, defn)?,
     };
     Ok(Rc::new(wfckresults))
 }

@@ -1,5 +1,5 @@
 #[flux::generics(Self as base)]
-#[flux::predicate{ f : (Self) -> bool }]
+#[flux::assoc(fn f(self: Self) -> bool)]
 pub trait MyTrait {
     fn method(&self) -> i32;
 }

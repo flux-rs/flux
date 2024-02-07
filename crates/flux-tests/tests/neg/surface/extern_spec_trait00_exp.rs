@@ -8,13 +8,13 @@ pub trait MyTrait {
 // the "extern" spec
 // #[extern_spec]
 // #[flux::generics(Self as base)]
-// #[flux::predicate(f: (Self) -> bool)]
+// #[flux::assoc(fn f(self: Self) -> bool)]
 // trait MyTrait {}
 
 // the "generated" wrapper trait
 #[flux::extern_spec]
 #[flux::generics(Self as base)]
-#[flux::predicate(f: (Self) -> bool)]
+#[flux::assoc(fn f(self: Self) -> bool)]
 trait __FluxExternTraitMyTrait: MyTrait {}
 
 // -----------------------------------------------------------------------------------
