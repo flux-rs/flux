@@ -489,7 +489,7 @@ pub enum TyKind<'fhir> {
     Exists(&'fhir [RefineParam<'fhir>], &'fhir Ty<'fhir>),
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
-    Constr(Pred<'fhir>, &'fhir Ty<'fhir>),
+    Constr(Expr<'fhir>, &'fhir Ty<'fhir>),
     Ptr(Lifetime, Ident),
     Ref(Lifetime, MutTy<'fhir>),
     Tuple(&'fhir [Ty<'fhir>]),
@@ -753,19 +753,6 @@ impl<'fhir> PolyFuncSort<'fhir> {
 }
 
 #[derive(Clone, Copy)]
-pub struct Pred<'fhir> {
-    pub kind: PredKind<'fhir>,
-    pub span: Span,
-    pub fhir_id: FhirId,
-}
-
-#[derive(Clone, Copy)]
-pub enum PredKind<'fhir> {
-    Expr(Expr<'fhir>),
-    Alias(AliasPred<'fhir>, &'fhir [Expr<'fhir>]),
-}
-
-#[derive(Clone, Copy)]
 pub struct AliasPred<'fhir> {
     pub trait_id: DefId,
     pub name: Symbol,
@@ -788,6 +775,7 @@ pub enum ExprKind<'fhir> {
     BinaryOp(BinOp, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     UnaryOp(UnOp, &'fhir Expr<'fhir>),
     App(Func, &'fhir [Expr<'fhir>]),
+    Alias(AliasPred<'fhir>, &'fhir [Expr<'fhir>]),
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
 }
 
@@ -1289,17 +1277,6 @@ impl fmt::Debug for AliasPred<'_> {
     }
 }
 
-impl fmt::Debug for Pred<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
-            PredKind::Expr(expr) => write!(f, "{expr:?}"),
-            PredKind::Alias(alias_pred, refine_args) => {
-                write!(f, "{alias_pred:?}({:?})", refine_args.iter().format(", "))
-            }
-        }
-    }
-}
-
 impl fmt::Debug for Expr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
@@ -1309,6 +1286,9 @@ impl fmt::Debug for Expr<'_> {
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
             ExprKind::Const(x, _) => write!(f, "{}", pretty::def_id_to_string(*x)),
             ExprKind::App(uf, es) => write!(f, "{uf:?}({:?})", es.iter().format(", ")),
+            ExprKind::Alias(alias_pred, refine_args) => {
+                write!(f, "{alias_pred:?}({:?})", refine_args.iter().format(", "))
+            }
             ExprKind::IfThenElse(p, e1, e2) => {
                 write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")
             }

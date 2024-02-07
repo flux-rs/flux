@@ -78,7 +78,7 @@ fn spec_func_defns(genv: GlobalEnv) -> QueryResult<rty::SpecFuncDefns> {
     let mut defns = FxHashMap::default();
     for func in genv.map().spec_funcs() {
         let wfckresults = genv.check_wf(FluxLocalDefId::Flux(func.name))?;
-        if let Some(defn) = conv::conv_defn(genv, func, &wfckresults) {
+        if let Some(defn) = conv::conv_defn(genv, func, &wfckresults)? {
             defns.insert(defn.name, defn);
         }
     }
@@ -96,7 +96,7 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
         .qualifiers()
         .map(|qualifier| {
             let wfckresults = genv.check_wf(FluxLocalDefId::Flux(qualifier.name))?;
-            normalize(genv, conv::conv_qualifier(genv, qualifier, &wfckresults))
+            normalize(genv, conv::conv_qualifier(genv, qualifier, &wfckresults)?)
         })
         .try_collect()
 }
@@ -108,7 +108,7 @@ fn invariants_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::In
         _ => bug!("expected struct or enum"),
     };
     let wfckresults = genv.check_wf(def_id)?;
-    conv::conv_invariants(genv, def_id, params, invariants, &wfckresults)
+    conv::conv_invariants(genv, def_id, params, invariants, &wfckresults)?
         .into_iter()
         .map(|invariant| normalize(genv, invariant))
         .collect()
@@ -185,7 +185,7 @@ fn assoc_predicate_def(
         .find_assoc_predicate(name)
         .unwrap();
     let wfckresults = genv.check_wf(impl_id)?;
-    Ok(rty::EarlyBinder(conv::conv_assoc_pred_def(genv, assoc_pred, &wfckresults)))
+    Ok(rty::EarlyBinder(conv::conv_assoc_pred_def(genv, assoc_pred, &wfckresults)?))
 }
 
 fn sort_of_assoc_pred(

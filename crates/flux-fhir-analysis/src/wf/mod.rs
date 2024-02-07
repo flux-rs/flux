@@ -12,7 +12,6 @@ use flux_errors::{FluxSession, ResultExt};
 use flux_middle::{
     fhir::{self, FluxOwnerId, SurfaceIdent},
     global_env::GlobalEnv,
-    pretty::def_id_to_string,
     rty::{self, GenericParamDefKind, WfckResults},
 };
 use rustc_data_structures::{
@@ -22,13 +21,10 @@ use rustc_data_structures::{
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
 use rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
-use rustc_span::{Span, Symbol};
+use rustc_span::Symbol;
 
 use self::sortck::InferCtxt;
-use crate::{
-    compare_impl_item::errors::InvalidAssocPredicate,
-    conv::{self, bug_on_sort_vid},
-};
+use crate::conv::{self, bug_on_sort_vid};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -385,7 +381,7 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
             }
             fhir::TyKind::Constr(pred, ty) => {
                 self.check_type(infcx, ty)?;
-                self.check_pred(infcx, pred)
+                self.check_expr_as_pred(infcx, pred)
             }
             fhir::TyKind::OpaqueDef(item_id, args, _refine_args, _) => {
                 // TODO sanity check the _refine_args (though they should never fail!) but we'd need their expected sorts
@@ -518,41 +514,6 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
         self.check_param_uses_expr(infcx, expr, true)
     }
 
-    fn check_alias_pred_app(
-        &mut self,
-        infcx: &mut InferCtxt,
-        alias_pred: &fhir::AliasPred,
-        args: &[fhir::Expr],
-        span: Span,
-    ) -> Result {
-        let Some(fsort) = self.genv.sort_of_alias_pred(alias_pred) else {
-            return self.emit_err(InvalidAssocPredicate::new(
-                span,
-                alias_pred.name,
-                def_id_to_string(alias_pred.trait_id),
-            ));
-        };
-        if args.len() != fsort.inputs().len() {
-            return self.emit_err(errors::ArgCountMismatch::new(
-                Some(span),
-                String::from("function"),
-                fsort.inputs().len(),
-                args.len(),
-            ));
-        }
-        iter::zip(args, fsort.inputs())
-            .try_for_each_exhaust(|(arg, formal)| infcx.check_expr(arg, formal))
-    }
-
-    fn check_pred(&mut self, infcx: &mut InferCtxt, pred: &fhir::Pred) -> Result {
-        match &pred.kind {
-            fhir::PredKind::Expr(expr) => self.check_expr_as_pred(infcx, expr),
-            fhir::PredKind::Alias(alias_pred, args) => {
-                self.check_alias_pred_app(infcx, alias_pred, args, pred.span)
-            }
-        }
-    }
-
     /// Checks that refinement parameters of function sort are used in allowed positions.
     fn check_param_uses_refine_arg(
         &mut self,
@@ -601,6 +562,12 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
                     ));
                 }
                 args.iter()
+                    .try_for_each_exhaust(|arg| self.check_param_uses_expr(infcx, arg, false))
+            }
+            fhir::ExprKind::Alias(_, func_args) => {
+                // TODO(nilehmann) should we check the usage inside the `AliasPred`?
+                func_args
+                    .iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses_expr(infcx, arg, false))
             }
             fhir::ExprKind::Var(var, _) => {

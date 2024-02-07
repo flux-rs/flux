@@ -474,7 +474,7 @@ impl BasicBlockEnvShape {
                 let sorts = sort_def.sorts(args);
                 debug_assert_eq3!(flds1.len(), flds2.len(), sorts.len());
 
-                Expr::record(
+                Expr::adt(
                     sort_def.did(),
                     izip!(flds1, flds2, &sorts)
                         .map(|(f1, f2, sort)| self.join_idx(f1, f2, sort, bound_sorts))
