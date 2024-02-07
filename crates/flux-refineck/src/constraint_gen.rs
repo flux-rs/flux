@@ -25,7 +25,7 @@ use rustc_span::Span;
 use crate::{
     checker::errors::CheckerErrKind,
     fixpoint_encoding::KVarEncoding,
-    refine_tree::{AssumeInvariants, RefineCtxt, Scope, Snapshot},
+    refine_tree::{RefineCtxt, Scope, Snapshot},
     type_env::TypeEnv,
 };
 
@@ -506,7 +506,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         // We *fully* unpack the rhs before continuing to be able to prove goals like this
         // ∃a. (i32[a], ∃b. {i32[b] | a > b})} <: ∃a,b. ({i32[a] | b < a}, i32[b])
         // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
-        let ty1 = rcx.unpack(ty1, AssumeInvariants::No);
+        let ty1 = rcx.unpack(ty1);
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Exists(..), _) => {

@@ -222,12 +222,12 @@ impl<'rcx> RefineCtxt<'rcx> {
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    pub(crate) fn unpack(&mut self, ty: &Ty, assume_invariants: AssumeInvariants) -> Ty {
-        self.unpacker(assume_invariants).unpack(ty)
+    pub(crate) fn unpack(&mut self, ty: &Ty) -> Ty {
+        self.unpacker().unpack(ty)
     }
 
-    pub(crate) fn unpacker(&mut self, assume_invariants: AssumeInvariants) -> Unpacker<'_, 'rcx> {
-        Unpacker::new(self, assume_invariants)
+    pub(crate) fn unpacker(&mut self) -> Unpacker<'_, 'rcx> {
+        Unpacker::new(self)
     }
 
     pub(crate) fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
@@ -265,6 +265,11 @@ impl<'rcx> RefineCtxt<'rcx> {
     }
 }
 
+enum AssumeInvariants {
+    Yes { check_overflow: bool },
+    No,
+}
+
 pub(crate) struct Unpacker<'a, 'rcx> {
     rcx: &'a mut RefineCtxt<'rcx>,
     in_mut_ref: bool,
@@ -274,27 +279,21 @@ pub(crate) struct Unpacker<'a, 'rcx> {
     assume_invariants: AssumeInvariants,
 }
 
-pub(crate) enum AssumeInvariants {
-    Yes { check_overflow: bool },
-    No,
-}
-
-impl AssumeInvariants {
-    pub(crate) fn yes(check_overflow: bool) -> Self {
-        Self::Yes { check_overflow }
-    }
-}
-
 impl<'a, 'rcx> Unpacker<'a, 'rcx> {
-    fn new(rcx: &'a mut RefineCtxt<'rcx>, assume_invariants: AssumeInvariants) -> Self {
+    fn new(rcx: &'a mut RefineCtxt<'rcx>) -> Self {
         Self {
             rcx,
             in_mut_ref: false,
             unpack_inside_mut_ref: false,
             shallow: false,
             unpack_exists: true,
-            assume_invariants,
+            assume_invariants: AssumeInvariants::No,
         }
+    }
+
+    pub(crate) fn assume_invariants(mut self, check_overflow: bool) -> Self {
+        self.assume_invariants = AssumeInvariants::Yes { check_overflow };
+        self
     }
 
     pub(crate) fn unpack_inside_mut_ref(mut self, unpack_inside_mut_ref: bool) -> Self {

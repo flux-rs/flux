@@ -17,9 +17,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 
 use crate::{
-    checker::errors::CheckerErrKind,
-    constraint_gen::ConstrGen,
-    refine_tree::{AssumeInvariants, RefineCtxt},
+    checker::errors::CheckerErrKind, constraint_gen::ConstrGen, refine_tree::RefineCtxt,
     CheckerConfig,
 };
 
@@ -104,10 +102,7 @@ impl LookupMode for Unfold<'_, '_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.1
-            .unpacker(AssumeInvariants::No)
-            .shallow(true)
-            .unpack(ty)
+        self.1.unpacker().shallow(true).unpack(ty)
     }
 
     fn downcast_struct(
@@ -342,7 +337,10 @@ impl LookupResult<'_> {
         }
         let mut unblocked = self.ty.unblocked();
         if self.is_strg {
-            unblocked = rcx.unpack(&unblocked, AssumeInvariants::yes(check_overflow));
+            unblocked = rcx
+                .unpacker()
+                .assume_invariants(check_overflow)
+                .unpack(&unblocked);
         }
         Updater::update(self.bindings, self.cursor, unblocked);
     }
@@ -557,13 +555,14 @@ impl<'a, 'rcx, 'genv, 'tcx> Unfolder<'a, 'rcx, 'genv, 'tcx> {
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
         self.rcx
-            .unpacker(AssumeInvariants::yes(self.checker_conf.check_overflow))
+            .unpacker()
+            .assume_invariants(self.checker_conf.check_overflow)
             .shallow(true)
             .unpack(ty)
     }
 
     fn unpack_for_downcast(&mut self, ty: &Ty) -> Ty {
-        let mut unpacker = self.rcx.unpacker(AssumeInvariants::No).shallow(true);
+        let mut unpacker = self.rcx.unpacker().shallow(true);
         if self.in_ref == Some(Mutability::Mut) {
             unpacker = unpacker.unpack_exists(false);
         }

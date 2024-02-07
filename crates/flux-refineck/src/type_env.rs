@@ -25,7 +25,7 @@ use crate::{
     checker::errors::CheckerErrKind,
     constraint_gen::{ConstrGen, ConstrReason},
     fixpoint_encoding::{KVarEncoding, KVarStore},
-    refine_tree::{AssumeInvariants, RefineCtxt, Scope},
+    refine_tree::{RefineCtxt, Scope},
     rty::VariantIdx,
     CheckerConfig,
 };
@@ -200,7 +200,7 @@ impl TypeEnv<'_> {
 
     pub(crate) fn unpack(&mut self, rcx: &mut RefineCtxt, check_overflow: bool) {
         self.bindings
-            .fmap_mut(|ty| rcx.unpack(ty, AssumeInvariants::yes(check_overflow)));
+            .fmap_mut(|ty| rcx.unpacker().assume_invariants(check_overflow).unpack(ty));
     }
 
     pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place, check_overflow: bool) {

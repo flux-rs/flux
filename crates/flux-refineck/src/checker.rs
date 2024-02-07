@@ -40,7 +40,7 @@ use crate::{
     fixpoint_encoding::{self, KVarStore},
     ghost_statements::{GhostStatement, GhostStatements, Point},
     queue::WorkQueue,
-    refine_tree::{AssumeInvariants, RefineCtxt, RefineSubtree, RefineTree, Snapshot},
+    refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     sigs,
     type_env::{BasicBlockEnv, BasicBlockEnvShape, TypeEnv},
 };
@@ -346,7 +346,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         ty: Ty,
         source_info: SourceInfo,
     ) -> Result {
-        let ty = rcx.unpack(&ty, AssumeInvariants::yes(self.check_overflow()));
+        let ty = rcx
+            .unpacker()
+            .assume_invariants(self.check_overflow())
+            .unpack(&ty);
         let gen = &mut self.constr_gen(rcx, source_info.span);
         env.assign(rcx, gen, place, ty).with_src_info(source_info)
     }
@@ -463,7 +466,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     &actuals,
                 )?;
 
-                let ret = rcx.unpack(&ret, AssumeInvariants::No);
+                let ret = rcx.unpack(&ret);
                 rcx.assume_invariants(&ret, self.check_overflow());
                 let mut gen = self.constr_gen(rcx, terminator_span);
                 env.assign(rcx, &mut gen, destination, ret)
@@ -515,7 +518,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         for constr in &output.ensures {
             match constr {
                 Constraint::Type(path, updated_ty, _) => {
-                    let updated_ty = rcx.unpack(updated_ty, AssumeInvariants::No);
+                    let updated_ty = rcx.unpack(updated_ty);
                     rcx.assume_invariants(&updated_ty, self.check_overflow());
                     env.update_path(path, updated_ty);
                 }
@@ -997,7 +1000,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Operand::Move(p) => env.move_place(self.genv, rcx, p).with_span(source_span)?,
             Operand::Constant(c) => self.check_constant(c)?,
         };
-        Ok(rcx.unpack(&ty, AssumeInvariants::yes(self.check_overflow())))
+        Ok(rcx
+            .unpacker()
+            .assume_invariants(self.check_overflow())
+            .unpack(&ty))
     }
 
     fn check_constant(&mut self, c: &Constant) -> Result<Ty> {
@@ -1107,7 +1113,7 @@ fn init_env<'a>(
         match constr {
             rty::Constraint::Type(path, ty, local) => {
                 let loc = path.to_loc().unwrap();
-                let ty = rcx.unpack(ty, AssumeInvariants::No);
+                let ty = rcx.unpack(ty);
                 rcx.assume_invariants(&ty, config.check_overflow);
                 env.alloc_universal_loc(loc, Place::new(*local, vec![PlaceElem::Deref]), ty);
             }
@@ -1118,7 +1124,7 @@ fn init_env<'a>(
     }
 
     for (local, ty) in body.args_iter().zip(fn_sig.args()) {
-        let ty = rcx.unpack(ty, AssumeInvariants::No);
+        let ty = rcx.unpack(ty);
         rcx.assume_invariants(&ty, config.check_overflow);
         env.alloc_with_ty(local, ty);
     }
@@ -1185,9 +1191,7 @@ fn infer_under_mut_ref_hack(
                 (actual.kind(), formal.kind())
                 && let TyKind::Indexed(..) = ty.kind()
             {
-                rcx.unpacker(AssumeInvariants::No)
-                    .unpack_inside_mut_ref(true)
-                    .unpack(actual)
+                rcx.unpacker().unpack_inside_mut_ref(true).unpack(actual)
             } else {
                 actual.clone()
             }
