@@ -52,7 +52,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         if let Some(impl_id) = self.impl_id_of_alias_ty(alias_pred)? {
             let pred = self
                 .genv
-                .assoc_predicate_def(impl_id, alias_pred.name)?
+                .assoc_refinement_def(impl_id, alias_pred.name)?
                 .instantiate(&alias_pred.args, &[]);
             let expr = pred.replace_bound_exprs(refine_args);
             Ok(expr)

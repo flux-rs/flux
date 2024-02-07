@@ -260,43 +260,45 @@ pub enum TraitBoundModifier {
 
 pub struct Trait<'fhir> {
     pub generics: Generics<'fhir>,
-    pub assoc_predicates: &'fhir [TraitAssocPredicate<'fhir>],
+    pub assoc_refinements: &'fhir [TraitAssocReft<'fhir>],
 }
 
 impl<'fhir> Trait<'fhir> {
-    pub fn find_assoc_predicate(&self, name: Symbol) -> Option<&'fhir TraitAssocPredicate<'fhir>> {
-        self.assoc_predicates
+    pub fn find_assoc_reft(&self, name: Symbol) -> Option<&'fhir TraitAssocReft<'fhir>> {
+        self.assoc_refinements
             .iter()
-            .find(|assoc_pred| assoc_pred.name == name)
+            .find(|assoc_reft| assoc_reft.name == name)
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct TraitAssocPredicate<'fhir> {
+pub struct TraitAssocReft<'fhir> {
     pub name: Symbol,
-    pub sort: FuncSort<'fhir>,
+    pub params: &'fhir [RefineParam<'fhir>],
+    pub output: Sort<'fhir>,
     pub span: Span,
 }
 
 pub struct Impl<'fhir> {
     pub generics: Generics<'fhir>,
-    pub assoc_predicates: &'fhir [ImplAssocPredicate<'fhir>],
+    pub assoc_refinements: &'fhir [ImplAssocReft<'fhir>],
     /// Whether this is a wrapper for an extern impl
     pub extern_id: Option<DefId>,
 }
 
 impl<'fhir> Impl<'fhir> {
-    pub fn find_assoc_predicate(&self, name: Symbol) -> Option<&'fhir ImplAssocPredicate<'fhir>> {
-        self.assoc_predicates
+    pub fn find_assoc_reft(&self, name: Symbol) -> Option<&'fhir ImplAssocReft<'fhir>> {
+        self.assoc_refinements
             .iter()
-            .find(|assoc_pred| assoc_pred.name == name)
+            .find(|assoc_reft| assoc_reft.name == name)
     }
 }
 
 #[derive(Clone, Copy)]
-pub struct ImplAssocPredicate<'fhir> {
+pub struct ImplAssocReft<'fhir> {
     pub name: Symbol,
     pub params: &'fhir [RefineParam<'fhir>],
+    pub output: Sort<'fhir>,
     pub body: Expr<'fhir>,
     pub span: Span,
 }

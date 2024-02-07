@@ -91,9 +91,15 @@ impl<V> std::ops::DerefMut for ScopedVisitorWrapper<V> {
 }
 
 impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
-    fn visit_impl_assoc_pred(&mut self, assoc_pred: &surface::ImplAssocPredicate) {
+    fn visit_trait_assoc_reft(&mut self, assoc_reft: &surface::TraitAssocReft) {
         self.with_scope(ScopeKind::Misc, |this| {
-            surface::visit::walk_impl_assoc_pred(this, assoc_pred);
+            surface::visit::walk_trait_assoc_reft(this, assoc_reft);
+        });
+    }
+
+    fn visit_impl_assoc_reft(&mut self, assoc_reft: &surface::ImplAssocReft) {
+        self.with_scope(ScopeKind::Misc, |this| {
+            surface::visit::walk_impl_assoc_reft(this, assoc_reft);
         });
     }
 

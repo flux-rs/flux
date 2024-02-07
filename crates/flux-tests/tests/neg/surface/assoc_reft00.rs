@@ -1,12 +1,12 @@
 // Step 1 : declare -------------------------------
 #[flux::generics(Self as base)]
-#[flux::predicate{ f : (Self) -> bool }]
+#[flux::assoc(fn f(self: Self) -> bool )]
 pub trait MyTrait {
     fn method(&self) -> i32;
 }
 
 // Step 2 : implement -----------------------------
-#[flux::predicate{ f = |x:int| { 0 < x } }] // TODO: check against trait-def
+#[flux::assoc(fn f(x: int) -> bool { 0 < x })] // TODO: check against trait-def
 impl MyTrait for i32 {
     fn method(&self) -> i32 {
         10

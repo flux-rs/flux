@@ -76,21 +76,6 @@ impl UnresolvedGenericParam {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_assoc_predicate, code = "FLUX")]
-pub(super) struct InvalidAssocPredicate {
-    #[primary_span]
-    #[label]
-    span: Span,
-    name: Symbol,
-}
-
-impl InvalidAssocPredicate {
-    pub(super) fn new(span: Span, name: Symbol) -> Self {
-        Self { span, name }
-    }
-}
-
-#[derive(Diagnostic)]
 #[diag(desugar_invalid_constant, code = "FLUX")]
 pub(super) struct InvalidConstant {
     #[primary_span]

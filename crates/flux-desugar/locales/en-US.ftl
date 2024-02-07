@@ -31,10 +31,6 @@ desugar_invalid_numeric_suffix =
     invalid suffix `{$suffix}` for number literal
     .label = the suffix must be one of the numeric sorts `int` or `real`
 
-desugar_invalid_assoc_predicate =
-    invalid associated predicate
-    .label = associated predicate must be specified as `{$name} : (t1,...,tn) -> bool`
-
 # Resolve errors
 
 desugar_duplicate_param =

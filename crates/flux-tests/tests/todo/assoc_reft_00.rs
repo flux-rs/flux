@@ -1,6 +1,6 @@
 // Step 1
 #[flux::generics(Self as base)]
-#[flux::predicate{ f : (Self) -> bool }]
+#[flux::assoc(fn f(self: Self) -> bool )]
 trait MyTrait {
     fn method(&self) -> i32;
 }
@@ -12,7 +12,7 @@ fn bob<T: MyTrait>(x: &T) {
 }
 
 // Step 3
-#[flux::predicate{ f : |x| { 0 < x } }]
+#[flux::assoc(fn f(x: int) -> bool { 0 < x } )]
 impl MyTrait for i32 {
     fn method(&self) -> i32 {
         10

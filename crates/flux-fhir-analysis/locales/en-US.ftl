@@ -169,8 +169,8 @@ fhir_analysis_assoc_type_not_found =
 # Check impl against trait errors
 
 fhir_analysis_incompatible_sort =
-    implemented associated predicate `{$name}` has an incompatible sort for trait
+    implemented associated refinement `{$name}` has an incompatible sort for trait
     .label = expected `{$expected}`, found `{$found}`
 
-fhir_analysis_invalid_assoc_predicate =
-    associated predicate `{$name}` is not a member of trait `{$trait_id}`
+fhir_analysis_invalid_assoc_reft =
+    associated refinement `{$name}` is not a member of trait `{$trait_id}`

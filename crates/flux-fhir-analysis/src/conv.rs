@@ -96,7 +96,7 @@ pub(crate) fn conv_adt_sort_def(
     let fields = refined_by
         .index_params
         .iter()
-        .map(|(name, sort)| (*name, conv_sort(genv, sort, &mut bug_on_sort_vid)))
+        .map(|(name, sort)| (*name, conv_sort(genv, sort, &mut bug_on_infer_sort)))
         .collect_vec();
     let def_id = genv
         .map()
@@ -329,15 +329,15 @@ pub(crate) fn conv_fn_decl<'genv>(
     Ok(rty::EarlyBinder(res))
 }
 
-pub(crate) fn conv_assoc_pred_def<'genv>(
+pub(crate) fn conv_assoc_reft_def<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    assoc_pred: &fhir::ImplAssocPredicate,
+    assoc_reft: &fhir::ImplAssocReft,
     wfckresults: &WfckResults<'genv>,
 ) -> QueryResult<rty::Lambda> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults);
-    env.push_layer(Layer::list(&cx, 0, assoc_pred.params, false));
-    let expr = cx.conv_expr(&mut env, &assoc_pred.body)?;
+    env.push_layer(Layer::list(&cx, 0, assoc_reft.params, false));
+    let expr = cx.conv_expr(&mut env, &assoc_reft.body)?;
     Ok(rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv)))
 }
 
@@ -1242,7 +1242,7 @@ pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> rty::SpecFuncDe
         .iter()
         .map(|p| &p.sort)
         .chain(iter::once(&func.sort))
-        .map(|sort| conv_sort(genv, sort, &mut bug_on_sort_vid))
+        .map(|sort| conv_sort(genv, sort, &mut bug_on_infer_sort))
         .collect();
     let sort = rty::PolyFuncSort::new(func.params, rty::FuncSort { inputs_and_output });
     let kind = if func.body.is_some() { fhir::SpecFuncKind::Def } else { fhir::SpecFuncKind::Uif };
@@ -1283,7 +1283,7 @@ pub(crate) fn resolve_param_sort(
             .unwrap_or_else(|| bug!("unresolved sort for param: `{param:?}`"))
             .clone()
     } else {
-        conv_sort(genv, &param.sort, &mut bug_on_sort_vid)
+        conv_sort(genv, &param.sort, &mut bug_on_infer_sort)
     }
 }
 
@@ -1355,7 +1355,7 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
     }
 }
 
-pub(crate) fn bug_on_sort_vid() -> rty::SortVid {
+pub(crate) fn bug_on_infer_sort() -> rty::SortVid {
     bug!("unexpected infer sort")
 }
 

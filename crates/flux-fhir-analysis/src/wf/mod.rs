@@ -24,7 +24,7 @@ use rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
 use rustc_span::Symbol;
 
 use self::sortck::InferCtxt;
-use crate::conv::{self, bug_on_sort_vid};
+use crate::conv::{self, bug_on_infer_sort};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -56,7 +56,7 @@ pub(crate) fn check_qualifier<'genv>(
     Ok(infcx.into_results())
 }
 
-pub(crate) fn check_defn<'genv>(
+pub(crate) fn check_spec_func<'genv>(
     genv: GlobalEnv<'genv, '_>,
     func: &fhir::SpecFunc,
 ) -> Result<WfckResults<'genv>> {
@@ -64,7 +64,7 @@ pub(crate) fn check_defn<'genv>(
     let mut infcx = InferCtxt::new(genv, owner);
     if let Some(body) = &func.body {
         infcx.insert_params(func.args);
-        let output = conv::conv_sort(genv, &func.sort, &mut bug_on_sort_vid);
+        let output = conv::conv_sort(genv, &func.sort, &mut bug_on_infer_sort);
         infcx.check_expr(body, &output)?;
     }
     Ok(infcx.into_results())
@@ -170,11 +170,10 @@ pub(crate) fn check_impl<'genv>(
 ) -> Result<WfckResults<'genv>> {
     let mut infcx = InferCtxt::new(genv, owner_id.into());
 
-    // TODO(RJ): multiple-predicates
-
-    for assoc_pred in impl_.assoc_predicates {
-        infcx.insert_params(assoc_pred.params);
-        infcx.check_expr(&assoc_pred.body, &rty::Sort::Bool)?;
+    for assoc_reft in impl_.assoc_refinements {
+        infcx.insert_params(assoc_reft.params);
+        let output = conv::conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort);
+        infcx.check_expr(&assoc_reft.body, &output)?;
     }
 
     Ok(infcx.into_results())

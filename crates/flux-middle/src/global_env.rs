@@ -242,26 +242,26 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.predicates_of(self, def_id.into())
     }
 
-    pub fn assoc_predicates_of(self, def_id: impl Into<DefId>) -> rty::AssocPredicates {
-        self.inner.queries.assoc_predicates_of(self, def_id.into())
+    pub fn assoc_refinements_of(self, def_id: impl Into<DefId>) -> rty::AssocPredicates {
+        self.inner.queries.assoc_refinements_of(self, def_id.into())
     }
 
-    pub fn assoc_predicate_def(
+    pub fn assoc_refinement_def(
         self,
         impl_id: DefId,
         name: Symbol,
     ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
-        self.inner.queries.assoc_predicate_def(self, impl_id, name)
+        self.inner.queries.assoc_refinement_def(self, impl_id, name)
     }
 
-    pub fn sort_of_assoc_pred(
+    pub fn sort_of_assoc_reft(
         self,
         def_id: impl Into<DefId>,
         name: Symbol,
     ) -> Option<rty::EarlyBinder<rty::FuncSort>> {
         self.inner
             .queries
-            .sort_of_assoc_pred(self, def_id.into(), name)
+            .sort_of_assoc_reft(self, def_id.into(), name)
     }
 
     pub fn item_bounds(self, def_id: DefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
