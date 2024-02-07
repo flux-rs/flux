@@ -627,12 +627,6 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 let bty = self.desugar_path_to_bty(path)?;
 
                 let pred = self.desugar_expr(pred)?;
-                let span = pred.span;
-                let pred = fhir::Pred {
-                    kind: fhir::PredKind::Expr(pred),
-                    span,
-                    fhir_id: self.next_fhir_id(),
-                };
 
                 let ty = if let Some(idx) = self.implicit_param_into_refine_arg(*bind, *node_id) {
                     fhir::Ty { kind: fhir::TyKind::Indexed(bty, idx), span: path.span }
@@ -779,12 +773,6 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 let mut ty = self.desugar_ty(ty)?;
                 if let Some(pred) = pred {
                     let pred = self.desugar_expr(pred)?;
-                    let span = ty.span.to(pred.span);
-                    let pred = fhir::Pred {
-                        kind: fhir::PredKind::Expr(pred),
-                        span,
-                        fhir_id: self.next_fhir_id(),
-                    };
                     ty = fhir::Ty { kind: fhir::TyKind::Constr(pred, self.genv.alloc(ty)), span };
                 }
                 let params = self.desugar_refine_params(params);
@@ -924,29 +912,29 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     fn desugar_alias_pred(
         &mut self,
+        span: Span,
         alias_pred: &surface::AliasPred,
         func_args: &[surface::Expr],
-    ) -> Result<fhir::PredKind<'genv>> {
+    ) -> Result<fhir::Expr<'genv>> {
         let path = self.desugar_path(&alias_pred.trait_id)?;
         if let Res::Def(DefKind::Trait, trait_id) = path.res {
             let (generic_args, _) = self.desugar_generic_args(path.res, &alias_pred.args)?;
             let args = try_alloc_slice!(self.genv, func_args, |e| self.desugar_expr(e))?;
             let alias_pred = fhir::AliasPred { trait_id, name: alias_pred.name.name, generic_args };
-            Ok(fhir::PredKind::Alias(alias_pred, args))
+            let kind = fhir::ExprKind::Alias(alias_pred, args);
+            Ok(fhir::Expr { kind, span, fhir_id: self.next_fhir_id() })
         } else {
             Err(self.emit_err(errors::InvalidAliasPred::new(&alias_pred.trait_id)))
         }
     }
 
-    fn desugar_pred(&mut self, pred: &surface::Pred) -> Result<fhir::Pred<'genv>> {
-        let kind = match &pred.kind {
-            surface::PredKind::Expr(expr) => fhir::PredKind::Expr(self.desugar_expr(expr)?),
+    fn desugar_pred(&mut self, pred: &surface::Pred) -> Result<fhir::Expr<'genv>> {
+        match &pred.kind {
+            surface::PredKind::Expr(expr) => self.desugar_expr(expr),
             surface::PredKind::Alias(alias_pred, args) => {
-                self.desugar_alias_pred(alias_pred, args)?
+                self.desugar_alias_pred(pred.span, alias_pred, args)
             }
-        };
-        let span = pred.span;
-        Ok(fhir::Pred { kind, span, fhir_id: self.next_fhir_id() })
+        }
     }
 
     fn desugar_generic_args(

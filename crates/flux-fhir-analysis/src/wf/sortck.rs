@@ -6,6 +6,7 @@ use flux_errors::{ErrorCollector, ErrorGuaranteed};
 use flux_middle::{
     fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
+    pretty,
     rty::{self, WfckResults},
 };
 use itertools::izip;
@@ -14,7 +15,7 @@ use rustc_errors::IntoDiagnostic;
 use rustc_span::{def_id::DefId, Span};
 
 use super::errors;
-use crate::conv;
+use crate::{compare_impl_item::errors::InvalidAssocPredicate, conv};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -125,12 +126,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_expr(e1, expected)?;
                 self.check_expr(e2, expected)?;
             }
-            fhir::ExprKind::UnaryOp(_, _)
-            | fhir::ExprKind::Dot(_, _)
-            | fhir::ExprKind::App(_, _)
-            | fhir::ExprKind::Const(_, _)
+            fhir::ExprKind::UnaryOp(..)
+            | fhir::ExprKind::Dot(..)
+            | fhir::ExprKind::App(..)
+            | fhir::ExprKind::Alias(..)
+            | fhir::ExprKind::Const(..)
             | fhir::ExprKind::Var(..)
-            | fhir::ExprKind::Literal(_) => {
+            | fhir::ExprKind::Literal(..) => {
                 let found = self.synth_expr(expr)?;
                 if !self.is_coercible(&found, expected, expr.fhir_id) {
                     return Err(self.emit_sort_mismatch(expr.span, expected, &found));
@@ -201,6 +203,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
             fhir::ExprKind::Const(_, _) => Ok(rty::Sort::Int), // TODO: generalize const sorts
             fhir::ExprKind::App(f, es) => self.synth_app(f, es, expr.span),
+            fhir::ExprKind::Alias(alias_pred, func_args) => {
+                self.synth_alias_pred_app(alias_pred, func_args, expr.span)
+            }
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 self.check_expr(p, &rty::Sort::Bool)?;
                 let sort = self.synth_expr(e1)?;
@@ -300,6 +305,33 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             )));
         }
 
+        iter::zip(args, fsort.inputs())
+            .try_for_each_exhaust(|(arg, formal)| self.check_expr(arg, formal))?;
+
+        Ok(fsort.output().clone())
+    }
+
+    fn synth_alias_pred_app(
+        &mut self,
+        alias_pred: &fhir::AliasPred,
+        args: &[fhir::Expr],
+        span: Span,
+    ) -> Result<rty::Sort> {
+        let Some(fsort) = self.genv.sort_of_alias_pred(alias_pred) else {
+            return Err(self.emit_err(InvalidAssocPredicate::new(
+                span,
+                alias_pred.name,
+                pretty::def_id_to_string(alias_pred.trait_id),
+            )));
+        };
+        if args.len() != fsort.inputs().len() {
+            return Err(self.emit_err(errors::ArgCountMismatch::new(
+                Some(span),
+                String::from("function"),
+                fsort.inputs().len(),
+                args.len(),
+            )));
+        }
         iter::zip(args, fsort.inputs())
             .try_for_each_exhaust(|(arg, formal)| self.check_expr(arg, formal))?;
 

@@ -342,7 +342,7 @@ impl Expr {
         Expr::aggregate(AggregateKind::Tuple, flds)
     }
 
-    pub fn record(def_id: DefId, flds: List<Expr>) -> Expr {
+    pub fn adt(def_id: DefId, flds: List<Expr>) -> Expr {
         ExprKind::Aggregate(AggregateKind::Adt(def_id), flds).intern()
     }
 
@@ -394,7 +394,7 @@ impl Expr {
     }
 
     pub fn unit_adt(def_id: DefId) -> Expr {
-        Expr::record(def_id, List::empty())
+        Expr::adt(def_id, List::empty())
     }
 
     pub fn app(func: impl Into<Expr>, args: impl Into<List<Expr>>, espan: Option<ESpan>) -> Expr {
@@ -597,7 +597,7 @@ impl Expr {
                 Sort::Tuple(sorts) => Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect()),
                 Sort::Adt(adt_sort_def, args) => {
                     let flds = adt_sort_def.sorts(args);
-                    Expr::record(adt_sort_def.did(), flds.iter().map(|sort| go(sort, f)).collect())
+                    Expr::adt(adt_sort_def.did(), flds.iter().map(|sort| go(sort, f)).collect())
                 }
                 _ => f(sort),
             }

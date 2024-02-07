@@ -1501,12 +1501,8 @@ impl TyS {
 }
 
 impl AliasTy {
-    pub fn new(
-        def_id: DefId,
-        args: impl Into<GenericArgs>,
-        refine_args: impl Into<RefineArgs>,
-    ) -> Self {
-        AliasTy { def_id, args: args.into(), refine_args: refine_args.into() }
+    pub fn new(def_id: DefId, args: GenericArgs, refine_args: RefineArgs) -> Self {
+        AliasTy { args, refine_args, def_id }
     }
 
     /// This method work only with associated type projections (i.e., no opaque tpes)

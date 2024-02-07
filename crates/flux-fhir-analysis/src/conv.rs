@@ -257,27 +257,27 @@ pub(crate) fn conv_invariants<'genv>(
     params: &[fhir::RefineParam],
     invariants: &[fhir::Expr],
     wfckresults: &WfckResults<'genv>,
-) -> Vec<rty::Invariant> {
+) -> QueryResult<Vec<rty::Invariant>> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults);
     env.push_layer(Layer::record(&cx, def_id.to_def_id(), params));
-    cx.conv_invariants(&env, invariants)
+    cx.conv_invariants(&mut env, invariants)
 }
 
 pub(crate) fn conv_defn<'genv>(
     genv: GlobalEnv<'genv, '_>,
     func: &fhir::SpecFunc,
     wfckresults: &WfckResults<'genv>,
-) -> Option<rty::SpecFunc> {
+) -> QueryResult<Option<rty::SpecFunc>> {
     if let Some(body) = &func.body {
         let cx = ConvCtxt::new(genv, wfckresults);
         let mut env = Env::new(genv, &[], wfckresults);
         env.push_layer(Layer::list(&cx, 0, func.args, false));
-        let expr = cx.conv_expr(&env, body);
+        let expr = cx.conv_expr(&mut env, body)?;
         let expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv));
-        Some(rty::SpecFunc { name: func.name, expr })
+        Ok(Some(rty::SpecFunc { name: func.name, expr }))
     } else {
-        None
+        Ok(None)
     }
 }
 
@@ -285,13 +285,13 @@ pub(crate) fn conv_qualifier<'genv>(
     genv: GlobalEnv<'genv, '_>,
     qualifier: &fhir::Qualifier,
     wfckresults: &WfckResults<'genv>,
-) -> rty::Qualifier {
+) -> QueryResult<rty::Qualifier> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults);
     env.push_layer(Layer::list(&cx, 0, qualifier.args, false));
-    let body = cx.conv_expr(&env, &qualifier.expr);
+    let body = cx.conv_expr(&mut env, &qualifier.expr)?;
     let body = rty::Binder::new(body, env.pop_layer().into_bound_vars(genv));
-    rty::Qualifier { name: qualifier.name, body, global: qualifier.global }
+    Ok(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
 }
 
 pub(crate) fn conv_fn_decl<'genv>(
@@ -333,12 +333,12 @@ pub(crate) fn conv_assoc_pred_def<'genv>(
     genv: GlobalEnv<'genv, '_>,
     assoc_pred: &fhir::ImplAssocPredicate,
     wfckresults: &WfckResults<'genv>,
-) -> rty::Lambda {
+) -> QueryResult<rty::Lambda> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults);
     env.push_layer(Layer::list(&cx, 0, assoc_pred.params, false));
-    let expr = cx.conv_expr(&env, &assoc_pred.body);
-    rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv))
+    let expr = cx.conv_expr(&mut env, &assoc_pred.body)?;
+    Ok(rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv)))
 }
 
 pub(crate) fn conv_ty<'genv>(
@@ -565,7 +565,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .iter()
             .map(|field| cx.conv_ty(&mut env, &field.ty))
             .try_collect()?;
-        let idxs = cx.conv_refine_arg(&mut env, &variant.ret.idx);
+        let idxs = cx.conv_refine_arg(&mut env, &variant.ret.idx)?;
         let variant = rty::VariantSig::new(
             adt_def,
             rty::GenericArgs::identity_for_item(genv, adt_def_id)?,
@@ -595,7 +595,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 .try_collect()?;
 
             let vars = env.pop_layer().into_bound_vars(genv);
-            let idx = rty::Expr::record(
+            let idx = rty::Expr::adt(
                 def_id.to_def_id(),
                 (0..vars.len())
                     .map(|idx| rty::Expr::late_bvar(INNERMOST, idx as u32))
@@ -626,7 +626,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     Local::from_usize(*idx + 1),
                 ))
             }
-            fhir::Constraint::Pred(pred) => Ok(rty::Constraint::Pred(self.conv_expr(env, pred))),
+            fhir::Constraint::Pred(pred) => Ok(rty::Constraint::Pred(self.conv_expr(env, pred)?)),
         }
     }
 
@@ -640,30 +640,19 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let generic_args = self
             .conv_generic_args(env, trait_id, alias_pred.generic_args)?
             .into();
-        let refine_args = func_args
+        let func_args = func_args
             .iter()
             .map(|arg| self.conv_expr(env, arg))
-            .collect_vec()
-            .into();
+            .try_collect()?;
         let alias_pred = rty::AliasPred { trait_id, name: alias_pred.name, args: generic_args };
-        Ok(rty::Expr::alias_pred(alias_pred, refine_args))
-    }
-
-    fn conv_pred(&self, env: &mut Env, pred: &fhir::Pred) -> QueryResult<rty::Expr> {
-        let pred = match &pred.kind {
-            fhir::PredKind::Expr(expr) => self.conv_expr(env, expr),
-            fhir::PredKind::Alias(alias_pred, func_args) => {
-                self.conv_alias_pred(env, alias_pred, func_args)?
-            }
-        };
-        Ok(pred)
+        Ok(rty::Expr::alias_pred(alias_pred, func_args))
     }
 
     fn conv_ty(&self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => self.conv_base_ty(env, bty),
             fhir::TyKind::Indexed(bty, idx) => {
-                let idx = self.conv_refine_arg(env, idx);
+                let idx = self.conv_refine_arg(env, idx)?;
                 self.conv_indexed_type(env, bty, idx)
             }
             fhir::TyKind::Exists(params, ty) => {
@@ -698,7 +687,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
             fhir::TyKind::Constr(pred, ty) => {
-                let pred = self.conv_pred(env, pred)?;
+                let pred = self.conv_expr(env, pred)?;
                 Ok(rty::Ty::constr(pred, self.conv_ty(env, ty)?))
             }
             fhir::TyKind::RawPtr(ty, mutability) => {
@@ -717,11 +706,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::TyKind::OpaqueDef(item_id, args0, refine_args, _in_trait) => {
                 let def_id = item_id.owner_id.to_def_id();
-                let args = self.conv_generic_args(env, def_id, args0)?;
+                let args = List::from_vec(self.conv_generic_args(env, def_id, args0)?);
                 let refine_args = refine_args
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
-                    .collect_vec();
+                    .try_collect()?;
                 let alias_ty = rty::AliasTy::new(def_id, args, refine_args);
                 Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
             }
@@ -808,25 +797,25 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_refine_arg(&self, env: &mut Env, arg: &fhir::RefineArg) -> rty::Expr {
+    fn conv_refine_arg(&self, env: &mut Env, arg: &fhir::RefineArg) -> QueryResult<rty::Expr> {
         match &arg.kind {
             fhir::RefineArgKind::Expr(expr) => self.conv_expr(env, expr),
             fhir::RefineArgKind::Abs(params, body) => {
                 let layer = Layer::list(self, 0, params, false);
 
                 env.push_layer(layer);
-                let pred = self.conv_expr(env, body);
+                let pred = self.conv_expr(env, body)?;
                 let vars = env.pop_layer().into_bound_vars(self.genv);
                 let body = rty::Binder::new(pred, vars);
-                self.add_coercions(rty::Expr::abs(body), arg.fhir_id)
+                Ok(self.add_coercions(rty::Expr::abs(body), arg.fhir_id))
             }
             fhir::RefineArgKind::Record(flds) => {
                 let def_id = self.wfckresults.record_ctors().get(arg.fhir_id).unwrap();
-                let flds: List<_> = flds
+                let flds = flds
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
-                    .collect();
-                rty::Expr::record(*def_id, flds)
+                    .try_collect()?;
+                Ok(rty::Expr::adt(*def_id, flds))
             }
         }
     }
@@ -889,7 +878,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .refine
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
-                    .collect_vec();
+                    .try_collect_vec()?;
                 return Ok(self
                     .genv
                     .type_of(*def_id)?
@@ -1015,7 +1004,7 @@ impl Env {
 }
 
 impl ConvCtxt<'_, '_, '_> {
-    fn conv_expr(&self, env: &Env, expr: &fhir::Expr) -> rty::Expr {
+    fn conv_expr(&self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
         let espan = Some(ESpan::new(expr.span));
         let expr = match &expr.kind {
@@ -1023,25 +1012,28 @@ impl ConvCtxt<'_, '_, '_> {
             fhir::ExprKind::Var(var, _) => env.lookup(*var).to_expr(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant_at(conv_lit(*lit), espan),
             fhir::ExprKind::BinaryOp(op, e1, e2) => {
-                rty::Expr::binary_op(*op, self.conv_expr(env, e1), self.conv_expr(env, e2), espan)
+                rty::Expr::binary_op(*op, self.conv_expr(env, e1)?, self.conv_expr(env, e2)?, espan)
             }
             fhir::ExprKind::UnaryOp(op, e) => {
-                rty::Expr::unary_op(*op, self.conv_expr(env, e), espan)
+                rty::Expr::unary_op(*op, self.conv_expr(env, e)?, espan)
             }
             fhir::ExprKind::App(func, args) => {
-                rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args), espan)
+                rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args)?, espan)
+            }
+            fhir::ExprKind::Alias(alias_pred, func_args) => {
+                self.conv_alias_pred(env, alias_pred, func_args)?
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 rty::Expr::ite(
-                    self.conv_expr(env, p),
-                    self.conv_expr(env, e1),
-                    self.conv_expr(env, e2),
+                    self.conv_expr(env, p)?,
+                    self.conv_expr(env, e1)?,
+                    self.conv_expr(env, e2)?,
                     espan,
                 )
             }
             fhir::ExprKind::Dot(var, fld) => env.lookup(*var).get_field(*fld),
         };
-        self.add_coercions(expr, fhir_id)
+        Ok(self.add_coercions(expr, fhir_id))
     }
 
     fn conv_func(&self, env: &Env, func: &fhir::Func) -> rty::Expr {
@@ -1052,22 +1044,26 @@ impl ConvCtxt<'_, '_, '_> {
         self.add_coercions(expr, func.fhir_id())
     }
 
-    fn conv_exprs(&self, env: &Env, exprs: &[fhir::Expr]) -> List<rty::Expr> {
-        List::from_iter(exprs.iter().map(|e| self.conv_expr(env, e)))
+    fn conv_exprs(&self, env: &mut Env, exprs: &[fhir::Expr]) -> QueryResult<List<rty::Expr>> {
+        exprs.iter().map(|e| self.conv_expr(env, e)).collect()
     }
 
-    fn conv_invariants(&self, env: &Env, invariants: &[fhir::Expr]) -> Vec<rty::Invariant> {
+    fn conv_invariants(
+        &self,
+        env: &mut Env,
+        invariants: &[fhir::Expr],
+    ) -> QueryResult<Vec<rty::Invariant>> {
         invariants
             .iter()
             .map(|invariant| self.conv_invariant(env, invariant))
             .collect()
     }
 
-    fn conv_invariant(&self, env: &Env, invariant: &fhir::Expr) -> rty::Invariant {
-        rty::Invariant::new(rty::Binder::new(
-            self.conv_expr(env, invariant),
+    fn conv_invariant(&self, env: &mut Env, invariant: &fhir::Expr) -> QueryResult<rty::Invariant> {
+        Ok(rty::Invariant::new(rty::Binder::new(
+            self.conv_expr(env, invariant)?,
             env.top_layer().to_bound_vars(self.genv),
-        ))
+        )))
     }
 
     fn add_coercions(&self, mut expr: rty::Expr, fhir_id: FhirId) -> rty::Expr {
@@ -1075,9 +1071,7 @@ impl ConvCtxt<'_, '_, '_> {
         if let Some(coercions) = self.wfckresults.coercions().get(fhir_id) {
             for coercion in coercions {
                 expr = match *coercion {
-                    rty::Coercion::Inject(def_id) => {
-                        rty::Expr::record(def_id, List::singleton(expr))
-                    }
+                    rty::Coercion::Inject(def_id) => rty::Expr::adt(def_id, List::singleton(expr)),
                     rty::Coercion::Project(def_id) => {
                         rty::Expr::field_proj(expr, rty::FieldProj::Adt { def_id, field: 0 }, span)
                     }

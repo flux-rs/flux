@@ -637,7 +637,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
     }
 
     fn project_bty(&mut self, self_ty: &Ty, def_id: DefId) -> Result<Ty> {
-        let args = vec![GenericArg::Ty(self_ty.clone())];
+        let args = List::singleton(GenericArg::Ty(self_ty.clone()));
         let alias_ty = rty::AliasTy::new(def_id, args, List::empty());
         Ok(Ty::projection(alias_ty).normalize_projections(
             self.genv,

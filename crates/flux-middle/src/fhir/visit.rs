@@ -1,8 +1,7 @@
 use super::{
     AliasPred, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
-    FnSig, FuncSort, GenericArg, Generics, Ident, Lifetime, Lit, PolyFuncSort, Pred, PredKind,
-    QPath, RefineArg, RefineArgKind, RefineParam, Sort, StructDef, Ty, TyKind, TypeBinding,
-    VariantDef, VariantRet,
+    FnSig, FuncSort, GenericArg, Generics, Ident, Lifetime, Lit, PolyFuncSort, QPath, RefineArg,
+    RefineArgKind, RefineParam, Sort, StructDef, Ty, TyKind, TypeBinding, VariantDef, VariantRet,
 };
 
 #[macro_export]
@@ -104,10 +103,6 @@ pub trait Visitor: Sized {
         walk_expr(self, expr);
     }
 
-    fn visit_pred(&mut self, pred: &Pred) {
-        walk_pred(self, pred);
-    }
-
     fn visit_alias_pred(&mut self, alias_pred: &AliasPred) {
         walk_alias_pred(self, alias_pred);
     }
@@ -200,7 +195,7 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
             vis.visit_ty(ty);
         }
         TyKind::Constr(pred, ty) => {
-            vis.visit_pred(&pred);
+            vis.visit_expr(&pred);
             vis.visit_ty(ty);
         }
         TyKind::Ptr(lft, loc) => {
@@ -299,16 +294,6 @@ pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasPred) {
     walk_list!(vis, visit_generic_arg, alias_pred.generic_args);
 }
 
-pub fn walk_pred<V: Visitor>(vis: &mut V, pred: &Pred) {
-    match pred.kind {
-        PredKind::Expr(expr) => vis.visit_expr(&expr),
-        PredKind::Alias(alias_pred, args) => {
-            vis.visit_alias_pred(&alias_pred);
-            walk_list!(vis, visit_expr, args);
-        }
-    }
-}
-
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
     match expr.kind {
         ExprKind::Const(_def_id, _span) => {}
@@ -323,6 +308,10 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         }
         ExprKind::UnaryOp(_op, e) => vis.visit_expr(e),
         ExprKind::App(_func, args) => {
+            walk_list!(vis, visit_expr, args);
+        }
+        ExprKind::Alias(alias_pred, args) => {
+            vis.visit_alias_pred(&alias_pred);
             walk_list!(vis, visit_expr, args);
         }
         ExprKind::IfThenElse(e1, e2, e3) => {
