@@ -221,14 +221,16 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
             return;
         }
 
+        for arg in &path.refine {
+            self.with_scope(ScopeKind::Misc, |this| this.visit_refine_arg(arg));
+        }
+
         let is_box = self.is_box(path);
         for (i, arg) in path.generics.iter().enumerate() {
             if is_box && i == 0 {
                 self.visit_generic_arg(arg);
             } else {
-                self.with_scope(ScopeKind::Misc, |this| {
-                    this.visit_generic_arg(arg);
-                });
+                self.with_scope(ScopeKind::Misc, |this| this.visit_generic_arg(arg));
             }
         }
     }

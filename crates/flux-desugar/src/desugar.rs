@@ -1060,7 +1060,12 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
     }
 
     fn desugar_var(&self, path: &surface::PathExpr) -> Result<fhir::ExprKind<'genv>> {
-        let res = self.resolver_output().path_expr_res_map[&path.node_id];
+        let res = *self
+            .resolver_output()
+            .path_expr_res_map
+            .get(&path.node_id)
+            .unwrap_or_else(|| span_bug!(path.span, "unresolved expr path"));
+
         match res {
             PathRes::Param(_, name) => {
                 // FIXME(nilehmann) this is ugly. if we are storing source information we
