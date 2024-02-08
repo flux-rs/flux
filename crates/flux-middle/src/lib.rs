@@ -236,34 +236,13 @@ pub struct ResolverOutput {
     /// List of implicit params defined in a scope. The [`NodeId`] is the id of the node introducing
     /// the scope, i.e., [`surface::FnSig`], [`surface::FnOutput`], or [`surface::VariantDef`].
     pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
-    pub sort_ctor_res_map: UnordMap<NodeId, fhir::SortCtor>,
-    pub sort_res_map: UnordMap<NodeId, SortRes>,
+    pub sort_path_res_map: UnordMap<NodeId, fhir::SortRes>,
     pub path_expr_res_map: UnordMap<NodeId, PathRes>,
 }
 
 pub struct ResolvedParam {
     pub ident: fhir::Ident,
     pub kind: fhir::ParamKind,
-}
-
-#[derive(Clone, Copy)]
-pub enum SortRes {
-    Int,
-    Bool,
-    Real,
-    User {
-        name: Symbol,
-    },
-    Var(usize),
-    Param(DefId),
-    /// A `Self` parameter in a trait definition.
-    SelfParam {
-        trait_id: DefId,
-    },
-    /// An alias to another sort, e.g., when used inside an impl block
-    SelfAlias {
-        alias_to: DefId,
-    },
 }
 
 #[derive(Clone, Copy)]

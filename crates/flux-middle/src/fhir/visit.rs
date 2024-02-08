@@ -1,7 +1,8 @@
 use super::{
     AliasPred, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
     FnSig, FuncSort, GenericArg, Generics, Ident, Lifetime, Lit, PolyFuncSort, QPath, RefineArg,
-    RefineArgKind, RefineParam, Sort, StructDef, Ty, TyKind, TypeBinding, VariantDef, VariantRet,
+    RefineArgKind, RefineParam, Sort, SortPath, StructDef, Ty, TyKind, TypeBinding, VariantDef,
+    VariantRet,
 };
 
 #[macro_export]
@@ -85,6 +86,10 @@ pub trait Visitor: Sized {
 
     fn visit_sort(&mut self, sort: &Sort) {
         walk_sort(self, sort);
+    }
+
+    fn visit_sort_path(&mut self, path: &SortPath) {
+        walk_sort_path(self, path);
     }
 
     fn visit_poly_func_sort(&mut self, func: &PolyFuncSort) {
@@ -251,21 +256,14 @@ pub fn walk_type_binding<V: Visitor>(vis: &mut V, binding: &TypeBinding) {
 
 pub fn walk_sort<V: Visitor>(vis: &mut V, sort: &Sort) {
     match sort {
-        Sort::App(_ctor, args) => {
-            walk_list!(vis, visit_sort, *args);
-        }
-        Sort::Func(fun) => vis.visit_poly_func_sort(fun),
-        Sort::BitVec(_)
-        | Sort::Int
-        | Sort::Param(_)
-        | Sort::SelfParam { .. }
-        | Sort::SelfAlias { .. }
-        | Sort::Var(_)
-        | Sort::Bool
-        | Sort::Real
-        | Sort::Loc
-        | Sort::Infer => {}
+        Sort::Path(path) => vis.visit_sort_path(path),
+        Sort::Func(func) => vis.visit_poly_func_sort(func),
+        Sort::Loc | Sort::BitVec(_) | Sort::Infer => {}
     }
+}
+
+pub fn walk_sort_path<V: Visitor>(vis: &mut V, path: &SortPath) {
+    walk_list!(vis, visit_sort, path.args);
 }
 
 pub fn walk_poly_func_sort<V: Visitor>(vis: &mut V, func: &PolyFuncSort) {

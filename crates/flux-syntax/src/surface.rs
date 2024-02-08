@@ -165,21 +165,27 @@ pub enum Sort {
     Base(BaseSort),
     /// A _function_ sort of the form `(bi,...) -> bo` where `bi..` and `bo`
     /// are all base sorts.
-    Func {
-        inputs: Vec<BaseSort>,
-        output: BaseSort,
-    },
+    Func { inputs: Vec<BaseSort>, output: BaseSort },
+    /// A sort that needs to be inferred.
     Infer,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum BaseSort {
-    /// a _base_ sort, e.g. `int` or `bool`
-    Ident(Ident, NodeId),
-    /// a bitvector sort, e.g., BitVec(32)
+    /// a bitvector sort, e.g., bitvec<32>
     BitVec(usize),
-    /// a sort-constructor application, e.g., `Set<int>`
-    App(Ident, Vec<BaseSort>, NodeId),
+    Path(SortPath),
+}
+
+/// A [`Path`] but for sorts. Currently, we only support paths with one segment, so one can hardly
+/// call this a path, but we may change this later if we improve the resolver.
+#[derive(Debug)]
+pub struct SortPath {
+    /// The identifier of the single segment in the path, i.e., `Map` in `Map<int, bool>`.
+    pub segment: Ident,
+    /// The sort arguments, i.e., the list `[int, bool]` in `Map<int, bool>`.
+    pub args: Vec<BaseSort>,
+    pub node_id: NodeId,
 }
 
 #[derive(Debug)]

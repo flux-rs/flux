@@ -5,7 +5,7 @@ use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, lift::LiftCtxt, FhirId, FluxOwnerId, Res},
     global_env::{self, GlobalEnv},
-    try_alloc_slice, PathRes, ResolverOutput, ScopeId, SortRes,
+    try_alloc_slice, PathRes, ResolverOutput, ScopeId,
 };
 use flux_syntax::surface::{self, NodeId};
 use hir::{def::DefKind, ItemKind};
@@ -74,9 +74,9 @@ fn collect_generics_in_refined_by(
     }
     impl surface::visit::Visitor for ParamCollector<'_> {
         fn visit_base_sort(&mut self, bsort: &surface::BaseSort) {
-            if let surface::BaseSort::Ident(_, node_id) = bsort {
-                let res = self.resolver_output.sort_res_map[node_id];
-                if let SortRes::Param(def_id) = res {
+            if let surface::BaseSort::Path(path) = bsort {
+                let res = self.resolver_output.sort_path_res_map[&path.node_id];
+                if let fhir::SortRes::Param(def_id) = res {
                     self.found.insert(def_id);
                 }
             }
@@ -1293,38 +1293,27 @@ fn desugar_base_sort<'genv>(
     generic_id_to_var_idx: Option<&FxIndexSet<DefId>>,
 ) -> fhir::Sort<'genv> {
     match bsort {
-        surface::BaseSort::Ident(_, node_id) => {
-            let res = resolver_output.sort_res_map[&node_id];
-            match res {
-                SortRes::Int => fhir::Sort::Int,
-                SortRes::Bool => fhir::Sort::Bool,
-                SortRes::Real => fhir::Sort::Real,
-                SortRes::User { name } => {
-                    let ctor = fhir::SortCtor::User { name };
-                    fhir::Sort::App(ctor, &[])
-                }
-                SortRes::Var(idx) => fhir::Sort::Var(idx),
-                SortRes::Param(def_id) => {
-                    // In a `RefinedBy` we resolve type parameters to a sort var
-                    if let Some(generic_id_to_var_idx) = generic_id_to_var_idx {
-                        let idx = generic_id_to_var_idx.get_index_of(&def_id).unwrap();
-                        fhir::Sort::Var(idx)
-                    } else {
-                        fhir::Sort::Param(def_id)
-                    }
-                }
-                SortRes::SelfParam { trait_id } => fhir::Sort::SelfParam { trait_id },
-                SortRes::SelfAlias { alias_to } => fhir::Sort::SelfAlias { alias_to },
-            }
-        }
         surface::BaseSort::BitVec(width) => fhir::Sort::BitVec(*width),
-        surface::BaseSort::App(_, args, node_id) => {
-            let ctor = resolver_output.sort_ctor_res_map[&node_id];
+        surface::BaseSort::Path(surface::SortPath { segment, args, node_id }) => {
+            let res = resolver_output.sort_path_res_map[&node_id];
+
+            // In a `RefinedBy` we resolve type parameters to a sort var
+            let res = if let fhir::SortRes::Param(def_id) = res
+                && let Some(generic_id_to_var_idx) = generic_id_to_var_idx
+            {
+                let idx = generic_id_to_var_idx.get_index_of(&def_id).unwrap();
+                fhir::SortRes::Var(idx)
+            } else {
+                res
+            };
+
             let args = genv.alloc_slice_fill_iter(
                 args.iter()
                     .map(|s| desugar_base_sort(genv, resolver_output, s, generic_id_to_var_idx)),
             );
-            fhir::Sort::App(ctor, args)
+
+            let path = fhir::SortPath { res, segment: *segment, args };
+            fhir::Sort::Path(path)
         }
     }
 }

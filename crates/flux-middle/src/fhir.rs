@@ -698,28 +698,23 @@ pub enum InferMode {
 }
 
 #[derive(Clone, Copy)]
-pub enum SortCtor {
-    Set,
-    Map,
-    /// User defined opaque sort
-    User {
-        name: Symbol,
-    },
-}
-
-#[derive(Clone, Copy)]
-pub enum Sort<'fhir> {
+pub enum PrimSort {
     Int,
     Bool,
     Real,
-    Loc,
-    BitVec(usize),
-    /// Sort constructor application (e.g. `Set<int>` or `Map<int, int>`)
-    App(SortCtor, &'fhir [Sort<'fhir>]),
-    Func(PolyFuncSort<'fhir>),
-    /// sort variable
+    Set,
+    Map,
+}
+
+#[derive(Clone, Copy)]
+pub enum SortRes {
+    /// A primitive sort.
+    PrimSort(PrimSort),
+    /// A user declared sort.
+    User { name: Symbol },
+    /// A sort variable inside a polymorphic function or data sort.
     Var(usize),
-    /// The sort associated to a type variable
+    /// The sort associated to a (generic) type parameter
     Param(DefId),
     /// The sort of the `Self` type, as used within a trait.
     SelfParam {
@@ -728,11 +723,30 @@ pub enum Sort<'fhir> {
     },
     /// The sort of a `Self` type, as used somewhere other than within a trait.
     SelfAlias {
-        /// The item introducing the `Self` type alias, e.g., an impl block
+        /// The item introducing the `Self` type alias, e.g., an impl block.
         alias_to: DefId,
     },
-    /// A sort that needs to be inferred
+}
+
+#[derive(Clone, Copy)]
+pub enum Sort<'fhir> {
+    Path(SortPath<'fhir>),
+    /// The sort of a location parameter introduced with the `x: &strg T` syntax.
+    Loc,
+    /// A bit vector with the given width.
+    BitVec(usize),
+    /// A polymorphic sort function.
+    Func(PolyFuncSort<'fhir>),
+    /// A sort that needs to be inferred.
     Infer,
+}
+
+/// See [`flux_syntax::surface::SortPath`]
+#[derive(Clone, Copy)]
+pub struct SortPath<'fhir> {
+    pub res: SortRes,
+    pub segment: SurfaceIdent,
+    pub args: &'fhir [Sort<'fhir>],
 }
 
 #[derive(Clone, Copy)]
@@ -838,16 +852,6 @@ impl From<LocalDefId> for FluxLocalDefId {
 impl From<OwnerId> for FluxOwnerId {
     fn from(owner_id: OwnerId) -> Self {
         FluxOwnerId::Rust(owner_id)
-    }
-}
-
-impl SortCtor {
-    pub fn arity(&self) -> usize {
-        match self {
-            SortCtor::Set => 1,
-            SortCtor::Map => 2,
-            SortCtor::User { .. } => 0,
-        }
     }
 }
 
@@ -1324,35 +1328,45 @@ impl fmt::Debug for Lit {
     }
 }
 
-impl fmt::Debug for SortCtor {
+impl fmt::Debug for Sort<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SortCtor::Set => write!(f, "Set"),
-            SortCtor::Map => write!(f, "Map"),
-            SortCtor::User { name, .. } => write!(f, "{}", name),
+            Sort::Path(path) => write!(f, "{path:?}"),
+            Sort::BitVec(w) => write!(f, "bitvec({w})"),
+            Sort::Loc => write!(f, "loc"),
+            Sort::Func(fsort) => write!(f, "{fsort:?}"),
+            Sort::Infer => write!(f, "_"),
         }
     }
 }
 
-impl fmt::Debug for Sort<'_> {
+impl fmt::Debug for SortPath<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.res)?;
+        if !self.args.is_empty() {
+            write!(f, "<{:?}>", self.args.iter().format(", "))?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for SortRes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Sort::Bool => write!(f, "bool"),
-            Sort::Int => write!(f, "int"),
-            Sort::Real => write!(f, "real"),
-            Sort::Var(n) => write!(f, "@{}", n),
-            Sort::BitVec(w) => write!(f, "bitvec({w})"),
-            Sort::Loc => write!(f, "loc"),
-            Sort::Func(fsort) => write!(f, "{fsort:?}"),
-            Sort::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
-            Sort::SelfParam { trait_id } => {
+            SortRes::PrimSort(PrimSort::Bool) => write!(f, "bool"),
+            SortRes::PrimSort(PrimSort::Int) => write!(f, "int"),
+            SortRes::PrimSort(PrimSort::Real) => write!(f, "real"),
+            SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
+            SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
+            SortRes::Var(n) => write!(f, "@{}", n),
+            SortRes::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
+            SortRes::SelfParam { trait_id } => {
                 write!(f, "sortof({}::Self)", pretty::def_id_to_string(*trait_id))
             }
-            Sort::SelfAlias { alias_to } => {
+            SortRes::SelfAlias { alias_to } => {
                 write!(f, "sortof({}::Self)", pretty::def_id_to_string(*alias_to))
             }
-            Sort::Infer => write!(f, "_"),
-            Sort::App(ctor, args) => write!(f, "{ctor:?}<{:?}>", args.iter().format(", ")),
+            SortRes::User { name } => write!(f, "{name}"),
         }
     }
 }

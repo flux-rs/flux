@@ -1293,39 +1293,43 @@ pub(crate) fn conv_sort(
     next_sort_vid: &mut impl FnMut() -> rty::SortVid,
 ) -> rty::Sort {
     match sort {
-        fhir::Sort::Int => rty::Sort::Int,
-        fhir::Sort::Real => rty::Sort::Real,
-        fhir::Sort::Bool => rty::Sort::Bool,
+        fhir::Sort::Path(path) => conv_sort_path(genv, path, next_sort_vid),
         fhir::Sort::BitVec(w) => rty::Sort::BitVec(*w),
         fhir::Sort::Loc => rty::Sort::Loc,
         fhir::Sort::Func(fsort) => rty::Sort::Func(conv_poly_func_sort(genv, fsort, next_sort_vid)),
-        fhir::Sort::App(ctor, args) => {
-            let ctor = conv_sort_ctor(ctor);
-            let args = args
-                .iter()
-                .map(|t| conv_sort(genv, t, next_sort_vid))
-                .collect_vec();
-            rty::Sort::app(ctor, args)
-        }
-        fhir::Sort::Param(def_id) => {
-            rty::Sort::Param(genv.def_id_to_param_ty(def_id.expect_local()))
-        }
-        fhir::Sort::SelfParam { .. } => rty::Sort::Param(rty::SELF_PARAM_TY),
-        fhir::Sort::SelfAlias { alias_to } => {
-            genv.sort_of_self_ty_alias(*alias_to)
-                .unwrap_or(rty::Sort::Err)
-        }
-        fhir::Sort::Var(n) => rty::Sort::Var(rty::SortVar::from(*n)),
         fhir::Sort::Infer => rty::Sort::Infer(next_sort_vid()),
     }
 }
 
-fn conv_sort_ctor(ctor: &fhir::SortCtor) -> rty::SortCtor {
-    match ctor {
-        fhir::SortCtor::Set => rty::SortCtor::Set,
-        fhir::SortCtor::Map => rty::SortCtor::Map,
-        fhir::SortCtor::User { name } => rty::SortCtor::User { name: *name },
-    }
+fn conv_sort_path(
+    genv: GlobalEnv,
+    path: &fhir::SortPath,
+    next_sort_vid: &mut impl FnMut() -> rty::SortVid,
+) -> rty::Sort {
+    let ctor = match path.res {
+        fhir::SortRes::PrimSort(fhir::PrimSort::Int) => return rty::Sort::Int,
+        fhir::SortRes::PrimSort(fhir::PrimSort::Bool) => return rty::Sort::Bool,
+        fhir::SortRes::PrimSort(fhir::PrimSort::Real) => return rty::Sort::Real,
+        fhir::SortRes::Var(n) => return rty::Sort::Var(rty::SortVar::from(n)),
+        fhir::SortRes::Param(def_id) => {
+            return rty::Sort::Param(genv.def_id_to_param_ty(def_id.expect_local()))
+        }
+        fhir::SortRes::SelfParam { .. } => return rty::Sort::Param(rty::SELF_PARAM_TY),
+        fhir::SortRes::SelfAlias { alias_to } => {
+            return genv
+                .sort_of_self_ty_alias(alias_to)
+                .unwrap_or(rty::Sort::Err)
+        }
+        fhir::SortRes::PrimSort(fhir::PrimSort::Set) => rty::SortCtor::Set,
+        fhir::SortRes::PrimSort(fhir::PrimSort::Map) => rty::SortCtor::Map,
+        fhir::SortRes::User { name } => rty::SortCtor::User { name },
+    };
+    let args = path
+        .args
+        .iter()
+        .map(|t| conv_sort(genv, t, next_sort_vid))
+        .collect_vec();
+    rty::Sort::app(ctor, args)
 }
 
 fn conv_poly_func_sort(

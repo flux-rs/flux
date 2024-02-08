@@ -4,8 +4,8 @@ use super::{
     AliasPred, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
     ExprKind, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, GenericParamKind,
     Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathExpr, Qualifier, RefineArg, RefineParam,
-    RefinedBy, Sort, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind,
-    VariantDef, VariantRet, WhereBoundPredicate,
+    RefinedBy, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias,
+    TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -67,6 +67,10 @@ pub trait Visitor: Sized {
 
     fn visit_base_sort(&mut self, bsort: &BaseSort) {
         walk_base_sort(self, bsort);
+    }
+
+    fn visit_sort_path(&mut self, path: &SortPath) {
+        walk_sort_path(self, path);
     }
 
     fn visit_ty_alias(&mut self, ty_alias: &TyAlias) {
@@ -243,13 +247,14 @@ pub fn walk_trait_ref<V: Visitor>(vis: &mut V, trait_ref: &TraitRef) {
 
 pub fn walk_base_sort<V: Visitor>(vis: &mut V, bsort: &BaseSort) {
     match bsort {
-        BaseSort::Ident(ident, _node_id) => vis.visit_ident(*ident),
         BaseSort::BitVec(_len) => {}
-        BaseSort::App(ctor, args, _node_id) => {
-            vis.visit_ident(*ctor);
-            walk_list!(vis, visit_base_sort, args);
-        }
+        BaseSort::Path(path) => vis.visit_sort_path(path),
     }
+}
+
+pub fn walk_sort_path<V: Visitor>(vis: &mut V, path: &SortPath) {
+    vis.visit_ident(path.segment);
+    walk_list!(vis, visit_base_sort, &path.args);
 }
 
 pub fn walk_ty_alias<V: Visitor>(vis: &mut V, ty_alias: &TyAlias) {

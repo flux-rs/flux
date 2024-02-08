@@ -2,7 +2,7 @@ use std::ops::ControlFlow;
 
 use flux_common::index::IndexGen;
 use flux_errors::ErrorCollector;
-use flux_middle::{fhir, PathRes, ResolverOutput, SortRes};
+use flux_middle::{fhir, PathRes, ResolverOutput};
 use flux_syntax::surface::{self, visit::Visitor as _, Ident, NodeId};
 use rustc_data_structures::{
     fx::{FxIndexMap, IndexEntry},
@@ -360,13 +360,13 @@ struct ParamDef {
     scope: Option<NodeId>,
 }
 
-fn self_res(tcx: TyCtxt, owner: OwnerId) -> Option<SortRes> {
+fn self_res(tcx: TyCtxt, owner: OwnerId) -> Option<fhir::SortRes> {
     let def_id = owner.def_id.to_def_id();
     let mut opt_def_id = Some(def_id);
     while let Some(def_id) = opt_def_id {
         match tcx.def_kind(def_id) {
-            DefKind::Trait => return Some(SortRes::SelfParam { trait_id: def_id }),
-            DefKind::Impl { .. } => return Some(SortRes::SelfAlias { alias_to: def_id }),
+            DefKind::Trait => return Some(fhir::SortRes::SelfParam { trait_id: def_id }),
+            DefKind::Impl { .. } => return Some(fhir::SortRes::SelfAlias { alias_to: def_id }),
             _ => {
                 opt_def_id = tcx.opt_parent(def_id);
             }
@@ -377,7 +377,7 @@ fn self_res(tcx: TyCtxt, owner: OwnerId) -> Option<SortRes> {
 
 pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     scopes: Vec<Scope>,
-    sorts_res: UnordMap<Symbol, SortRes>,
+    sorts_res: UnordMap<Symbol, fhir::SortRes>,
     param_defs: FxIndexMap<NodeId, ParamDef>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
     path_res_map: FxHashMap<NodeId, PathRes<NodeId>>,
@@ -392,7 +392,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         let sort_res = sort_params
             .iter()
             .enumerate()
-            .map(|(i, v)| (v.name, SortRes::Var(i)))
+            .map(|(i, v)| (v.name, fhir::SortRes::Var(i)))
             .collect();
         Self::new(resolver, sort_res)
     }
@@ -406,7 +406,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         let mut sort_res: UnordMap<_, _> = generics
             .params
             .iter()
-            .map(|p| (p.name, SortRes::Param(p.def_id)))
+            .map(|p| (p.name, fhir::SortRes::Param(p.def_id)))
             .collect();
         if let Some(self_res) = self_res(tcx, owner) {
             sort_res.insert(kw::SelfUpper, self_res);
@@ -484,7 +484,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     fn new(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        sort_res: UnordMap<Symbol, SortRes>,
+        sort_res: UnordMap<Symbol, fhir::SortRes>,
     ) -> Self {
         let errors = ErrorCollector::new(resolver.genv.sess());
         Self {
@@ -563,34 +563,30 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             .emit(errors::UnresolvedVar::from_ident(ident, "name"));
     }
 
-    fn resolve_base_sort_ident(&mut self, ident: Ident, node_id: NodeId) {
-        let res = if ident.name == SORTS.int {
-            SortRes::Int
-        } else if ident.name == sym::bool {
-            SortRes::Bool
-        } else if ident.name == SORTS.real {
-            SortRes::Real
-        } else if let Some(res) = self.sorts_res.get(&ident.name) {
+    fn resolve_sort_path(&mut self, path: &surface::SortPath) {
+        let segment = path.segment;
+        let res = if segment.name == SORTS.int {
+            fhir::SortRes::PrimSort(fhir::PrimSort::Int)
+        } else if segment.name == sym::bool {
+            fhir::SortRes::PrimSort(fhir::PrimSort::Bool)
+        } else if segment.name == SORTS.real {
+            fhir::SortRes::PrimSort(fhir::PrimSort::Real)
+        } else if segment.name == SORTS.set {
+            fhir::SortRes::PrimSort(fhir::PrimSort::Set)
+        } else if segment.name == SORTS.map {
+            fhir::SortRes::PrimSort(fhir::PrimSort::Map)
+        } else if let Some(res) = self.sorts_res.get(&segment.name) {
             *res
-        } else if self.resolver.sort_decls.get(&ident.name).is_some() {
-            SortRes::User { name: ident.name }
+        } else if self.resolver.sort_decls.get(&segment.name).is_some() {
+            fhir::SortRes::User { name: segment.name }
         } else {
-            self.errors.emit(errors::UnresolvedSort::new(ident));
+            self.errors.emit(errors::UnresolvedSort::new(segment));
             return;
         };
-        self.resolver.output.sort_res_map.insert(node_id, res);
-    }
-
-    fn resolve_sort_ctor(&mut self, ctor: Ident, node_id: NodeId) {
-        let ctor = if ctor.name == SORTS.set {
-            fhir::SortCtor::Set
-        } else if ctor.name == SORTS.map {
-            fhir::SortCtor::Map
-        } else {
-            self.errors.emit(errors::UnresolvedSort::new(ctor));
-            return;
-        };
-        self.resolver.output.sort_ctor_res_map.insert(node_id, ctor);
+        self.resolver
+            .output
+            .sort_path_res_map
+            .insert(path.node_id, res);
     }
 
     pub(crate) fn finish(self) -> Result {
@@ -742,11 +738,8 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
 
     fn on_base_sort(&mut self, sort: &surface::BaseSort) {
         match sort {
-            surface::BaseSort::Ident(ident, node_id) => {
-                self.resolve_base_sort_ident(*ident, *node_id);
-            }
-            surface::BaseSort::App(ctor, _, node_id) => {
-                self.resolve_sort_ctor(*ctor, *node_id);
+            surface::BaseSort::Path(path) => {
+                self.resolve_sort_path(path);
             }
             surface::BaseSort::BitVec(_) => {}
         }
