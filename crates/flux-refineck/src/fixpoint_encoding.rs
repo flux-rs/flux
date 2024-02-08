@@ -173,6 +173,7 @@ pub mod fixpoint {
         type Tag = super::TagIdx;
     }
     pub use fixpoint_generated::*;
+    pub use flux_fixpoint::{BinOp, UnOp};
     use rustc_span::Symbol;
 }
 
@@ -760,12 +761,15 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
             rty::ExprKind::BinaryOp(op, e1, e2) => {
                 fixpoint::Expr::BinaryOp(
-                    *op,
+                    bin_op_to_fixpoint(*op),
                     Box::new([self.expr_to_fixpoint(e1, env), self.expr_to_fixpoint(e2, env)]),
                 )
             }
             rty::ExprKind::UnaryOp(op, e) => {
-                fixpoint::Expr::UnaryOp(*op, Box::new(self.expr_to_fixpoint(e, env)))
+                fixpoint::Expr::UnaryOp(
+                    un_op_to_fixpoint(*op),
+                    Box::new(self.expr_to_fixpoint(e, env)),
+                )
             }
             rty::ExprKind::FieldProj(e, proj) => {
                 let (arity, field) = match *proj {
@@ -934,4 +938,31 @@ fn alias_pred_gen(
     let sort = func_sort_to_fixpoint(&fsort);
     let sort = fixpoint::Sort::Func(sort);
     ConstInfo { name, orig, sort, val: None }
+}
+
+fn bin_op_to_fixpoint(op: rty::BinOp) -> fixpoint::BinOp {
+    match op {
+        rty::BinOp::Iff => fixpoint::BinOp::Iff,
+        rty::BinOp::Imp => fixpoint::BinOp::Imp,
+        rty::BinOp::Or => fixpoint::BinOp::Or,
+        rty::BinOp::And => fixpoint::BinOp::And,
+        rty::BinOp::Eq => fixpoint::BinOp::Eq,
+        rty::BinOp::Ne => fixpoint::BinOp::Ne,
+        rty::BinOp::Gt => fixpoint::BinOp::Gt,
+        rty::BinOp::Ge => fixpoint::BinOp::Ge,
+        rty::BinOp::Lt => fixpoint::BinOp::Lt,
+        rty::BinOp::Le => fixpoint::BinOp::Le,
+        rty::BinOp::Add => fixpoint::BinOp::Add,
+        rty::BinOp::Sub => fixpoint::BinOp::Sub,
+        rty::BinOp::Mul => fixpoint::BinOp::Mul,
+        rty::BinOp::Div => fixpoint::BinOp::Div,
+        rty::BinOp::Mod => fixpoint::BinOp::Mod,
+    }
+}
+
+fn un_op_to_fixpoint(op: rty::UnOp) -> fixpoint::UnOp {
+    match op {
+        rty::UnOp::Not => fixpoint::UnOp::Not,
+        rty::UnOp::Neg => fixpoint::UnOp::Neg,
+    }
 }

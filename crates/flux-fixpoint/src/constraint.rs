@@ -106,7 +106,7 @@ pub struct Const<T: Types> {
     pub val: i128,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BinOp {
     Iff,
     Imp,
@@ -125,7 +125,7 @@ pub enum BinOp {
     Mod,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UnOp {
     Not,
     Neg,
@@ -358,13 +358,6 @@ impl<T: Types> fmt::Display for Expr<T> {
                     write!(f, "{op}({e})")
                 }
             }
-            // Expr::Tuple(exprs) => {
-            //     write!(f, "(Tuple{}", exprs.len())?;
-            //     for e in exprs {
-            //         write!(f, " {}", e)?;
-            //     }
-            //     write!(f, ")")
-            // }
             Expr::Proj(e, Proj::Fst) => write!(f, "(fst {e})"),
             Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
             Expr::App(func, args) => {

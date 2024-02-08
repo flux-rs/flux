@@ -16,11 +16,10 @@ use std::{borrow::Cow, fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{
-    AggregateKind, ESpan, Expr, ExprKind, FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path,
-    Var,
+    AggregateKind, BinOp, Constant, ESpan, Expr, ExprKind, FieldProj, HoleKind, KVar, KVid, Lambda,
+    Loc, Name, Path, UnOp, Var,
 };
 use flux_common::bug;
-pub use flux_fixpoint::{BinOp, Constant, UnOp};
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;

@@ -1012,10 +1012,15 @@ impl ConvCtxt<'_, '_, '_> {
             fhir::ExprKind::Var(var, _) => env.lookup(*var).to_expr(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant_at(conv_lit(*lit), espan),
             fhir::ExprKind::BinaryOp(op, e1, e2) => {
-                rty::Expr::binary_op(*op, self.conv_expr(env, e1)?, self.conv_expr(env, e2)?, espan)
+                rty::Expr::binary_op(
+                    conv_bin_op(*op),
+                    self.conv_expr(env, e1)?,
+                    self.conv_expr(env, e2)?,
+                    espan,
+                )
             }
             fhir::ExprKind::UnaryOp(op, e) => {
-                rty::Expr::unary_op(*op, self.conv_expr(env, e)?, espan)
+                rty::Expr::unary_op(conv_un_op(*op), self.conv_expr(env, e)?, espan)
             }
             fhir::ExprKind::App(func, args) => {
                 rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args)?, espan)
@@ -1367,6 +1372,33 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
 
 pub(crate) fn bug_on_infer_sort() -> rty::SortVid {
     bug!("unexpected infer sort")
+}
+
+fn conv_bin_op(op: fhir::BinOp) -> rty::BinOp {
+    match op {
+        fhir::BinOp::Iff => rty::BinOp::Iff,
+        fhir::BinOp::Imp => rty::BinOp::Imp,
+        fhir::BinOp::Or => rty::BinOp::Or,
+        fhir::BinOp::And => rty::BinOp::And,
+        fhir::BinOp::Eq => rty::BinOp::Eq,
+        fhir::BinOp::Ne => rty::BinOp::Ne,
+        fhir::BinOp::Gt => rty::BinOp::Gt,
+        fhir::BinOp::Ge => rty::BinOp::Ge,
+        fhir::BinOp::Lt => rty::BinOp::Lt,
+        fhir::BinOp::Le => rty::BinOp::Le,
+        fhir::BinOp::Add => rty::BinOp::Add,
+        fhir::BinOp::Sub => rty::BinOp::Sub,
+        fhir::BinOp::Mod => rty::BinOp::Mod,
+        fhir::BinOp::Mul => rty::BinOp::Mul,
+        fhir::BinOp::Div => rty::BinOp::Div,
+    }
+}
+
+fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
+    match op {
+        fhir::UnOp::Not => rty::UnOp::Not,
+        fhir::UnOp::Neg => rty::UnOp::Neg,
+    }
 }
 
 mod errors {

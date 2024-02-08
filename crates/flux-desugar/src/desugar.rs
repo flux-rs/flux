@@ -758,33 +758,6 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
     }
 }
 
-fn desugar_bin_op(op: surface::BinOp) -> fhir::BinOp {
-    match op {
-        surface::BinOp::Iff => fhir::BinOp::Iff,
-        surface::BinOp::Imp => fhir::BinOp::Imp,
-        surface::BinOp::Or => fhir::BinOp::Or,
-        surface::BinOp::And => fhir::BinOp::And,
-        surface::BinOp::Eq => fhir::BinOp::Eq,
-        surface::BinOp::Ne => fhir::BinOp::Ne,
-        surface::BinOp::Gt => fhir::BinOp::Gt,
-        surface::BinOp::Ge => fhir::BinOp::Ge,
-        surface::BinOp::Lt => fhir::BinOp::Lt,
-        surface::BinOp::Le => fhir::BinOp::Le,
-        surface::BinOp::Add => fhir::BinOp::Add,
-        surface::BinOp::Sub => fhir::BinOp::Sub,
-        surface::BinOp::Mod => fhir::BinOp::Mod,
-        surface::BinOp::Mul => fhir::BinOp::Mul,
-        surface::BinOp::Div => fhir::BinOp::Div,
-    }
-}
-
-fn desugar_un_op(op: surface::UnOp) -> fhir::UnOp {
-    match op {
-        surface::UnOp::Not => fhir::UnOp::Not,
-        surface::UnOp::Neg => fhir::UnOp::Neg,
-    }
-}
-
 trait DesugarCtxt<'genv, 'tcx: 'genv> {
     fn genv(&self) -> GlobalEnv<'genv, 'tcx>;
     fn resolver_output(&self) -> &'genv ResolverOutput;
@@ -1167,17 +1140,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             surface::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 let e1 = self.desugar_expr(e1);
                 let e2 = self.desugar_expr(e2);
-                fhir::ExprKind::BinaryOp(
-                    desugar_bin_op(*op),
-                    self.genv().alloc(e1?),
-                    self.genv().alloc(e2?),
-                )
+                fhir::ExprKind::BinaryOp(*op, self.genv().alloc(e1?), self.genv().alloc(e2?))
             }
             surface::ExprKind::UnaryOp(op, box e) => {
-                fhir::ExprKind::UnaryOp(
-                    desugar_un_op(*op),
-                    self.genv().alloc(self.desugar_expr(e)?),
-                )
+                fhir::ExprKind::UnaryOp(*op, self.genv().alloc(self.desugar_expr(e)?))
             }
             surface::ExprKind::Dot(path, fld) => {
                 let res = self.resolver_output().path_expr_res_map[&path.node_id];

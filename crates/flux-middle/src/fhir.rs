@@ -23,7 +23,7 @@ use std::{borrow::Cow, fmt};
 
 use flux_common::{bug, span_bug};
 use flux_config as config;
-pub use flux_fixpoint::{BinOp, UnOp};
+pub use flux_syntax::surface::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},

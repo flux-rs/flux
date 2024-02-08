@@ -1,7 +1,7 @@
 use std::{fmt, sync::OnceLock};
 
 use flux_common::bug;
-pub use flux_fixpoint::{BinOp, Constant, UnOp};
+pub use flux_fixpoint::Constant;
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
@@ -75,6 +75,31 @@ impl SpanData {
     pub fn span(&self) -> Span {
         Span::new(self.lo, self.hi, SyntaxContext::root(), None)
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub enum BinOp {
+    Iff,
+    Imp,
+    Or,
+    And,
+    Eq,
+    Ne,
+    Gt,
+    Ge,
+    Lt,
+    Le,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub enum UnOp {
+    Not,
+    Neg,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -739,7 +764,7 @@ mod pretty {
     use crate::pretty::*;
 
     #[derive(PartialEq, Eq, PartialOrd, Ord)]
-    pub enum Precedence {
+    enum Precedence {
         Iff,
         Imp,
         Or,
@@ -749,17 +774,19 @@ mod pretty {
         MulDiv,
     }
 
-    pub fn precedence(bin_op: &BinOp) -> Precedence {
-        match bin_op {
-            BinOp::Iff => Precedence::Iff,
-            BinOp::Imp => Precedence::Imp,
-            BinOp::Or => Precedence::Or,
-            BinOp::And => Precedence::And,
-            BinOp::Eq | BinOp::Ne | BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => {
-                Precedence::Cmp
+    impl BinOp {
+        fn precedence(self) -> Precedence {
+            match self {
+                BinOp::Iff => Precedence::Iff,
+                BinOp::Imp => Precedence::Imp,
+                BinOp::Or => Precedence::Or,
+                BinOp::And => Precedence::And,
+                BinOp::Eq | BinOp::Ne | BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => {
+                    Precedence::Cmp
+                }
+                BinOp::Add | BinOp::Sub => Precedence::AddSub,
+                BinOp::Mul | BinOp::Div | BinOp::Mod => Precedence::MulDiv,
             }
-            BinOp::Add | BinOp::Sub => Precedence::AddSub,
-            BinOp::Mul | BinOp::Div | BinOp::Mod => Precedence::MulDiv,
         }
     }
 
@@ -774,9 +801,9 @@ mod pretty {
             define_scoped!(cx, f);
             fn should_parenthesize(op: &BinOp, child: &Expr) -> bool {
                 if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
-                    precedence(child_op) < precedence(op)
-                        || (precedence(child_op) == precedence(op)
-                            && !precedence(op).is_associative())
+                    child_op.precedence() < op.precedence()
+                        || (child_op.precedence() == op.precedence()
+                            && !op.precedence().is_associative())
                 } else {
                     false
                 }
