@@ -761,7 +761,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
             rty::ExprKind::BinaryOp(op, e1, e2) => {
                 fixpoint::Expr::BinaryOp(
-                    bin_op_to_fixpoint(*op),
+                    bin_op_to_fixpoint(op),
                     Box::new([self.expr_to_fixpoint(e1, env), self.expr_to_fixpoint(e2, env)]),
                 )
             }
@@ -940,7 +940,7 @@ fn alias_pred_gen(
     ConstInfo { name, orig, sort, val: None }
 }
 
-fn bin_op_to_fixpoint(op: rty::BinOp) -> fixpoint::BinOp {
+fn bin_op_to_fixpoint(op: &rty::BinOp) -> fixpoint::BinOp {
     match op {
         rty::BinOp::Iff => fixpoint::BinOp::Iff,
         rty::BinOp::Imp => fixpoint::BinOp::Imp,
@@ -948,7 +948,7 @@ fn bin_op_to_fixpoint(op: rty::BinOp) -> fixpoint::BinOp {
         rty::BinOp::And => fixpoint::BinOp::And,
         rty::BinOp::Eq => fixpoint::BinOp::Eq,
         rty::BinOp::Ne => fixpoint::BinOp::Ne,
-        rty::BinOp::Gt => fixpoint::BinOp::Gt,
+        rty::BinOp::Gt(_) => fixpoint::BinOp::Gt,
         rty::BinOp::Ge => fixpoint::BinOp::Ge,
         rty::BinOp::Lt => fixpoint::BinOp::Lt,
         rty::BinOp::Le => fixpoint::BinOp::Le,

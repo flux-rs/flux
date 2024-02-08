@@ -1382,7 +1382,10 @@ fn conv_bin_op(op: fhir::BinOp) -> rty::BinOp {
         fhir::BinOp::And => rty::BinOp::And,
         fhir::BinOp::Eq => rty::BinOp::Eq,
         fhir::BinOp::Ne => rty::BinOp::Ne,
-        fhir::BinOp::Gt => rty::BinOp::Gt,
+        fhir::BinOp::Gt => {
+            let a = 1;
+            todo!()
+        }
         fhir::BinOp::Ge => rty::BinOp::Ge,
         fhir::BinOp::Lt => rty::BinOp::Lt,
         fhir::BinOp::Le => rty::BinOp::Le,

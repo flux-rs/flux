@@ -77,7 +77,7 @@ impl SpanData {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum BinOp {
     Iff,
     Imp,
@@ -85,7 +85,7 @@ pub enum BinOp {
     And,
     Eq,
     Ne,
-    Gt,
+    Gt(Sort),
     Ge,
     Lt,
     Le,
@@ -453,8 +453,8 @@ impl Expr {
         ExprKind::BinaryOp(BinOp::Ge, e1.into(), e2.into()).intern()
     }
 
-    pub fn gt(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::BinaryOp(BinOp::Gt, e1.into(), e2.into()).intern()
+    pub fn gt(sort: Sort, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(BinOp::Gt(sort), e1.into(), e2.into()).intern()
     }
 
     pub fn lt(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
@@ -525,7 +525,7 @@ impl Expr {
             BinOp::Imp => c1.imp(c2),
             BinOp::Or => c1.or(c2),
             BinOp::And => c1.and(c2),
-            BinOp::Gt => c1.gt(c2),
+            BinOp::Gt(Sort::Int) => c1.gt(c2),
             BinOp::Ge => c1.ge(c2),
             BinOp::Lt => c2.gt(c1),
             BinOp::Le => c2.ge(c1),
@@ -563,10 +563,10 @@ impl Expr {
                                 let e2_span = e2.span();
                                 match Expr::const_op(op, c1, c2) {
                                     Some(c) => Expr::constant_at(c, span.or(e2_span)),
-                                    None => Expr::binary_op(*op, e1, e2, span),
+                                    None => Expr::binary_op(op.clone(), e1, e2, span),
                                 }
                             }
-                            _ => Expr::binary_op(*op, e1, e2, span),
+                            _ => Expr::binary_op(op.clone(), e1, e2, span),
                         }
                     }
                     ExprKind::UnaryOp(UnOp::Not, e) => {
@@ -775,13 +775,13 @@ mod pretty {
     }
 
     impl BinOp {
-        fn precedence(self) -> Precedence {
+        fn precedence(&self) -> Precedence {
             match self {
                 BinOp::Iff => Precedence::Iff,
                 BinOp::Imp => Precedence::Imp,
                 BinOp::Or => Precedence::Or,
                 BinOp::And => Precedence::And,
-                BinOp::Eq | BinOp::Ne | BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => {
+                BinOp::Eq | BinOp::Ne | BinOp::Gt(_) | BinOp::Lt | BinOp::Ge | BinOp::Le => {
                     Precedence::Cmp
                 }
                 BinOp::Add | BinOp::Sub => Precedence::AddSub,
@@ -949,7 +949,7 @@ mod pretty {
                 BinOp::And => w!("∧"),
                 BinOp::Eq => w!("="),
                 BinOp::Ne => w!("≠"),
-                BinOp::Gt => w!(">"),
+                BinOp::Gt(_) => w!(">"),
                 BinOp::Ge => w!("≥"),
                 BinOp::Lt => w!("<"),
                 BinOp::Le => w!("≤"),

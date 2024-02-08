@@ -1081,7 +1081,12 @@ impl TypeSuperFoldable for Expr {
             ExprKind::Constant(c) => Expr::constant_at(*c, span),
             ExprKind::ConstDefId(did) => Expr::const_def_id(*did, span),
             ExprKind::BinaryOp(op, e1, e2) => {
-                Expr::binary_op(*op, e1.try_fold_with(folder)?, e2.try_fold_with(folder)?, span)
+                Expr::binary_op(
+                    op.clone(),
+                    e1.try_fold_with(folder)?,
+                    e2.try_fold_with(folder)?,
+                    span,
+                )
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.try_fold_with(folder)?, span),
             ExprKind::FieldProj(e, proj) => Expr::field_proj(e.try_fold_with(folder)?, *proj, span),
