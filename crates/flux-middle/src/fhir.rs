@@ -726,6 +726,8 @@ pub enum SortRes {
         /// The item introducing the `Self` type alias, e.g., an impl block.
         alias_to: DefId,
     },
+    /// The sort of an adt (enum/struct) or type alias.
+    Adt(DefId),
 }
 
 #[derive(Clone, Copy)]
@@ -1367,6 +1369,7 @@ impl fmt::Debug for SortRes {
                 write!(f, "sortof({}::Self)", pretty::def_id_to_string(*alias_to))
             }
             SortRes::User { name } => write!(f, "{name}"),
+            SortRes::Adt(def_id) => write!(f, "{}::Sort", pretty::def_id_to_string(*def_id)),
         }
     }
 }

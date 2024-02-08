@@ -381,7 +381,9 @@ where
             fn visit_sort(&mut self, sort: &rty::Sort) -> ControlFlow<!> {
                 match sort {
                     rty::Sort::Tuple(flds) => self.sorts.declare_tuple(flds.len()),
-                    rty::Sort::Adt(sort_def, _) => self.sorts.declare_tuple(sort_def.fields()),
+                    rty::Sort::App(rty::SortCtor::Adt(sort_def), _) => {
+                        self.sorts.declare_tuple(sort_def.fields());
+                    }
                     _ => {}
                 }
                 sort.super_visit_with(self)
@@ -710,12 +712,14 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
             let ctor = match ctor {
                 rty::SortCtor::Set => fixpoint::SortCtor::Set,
                 rty::SortCtor::Map => fixpoint::SortCtor::Map,
+                rty::SortCtor::Adt(sort_def) => {
+                    fixpoint::SortCtor::Data(tuple_sort_name(sort_def.fields()))
+                }
                 rty::SortCtor::User { .. } => unreachable!(),
             };
             let sorts = sorts.iter().map(sort_to_fixpoint).collect_vec();
             fixpoint::Sort::App(ctor, sorts)
         }
-        rty::Sort::Adt(_, _) => todo!(),
         rty::Sort::Tuple(sorts) => {
             let ctor = fixpoint::SortCtor::Data(tuple_sort_name(sorts.len()));
             let args = sorts.iter().map(sort_to_fixpoint).collect();

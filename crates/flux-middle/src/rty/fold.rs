@@ -563,7 +563,6 @@ impl TypeSuperVisitable for Sort {
             | Sort::BitVec(_)
             | Sort::Loc
             | Sort::Param(_)
-            | Sort::Adt(..)
             | Sort::Var(_)
             | Sort::Infer(_)
             | Sort::Err => ControlFlow::Continue(()),
@@ -581,11 +580,8 @@ impl TypeSuperFoldable for Sort {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let sort = match self {
             Sort::Tuple(sorts) => Sort::tuple(sorts.try_fold_with(folder)?),
-            Sort::App(ctor, sorts) => Sort::app(*ctor, sorts.try_fold_with(folder)?),
+            Sort::App(ctor, sorts) => Sort::app(ctor.clone(), sorts.try_fold_with(folder)?),
             Sort::Func(fsort) => Sort::Func(fsort.try_fold_with(folder)?),
-            Sort::Adt(adt_sort_def, sorts) => {
-                Sort::Adt(adt_sort_def.clone(), sorts.try_fold_with(folder)?)
-            }
             Sort::Int
             | Sort::Bool
             | Sort::Real

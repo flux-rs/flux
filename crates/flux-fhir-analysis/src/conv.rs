@@ -1141,7 +1141,8 @@ impl Layer {
             LayerKind::Record(def_id) => {
                 let sort_def = genv.adt_sort_def_of(def_id);
                 let args = sort_def.identity_args();
-                let sort = rty::Sort::Adt(sort_def, args);
+                let ctor = rty::SortCtor::Adt(sort_def);
+                let sort = rty::Sort::App(ctor, args);
                 let infer_mode = sort.default_infer_mode();
                 List::singleton(rty::BoundVariableKind::Refine(sort, infer_mode))
             }
@@ -1200,15 +1201,16 @@ impl LookupResult<'_> {
         }
     }
 
-    fn is_record(&self) -> Option<&AdtSortDef> {
+    fn is_adt(&self) -> Option<&AdtSortDef> {
         match &self.kind {
             LookupResultKind::LateBoundList {
-                entry: Entry::Sort { sort: rty::Sort::Adt(sort_def, _), .. },
+                entry: Entry::Sort { sort: rty::Sort::App(rty::SortCtor::Adt(sort_def), _), .. },
                 ..
             } => Some(sort_def),
-            LookupResultKind::EarlyBound { sort: rty::Sort::Adt(sort_def, _), .. } => {
-                Some(sort_def)
-            }
+            LookupResultKind::EarlyBound {
+                sort: rty::Sort::App(rty::SortCtor::Adt(sort_def), _),
+                ..
+            } => Some(sort_def),
             _ => None,
         }
     }
@@ -1220,7 +1222,7 @@ impl LookupResult<'_> {
     }
 
     fn get_field(&self, fld: SurfaceIdent) -> rty::Expr {
-        if let Some(sort_def) = self.is_record() {
+        if let Some(sort_def) = self.is_adt() {
             let def_id = sort_def.did();
             let i = sort_def
                 .field_index(fld.name)
@@ -1231,7 +1233,7 @@ impl LookupResult<'_> {
                 None,
             )
         } else {
-            span_bug!(fld.span, "expected record sort")
+            span_bug!(fld.span, "expected adt sort")
         }
     }
 }
@@ -1323,6 +1325,10 @@ fn conv_sort_path(
         fhir::SortRes::PrimSort(fhir::PrimSort::Set) => rty::SortCtor::Set,
         fhir::SortRes::PrimSort(fhir::PrimSort::Map) => rty::SortCtor::Map,
         fhir::SortRes::User { name } => rty::SortCtor::User { name },
+        fhir::SortRes::Adt(def_id) => {
+            let sort_def = genv.adt_sort_def_of(def_id);
+            rty::SortCtor::Adt(sort_def)
+        }
     };
     let args = path
         .args

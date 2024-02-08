@@ -35,7 +35,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 for arg in sort_def.filter_generic_args(path.args) {
                     sort_args.push(self.sort_of_ty(arg.expect_type())?);
                 }
-                Some(rty::Sort::Adt(self.adt_sort_def_of(def_id), List::from_vec(sort_args)))
+                let ctor = rty::SortCtor::Adt(self.adt_sort_def_of(def_id));
+                Some(rty::Sort::App(ctor, List::from_vec(sort_args)))
             }
             fhir::Res::SelfTyAlias { alias_to, .. } => self.sort_of_self_ty_alias(alias_to),
             fhir::Res::Def(DefKind::TyParam, def_id) => {
@@ -106,7 +107,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 for arg in sort_def.filter_generic_args(args) {
                     sort_args.push(self.sort_of_self_ty(def_id, arg.expect_ty())?);
                 }
-                Some(rty::Sort::Adt(self.adt_sort_def_of(adt_def.did()), List::from_vec(sort_args)))
+                let ctor = rty::SortCtor::Adt(self.adt_sort_def_of(adt_def.did()));
+                Some(rty::Sort::App(ctor, List::from_vec(sort_args)))
             }
             ty::TyKind::Param(p) => {
                 let generic_param_def = self

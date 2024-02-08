@@ -12,7 +12,7 @@ use flux_middle::{
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
         BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path,
-        PtrKind, Region, Ty, TyKind, INNERMOST,
+        PtrKind, Region, SortCtor, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -469,7 +469,7 @@ impl BasicBlockEnvShape {
             (
                 ExprKind::Aggregate(_, flds1),
                 ExprKind::Aggregate(_, flds2),
-                Sort::Adt(sort_def, args),
+                Sort::App(SortCtor::Adt(sort_def), args),
             ) => {
                 let sorts = sort_def.sorts(args);
                 debug_assert_eq3!(flds1.len(), flds2.len(), sorts.len());

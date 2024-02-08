@@ -15,7 +15,10 @@ use super::{evars::EVar, AliasPred, BaseTy, Binder, IntTy, Sort, UintTy};
 use crate::{
     fhir::SpecFuncKind,
     intern::{impl_internable, impl_slice_internable, Interned, List},
-    rty::fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+    rty::{
+        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+        SortCtor,
+    },
 };
 
 /// A lambda abstraction
@@ -595,7 +598,7 @@ impl Expr {
         fn go(sort: &Sort, f: &mut impl FnMut(&Sort) -> Expr) -> Expr {
             match sort {
                 Sort::Tuple(sorts) => Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect()),
-                Sort::Adt(adt_sort_def, args) => {
+                Sort::App(SortCtor::Adt(adt_sort_def), args) => {
                     let flds = adt_sort_def.sorts(args);
                     Expr::adt(adt_sort_def.did(), flds.iter().map(|sort| go(sort, f)).collect())
                 }

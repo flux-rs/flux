@@ -89,7 +89,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         flds: &[fhir::RefineArg],
         expected: &rty::Sort,
     ) -> Result {
-        if let rty::Sort::Adt(sort_def, sort_args) = expected {
+        if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
             let sorts = sort_def.sorts(sort_args);
             if flds.len() != sorts.len() {
                 return Err(self.emit_err(errors::ArgCountMismatch::new(
@@ -215,7 +215,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             fhir::ExprKind::Dot(var, fld) => {
                 let sort = self.ensure_resolved_var(*var)?;
                 match &sort {
-                    rty::Sort::Adt(sort_def, sort_args) => {
+                    rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) => {
                         sort_def
                             .field_sort(sort_args, fld.name)
                             .ok_or_else(|| self.emit_field_not_found(&sort, *fld))
@@ -494,7 +494,7 @@ impl<'genv> InferCtxt<'genv, '_> {
                 for (t1, t2) in args1.iter().zip(args2.iter()) {
                     args.push(self.try_equate(t1, t2)?);
                 }
-                Some(rty::Sort::App(*ctor1, args.into()))
+                Some(rty::Sort::App(ctor1.clone(), args.into()))
             }
             _ if sort1 == sort2 => Some(sort1.clone()),
             _ => None,
@@ -582,7 +582,7 @@ impl<'genv> InferCtxt<'genv, '_> {
 
     fn is_single_field_record(&mut self, sort: &rty::Sort) -> Option<(DefId, rty::Sort)> {
         self.resolve_sort(sort).and_then(|s| {
-            if let rty::Sort::Adt(sort_def, sort_args) = s
+            if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = s
                 && let [sort] = &sort_def.sorts(&sort_args)[..]
             {
                 Some((sort_def.did(), sort.clone()))
@@ -644,7 +644,7 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
             }
             fhir::RefineArgKind::Abs(_, _) => {}
             fhir::RefineArgKind::Record(flds) => {
-                if let rty::Sort::Adt(sort_def, sort_args) = expected {
+                if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
                     let sorts = sort_def.sorts(sort_args);
                     if flds.len() != sorts.len() {
                         self.errors.emit(errors::ArgCountMismatch::new(

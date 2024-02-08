@@ -1,5 +1,3 @@
-// ignore-test disabled until we implement resolving of record sorts
-
 #[flux::refined_by(f: int)]
 pub struct S {
     #[flux::field(i32[f])]

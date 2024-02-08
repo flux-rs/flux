@@ -332,21 +332,23 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             | rty::Sort::Param(_)
             | rty::Sort::Var(_) => true,
             rty::Sort::Tuple(sorts) => sorts.iter().all(|sort| self.has_equality(sort)),
-            rty::Sort::Adt(sort_def, sort_args) => {
-                sort_def
-                    .sorts(sort_args)
-                    .iter()
-                    .all(|sort| self.has_equality(sort))
-            }
             rty::Sort::App(ctor, sorts) => self.ctor_has_equality(ctor, sorts),
             rty::Sort::Err | rty::Sort::Loc | rty::Sort::Func(_) | rty::Sort::Infer(_) => false,
         }
     }
 
-    /// For now all sort constructors have equality if all the generic arguments do. In the
-    /// future we may have a more fine-grained notion of equality for sort constructors.
-    fn ctor_has_equality(&self, _: &rty::SortCtor, args: &[rty::Sort]) -> bool {
-        args.iter().all(|sort| self.has_equality(sort))
+    fn ctor_has_equality(&self, ctor: &rty::SortCtor, args: &[rty::Sort]) -> bool {
+        match ctor {
+            rty::SortCtor::Adt(sort_def) => {
+                sort_def
+                    .sorts(args)
+                    .iter()
+                    .all(|sort| self.has_equality(sort))
+            }
+            rty::SortCtor::Set | rty::SortCtor::Map | rty::SortCtor::User { .. } => {
+                args.iter().all(|sort| self.has_equality(sort))
+            }
+        }
     }
 
     pub fn refine_default_generic_args(

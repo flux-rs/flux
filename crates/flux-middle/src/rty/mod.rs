@@ -235,10 +235,11 @@ pub struct AssocPredicate {
     pub name: Symbol,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum SortCtor {
     Set,
     Map,
+    Adt(AdtSortDef),
     User { name: Symbol },
 }
 
@@ -293,7 +294,6 @@ pub enum Sort {
     Tuple(List<Sort>),
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
-    Adt(AdtSortDef, List<Sort>),
     Var(SortVar),
     Infer(SortVid),
     Err,
@@ -793,7 +793,7 @@ impl Sort {
     }
 
     pub fn is_unit_adt(&self) -> Option<DefId> {
-        if let Sort::Adt(sort_def, _) = self
+        if let Sort::App(SortCtor::Adt(sort_def), _) = self
             && sort_def.fields() == 0
         {
             Some(sort_def.did())
@@ -829,7 +829,7 @@ impl Sort {
                         proj.pop();
                     }
                 }
-                Sort::Adt(sort_def, args) => {
+                Sort::App(SortCtor::Adt(sort_def), args) => {
                     for (i, sort) in sort_def.sorts(args).iter().enumerate() {
                         proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i as u32 });
                         go(sort, f, proj);
@@ -1155,7 +1155,7 @@ impl AdtDef {
             .map(|arg| arg.peel_out_sort().unwrap())
             .collect();
 
-        Sort::Adt(self.sort_def().clone(), sorts)
+        Sort::App(SortCtor::Adt(self.sort_def().clone()), sorts)
     }
 
     pub fn is_box(&self) -> bool {
@@ -1925,6 +1925,9 @@ mod pretty {
                 SortCtor::Set => w!("Set"),
                 SortCtor::Map => w!("Map"),
                 SortCtor::User { name, .. } => w!("{}", ^name),
+                SortCtor::Adt(adt_sort_def) => {
+                    w!("{:?}", adt_sort_def.did())
+                }
             }
         }
     }
@@ -1940,13 +1943,6 @@ mod pretty {
                 Sort::Loc => w!("loc"),
                 Sort::Var(n) => w!("@{}", ^n.index),
                 Sort::Func(sort) => w!("{:?}", sort),
-                Sort::Adt(adt_sort_def, args) => {
-                    if args.is_empty() {
-                        w!("{:?}", adt_sort_def.did())
-                    } else {
-                        w!("{:?}<{:?}>", adt_sort_def.did(), join!(", ", args))
-                    }
-                }
                 Sort::Tuple(sorts) => {
                     if let [sort] = &sorts[..] {
                         w!("({:?},)", sort)
