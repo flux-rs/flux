@@ -322,35 +322,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         generics.param_def_id_to_index[&def_id.to_def_id()]
     }
 
-    /// Whether values of this sort can be compared for equality.
-    pub fn has_equality(&self, sort: &rty::Sort) -> bool {
-        match sort {
-            rty::Sort::Int
-            | rty::Sort::Bool
-            | rty::Sort::Real
-            | rty::Sort::BitVec(_)
-            | rty::Sort::Param(_)
-            | rty::Sort::Var(_) => true,
-            rty::Sort::Tuple(sorts) => sorts.iter().all(|sort| self.has_equality(sort)),
-            rty::Sort::App(ctor, sorts) => self.ctor_has_equality(ctor, sorts),
-            rty::Sort::Err | rty::Sort::Loc | rty::Sort::Func(_) | rty::Sort::Infer(_) => false,
-        }
-    }
-
-    fn ctor_has_equality(&self, ctor: &rty::SortCtor, args: &[rty::Sort]) -> bool {
-        match ctor {
-            rty::SortCtor::Adt(sort_def) => {
-                sort_def
-                    .sorts(args)
-                    .iter()
-                    .all(|sort| self.has_equality(sort))
-            }
-            rty::SortCtor::Set | rty::SortCtor::Map | rty::SortCtor::User { .. } => {
-                args.iter().all(|sort| self.has_equality(sort))
-            }
-        }
-    }
-
     pub fn refine_default_generic_args(
         self,
         generics: &rty::Generics,

@@ -13,7 +13,7 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{FallibleTypeFolder, TypeSuperFoldable},
-    AliasKind, AliasPred, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, ExprKind,
+    AliasKind, AliasReft, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, ExprKind,
     GenericArg, GenericArgs, ProjectionPredicate, RefineArgs, Region, Ty, TyKind,
 };
 use crate::{
@@ -46,7 +46,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
 
     fn normalize_alias_pred(
         &mut self,
-        alias_pred: &AliasPred,
+        alias_pred: &AliasReft,
         refine_args: &RefineArgs,
     ) -> QueryResult<Expr> {
         if let Some(impl_id) = self.impl_id_of_alias_ty(alias_pred)? {
@@ -54,10 +54,10 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                 .genv
                 .assoc_refinement_def(impl_id, alias_pred.name)?
                 .instantiate(&alias_pred.args, &[]);
-            let expr = pred.replace_bound_exprs(refine_args);
+            let expr = pred.apply(refine_args);
             Ok(expr)
         } else {
-            Ok(Expr::alias_pred(alias_pred.clone(), refine_args.clone()))
+            Ok(Expr::alias(alias_pred.clone(), refine_args.clone()))
         }
     }
 
@@ -156,7 +156,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         Ok(())
     }
 
-    fn impl_id_of_alias_ty(&mut self, alias_pred: &AliasPred) -> QueryResult<Option<DefId>> {
+    fn impl_id_of_alias_ty(&mut self, alias_pred: &AliasReft) -> QueryResult<Option<DefId>> {
         let trait_pred = Obligation::with_depth(
             self.tcx(),
             ObligationCause::dummy(),
@@ -230,7 +230,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     }
 
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
-        if let ExprKind::AliasPred(alias_pred, refine_args) = expr.kind() {
+        if let ExprKind::Alias(alias_pred, refine_args) = expr.kind() {
             self.normalize_alias_pred(alias_pred, refine_args)
         } else {
             expr.try_super_fold_with(self)
@@ -247,7 +247,7 @@ pub enum Candidate {
 
 pub fn into_rustc_trait_ref<'tcx>(
     tcx: TyCtxt<'tcx>,
-    alias_pred: &AliasPred,
+    alias_pred: &AliasReft,
 ) -> rustc_middle::ty::TraitRef<'tcx> {
     let trait_def_id = alias_pred.trait_id;
     let args = into_rustc_generic_args(tcx, &alias_pred.args)

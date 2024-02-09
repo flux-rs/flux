@@ -421,7 +421,7 @@ impl BasicBlockEnvShape {
                     Ty::indexed(bty, idx)
                 } else {
                     let ty = Ty::constr(Expr::hole(HoleKind::Pred), Ty::indexed(bty, idx));
-                    Ty::exists(Binder::with_sorts(ty, sorts))
+                    Ty::exists(Binder::with_sorts(ty, &sorts))
                 }
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) => {

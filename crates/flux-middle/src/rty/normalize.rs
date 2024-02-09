@@ -127,8 +127,8 @@ impl<'a> Normalizer<'a> {
                 let res = defn.expr.replace_bound_exprs(args);
                 Self::at_base(res, espan)
             }
-            ExprKind::Abs(body) => {
-                let res = body.replace_bound_exprs(args);
+            ExprKind::Abs(lam) => {
+                let res = lam.apply(args);
                 Self::at_base(res, espan)
             }
             _ => Expr::app(func.clone(), args, espan),

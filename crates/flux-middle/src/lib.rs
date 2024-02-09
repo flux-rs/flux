@@ -68,9 +68,9 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
     static THEORY_FUNCS: OnceLock<Vec<TheoryFunc>> = OnceLock::new();
     THEORY_FUNCS.get_or_init(|| {
         use rty::{
+            ParamSort,
             Sort::{self, *},
             SortCtor::*,
-            SortVar,
         };
         vec![
             // Bitvector operations
@@ -109,7 +109,7 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                 fixpoint_name: Symbol::intern("Set_empty"),
                 sort: rty::PolyFuncSort::new(
                     1,
-                    rty::FuncSort::new(vec![Int], Sort::app(Set, vec![Var(SortVar::from(0))])),
+                    rty::FuncSort::new(vec![Int], Sort::app(Set, vec![Var(ParamSort::from(0))])),
                 ),
             },
             TheoryFunc {
@@ -118,8 +118,8 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                 sort: rty::PolyFuncSort::new(
                     1,
                     rty::FuncSort::new(
-                        vec![Var(SortVar::from(0))],
-                        Sort::app(Set, vec![Var(SortVar::from(0))]),
+                        vec![Var(ParamSort::from(0))],
+                        Sort::app(Set, vec![Var(ParamSort::from(0))]),
                     ),
                 ),
             },
@@ -130,10 +130,10 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                     1,
                     rty::FuncSort::new(
                         vec![
-                            Sort::app(Set, vec![Var(SortVar::from(0))]),
-                            Sort::app(Set, vec![Var(SortVar::from(0))]),
+                            Sort::app(Set, vec![Var(ParamSort::from(0))]),
+                            Sort::app(Set, vec![Var(ParamSort::from(0))]),
                         ],
-                        Sort::app(Set, vec![Var(SortVar::from(0))]),
+                        Sort::app(Set, vec![Var(ParamSort::from(0))]),
                     ),
                 ),
             },
@@ -143,7 +143,10 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                 sort: rty::PolyFuncSort::new(
                     1,
                     rty::FuncSort::new(
-                        vec![Var(SortVar::from(0)), Sort::app(Set, vec![Var(SortVar::from(0))])],
+                        vec![
+                            Var(ParamSort::from(0)),
+                            Sort::app(Set, vec![Var(ParamSort::from(0))]),
+                        ],
                         Bool,
                     ),
                 ),
@@ -155,8 +158,8 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                 sort: rty::PolyFuncSort::new(
                     2,
                     rty::FuncSort::new(
-                        vec![Var(SortVar::from(1))],
-                        Sort::app(Map, vec![Var(SortVar::from(0)), Var(SortVar::from(1))]),
+                        vec![Var(ParamSort::from(1))],
+                        Sort::app(Map, vec![Var(ParamSort::from(0)), Var(ParamSort::from(1))]),
                     ),
                 ),
             },
@@ -167,10 +170,10 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                     2,
                     rty::FuncSort::new(
                         vec![
-                            Sort::app(Map, vec![Var(SortVar::from(0)), Var(SortVar::from(1))]),
-                            Var(SortVar::from(0)),
+                            Sort::app(Map, vec![Var(ParamSort::from(0)), Var(ParamSort::from(1))]),
+                            Var(ParamSort::from(0)),
                         ],
-                        Var(SortVar::from(1)),
+                        Var(ParamSort::from(1)),
                     ),
                 ),
             },
@@ -181,11 +184,11 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                     2,
                     rty::FuncSort::new(
                         vec![
-                            Sort::app(Map, vec![Var(SortVar::from(0)), Var(SortVar::from(1))]),
-                            Var(SortVar::from(0)),
-                            Var(SortVar::from(1)),
+                            Sort::app(Map, vec![Var(ParamSort::from(0)), Var(ParamSort::from(1))]),
+                            Var(ParamSort::from(0)),
+                            Var(ParamSort::from(1)),
                         ],
-                        Sort::app(Map, vec![Var(SortVar::from(0)), Var(SortVar::from(1))]),
+                        Sort::app(Map, vec![Var(ParamSort::from(0)), Var(ParamSort::from(1))]),
                     ),
                 ),
             },

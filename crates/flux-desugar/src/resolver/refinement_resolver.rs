@@ -392,7 +392,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         let sort_res = sort_params
             .iter()
             .enumerate()
-            .map(|(i, v)| (v.name, fhir::SortRes::Var(i)))
+            .map(|(i, v)| (v.name, fhir::SortRes::SortParam(i)))
             .collect();
         Self::new(resolver, sort_res)
     }
@@ -406,7 +406,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         let mut sort_res: UnordMap<_, _> = generics
             .params
             .iter()
-            .map(|p| (p.name, fhir::SortRes::Param(p.def_id)))
+            .map(|p| (p.name, fhir::SortRes::TyParam(p.def_id)))
             .collect();
         if let Some(self_res) = self_res(tcx, owner) {
             sort_res.insert(kw::SelfUpper, self_res);

@@ -338,7 +338,9 @@ pub(crate) fn conv_assoc_reft_def<'genv>(
     let mut env = Env::new(genv, &[], wfckresults);
     env.push_layer(Layer::list(&cx, 0, assoc_reft.params, false));
     let expr = cx.conv_expr(&mut env, &assoc_reft.body)?;
-    Ok(rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv)))
+    let inputs = env.pop_layer().into_bound_vars(genv);
+    let output = conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort);
+    Ok(rty::Lambda::with_vars(expr, inputs, output))
 }
 
 pub(crate) fn conv_ty<'genv>(
@@ -630,22 +632,22 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_alias_pred(
+    fn conv_alias_reft(
         &self,
         env: &mut Env,
-        alias_pred: &fhir::AliasPred,
+        alias_reft: &fhir::AliasReft,
         func_args: &[fhir::Expr],
     ) -> QueryResult<rty::Expr> {
-        let trait_id = alias_pred.trait_id;
+        let trait_id = alias_reft.trait_id;
         let generic_args = self
-            .conv_generic_args(env, trait_id, alias_pred.generic_args)?
+            .conv_generic_args(env, trait_id, alias_reft.generic_args)?
             .into();
         let func_args = func_args
             .iter()
             .map(|arg| self.conv_expr(env, arg))
             .try_collect()?;
-        let alias_pred = rty::AliasPred { trait_id, name: alias_pred.name, args: generic_args };
-        Ok(rty::Expr::alias_pred(alias_pred, func_args))
+        let alias_reft = rty::AliasReft { trait_id, name: alias_reft.name, args: generic_args };
+        Ok(rty::Expr::alias(alias_reft, func_args))
     }
 
     fn conv_ty(&self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
@@ -805,9 +807,15 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
                 env.push_layer(layer);
                 let pred = self.conv_expr(env, body)?;
-                let vars = env.pop_layer().into_bound_vars(self.genv);
-                let body = rty::Binder::new(pred, vars);
-                Ok(self.add_coercions(rty::Expr::abs(body), arg.fhir_id))
+                let inputs = env.pop_layer().into_bound_vars(self.genv);
+                let output = self
+                    .wfckresults
+                    .node_sorts()
+                    .get(arg.fhir_id)
+                    .unwrap_or_else(|| bug!("lambda without elaborated sort"))
+                    .clone();
+                let lam = rty::Lambda::with_vars(pred, inputs, output);
+                Ok(self.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
             }
             fhir::RefineArgKind::Record(flds) => {
                 let def_id = self.wfckresults.record_ctors().get(arg.fhir_id).unwrap();
@@ -1021,7 +1029,7 @@ impl ConvCtxt<'_, '_, '_> {
                 rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args)?, espan)
             }
             fhir::ExprKind::Alias(alias_pred, func_args) => {
-                self.conv_alias_pred(env, alias_pred, func_args)?
+                self.conv_alias_reft(env, alias_pred, func_args)?
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 rty::Expr::ite(
@@ -1254,11 +1262,11 @@ pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> rty::SpecFuncDe
 fn conv_sorts(
     genv: GlobalEnv,
     sorts: &[fhir::Sort],
-    next_sort_vid: &mut impl FnMut() -> rty::SortVid,
+    next_infer_sort: &mut impl FnMut() -> rty::Sort,
 ) -> Vec<rty::Sort> {
     sorts
         .iter()
-        .map(|sort| conv_sort(genv, sort, next_sort_vid))
+        .map(|sort| conv_sort(genv, sort, next_infer_sort))
         .collect()
 }
 
@@ -1292,28 +1300,30 @@ pub(crate) fn resolve_param_sort(
 pub(crate) fn conv_sort(
     genv: GlobalEnv,
     sort: &fhir::Sort,
-    next_sort_vid: &mut impl FnMut() -> rty::SortVid,
+    next_infer_sort: &mut impl FnMut() -> rty::Sort,
 ) -> rty::Sort {
     match sort {
-        fhir::Sort::Path(path) => conv_sort_path(genv, path, next_sort_vid),
+        fhir::Sort::Path(path) => conv_sort_path(genv, path, next_infer_sort),
         fhir::Sort::BitVec(w) => rty::Sort::BitVec(*w),
         fhir::Sort::Loc => rty::Sort::Loc,
-        fhir::Sort::Func(fsort) => rty::Sort::Func(conv_poly_func_sort(genv, fsort, next_sort_vid)),
-        fhir::Sort::Infer => rty::Sort::Infer(next_sort_vid()),
+        fhir::Sort::Func(fsort) => {
+            rty::Sort::Func(conv_poly_func_sort(genv, fsort, next_infer_sort))
+        }
+        fhir::Sort::Infer => next_infer_sort(),
     }
 }
 
 fn conv_sort_path(
     genv: GlobalEnv,
     path: &fhir::SortPath,
-    next_sort_vid: &mut impl FnMut() -> rty::SortVid,
+    next_infer_sort: &mut impl FnMut() -> rty::Sort,
 ) -> rty::Sort {
     let ctor = match path.res {
         fhir::SortRes::PrimSort(fhir::PrimSort::Int) => return rty::Sort::Int,
         fhir::SortRes::PrimSort(fhir::PrimSort::Bool) => return rty::Sort::Bool,
         fhir::SortRes::PrimSort(fhir::PrimSort::Real) => return rty::Sort::Real,
-        fhir::SortRes::Var(n) => return rty::Sort::Var(rty::SortVar::from(n)),
-        fhir::SortRes::Param(def_id) => {
+        fhir::SortRes::SortParam(n) => return rty::Sort::Var(rty::ParamSort::from(n)),
+        fhir::SortRes::TyParam(def_id) => {
             return rty::Sort::Param(genv.def_id_to_param_ty(def_id.expect_local()))
         }
         fhir::SortRes::SelfParam { .. } => return rty::Sort::Param(rty::SELF_PARAM_TY),
@@ -1333,7 +1343,7 @@ fn conv_sort_path(
     let args = path
         .args
         .iter()
-        .map(|t| conv_sort(genv, t, next_sort_vid))
+        .map(|t| conv_sort(genv, t, next_infer_sort))
         .collect_vec();
     rty::Sort::app(ctor, args)
 }
@@ -1341,19 +1351,19 @@ fn conv_sort_path(
 fn conv_poly_func_sort(
     genv: GlobalEnv,
     sort: &fhir::PolyFuncSort,
-    next_sort_vid: &mut impl FnMut() -> rty::SortVid,
+    next_infer_sort: &mut impl FnMut() -> rty::Sort,
 ) -> rty::PolyFuncSort {
-    rty::PolyFuncSort::new(sort.params, conv_func_sort(genv, &sort.fsort, next_sort_vid))
+    rty::PolyFuncSort::new(sort.params, conv_func_sort(genv, &sort.fsort, next_infer_sort))
 }
 
 pub(crate) fn conv_func_sort(
     genv: GlobalEnv,
     fsort: &fhir::FuncSort,
-    next_sort_vid: &mut impl FnMut() -> rty::SortVid,
+    next_infer_sort: &mut impl FnMut() -> rty::Sort,
 ) -> rty::FuncSort {
     rty::FuncSort::new(
-        conv_sorts(genv, fsort.inputs(), next_sort_vid),
-        conv_sort(genv, fsort.output(), next_sort_vid),
+        conv_sorts(genv, fsort.inputs(), next_infer_sort),
+        conv_sort(genv, fsort.output(), next_infer_sort),
     )
 }
 
@@ -1365,7 +1375,7 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
     }
 }
 
-pub(crate) fn bug_on_infer_sort() -> rty::SortVid {
+pub(crate) fn bug_on_infer_sort() -> rty::Sort {
     bug!("unexpected infer sort")
 }
 
