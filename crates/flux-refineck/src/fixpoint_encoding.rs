@@ -902,9 +902,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let body = self.expr_to_fixpoint(qualifier.body.as_ref().skip_binder(), &env);
 
         let name = qualifier.name.to_string();
-        let global = qualifier.global;
 
-        fixpoint::Qualifier { name, args, body, global }
+        fixpoint::Qualifier { name, args, body }
     }
 }
 
