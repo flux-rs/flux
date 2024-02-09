@@ -177,6 +177,7 @@ impl<'rcx> RefineCtxt<'rcx> {
         self.snapshot().scope().unwrap()
     }
 
+    #[allow(dead_code)]
     #[must_use]
     #[allow(dead_code)]
     pub(crate) fn push_comment(&mut self, comment: impl ToString) -> RefineCtxt {

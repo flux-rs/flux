@@ -97,7 +97,6 @@ pub struct Qualifier<T: Types> {
     pub name: String,
     pub args: Vec<(T::Var, Sort<T>)>,
     pub body: Expr<T>,
-    pub global: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -381,7 +380,6 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
         args: vec![("v", Sort::Int)],
         body: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("EqZero"),
-        global: true,
     };
 
     // (qualif GtZero ((v int)) (v > 0))
@@ -389,7 +387,6 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
         args: vec![("v", Sort::Int)],
         body: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("GtZero"),
-        global: true,
     };
 
     // (qualif GeZero ((v int)) (v >= 0))
@@ -397,7 +394,6 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
         args: vec![("v", Sort::Int)],
         body: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("GeZero"),
-        global: true,
     };
 
     // (qualif LtZero ((v int)) (v < 0))
@@ -405,7 +401,6 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
         args: vec![("v", Sort::Int)],
         body: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("LtZero"),
-        global: true,
     };
 
     // (qualif LeZero ((v int)) (v <= 0))
@@ -413,7 +408,6 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
         args: vec![("v", Sort::Int)],
         body: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("LeZero"),
-        global: true,
     };
 
     // ------
@@ -425,7 +419,6 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
         body: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Eq"),
-        global: true,
     };
 
     // (qualif Gt ((a int) (b int)) (a > b))
@@ -433,7 +426,6 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
         body: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Gt"),
-        global: true,
     };
 
     // (qualif Lt ((a int) (b int)) (a < b))
@@ -441,7 +433,6 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
         body: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Ge"),
-        global: true,
     };
 
     // (qualif Ge ((a int) (b int)) (a >= b))
@@ -449,7 +440,6 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
         body: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Lt"),
-        global: true,
     };
 
     // (qualif Le ((a int) (b int)) (a <= b))
@@ -457,7 +447,6 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
         body: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Le"),
-        global: true,
     };
 
     // (qualif Le1 ((a int) (b int)) (a < b - 1))
@@ -471,7 +460,6 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
             ]),
         ),
         name: String::from("Le1"),
-        global: true,
     };
 
     vec![eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]

@@ -1,7 +1,7 @@
 use rustc_span::symbol::Ident;
 
 use super::{
-    AliasPred, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
+    AliasReft, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
     ExprKind, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, GenericParamKind,
     Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathExpr, Qualifier, RefineArg, RefineParam,
     RefinedBy, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias,
@@ -157,7 +157,7 @@ pub trait Visitor: Sized {
         walk_expr(self, expr);
     }
 
-    fn visit_alias_pred(&mut self, alias_pred: &AliasPred) {
+    fn visit_alias_pred(&mut self, alias_pred: &AliasReft) {
         walk_alias_pred(self, alias_pred);
     }
 
@@ -454,7 +454,7 @@ pub fn walk_path<V: Visitor>(vis: &mut V, path: &Path) {
     walk_list!(vis, visit_refine_arg, &path.refine);
 }
 
-pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasPred) {
+pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasReft) {
     vis.visit_ident(alias_pred.name);
     vis.visit_path(&alias_pred.trait_id);
     walk_list!(vis, visit_generic_arg, &alias_pred.args);

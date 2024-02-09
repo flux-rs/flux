@@ -1,5 +1,5 @@
 use super::{
-    AliasPred, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
+    AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
     FnSig, FuncSort, GenericArg, Generics, Ident, Lifetime, Lit, PolyFuncSort, QPath, RefineArg,
     RefineArgKind, RefineParam, Sort, SortPath, StructDef, Ty, TyKind, TypeBinding, VariantDef,
     VariantRet,
@@ -108,7 +108,7 @@ pub trait Visitor: Sized {
         walk_expr(self, expr);
     }
 
-    fn visit_alias_pred(&mut self, alias_pred: &AliasPred) {
+    fn visit_alias_pred(&mut self, alias_pred: &AliasReft) {
         walk_alias_pred(self, alias_pred);
     }
 
@@ -288,7 +288,7 @@ pub fn walk_refine_arg<V: Visitor>(vis: &mut V, arg: &RefineArg) {
     }
 }
 
-pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasPred) {
+pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasReft) {
     walk_list!(vis, visit_generic_arg, alias_pred.generic_args);
 }
 

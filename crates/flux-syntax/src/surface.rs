@@ -305,7 +305,7 @@ pub struct Ty {
 }
 
 #[derive(Debug)]
-pub struct AliasPred {
+pub struct AliasReft {
     pub trait_id: Path,
     pub name: Ident,
     pub args: Vec<GenericArg>,
@@ -456,7 +456,7 @@ pub enum ExprKind {
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
     App(Ident, Vec<Expr>),
-    Alias(AliasPred, Vec<Expr>),
+    Alias(AliasReft, Vec<Expr>),
     IfThenElse(Box<[Expr; 3]>),
 }
 

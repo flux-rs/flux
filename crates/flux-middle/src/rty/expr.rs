@@ -11,7 +11,9 @@ use rustc_span::{BytePos, Span, Symbol, SyntaxContext};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
-use super::{evars::EVar, AliasPred, BaseTy, Binder, IntTy, Sort, UintTy};
+use super::{
+    evars::EVar, AliasReft, BaseTy, Binder, BoundVariableKind, FuncSort, IntTy, Sort, UintTy,
+};
 use crate::{
     fhir::SpecFuncKind,
     intern::{impl_internable, impl_slice_internable, Interned, List},
@@ -22,7 +24,37 @@ use crate::{
 };
 
 /// A lambda abstraction
-pub type Lambda = Binder<Expr>;
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct Lambda {
+    pub(super) body: Binder<Expr>,
+    pub(super) output: Sort,
+}
+
+impl Lambda {
+    pub fn with_vars(body: Expr, inputs: List<BoundVariableKind>, output: Sort) -> Self {
+        Self { body: Binder::new(body, inputs), output }
+    }
+
+    pub fn with_sorts(body: Expr, inputs: &[Sort], output: Sort) -> Self {
+        Self { body: Binder::with_sorts(body, inputs), output }
+    }
+
+    pub fn apply(&self, args: &[Expr]) -> Expr {
+        self.body.replace_bound_exprs(args)
+    }
+
+    pub fn inputs(&self) -> List<Sort> {
+        self.body.vars().to_sort_list()
+    }
+
+    pub fn output(&self) -> Sort {
+        self.output.clone()
+    }
+
+    pub fn sort(&self) -> FuncSort {
+        FuncSort::new(self.inputs().to_vec(), self.output())
+    }
+}
 
 pub type Expr = Interned<ExprS>;
 
@@ -116,7 +148,7 @@ pub enum ExprKind {
     PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
-    AliasPred(AliasPred, List<Expr>),
+    Alias(AliasReft, List<Expr>),
     /// Function application. The syntax allows arbitrary expressions in function position, but in
     /// practice we are restricted by what's possible to encode in fixpoint. In a nutshell, we need
     /// to make sure that expressions that can't be encoded are eliminated before we generate the
@@ -396,8 +428,8 @@ impl Expr {
         ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern_at(espan)
     }
 
-    pub fn abs(body: Binder<Expr>) -> Expr {
-        ExprKind::Abs(body).intern()
+    pub fn abs(lam: Lambda) -> Expr {
+        ExprKind::Abs(lam).intern()
     }
 
     pub fn hole(kind: HoleKind) -> Expr {
@@ -408,8 +440,8 @@ impl Expr {
         ExprKind::KVar(kvar).intern()
     }
 
-    pub fn alias_pred(alias: AliasPred, args: List<Expr>) -> Expr {
-        ExprKind::AliasPred(alias, args).intern()
+    pub fn alias(alias: AliasReft, args: List<Expr>) -> Expr {
+        ExprKind::Alias(alias, args).intern()
     }
 
     pub fn binary_op(
@@ -612,11 +644,12 @@ impl Expr {
         matches!(self.kind(), ExprKind::Abs(..))
     }
 
-    pub fn eta_expand_abs(&self, sorts: &[Sort]) -> Binder<Expr> {
-        let args = (0..sorts.len())
+    pub fn eta_expand_abs(&self, inputs: &[Sort], output: Sort) -> Lambda {
+        let args = (0..inputs.len())
             .map(|idx| Expr::late_bvar(INNERMOST, idx as u32))
             .collect_vec();
-        Binder::with_sorts(Expr::app(self, args, None), sorts.iter().cloned())
+        let body = Expr::app(self, args, None);
+        Lambda::with_sorts(body, inputs, output)
     }
 
     pub fn fold_sort(sort: &Sort, mut f: impl FnMut(&Sort) -> Expr) -> Expr {
@@ -880,14 +913,21 @@ mod pretty {
                 ExprKind::KVar(kvar) => {
                     w!("{:?}", kvar)
                 }
-                ExprKind::AliasPred(alias, args) => {
+                ExprKind::Alias(alias, args) => {
                     w!("{:?}({:?}", ^alias, join!(", ", args))
                 }
-                ExprKind::Abs(body) => {
-                    w!("{:?}", body)
+                ExprKind::Abs(lam) => {
+                    w!("{:?}", lam)
                 }
                 ExprKind::GlobalFunc(func, _) => w!("{}", ^func),
             }
+        }
+    }
+
+    impl Pretty for Lambda {
+        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("λ{:?}. {:?}", join!(", ", self.body.vars()), self.body.as_ref().skip_binder())
         }
     }
 
@@ -895,7 +935,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Var::LateBound(bvar, idx) => w!("{:?}#{}", bvar, ^idx),
+                Var::LateBound(bvar, idx) => w!("({:?}.{})", bvar, ^idx),
                 Var::EarlyBound(idx) => w!("#{}", ^idx),
                 Var::Free(name) => w!("{:?}", ^name),
                 Var::EVar(evar) => w!("{:?}", evar),
@@ -972,5 +1012,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar);
+    impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar, Lambda);
 }

@@ -492,10 +492,10 @@ Level10: surface::Expr = {
         let mut trait_args = std::mem::take(&mut trait_id.generics);
         args.append(&mut trait_args);
 
-        let alias_pred = surface::AliasPred { trait_id, name, args };
+        let alias = surface::AliasReft { trait_id, name, args };
 
         surface::Expr {
-            kind: surface::ExprKind::Alias(alias_pred, fun_args),
+            kind: surface::ExprKind::Alias(alias, fun_args),
             node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         }

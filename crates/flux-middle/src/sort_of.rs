@@ -5,7 +5,7 @@ use rustc_span::def_id::{DefId, LocalDefId};
 use crate::{fhir, global_env::GlobalEnv, intern::List, rty};
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
-    pub fn sort_of_alias_pred(self, alias_pred: &fhir::AliasPred) -> Option<rty::FuncSort> {
+    pub fn sort_of_alias_reft(self, alias_pred: &fhir::AliasReft) -> Option<rty::FuncSort> {
         let trait_id = alias_pred.trait_id;
         let name = alias_pred.name;
         let fsort = self.sort_of_assoc_reft(trait_id, name)?;

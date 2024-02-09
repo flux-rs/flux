@@ -89,14 +89,14 @@ impl InvalidConstant {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_alias_pred, code = "FLUX")]
-pub(super) struct InvalidAliasPred {
+#[diag(desugar_invalid_alias_reft, code = "FLUX")]
+pub(super) struct InvalidAliasReft {
     #[primary_span]
     #[label]
     pub(super) span: Span,
 }
 
-impl InvalidAliasPred {
+impl InvalidAliasReft {
     pub(super) fn new(path: &surface::Path) -> Self {
         Self { span: path.span }
     }
