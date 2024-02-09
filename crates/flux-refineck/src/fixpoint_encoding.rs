@@ -314,7 +314,7 @@ struct ExprEncodingCtxt<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     global_var_gen: IndexGen<fixpoint::GlobalVar>,
     const_map: ConstMap,
-    alias_preds: FxHashMap<rustc_middle::ty::TraitRef<'tcx>, ConstInfo>,
+    alias_refts: FxHashMap<rustc_middle::ty::TraitRef<'tcx>, ConstInfo>,
     /// Used to report bugs
     dbg_span: Span,
 }
@@ -460,7 +460,7 @@ where
             .ecx
             .const_map
             .into_values()
-            .chain(self.ecx.alias_preds.into_values())
+            .chain(self.ecx.alias_refts.into_values())
             .map(Self::fixpoint_const_info)
             .collect_vec();
 
@@ -751,7 +751,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>, dbg_span: Span) -> Self {
         let global_var_gen = IndexGen::new();
         let const_map = fixpoint_const_map(genv, &global_var_gen);
-        Self { genv, alias_preds: Default::default(), const_map, global_var_gen, dbg_span }
+        Self { genv, alias_refts: Default::default(), const_map, global_var_gen, dbg_span }
     }
 
     fn expr_to_fixpoint(&mut self, expr: &rty::Expr, env: &Env) -> fixpoint::Expr {
@@ -883,9 +883,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> fixpoint::Var {
         let key = rty::projections::into_rustc_trait_ref(self.genv.tcx(), alias_pred);
         fixpoint::Var::Global(
-            self.alias_preds
+            self.alias_refts
                 .entry(key)
-                .or_insert_with(|| alias_pred_gen(&self.global_var_gen, alias_pred, arity))
+                .or_insert_with(|| alias_reft_gen(&self.global_var_gen, alias_pred, arity))
                 .name,
         )
     }
@@ -913,7 +913,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 /// mono-sort at which this alias_pred is being used see [`GlobalEnv::sort_of_alias_pred`] but
 /// that is a bit tedious as its done using the `fhir` (not `rty`). Alternatively, we might
 /// stash the computed mono-sort *in* the `rty::AliasPred` during `conv`?
-fn alias_pred_sort(arity: usize) -> rty::PolyFuncSort {
+fn alias_reft_sort(arity: usize) -> rty::PolyFuncSort {
     let mut sorts = vec![];
     for i in 0..arity {
         sorts.push(rty::Sort::Var(rty::ParamSort::from(i)));
@@ -922,14 +922,14 @@ fn alias_pred_sort(arity: usize) -> rty::PolyFuncSort {
     rty::PolyFuncSort::new(arity, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
 }
 
-fn alias_pred_gen(
+fn alias_reft_gen(
     global_var_gen: &IndexGen<fixpoint::GlobalVar>,
     alias_pred: &rty::AliasPred,
     arity: usize,
 ) -> ConstInfo {
     let orig = format!("{alias_pred:?}");
     let name = global_var_gen.fresh();
-    let fsort = alias_pred_sort(arity);
+    let fsort = alias_reft_sort(arity);
     let sort = func_sort_to_fixpoint(&fsort);
     let sort = fixpoint::Sort::Func(sort);
     ConstInfo { name, orig, sort, val: None }
