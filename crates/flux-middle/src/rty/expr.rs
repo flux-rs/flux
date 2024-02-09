@@ -11,7 +11,9 @@ use rustc_span::{BytePos, Span, Symbol, SyntaxContext};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
-use super::{evars::EVar, AliasPred, BaseTy, Binder, BoundVariableKind, IntTy, Sort, UintTy};
+use super::{
+    evars::EVar, AliasReft, BaseTy, Binder, BoundVariableKind, FuncSort, IntTy, Sort, UintTy,
+};
 use crate::{
     fhir::SpecFuncKind,
     intern::{impl_internable, impl_slice_internable, Interned, List},
@@ -47,6 +49,10 @@ impl Lambda {
 
     pub fn output(&self) -> Sort {
         self.output.clone()
+    }
+
+    pub fn sort(&self) -> FuncSort {
+        FuncSort::new(self.inputs().to_vec(), self.output())
     }
 }
 
@@ -117,7 +123,7 @@ pub enum ExprKind {
     PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
-    AliasPred(AliasPred, List<Expr>),
+    Alias(AliasReft, List<Expr>),
     /// Function application. The syntax allows arbitrary expressions in function position, but in
     /// practice we are restricted by what's possible to encode in fixpoint. In a nutshell, we need
     /// to make sure that expressions that can't be encoded are eliminated before we generate the
@@ -409,8 +415,8 @@ impl Expr {
         ExprKind::KVar(kvar).intern()
     }
 
-    pub fn alias_pred(alias: AliasPred, args: List<Expr>) -> Expr {
-        ExprKind::AliasPred(alias, args).intern()
+    pub fn alias(alias: AliasReft, args: List<Expr>) -> Expr {
+        ExprKind::Alias(alias, args).intern()
     }
 
     pub fn binary_op(
@@ -880,7 +886,7 @@ mod pretty {
                 ExprKind::KVar(kvar) => {
                     w!("{:?}", kvar)
                 }
-                ExprKind::AliasPred(alias, args) => {
+                ExprKind::Alias(alias, args) => {
                     w!("{:?}({:?}", ^alias, join!(", ", args))
                 }
                 ExprKind::Abs(lam) => {
@@ -979,5 +985,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar);
+    impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar, Lambda);
 }

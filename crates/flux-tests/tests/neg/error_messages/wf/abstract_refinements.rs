@@ -8,7 +8,7 @@ fn test00(x: i32) -> i32 {
 
 #[flux::sig(
     fn<refine p: int -> bool>(x: i32) -> i32{v: p(v)}
-    requires p == p //~ ERROR values of sort `int -> bool` cannot be compared for equality
+    requires p == p //~ ERROR illegal use of refinement parameter
 )]
 fn test01(x: i32) -> i32 {
     0

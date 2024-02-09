@@ -1,7 +1,7 @@
 # Desugar
 
-desugar_invalid_alias_pred =
-    invalid alias pred
+desugar_invalid_alias_reft =
+    invalid alias refinement
     .label = this must be a trait
 
 desugar_invalid_constant =

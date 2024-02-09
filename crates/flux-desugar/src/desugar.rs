@@ -1144,16 +1144,16 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         })
     }
 
-    fn desugar_alias_pred(
+    fn desugar_alias_reft(
         &mut self,
-        alias_pred: &surface::AliasPred,
-    ) -> Result<fhir::AliasPred<'genv>> {
-        let path = self.desugar_path(&alias_pred.trait_id)?;
+        alias_reft: &surface::AliasReft,
+    ) -> Result<fhir::AliasReft<'genv>> {
+        let path = self.desugar_path(&alias_reft.trait_id)?;
         if let Res::Def(DefKind::Trait, trait_id) = path.res {
-            let (generic_args, _) = self.desugar_generic_args(path.res, &alias_pred.args)?;
-            Ok(fhir::AliasPred { trait_id, name: alias_pred.name.name, generic_args })
+            let (generic_args, _) = self.desugar_generic_args(path.res, &alias_reft.args)?;
+            Ok(fhir::AliasReft { trait_id, name: alias_reft.name.name, generic_args })
         } else {
-            Err(self.emit_err(errors::InvalidAliasPred::new(&alias_pred.trait_id)))
+            Err(self.emit_err(errors::InvalidAliasReft::new(&alias_reft.trait_id)))
         }
     }
 
@@ -1196,10 +1196,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 let func = self.desugar_func(*func, node_id)?;
                 fhir::ExprKind::App(func, args)
             }
-            surface::ExprKind::Alias(alias_pred, func_args) => {
+            surface::ExprKind::Alias(alias_reft, func_args) => {
                 let func_args = try_alloc_slice!(self.genv(), func_args, |e| self.desugar_expr(e))?;
-                let alias_pred = self.desugar_alias_pred(alias_pred)?;
-                fhir::ExprKind::Alias(alias_pred, func_args)
+                let alias_reft = self.desugar_alias_reft(alias_reft)?;
+                fhir::ExprKind::Alias(alias_reft, func_args)
             }
             surface::ExprKind::IfThenElse(box [p, e1, e2]) => {
                 let p = self.desugar_expr(p);

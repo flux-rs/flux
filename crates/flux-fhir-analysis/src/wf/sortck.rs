@@ -123,8 +123,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 
     pub(super) fn check_expr(&mut self, expr: &fhir::Expr, expected: &rty::Sort) -> Result {
-        let expected = &self.resolve_vars_if_possible(expected);
-        // println!("{expr:?} ⇐ {expected:?}");
         match &expr.kind {
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 self.check_expr(p, &rty::Sort::Bool)?;
@@ -141,12 +139,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::Literal(..) => {
                 let found = self.synth_expr(expr)?;
                 let found = self.resolve_vars_if_possible(&found);
-                // {
-                //     println!("{expr:?} ⇒ {found:?}",);
-                //     println!("{expected:?} ⇝ {found:?}");
-                // }
-                if !self.is_coercible(&found, expected, expr.fhir_id) {
-                    return Err(self.emit_sort_mismatch(expr.span, expected, &found));
+                let expected = self.resolve_vars_if_possible(expected);
+                if !self.is_coercible(&found, &expected, expr.fhir_id) {
+                    return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
                 }
             }
         }
@@ -166,12 +161,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         match &expr.kind {
             fhir::ExprKind::Var(var, _) => Ok(self.lookup_var(*var)),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
-            fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, *op, e1, e2),
+            fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(*op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
             fhir::ExprKind::Const(_, _) => Ok(rty::Sort::Int), // TODO: generalize const sorts
             fhir::ExprKind::App(f, es) => self.synth_app(f, es, expr.span),
-            fhir::ExprKind::Alias(alias_pred, func_args) => {
-                self.synth_alias_pred_app(alias_pred, func_args, expr.span)
+            fhir::ExprKind::Alias(alias, func_args) => {
+                self.synth_alias_reft_app(alias, func_args, expr.span)
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 self.check_expr(p, &rty::Sort::Bool)?;
@@ -198,7 +193,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn synth_binary_op(
         &mut self,
-        expr: &fhir::Expr,
         op: fhir::BinOp,
         e1: &fhir::Expr,
         e2: &fhir::Expr,
@@ -213,10 +207,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let sort = self.next_sort_var();
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
-                let sort = self.resolve_vars_if_possible(&sort);
-                if !self.genv.has_equality(&sort) {
-                    return Err(self.emit_err(errors::NoEquality::new(expr.span, &sort)));
-                }
                 Ok(rty::Sort::Bool)
             }
             fhir::BinOp::Mod => {
@@ -274,17 +264,17 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         Ok(fsort.output().clone())
     }
 
-    fn synth_alias_pred_app(
+    fn synth_alias_reft_app(
         &mut self,
-        alias_pred: &fhir::AliasPred,
+        alias: &fhir::AliasReft,
         args: &[fhir::Expr],
         span: Span,
     ) -> Result<rty::Sort> {
-        let Some(fsort) = self.genv.sort_of_alias_pred(alias_pred) else {
+        let Some(fsort) = self.genv.sort_of_alias_reft(alias) else {
             return Err(self.emit_err(InvalidAssocReft::new(
                 span,
-                alias_pred.name,
-                pretty::def_id_to_string(alias_pred.trait_id),
+                alias.name,
+                pretty::def_id_to_string(alias.trait_id),
             )));
         };
         if args.len() != fsort.inputs().len() {

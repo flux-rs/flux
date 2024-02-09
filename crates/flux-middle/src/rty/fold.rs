@@ -14,7 +14,7 @@ use super::{
     normalize::{Normalizer, SpecFuncDefns},
     projections,
     subst::EVarSubstFolder,
-    AliasPred, AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
+    AliasReft, AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
     CoroutineObligPredicate, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate,
     PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort,
@@ -785,7 +785,7 @@ impl TypeFoldable for Constraint {
     }
 }
 
-impl TypeVisitable for AliasPred {
+impl TypeVisitable for AliasReft {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
         self.args.visit_with(visitor)
     }
@@ -1034,7 +1034,7 @@ impl TypeSuperVisitable for Expr {
                 e2.visit_with(visitor)
             }
             ExprKind::KVar(kvar) => kvar.visit_with(visitor),
-            ExprKind::AliasPred(alias, args) => {
+            ExprKind::Alias(alias, args) => {
                 alias.visit_with(visitor)?;
                 args.visit_with(visitor)
             }
@@ -1073,11 +1073,11 @@ impl TypeVisitable for Var {
     }
 }
 
-impl TypeFoldable for AliasPred {
+impl TypeFoldable for AliasReft {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let trait_id = self.trait_id;
         let generic_args = self.args.try_fold_with(folder)?;
-        let alias_pred = AliasPred { trait_id, name: self.name, args: generic_args };
+        let alias_pred = AliasReft { trait_id, name: self.name, args: generic_args };
         Ok(alias_pred)
     }
 }
@@ -1121,10 +1121,10 @@ impl TypeSuperFoldable for Expr {
             ExprKind::KVar(kvar) => Expr::kvar(kvar.try_fold_with(folder)?),
             ExprKind::Abs(lam) => Expr::abs(lam.try_fold_with(folder)?),
             ExprKind::GlobalFunc(func, kind) => Expr::global_func(*func, *kind),
-            ExprKind::AliasPred(alias, args) => {
+            ExprKind::Alias(alias, args) => {
                 let alias = alias.try_fold_with(folder)?;
                 let args = args.try_fold_with(folder)?;
-                Expr::alias_pred(alias, args)
+                Expr::alias(alias, args)
             }
         };
         Ok(expr)

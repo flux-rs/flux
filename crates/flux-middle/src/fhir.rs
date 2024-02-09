@@ -771,7 +771,7 @@ impl<'fhir> PolyFuncSort<'fhir> {
 }
 
 #[derive(Clone, Copy)]
-pub struct AliasPred<'fhir> {
+pub struct AliasReft<'fhir> {
     pub trait_id: DefId,
     pub name: Symbol,
     pub generic_args: &'fhir [GenericArg<'fhir>],
@@ -793,7 +793,7 @@ pub enum ExprKind<'fhir> {
     BinaryOp(BinOp, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     UnaryOp(UnOp, &'fhir Expr<'fhir>),
     App(Func, &'fhir [Expr<'fhir>]),
-    Alias(AliasPred<'fhir>, &'fhir [Expr<'fhir>]),
+    Alias(AliasReft<'fhir>, &'fhir [Expr<'fhir>]),
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
 }
 
@@ -1279,7 +1279,7 @@ impl fmt::Debug for RefineArg<'_> {
     }
 }
 
-impl fmt::Debug for AliasPred<'_> {
+impl fmt::Debug for AliasReft<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "<{:?} as <{:?}>::{:?}", self.generic_args[0], self.trait_id, self.name)
     }

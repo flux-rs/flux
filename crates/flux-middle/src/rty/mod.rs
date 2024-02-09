@@ -367,6 +367,25 @@ pub struct FuncSort {
     pub inputs_and_output: List<Sort>,
 }
 
+impl FuncSort {
+    pub fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
+        inputs.push(output);
+        FuncSort { inputs_and_output: List::from_vec(inputs) }
+    }
+
+    pub fn inputs(&self) -> &[Sort] {
+        &self.inputs_and_output[0..self.inputs_and_output.len() - 1]
+    }
+
+    pub fn output(&self) -> &Sort {
+        &self.inputs_and_output[self.inputs_and_output.len() - 1]
+    }
+
+    pub fn to_poly(&self) -> PolyFuncSort {
+        PolyFuncSort::new(0, self.clone())
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct PolyFuncSort {
     pub params: usize,
@@ -535,7 +554,7 @@ pub struct TyS {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
-pub struct AliasPred {
+pub struct AliasReft {
     pub trait_id: DefId,
     pub name: Symbol,
     pub args: GenericArgs,
@@ -893,21 +912,6 @@ impl Sort {
             }
         }
         go(self, &mut f, &mut vec![]);
-    }
-}
-
-impl FuncSort {
-    pub fn new(mut inputs: Vec<Sort>, output: Sort) -> Self {
-        inputs.push(output);
-        FuncSort { inputs_and_output: List::from_vec(inputs) }
-    }
-
-    pub fn inputs(&self) -> &[Sort] {
-        &self.inputs_and_output[0..self.inputs_and_output.len() - 1]
-    }
-
-    pub fn output(&self) -> &Sort {
-        &self.inputs_and_output[self.inputs_and_output.len() - 1]
     }
 }
 

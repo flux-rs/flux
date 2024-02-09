@@ -632,22 +632,22 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_alias_pred(
+    fn conv_alias_reft(
         &self,
         env: &mut Env,
-        alias_pred: &fhir::AliasPred,
+        alias_reft: &fhir::AliasReft,
         func_args: &[fhir::Expr],
     ) -> QueryResult<rty::Expr> {
-        let trait_id = alias_pred.trait_id;
+        let trait_id = alias_reft.trait_id;
         let generic_args = self
-            .conv_generic_args(env, trait_id, alias_pred.generic_args)?
+            .conv_generic_args(env, trait_id, alias_reft.generic_args)?
             .into();
         let func_args = func_args
             .iter()
             .map(|arg| self.conv_expr(env, arg))
             .try_collect()?;
-        let alias_pred = rty::AliasPred { trait_id, name: alias_pred.name, args: generic_args };
-        Ok(rty::Expr::alias_pred(alias_pred, func_args))
+        let alias_reft = rty::AliasReft { trait_id, name: alias_reft.name, args: generic_args };
+        Ok(rty::Expr::alias(alias_reft, func_args))
     }
 
     fn conv_ty(&self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
@@ -1029,7 +1029,7 @@ impl ConvCtxt<'_, '_, '_> {
                 rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args)?, espan)
             }
             fhir::ExprKind::Alias(alias_pred, func_args) => {
-                self.conv_alias_pred(env, alias_pred, func_args)?
+                self.conv_alias_reft(env, alias_pred, func_args)?
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 rty::Expr::ite(
