@@ -1783,6 +1783,7 @@ pub struct WfckResults<'genv> {
     pub owner: FluxOwnerId,
     record_ctors: ItemLocalMap<DefId>,
     node_sorts: ItemLocalMap<Sort>,
+    cmp_op_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
     type_holes: ItemLocalMap<fhir::Ty<'genv>>,
     lifetime_holes: ItemLocalMap<ResolvedArg>,
@@ -1813,6 +1814,7 @@ impl<'genv> WfckResults<'genv> {
             owner: owner.into(),
             record_ctors: ItemLocalMap::default(),
             node_sorts: ItemLocalMap::default(),
+            cmp_op_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
             type_holes: ItemLocalMap::default(),
             lifetime_holes: ItemLocalMap::default(),
@@ -1833,6 +1835,14 @@ impl<'genv> WfckResults<'genv> {
 
     pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
         LocalTableInContext { owner: self.owner, data: &self.node_sorts }
+    }
+
+    pub fn cmp_op_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.cmp_op_sorts }
+    }
+
+    pub fn cmp_op_sorts(&self) -> LocalTableInContext<Sort> {
+        LocalTableInContext { owner: self.owner, data: &self.cmp_op_sorts }
     }
 
     pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {

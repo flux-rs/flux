@@ -161,7 +161,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         match &expr.kind {
             fhir::ExprKind::Var(var, _) => Ok(self.lookup_var(*var)),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
-            fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(*op, e1, e2),
+            fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
             fhir::ExprKind::Const(_, _) => Ok(rty::Sort::Int), // TODO: generalize const sorts
             fhir::ExprKind::App(f, es) => self.synth_app(f, es, expr.span),
@@ -193,6 +193,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn synth_binary_op(
         &mut self,
+        expr: &fhir::Expr,
         op: fhir::BinOp,
         e1: &fhir::Expr,
         e2: &fhir::Expr,
@@ -218,6 +219,15 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let sort = self.next_num_var();
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
+
+                // Elaborate sort of operator
+                let sort = self
+                    .fully_resolve(&sort)
+                    .map_err(|_| self.emit_err(errors::CannotInferSort::new(expr.span)))?;
+                self.wfckresults
+                    .cmp_op_sorts_mut()
+                    .insert(expr.fhir_id, sort);
+
                 Ok(rty::Sort::Bool)
             }
             fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div => {
@@ -488,7 +498,7 @@ impl<'genv> InferCtxt<'genv, '_> {
     fn ensure_resolved_var(&mut self, var: fhir::Ident) -> Result<rty::Sort> {
         let sort = self.params[&var.name].0.clone();
         self.fully_resolve(&sort)
-            .map_err(|_| self.emit_err(errors::CannotInferSort::new(var)))
+            .map_err(|_| self.emit_err(errors::CannotInferSort::new(var.span())))
     }
 
     fn is_single_field_record(&mut self, sort: &rty::Sort) -> Option<(DefId, rty::Sort)> {

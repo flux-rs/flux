@@ -1021,7 +1021,7 @@ impl ConvCtxt<'_, '_, '_> {
             fhir::ExprKind::Literal(lit) => rty::Expr::constant_at(conv_lit(*lit), espan),
             fhir::ExprKind::BinaryOp(op, e1, e2) => {
                 rty::Expr::binary_op(
-                    conv_bin_op(*op),
+                    self.conv_bin_op(*op, expr.fhir_id),
                     self.conv_expr(env, e1)?,
                     self.conv_expr(env, e2)?,
                     espan,
@@ -1047,6 +1047,33 @@ impl ConvCtxt<'_, '_, '_> {
             fhir::ExprKind::Dot(var, fld) => env.lookup(*var).get_field(*fld),
         };
         Ok(self.add_coercions(expr, fhir_id))
+    }
+    fn conv_bin_op(&self, op: fhir::BinOp, fhir_id: FhirId) -> rty::BinOp {
+        match op {
+            fhir::BinOp::Iff => rty::BinOp::Iff,
+            fhir::BinOp::Imp => rty::BinOp::Imp,
+            fhir::BinOp::Or => rty::BinOp::Or,
+            fhir::BinOp::And => rty::BinOp::And,
+            fhir::BinOp::Eq => rty::BinOp::Eq,
+            fhir::BinOp::Ne => rty::BinOp::Ne,
+            fhir::BinOp::Gt => {
+                let sort = self
+                    .wfckresults
+                    .cmp_op_sorts()
+                    .get(fhir_id)
+                    .unwrap()
+                    .clone();
+                rty::BinOp::Gt(sort)
+            }
+            fhir::BinOp::Ge => rty::BinOp::Ge,
+            fhir::BinOp::Lt => rty::BinOp::Lt,
+            fhir::BinOp::Le => rty::BinOp::Le,
+            fhir::BinOp::Add => rty::BinOp::Add,
+            fhir::BinOp::Sub => rty::BinOp::Sub,
+            fhir::BinOp::Mod => rty::BinOp::Mod,
+            fhir::BinOp::Mul => rty::BinOp::Mul,
+            fhir::BinOp::Div => rty::BinOp::Div,
+        }
     }
 
     fn conv_func(&self, env: &Env, func: &fhir::Func) -> rty::Expr {
@@ -1382,29 +1409,6 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
 
 pub(crate) fn bug_on_infer_sort() -> rty::Sort {
     bug!("unexpected infer sort")
-}
-
-fn conv_bin_op(op: fhir::BinOp) -> rty::BinOp {
-    match op {
-        fhir::BinOp::Iff => rty::BinOp::Iff,
-        fhir::BinOp::Imp => rty::BinOp::Imp,
-        fhir::BinOp::Or => rty::BinOp::Or,
-        fhir::BinOp::And => rty::BinOp::And,
-        fhir::BinOp::Eq => rty::BinOp::Eq,
-        fhir::BinOp::Ne => rty::BinOp::Ne,
-        fhir::BinOp::Gt => {
-            let a = 1;
-            todo!()
-        }
-        fhir::BinOp::Ge => rty::BinOp::Ge,
-        fhir::BinOp::Lt => rty::BinOp::Lt,
-        fhir::BinOp::Le => rty::BinOp::Le,
-        fhir::BinOp::Add => rty::BinOp::Add,
-        fhir::BinOp::Sub => rty::BinOp::Sub,
-        fhir::BinOp::Mod => rty::BinOp::Mod,
-        fhir::BinOp::Mul => rty::BinOp::Mul,
-        fhir::BinOp::Div => rty::BinOp::Div,
-    }
 }
 
 fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
