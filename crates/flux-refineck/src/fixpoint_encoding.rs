@@ -917,7 +917,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 fn alias_pred_sort(arity: usize) -> rty::PolyFuncSort {
     let mut sorts = vec![];
     for i in 0..arity {
-        sorts.push(rty::Sort::Var(rty::SortVar::from(i)));
+        sorts.push(rty::Sort::Var(rty::ParamSort::from(i)));
     }
     sorts.push(rty::Sort::Bool);
     rty::PolyFuncSort::new(arity, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })

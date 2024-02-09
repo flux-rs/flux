@@ -325,15 +325,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// Whether values of this sort can be compared for equality.
     pub fn has_equality(&self, sort: &rty::Sort) -> bool {
         match sort {
-            rty::Sort::Int
-            | rty::Sort::Bool
-            | rty::Sort::Real
-            | rty::Sort::BitVec(_)
-            | rty::Sort::Param(_)
-            | rty::Sort::Var(_) => true,
+            rty::Sort::Int | rty::Sort::Bool | rty::Sort::Real | rty::Sort::BitVec(_) => true,
             rty::Sort::Tuple(sorts) => sorts.iter().all(|sort| self.has_equality(sort)),
             rty::Sort::App(ctor, sorts) => self.ctor_has_equality(ctor, sorts),
             rty::Sort::Err | rty::Sort::Loc | rty::Sort::Func(_) | rty::Sort::Infer(_) => false,
+            rty::Sort::Var(_) => false,
+            rty::Sort::Param(_) => false,
         }
     }
 

@@ -36,6 +36,7 @@ pub use rustc_middle::{
 use rustc_span::{symbol::kw, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 pub use rustc_type_ir::INNERMOST;
+pub use SortInfer::*;
 
 use self::{
     fold::TypeFoldable,
@@ -108,7 +109,7 @@ impl AdtSortDef {
 
     pub fn identity_args(&self) -> List<Sort> {
         (0..self.0.params.len())
-            .map(|i| Sort::Var(SortVar::from(i)))
+            .map(|i| Sort::Var(ParamSort::from(i)))
             .collect()
     }
 
@@ -243,23 +244,23 @@ pub enum SortCtor {
     User { name: Symbol },
 }
 
-/// [SortVar] are used for polymorphic sorts (Set, Map etc.) and they should occur
+/// [ParamSort] are used for polymorphic sorts (Set, Map etc.) and they should occur
 /// "bound" under a PolyFuncSort; i.e. should be < than the number of params in the
 /// PolyFuncSort.
 #[derive(Clone, PartialEq, Eq, Debug, Hash, Encodable, Decodable)]
-pub struct SortVar {
+pub struct ParamSort {
     pub index: usize,
 }
 
-impl From<usize> for SortVar {
+impl From<usize> for ParamSort {
     fn from(index: usize) -> Self {
-        SortVar { index }
+        ParamSort { index }
     }
 }
 
 newtype_index! {
-    /// A *Sort* *v*variable *id*
-    #[debug_format = "#{}"]
+    /// A *sort* *v*variable *id*
+    #[debug_format = "s#{}"]
     pub struct SortVid {}
 }
 
@@ -283,6 +284,56 @@ impl ena::unify::UnifyKey for SortVid {
 
 impl ena::unify::EqUnifyValue for Sort {}
 
+newtype_index! {
+    /// A *num*eric *v*variable *id*
+    #[debug_format = "n#{}"]
+    pub struct NumVid {}
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NumVarValue {
+    Real,
+    Int,
+}
+
+impl NumVarValue {
+    pub fn to_sort(self) -> Sort {
+        match self {
+            NumVarValue::Real => Sort::Real,
+            NumVarValue::Int => Sort::Int,
+        }
+    }
+}
+
+impl ena::unify::UnifyKey for NumVid {
+    type Value = Option<NumVarValue>;
+
+    #[inline]
+    fn index(&self) -> u32 {
+        self.as_u32()
+    }
+
+    #[inline]
+    fn from_index(u: u32) -> Self {
+        NumVid::from_u32(u)
+    }
+
+    fn tag() -> &'static str {
+        "NumVid"
+    }
+}
+
+impl ena::unify::EqUnifyValue for NumVarValue {}
+
+/// A placeholder for a sort that needs to be inferred
+#[derive(PartialEq, Eq, Clone, Copy, Hash, Encodable, Decodable)]
+pub enum SortInfer {
+    /// A sort variable.
+    SortVar(SortVid),
+    /// A numeric sort variable.
+    NumVar(NumVid),
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
@@ -294,8 +345,8 @@ pub enum Sort {
     Tuple(List<Sort>),
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
-    Var(SortVar),
-    Infer(SortVid),
+    Var(ParamSort),
+    Infer(SortInfer),
     Err,
 }
 
@@ -1932,6 +1983,16 @@ mod pretty {
         }
     }
 
+    impl Pretty for SortInfer {
+        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                SortInfer::SortVar(svid) => w!("{:?}", ^svid),
+                SortInfer::NumVar(nvid) => w!("{:?}", ^nvid),
+            }
+        }
+    }
+
     impl Pretty for Sort {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -1958,7 +2019,7 @@ mod pretty {
                     }
                 }
                 Sort::Param(param_ty) => w!("{}::sort", ^param_ty),
-                Sort::Infer(svid) => w!("{:?}", ^svid),
+                Sort::Infer(svar) => w!("{:?}", svar),
                 Sort::Err => w!("err"),
             }
         }

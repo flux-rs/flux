@@ -712,10 +712,10 @@ pub enum SortRes {
     PrimSort(PrimSort),
     /// A user declared sort.
     User { name: Symbol },
-    /// A sort variable inside a polymorphic function or data sort.
-    Var(usize),
+    /// A sort parameter inside a polymorphic function or data sort.
+    SortParam(usize),
     /// The sort associated to a (generic) type parameter
-    Param(DefId),
+    TyParam(DefId),
     /// The sort of the `Self` type, as used within a trait.
     SelfParam {
         /// The trait this `Self` is a generic parameter for.
@@ -1360,8 +1360,8 @@ impl fmt::Debug for SortRes {
             SortRes::PrimSort(PrimSort::Real) => write!(f, "real"),
             SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
             SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
-            SortRes::Var(n) => write!(f, "@{}", n),
-            SortRes::Param(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
+            SortRes::SortParam(n) => write!(f, "@{}", n),
+            SortRes::TyParam(def_id) => write!(f, "sortof({})", pretty::def_id_to_string(*def_id)),
             SortRes::SelfParam { trait_id } => {
                 write!(f, "sortof({}::Self)", pretty::def_id_to_string(*trait_id))
             }

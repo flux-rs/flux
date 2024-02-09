@@ -177,6 +177,7 @@ impl<'rcx> RefineCtxt<'rcx> {
         self.snapshot().scope().unwrap()
     }
 
+    #[allow(dead_code)]
     #[must_use]
     pub(crate) fn push_comment(&mut self, comment: impl ToString) -> RefineCtxt {
         let ptr = self.ptr.push_node(NodeKind::Comment(comment.to_string()));

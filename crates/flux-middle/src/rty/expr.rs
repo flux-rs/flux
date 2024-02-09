@@ -868,7 +868,7 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Var::LateBound(bvar, idx) => w!("{:?}#{}", bvar, ^idx),
+                Var::LateBound(bvar, idx) => w!("({:?}.{})", bvar, ^idx),
                 Var::EarlyBound(idx) => w!("#{}", ^idx),
                 Var::Free(name) => w!("{:?}", ^name),
                 Var::EVar(evar) => w!("{:?}", evar),

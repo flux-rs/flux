@@ -1,4 +1,4 @@
-use std::{collections::HashSet, iter};
+use std::iter;
 
 use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt};
@@ -7,7 +7,11 @@ use flux_middle::{
     fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     pretty,
-    rty::{self, WfckResults},
+    rty::{
+        self,
+        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable},
+        WfckResults,
+    },
 };
 use itertools::izip;
 use rustc_data_structures::unord::UnordMap;
@@ -22,10 +26,9 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 pub(super) struct InferCtxt<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     params: UnordMap<fhir::Name, (rty::Sort, fhir::ParamKind)>,
-    pub(super) unification_table: InPlaceUnificationTable<rty::SortVid>,
+    pub(super) sort_unification_table: InPlaceUnificationTable<rty::SortVid>,
+    num_unification_table: InPlaceUnificationTable<rty::NumVid>,
     pub wfckresults: WfckResults<'genv>,
-    /// sort variables that can only be instantiated to sorts that support equality (i.e. non `FuncSort`)
-    eq_vids: HashSet<rty::SortVid>,
 }
 
 impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
@@ -33,9 +36,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         Self {
             genv,
             wfckresults: WfckResults::new(owner),
-            unification_table: InPlaceUnificationTable::new(),
+            sort_unification_table: InPlaceUnificationTable::new(),
+            num_unification_table: InPlaceUnificationTable::new(),
             params: Default::default(),
-            eq_vids: Default::default(),
         }
     }
 
@@ -117,16 +120,16 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 
     pub(super) fn check_expr(&mut self, expr: &fhir::Expr, expected: &rty::Sort) -> Result {
+        let expected = &self.resolve_vars_if_possible(expected);
+        // println!("{expr:?} ⇐ {expected:?}");
         match &expr.kind {
-            fhir::ExprKind::BinaryOp(op, e1, e2) => {
-                self.check_binary_op(expr, *op, e1, e2, expected)?;
-            }
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 self.check_expr(p, &rty::Sort::Bool)?;
                 self.check_expr(e1, expected)?;
                 self.check_expr(e2, expected)?;
             }
             fhir::ExprKind::UnaryOp(..)
+            | fhir::ExprKind::BinaryOp(..)
             | fhir::ExprKind::Dot(..)
             | fhir::ExprKind::App(..)
             | fhir::ExprKind::Alias(..)
@@ -134,54 +137,15 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::Var(..)
             | fhir::ExprKind::Literal(..) => {
                 let found = self.synth_expr(expr)?;
+                let found = self.resolve_vars_if_possible(&found);
+                // {
+                //     println!("{expr:?} ⇒ {found:?}",);
+                //     println!("{expected:?} ⇝ {found:?}");
+                // }
                 if !self.is_coercible(&found, expected, expr.fhir_id) {
                     return Err(self.emit_sort_mismatch(expr.span, expected, &found));
                 }
             }
-        }
-        Ok(())
-    }
-
-    fn check_binary_op(
-        &mut self,
-        expr: &fhir::Expr,
-        op: fhir::BinOp,
-        e1: &fhir::Expr,
-        e2: &fhir::Expr,
-        expected: &rty::Sort,
-    ) -> Result {
-        match op {
-            fhir::BinOp::Or | fhir::BinOp::And | fhir::BinOp::Iff | fhir::BinOp::Imp => {
-                if self.is_bool(expected) {
-                    self.check_expr(e1, &rty::Sort::Bool)?;
-                    self.check_expr(e2, &rty::Sort::Bool)?;
-                    return Ok(());
-                }
-            }
-            fhir::BinOp::Mod => {
-                if self.is_int(expected) {
-                    self.check_expr(e1, &rty::Sort::Int)?;
-                    self.check_expr(e2, &rty::Sort::Int)?;
-                    return Ok(());
-                }
-            }
-            fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div => {
-                if let Some(expected) = self.is_coercible_from_numeric(expected, expr.fhir_id) {
-                    self.check_expr(e1, &expected)?;
-                    self.check_expr(e2, &expected)?;
-                    return Ok(());
-                }
-            }
-            fhir::BinOp::Eq
-            | fhir::BinOp::Ne
-            | fhir::BinOp::Lt
-            | fhir::BinOp::Le
-            | fhir::BinOp::Gt
-            | fhir::BinOp::Ge => {}
-        }
-        let found = self.synth_binary_op(expr, op, e1, e2)?;
-        if !self.is_coercible(&found, expected, expr.fhir_id) {
-            return Err(self.emit_sort_mismatch(expr.span, expected, &found));
         }
         Ok(())
     }
@@ -243,10 +207,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 Ok(rty::Sort::Bool)
             }
             fhir::BinOp::Eq | fhir::BinOp::Ne => {
-                let s = self.synth_expr(e1)?;
-                self.check_expr(e2, &s)?;
-                if !self.has_equality(&s) {
-                    return Err(self.emit_err(errors::NoEquality::new(expr.span, &s)));
+                let sort = self.next_sort_var();
+                self.check_expr(e1, &sort)?;
+                self.check_expr(e2, &sort)?;
+                let sort = self.resolve_vars_if_possible(&sort);
+                if !self.genv.has_equality(&sort) {
+                    return Err(self.emit_err(errors::NoEquality::new(expr.span, &sort)));
                 }
                 Ok(rty::Sort::Bool)
             }
@@ -256,22 +222,16 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 Ok(rty::Sort::Int)
             }
             fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge => {
-                let found = self.synth_expr(e1)?;
-                if let Some(found) = self.is_coercible_to_numeric(&found, e1.fhir_id) {
-                    self.check_expr(e2, &found)?;
-                    Ok(rty::Sort::Bool)
-                } else {
-                    Err(self.emit_err(errors::ExpectedNumeric::new(e1.span, &found)))
-                }
+                let sort = self.next_num_var();
+                self.check_expr(e1, &sort)?;
+                self.check_expr(e2, &sort)?;
+                Ok(rty::Sort::Bool)
             }
             fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div => {
-                let found = self.synth_expr(e1)?;
-                if let Some(found) = self.is_coercible_to_numeric(&found, e1.fhir_id) {
-                    self.check_expr(e2, &found)?;
-                    Ok(found)
-                } else {
-                    Err(self.emit_err(errors::ExpectedNumeric::new(e1.span, &found)))
-                }
+                let sort = self.next_num_var();
+                self.check_expr(e1, &sort)?;
+                self.check_expr(e2, &sort)?;
+                Ok(sort)
             }
         }
     }
@@ -341,7 +301,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     fn synth_func(&mut self, func: &fhir::Func) -> Result<rty::FuncSort> {
         let poly_fsort = match func {
             fhir::Func::Var(var, fhir_id) => {
-                let sort = self.lookup_var(*var);
+                let sort = self.ensure_resolved_var(*var)?;
                 let Some(fsort) = self.is_coercible_to_func(&sort, *fhir_id) else {
                     return Err(self.emit_err(errors::ExpectedFun::new(var.span(), &sort)));
                 };
@@ -353,10 +313,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 
     fn instantiate_func_sort(&mut self, fsort: rty::PolyFuncSort) -> rty::FuncSort {
-        let args: Vec<rty::Sort> =
-            std::iter::repeat_with(|| rty::Sort::Infer(self.next_eq_sort_vid()))
-                .take(fsort.params)
-                .collect();
+        let args: Vec<rty::Sort> = std::iter::repeat_with(|| self.next_sort_var())
+            .take(fsort.params)
+            .collect();
         fsort.instantiate(&args)
     }
 }
@@ -365,7 +324,7 @@ impl<'genv> InferCtxt<'genv, '_> {
     /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
     pub(super) fn insert_params(&mut self, params: &[fhir::RefineParam]) {
         for param in params {
-            let sort = conv::conv_sort(self.genv, &param.sort, &mut || self.next_sort_vid());
+            let sort = conv::conv_sort(self.genv, &param.sort, &mut || self.next_sort_var());
             self.insert_param(param.name(), sort, param.kind);
         }
     }
@@ -404,47 +363,13 @@ impl<'genv> InferCtxt<'genv, '_> {
         self.try_equate(&sort1, &sort2).is_some()
     }
 
-    fn is_coercible_from_numeric(
-        &mut self,
-        sort: &rty::Sort,
-        fhir_id: FhirId,
-    ) -> Option<rty::Sort> {
-        if self.is_numeric(sort) {
-            Some(sort.clone())
-        } else if let Some((def_id, sort)) = self.is_single_field_record(sort)
-            && sort.is_numeric()
-        {
-            self.wfckresults
-                .coercions_mut()
-                .insert(fhir_id, vec![rty::Coercion::Inject(def_id)]);
-            Some(sort.clone())
-        } else {
-            None
-        }
-    }
-
-    fn is_coercible_to_numeric(&mut self, sort: &rty::Sort, fhir_id: FhirId) -> Option<rty::Sort> {
-        if self.is_numeric(sort) {
-            Some(sort.clone())
-        } else if let Some((def_id, sort)) = self.is_single_field_record(sort)
-            && sort.is_numeric()
-        {
-            self.wfckresults
-                .coercions_mut()
-                .insert(fhir_id, vec![rty::Coercion::Project(def_id)]);
-            Some(sort.clone())
-        } else {
-            None
-        }
-    }
-
     fn is_coercible_from_func(
         &mut self,
         sort: &rty::Sort,
         fhir_id: FhirId,
     ) -> Option<rty::PolyFuncSort> {
-        if let Some(fsort) = self.is_func(sort) {
-            Some(fsort)
+        if let rty::Sort::Func(fsort) = sort {
+            Some(fsort.clone())
         } else if let Some((def_id, rty::Sort::Func(fsort))) = self.is_single_field_record(sort) {
             self.wfckresults
                 .coercions_mut()
@@ -460,8 +385,8 @@ impl<'genv> InferCtxt<'genv, '_> {
         sort: &rty::Sort,
         fhir_id: FhirId,
     ) -> Option<rty::PolyFuncSort> {
-        if let Some(fsort) = self.is_func(sort) {
-            Some(fsort)
+        if let rty::Sort::Func(fsort) = sort {
+            Some(fsort.clone())
         } else if let Some((def_id, rty::Sort::Func(fsort))) = self.is_single_field_record(sort) {
             self.wfckresults
                 .coercions_mut()
@@ -473,18 +398,40 @@ impl<'genv> InferCtxt<'genv, '_> {
     }
 
     fn try_equate(&mut self, sort1: &rty::Sort, sort2: &rty::Sort) -> Option<rty::Sort> {
+        let sort1 = self.resolve_vars_if_possible(sort1);
+        let sort2 = self.resolve_vars_if_possible(sort2);
+        self.try_equate_inner(&sort1, &sort2)
+    }
+
+    fn try_equate_inner(&mut self, sort1: &rty::Sort, sort2: &rty::Sort) -> Option<rty::Sort> {
         match (sort1, sort2) {
-            (rty::Sort::Infer(vid1), rty::Sort::Infer(vid2)) => {
-                self.unification_table.unify_var_var(*vid1, *vid2).ok()?;
-                Some(rty::Sort::Infer(*vid1))
+            (rty::Sort::Infer(rty::SortVar(vid1)), rty::Sort::Infer(rty::SortVar(vid2))) => {
+                self.sort_unification_table
+                    .unify_var_var(*vid1, *vid2)
+                    .ok()?;
             }
-            (rty::Sort::Infer(vid), sort) | (sort, rty::Sort::Infer(vid))
-                if !self.is_eq_sort_vid(*vid) || self.has_equality(sort) =>
-            {
-                self.unification_table
+            (rty::Sort::Infer(rty::SortVar(vid)), sort)
+            | (sort, rty::Sort::Infer(rty::SortVar(vid))) => {
+                self.sort_unification_table
                     .unify_var_value(*vid, Some(sort.clone()))
                     .ok()?;
-                Some(sort.clone())
+            }
+            (rty::Sort::Infer(rty::NumVar(vid1)), rty::Sort::Infer(rty::NumVar(vid2))) => {
+                self.num_unification_table
+                    .unify_var_var(*vid1, *vid2)
+                    .ok()?;
+            }
+            (rty::Sort::Infer(rty::NumVar(vid)), rty::Sort::Int)
+            | (rty::Sort::Int, rty::Sort::Infer(rty::NumVar(vid))) => {
+                self.num_unification_table
+                    .unify_var_value(*vid, Some(rty::NumVarValue::Int))
+                    .ok()?;
+            }
+            (rty::Sort::Infer(rty::NumVar(vid)), rty::Sort::Real)
+            | (rty::Sort::Real, rty::Sort::Infer(rty::NumVar(vid))) => {
+                self.num_unification_table
+                    .unify_var_value(*vid, Some(rty::NumVarValue::Real))
+                    .ok()?;
             }
             (rty::Sort::App(ctor1, args1), rty::Sort::App(ctor2, args2)) => {
                 if ctor1 != ctor2 || args1.len() != args2.len() {
@@ -492,13 +439,13 @@ impl<'genv> InferCtxt<'genv, '_> {
                 }
                 let mut args = vec![];
                 for (t1, t2) in args1.iter().zip(args2.iter()) {
-                    args.push(self.try_equate(t1, t2)?);
+                    args.push(self.try_equate_inner(t1, t2)?);
                 }
-                Some(rty::Sort::App(ctor1.clone(), args.into()))
             }
-            _ if sort1 == sort2 => Some(sort1.clone()),
-            _ => None,
+            _ if sort1 == sort2 => {}
+            _ => return None,
         }
+        Some(sort1.clone())
     }
 
     fn equate(&mut self, sort1: &rty::Sort, sort2: &rty::Sort) -> rty::Sort {
@@ -506,90 +453,67 @@ impl<'genv> InferCtxt<'genv, '_> {
             .unwrap_or_else(|| bug!("failed to equate sorts: `{sort1:?}` `{sort2:?}`"))
     }
 
+    fn next_sort_var(&mut self) -> rty::Sort {
+        rty::Sort::Infer(rty::SortVar(self.next_sort_vid()))
+    }
+
+    fn next_num_var(&mut self) -> rty::Sort {
+        rty::Sort::Infer(rty::NumVar(self.next_num_vid()))
+    }
+
     fn next_sort_vid(&mut self) -> rty::SortVid {
-        self.unification_table.new_key(None)
+        self.sort_unification_table.new_key(None)
     }
 
-    fn next_eq_sort_vid(&mut self) -> rty::SortVid {
-        let vid = self.next_sort_vid();
-        self.eq_vids.insert(vid);
-        vid
-    }
-
-    fn is_eq_sort_vid(&self, vid: rty::SortVid) -> bool {
-        self.eq_vids.contains(&vid)
+    fn next_num_vid(&mut self) -> rty::NumVid {
+        self.num_unification_table.new_key(None)
     }
 
     pub(crate) fn resolve_params_sorts(&mut self, params: &[fhir::RefineParam]) -> Result {
         params.iter().try_for_each_exhaust(|param| {
             if let fhir::Sort::Infer = param.sort {
                 let sort = self.lookup_var(param.ident);
-                if matches!(sort, rty::Sort::Infer(_)) {
-                    return Err(self.emit_err(errors::SortAnnotationNeeded::new(param)));
+                match self.fully_resolve(&sort) {
+                    Ok(sort) => {
+                        self.wfckresults
+                            .node_sorts_mut()
+                            .insert(param.fhir_id, sort);
+                    }
+                    Err(_) => {
+                        return Err(self.emit_err(errors::SortAnnotationNeeded::new(param)));
+                    }
                 }
-                self.wfckresults
-                    .node_sorts_mut()
-                    .insert(param.fhir_id, sort);
             }
             Ok(())
         })
     }
 
     pub(crate) fn lookup_var(&mut self, var: fhir::Ident) -> rty::Sort {
-        let sort = self.params[&var.name].0.clone();
-        self.resolve_sort(&sort).unwrap_or(sort)
+        self.params[&var.name].0.clone()
     }
 
     fn ensure_resolved_var(&mut self, var: fhir::Ident) -> Result<rty::Sort> {
         let sort = self.params[&var.name].0.clone();
-        if let Some(sort) = self.resolve_sort(&sort) {
-            Ok(sort)
-        } else {
-            Err(self.emit_err(errors::CannotInferSort::new(var)))
-        }
+        self.fully_resolve(&sort)
+            .map_err(|_| self.emit_err(errors::CannotInferSort::new(var)))
     }
 
     fn resolve_sort(&mut self, sort: &rty::Sort) -> Option<rty::Sort> {
-        if let rty::Sort::Infer(vid) = sort {
-            self.unification_table.probe_value(*vid)
+        if let rty::Sort::Infer(rty::SortVar(vid)) = sort {
+            self.sort_unification_table.probe_value(*vid)
         } else {
             Some(sort.clone())
         }
     }
 
-    fn is_numeric(&mut self, sort: &rty::Sort) -> bool {
-        self.resolve_sort(sort).map_or(false, |s| s.is_numeric())
-    }
-
-    fn is_bool(&mut self, sort: &rty::Sort) -> bool {
-        self.resolve_sort(sort).map_or(false, |s| s.is_bool())
-    }
-
-    fn is_int(&mut self, sort: &rty::Sort) -> bool {
-        self.resolve_sort(sort)
-            .map_or(false, |s| matches!(s, rty::Sort::Int))
-    }
-
-    fn is_func(&mut self, sort: &rty::Sort) -> Option<rty::PolyFuncSort> {
-        self.resolve_sort(sort).and_then(|s| {
-            if let rty::Sort::Func(fsort) = s {
-                Some(fsort)
-            } else {
-                None
-            }
-        })
-    }
-
     fn is_single_field_record(&mut self, sort: &rty::Sort) -> Option<(DefId, rty::Sort)> {
-        self.resolve_sort(sort).and_then(|s| {
-            if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = s
-                && let [sort] = &sort_def.sorts(&sort_args)[..]
-            {
-                Some((sort_def.did(), sort.clone()))
-            } else {
-                None
-            }
-        })
+        if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = sort
+            && let [sort] = &sort_def.sorts(sort_args)[..]
+        {
+            Some((sort_def.did(), sort.clone()))
+        } else {
+            None
+        }
     }
 
     pub(crate) fn infer_implicit_params_ty(&mut self, ty: &fhir::Ty) -> Result {
@@ -604,11 +528,6 @@ impl<'genv> InferCtxt<'genv, '_> {
         vis.into_result()
     }
 
-    fn has_equality(&mut self, sort: &rty::Sort) -> bool {
-        self.resolve_sort(sort)
-            .map_or(false, |s| self.genv.has_equality(&s))
-    }
-
     pub(crate) fn into_results(self) -> WfckResults<'genv> {
         self.wfckresults
     }
@@ -616,6 +535,18 @@ impl<'genv> InferCtxt<'genv, '_> {
     pub(crate) fn infer_mode(&self, var: fhir::Ident) -> fhir::InferMode {
         let (sort, kind) = &self.params[&var.name];
         sort.infer_mode(*kind)
+    }
+
+    fn shallow_resolve(&mut self, sort: &rty::Sort) -> rty::Sort {
+        sort.fold_with(&mut ShallowResolver { infcx: self })
+    }
+
+    fn resolve_vars_if_possible(&mut self, sort: &rty::Sort) -> rty::Sort {
+        sort.fold_with(&mut OpportunisticResolver { infcx: self })
+    }
+
+    fn fully_resolve(&mut self, sort: &rty::Sort) -> std::result::Result<rty::Sort, ()> {
+        sort.try_fold_with(&mut FullResolver { infcx: self })
     }
 }
 
@@ -696,10 +627,8 @@ impl InferCtxt<'_, '_> {
         expected: &rty::Sort,
         found: &rty::Sort,
     ) -> ErrorGuaranteed {
-        let expected = self
-            .resolve_sort(expected)
-            .unwrap_or_else(|| expected.clone());
-        let found = self.resolve_sort(found).unwrap_or_else(|| found.clone());
+        let expected = self.resolve_vars_if_possible(expected);
+        let found = self.resolve_vars_if_possible(found);
         self.emit_err(errors::SortMismatch::new(span, expected, found))
     }
 
@@ -708,8 +637,7 @@ impl InferCtxt<'_, '_> {
         sort: &rty::Sort,
         field: fhir::SurfaceIdent,
     ) -> ErrorGuaranteed {
-        let sort = self.resolve_sort(sort).unwrap_or_else(|| sort.clone());
-        self.emit_err(errors::FieldNotFound::new(sort, field))
+        self.emit_err(errors::FieldNotFound::new(sort.clone(), field))
     }
 
     #[track_caller]
@@ -723,5 +651,58 @@ fn synth_lit(lit: fhir::Lit) -> rty::Sort {
         fhir::Lit::Int(_) => rty::Sort::Int,
         fhir::Lit::Bool(_) => rty::Sort::Bool,
         fhir::Lit::Real(_) => rty::Sort::Real,
+    }
+}
+
+struct ShallowResolver<'a, 'genv, 'tcx> {
+    infcx: &'a mut InferCtxt<'genv, 'tcx>,
+}
+
+impl TypeFolder for ShallowResolver<'_, '_, '_> {
+    fn fold_sort(&mut self, sort: &rty::Sort) -> rty::Sort {
+        match sort {
+            rty::Sort::Infer(rty::SortVar(vid)) => {
+                self.infcx
+                    .sort_unification_table
+                    .probe_value(*vid)
+                    .map(|sort| sort.fold_with(self))
+                    .unwrap_or(sort.clone())
+            }
+            rty::Sort::Infer(rty::NumVar(vid)) => {
+                self.infcx
+                    .num_unification_table
+                    .probe_value(*vid)
+                    .map(rty::NumVarValue::to_sort)
+                    .unwrap_or(sort.clone())
+            }
+            _ => sort.clone(),
+        }
+    }
+}
+
+struct OpportunisticResolver<'a, 'genv, 'tcx> {
+    infcx: &'a mut InferCtxt<'genv, 'tcx>,
+}
+
+impl TypeFolder for OpportunisticResolver<'_, '_, '_> {
+    fn fold_sort(&mut self, sort: &rty::Sort) -> rty::Sort {
+        let s = self.infcx.shallow_resolve(sort);
+        s.super_fold_with(self)
+    }
+}
+
+struct FullResolver<'a, 'genv, 'tcx> {
+    infcx: &'a mut InferCtxt<'genv, 'tcx>,
+}
+
+impl FallibleTypeFolder for FullResolver<'_, '_, '_> {
+    type Error = ();
+
+    fn try_fold_sort(&mut self, sort: &rty::Sort) -> std::result::Result<rty::Sort, Self::Error> {
+        let s = self.infcx.shallow_resolve(sort);
+        match s {
+            rty::Sort::Infer(_) => Err(()),
+            _ => s.try_super_fold_with(self),
+        }
     }
 }
