@@ -16,9 +16,9 @@ use super::{
     subst::EVarSubstFolder,
     AliasPred, AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
     CoroutineObligPredicate, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
-    GenericArg, Invariant, KVar, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate, PolyFuncSort,
-    ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, TraitPredicate, TraitRef,
-    Ty, TyKind,
+    GenericArg, Invariant, KVar, Lambda, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate,
+    PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort,
+    TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -1048,6 +1048,22 @@ impl TypeSuperVisitable for Expr {
     }
 }
 
+impl TypeVisitable for Lambda {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.body.visit_with(visitor)?;
+        self.output.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for Lambda {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(Lambda {
+            body: self.body.try_fold_with(folder)?,
+            output: self.output.try_fold_with(folder)?,
+        })
+    }
+}
+
 impl TypeVisitable for Var {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
         match self {
@@ -1103,7 +1119,7 @@ impl TypeSuperFoldable for Expr {
             }
             ExprKind::Hole(kind) => Expr::hole(kind.try_fold_with(folder)?),
             ExprKind::KVar(kvar) => Expr::kvar(kvar.try_fold_with(folder)?),
-            ExprKind::Abs(body) => Expr::abs(body.try_fold_with(folder)?),
+            ExprKind::Abs(lam) => Expr::abs(lam.try_fold_with(folder)?),
             ExprKind::GlobalFunc(func, kind) => Expr::global_func(*func, *kind),
             ExprKind::AliasPred(alias, args) => {
                 let alias = alias.try_fold_with(folder)?;

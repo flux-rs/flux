@@ -54,7 +54,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                 .genv
                 .assoc_refinement_def(impl_id, alias_pred.name)?
                 .instantiate(&alias_pred.args, &[]);
-            let expr = pred.replace_bound_exprs(refine_args);
+            let expr = pred.apply(refine_args);
             Ok(expr)
         } else {
             Ok(Expr::alias_pred(alias_pred.clone(), refine_args.clone()))

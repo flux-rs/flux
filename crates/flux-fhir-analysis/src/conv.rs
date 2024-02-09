@@ -338,7 +338,9 @@ pub(crate) fn conv_assoc_reft_def<'genv>(
     let mut env = Env::new(genv, &[], wfckresults);
     env.push_layer(Layer::list(&cx, 0, assoc_reft.params, false));
     let expr = cx.conv_expr(&mut env, &assoc_reft.body)?;
-    Ok(rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv)))
+    let inputs = env.pop_layer().into_bound_vars(genv);
+    let output = conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort);
+    Ok(rty::Lambda::with_vars(expr, inputs, output))
 }
 
 pub(crate) fn conv_ty<'genv>(
@@ -805,9 +807,15 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
                 env.push_layer(layer);
                 let pred = self.conv_expr(env, body)?;
-                let vars = env.pop_layer().into_bound_vars(self.genv);
-                let body = rty::Binder::new(pred, vars);
-                Ok(self.add_coercions(rty::Expr::abs(body), arg.fhir_id))
+                let inputs = env.pop_layer().into_bound_vars(self.genv);
+                let output = self
+                    .wfckresults
+                    .node_sorts()
+                    .get(arg.fhir_id)
+                    .unwrap_or_else(|| bug!("lambda without elaborated sort"))
+                    .clone();
+                let lam = rty::Lambda::with_vars(pred, inputs, output);
+                Ok(self.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
             }
             fhir::RefineArgKind::Record(flds) => {
                 let def_id = self.wfckresults.record_ctors().get(arg.fhir_id).unwrap();

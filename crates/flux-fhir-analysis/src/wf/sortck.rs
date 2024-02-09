@@ -62,7 +62,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         expected: &rty::Sort,
     ) -> Result {
         if let Some(fsort) = self.is_coercible_from_func(expected, arg.fhir_id) {
-            let fsort = fsort.instantiate_identity();
+            let fsort = fsort.expect_mono();
             self.insert_params(params);
 
             if params.len() != fsort.inputs().len() {
@@ -80,6 +80,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 Ok(())
             })?;
             self.check_expr(body, fsort.output())?;
+            self.wfckresults
+                .node_sorts_mut()
+                .insert(arg.fhir_id, fsort.output().clone());
             self.resolve_params_sorts(params)
         } else {
             Err(self.emit_err(errors::UnexpectedFun::new(arg.span, expected)))
@@ -496,14 +499,6 @@ impl<'genv> InferCtxt<'genv, '_> {
         let sort = self.params[&var.name].0.clone();
         self.fully_resolve(&sort)
             .map_err(|_| self.emit_err(errors::CannotInferSort::new(var)))
-    }
-
-    fn resolve_sort(&mut self, sort: &rty::Sort) -> Option<rty::Sort> {
-        if let rty::Sort::Infer(rty::SortVar(vid)) = sort {
-            self.sort_unification_table.probe_value(*vid)
-        } else {
-            Some(sort.clone())
-        }
     }
 
     fn is_single_field_record(&mut self, sort: &rty::Sort) -> Option<(DefId, rty::Sort)> {

@@ -930,19 +930,19 @@ impl<T> Binder<T> {
         Binder { vars, value }
     }
 
-    pub fn with_sorts(value: T, sorts: impl IntoIterator<Item = Sort>) -> Binder<T> {
+    pub fn with_sorts(value: T, sorts: &[Sort]) -> Binder<T> {
         let vars = sorts
-            .into_iter()
+            .iter()
             .map(|s| {
                 let infer_mode = s.default_infer_mode();
-                BoundVariableKind::Refine(s, infer_mode)
+                BoundVariableKind::Refine(s.clone(), infer_mode)
             })
             .collect();
         Binder { vars, value }
     }
 
     pub fn with_sort(value: T, sort: Sort) -> Binder<T> {
-        Binder::with_sorts(value, [sort])
+        Binder::with_sorts(value, &[sort])
     }
 
     pub fn vars(&self) -> &List<BoundVariableKind> {
@@ -1926,19 +1926,6 @@ mod pretty {
             define_scoped!(cx, f);
             w!(
                 "for<{}> {:?}",
-                ^self.vars
-                    .iter()
-                    .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s))),
-                &self.value
-            )
-        }
-    }
-
-    impl Pretty for Binder<Expr> {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!(
-                "|{}| {:?}",
                 ^self.vars
                     .iter()
                     .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s))),

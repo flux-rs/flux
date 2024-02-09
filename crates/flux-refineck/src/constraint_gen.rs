@@ -10,7 +10,8 @@ use flux_middle::{
         fold::TypeFoldable,
         AliasTy, BaseTy, BinOp, Binder, Constraint, CoroutineObligPredicate, ESpan, EVarGen,
         EarlyBinder, Expr, ExprKind, FnOutput, GenericArg, GenericParamDefKind, HoleKind,
-        InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
+        InferMode, Lambda, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty,
+        TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -444,7 +445,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 let fsort = sort.expect_func().expect_mono();
                 let inputs = List::from_slice(fsort.inputs());
                 let kvar = self.fresh_kvar(&[inputs.clone()], KVarEncoding::Single);
-                Expr::abs(Binder::with_sorts(kvar, inputs.iter().cloned()))
+                Expr::abs(Lambda::with_sorts(kvar, &inputs, fsort.output().clone()))
             }
             InferMode::EVar => self.fresh_evars(sort),
         }
@@ -720,11 +721,11 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 self.pred_subtyping(rcx, p1, p2);
             }
             (_, ExprKind::Abs(p)) => {
-                self.pred_subtyping(rcx, &e1.eta_expand_abs(&p.vars().to_sort_list()), p);
+                self.pred_subtyping(rcx, &e1.eta_expand_abs(&p.inputs(), p.output()), p);
             }
             (ExprKind::Abs(p), _) => {
                 self.unify_exprs(e1, e2);
-                self.pred_subtyping(rcx, p, &e2.eta_expand_abs(&p.vars().to_sort_list()));
+                self.pred_subtyping(rcx, p, &e2.eta_expand_abs(&p.inputs(), p.output()));
             }
             _ => {
                 self.unify_exprs(e1, e2);
@@ -734,16 +735,11 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn pred_subtyping(&mut self, rcx: &mut RefineCtxt, p1: &Binder<Expr>, p2: &Binder<Expr>) {
-        debug_assert_eq!(p1.vars(), p2.vars());
-        let vars = p1
-            .vars()
-            .to_sort_list()
-            .iter()
-            .map(|s| rcx.define_vars(s))
-            .collect_vec();
-        let p1 = p1.replace_bound_exprs(&vars);
-        let p2 = p2.replace_bound_exprs(&vars);
+    fn pred_subtyping(&mut self, rcx: &mut RefineCtxt, p1: &Lambda, p2: &Lambda) {
+        debug_assert_eq!(p1.inputs(), p2.inputs());
+        let vars = p1.inputs().iter().map(|s| rcx.define_vars(s)).collect_vec();
+        let p1 = p1.apply(&vars);
+        let p2 = p2.apply(&vars);
         rcx.check_impl(&p1, &p2, self.tag);
         rcx.check_impl(&p2, &p1, self.tag);
     }
