@@ -474,16 +474,16 @@ pub enum BinOp {
     Or,
     And,
     Eq,
-    Lt,
-    Le,
+    Ne,
     Gt,
     Ge,
-    Ne,
+    Lt,
+    Le,
     Add,
     Sub,
-    Mod,
     Mul,
     Div,
+    Mod,
 }
 
 #[derive(Copy, Clone, Debug)]

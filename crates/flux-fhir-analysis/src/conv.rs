@@ -1020,10 +1020,15 @@ impl ConvCtxt<'_, '_, '_> {
             fhir::ExprKind::Var(var, _) => env.lookup(*var).to_expr(),
             fhir::ExprKind::Literal(lit) => rty::Expr::constant_at(conv_lit(*lit), espan),
             fhir::ExprKind::BinaryOp(op, e1, e2) => {
-                rty::Expr::binary_op(*op, self.conv_expr(env, e1)?, self.conv_expr(env, e2)?, espan)
+                rty::Expr::binary_op(
+                    self.conv_bin_op(*op, expr.fhir_id),
+                    self.conv_expr(env, e1)?,
+                    self.conv_expr(env, e2)?,
+                    espan,
+                )
             }
             fhir::ExprKind::UnaryOp(op, e) => {
-                rty::Expr::unary_op(*op, self.conv_expr(env, e)?, espan)
+                rty::Expr::unary_op(conv_un_op(*op), self.conv_expr(env, e)?, espan)
             }
             fhir::ExprKind::App(func, args) => {
                 rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args)?, espan)
@@ -1042,6 +1047,34 @@ impl ConvCtxt<'_, '_, '_> {
             fhir::ExprKind::Dot(var, fld) => env.lookup(*var).get_field(*fld),
         };
         Ok(self.add_coercions(expr, fhir_id))
+    }
+
+    fn conv_bin_op(&self, op: fhir::BinOp, fhir_id: FhirId) -> rty::BinOp {
+        match op {
+            fhir::BinOp::Iff => rty::BinOp::Iff,
+            fhir::BinOp::Imp => rty::BinOp::Imp,
+            fhir::BinOp::Or => rty::BinOp::Or,
+            fhir::BinOp::And => rty::BinOp::And,
+            fhir::BinOp::Eq => rty::BinOp::Eq,
+            fhir::BinOp::Ne => rty::BinOp::Ne,
+            fhir::BinOp::Gt => rty::BinOp::Gt(self.bin_rel_sort(fhir_id)),
+            fhir::BinOp::Ge => rty::BinOp::Ge(self.bin_rel_sort(fhir_id)),
+            fhir::BinOp::Lt => rty::BinOp::Lt(self.bin_rel_sort(fhir_id)),
+            fhir::BinOp::Le => rty::BinOp::Le(self.bin_rel_sort(fhir_id)),
+            fhir::BinOp::Add => rty::BinOp::Add,
+            fhir::BinOp::Sub => rty::BinOp::Sub,
+            fhir::BinOp::Mod => rty::BinOp::Mod,
+            fhir::BinOp::Mul => rty::BinOp::Mul,
+            fhir::BinOp::Div => rty::BinOp::Div,
+        }
+    }
+
+    fn bin_rel_sort(&self, fhir_id: FhirId) -> rty::Sort {
+        self.wfckresults
+            .bin_rel_sorts()
+            .get(fhir_id)
+            .unwrap()
+            .clone()
     }
 
     fn conv_func(&self, env: &Env, func: &fhir::Func) -> rty::Expr {
@@ -1377,6 +1410,13 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
 
 pub(crate) fn bug_on_infer_sort() -> rty::Sort {
     bug!("unexpected infer sort")
+}
+
+fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
+    match op {
+        fhir::UnOp::Not => rty::UnOp::Not,
+        fhir::UnOp::Neg => rty::UnOp::Neg,
+    }
 }
 
 mod errors {

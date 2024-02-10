@@ -130,9 +130,33 @@ pub mod fixpoint {
             arity: usize,
             field: u32,
         },
+        UIFRel(BinRel),
         /// Interpreted theory function. This can be an arbitrary string, thus we are assuming the
         /// name is different than the display implementation for the other variants.
         Itf(Symbol),
+    }
+
+    #[derive(Hash, Debug, Copy, Clone, PartialEq, Eq)]
+    pub enum BinRel {
+        Gt,
+        Ge,
+        Lt,
+        Le,
+    }
+
+    impl BinRel {
+        pub const ALL: [BinRel; 4] = [BinRel::Gt, BinRel::Ge, BinRel::Lt, BinRel::Le];
+
+        // FIXME(nilehmann) remove when we have relations in flux_fixpoint to match syntax in the
+        // haskell implementation
+        pub fn to_bin_op(self) -> BinOp {
+            match self {
+                BinRel::Gt => BinOp::Gt,
+                BinRel::Ge => BinOp::Ge,
+                BinRel::Lt => BinOp::Lt,
+                BinRel::Le => BinOp::Le,
+            }
+        }
     }
 
     impl From<GlobalVar> for Var {
@@ -158,9 +182,13 @@ pub mod fixpoint {
             match self {
                 Var::Global(v) => write!(f, "c{}", v.as_u32()),
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
-                Var::TupleCtor { arity } => write!(f, "Tuple{arity}"),
-                Var::TupleProj { arity, field } => write!(f, "Tuple{arity}${field}"),
+                Var::TupleCtor { arity } => write!(f, "mktuple{arity}"),
+                Var::TupleProj { arity, field } => write!(f, "tuple{arity}${field}"),
                 Var::Itf(name) => write!(f, "{name}"),
+                Var::UIFRel(BinRel::Gt) => write!(f, "gt"),
+                Var::UIFRel(BinRel::Ge) => write!(f, "ge"),
+                Var::UIFRel(BinRel::Lt) => write!(f, "lt"),
+                Var::UIFRel(BinRel::Le) => write!(f, "le"),
             }
         }
     }
@@ -172,6 +200,7 @@ pub mod fixpoint {
         type Tag = super::TagIdx;
     }
     pub use fixpoint_generated::*;
+    pub use flux_fixpoint::{BinOp, UnOp};
     use rustc_span::Symbol;
 }
 
@@ -417,7 +446,7 @@ where
     fn fixpoint_const_info(const_info: ConstInfo) -> fixpoint::ConstInfo {
         fixpoint::ConstInfo {
             name: fixpoint::Var::Global(const_info.name),
-            orig: const_info.orig,
+            orig: Some(const_info.orig),
             sort: const_info.sort,
         }
     }
@@ -456,12 +485,25 @@ where
             .map(|qual| self.ecx.qualifier_to_fixpoint(qual))
             .collect();
 
-        let constants = self
+        let mut constants = self
             .ecx
             .const_map
             .into_values()
             .map(Self::fixpoint_const_info)
             .collect_vec();
+
+        for rel in fixpoint::BinRel::ALL {
+            let fsort = fixpoint::PolyFuncSort::new(
+                1,
+                vec![fixpoint::Sort::Var(0), fixpoint::Sort::Var(0)],
+                fixpoint::Sort::Bool,
+            );
+            constants.push(fixpoint::ConstInfo {
+                name: fixpoint::Var::UIFRel(rel),
+                sort: fixpoint::Sort::Func(fsort),
+                orig: None,
+            });
+        }
 
         let task = fixpoint::Task {
             comments: self.comments,
@@ -760,14 +802,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         match expr.kind() {
             rty::ExprKind::Var(var) => fixpoint::Expr::Var(env.get_var(var, self.dbg_span).into()),
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
-            rty::ExprKind::BinaryOp(op, e1, e2) => {
-                fixpoint::Expr::BinaryOp(
-                    *op,
-                    Box::new([self.expr_to_fixpoint(e1, env), self.expr_to_fixpoint(e2, env)]),
-                )
-            }
+            rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, env),
             rty::ExprKind::UnaryOp(op, e) => {
-                fixpoint::Expr::UnaryOp(*op, Box::new(self.expr_to_fixpoint(e, env)))
+                fixpoint::Expr::UnaryOp(
+                    un_op_to_fixpoint(*op),
+                    Box::new(self.expr_to_fixpoint(e, env)),
+                )
             }
             rty::ExprKind::FieldProj(e, proj) => {
                 let (arity, field) = match *proj {
@@ -834,6 +874,115 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .into_iter()
             .map(|e| self.expr_to_fixpoint(e, env))
             .collect()
+    }
+
+    fn bin_op_to_fixpoint(
+        &mut self,
+        op: &rty::BinOp,
+        e1: &rty::Expr,
+        e2: &rty::Expr,
+        env: &Env,
+    ) -> fixpoint::Expr {
+        let op = match op {
+            rty::BinOp::Gt(sort) => {
+                return self.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Gt, e1, e2, env);
+            }
+            rty::BinOp::Ge(sort) => {
+                return self.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Ge, e1, e2, env);
+            }
+            rty::BinOp::Lt(sort) => {
+                return self.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Lt, e1, e2, env);
+            }
+            rty::BinOp::Le(sort) => {
+                return self.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Le, e1, e2, env);
+            }
+            rty::BinOp::And => {
+                return fixpoint::Expr::And(vec![
+                    self.expr_to_fixpoint(e1, env),
+                    self.expr_to_fixpoint(e2, env),
+                ])
+            }
+            rty::BinOp::Or => {
+                return fixpoint::Expr::Or(vec![
+                    self.expr_to_fixpoint(e1, env),
+                    self.expr_to_fixpoint(e2, env),
+                ])
+            }
+            rty::BinOp::Iff => fixpoint::BinOp::Iff,
+            rty::BinOp::Imp => fixpoint::BinOp::Imp,
+            rty::BinOp::Eq => fixpoint::BinOp::Eq,
+            rty::BinOp::Ne => fixpoint::BinOp::Ne,
+            rty::BinOp::Add => fixpoint::BinOp::Add,
+            rty::BinOp::Sub => fixpoint::BinOp::Sub,
+            rty::BinOp::Mul => fixpoint::BinOp::Mul,
+            rty::BinOp::Div => fixpoint::BinOp::Div,
+            rty::BinOp::Mod => fixpoint::BinOp::Mod,
+        };
+        fixpoint::Expr::BinaryOp(
+            op,
+            Box::new([self.expr_to_fixpoint(e1, env), self.expr_to_fixpoint(e2, env)]),
+        )
+    }
+
+    fn bin_rel_to_fixpoint(
+        &mut self,
+        sort: &rty::Sort,
+        rel: fixpoint::BinRel,
+        e1: &rty::Expr,
+        e2: &rty::Expr,
+        env: &Env,
+    ) -> fixpoint::Expr {
+        match sort {
+            rty::Sort::Int | rty::Sort::Real => {
+                fixpoint::Expr::BinaryOp(
+                    rel.to_bin_op(),
+                    Box::new([self.expr_to_fixpoint(e1, env), self.expr_to_fixpoint(e2, env)]),
+                )
+            }
+            rty::Sort::Tuple(sorts) => {
+                let arity = sorts.len();
+                self.apply_bin_rel_rec(sorts, rel, e1, e2, env, |field| {
+                    rty::FieldProj::Tuple { arity, field }
+                })
+            }
+            rty::Sort::App(rty::SortCtor::Adt(sort_def), args) => {
+                let def_id = sort_def.did();
+                let sorts = sort_def.sorts(args);
+                self.apply_bin_rel_rec(&sorts, rel, e1, e2, env, |field| {
+                    rty::FieldProj::Adt { def_id, field }
+                })
+            }
+            _ => {
+                let rel = fixpoint::Var::UIFRel(rel);
+                fixpoint::Expr::App(
+                    rel,
+                    vec![self.expr_to_fixpoint(e1, env), self.expr_to_fixpoint(e2, env)],
+                )
+            }
+        }
+    }
+
+    fn apply_bin_rel_rec(
+        &mut self,
+        sorts: &[rty::Sort],
+        rel: fixpoint::BinRel,
+        e1: &rty::Expr,
+        e2: &rty::Expr,
+        env: &Env,
+        mk_proj: impl Fn(u32) -> rty::FieldProj,
+    ) -> fixpoint::Expr {
+        fixpoint::Expr::And(
+            sorts
+                .iter()
+                .enumerate()
+                .map(|(idx, s)| {
+                    let proj = mk_proj(idx as u32);
+                    let e1 = e1.proj_and_simplify(proj);
+                    let e2 = e2.proj_and_simplify(proj);
+                    self.bin_rel_to_fixpoint(s, rel, &e1, &e2, env)
+                })
+                .collect(),
+        )
     }
 
     fn func_to_fixpoint(&mut self, func: &rty::Expr, env: &Env) -> fixpoint::Var {
@@ -944,4 +1093,11 @@ fn alias_reft_sort(arity: usize) -> rty::PolyFuncSort {
     }
     sorts.push(rty::Sort::Bool);
     rty::PolyFuncSort::new(arity, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
+}
+
+fn un_op_to_fixpoint(op: rty::UnOp) -> fixpoint::UnOp {
+    match op {
+        rty::UnOp::Not => fixpoint::UnOp::Not,
+        rty::UnOp::Neg => fixpoint::UnOp::Neg,
+    }
 }

@@ -1,7 +1,7 @@
 use std::{fmt, sync::OnceLock};
 
 use flux_common::bug;
-pub use flux_fixpoint::{BinOp, Constant, UnOp};
+pub use flux_fixpoint::Constant;
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
@@ -107,6 +107,31 @@ impl SpanData {
     pub fn span(&self) -> Span {
         Span::new(self.lo, self.hi, SyntaxContext::root(), None)
     }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum BinOp {
+    Iff,
+    Imp,
+    Or,
+    And,
+    Eq,
+    Ne,
+    Gt(Sort),
+    Ge(Sort),
+    Lt(Sort),
+    Le(Sort),
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub enum UnOp {
+    Not,
+    Neg,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -457,19 +482,19 @@ impl Expr {
     }
 
     pub fn ge(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::BinaryOp(BinOp::Ge, e1.into(), e2.into()).intern()
+        ExprKind::BinaryOp(BinOp::Ge(Sort::Int), e1.into(), e2.into()).intern()
     }
 
     pub fn gt(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::BinaryOp(BinOp::Gt, e1.into(), e2.into()).intern()
+        ExprKind::BinaryOp(BinOp::Gt(Sort::Int), e1.into(), e2.into()).intern()
     }
 
     pub fn lt(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::BinaryOp(BinOp::Lt, e1.into(), e2.into()).intern()
+        ExprKind::BinaryOp(BinOp::Lt(Sort::Int), e1.into(), e2.into()).intern()
     }
 
     pub fn le(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::BinaryOp(BinOp::Le, e1.into(), e2.into()).intern()
+        ExprKind::BinaryOp(BinOp::Le(Sort::Int), e1.into(), e2.into()).intern()
     }
 
     pub fn implies(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
@@ -532,10 +557,10 @@ impl Expr {
             BinOp::Imp => c1.imp(c2),
             BinOp::Or => c1.or(c2),
             BinOp::And => c1.and(c2),
-            BinOp::Gt => c1.gt(c2),
-            BinOp::Ge => c1.ge(c2),
-            BinOp::Lt => c2.gt(c1),
-            BinOp::Le => c2.ge(c1),
+            BinOp::Gt(Sort::Int) => c1.gt(c2),
+            BinOp::Ge(Sort::Int) => c1.ge(c2),
+            BinOp::Lt(Sort::Int) => c2.gt(c1),
+            BinOp::Le(Sort::Int) => c2.ge(c1),
             BinOp::Eq => Some(c1.eq(c2)),
             BinOp::Ne => Some(c1.ne(c2)),
             _ => None,
@@ -570,10 +595,10 @@ impl Expr {
                                 let e2_span = e2.span();
                                 match Expr::const_op(op, c1, c2) {
                                     Some(c) => Expr::constant_at(c, span.or(e2_span)),
-                                    None => Expr::binary_op(*op, e1, e2, span),
+                                    None => Expr::binary_op(op.clone(), e1, e2, span),
                                 }
                             }
-                            _ => Expr::binary_op(*op, e1, e2, span),
+                            _ => Expr::binary_op(op.clone(), e1, e2, span),
                         }
                     }
                     ExprKind::UnaryOp(UnOp::Not, e) => {
@@ -639,6 +664,14 @@ impl Expr {
             }
         }
         go(sort, &mut f)
+    }
+
+    /// Applies a projection to an expression an optimistically try to beta reduce it if possible.
+    pub fn proj_and_simplify(&self, proj: FieldProj) -> Expr {
+        match self.kind() {
+            ExprKind::Aggregate(_, flds) => flds[proj.field() as usize].clone(),
+            _ => Expr::field_proj(self.clone(), proj, None),
+        }
     }
 }
 
@@ -772,7 +805,7 @@ mod pretty {
     use crate::pretty::*;
 
     #[derive(PartialEq, Eq, PartialOrd, Ord)]
-    pub enum Precedence {
+    enum Precedence {
         Iff,
         Imp,
         Or,
@@ -782,17 +815,22 @@ mod pretty {
         MulDiv,
     }
 
-    pub fn precedence(bin_op: &BinOp) -> Precedence {
-        match bin_op {
-            BinOp::Iff => Precedence::Iff,
-            BinOp::Imp => Precedence::Imp,
-            BinOp::Or => Precedence::Or,
-            BinOp::And => Precedence::And,
-            BinOp::Eq | BinOp::Ne | BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le => {
-                Precedence::Cmp
+    impl BinOp {
+        fn precedence(&self) -> Precedence {
+            match self {
+                BinOp::Iff => Precedence::Iff,
+                BinOp::Imp => Precedence::Imp,
+                BinOp::Or => Precedence::Or,
+                BinOp::And => Precedence::And,
+                BinOp::Eq
+                | BinOp::Ne
+                | BinOp::Gt(_)
+                | BinOp::Lt(_)
+                | BinOp::Ge(_)
+                | BinOp::Le(_) => Precedence::Cmp,
+                BinOp::Add | BinOp::Sub => Precedence::AddSub,
+                BinOp::Mul | BinOp::Div | BinOp::Mod => Precedence::MulDiv,
             }
-            BinOp::Add | BinOp::Sub => Precedence::AddSub,
-            BinOp::Mul | BinOp::Div | BinOp::Mod => Precedence::MulDiv,
         }
     }
 
@@ -807,9 +845,9 @@ mod pretty {
             define_scoped!(cx, f);
             fn should_parenthesize(op: &BinOp, child: &Expr) -> bool {
                 if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
-                    precedence(child_op) < precedence(op)
-                        || (precedence(child_op) == precedence(op)
-                            && !precedence(op).is_associative())
+                    child_op.precedence() < op.precedence()
+                        || (child_op.precedence() == op.precedence()
+                            && !op.precedence().is_associative())
                 } else {
                     false
                 }
@@ -962,10 +1000,10 @@ mod pretty {
                 BinOp::And => w!("∧"),
                 BinOp::Eq => w!("="),
                 BinOp::Ne => w!("≠"),
-                BinOp::Gt => w!(">"),
-                BinOp::Ge => w!("≥"),
-                BinOp::Lt => w!("<"),
-                BinOp::Le => w!("≤"),
+                BinOp::Gt(_) => w!(">"),
+                BinOp::Ge(_) => w!("≥"),
+                BinOp::Lt(_) => w!("<"),
+                BinOp::Le(_) => w!("≤"),
                 BinOp::Add => w!("+"),
                 BinOp::Sub => w!("-"),
                 BinOp::Mul => w!("*"),

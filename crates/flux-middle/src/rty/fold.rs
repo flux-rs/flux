@@ -14,7 +14,7 @@ use super::{
     normalize::{Normalizer, SpecFuncDefns},
     projections,
     subst::EVarSubstFolder,
-    AliasReft, AliasTy, BaseTy, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
+    AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
     CoroutineObligPredicate, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate,
     PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort,
@@ -1097,7 +1097,12 @@ impl TypeSuperFoldable for Expr {
             ExprKind::Constant(c) => Expr::constant_at(*c, span),
             ExprKind::ConstDefId(did) => Expr::const_def_id(*did, span),
             ExprKind::BinaryOp(op, e1, e2) => {
-                Expr::binary_op(*op, e1.try_fold_with(folder)?, e2.try_fold_with(folder)?, span)
+                Expr::binary_op(
+                    op.try_fold_with(folder)?,
+                    e1.try_fold_with(folder)?,
+                    e2.try_fold_with(folder)?,
+                    span,
+                )
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.try_fold_with(folder)?, span),
             ExprKind::FieldProj(e, proj) => Expr::field_proj(e.try_fold_with(folder)?, *proj, span),
@@ -1128,6 +1133,50 @@ impl TypeSuperFoldable for Expr {
             }
         };
         Ok(expr)
+    }
+}
+
+impl TypeVisitable for BinOp {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        match self {
+            BinOp::Gt(sort) | BinOp::Ge(sort) | BinOp::Lt(sort) | BinOp::Le(sort) => {
+                sort.visit_with(visitor)
+            }
+            BinOp::Iff
+            | BinOp::Imp
+            | BinOp::Or
+            | BinOp::And
+            | BinOp::Eq
+            | BinOp::Ne
+            | BinOp::Add
+            | BinOp::Sub
+            | BinOp::Mul
+            | BinOp::Div
+            | BinOp::Mod => ControlFlow::Continue(()),
+        }
+    }
+}
+
+impl TypeFoldable for BinOp {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        let op = match self {
+            BinOp::Iff => BinOp::Iff,
+            BinOp::Imp => BinOp::Imp,
+            BinOp::Or => BinOp::Or,
+            BinOp::And => BinOp::And,
+            BinOp::Eq => BinOp::Eq,
+            BinOp::Ne => BinOp::Ne,
+            BinOp::Gt(sort) => BinOp::Gt(sort.try_fold_with(folder)?),
+            BinOp::Ge(sort) => BinOp::Ge(sort.try_fold_with(folder)?),
+            BinOp::Lt(sort) => BinOp::Lt(sort.try_fold_with(folder)?),
+            BinOp::Le(sort) => BinOp::Le(sort.try_fold_with(folder)?),
+            BinOp::Add => BinOp::Add,
+            BinOp::Sub => BinOp::Sub,
+            BinOp::Mul => BinOp::Mul,
+            BinOp::Div => BinOp::Div,
+            BinOp::Mod => BinOp::Mod,
+        };
+        Ok(op)
     }
 }
 

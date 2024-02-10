@@ -179,6 +179,7 @@ impl<'rcx> RefineCtxt<'rcx> {
 
     #[allow(dead_code)]
     #[must_use]
+    #[allow(dead_code)]
     pub(crate) fn push_comment(&mut self, comment: impl ToString) -> RefineCtxt {
         let ptr = self.ptr.push_node(NodeKind::Comment(comment.to_string()));
         RefineCtxt { tree: self.tree, ptr }

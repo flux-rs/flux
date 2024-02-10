@@ -80,7 +80,7 @@ impl Types for StringTypes {
 #[derive_where(Hash)]
 pub struct ConstInfo<T: Types> {
     pub name: T::Var,
-    pub orig: String,
+    pub orig: Option<String>,
     pub sort: Sort<T>,
 }
 
@@ -242,7 +242,11 @@ impl<T: Types> fmt::Display for KVar<T> {
 
 impl<T: Types> fmt::Display for ConstInfo<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(constant {} {}) // orig: {}", self.name, self.sort, self.orig)
+        write!(f, "(constant {} {})", self.name, self.sort)?;
+        if let Some(orig) = &self.orig {
+            write!(f, "  // orig: {orig}")?;
+        }
+        Ok(())
     }
 }
 

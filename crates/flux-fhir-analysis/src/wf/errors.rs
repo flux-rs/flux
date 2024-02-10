@@ -140,21 +140,6 @@ impl<'a> UnexpectedFun<'a> {
 }
 
 #[derive(Diagnostic)]
-#[diag(fhir_analysis_expected_numeric, code = "FLUX")]
-pub(super) struct ExpectedNumeric<'a> {
-    #[primary_span]
-    #[label]
-    span: Span,
-    found: &'a rty::Sort,
-}
-
-impl<'a> ExpectedNumeric<'a> {
-    pub(super) fn new(span: Span, found: &'a rty::Sort) -> Self {
-        Self { span, found }
-    }
-}
-
-#[derive(Diagnostic)]
 #[diag(fhir_analysis_param_count_mismatch, code = "FLUX")]
 pub(super) struct ParamCountMismatch {
     #[primary_span]
@@ -214,20 +199,6 @@ impl<'fhir> InvalidBaseInstance<'fhir> {
 }
 
 #[derive(Diagnostic)]
-#[diag(fhir_analysis_no_equality, code = "FLUX")]
-pub(super) struct NoEquality<'a> {
-    #[primary_span]
-    span: Span,
-    sort: &'a rty::Sort,
-}
-
-impl<'a> NoEquality<'a> {
-    pub(super) fn new(span: Span, sort: &'a rty::Sort) -> Self {
-        Self { span, sort }
-    }
-}
-
-#[derive(Diagnostic)]
 #[diag(fhir_analysis_param_not_determined, code = "FLUX")]
 #[help]
 pub(super) struct ParamNotDetermined {
@@ -267,8 +238,8 @@ pub(super) struct CannotInferSort {
 }
 
 impl CannotInferSort {
-    pub(super) fn new(ident: fhir::Ident) -> Self {
-        Self { span: ident.span() }
+    pub(super) fn new(span: Span) -> Self {
+        Self { span }
     }
 }
 
