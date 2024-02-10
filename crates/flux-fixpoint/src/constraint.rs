@@ -99,6 +99,7 @@ pub enum Expr<T: Types> {
     And(Vec<Expr<T>>),
     Or(Vec<Expr<T>>),
     Imp(Box<[Expr<T>; 2]>),
+    Iff(Box<[Expr<T>; 2]>),
     Atom(BinRel, Box<[Self; 2]>),
     UnaryOp(UnOp, Box<Self>),
 }
@@ -124,7 +125,6 @@ pub struct Const<T: Types> {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BinOp {
-    Iff,
     Add,
     Sub,
     Mul,
@@ -363,6 +363,9 @@ impl<T: Types> fmt::Display for Expr<T> {
             Expr::Imp(box [e1, e2]) => {
                 write!(f, "{} => {}", FmtParens(e1), FmtParens(e2))
             }
+            Expr::Iff(box [e1, e2]) => {
+                write!(f, "{} <=> {}", FmtParens(e1), FmtParens(e2))
+            }
             Expr::Atom(rel, box [e1, e2]) => {
                 write!(f, "{} {rel} {}", FmtParens(e1), FmtParens(e2))
             }
@@ -499,7 +502,6 @@ impl<T: Types> fmt::Display for Qualifier<T> {
 impl fmt::Display for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BinOp::Iff => write!(f, "<=>"),
             BinOp::Add => write!(f, "+"),
             BinOp::Sub => write!(f, "-"),
             BinOp::Mul => write!(f, "*"),
