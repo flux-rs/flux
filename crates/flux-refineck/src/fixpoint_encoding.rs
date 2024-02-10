@@ -91,7 +91,7 @@ impl SortStore {
                             .map(|field| {
                                 fixpoint::DataField {
                                     name: fixpoint::Var::TupleProj { arity, field },
-                                    sort: fixpoint::Sort::Var(field),
+                                    sort: fixpoint::Sort::Var(field as usize),
                                 }
                             })
                             .collect(),
@@ -481,14 +481,14 @@ where
 
         for rel in fixpoint::BinRel::INEQUALITIES {
             // ∀a. a -> a -> bool
-            let fsort = fixpoint::PolyFuncSort::new(
+            let sort = fixpoint::Sort::mk_func(
                 1,
-                vec![fixpoint::Sort::Var(0), fixpoint::Sort::Var(0)],
+                [fixpoint::Sort::Var(0), fixpoint::Sort::Var(0)],
                 fixpoint::Sort::Bool,
             );
             constants.push(fixpoint::ConstInfo {
                 name: fixpoint::Var::UIFRel(rel),
-                sort: fixpoint::Sort::Func(fsort),
+                sort,
                 orig: None,
             });
         }
@@ -632,11 +632,10 @@ fn fixpoint_const_map<'tcx>(
         .filter_map(|decl| {
             match decl.kind {
                 SpecFuncKind::Uif => {
-                    let sort = func_sort_to_fixpoint(&decl.sort);
                     let cinfo = ConstInfo {
                         name: global_var_gen.fresh(),
                         orig: decl.name.to_string(),
-                        sort: fixpoint::Sort::Func(sort),
+                        sort: func_sort_to_fixpoint(&decl.sort),
                         val: None,
                     };
                     Some((Key::Uif(decl.name), cinfo))
@@ -760,8 +759,8 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
             let args = sorts.iter().map(sort_to_fixpoint).collect();
             fixpoint::Sort::App(ctor, args)
         }
-        rty::Sort::Func(sort) => fixpoint::Sort::Func(func_sort_to_fixpoint(sort)),
-        rty::Sort::Var(k) => fixpoint::Sort::Var(k.index.try_into().unwrap()),
+        rty::Sort::Func(sort) => func_sort_to_fixpoint(sort),
+        rty::Sort::Var(k) => fixpoint::Sort::Var(k.index),
         rty::Sort::Err | rty::Sort::Infer(_) | rty::Sort::Loc => {
             bug!("unexpected sort {sort:?}")
         }
@@ -772,12 +771,12 @@ fn tuple_sort_name(arity: usize) -> String {
     format!("Tuple{arity}")
 }
 
-fn func_sort_to_fixpoint(fsort: &rty::PolyFuncSort) -> fixpoint::PolyFuncSort {
+fn func_sort_to_fixpoint(fsort: &rty::PolyFuncSort) -> fixpoint::Sort {
     let params = fsort.params();
     let fsort = fsort.skip_binders();
-    fixpoint::PolyFuncSort::new(
+    fixpoint::Sort::mk_func(
         params,
-        fsort.inputs().iter().map(sort_to_fixpoint).collect(),
+        fsort.inputs().iter().map(sort_to_fixpoint),
         sort_to_fixpoint(fsort.output()),
     )
 }
@@ -1056,7 +1055,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let name = self.global_var_gen.fresh();
                 let fsort = alias_reft_sort(arity);
                 let sort = func_sort_to_fixpoint(&fsort);
-                let sort = fixpoint::Sort::Func(sort);
                 ConstInfo { name, orig, sort, val: None }
             })
             .name
@@ -1069,8 +1067,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .or_insert_with(|| {
                 let orig = format!("{lam:?}");
                 let name = self.global_var_gen.fresh();
-                let fsort = func_sort_to_fixpoint(&lam.sort().to_poly());
-                let sort = fixpoint::Sort::Func(fsort);
+                let sort = func_sort_to_fixpoint(&lam.sort().to_poly());
                 ConstInfo { name, orig, sort, val: None }
             })
             .name

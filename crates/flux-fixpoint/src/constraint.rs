@@ -48,10 +48,39 @@ pub enum Sort<T: Types> {
     Int,
     Bool,
     Real,
-    Var(u32),
     BitVec(usize),
-    Func(PolyFuncSort<T>),
+    Var(usize),
+    Func(Box<[Self; 2]>),
+    Abs(usize, Box<Self>),
     App(SortCtor<T>, Vec<Self>),
+}
+
+impl<T: Types> Sort<T> {
+    pub fn mk_func<I>(params: usize, inputs: I, output: Sort<T>) -> Sort<T>
+    where
+        I: IntoIterator<Item = Sort<T>>,
+        I::IntoIter: DoubleEndedIterator,
+    {
+        let sort = inputs
+            .into_iter()
+            .rev()
+            .fold(output, |output, input| Sort::Func(Box::new([input, output])));
+
+        (0..params)
+            .rev()
+            .fold(sort, |sort, i| Sort::Abs(i, Box::new(sort)))
+    }
+
+    fn peel_out_abs(&self) -> (usize, &Sort<T>) {
+        let mut n = 0;
+        let mut curr = self;
+        while let Sort::Abs(i, sort) = curr {
+            assert_eq!(*i, n);
+            n += 1;
+            curr = sort;
+        }
+        (n, curr)
+    }
 }
 
 #[derive_where(Clone, Hash)]
@@ -59,17 +88,6 @@ pub enum SortCtor<T: Types> {
     Set,
     Map,
     Data(T::Sort),
-}
-
-#[derive_where(Clone, Hash)]
-pub struct FuncSort<T: Types> {
-    inputs_and_output: Vec<Sort<T>>,
-}
-
-#[derive_where(Clone, Hash)]
-pub struct PolyFuncSort<T: Types> {
-    params: usize,
-    fsort: FuncSort<T>,
 }
 
 #[derive_where(Hash)]
@@ -172,13 +190,6 @@ impl<T: Types> Pred<T> {
     }
 }
 
-impl<T: Types> PolyFuncSort<T> {
-    pub fn new(params: usize, mut inputs: Vec<Sort<T>>, output: Sort<T>) -> PolyFuncSort<T> {
-        inputs.push(output);
-        PolyFuncSort { params, fsort: FuncSort { inputs_and_output: inputs } }
-    }
-}
-
 impl<T: Types> fmt::Display for DataDecl<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(data {} {} = [{}])", self.name, self.vars, self.ctors.iter().format(" "))
@@ -270,7 +281,11 @@ impl<T: Types> fmt::Display for Sort<T> {
             Sort::Real => write!(f, "real"),
             Sort::Var(i) => write!(f, "@({i})"),
             Sort::BitVec(size) => write!(f, "(BitVec Size{})", size),
-            Sort::Func(sort) => write!(f, "{sort}"),
+            Sort::Abs(..) => {
+                let (params, sort) = self.peel_out_abs();
+                fmt_func(params, sort, f)
+            }
+            Sort::Func(..) => fmt_func(0, self, f),
             Sort::App(ctor, args) => {
                 write!(f, "({ctor}")?;
                 for arg in args {
@@ -282,16 +297,14 @@ impl<T: Types> fmt::Display for Sort<T> {
     }
 }
 
-impl<T: Types> fmt::Display for PolyFuncSort<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(func({}, [{}]))", self.params, self.fsort.inputs_and_output.iter().format("; "))
+fn fmt_func<T: Types>(params: usize, sort: &Sort<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "(func({params}, [")?;
+    let mut curr = sort;
+    while let Sort::Func(box [input, output]) = curr {
+        write!(f, "{input};")?;
+        curr = output;
     }
-}
-
-impl<T: Types> fmt::Display for FuncSort<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(func(0, [{}]))", self.inputs_and_output.iter().format("; "))
-    }
+    write!(f, "{curr}]))")
 }
 
 impl<T: Types> fmt::Display for Pred<T> {
