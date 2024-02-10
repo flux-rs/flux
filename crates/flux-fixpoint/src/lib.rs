@@ -198,8 +198,6 @@ impl<T: Types> fmt::Display for Task<T> {
         }
         writeln!(f)?;
 
-        writeln!(f, "(data Unit 0 = [| unit {{ }}])")?;
-
         for data_decl in &self.data_decls {
             writeln!(f, "{data_decl}")?;
         }

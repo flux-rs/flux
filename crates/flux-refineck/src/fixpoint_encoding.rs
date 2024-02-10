@@ -121,6 +121,7 @@ pub mod fixpoint {
 
     #[derive(Hash, Debug, Copy, Clone)]
     pub enum Var {
+        Underscore,
         Global(GlobalVar),
         Local(LocalVar),
         TupleCtor {
@@ -169,6 +170,7 @@ pub mod fixpoint {
                 // these are actually not necessary because all equality is interpreted.
                 Var::UIFRel(BinRel::Eq) => write!(f, "eq"),
                 Var::UIFRel(BinRel::Ne) => write!(f, "ne"),
+                Var::Underscore => write!(f, "_"),
             }
         }
     }
@@ -228,8 +230,9 @@ impl KVarEncodingCtxt {
         self.map.entry(kvid).or_insert_with(|| {
             let all_args = decl.sorts.iter().map(sort_to_fixpoint).collect_vec();
 
+            // See comment in `kvar_to_fixpoint`
             if all_args.is_empty() {
-                let sorts = vec![fixpoint::Sort::Unit];
+                let sorts = vec![fixpoint::Sort::Int];
                 let kvid = self.kvars.push(FixpointKVar::new(sorts, kvid));
                 return vec![kvid];
             }
@@ -421,7 +424,10 @@ where
         let e1 = fixpoint::Expr::Var(fixpoint::Var::Global(var));
         let e2 = fixpoint::Expr::Constant(const_val);
         let pred = fixpoint::Pred::Expr(e1.eq(e2));
-        fixpoint::Constraint::Guard(pred, Box::new(cstr))
+        fixpoint::Constraint::ForAll(
+            fixpoint::Bind { name: fixpoint::Var::Underscore, sort: fixpoint::Sort::Int, pred },
+            Box::new(cstr),
+        )
     }
 
     fn fixpoint_const_info(const_info: ConstInfo) -> fixpoint::ConstInfo {
@@ -566,13 +572,16 @@ where
             })
             .collect_vec();
 
+        // Fixpoint doesn't support kvars without arguments which we do generate sometimes. To get
+        // around it, we encode `$k()` as ($k 0), or more precisley `(forall ((x int) (= x 0)) ... ($k x)`
+        // after ANF-ing.
         if all_args.is_empty() {
             let fresh = self.env.fresh_name();
             let var = fixpoint::Var::Local(fresh);
             bindings.push((
                 fresh,
-                fixpoint::Sort::Unit,
-                fixpoint::Expr::eq(fixpoint::Expr::Var(var), fixpoint::Expr::Unit),
+                fixpoint::Sort::Int,
+                fixpoint::Expr::eq(fixpoint::Expr::Var(var), fixpoint::Expr::ZERO),
             ));
             return fixpoint::Pred::KVar(kvids[0], vec![var]);
         }

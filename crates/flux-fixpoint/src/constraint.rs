@@ -21,7 +21,6 @@ pub struct Bind<T: Types> {
 pub enum Constraint<T: Types> {
     Pred(Pred<T>, #[derive_where(skip)] Option<T::Tag>),
     Conj(Vec<Self>),
-    Guard(Pred<T>, Box<Self>),
     ForAll(Bind<T>, Box<Self>),
 }
 
@@ -49,7 +48,6 @@ pub enum Sort<T: Types> {
     Int,
     Bool,
     Real,
-    Unit,
     Var(u32),
     BitVec(usize),
     Func(PolyFuncSort<T>),
@@ -97,7 +95,6 @@ impl BinRel {
 
 #[derive_where(Hash)]
 pub enum Expr<T: Types> {
-    Unit,
     Constant(Constant),
     Var(T::Var),
     App(T::Var, Vec<Self>),
@@ -155,7 +152,7 @@ impl<T: Types> Constraint<T> {
     pub fn is_concrete(&self) -> bool {
         match self {
             Constraint::Conj(cs) => cs.iter().any(Constraint::is_concrete),
-            Constraint::Guard(_, c) | Constraint::ForAll(_, c) => c.is_concrete(),
+            Constraint::ForAll(_, c) => c.is_concrete(),
             Constraint::Pred(p, _) => p.is_concrete() && !p.is_trivially_true(),
         }
     }
@@ -221,11 +218,6 @@ impl<T: Types> fmt::Display for Constraint<T> {
                     }
                 }
             }
-            Constraint::Guard(body, head) => {
-                write!(f, "(forall ((_ {}) {body})", Sort::<T>::Unit)?;
-                write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
-                write!(f, "\n)")
-            }
             Constraint::ForAll(bind, head) => {
                 write!(f, "(forall (({} {}) {})", bind.name, bind.sort, bind.pred)?;
                 write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
@@ -282,7 +274,6 @@ impl<T: Types> fmt::Display for Sort<T> {
             Sort::Int => write!(f, "int"),
             Sort::Bool => write!(f, "bool"),
             Sort::Real => write!(f, "real"),
-            Sort::Unit => write!(f, "Unit"),
             Sort::Var(i) => write!(f, "@({i})"),
             Sort::BitVec(size) => write!(f, "(BitVec Size{})", size),
             Sort::Func(sort) => write!(f, "{sort}"),
@@ -354,7 +345,6 @@ impl<T: Types> fmt::Display for FmtParens<'_, T> {
 impl<T: Types> fmt::Display for Expr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Unit => write!(f, "unit"),
             Expr::Constant(c) => write!(f, "{c}"),
             Expr::Var(x) => write!(f, "{x}"),
             Expr::App(func, args) => {

@@ -550,8 +550,12 @@ impl Node {
                 let pred = fixpoint::Pred::And(preds);
                 Some(stitch(
                     bindings,
-                    fixpoint::Constraint::Guard(
-                        pred,
+                    fixpoint::Constraint::ForAll(
+                        fixpoint::Bind {
+                            name: fixpoint::Var::Underscore,
+                            sort: fixpoint::Sort::Int,
+                            pred,
+                        },
                         Box::new(children_to_fixpoint(cx, &self.children)?),
                     ),
                 ))
