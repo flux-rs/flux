@@ -79,6 +79,8 @@ pub enum Expr<T: Types> {
     Unit,
     Var(T::Var),
     Constant(Constant),
+    And(Vec<Expr<T>>),
+    Or(Vec<Expr<T>>),
     BinaryOp(BinOp, Box<[Self; 2]>),
     App(T::Var, Vec<Self>),
     UnaryOp(UnOp, Box<Self>),
@@ -109,8 +111,6 @@ pub struct Const<T: Types> {
 pub enum BinOp {
     Iff,
     Imp,
-    Or,
-    And,
     Eq,
     Ne,
     Gt,
@@ -333,7 +333,10 @@ impl<T: Types> fmt::Display for FmtParens<'_, T> {
         // Fixpoint parser has `=` at two different precedence levels depending on whether it is
         // used in a sequence of boolean expressions or not. To avoid complexity we parenthesize
         // all binary expressions no matter the parent operator.
-        let should_parenthesize = matches!(&self.0, Expr::BinaryOp(..) | Expr::IfThenElse(..));
+        let should_parenthesize = matches!(
+            &self.0,
+            Expr::BinaryOp(..) | Expr::And(..) | Expr::Or(..) | Expr::IfThenElse(..)
+        );
         if should_parenthesize {
             write!(f, "({})", self.0)
         } else {
@@ -347,9 +350,14 @@ impl<T: Types> fmt::Display for Expr<T> {
         match self {
             Expr::Var(x) => write!(f, "{x}"),
             Expr::Constant(c) => write!(f, "{c}"),
+            Expr::And(exprs) => {
+                write!(f, "{}", exprs.iter().map(FmtParens).format(" && "))
+            }
+            Expr::Or(exprs) => {
+                write!(f, "{}", exprs.iter().map(FmtParens).format(" || "))
+            }
             Expr::BinaryOp(op, box [e1, e2]) => {
-                write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))?;
-                Ok(())
+                write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))
             }
             Expr::UnaryOp(op, e) => {
                 if matches!(e.as_ref(), Expr::Constant(_) | Expr::Var(_)) {
@@ -485,8 +493,6 @@ impl fmt::Display for BinOp {
         match self {
             BinOp::Iff => write!(f, "<=>"),
             BinOp::Imp => write!(f, "=>"),
-            BinOp::Or => write!(f, "||"),
-            BinOp::And => write!(f, "&&"),
             BinOp::Eq => write!(f, "="),
             BinOp::Ne => write!(f, "/="),
             BinOp::Gt => write!(f, ">"),

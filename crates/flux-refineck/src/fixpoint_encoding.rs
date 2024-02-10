@@ -896,10 +896,20 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::BinOp::Le(sort) => {
                 return self.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Le, e1, e2, env);
             }
+            rty::BinOp::And => {
+                return fixpoint::Expr::And(vec![
+                    self.expr_to_fixpoint(e1, env),
+                    self.expr_to_fixpoint(e2, env),
+                ])
+            }
+            rty::BinOp::Or => {
+                return fixpoint::Expr::Or(vec![
+                    self.expr_to_fixpoint(e1, env),
+                    self.expr_to_fixpoint(e2, env),
+                ])
+            }
             rty::BinOp::Iff => fixpoint::BinOp::Iff,
             rty::BinOp::Imp => fixpoint::BinOp::Imp,
-            rty::BinOp::Or => fixpoint::BinOp::Or,
-            rty::BinOp::And => fixpoint::BinOp::And,
             rty::BinOp::Eq => fixpoint::BinOp::Eq,
             rty::BinOp::Ne => fixpoint::BinOp::Ne,
             rty::BinOp::Add => fixpoint::BinOp::Add,
@@ -961,17 +971,18 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         env: &Env,
         mk_proj: impl Fn(u32) -> rty::FieldProj,
     ) -> fixpoint::Expr {
-        sorts
-            .iter()
-            .enumerate()
-            .map(|(idx, s)| {
-                let proj = mk_proj(idx as u32);
-                let e1 = e1.proj_and_simplify(proj);
-                let e2 = e2.proj_and_simplify(proj);
-                self.bin_rel_to_fixpoint(s, rel, &e1, &e2, env)
-            })
-            .reduce(|acc, e| fixpoint::Expr::BinaryOp(fixpoint::BinOp::And, Box::new([acc, e])))
-            .unwrap_or(fixpoint::Expr::TRUE)
+        fixpoint::Expr::And(
+            sorts
+                .iter()
+                .enumerate()
+                .map(|(idx, s)| {
+                    let proj = mk_proj(idx as u32);
+                    let e1 = e1.proj_and_simplify(proj);
+                    let e2 = e2.proj_and_simplify(proj);
+                    self.bin_rel_to_fixpoint(s, rel, &e1, &e2, env)
+                })
+                .collect(),
+        )
     }
 
     fn func_to_fixpoint(&mut self, func: &rty::Expr, env: &Env) -> fixpoint::Var {
