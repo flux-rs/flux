@@ -139,16 +139,22 @@ pub mod fixpoint {
     #[derive(Hash, Debug, Copy, Clone, PartialEq, Eq)]
     pub enum BinRel {
         Gt,
+        Ge,
+        Lt,
+        Le,
     }
 
     impl BinRel {
-        pub const ALL: [BinRel; 1] = [BinRel::Gt];
+        pub const ALL: [BinRel; 4] = [BinRel::Gt, BinRel::Ge, BinRel::Lt, BinRel::Le];
 
         // FIXME(nilehmann) remove when we have relations in flux_fixpoint to match syntax in the
         // haskell implementation
         pub fn to_bin_op(self) -> BinOp {
             match self {
                 BinRel::Gt => BinOp::Gt,
+                BinRel::Ge => BinOp::Ge,
+                BinRel::Lt => BinOp::Lt,
+                BinRel::Le => BinOp::Le,
             }
         }
     }
@@ -180,6 +186,9 @@ pub mod fixpoint {
                 Var::TupleProj { arity, field } => write!(f, "tuple{arity}${field}"),
                 Var::Itf(name) => write!(f, "{name}"),
                 Var::UIFRel(BinRel::Gt) => write!(f, "gt"),
+                Var::UIFRel(BinRel::Ge) => write!(f, "ge"),
+                Var::UIFRel(BinRel::Lt) => write!(f, "lt"),
+                Var::UIFRel(BinRel::Le) => write!(f, "le"),
             }
         }
     }
@@ -878,15 +887,21 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::BinOp::Gt(sort) => {
                 return self.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Gt, e1, e2, env);
             }
+            rty::BinOp::Ge(sort) => {
+                return self.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Ge, e1, e2, env);
+            }
+            rty::BinOp::Lt(sort) => {
+                return self.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Lt, e1, e2, env);
+            }
+            rty::BinOp::Le(sort) => {
+                return self.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Le, e1, e2, env);
+            }
             rty::BinOp::Iff => fixpoint::BinOp::Iff,
             rty::BinOp::Imp => fixpoint::BinOp::Imp,
             rty::BinOp::Or => fixpoint::BinOp::Or,
             rty::BinOp::And => fixpoint::BinOp::And,
             rty::BinOp::Eq => fixpoint::BinOp::Eq,
             rty::BinOp::Ne => fixpoint::BinOp::Ne,
-            rty::BinOp::Ge => fixpoint::BinOp::Ge,
-            rty::BinOp::Lt => fixpoint::BinOp::Lt,
-            rty::BinOp::Le => fixpoint::BinOp::Le,
             rty::BinOp::Add => fixpoint::BinOp::Add,
             rty::BinOp::Sub => fixpoint::BinOp::Sub,
             rty::BinOp::Mul => fixpoint::BinOp::Mul,

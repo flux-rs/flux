@@ -225,7 +225,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     .fully_resolve(&sort)
                     .map_err(|_| self.emit_err(errors::CannotInferSort::new(expr.span)))?;
                 self.wfckresults
-                    .cmp_op_sorts_mut()
+                    .bin_rel_sorts_mut()
                     .insert(expr.fhir_id, sort);
 
                 Ok(rty::Sort::Bool)

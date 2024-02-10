@@ -1654,12 +1654,7 @@ pub fn box_args(args: &GenericArgs) -> (&Ty, &Ty) {
 
 fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invariant] {
     static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
-        [Invariant {
-            pred: Binder::with_sort(
-                Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero(), None),
-                Sort::Int,
-            ),
-        }]
+        [Invariant { pred: Binder::with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
     });
 
     static OVERFLOW: LazyLock<UnordMap<UintTy, [Invariant; 2]>> = LazyLock::new(|| {
@@ -1668,14 +1663,11 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
             .map(|uint_ty| {
                 let invariants = [
                     Invariant {
-                        pred: Binder::with_sort(
-                            Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::zero(), None),
-                            Sort::Int,
-                        ),
+                        pred: Binder::with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int),
                     },
                     Invariant {
                         pred: Binder::with_sort(
-                            Expr::binary_op(BinOp::Le, Expr::nu(), Expr::uint_max(uint_ty), None),
+                            Expr::le(Expr::nu(), Expr::uint_max(uint_ty)),
                             Sort::Int,
                         ),
                     },
@@ -1701,13 +1693,13 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
                 let invariants = [
                     Invariant {
                         pred: Binder::with_sort(
-                            Expr::binary_op(BinOp::Ge, Expr::nu(), Expr::int_min(int_ty), None),
+                            Expr::ge(Expr::nu(), Expr::int_min(int_ty)),
                             Sort::Int,
                         ),
                     },
                     Invariant {
                         pred: Binder::with_sort(
-                            Expr::binary_op(BinOp::Le, Expr::nu(), Expr::int_max(int_ty), None),
+                            Expr::le(Expr::nu(), Expr::int_max(int_ty)),
                             Sort::Int,
                         ),
                     },
@@ -1783,7 +1775,7 @@ pub struct WfckResults<'genv> {
     pub owner: FluxOwnerId,
     record_ctors: ItemLocalMap<DefId>,
     node_sorts: ItemLocalMap<Sort>,
-    cmp_op_sorts: ItemLocalMap<Sort>,
+    bin_rel_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
     type_holes: ItemLocalMap<fhir::Ty<'genv>>,
     lifetime_holes: ItemLocalMap<ResolvedArg>,
@@ -1814,7 +1806,7 @@ impl<'genv> WfckResults<'genv> {
             owner: owner.into(),
             record_ctors: ItemLocalMap::default(),
             node_sorts: ItemLocalMap::default(),
-            cmp_op_sorts: ItemLocalMap::default(),
+            bin_rel_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
             type_holes: ItemLocalMap::default(),
             lifetime_holes: ItemLocalMap::default(),
@@ -1837,12 +1829,12 @@ impl<'genv> WfckResults<'genv> {
         LocalTableInContext { owner: self.owner, data: &self.node_sorts }
     }
 
-    pub fn cmp_op_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.cmp_op_sorts }
+    pub fn bin_rel_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.bin_rel_sorts }
     }
 
-    pub fn cmp_op_sorts(&self) -> LocalTableInContext<Sort> {
-        LocalTableInContext { owner: self.owner, data: &self.cmp_op_sorts }
+    pub fn bin_rel_sorts(&self) -> LocalTableInContext<Sort> {
+        LocalTableInContext { owner: self.owner, data: &self.bin_rel_sorts }
     }
 
     pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {

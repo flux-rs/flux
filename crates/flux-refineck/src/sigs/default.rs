@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
 use flux_middle::{
-    rty::{BaseTy, BinOp, Expr, Sort, INT_TYS, UINT_TYS},
+    rty::{BaseTy, BinOp, Expr, INT_TYS, UINT_TYS},
     rustc::mir,
 };
 use itertools::{chain, iproduct};
@@ -69,7 +69,7 @@ fn mk_unsigned_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
                 (Le, s!(fn(a: Uint, b: Uint) -> bool[E::le(a, b)])),
                 (Ge, s!(fn(a: Uint, b: Uint) -> bool[E::ge(a, b)])),
                 (Lt, s!(fn(a: Uint, b: Uint) -> bool[E::lt(a, b)])),
-                (Gt, s!(fn(a: Uint, b: Uint) -> bool[E::gt(Sort::Int, a, b)])),
+                (Gt, s!(fn(a: Uint, b: Uint) -> bool[E::gt(a, b)])),
             ]
         })
 }
@@ -106,7 +106,7 @@ fn mk_signed_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
                 (Le, s!(fn(a: Int, b: Int) -> bool[E::le(a, b)])),
                 (Ge, s!(fn(a: Int, b: Int) -> bool[E::ge(a, b)])),
                 (Lt, s!(fn(a: Int, b: Int) -> bool[E::lt(a, b)])),
-                (Gt, s!(fn(a: Int, b: Int) -> bool[E::gt(Sort::Int, a, b)])),
+                (Gt, s!(fn(a: Int, b: Int) -> bool[E::gt(a, b)])),
             ]
         })
 }

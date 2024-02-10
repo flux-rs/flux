@@ -1139,16 +1139,15 @@ impl TypeSuperFoldable for Expr {
 impl TypeVisitable for BinOp {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
         match self {
-            BinOp::Gt(sort) => sort.visit_with(visitor),
+            BinOp::Gt(sort) | BinOp::Ge(sort) | BinOp::Lt(sort) | BinOp::Le(sort) => {
+                sort.visit_with(visitor)
+            }
             BinOp::Iff
             | BinOp::Imp
             | BinOp::Or
             | BinOp::And
             | BinOp::Eq
             | BinOp::Ne
-            | BinOp::Ge
-            | BinOp::Lt
-            | BinOp::Le
             | BinOp::Add
             | BinOp::Sub
             | BinOp::Mul
@@ -1168,9 +1167,9 @@ impl TypeFoldable for BinOp {
             BinOp::Eq => BinOp::Eq,
             BinOp::Ne => BinOp::Ne,
             BinOp::Gt(sort) => BinOp::Gt(sort.try_fold_with(folder)?),
-            BinOp::Ge => BinOp::Ge,
-            BinOp::Lt => BinOp::Lt,
-            BinOp::Le => BinOp::Le,
+            BinOp::Ge(sort) => BinOp::Ge(sort.try_fold_with(folder)?),
+            BinOp::Lt(sort) => BinOp::Lt(sort.try_fold_with(folder)?),
+            BinOp::Le(sort) => BinOp::Le(sort.try_fold_with(folder)?),
             BinOp::Add => BinOp::Add,
             BinOp::Sub => BinOp::Sub,
             BinOp::Mul => BinOp::Mul,

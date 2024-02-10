@@ -1048,6 +1048,7 @@ impl ConvCtxt<'_, '_, '_> {
         };
         Ok(self.add_coercions(expr, fhir_id))
     }
+
     fn conv_bin_op(&self, op: fhir::BinOp, fhir_id: FhirId) -> rty::BinOp {
         match op {
             fhir::BinOp::Iff => rty::BinOp::Iff,
@@ -1056,24 +1057,24 @@ impl ConvCtxt<'_, '_, '_> {
             fhir::BinOp::And => rty::BinOp::And,
             fhir::BinOp::Eq => rty::BinOp::Eq,
             fhir::BinOp::Ne => rty::BinOp::Ne,
-            fhir::BinOp::Gt => {
-                let sort = self
-                    .wfckresults
-                    .cmp_op_sorts()
-                    .get(fhir_id)
-                    .unwrap()
-                    .clone();
-                rty::BinOp::Gt(sort)
-            }
-            fhir::BinOp::Ge => rty::BinOp::Ge,
-            fhir::BinOp::Lt => rty::BinOp::Lt,
-            fhir::BinOp::Le => rty::BinOp::Le,
+            fhir::BinOp::Gt => rty::BinOp::Gt(self.bin_rel_sort(fhir_id)),
+            fhir::BinOp::Ge => rty::BinOp::Ge(self.bin_rel_sort(fhir_id)),
+            fhir::BinOp::Lt => rty::BinOp::Lt(self.bin_rel_sort(fhir_id)),
+            fhir::BinOp::Le => rty::BinOp::Le(self.bin_rel_sort(fhir_id)),
             fhir::BinOp::Add => rty::BinOp::Add,
             fhir::BinOp::Sub => rty::BinOp::Sub,
             fhir::BinOp::Mod => rty::BinOp::Mod,
             fhir::BinOp::Mul => rty::BinOp::Mul,
             fhir::BinOp::Div => rty::BinOp::Div,
         }
+    }
+
+    fn bin_rel_sort(&self, fhir_id: FhirId) -> rty::Sort {
+        self.wfckresults
+            .bin_rel_sorts()
+            .get(fhir_id)
+            .unwrap()
+            .clone()
     }
 
     fn conv_func(&self, env: &Env, func: &fhir::Func) -> rty::Expr {

@@ -118,9 +118,9 @@ pub enum BinOp {
     Eq,
     Ne,
     Gt(Sort),
-    Ge,
-    Lt,
-    Le,
+    Ge(Sort),
+    Lt(Sort),
+    Le(Sort),
     Add,
     Sub,
     Mul,
@@ -482,19 +482,19 @@ impl Expr {
     }
 
     pub fn ge(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::BinaryOp(BinOp::Ge, e1.into(), e2.into()).intern()
+        ExprKind::BinaryOp(BinOp::Ge(Sort::Int), e1.into(), e2.into()).intern()
     }
 
-    pub fn gt(sort: Sort, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::BinaryOp(BinOp::Gt(sort), e1.into(), e2.into()).intern()
+    pub fn gt(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::BinaryOp(BinOp::Gt(Sort::Int), e1.into(), e2.into()).intern()
     }
 
     pub fn lt(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::BinaryOp(BinOp::Lt, e1.into(), e2.into()).intern()
+        ExprKind::BinaryOp(BinOp::Lt(Sort::Int), e1.into(), e2.into()).intern()
     }
 
     pub fn le(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::BinaryOp(BinOp::Le, e1.into(), e2.into()).intern()
+        ExprKind::BinaryOp(BinOp::Le(Sort::Int), e1.into(), e2.into()).intern()
     }
 
     pub fn implies(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
@@ -558,9 +558,9 @@ impl Expr {
             BinOp::Or => c1.or(c2),
             BinOp::And => c1.and(c2),
             BinOp::Gt(Sort::Int) => c1.gt(c2),
-            BinOp::Ge => c1.ge(c2),
-            BinOp::Lt => c2.gt(c1),
-            BinOp::Le => c2.ge(c1),
+            BinOp::Ge(Sort::Int) => c1.ge(c2),
+            BinOp::Lt(Sort::Int) => c2.gt(c1),
+            BinOp::Le(Sort::Int) => c2.ge(c1),
             BinOp::Eq => Some(c1.eq(c2)),
             BinOp::Ne => Some(c1.ne(c2)),
             _ => None,
@@ -822,9 +822,12 @@ mod pretty {
                 BinOp::Imp => Precedence::Imp,
                 BinOp::Or => Precedence::Or,
                 BinOp::And => Precedence::And,
-                BinOp::Eq | BinOp::Ne | BinOp::Gt(_) | BinOp::Lt | BinOp::Ge | BinOp::Le => {
-                    Precedence::Cmp
-                }
+                BinOp::Eq
+                | BinOp::Ne
+                | BinOp::Gt(_)
+                | BinOp::Lt(_)
+                | BinOp::Ge(_)
+                | BinOp::Le(_) => Precedence::Cmp,
                 BinOp::Add | BinOp::Sub => Precedence::AddSub,
                 BinOp::Mul | BinOp::Div | BinOp::Mod => Precedence::MulDiv,
             }
@@ -998,9 +1001,9 @@ mod pretty {
                 BinOp::Eq => w!("="),
                 BinOp::Ne => w!("≠"),
                 BinOp::Gt(_) => w!(">"),
-                BinOp::Ge => w!("≥"),
-                BinOp::Lt => w!("<"),
-                BinOp::Le => w!("≤"),
+                BinOp::Ge(_) => w!("≥"),
+                BinOp::Lt(_) => w!("<"),
+                BinOp::Le(_) => w!("≤"),
                 BinOp::Add => w!("+"),
                 BinOp::Sub => w!("-"),
                 BinOp::Mul => w!("*"),
