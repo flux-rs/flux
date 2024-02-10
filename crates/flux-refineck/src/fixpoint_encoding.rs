@@ -783,12 +783,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::Var(var) => fixpoint::Expr::Var(env.get_var(var, self.dbg_span).into()),
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, env),
-            rty::ExprKind::UnaryOp(op, e) => {
-                fixpoint::Expr::UnaryOp(
-                    un_op_to_fixpoint(*op),
-                    Box::new(self.expr_to_fixpoint(e, env)),
-                )
-            }
+            rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, env),
             rty::ExprKind::FieldProj(e, proj) => {
                 let (arity, field) = match *proj {
                     rty::FieldProj::Tuple { arity, field } => (arity, field),
@@ -854,6 +849,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .into_iter()
             .map(|e| self.expr_to_fixpoint(e, env))
             .collect()
+    }
+
+    fn un_op_to_fixpoint(&mut self, op: rty::UnOp, e: &rty::Expr, env: &Env) -> fixpoint::Expr {
+        match op {
+            rty::UnOp::Not => fixpoint::Expr::Not(Box::new(self.expr_to_fixpoint(e, env))),
+            rty::UnOp::Neg => fixpoint::Expr::Neg(Box::new(self.expr_to_fixpoint(e, env))),
+        }
     }
 
     fn bin_op_to_fixpoint(
@@ -1093,11 +1095,4 @@ fn alias_reft_sort(arity: usize) -> rty::PolyFuncSort {
     }
     sorts.push(rty::Sort::Bool);
     rty::PolyFuncSort::new(arity, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
-}
-
-fn un_op_to_fixpoint(op: rty::UnOp) -> fixpoint::UnOp {
-    match op {
-        rty::UnOp::Not => fixpoint::UnOp::Not,
-        rty::UnOp::Neg => fixpoint::UnOp::Neg,
-    }
 }

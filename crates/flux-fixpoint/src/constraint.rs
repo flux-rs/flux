@@ -94,14 +94,15 @@ pub enum Expr<T: Types> {
     Constant(Constant),
     Var(T::Var),
     App(T::Var, Vec<Self>),
+    Neg(Box<Self>),
     BinaryOp(BinOp, Box<[Self; 2]>),
     IfThenElse(Box<[Self; 3]>),
     And(Vec<Expr<T>>),
     Or(Vec<Expr<T>>),
+    Not(Box<Self>),
     Imp(Box<[Expr<T>; 2]>),
     Iff(Box<[Expr<T>; 2]>),
     Atom(BinRel, Box<[Self; 2]>),
-    UnaryOp(UnOp, Box<Self>),
 }
 
 #[derive(Clone, Copy, Hash)]
@@ -130,12 +131,6 @@ pub enum BinOp {
     Mul,
     Div,
     Mod,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum UnOp {
-    Not,
-    Neg,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
@@ -360,6 +355,12 @@ impl<T: Types> fmt::Display for Expr<T> {
             Expr::Or(exprs) => {
                 write!(f, "{}", exprs.iter().map(FmtParens).format(" || "))
             }
+            Expr::Not(e) => {
+                write!(f, "~{}", FmtParens(e))
+            }
+            Expr::Neg(e) => {
+                write!(f, "-{}", FmtParens(e))
+            }
             Expr::Imp(box [e1, e2]) => {
                 write!(f, "{} => {}", FmtParens(e1), FmtParens(e2))
             }
@@ -371,13 +372,6 @@ impl<T: Types> fmt::Display for Expr<T> {
             }
             Expr::BinaryOp(op, box [e1, e2]) => {
                 write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))
-            }
-            Expr::UnaryOp(op, e) => {
-                if matches!(e.as_ref(), Expr::Constant(_) | Expr::Var(_)) {
-                    write!(f, "{op}{e}")
-                } else {
-                    write!(f, "{op}({e})")
-                }
             }
             Expr::App(func, args) => {
                 write!(f, "({func} {})", args.iter().map(FmtParens).format(" "),)
@@ -525,21 +519,6 @@ impl fmt::Display for BinRel {
 }
 
 impl fmt::Debug for BinOp {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
-    }
-}
-
-impl fmt::Display for UnOp {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            UnOp::Not => write!(f, "~"),
-            UnOp::Neg => write!(f, "-"),
-        }
-    }
-}
-
-impl fmt::Debug for UnOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }
