@@ -91,15 +91,16 @@ impl BinRel {
 #[derive_where(Hash)]
 pub enum Expr<T: Types> {
     Unit,
-    Var(T::Var),
     Constant(Constant),
+    Var(T::Var),
+    App(T::Var, Vec<Self>),
+    BinaryOp(BinOp, Box<[Self; 2]>),
+    IfThenElse(Box<[Self; 3]>),
     And(Vec<Expr<T>>),
     Or(Vec<Expr<T>>),
+    Imp(Box<[Expr<T>; 2]>),
     Atom(BinRel, Box<[Self; 2]>),
-    BinaryOp(BinOp, Box<[Self; 2]>),
-    App(T::Var, Vec<Self>),
     UnaryOp(UnOp, Box<Self>),
-    IfThenElse(Box<[Self; 3]>),
 }
 
 #[derive(Clone, Copy, Hash)]
@@ -124,7 +125,6 @@ pub struct Const<T: Types> {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BinOp {
     Iff,
-    Imp,
     Add,
     Sub,
     Mul,
@@ -360,6 +360,9 @@ impl<T: Types> fmt::Display for Expr<T> {
             Expr::Or(exprs) => {
                 write!(f, "{}", exprs.iter().map(FmtParens).format(" || "))
             }
+            Expr::Imp(box [e1, e2]) => {
+                write!(f, "{} => {}", FmtParens(e1), FmtParens(e2))
+            }
             Expr::Atom(rel, box [e1, e2]) => {
                 write!(f, "{} {rel} {}", FmtParens(e1), FmtParens(e2))
             }
@@ -497,7 +500,6 @@ impl fmt::Display for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             BinOp::Iff => write!(f, "<=>"),
-            BinOp::Imp => write!(f, "=>"),
             BinOp::Add => write!(f, "+"),
             BinOp::Sub => write!(f, "-"),
             BinOp::Mul => write!(f, "*"),

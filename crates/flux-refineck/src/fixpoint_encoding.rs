@@ -900,8 +900,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     self.expr_to_fixpoint(e2, env),
                 ])
             }
+            rty::BinOp::Imp => {
+                return fixpoint::Expr::Imp(Box::new([
+                    self.expr_to_fixpoint(e1, env),
+                    self.expr_to_fixpoint(e2, env),
+                ]))
+            }
             rty::BinOp::Iff => fixpoint::BinOp::Iff,
-            rty::BinOp::Imp => fixpoint::BinOp::Imp,
             rty::BinOp::Add => fixpoint::BinOp::Add,
             rty::BinOp::Sub => fixpoint::BinOp::Sub,
             rty::BinOp::Mul => fixpoint::BinOp::Mul,
