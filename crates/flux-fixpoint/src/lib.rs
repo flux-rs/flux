@@ -16,8 +16,8 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, BinRel, Const, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, FuncSort,
-    PolyFuncSort, Pred, Proj, Qualifier, Sort, SortCtor,
+    BinOp, BinRel, Bind, Const, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
+    FuncSort, PolyFuncSort, Pred, Proj, Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
 use flux_common::{cache::QueryCache, format::PadAdapter};
@@ -56,6 +56,7 @@ macro_rules! declare_types {
             pub type DataDecl = $crate::DataDecl<FixpointTypes>;
             pub type DataCtor = $crate::DataCtor<FixpointTypes>;
             pub type DataField = $crate::DataField<FixpointTypes>;
+            pub type Bind = $crate::Bind<FixpointTypes>;
             pub use $crate::{BinOp, BinRel, Proj};
         }
 

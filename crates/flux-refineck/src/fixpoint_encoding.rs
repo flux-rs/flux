@@ -341,9 +341,11 @@ pub type Bindings = Vec<(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)>;
 pub fn stitch(bindings: Bindings, c: fixpoint::Constraint) -> fixpoint::Constraint {
     bindings.into_iter().rev().fold(c, |c, (name, sort, e)| {
         fixpoint::Constraint::ForAll(
-            fixpoint::Var::Local(name),
-            sort,
-            fixpoint::Pred::Expr(e),
+            fixpoint::Bind {
+                name: fixpoint::Var::Local(name),
+                sort,
+                pred: fixpoint::Pred::Expr(e),
+            },
             Box::new(c),
         )
     })

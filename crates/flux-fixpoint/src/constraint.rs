@@ -11,11 +11,18 @@ use rustc_macros::{Decodable, Encodable};
 use crate::{big_int::BigInt, StringTypes, Types};
 
 #[derive_where(Hash)]
+pub struct Bind<T: Types> {
+    pub name: T::Var,
+    pub sort: Sort<T>,
+    pub pred: Pred<T>,
+}
+
+#[derive_where(Hash)]
 pub enum Constraint<T: Types> {
     Pred(Pred<T>, #[derive_where(skip)] Option<T::Tag>),
     Conj(Vec<Self>),
     Guard(Pred<T>, Box<Self>),
-    ForAll(T::Var, Sort<T>, Pred<T>, Box<Self>),
+    ForAll(Bind<T>, Box<Self>),
 }
 
 #[derive_where(Hash)]
@@ -148,7 +155,7 @@ impl<T: Types> Constraint<T> {
     pub fn is_concrete(&self) -> bool {
         match self {
             Constraint::Conj(cs) => cs.iter().any(Constraint::is_concrete),
-            Constraint::Guard(_, c) | Constraint::ForAll(_, _, _, c) => c.is_concrete(),
+            Constraint::Guard(_, c) | Constraint::ForAll(_, c) => c.is_concrete(),
             Constraint::Pred(p, _) => p.is_concrete() && !p.is_trivially_true(),
         }
     }
@@ -219,8 +226,8 @@ impl<T: Types> fmt::Display for Constraint<T> {
                 write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
                 write!(f, "\n)")
             }
-            Constraint::ForAll(x, sort, body, head) => {
-                write!(f, "(forall (({x} {sort}) {body})")?;
+            Constraint::ForAll(bind, head) => {
+                write!(f, "(forall (({} {}) {})", bind.name, bind.sort, bind.pred)?;
                 write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
                 write!(f, "\n)")
             }
