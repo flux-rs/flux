@@ -74,6 +74,20 @@ pub enum Pred<T: Types> {
     Expr(Expr<T>),
 }
 
+#[derive(Hash, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum BinRel {
+    Eq,
+    Ne,
+    Gt,
+    Ge,
+    Lt,
+    Le,
+}
+
+impl BinRel {
+    pub const INEQUALITIES: [BinRel; 4] = [BinRel::Gt, BinRel::Ge, BinRel::Lt, BinRel::Le];
+}
+
 #[derive_where(Hash)]
 pub enum Expr<T: Types> {
     Unit,
@@ -81,10 +95,10 @@ pub enum Expr<T: Types> {
     Constant(Constant),
     And(Vec<Expr<T>>),
     Or(Vec<Expr<T>>),
+    Atom(BinRel, Box<[Self; 2]>),
     BinaryOp(BinOp, Box<[Self; 2]>),
     App(T::Var, Vec<Self>),
     UnaryOp(UnOp, Box<Self>),
-    Proj(Box<Self>, Proj),
     IfThenElse(Box<[Self; 3]>),
 }
 
@@ -111,12 +125,6 @@ pub struct Const<T: Types> {
 pub enum BinOp {
     Iff,
     Imp,
-    Eq,
-    Ne,
-    Gt,
-    Ge,
-    Lt,
-    Le,
     Add,
     Sub,
     Mul,
@@ -322,7 +330,7 @@ impl<T: Types> Expr<T> {
     pub const ONE: Expr<T> = Expr::Constant(Constant::ONE);
     pub const TRUE: Expr<T> = Expr::Constant(Constant::TRUE);
     pub fn eq(self, other: Self) -> Self {
-        Expr::BinaryOp(BinOp::Eq, Box::new([self, other]))
+        Expr::Atom(BinRel::Eq, Box::new([self, other]))
     }
 }
 
@@ -330,13 +338,9 @@ struct FmtParens<'a, T: Types>(&'a Expr<T>);
 
 impl<T: Types> fmt::Display for FmtParens<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Fixpoint parser has `=` at two different precedence levels depending on whether it is
-        // used in a sequence of boolean expressions or not. To avoid complexity we parenthesize
-        // all binary expressions no matter the parent operator.
-        let should_parenthesize = matches!(
-            &self.0,
-            Expr::BinaryOp(..) | Expr::And(..) | Expr::Or(..) | Expr::IfThenElse(..)
-        );
+        // Avoid some obvious unnecesary parentheses
+        let should_parenthesize =
+            !matches!(&self.0, Expr::Var(_) | Expr::Constant(_) | Expr::App(..));
         if should_parenthesize {
             write!(f, "({})", self.0)
         } else {
@@ -356,6 +360,9 @@ impl<T: Types> fmt::Display for Expr<T> {
             Expr::Or(exprs) => {
                 write!(f, "{}", exprs.iter().map(FmtParens).format(" || "))
             }
+            Expr::Atom(rel, box [e1, e2]) => {
+                write!(f, "{} {rel} {}", FmtParens(e1), FmtParens(e2))
+            }
             Expr::BinaryOp(op, box [e1, e2]) => {
                 write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))
             }
@@ -366,8 +373,6 @@ impl<T: Types> fmt::Display for Expr<T> {
                     write!(f, "{op}({e})")
                 }
             }
-            Expr::Proj(e, Proj::Fst) => write!(f, "(fst {e})"),
-            Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
             Expr::App(func, args) => {
                 write!(f, "({func} {})", args.iter().map(FmtParens).format(" "),)
             }
@@ -387,35 +392,35 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
     // (qualif EqZero ((v int)) (v == 0))
     let eqzero = Qualifier {
         args: vec![("v", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var("v"), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Eq, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("EqZero"),
     };
 
     // (qualif GtZero ((v int)) (v > 0))
     let gtzero = Qualifier {
         args: vec![("v", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var("v"), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Gt, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("GtZero"),
     };
 
     // (qualif GeZero ((v int)) (v >= 0))
     let gezero = Qualifier {
         args: vec![("v", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var("v"), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Ge, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("GeZero"),
     };
 
     // (qualif LtZero ((v int)) (v < 0))
     let ltzero = Qualifier {
         args: vec![("v", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var("v"), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Lt, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("LtZero"),
     };
 
     // (qualif LeZero ((v int)) (v <= 0))
     let lezero = Qualifier {
         args: vec![("v", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var("v"), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Le, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("LeZero"),
     };
 
@@ -426,43 +431,43 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
     // (qualif Eq ((a int) (b int)) (a == b))
     let eq = Qualifier {
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var("a"), Expr::Var("b")])),
+        body: Expr::Atom(BinRel::Eq, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Eq"),
     };
 
     // (qualif Gt ((a int) (b int)) (a > b))
     let gt = Qualifier {
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var("a"), Expr::Var("b")])),
+        body: Expr::Atom(BinRel::Gt, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Gt"),
     };
 
     // (qualif Lt ((a int) (b int)) (a < b))
     let ge = Qualifier {
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var("a"), Expr::Var("b")])),
+        body: Expr::Atom(BinRel::Ge, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Ge"),
     };
 
     // (qualif Ge ((a int) (b int)) (a >= b))
     let lt = Qualifier {
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var("a"), Expr::Var("b")])),
+        body: Expr::Atom(BinRel::Lt, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Lt"),
     };
 
     // (qualif Le ((a int) (b int)) (a <= b))
     let le = Qualifier {
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var("a"), Expr::Var("b")])),
+        body: Expr::Atom(BinRel::Le, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Le"),
     };
 
     // (qualif Le1 ((a int) (b int)) (a < b - 1))
     let le1 = Qualifier {
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::BinaryOp(
-            BinOp::Le,
+        body: Expr::Atom(
+            BinRel::Le,
             Box::new([
                 Expr::Var("a"),
                 Expr::BinaryOp(BinOp::Sub, Box::new([Expr::Var("b"), Expr::ONE])),
@@ -493,17 +498,24 @@ impl fmt::Display for BinOp {
         match self {
             BinOp::Iff => write!(f, "<=>"),
             BinOp::Imp => write!(f, "=>"),
-            BinOp::Eq => write!(f, "="),
-            BinOp::Ne => write!(f, "/="),
-            BinOp::Gt => write!(f, ">"),
-            BinOp::Ge => write!(f, ">="),
-            BinOp::Lt => write!(f, "<"),
-            BinOp::Le => write!(f, "<="),
             BinOp::Add => write!(f, "+"),
             BinOp::Sub => write!(f, "-"),
             BinOp::Mul => write!(f, "*"),
             BinOp::Div => write!(f, "/"),
             BinOp::Mod => write!(f, "mod"),
+        }
+    }
+}
+
+impl fmt::Display for BinRel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BinRel::Eq => write!(f, "="),
+            BinRel::Ne => write!(f, "/="),
+            BinRel::Gt => write!(f, ">"),
+            BinRel::Ge => write!(f, ">="),
+            BinRel::Lt => write!(f, "<"),
+            BinRel::Le => write!(f, "<="),
         }
     }
 }

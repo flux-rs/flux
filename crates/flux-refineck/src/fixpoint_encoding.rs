@@ -136,29 +136,6 @@ pub mod fixpoint {
         Itf(Symbol),
     }
 
-    #[derive(Hash, Debug, Copy, Clone, PartialEq, Eq)]
-    pub enum BinRel {
-        Gt,
-        Ge,
-        Lt,
-        Le,
-    }
-
-    impl BinRel {
-        pub const ALL: [BinRel; 4] = [BinRel::Gt, BinRel::Ge, BinRel::Lt, BinRel::Le];
-
-        // FIXME(nilehmann) remove when we have relations in flux_fixpoint to match syntax in the
-        // haskell implementation
-        pub fn to_bin_op(self) -> BinOp {
-            match self {
-                BinRel::Gt => BinOp::Gt,
-                BinRel::Ge => BinOp::Ge,
-                BinRel::Lt => BinOp::Lt,
-                BinRel::Le => BinOp::Le,
-            }
-        }
-    }
-
     impl From<GlobalVar> for Var {
         fn from(v: GlobalVar) -> Self {
             Self::Global(v)
@@ -189,6 +166,9 @@ pub mod fixpoint {
                 Var::UIFRel(BinRel::Ge) => write!(f, "ge"),
                 Var::UIFRel(BinRel::Lt) => write!(f, "lt"),
                 Var::UIFRel(BinRel::Le) => write!(f, "le"),
+                // these are actually not necessary because all equality is interpreted.
+                Var::UIFRel(BinRel::Eq) => write!(f, "eq"),
+                Var::UIFRel(BinRel::Ne) => write!(f, "ne"),
             }
         }
     }
@@ -200,7 +180,6 @@ pub mod fixpoint {
         type Tag = super::TagIdx;
     }
     pub use fixpoint_generated::*;
-    pub use flux_fixpoint::{BinOp, UnOp};
     use rustc_span::Symbol;
 }
 
@@ -492,7 +471,8 @@ where
             .map(Self::fixpoint_const_info)
             .collect_vec();
 
-        for rel in fixpoint::BinRel::ALL {
+        for rel in fixpoint::BinRel::INEQUALITIES {
+            // ∀a. a -> a -> bool
             let fsort = fixpoint::PolyFuncSort::new(
                 1,
                 vec![fixpoint::Sort::Var(0), fixpoint::Sort::Var(0)],
@@ -884,6 +864,18 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         env: &Env,
     ) -> fixpoint::Expr {
         let op = match op {
+            rty::BinOp::Eq => {
+                return fixpoint::Expr::Atom(
+                    fixpoint::BinRel::Eq,
+                    Box::new([self.expr_to_fixpoint(e1, env), self.expr_to_fixpoint(e2, env)]),
+                )
+            }
+            rty::BinOp::Ne => {
+                return fixpoint::Expr::Atom(
+                    fixpoint::BinRel::Ne,
+                    Box::new([self.expr_to_fixpoint(e1, env), self.expr_to_fixpoint(e2, env)]),
+                )
+            }
             rty::BinOp::Gt(sort) => {
                 return self.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Gt, e1, e2, env);
             }
@@ -910,8 +902,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             rty::BinOp::Iff => fixpoint::BinOp::Iff,
             rty::BinOp::Imp => fixpoint::BinOp::Imp,
-            rty::BinOp::Eq => fixpoint::BinOp::Eq,
-            rty::BinOp::Ne => fixpoint::BinOp::Ne,
             rty::BinOp::Add => fixpoint::BinOp::Add,
             rty::BinOp::Sub => fixpoint::BinOp::Sub,
             rty::BinOp::Mul => fixpoint::BinOp::Mul,
@@ -934,8 +924,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> fixpoint::Expr {
         match sort {
             rty::Sort::Int | rty::Sort::Real => {
-                fixpoint::Expr::BinaryOp(
-                    rel.to_bin_op(),
+                fixpoint::Expr::Atom(
+                    rel,
                     Box::new([self.expr_to_fixpoint(e1, env), self.expr_to_fixpoint(e2, env)]),
                 )
             }

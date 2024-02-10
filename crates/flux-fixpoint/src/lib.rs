@@ -16,7 +16,7 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, Const, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, FuncSort,
+    BinOp, BinRel, Const, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, FuncSort,
     PolyFuncSort, Pred, Proj, Qualifier, Sort, SortCtor, UnOp,
 };
 use derive_where::derive_where;
@@ -56,7 +56,7 @@ macro_rules! declare_types {
             pub type DataDecl = $crate::DataDecl<FixpointTypes>;
             pub type DataCtor = $crate::DataCtor<FixpointTypes>;
             pub type DataField = $crate::DataField<FixpointTypes>;
-            pub use $crate::Proj;
+            pub use $crate::{BinOp, BinRel, Proj, UnOp};
         }
 
         impl $crate::Types for fixpoint_generated::FixpointTypes {
