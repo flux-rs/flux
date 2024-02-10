@@ -216,7 +216,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 Ok(rty::Sort::Int)
             }
             fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge => {
-                let sort = self.next_num_var();
+                let sort = self.next_sort_var();
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
 

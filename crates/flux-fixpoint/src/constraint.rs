@@ -320,6 +320,7 @@ impl<T: Types> fmt::Display for Pred<T> {
 impl<T: Types> Expr<T> {
     pub const ZERO: Expr<T> = Expr::Constant(Constant::ZERO);
     pub const ONE: Expr<T> = Expr::Constant(Constant::ONE);
+    pub const TRUE: Expr<T> = Expr::Constant(Constant::TRUE);
     pub fn eq(self, other: Self) -> Self {
         Expr::BinaryOp(BinOp::Eq, Box::new([self, other]))
     }
@@ -535,6 +536,7 @@ impl fmt::Display for Constant {
 impl Constant {
     pub const ZERO: Constant = Constant::Int(BigInt::ZERO);
     pub const ONE: Constant = Constant::Int(BigInt::ONE);
+    pub const TRUE: Constant = Constant::Bool(true);
 
     fn to_bool(self) -> Option<bool> {
         match self {

@@ -665,6 +665,14 @@ impl Expr {
         }
         go(sort, &mut f)
     }
+
+    /// Applies a projection to an expression an optimistically try to beta reduce it if possible.
+    pub fn proj_and_simplify(&self, proj: FieldProj) -> Expr {
+        match self.kind() {
+            ExprKind::Aggregate(_, flds) => flds[proj.field() as usize].clone(),
+            _ => Expr::field_proj(self.clone(), proj, None),
+        }
+    }
 }
 
 impl KVar {

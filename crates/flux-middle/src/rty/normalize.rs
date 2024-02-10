@@ -5,7 +5,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_span::Symbol;
 use toposort_scc::IndexGraph;
 
-use super::{expr::FieldProj, fold::TypeSuperFoldable, ESpan};
+use super::{fold::TypeSuperFoldable, ESpan};
 use crate::{
     fhir::SpecFuncKind,
     rty::{
@@ -134,13 +134,6 @@ impl<'a> Normalizer<'a> {
             _ => Expr::app(func.clone(), args, espan),
         }
     }
-
-    fn field_proj(&self, e: &Expr, proj: FieldProj) -> Expr {
-        match e.kind() {
-            ExprKind::Aggregate(_, flds) => flds[proj.field() as usize].clone(),
-            _ => Expr::field_proj(e, proj, None),
-        }
-    }
 }
 
 impl TypeFolder for Normalizer<'_> {
@@ -149,7 +142,7 @@ impl TypeFolder for Normalizer<'_> {
         let span = expr.span();
         match expr.kind() {
             ExprKind::App(func, args) => self.app(func, args, span),
-            ExprKind::FieldProj(e, proj) => self.field_proj(e, *proj),
+            ExprKind::FieldProj(e, proj) => e.proj_and_simplify(*proj),
             _ => expr,
         }
     }
