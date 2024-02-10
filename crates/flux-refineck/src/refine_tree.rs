@@ -535,9 +535,11 @@ impl Node {
             NodeKind::ForAll(name, sort) => {
                 cx.with_name_map(*name, |cx, fresh| {
                     Some(fixpoint::Constraint::ForAll(
-                        fixpoint::Var::Local(fresh),
-                        sort_to_fixpoint(sort),
-                        fixpoint::Pred::TRUE,
+                        fixpoint::Bind {
+                            name: fixpoint::Var::Local(fresh),
+                            sort: sort_to_fixpoint(sort),
+                            pred: fixpoint::Pred::TRUE,
+                        },
                         Box::new(children_to_fixpoint(cx, &self.children)?),
                     ))
                 })
@@ -548,8 +550,12 @@ impl Node {
                 let pred = fixpoint::Pred::And(preds);
                 Some(stitch(
                     bindings,
-                    fixpoint::Constraint::Guard(
-                        pred,
+                    fixpoint::Constraint::ForAll(
+                        fixpoint::Bind {
+                            name: fixpoint::Var::Underscore,
+                            sort: fixpoint::Sort::Int,
+                            pred,
+                        },
                         Box::new(children_to_fixpoint(cx, &self.children)?),
                     ),
                 ))

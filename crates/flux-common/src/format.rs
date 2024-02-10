@@ -7,7 +7,7 @@ pub struct PadAdapter<T> {
 }
 
 #[derive(Clone, Copy)]
-pub struct PadAdapterState {
+struct PadAdapterState {
     on_newline: bool,
 }
 

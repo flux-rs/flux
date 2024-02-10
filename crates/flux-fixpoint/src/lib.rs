@@ -16,8 +16,8 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, Const, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, FuncSort,
-    PolyFuncSort, Pred, Proj, Qualifier, Sort, SortCtor, UnOp,
+    BinOp, BinRel, Bind, Const, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
+    FuncSort, PolyFuncSort, Pred, Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
 use flux_common::{cache::QueryCache, format::PadAdapter};
@@ -56,7 +56,8 @@ macro_rules! declare_types {
             pub type DataDecl = $crate::DataDecl<FixpointTypes>;
             pub type DataCtor = $crate::DataCtor<FixpointTypes>;
             pub type DataField = $crate::DataField<FixpointTypes>;
-            pub use $crate::Proj;
+            pub type Bind = $crate::Bind<FixpointTypes>;
+            pub use $crate::{BinOp, BinRel};
         }
 
         impl $crate::Types for fixpoint_generated::FixpointTypes {
@@ -80,6 +81,7 @@ impl Types for StringTypes {
 #[derive_where(Hash)]
 pub struct ConstInfo<T: Types> {
     pub name: T::Var,
+    #[derive_where(skip)]
     pub orig: Option<String>,
     pub sort: Sort<T>,
 }
@@ -126,6 +128,7 @@ pub struct CrashInfo(Vec<serde_json::Value>);
 pub struct KVar<T: Types> {
     kvid: T::KVar,
     sorts: Vec<Sort<T>>,
+    #[derive_where(skip)]
     comment: String,
 }
 
@@ -196,8 +199,6 @@ impl<T: Types> fmt::Display for Task<T> {
             writeln!(f, "// {line}")?;
         }
         writeln!(f)?;
-
-        writeln!(f, "(data Unit 0 = [| unit {{ }}])")?;
 
         for data_decl in &self.data_decls {
             writeln!(f, "{data_decl}")?;

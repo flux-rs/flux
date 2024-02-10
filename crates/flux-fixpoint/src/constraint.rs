@@ -11,11 +11,17 @@ use rustc_macros::{Decodable, Encodable};
 use crate::{big_int::BigInt, StringTypes, Types};
 
 #[derive_where(Hash)]
+pub struct Bind<T: Types> {
+    pub name: T::Var,
+    pub sort: Sort<T>,
+    pub pred: Pred<T>,
+}
+
+#[derive_where(Hash)]
 pub enum Constraint<T: Types> {
     Pred(Pred<T>, #[derive_where(skip)] Option<T::Tag>),
     Conj(Vec<Self>),
-    Guard(Pred<T>, Box<Self>),
-    ForAll(T::Var, Sort<T>, Pred<T>, Box<Self>),
+    ForAll(Bind<T>, Box<Self>),
 }
 
 #[derive_where(Hash)]
@@ -42,7 +48,6 @@ pub enum Sort<T: Types> {
     Int,
     Bool,
     Real,
-    Unit,
     Var(u32),
     BitVec(usize),
     Func(PolyFuncSort<T>),
@@ -74,24 +79,34 @@ pub enum Pred<T: Types> {
     Expr(Expr<T>),
 }
 
-#[derive_where(Hash)]
-pub enum Expr<T: Types> {
-    Unit,
-    Var(T::Var),
-    Constant(Constant),
-    And(Vec<Expr<T>>),
-    Or(Vec<Expr<T>>),
-    BinaryOp(BinOp, Box<[Self; 2]>),
-    App(T::Var, Vec<Self>),
-    UnaryOp(UnOp, Box<Self>),
-    Proj(Box<Self>, Proj),
-    IfThenElse(Box<[Self; 3]>),
+#[derive(Hash, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum BinRel {
+    Eq,
+    Ne,
+    Gt,
+    Ge,
+    Lt,
+    Le,
 }
 
-#[derive(Clone, Copy, Hash)]
-pub enum Proj {
-    Fst,
-    Snd,
+impl BinRel {
+    pub const INEQUALITIES: [BinRel; 4] = [BinRel::Gt, BinRel::Ge, BinRel::Lt, BinRel::Le];
+}
+
+#[derive_where(Hash)]
+pub enum Expr<T: Types> {
+    Constant(Constant),
+    Var(T::Var),
+    App(T::Var, Vec<Self>),
+    Neg(Box<Self>),
+    BinaryOp(BinOp, Box<[Self; 2]>),
+    IfThenElse(Box<[Self; 3]>),
+    And(Vec<Expr<T>>),
+    Or(Vec<Expr<T>>),
+    Not(Box<Self>),
+    Imp(Box<[Expr<T>; 2]>),
+    Iff(Box<[Expr<T>; 2]>),
+    Atom(BinRel, Box<[Self; 2]>),
 }
 
 #[derive_where(Hash)]
@@ -109,25 +124,11 @@ pub struct Const<T: Types> {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BinOp {
-    Iff,
-    Imp,
-    Eq,
-    Ne,
-    Gt,
-    Ge,
-    Lt,
-    Le,
     Add,
     Sub,
     Mul,
     Div,
     Mod,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum UnOp {
-    Not,
-    Neg,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
@@ -145,7 +146,7 @@ impl<T: Types> Constraint<T> {
     pub fn is_concrete(&self) -> bool {
         match self {
             Constraint::Conj(cs) => cs.iter().any(Constraint::is_concrete),
-            Constraint::Guard(_, c) | Constraint::ForAll(_, _, _, c) => c.is_concrete(),
+            Constraint::ForAll(_, c) => c.is_concrete(),
             Constraint::Pred(p, _) => p.is_concrete() && !p.is_trivially_true(),
         }
     }
@@ -211,13 +212,8 @@ impl<T: Types> fmt::Display for Constraint<T> {
                     }
                 }
             }
-            Constraint::Guard(body, head) => {
-                write!(f, "(forall ((_ {}) {body})", Sort::<T>::Unit)?;
-                write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
-                write!(f, "\n)")
-            }
-            Constraint::ForAll(x, sort, body, head) => {
-                write!(f, "(forall (({x} {sort}) {body})")?;
+            Constraint::ForAll(bind, head) => {
+                write!(f, "(forall (({} {}) {})", bind.name, bind.sort, bind.pred)?;
                 write!(PadAdapter::wrap_fmt(f, 2), "\n{head}")?;
                 write!(f, "\n)")
             }
@@ -272,7 +268,6 @@ impl<T: Types> fmt::Display for Sort<T> {
             Sort::Int => write!(f, "int"),
             Sort::Bool => write!(f, "bool"),
             Sort::Real => write!(f, "real"),
-            Sort::Unit => write!(f, "Unit"),
             Sort::Var(i) => write!(f, "@({i})"),
             Sort::BitVec(size) => write!(f, "(BitVec Size{})", size),
             Sort::Func(sort) => write!(f, "{sort}"),
@@ -322,7 +317,7 @@ impl<T: Types> Expr<T> {
     pub const ONE: Expr<T> = Expr::Constant(Constant::ONE);
     pub const TRUE: Expr<T> = Expr::Constant(Constant::TRUE);
     pub fn eq(self, other: Self) -> Self {
-        Expr::BinaryOp(BinOp::Eq, Box::new([self, other]))
+        Expr::Atom(BinRel::Eq, Box::new([self, other]))
     }
 }
 
@@ -330,13 +325,9 @@ struct FmtParens<'a, T: Types>(&'a Expr<T>);
 
 impl<T: Types> fmt::Display for FmtParens<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Fixpoint parser has `=` at two different precedence levels depending on whether it is
-        // used in a sequence of boolean expressions or not. To avoid complexity we parenthesize
-        // all binary expressions no matter the parent operator.
-        let should_parenthesize = matches!(
-            &self.0,
-            Expr::BinaryOp(..) | Expr::And(..) | Expr::Or(..) | Expr::IfThenElse(..)
-        );
+        // Avoid some obvious unnecesary parentheses
+        let should_parenthesize =
+            !matches!(&self.0, Expr::Var(_) | Expr::Constant(_) | Expr::App(..));
         if should_parenthesize {
             write!(f, "({})", self.0)
         } else {
@@ -348,33 +339,38 @@ impl<T: Types> fmt::Display for FmtParens<'_, T> {
 impl<T: Types> fmt::Display for Expr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Var(x) => write!(f, "{x}"),
             Expr::Constant(c) => write!(f, "{c}"),
+            Expr::Var(x) => write!(f, "{x}"),
+            Expr::App(func, args) => {
+                write!(f, "({func} {})", args.iter().map(FmtParens).format(" "),)
+            }
+            Expr::Neg(e) => {
+                write!(f, "-{}", FmtParens(e))
+            }
+            Expr::BinaryOp(op, box [e1, e2]) => {
+                write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))
+            }
+            Expr::IfThenElse(box [p, e1, e2]) => {
+                write!(f, "if {p} then {e1} else {e2}")
+            }
             Expr::And(exprs) => {
                 write!(f, "{}", exprs.iter().map(FmtParens).format(" && "))
             }
             Expr::Or(exprs) => {
                 write!(f, "{}", exprs.iter().map(FmtParens).format(" || "))
             }
-            Expr::BinaryOp(op, box [e1, e2]) => {
-                write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))
+            Expr::Not(e) => {
+                write!(f, "~{}", FmtParens(e))
             }
-            Expr::UnaryOp(op, e) => {
-                if matches!(e.as_ref(), Expr::Constant(_) | Expr::Var(_)) {
-                    write!(f, "{op}{e}")
-                } else {
-                    write!(f, "{op}({e})")
-                }
+            Expr::Imp(box [e1, e2]) => {
+                write!(f, "{} => {}", FmtParens(e1), FmtParens(e2))
             }
-            Expr::Proj(e, Proj::Fst) => write!(f, "(fst {e})"),
-            Expr::Proj(e, Proj::Snd) => write!(f, "(snd {e})"),
-            Expr::App(func, args) => {
-                write!(f, "({func} {})", args.iter().map(FmtParens).format(" "),)
+            Expr::Iff(box [e1, e2]) => {
+                write!(f, "{} <=> {}", FmtParens(e1), FmtParens(e2))
             }
-            Expr::IfThenElse(box [p, e1, e2]) => {
-                write!(f, "if {p} then {e1} else {e2}")
+            Expr::Atom(rel, box [e1, e2]) => {
+                write!(f, "{} {rel} {}", FmtParens(e1), FmtParens(e2))
             }
-            Expr::Unit => write!(f, "unit"),
         }
     }
 }
@@ -387,35 +383,35 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
     // (qualif EqZero ((v int)) (v == 0))
     let eqzero = Qualifier {
         args: vec![("v", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var("v"), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Eq, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("EqZero"),
     };
 
     // (qualif GtZero ((v int)) (v > 0))
     let gtzero = Qualifier {
         args: vec![("v", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var("v"), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Gt, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("GtZero"),
     };
 
     // (qualif GeZero ((v int)) (v >= 0))
     let gezero = Qualifier {
         args: vec![("v", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var("v"), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Ge, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("GeZero"),
     };
 
     // (qualif LtZero ((v int)) (v < 0))
     let ltzero = Qualifier {
         args: vec![("v", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var("v"), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Lt, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("LtZero"),
     };
 
     // (qualif LeZero ((v int)) (v <= 0))
     let lezero = Qualifier {
         args: vec![("v", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var("v"), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Le, Box::new([Expr::Var("v"), Expr::ZERO])),
         name: String::from("LeZero"),
     };
 
@@ -426,43 +422,43 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<Vec<Qualifier<StringTypes>>> = La
     // (qualif Eq ((a int) (b int)) (a == b))
     let eq = Qualifier {
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var("a"), Expr::Var("b")])),
+        body: Expr::Atom(BinRel::Eq, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Eq"),
     };
 
     // (qualif Gt ((a int) (b int)) (a > b))
     let gt = Qualifier {
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var("a"), Expr::Var("b")])),
+        body: Expr::Atom(BinRel::Gt, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Gt"),
     };
 
     // (qualif Lt ((a int) (b int)) (a < b))
     let ge = Qualifier {
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var("a"), Expr::Var("b")])),
+        body: Expr::Atom(BinRel::Ge, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Ge"),
     };
 
     // (qualif Ge ((a int) (b int)) (a >= b))
     let lt = Qualifier {
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var("a"), Expr::Var("b")])),
+        body: Expr::Atom(BinRel::Lt, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Lt"),
     };
 
     // (qualif Le ((a int) (b int)) (a <= b))
     let le = Qualifier {
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var("a"), Expr::Var("b")])),
+        body: Expr::Atom(BinRel::Le, Box::new([Expr::Var("a"), Expr::Var("b")])),
         name: String::from("Le"),
     };
 
     // (qualif Le1 ((a int) (b int)) (a < b - 1))
     let le1 = Qualifier {
         args: vec![("a", Sort::Int), ("b", Sort::Int)],
-        body: Expr::BinaryOp(
-            BinOp::Le,
+        body: Expr::Atom(
+            BinRel::Le,
             Box::new([
                 Expr::Var("a"),
                 Expr::BinaryOp(BinOp::Sub, Box::new([Expr::Var("b"), Expr::ONE])),
@@ -491,14 +487,6 @@ impl<T: Types> fmt::Display for Qualifier<T> {
 impl fmt::Display for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BinOp::Iff => write!(f, "<=>"),
-            BinOp::Imp => write!(f, "=>"),
-            BinOp::Eq => write!(f, "="),
-            BinOp::Ne => write!(f, "/="),
-            BinOp::Gt => write!(f, ">"),
-            BinOp::Ge => write!(f, ">="),
-            BinOp::Lt => write!(f, "<"),
-            BinOp::Le => write!(f, "<="),
             BinOp::Add => write!(f, "+"),
             BinOp::Sub => write!(f, "-"),
             BinOp::Mul => write!(f, "*"),
@@ -508,22 +496,20 @@ impl fmt::Display for BinOp {
     }
 }
 
-impl fmt::Debug for BinOp {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
-    }
-}
-
-impl fmt::Display for UnOp {
+impl fmt::Display for BinRel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            UnOp::Not => write!(f, "~"),
-            UnOp::Neg => write!(f, "-"),
+            BinRel::Eq => write!(f, "="),
+            BinRel::Ne => write!(f, "/="),
+            BinRel::Gt => write!(f, ">"),
+            BinRel::Ge => write!(f, ">="),
+            BinRel::Lt => write!(f, "<"),
+            BinRel::Le => write!(f, "<="),
         }
     }
 }
 
-impl fmt::Debug for UnOp {
+impl fmt::Debug for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }
