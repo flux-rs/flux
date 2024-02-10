@@ -572,7 +572,7 @@ where
             })
             .collect_vec();
 
-        // Fixpoint doesn't support kvars without arguments which we do generate sometimes. To get
+        // Fixpoint doesn't support kvars without arguments, which we do generate sometimes. To get
         // around it, we encode `$k()` as ($k 0), or more precisley `(forall ((x int) (= x 0)) ... ($k x)`
         // after ANF-ing.
         if all_args.is_empty() {

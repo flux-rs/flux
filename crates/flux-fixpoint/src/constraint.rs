@@ -109,12 +109,6 @@ pub enum Expr<T: Types> {
     Atom(BinRel, Box<[Self; 2]>),
 }
 
-#[derive(Clone, Copy, Hash)]
-pub enum Proj {
-    Fst,
-    Snd,
-}
-
 #[derive_where(Hash)]
 pub struct Qualifier<T: Types> {
     pub name: String,
