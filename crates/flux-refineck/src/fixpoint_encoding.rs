@@ -495,8 +495,8 @@ where
         for rel in fixpoint::BinRel::ALL {
             let fsort = fixpoint::PolyFuncSort::new(
                 1,
-                vec![fixpoint::Sort::Var(0)],
-                fixpoint::Sort::Var(0),
+                vec![fixpoint::Sort::Var(0), fixpoint::Sort::Var(0)],
+                fixpoint::Sort::Bool,
             );
             constants.push(fixpoint::ConstInfo {
                 name: fixpoint::Var::UIFRel(rel),
