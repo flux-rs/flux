@@ -347,8 +347,21 @@ impl<T: Types> fmt::Display for FmtParens<'_, T> {
 impl<T: Types> fmt::Display for Expr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Var(x) => write!(f, "{x}"),
+            Expr::Unit => write!(f, "unit"),
             Expr::Constant(c) => write!(f, "{c}"),
+            Expr::Var(x) => write!(f, "{x}"),
+            Expr::App(func, args) => {
+                write!(f, "({func} {})", args.iter().map(FmtParens).format(" "),)
+            }
+            Expr::Neg(e) => {
+                write!(f, "-{}", FmtParens(e))
+            }
+            Expr::BinaryOp(op, box [e1, e2]) => {
+                write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))
+            }
+            Expr::IfThenElse(box [p, e1, e2]) => {
+                write!(f, "if {p} then {e1} else {e2}")
+            }
             Expr::And(exprs) => {
                 write!(f, "{}", exprs.iter().map(FmtParens).format(" && "))
             }
@@ -357,9 +370,6 @@ impl<T: Types> fmt::Display for Expr<T> {
             }
             Expr::Not(e) => {
                 write!(f, "~{}", FmtParens(e))
-            }
-            Expr::Neg(e) => {
-                write!(f, "-{}", FmtParens(e))
             }
             Expr::Imp(box [e1, e2]) => {
                 write!(f, "{} => {}", FmtParens(e1), FmtParens(e2))
@@ -370,16 +380,6 @@ impl<T: Types> fmt::Display for Expr<T> {
             Expr::Atom(rel, box [e1, e2]) => {
                 write!(f, "{} {rel} {}", FmtParens(e1), FmtParens(e2))
             }
-            Expr::BinaryOp(op, box [e1, e2]) => {
-                write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))
-            }
-            Expr::App(func, args) => {
-                write!(f, "({func} {})", args.iter().map(FmtParens).format(" "),)
-            }
-            Expr::IfThenElse(box [p, e1, e2]) => {
-                write!(f, "if {p} then {e1} else {e2}")
-            }
-            Expr::Unit => write!(f, "unit"),
         }
     }
 }
