@@ -265,6 +265,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_impl(&mut self, owner_id: OwnerId) -> Result {
         let impl_ = &self.specs.impls[&owner_id];
+        ItemResolver::run(self, owner_id, |item_resolver| {
+            item_resolver.visit_impl(impl_);
+        })?;
         RefinementResolver::resolve_impl(self, owner_id, impl_)
     }
 
@@ -594,6 +597,10 @@ impl NameResTable {
             ItemKind::TyAlias(ty, generics) => {
                 collector.visit_generics(generics);
                 collector.visit_ty(ty);
+            }
+            ItemKind::Impl(impl_) => {
+                collector.visit_generics(impl_.generics);
+                collector.visit_ty(impl_.self_ty);
             }
             _ => {}
         }

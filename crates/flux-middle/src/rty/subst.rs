@@ -293,7 +293,9 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
     fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> Ty {
         match self.0.get(param_ty.index as usize) {
             Some(GenericArg::BaseTy(arg)) => arg.replace_bound_expr(idx),
-            Some(arg) => bug!("expected base type for generic parameter, found `{:?}`", arg),
+            Some(arg) => {
+                bug!("expected base type for generic parameter, found `{:?}`", arg)
+            }
             None => bug!("type parameter out of range"),
         }
     }

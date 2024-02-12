@@ -560,6 +560,12 @@ pub struct AliasReft {
     // pub refine_args: RefineArgs,
 }
 
+impl AliasReft {
+    fn self_ty(&self) -> Ty {
+        self.args[0].expect_type().clone()
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum TyKind {
     Indexed(BaseTy, Expr),
