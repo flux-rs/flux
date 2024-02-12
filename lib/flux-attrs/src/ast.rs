@@ -197,8 +197,8 @@ impl RefinedBy {
 #[derive(Debug)]
 pub struct RefinedByParam {
     pub ident: Ident,
-    pub colon_token: Option<Token![:]>,
-    pub sort: Ident,
+    pub colon_token: Token![:],
+    pub sort: Sort,
 }
 
 #[derive(Debug)]
@@ -429,6 +429,45 @@ pub struct StrgRef {
     pub and_token: Token![&],
     pub strg_token: kw::strg,
     pub ty: Box<Type>,
+}
+
+#[derive(Debug)]
+pub enum Sort {
+    BaseSort(BaseSort),
+    Func { input: FuncSortInput, arrow: Token![->], output: BaseSort },
+}
+
+#[derive(Debug)]
+pub enum FuncSortInput {
+    Parenthesized { paren_token: token::Paren, inputs: Punctuated<BaseSort, Token![,]> },
+    Single(BaseSort),
+}
+
+#[derive(Debug)]
+pub enum BaseSort {
+    BitVec(BitVecSort),
+    App(Ident, SortArguments),
+}
+
+#[derive(Debug)]
+pub struct BitVecSort {
+    pub bitvec_token: kw::bitvec,
+    pub lt_token: Token![<],
+    pub lit: syn::LitInt,
+    pub gt_token: Token![>],
+}
+
+#[derive(Debug)]
+pub enum SortArguments {
+    None,
+    AngleBracketed(AngleBracketedSortArgs),
+}
+
+#[derive(Debug)]
+pub struct AngleBracketedSortArgs {
+    pub lt_token: Token![<],
+    pub args: Punctuated<BaseSort, Token![,]>,
+    pub gt_token: Token![>],
 }
 
 #[derive(Debug)]
@@ -869,6 +908,61 @@ impl Parse for RefinedByParam {
             ident: input.parse()?,
             colon_token: input.parse()?,
             sort: input.parse()?,
+        })
+    }
+}
+
+impl Parse for Sort {
+    fn parse(input: ParseStream) -> Result<Self> {
+        if input.peek(token::Paren) {
+            let content;
+            let input_sort = FuncSortInput::Parenthesized {
+                paren_token: parenthesized!(content in input),
+                inputs: content.parse_terminated(BaseSort::parse, Token![,])?,
+            };
+            Ok(Sort::Func { input: input_sort, arrow: input.parse()?, output: input.parse()? })
+        } else {
+            let sort: BaseSort = input.parse()?;
+            if input.peek(Token![->]) {
+                Ok(Sort::Func {
+                    input: FuncSortInput::Single(sort),
+                    arrow: input.parse()?,
+                    output: input.parse()?,
+                })
+            } else {
+                Ok(Sort::BaseSort(sort))
+            }
+        }
+    }
+}
+
+impl Parse for BaseSort {
+    fn parse(input: ParseStream) -> Result<Self> {
+        if input.peek(kw::bitvec) {
+            Ok(BaseSort::BitVec(BitVecSort {
+                bitvec_token: input.parse()?,
+                lt_token: input.parse()?,
+                lit: input.parse()?,
+                gt_token: input.parse()?,
+            }))
+        } else {
+            let ident = input.parse()?;
+            let arguments = if input.peek(Token![<]) && !input.peek(Token![<=]) {
+                SortArguments::AngleBracketed(input.parse()?)
+            } else {
+                SortArguments::None
+            };
+            Ok(BaseSort::App(ident, arguments))
+        }
+    }
+}
+
+impl Parse for AngleBracketedSortArgs {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(AngleBracketedSortArgs {
+            lt_token: input.parse()?,
+            args: parse_until(input, BaseSort::parse, Token![,], Token![>])?,
+            gt_token: input.parse()?,
         })
     }
 }
@@ -1472,6 +1566,7 @@ mod kw {
     syn::custom_keyword!(refined);
     syn::custom_keyword!(by);
     syn::custom_keyword!(base);
+    syn::custom_keyword!(bitvec);
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -1597,6 +1692,70 @@ impl ToTokens for RefinedByParam {
         self.ident.to_tokens(tokens);
         self.colon_token.to_tokens(tokens);
         self.sort.to_tokens(tokens);
+    }
+}
+
+impl ToTokens for Sort {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            Sort::BaseSort(bsort) => bsort.to_tokens(tokens),
+            Sort::Func { input, arrow, output } => {
+                input.to_tokens(tokens);
+                arrow.to_tokens(tokens);
+                output.to_tokens(tokens);
+            }
+        }
+    }
+}
+
+impl ToTokens for FuncSortInput {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            FuncSortInput::Parenthesized { paren_token, inputs } => {
+                paren_token.surround(tokens, |tokens| {
+                    inputs.to_tokens(tokens);
+                });
+            }
+            FuncSortInput::Single(bsort) => bsort.to_tokens(tokens),
+        }
+    }
+}
+
+impl ToTokens for BaseSort {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            BaseSort::BitVec(bitvec) => bitvec.to_tokens(tokens),
+            BaseSort::App(ctor, args) => {
+                ctor.to_tokens(tokens);
+                args.to_tokens(tokens);
+            }
+        }
+    }
+}
+
+impl ToTokens for BitVecSort {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.bitvec_token.to_tokens(tokens);
+        self.lt_token.to_tokens(tokens);
+        self.lit.to_tokens(tokens);
+        self.gt_token.to_tokens(tokens);
+    }
+}
+
+impl ToTokens for SortArguments {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            SortArguments::None => {}
+            SortArguments::AngleBracketed(args) => args.to_tokens(tokens),
+        }
+    }
+}
+
+impl ToTokens for AngleBracketedSortArgs {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.lt_token.to_tokens(tokens);
+        self.args.to_tokens(tokens);
+        self.gt_token.to_tokens(tokens);
     }
 }
 

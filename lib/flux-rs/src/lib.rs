@@ -100,6 +100,10 @@ mod attr_dummy {
         TokenStream::new()
     }
 
+    pub fn extern_spec(_attrs: TokenStream, _tokens: TokenStream) -> TokenStream {
+        TokenStream::new()
+    }
+
     macro_rules! no_op {
         ($($name:ident),+ $(,)?) => {
             $(
@@ -110,5 +114,5 @@ mod attr_dummy {
         };
     }
 
-    no_op!(alias, sig, qualifiers, invariant, constant, opaque, trusted, extern_spec);
+    no_op!(alias, sig, qualifiers, invariant, constant, opaque, trusted);
 }
