@@ -943,7 +943,7 @@ mod pretty {
             if !args.is_empty() {
                 w!("<{:?}>", join!(", ", args))?;
             }
-            w!("::{}", ^self.name)
+            w!(">::{}", ^self.name)
         }
     }
 
