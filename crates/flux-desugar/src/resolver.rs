@@ -1,8 +1,6 @@
 pub(crate) mod refinement_resolver;
 
-use std::collections::hash_map;
-
-use flux_common::bug;
+use flux_common::{bug, span_bug};
 use flux_errors::{ErrorCollector, FluxSession};
 use flux_middle::{
     fhir::{self, Res},
@@ -15,7 +13,6 @@ use hir::{
     intravisit::Visitor as _,
     ItemId, ItemKind, OwnerId,
 };
-use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
@@ -381,13 +378,60 @@ pub struct ResKey {
 
 #[derive(Default)]
 struct NameResTable {
-    res: UnordMap<ResKey, ResEntry>,
+    nodes: UnordMap<Symbol, ResTableNode>,
+}
+
+impl NameResTable {
+    fn insert_ident(&mut self, ident: Ident, res: impl Into<ResEntry>) {
+        self.nodes
+            .entry(ident.name)
+            .or_insert_with(|| ResTableNode::new(res));
+    }
+
+    fn insert_hir_path(&mut self, path: &hir::Path) {
+        let [first, rest @ ..] = path.segments else {
+            span_bug!(path.span, "expected at least one segment")
+        };
+
+        let mut node = self
+            .nodes
+            .entry(first.ident.name)
+            .or_insert_with(|| ResTableNode::new(*first));
+        for segment in rest {
+            node = node
+                .children
+                .entry(segment.ident.name)
+                .or_insert_with(|| ResTableNode::new(*segment));
+        }
+    }
+
+    fn get(&self, path: &surface::Path) -> Option<&ResEntry> {
+        let [first, rest @ ..] = &path.segments[..] else {
+            span_bug!(path.span, "expected at least one segment")
+        };
+        let mut node = self.nodes.get(&first.name)?;
+        for segment in rest {
+            node = node.children.get(&segment.name)?;
+        }
+        Some(&node.entry)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 enum ResEntry {
     Res(Res),
     Unsupported { reason: String, span: Span },
+}
+
+struct ResTableNode {
+    entry: ResEntry,
+    children: UnordMap<Symbol, ResTableNode>,
+}
+
+impl ResTableNode {
+    fn new(entry: impl Into<ResEntry>) -> Self {
+        Self { entry: entry.into(), children: Default::default() }
+    }
 }
 
 impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
@@ -434,7 +478,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     }
 
     fn resolve_path(&mut self, path: &surface::Path) {
-        if let Some(res) = self.table.get(&ResKey::from_surface_path(path)) {
+        if let Some(res) = self.table.get(path) {
             match res {
                 &ResEntry::Res(res) => {
                     self.resolver.output.path_res_map.insert(path.node_id, res);
@@ -536,18 +580,16 @@ impl<'sess, 'tcx> NameResCollector<'sess, 'tcx> {
 
         match &item.kind {
             ItemKind::Struct(variant, generics) => {
-                collector.table.insert(
-                    ResKey::from_ident(item.ident),
-                    Res::Def(DefKind::Struct, def_id.to_def_id()),
-                );
+                collector
+                    .table
+                    .insert_ident(item.ident, Res::Def(DefKind::Struct, def_id.to_def_id()));
                 collector.visit_generics(generics);
                 collector.visit_variant_data(variant);
             }
             ItemKind::Enum(enum_def, generics) => {
-                collector.table.insert(
-                    ResKey::from_ident(item.ident),
-                    Res::Def(DefKind::Enum, def_id.to_def_id()),
-                );
+                collector
+                    .table
+                    .insert_ident(item.ident, Res::Def(DefKind::Enum, def_id.to_def_id()));
                 collector.visit_generics(generics);
                 collector.visit_enum_def(enum_def, item.hir_id());
             }
@@ -590,12 +632,7 @@ impl<'sess, 'tcx> NameResCollector<'sess, 'tcx> {
         let impl_did = tcx.local_parent(def_id);
         if let ItemKind::Impl(impl_) = &tcx.hir().expect_item(impl_did).kind {
             if let Some(trait_ref) = impl_.of_trait {
-                let trait_id = trait_ref.trait_def_id().unwrap();
-                if let Some(key) = ResKey::from_hir_path(trait_ref.path) {
-                    collector
-                        .table
-                        .insert(key, Res::Def(DefKind::Trait, trait_id));
-                }
+                collector.table.insert_hir_path(trait_ref.path);
             }
             collector.visit_generics(impl_.generics);
             collector.visit_ty(impl_.self_ty);
@@ -627,8 +664,8 @@ impl<'sess, 'tcx> NameResCollector<'sess, 'tcx> {
 
             // Insert NAME of parent trait
             if let ItemKind::Trait(..) = &parent_impl_item.kind {
-                collector.table.insert(
-                    ResKey::from_ident(parent_impl_item.ident),
+                collector.table.insert_ident(
+                    parent_impl_item.ident,
                     Res::Def(DefKind::Trait, parent_impl_did),
                 );
             }
@@ -682,56 +719,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for NameResCollector<'_, 'tcx> {
     }
 
     fn visit_path(&mut self, path: &hir::Path<'tcx>, _id: hir::HirId) {
-        if let Some(key) = ResKey::from_hir_path(path) {
-            let res = path
-                .res
-                .try_into()
-                .map_or_else(|_| ResEntry::unsupported(*path), ResEntry::Res);
-            self.table.insert(key, res);
-        }
+        self.table.insert_hir_path(path);
         hir::intravisit::walk_path(self, path);
-    }
-}
-
-impl NameResTable {
-    fn insert(&mut self, key: ResKey, res: impl Into<ResEntry>) {
-        let res = res.into();
-        match self.res.entry(key) {
-            hash_map::Entry::Occupied(entry) => {
-                if let ResEntry::Res(_) = res {
-                    assert_eq!(entry.get(), &res);
-                }
-            }
-            hash_map::Entry::Vacant(entry) => {
-                entry.insert(res);
-            }
-        }
-    }
-
-    fn get(&self, key: &ResKey) -> Option<&ResEntry> {
-        self.res.get(key)
-    }
-}
-
-impl ResKey {
-    fn from_ident(ident: Ident) -> Self {
-        ResKey { s: format!("{ident}") }
-    }
-
-    fn from_surface_path(path: &surface::Path) -> ResKey {
-        let s = path.segments.iter().join("::");
-        ResKey { s }
-    }
-
-    fn from_hir_path(path: &rustc_hir::Path) -> Option<Self> {
-        if let [prefix @ .., _] = path.segments
-            && prefix.iter().any(|segment| segment.args.is_some())
-        {
-            None
-        } else {
-            let s = path.segments.iter().map(|segment| segment.ident).join("::");
-            Some(ResKey { s })
-        }
     }
 }
 
@@ -741,9 +730,18 @@ impl From<Res> for ResEntry {
     }
 }
 
-impl ResEntry {
-    fn unsupported(path: hir::Path) -> Self {
-        Self::Unsupported { span: path.span, reason: format!("unsupported res `{:?}`", path.res) }
+impl From<hir::PathSegment<'_>> for ResEntry {
+    fn from(segment: hir::PathSegment<'_>) -> Self {
+        let res = segment.res;
+        res.try_into().map_or_else(
+            |_| {
+                ResEntry::Unsupported {
+                    span: segment.ident.span,
+                    reason: format!("unsupported res `{res:?}`"),
+                }
+            },
+            ResEntry::Res,
+        )
     }
 }
 
