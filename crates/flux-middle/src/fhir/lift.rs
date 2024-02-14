@@ -88,17 +88,14 @@ pub fn lift_self_ty<'genv>(
         let cx = LiftCtxt::new(genv, owner_id, &local_id_gen, None);
 
         let span = item.ident.span.to(generics.span);
+        let res = fhir::Res::Def(def_kind, owner_id.to_def_id());
         let segment = fhir::PathSegment {
             ident: item.ident,
+            res,
             args: cx.generic_params_into_args(generics)?,
             bindings: &[],
         };
-        let path = fhir::Path {
-            res: fhir::Res::Def(def_kind, owner_id.to_def_id()),
-            segments: genv.alloc_slice(&[segment]),
-            refine: &[],
-            span,
-        };
+        let path = fhir::Path { res, segments: genv.alloc_slice(&[segment]), refine: &[], span };
         let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
         Ok(Some(fhir::Ty { span, kind: fhir::TyKind::BaseTy(bty) }))
     } else {
@@ -356,13 +353,10 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         generics: &hir::Generics,
     ) -> fhir::VariantRet<'genv> {
         let span = item.ident.span.to(generics.span);
-        let segment = fhir::PathSegment { ident: item.ident, args: &[], bindings: &[] };
-        let path = fhir::Path {
-            res: fhir::Res::SelfTyAlias { alias_to: self.owner.to_def_id(), is_trait_impl: false },
-            segments: self.genv.alloc_slice(&[segment]),
-            refine: &[],
-            span,
-        };
+        let res = fhir::Res::SelfTyAlias { alias_to: self.owner.to_def_id(), is_trait_impl: false };
+        let segment = fhir::PathSegment { res, ident: item.ident, args: &[], bindings: &[] };
+        let path =
+            fhir::Path { res, segments: self.genv.alloc_slice(&[segment]), refine: &[], span };
         let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
         let kind = fhir::RefineArgKind::Record(&[]);
         fhir::VariantRet {
@@ -465,6 +459,9 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         &mut self,
         segment: &hir::PathSegment,
     ) -> Result<fhir::PathSegment<'genv>> {
+        let Ok(res) = segment.res.try_into() else {
+            return self.emit_unsupported(&format!("unsupported res: `{:?}`", segment.res));
+        };
         let (args, bindings) = {
             match segment.args {
                 Some(args) => {
@@ -473,7 +470,8 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                 None => ([].as_slice(), [].as_slice()),
             }
         };
-        Ok(fhir::PathSegment { ident: segment.ident, args, bindings })
+
+        Ok(fhir::PathSegment { res, ident: segment.ident, args, bindings })
     }
 
     fn lift_path_to_ty(
@@ -558,8 +556,12 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             match param.kind {
                 hir::GenericParamKind::Type { .. } => {
                     let res = fhir::Res::Def(DefKind::TyParam, param.def_id.to_def_id());
-                    let segment =
-                        fhir::PathSegment { ident: param.name.ident(), args: &[], bindings: &[] };
+                    let segment = fhir::PathSegment {
+                        ident: param.name.ident(),
+                        res,
+                        args: &[],
+                        bindings: &[],
+                    };
                     let path = fhir::Path {
                         res,
                         segments: self.genv.alloc_slice(&[segment]),

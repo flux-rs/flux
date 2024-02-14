@@ -325,7 +325,7 @@ impl<'a, 'tcx> ImplicitParamCollector<'a, 'tcx> {
 
 impl ScopedVisitor for ImplicitParamCollector<'_, '_> {
     fn is_box(&self, path: &surface::Path) -> bool {
-        let res = self.path_res_map[&path.node_id];
+        let res = self.path_res_map[&path.last().node_id];
         res.is_box(self.tcx)
     }
 
@@ -653,7 +653,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
 impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
     fn is_box(&self, path: &surface::Path) -> bool {
-        let res = self.resolver_output().path_res_map[&path.node_id];
+        let res = self.resolver_output().path_res_map[&path.last().node_id];
         res.is_box(self.resolver.genv.tcx())
     }
 
@@ -810,7 +810,7 @@ impl<'a, 'genv, 'tcx> IllegalBinderVisitor<'a, 'genv, 'tcx> {
 
 impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
     fn is_box(&self, path: &surface::Path) -> bool {
-        let res = self.resolver.output.path_res_map[&path.node_id];
+        let res = self.resolver.output.path_res_map[&path.last().node_id];
         res.is_box(self.resolver.genv.tcx())
     }
 

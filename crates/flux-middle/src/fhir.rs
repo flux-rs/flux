@@ -618,6 +618,7 @@ impl<'fhir> Path<'fhir> {
 #[derive(Clone, Copy)]
 pub struct PathSegment<'fhir> {
     pub ident: SurfaceIdent,
+    pub res: Res,
     pub args: &'fhir [GenericArg<'fhir>],
     pub bindings: &'fhir [TypeBinding<'fhir>],
 }

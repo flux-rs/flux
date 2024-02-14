@@ -304,25 +304,28 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         Ok(())
     }
 
-    fn resolve_path(&self, path: &surface::Path) -> Option<hir::def::Res> {
+    fn try_resolve_path(&mut self, path: &surface::Path) -> Option<()> {
         let mut module: Option<DefId> = None;
         for (i, segment) in path.segments.iter().enumerate() {
             let res = if let Some(module) = module {
-                self.resolve_ident_in_module(module, *segment)?
+                self.resolve_ident_in_module(module, segment.ident)?
             } else {
-                self.resolve_ident(*segment)?
+                self.resolve_ident(segment.ident)?
             };
 
             let hir::def::Res::Def(def_kind, res_def_id) = res else {
                 return None;
             };
 
+            self.output
+                .path_res_map
+                .insert(segment.node_id, Res::Def(def_kind, res_def_id));
+
             match def_kind {
                 DefKind::Struct | DefKind::Enum | DefKind::Trait => {
                     if i < path.segments.len() - 1 {
                         return None;
                     }
-                    return Some(res);
                 }
                 DefKind::Mod => {
                     module = Some(res_def_id);
@@ -332,7 +335,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 }
             }
         }
-        None
+        Some(())
     }
 
     fn resolve_ident(&self, ident: Ident) -> Option<hir::def::Res> {
@@ -404,17 +407,6 @@ impl NameResTable {
                 .or_insert_with(|| ResTableNode::new(*segment));
         }
     }
-
-    fn get(&self, path: &surface::Path) -> Option<&ResEntry> {
-        let [first, rest @ ..] = &path.segments[..] else {
-            span_bug!(path.span, "expected at least one segment")
-        };
-        let mut node = self.nodes.get(&first.name)?;
-        for segment in rest {
-            node = node.children.get(&segment.name)?;
-        }
-        Some(&node.entry)
-    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -478,29 +470,39 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     }
 
     fn resolve_path(&mut self, path: &surface::Path) {
-        if let Some(res) = self.table.get(path) {
-            match res {
-                &ResEntry::Res(res) => {
-                    self.resolver.output.path_res_map.insert(path.node_id, res);
+        // This could insert stuff in `segment_res_map` twice if resolution fails midway with
+        // the table. This is ok because we will only proceed if the entire path is resolved.
+        if self.try_resolve_with_table(path).is_some() {
+            return;
+        }
+        if self.resolver.try_resolve_path(path).is_some() {
+            return;
+        }
+        self.errors.emit(errors::UnresolvedPath::new(path));
+    }
+
+    fn try_resolve_with_table(&mut self, path: &surface::Path) -> Option<()> {
+        let [first, rest @ ..] = &path.segments[..] else {
+            span_bug!(path.span, "expected at least one segment")
+        };
+        let mut resolve = |node_id, entry: &ResEntry| {
+            match entry {
+                ResEntry::Res(res) => {
+                    self.resolver.output.path_res_map.insert(node_id, *res);
                 }
                 ResEntry::Unsupported { reason, span } => {
                     self.errors
                         .emit(errors::UnsupportedSignature::new(*span, reason));
                 }
             }
-        } else if let Some(res) = self.resolver.resolve_path(path) {
-            match res.try_into() {
-                Ok(res) => {
-                    self.resolver.output.path_res_map.insert(path.node_id, res);
-                }
-                Err(_) => {
-                    self.errors
-                        .emit(errors::UnsupportedSignature::new(path.span, "unsupported path"));
-                }
-            }
-        } else {
-            self.errors.emit(errors::UnresolvedPath::new(path));
+        };
+        let mut node = self.table.nodes.get(&first.ident.name)?;
+        resolve(first.node_id, &node.entry);
+        for segment in rest {
+            node = node.children.get(&segment.ident.name)?;
+            resolve(segment.node_id, &node.entry);
         }
+        Some(())
     }
 }
 
@@ -777,7 +779,10 @@ mod errors {
 
     impl UnresolvedPath {
         pub fn new(path: &surface::Path) -> Self {
-            Self { span: path.span, path: path.segments.iter().join("::") }
+            Self {
+                span: path.span,
+                path: path.segments.iter().map(|segment| segment.ident).join("::"),
+            }
         }
     }
 }

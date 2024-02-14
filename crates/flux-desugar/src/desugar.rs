@@ -1048,16 +1048,17 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
     }
 
     fn desugar_path(&mut self, path: &surface::Path) -> Result<fhir::Path<'genv>> {
-        let res = self.resolver_output().path_res_map[&path.node_id];
         let [prefix @ .., last] = &path.segments[..] else {
             span_bug!(path.span, "expected at least one segment")
         };
+        let last = self.desugar_last_segment(last, &path.generics)?;
+        let res = last.res;
         let segments = self.genv().alloc_slice_with_capacity(
             prefix.len() + 1,
             prefix
                 .iter()
-                .map(|ident| fhir::PathSegment { ident: *ident, args: &[], bindings: &[] })
-                .chain([self.desugar_last_segment(res, *last, &path.generics)?]),
+                .map(|segment| self.desugar_path_segment(segment))
+                .chain([last]),
         );
         let refine =
             try_alloc_slice!(self.genv(), &path.refine, |arg| self.desugar_refine_arg(arg))?;
@@ -1066,12 +1067,17 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
 
     fn desugar_last_segment(
         &mut self,
-        res: Res,
-        ident: surface::Ident,
+        segment: &surface::PathSegment,
         args: &[surface::GenericArg],
     ) -> Result<fhir::PathSegment<'genv>> {
+        let res = self.resolver_output().path_res_map[&segment.node_id];
         let (args, bindings) = self.desugar_generic_args(res, args)?;
-        Ok(fhir::PathSegment { ident, args, bindings })
+        Ok(fhir::PathSegment { ident: segment.ident, res, args, bindings })
+    }
+
+    fn desugar_path_segment(&self, segment: &surface::PathSegment) -> fhir::PathSegment<'genv> {
+        let res = self.resolver_output().path_res_map[&segment.node_id];
+        fhir::PathSegment { ident: segment.ident, res, args: &[], bindings: &[] }
     }
 
     fn mk_lft_hole(&self) -> fhir::Lifetime {
