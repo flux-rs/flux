@@ -377,7 +377,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         bounded_ty: &rty::Ty,
         bound: &fhir::GenericBound,
         clauses: &mut Vec<rty::Clause>,
-    ) -> QueryResult<()> {
+    ) -> QueryResult {
         match bound {
             fhir::GenericBound::Trait(trait_ref, fhir::TraitBoundModifier::None) => {
                 let trait_id = trait_ref.trait_def_id();
@@ -386,8 +386,21 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 } else {
                     let path = &trait_ref.trait_ref;
                     let params = &trait_ref.bound_generic_params;
-                    self.conv_trait_bound(env, bounded_ty, trait_id, path.args, params, clauses)?;
-                    self.conv_type_bindings(env, bounded_ty, trait_id, path.bindings, clauses)
+                    self.conv_trait_bound(
+                        env,
+                        bounded_ty,
+                        trait_id,
+                        path.last_segment().args,
+                        params,
+                        clauses,
+                    )?;
+                    self.conv_type_bindings(
+                        env,
+                        bounded_ty,
+                        trait_id,
+                        path.last_segment().bindings,
+                        clauses,
+                    )
                 }
             }
             // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
@@ -409,7 +422,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         args: &[fhir::GenericArg],
         params: &[fhir::GenericParam],
         clauses: &mut Vec<rty::Clause>,
-    ) -> QueryResult<()> {
+    ) -> QueryResult {
         let mut into = vec![rty::GenericArg::Ty(bounded_ty.clone())];
         self.conv_generic_args_into(env, args, &mut into)?;
         self.fill_generic_args_defaults(trait_id, &mut into)?;
@@ -458,8 +471,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         let pred = rty::FnTraitPredicate {
             self_ty: self_ty.clone(),
-            tupled_args: self.conv_ty(env, path.args[0].expect_type())?,
-            output: self.conv_ty(env, &path.bindings[0].term)?,
+            tupled_args: self.conv_ty(env, path.last_segment().args[0].expect_type())?,
+            output: self.conv_ty(env, &path.last_segment().bindings[0].term)?,
             kind,
         };
         // FIXME(nilehmann) We should use `tcx.late_bound_vars` here instead of trusting our lowering
@@ -725,8 +738,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         if let fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) = &bty.kind {
             if let fhir::Res::Def(DefKind::AssocTy, def_id) = path.res {
                 let self_ty = self.conv_ty(env, self_ty.as_deref().unwrap())?;
+                let [.., trait_segment, assoc_segment] = path.segments else {
+                    span_bug!(bty.span, "expected at least two segments");
+                };
                 let mut args = vec![rty::GenericArg::Ty(self_ty)];
-                args.append(&mut self.conv_generic_args(env, def_id, path.args)?);
+                self.conv_generic_args_into(env, trait_segment.args, &mut args)?;
+                self.conv_generic_args_into(env, assoc_segment.args, &mut args)?;
                 let args = List::from_vec(args);
 
                 let refine_args = List::empty();
@@ -866,7 +883,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::Res::Def(DefKind::Struct | DefKind::Enum, did) => {
                 let adt_def = self.genv.adt_def(*did)?;
-                let args = self.conv_generic_args(env, *did, path.args)?;
+                let args = self.conv_generic_args(env, *did, path.last_segment().args)?;
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) => {
@@ -881,7 +898,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .replace_bound_expr(&idx));
             }
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
-                let generics = self.conv_generic_args(env, *def_id, path.args)?;
+                let generics = self.conv_generic_args(env, *def_id, path.last_segment().args)?;
                 let refine = path
                     .refine
                     .iter()

@@ -485,12 +485,14 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
         }
         let snapshot = self.xi.snapshot();
 
+        // TODO(nilehmann) we should check all segments
+        let last_segment = path.last_segment();
         if let fhir::Res::Def(_kind, did) = &path.res
-            && !path.args.is_empty()
+            && !last_segment.args.is_empty()
         {
-            self.check_generic_args(infcx, *did, path.args)?;
+            self.check_generic_args(infcx, *did, last_segment.args)?;
         }
-        let bindings = self.check_type_bindings(infcx, path.bindings);
+        let bindings = self.check_type_bindings(infcx, last_segment.bindings);
         if !self.genv.is_box(path.res) {
             self.xi.rollback_to(snapshot);
         }

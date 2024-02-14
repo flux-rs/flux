@@ -348,11 +348,12 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
             }
             return Err(self.emit_err(errors::InvalidRefinement::from_paths(path, expected_path)));
         }
-        if path.args.len() != expected_path.args.len() {
+        // TODO(nilehmann) we should check all segments here
+        if path.last_segment().args.len() != expected_path.last_segment().args.len() {
             return Err(self.emit_err(errors::GenericArgCountMismatch::new(path, expected_path)));
         }
 
-        iter::zip(path.args, expected_path.args)
+        iter::zip(path.last_segment().args, expected_path.last_segment().args)
             .try_for_each_exhaust(|(arg, expected)| self.zip_generic_arg(arg, expected))
     }
 
@@ -467,8 +468,8 @@ mod errors {
         pub(super) fn new(path: &fhir::Path, expected_path: &fhir::Path) -> Self {
             GenericArgCountMismatch {
                 span: path.span,
-                found: path.args.len(),
-                expected: expected_path.args.len(),
+                found: path.last_segment().args.len(),
+                expected: expected_path.last_segment().args.len(),
                 def_descr: path.res.descr(),
                 expected_span: expected_path.span,
             }

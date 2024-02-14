@@ -1049,10 +1049,29 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
 
     fn desugar_path(&mut self, path: &surface::Path) -> Result<fhir::Path<'genv>> {
         let res = self.resolver_output().path_res_map[&path.node_id];
-        let (args, bindings) = self.desugar_generic_args(res, &path.generics)?;
+        let [prefix @ .., last] = &path.segments[..] else {
+            span_bug!(path.span, "expected at least one segment")
+        };
+        let segments = self.genv().alloc_slice_with_capacity(
+            prefix.len() + 1,
+            prefix
+                .iter()
+                .map(|ident| fhir::PathSegment { ident: *ident, args: &[], bindings: &[] })
+                .chain([self.desugar_last_segment(res, *last, &path.generics)?]),
+        );
         let refine =
             try_alloc_slice!(self.genv(), &path.refine, |arg| self.desugar_refine_arg(arg))?;
-        Ok(fhir::Path { res, args, bindings, refine, span: path.span })
+        Ok(fhir::Path { res, segments, refine, span: path.span })
+    }
+
+    fn desugar_last_segment(
+        &mut self,
+        res: Res,
+        ident: surface::Ident,
+        args: &[surface::GenericArg],
+    ) -> Result<fhir::PathSegment<'genv>> {
+        let (args, bindings) = self.desugar_generic_args(res, args)?;
+        Ok(fhir::PathSegment { ident, args, bindings })
     }
 
     fn mk_lft_hole(&self) -> fhir::Lifetime {

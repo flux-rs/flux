@@ -604,10 +604,22 @@ pub enum QPath<'fhir> {
 #[derive(Clone, Copy)]
 pub struct Path<'fhir> {
     pub res: Res,
-    pub args: &'fhir [GenericArg<'fhir>],
-    pub bindings: &'fhir [TypeBinding<'fhir>],
+    pub segments: &'fhir [PathSegment<'fhir>],
     pub refine: &'fhir [RefineArg<'fhir>],
     pub span: Span,
+}
+
+impl<'fhir> Path<'fhir> {
+    pub fn last_segment(&self) -> &'fhir PathSegment<'fhir> {
+        self.segments.last().unwrap()
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct PathSegment<'fhir> {
+    pub ident: SurfaceIdent,
+    pub args: &'fhir [GenericArg<'fhir>],
+    pub bindings: &'fhir [TypeBinding<'fhir>],
 }
 
 #[derive(Clone, Copy)]
@@ -1208,24 +1220,17 @@ impl fmt::Debug for QPath<'_> {
 
 impl fmt::Debug for Path<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.res {
-            Res::PrimTy(PrimTy::Int(int_ty)) => {
-                write!(f, "{}", int_ty.name_str())?;
-            }
-            Res::PrimTy(PrimTy::Uint(uint_ty)) => {
-                write!(f, "{}", uint_ty.name_str())?;
-            }
-            Res::PrimTy(PrimTy::Float(float_ty)) => {
-                write!(f, "{}", float_ty.name_str())?;
-            }
-            Res::PrimTy(PrimTy::Bool) => write!(f, "bool")?,
-            Res::PrimTy(PrimTy::Str) => write!(f, "str")?,
-            Res::PrimTy(PrimTy::Char) => write!(f, "char")?,
-            Res::Def(_, def_id) => {
-                write!(f, "{}", pretty::def_id_to_string(def_id))?;
-            }
-            Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => write!(f, "Self")?,
+        write!(f, "{:?}", self.segments.iter().format("::"))?;
+        if !self.refine.is_empty() {
+            write!(f, "({:?})", self.refine.iter().format(", "))?;
         }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for PathSegment<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.ident)?;
         let args: Vec<_> = self
             .args
             .iter()
@@ -1234,9 +1239,6 @@ impl fmt::Debug for Path<'_> {
             .collect();
         if !args.is_empty() {
             write!(f, "<{:?}>", args.iter().format(", "))?;
-        }
-        if !self.refine.is_empty() {
-            write!(f, "({:?})", self.refine.iter().format(", "))?;
         }
         Ok(())
     }

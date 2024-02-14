@@ -32,7 +32,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
                 let mut sort_args = vec![];
                 let sort_def = self.adt_sort_def_of(def_id);
-                for arg in sort_def.filter_generic_args(path.args) {
+                let generic_args = path.segments.last().unwrap().args;
+                for arg in sort_def.filter_generic_args(generic_args) {
                     sort_args.push(self.sort_of_ty(arg.expect_type())?);
                 }
                 let ctor = rty::SortCtor::Adt(self.adt_sort_def_of(def_id));
