@@ -44,20 +44,31 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         Ok(Normalizer { genv, selcx, def_id: callsite_def_id, param_env })
     }
 
-    fn normalize_alias_pred(
+    fn normalize_alias_reft(
         &mut self,
-        alias_pred: &AliasReft,
+        obligation: &AliasReft,
         refine_args: &RefineArgs,
     ) -> QueryResult<Expr> {
-        if let Some(impl_id) = self.impl_id_of_alias_ty(alias_pred)? {
+        if let Some(impl_def_id) = self.impl_id_of_alias_reft(obligation)? {
+            let impl_trait_ref = self
+                .tcx()
+                .impl_trait_ref(impl_def_id)
+                .unwrap()
+                .skip_binder();
+            let generics = self.tcx().generics_of(impl_def_id);
+
+            let mut subst = TVarSubst::new(generics);
+            subst.infer_from_args(impl_trait_ref.args, &obligation.args);
+            let args = subst.finish(self.tcx(), generics);
+
             let pred = self
                 .genv
-                .assoc_refinement_def(impl_id, alias_pred.name)?
-                .instantiate(&alias_pred.args, &[]);
+                .assoc_refinement_def(impl_def_id, obligation.name)?
+                .instantiate(&args, &[]);
             let expr = pred.apply(refine_args);
             Ok(expr)
         } else {
-            Ok(Expr::alias(alias_pred.clone(), refine_args.clone()))
+            Ok(Expr::alias(obligation.clone(), refine_args.clone()))
         }
     }
 
@@ -156,7 +167,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         Ok(())
     }
 
-    fn impl_id_of_alias_ty(&mut self, alias_pred: &AliasReft) -> QueryResult<Option<DefId>> {
+    fn impl_id_of_alias_reft(&mut self, alias_pred: &AliasReft) -> QueryResult<Option<DefId>> {
         let trait_pred = Obligation::with_depth(
             self.tcx(),
             ObligationCause::dummy(),
@@ -175,7 +186,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         &mut self,
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
-    ) -> QueryResult<()> {
+    ) -> QueryResult {
         let trait_pred = Obligation::with_depth(
             self.tcx(),
             ObligationCause::dummy(),
@@ -231,7 +242,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
 
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
         if let ExprKind::Alias(alias_pred, refine_args) = expr.kind() {
-            self.normalize_alias_pred(alias_pred, refine_args)
+            self.normalize_alias_reft(alias_pred, refine_args)
         } else {
             expr.try_super_fold_with(self)
         }

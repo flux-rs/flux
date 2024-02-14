@@ -1283,7 +1283,14 @@ impl fmt::Debug for RefineArg<'_> {
 
 impl fmt::Debug for AliasReft<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "<{:?} as <{:?}>::{:?}", self.generic_args[0], self.trait_id, self.name)
+        let [self_ty, rest @ ..] = self.generic_args else {
+            bug!("expected at least one argument")
+        };
+        write!(f, "<{:?} as {}", self_ty, pretty::def_id_to_string(self.trait_id))?;
+        if !rest.is_empty() {
+            write!(f, "<{:?}>", rest.iter().format(", "))?;
+        }
+        write!(f, ">::{}", self.name)
     }
 }
 
@@ -1296,8 +1303,8 @@ impl fmt::Debug for Expr<'_> {
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
             ExprKind::Const(x, _) => write!(f, "{}", pretty::def_id_to_string(*x)),
             ExprKind::App(uf, es) => write!(f, "{uf:?}({:?})", es.iter().format(", ")),
-            ExprKind::Alias(alias_pred, refine_args) => {
-                write!(f, "{alias_pred:?}({:?})", refine_args.iter().format(", "))
+            ExprKind::Alias(alias, refine_args) => {
+                write!(f, "{alias:?}({:?})", refine_args.iter().format(", "))
             }
             ExprKind::IfThenElse(p, e1, e2) => {
                 write!(f, "(if {p:?} {{ {e1:?} }} else {{ {e2:?} }})")

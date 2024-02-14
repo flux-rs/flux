@@ -2315,7 +2315,7 @@ mod pretty {
         TyS => "ty",
         BaseTy,
         FnSig,
-        GenericArg,
+        GenericArg => "generic_arg",
         VariantSig,
         PtrKind,
         FuncSort,
