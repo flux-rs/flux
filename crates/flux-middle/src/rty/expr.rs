@@ -938,7 +938,7 @@ mod pretty {
     impl Pretty for AliasReft {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("<{:?} as {:?}", self.self_ty(), self.trait_id)?;
+            w!("<{:?} as {:?}", &self.args[0], self.trait_id)?;
             let args = &self.args[1..];
             if !args.is_empty() {
                 w!("<{:?}>", join!(", ", args))?;

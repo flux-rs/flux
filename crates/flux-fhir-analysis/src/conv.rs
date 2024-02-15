@@ -424,7 +424,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult {
         let mut into = vec![rty::GenericArg::Ty(bounded_ty.clone())];
-        self.conv_generic_args_into(env, args, &mut into)?;
+        self.conv_generic_args_into(env, trait_id, args, &mut into)?;
         self.fill_generic_args_defaults(trait_id, &mut into)?;
         let trait_ref = rty::TraitRef { def_id: trait_id, args: into.into() };
         let pred = rty::TraitPredicate { trait_ref };
@@ -736,18 +736,19 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let sort = self.genv.sort_of_bty(bty);
 
         if let fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) = &bty.kind {
-            if let fhir::Res::Def(DefKind::AssocTy, def_id) = path.res {
+            if let fhir::Res::Def(DefKind::AssocTy, assoc_id) = path.res {
+                let trait_id = self.genv.tcx().trait_of_item(assoc_id).unwrap();
                 let self_ty = self.conv_ty(env, self_ty.as_deref().unwrap())?;
                 let [.., trait_segment, assoc_segment] = path.segments else {
                     span_bug!(bty.span, "expected at least two segments");
                 };
                 let mut args = vec![rty::GenericArg::Ty(self_ty)];
-                self.conv_generic_args_into(env, trait_segment.args, &mut args)?;
-                self.conv_generic_args_into(env, assoc_segment.args, &mut args)?;
+                self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
+                self.conv_generic_args_into(env, assoc_id, assoc_segment.args, &mut args)?;
                 let args = List::from_vec(args);
 
                 let refine_args = List::empty();
-                let alias_ty = rty::AliasTy { args, refine_args, def_id };
+                let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
                 return Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty));
             }
             // If it is a type parameter with no sort, it means it is of kind `Type`
@@ -924,7 +925,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         args: &[fhir::GenericArg],
     ) -> QueryResult<Vec<rty::GenericArg>> {
         let mut into = vec![];
-        self.conv_generic_args_into(env, args, &mut into)?;
+        self.conv_generic_args_into(env, def_id, args, &mut into)?;
         self.fill_generic_args_defaults(def_id, &mut into)?;
         Ok(into)
     }
@@ -932,16 +933,33 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_generic_args_into(
         &self,
         env: &mut Env,
+        def_id: DefId,
         args: &[fhir::GenericArg],
         into: &mut Vec<rty::GenericArg>,
-    ) -> QueryResult<()> {
-        for arg in args {
-            match arg {
-                fhir::GenericArg::Lifetime(lft) => {
+    ) -> QueryResult {
+        let generics = self.genv.generics_of(def_id)?;
+        for (idx, arg) in args.iter().enumerate() {
+            let param = generics.param_at(idx, self.genv)?;
+            match (arg, &param.kind) {
+                (fhir::GenericArg::Lifetime(lft), rty::GenericParamDefKind::Lifetime) => {
                     into.push(rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft)));
                 }
-                fhir::GenericArg::Type(ty) => {
+                (
+                    fhir::GenericArg::Type(ty),
+                    rty::GenericParamDefKind::Type { .. } | rty::GenericParamDefKind::SplTy,
+                ) => {
                     into.push(rty::GenericArg::Ty(self.conv_ty(env, ty)?));
+                }
+                (fhir::GenericArg::Type(ty), rty::GenericParamDefKind::BaseTy) => {
+                    let arg = self
+                        .conv_ty(env, ty)?
+                        .shallow_canonicalize()
+                        .to_bty_arg()
+                        .unwrap();
+                    into.push(arg);
+                }
+                _ => {
+                    bug!("unexpected param `{:?}` for arg `{arg:?}`", param.kind);
                 }
             }
         }
@@ -952,7 +970,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         &self,
         def_id: DefId,
         into: &mut Vec<rty::GenericArg>,
-    ) -> QueryResult<()> {
+    ) -> QueryResult {
         let generics = self.genv.generics_of(def_id)?;
         for param in generics.params.iter().skip(into.len()) {
             if let rty::GenericParamDefKind::Type { has_default } = param.kind {
