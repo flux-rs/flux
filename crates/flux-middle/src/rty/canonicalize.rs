@@ -3,7 +3,7 @@ use rustc_type_ir::{Mutability, INNERMOST};
 use super::{
     box_args,
     fold::{TypeFoldable, TypeFolder},
-    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, Ty, TyKind,
+    BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, Ty, TyKind, Var,
 };
 use crate::intern::List;
 
@@ -80,6 +80,37 @@ impl Ty {
 pub enum CanonicalTy {
     Exists(Binder<ConstrTy>),
     Constr(ConstrTy),
+}
+
+impl CanonicalTy {
+    pub fn to_bty_arg(&self) -> Option<GenericArg> {
+        match self {
+            CanonicalTy::Exists(poly_constr_ty) => {
+                let vars = poly_constr_ty.vars();
+                let constr_ty = poly_constr_ty.as_ref().skip_binder();
+                if let TyKind::Indexed(bty, idx) = constr_ty.ty.kind()
+                    && vars.to_sort_list()[..] == [bty.sort()][..]
+                    && let ExprKind::Var(Var::LateBound(INNERMOST, 0)) = idx.kind()
+                {
+                    let ty = Ty::constr(constr_ty.pred.clone(), Ty::indexed(bty.clone(), idx));
+                    Some(GenericArg::BaseTy(Binder::new(ty, vars.clone())))
+                } else {
+                    None
+                }
+            }
+            CanonicalTy::Constr(constr_ty) => {
+                if let TyKind::Indexed(bty, idx) = constr_ty.ty.kind() {
+                    let sort = bty.sort();
+                    let infer_mode = sort.default_infer_mode();
+                    let ty = Ty::constr(Expr::eq(Expr::nu(), idx), Ty::indexed(bty.clone(), idx));
+                    let vars = List::singleton(BoundVariableKind::Refine(sort, infer_mode));
+                    Some(GenericArg::BaseTy(Binder::new(ty, vars)))
+                } else {
+                    None
+                }
+            }
+        }
+    }
 }
 
 pub struct ConstrTy {
