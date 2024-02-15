@@ -259,7 +259,7 @@ impl From<usize> for ParamSort {
 
 newtype_index! {
     /// A *sort* *v*variable *id*
-    #[debug_format = "s#{}"]
+    #[debug_format = "?{}s"]
     pub struct SortVid {}
 }
 
@@ -285,7 +285,7 @@ impl ena::unify::EqUnifyValue for Sort {}
 
 newtype_index! {
     /// A *num*eric *v*variable *id*
-    #[debug_format = "n#{}"]
+    #[debug_format = "?{}n"]
     pub struct NumVid {}
 }
 

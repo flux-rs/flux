@@ -11,7 +11,7 @@ use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
-    fhir::{self, FhirId, SurfaceIdent},
+    fhir::{self, ExprRes, FhirId, SurfaceIdent},
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
@@ -30,7 +30,7 @@ use rustc_middle::{
     mir::Local,
     ty::{AssocItem, AssocKind, BoundVar},
 };
-use rustc_span::symbol::kw;
+use rustc_span::{symbol::kw, Span};
 use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'genv, 'tcx> {
@@ -40,12 +40,12 @@ pub struct ConvCtxt<'a, 'genv, 'tcx> {
 
 pub(crate) struct Env {
     layers: Vec<Layer>,
-    early_bound: FxIndexMap<fhir::Name, rty::Sort>,
+    early_bound: FxIndexMap<fhir::ParamId, rty::Sort>,
 }
 
 #[derive(Debug, Clone)]
 struct Layer {
-    map: FxIndexMap<fhir::Name, Entry>,
+    map: FxIndexMap<fhir::ParamId, Entry>,
     /// Whether to skip variables bound to Unit in this layer.
     filter_unit: bool,
     kind: LayerKind,
@@ -73,8 +73,9 @@ enum Entry {
 
 #[derive(Debug)]
 struct LookupResult<'a> {
-    name: fhir::Ident,
     kind: LookupResultKind<'a>,
+    /// The span of the variable that originated the lookup. Used to report bugs.
+    span: Span,
 }
 
 #[derive(Debug)]
@@ -634,11 +635,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         constr: &fhir::Constraint,
     ) -> QueryResult<rty::Constraint> {
         match constr {
-            fhir::Constraint::Type(loc, ty, idx) => {
+            fhir::Constraint::Type(loc, ty) => {
+                let (idx, _) = loc.res.expect_loc_param();
                 Ok(rty::Constraint::Type(
-                    env.lookup(*loc).to_path(),
+                    env.lookup(loc).to_path(),
                     self.conv_ty(env, ty)?,
-                    Local::from_usize(*idx + 1),
+                    Local::from_usize(idx + 1),
                 ))
             }
             fhir::Constraint::Pred(pred) => Ok(rty::Constraint::Pred(self.conv_expr(env, pred)?)),
@@ -683,7 +685,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::TyKind::Ptr(lft, loc) => {
                 let region = self.conv_lifetime(env, *lft);
-                Ok(rty::Ty::ptr(rty::PtrKind::Mut(region), env.lookup(*loc).to_path()))
+                Ok(rty::Ty::ptr(rty::PtrKind::Mut(region), env.lookup(loc).to_path()))
             }
             fhir::TyKind::Ref(lft, fhir::MutTy { ty, mutbl }) => {
                 let region = self.conv_lifetime(env, *lft);
@@ -984,7 +986,7 @@ impl Env {
     ) -> Self {
         let early_bound = early_bound
             .iter()
-            .map(|param| (param.name(), resolve_param_sort(genv, param, Some(wfckresults)).clone()))
+            .map(|param| (param.id, resolve_param_sort(genv, param, Some(wfckresults)).clone()))
             .collect();
         Self { layers: vec![], early_bound }
     }
@@ -1005,19 +1007,20 @@ impl Env {
         self.layers.last().expect("bottom of layer stack")
     }
 
-    fn lookup(&self, name: fhir::Ident) -> LookupResult {
+    fn lookup(&self, var: &fhir::PathExpr) -> LookupResult {
+        let (_, id) = var.res.expect_param();
         for (level, layer) in self.layers.iter().rev().enumerate() {
-            if let Some(kind) = layer.get(name.name, level as u32) {
-                return LookupResult { name, kind };
+            if let Some(kind) = layer.get(id, level as u32) {
+                return LookupResult { span: var.span, kind };
             }
         }
-        if let Some((idx, _, sort)) = self.early_bound.get_full(&name.name) {
+        if let Some((idx, _, sort)) = self.early_bound.get_full(&id) {
             LookupResult {
-                name,
+                span: var.span,
                 kind: LookupResultKind::EarlyBound { idx: idx as u32, sort: sort.clone() },
             }
         } else {
-            span_bug!(name.span(), "no entry found for key: `{:?}`", name);
+            span_bug!(var.span, "no entry found for key: `{:?}`", id);
         }
     }
 
@@ -1033,8 +1036,18 @@ impl ConvCtxt<'_, '_, '_> {
         let fhir_id = expr.fhir_id;
         let espan = Some(ESpan::new(expr.span));
         let expr = match &expr.kind {
-            fhir::ExprKind::Const(did, _) => rty::Expr::const_def_id(*did, espan),
-            fhir::ExprKind::Var(var, _) => env.lookup(*var).to_expr(),
+            fhir::ExprKind::Var(var, _) => {
+                match var.res {
+                    ExprRes::Param(..) => env.lookup(var).to_expr(),
+                    ExprRes::Const(def_id) => rty::Expr::const_def_id(def_id, espan),
+                    ExprRes::NumConst(num) => {
+                        rty::Expr::constant_at(rty::Constant::from(num), espan)
+                    }
+                    ExprRes::GlobalFunc(..) => {
+                        span_bug!(var.span, "unexpected func in var position")
+                    }
+                }
+            }
             fhir::ExprKind::Literal(lit) => rty::Expr::constant_at(conv_lit(*lit), espan),
             fhir::ExprKind::BinaryOp(op, e1, e2) => {
                 rty::Expr::binary_op(
@@ -1061,7 +1074,7 @@ impl ConvCtxt<'_, '_, '_> {
                     espan,
                 )
             }
-            fhir::ExprKind::Dot(var, fld) => env.lookup(*var).get_field(*fld),
+            fhir::ExprKind::Dot(var, fld) => env.lookup(var).get_field(*fld),
         };
         Ok(self.add_coercions(expr, fhir_id))
     }
@@ -1094,12 +1107,13 @@ impl ConvCtxt<'_, '_, '_> {
             .clone()
     }
 
-    fn conv_func(&self, env: &Env, func: &fhir::Func) -> rty::Expr {
-        let expr = match func {
-            fhir::Func::Var(ident, _) => env.lookup(*ident).to_expr(),
-            fhir::Func::Global(sym, kind, ..) => rty::Expr::global_func(*sym, *kind),
+    fn conv_func(&self, env: &Env, func: &fhir::PathExpr) -> rty::Expr {
+        let expr = match func.res {
+            ExprRes::Param(..) => env.lookup(func).to_expr(),
+            ExprRes::GlobalFunc(kind, sym) => rty::Expr::global_func(sym, kind),
+            _ => span_bug!(func.span, "unexpected path in function position"),
         };
-        self.add_coercions(expr, func.fhir_id())
+        self.add_coercions(expr, func.fhir_id)
     }
 
     fn conv_exprs(&self, env: &mut Env, exprs: &[fhir::Expr]) -> QueryResult<List<rty::Expr>> {
@@ -1158,7 +1172,7 @@ impl Layer {
                 if !filter_unit || !matches!(entry, Entry::Unit) {
                     idx += 1;
                 }
-                (param.name(), entry)
+                (param.id, entry)
             })
             .collect();
         Self { map, filter_unit, kind }
@@ -1181,7 +1195,7 @@ impl Layer {
         Self { map: FxIndexMap::default(), filter_unit: false, kind: LayerKind::List }
     }
 
-    fn get(&self, name: impl Borrow<fhir::Name>, level: u32) -> Option<LookupResultKind> {
+    fn get(&self, name: impl Borrow<fhir::ParamId>, level: u32) -> Option<LookupResultKind> {
         Some(LookupResultKind::LateBoundList {
             level,
             entry: self.map.get(name.borrow())?,
@@ -1274,9 +1288,9 @@ impl LookupResult<'_> {
     }
 
     fn to_path(&self) -> rty::Path {
-        self.to_expr().to_path().unwrap_or_else(|| {
-            span_bug!(self.name.span(), "expected path, found `{:?}`", self.to_expr())
-        })
+        self.to_expr()
+            .to_path()
+            .unwrap_or_else(|| span_bug!(self.span, "expected path, found `{:?}`", self.to_expr()))
     }
 
     fn get_field(&self, fld: SurfaceIdent) -> rty::Expr {

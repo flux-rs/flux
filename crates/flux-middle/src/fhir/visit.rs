@@ -1,8 +1,8 @@
 use super::{
     AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
-    FnSig, FuncSort, GenericArg, Generics, Ident, Lifetime, Lit, Path, PathSegment, PolyFuncSort,
-    QPath, RefineArg, RefineArgKind, RefineParam, Sort, SortPath, StructDef, Ty, TyKind,
-    TypeBinding, VariantDef, VariantRet,
+    FnSig, FuncSort, GenericArg, Generics, Lifetime, Lit, Path, PathExpr, PathSegment,
+    PolyFuncSort, QPath, RefineArg, RefineArgKind, RefineParam, Sort, SortPath, StructDef, Ty,
+    TyKind, TypeBinding, VariantDef, VariantRet,
 };
 
 #[macro_export]
@@ -122,7 +122,7 @@ pub trait Visitor: Sized {
 
     fn visit_literal(&mut self, _lit: &Lit) {}
 
-    fn visit_ident(&mut self, _ident: Ident) {}
+    fn visit_path_expr(&mut self, _path: &PathExpr) {}
 }
 
 pub fn walk_struct_def<V: Visitor>(vis: &mut V, struct_def: &StructDef) {
@@ -168,15 +168,13 @@ pub fn walk_fn_decl<V: Visitor>(vis: &mut V, decl: &FnDecl) {
 }
 
 pub fn walk_refine_param<V: Visitor>(vis: &mut V, param: &RefineParam) {
-    let RefineParam { ident, sort, kind: _, fhir_id: _ } = param;
-    vis.visit_ident(*ident);
-    vis.visit_sort(sort);
+    vis.visit_sort(&param.sort);
 }
 
 pub fn walk_constraint<V: Visitor>(vis: &mut V, constraint: &Constraint) {
     match constraint {
-        Constraint::Type(loc, ty, _) => {
-            vis.visit_ident(*loc);
+        Constraint::Type(loc, ty) => {
+            vis.visit_path_expr(loc);
             vis.visit_ty(ty);
         }
         Constraint::Pred(p) => vis.visit_expr(p),
@@ -213,7 +211,7 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
         }
         TyKind::Ptr(lft, loc) => {
             vis.visit_lifetime(&lft);
-            vis.visit_ident(loc);
+            vis.visit_path_expr(&loc);
         }
         TyKind::Ref(lft, mty) => {
             vis.visit_lifetime(&lft);
@@ -310,10 +308,9 @@ pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasReft) {
 
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
     match expr.kind {
-        ExprKind::Const(_def_id, _span) => {}
-        ExprKind::Var(var, _) => vis.visit_ident(var),
-        ExprKind::Dot(base, _fld) => {
-            vis.visit_ident(base);
+        ExprKind::Var(path, _) => vis.visit_path_expr(&path),
+        ExprKind::Dot(path, _fld) => {
+            vis.visit_path_expr(&path);
         }
         ExprKind::Literal(lit) => vis.visit_literal(&lit),
         ExprKind::BinaryOp(_op, e1, e2) => {

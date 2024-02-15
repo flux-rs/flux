@@ -84,9 +84,9 @@ fhir_analysis_invalid_base_instance =
     values of this type cannot be used as base sorted instances
 
 fhir_analysis_param_not_determined =
-    parameter `{$sym}` cannot be determined
+    parameter `{$name}` cannot be determined
     .label = undetermined parameter
-    .help = try indexing a type with `{$sym}` in a position that fully determines its value
+    .help = try indexing a type with `{$name}` in a position that fully determines its value
 
 fhir_analysis_sort_annotation_needed =
     sort annotation needed
