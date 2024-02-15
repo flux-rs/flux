@@ -390,8 +390,8 @@ impl<D: GenericsSubstDelegate> TypeFolder for GenericsSubstFolder<'_, D> {
     }
 
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
-        if let ExprKind::Var(Var::EarlyBound(idx)) = expr.kind() {
-            self.expr_for_param(*idx)
+        if let ExprKind::Var(Var::EarlyParam(var)) = expr.kind() {
+            self.expr_for_param(var.index)
         } else {
             expr.super_fold_with(self)
         }

@@ -306,7 +306,7 @@ impl Env {
                     span_bug!(dbg_span, "no entry found for late bound var: `{var:?}`")
                 })
             }
-            rty::Var::EarlyBound(_) | rty::Var::EVar(_) => {
+            rty::Var::EarlyParam(_) | rty::Var::EVar(_) => {
                 span_bug!(dbg_span, "unexpected var: `{var:?}`")
             }
         }

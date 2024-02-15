@@ -1068,7 +1068,7 @@ impl TypeVisitable for Var {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
         match self {
             Var::Free(name) => visitor.visit_fvar(*name),
-            Var::LateBound(_, _) | Var::EarlyBound(_) | Var::EVar(_) => ControlFlow::Continue(()),
+            Var::LateBound(_, _) | Var::EarlyParam(_) | Var::EVar(_) => ControlFlow::Continue(()),
         }
     }
 }

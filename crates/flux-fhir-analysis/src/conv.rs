@@ -30,7 +30,7 @@ use rustc_middle::{
     mir::Local,
     ty::{AssocItem, AssocKind, BoundVar},
 };
-use rustc_span::{symbol::kw, Span};
+use rustc_span::{symbol::kw, Span, Symbol};
 use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'genv, 'tcx> {
@@ -40,7 +40,7 @@ pub struct ConvCtxt<'a, 'genv, 'tcx> {
 
 pub(crate) struct Env {
     layers: Vec<Layer>,
-    early_bound: FxIndexMap<fhir::ParamId, rty::Sort>,
+    early_bound: FxIndexMap<fhir::ParamId, (Symbol, rty::Sort)>,
 }
 
 #[derive(Debug, Clone)]
@@ -81,7 +81,7 @@ struct LookupResult<'a> {
 #[derive(Debug)]
 enum LookupResultKind<'a> {
     LateBoundList { level: u32, entry: &'a Entry, kind: LayerKind },
-    EarlyBound { idx: u32, sort: rty::Sort },
+    EarlyParam { idx: u32, name: Symbol, sort: rty::Sort },
 }
 
 pub(crate) fn conv_adt_sort_def(
@@ -986,7 +986,10 @@ impl Env {
     ) -> Self {
         let early_bound = early_bound
             .iter()
-            .map(|param| (param.id, resolve_param_sort(genv, param, Some(wfckresults)).clone()))
+            .map(|param| {
+                let sort = resolve_param_sort(genv, param, Some(wfckresults)).clone();
+                (param.id, (param.name, sort))
+            })
             .collect();
         Self { layers: vec![], early_bound }
     }
@@ -1014,10 +1017,14 @@ impl Env {
                 return LookupResult { span: var.span, kind };
             }
         }
-        if let Some((idx, _, sort)) = self.early_bound.get_full(&id) {
+        if let Some((idx, _, (name, sort))) = self.early_bound.get_full(&id) {
             LookupResult {
                 span: var.span,
-                kind: LookupResultKind::EarlyBound { idx: idx as u32, sort: sort.clone() },
+                kind: LookupResultKind::EarlyParam {
+                    idx: idx as u32,
+                    name: *name,
+                    sort: sort.clone(),
+                },
             }
         } else {
             span_bug!(var.span, "no entry found for key: `{:?}`", id);
@@ -1025,8 +1032,10 @@ impl Env {
     }
 
     fn to_early_bound_vars(&self) -> List<rty::Expr> {
-        (0..self.early_bound.len())
-            .map(|idx| rty::Expr::early_bvar(idx as u32))
+        self.early_bound
+            .iter()
+            .enumerate()
+            .map(|(idx, (_, (name, _)))| rty::Expr::early_param(idx as u32, *name))
             .collect()
     }
 }
@@ -1269,7 +1278,7 @@ impl LookupResult<'_> {
                 }
             }
             LookupResultKind::LateBoundList { entry: Entry::Unit, .. } => rty::Expr::unit(),
-            LookupResultKind::EarlyBound { idx, .. } => rty::Expr::early_bvar(*idx),
+            LookupResultKind::EarlyParam { idx, name, .. } => rty::Expr::early_param(*idx, *name),
         }
     }
 
@@ -1279,7 +1288,7 @@ impl LookupResult<'_> {
                 entry: Entry::Sort { sort: rty::Sort::App(rty::SortCtor::Adt(sort_def), _), .. },
                 ..
             } => Some(sort_def),
-            LookupResultKind::EarlyBound {
+            LookupResultKind::EarlyParam {
                 sort: rty::Sort::App(rty::SortCtor::Adt(sort_def), _),
                 ..
             } => Some(sort_def),

@@ -232,10 +232,16 @@ pub struct KVar {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+pub struct EarlyParamVar {
+    pub index: u32,
+    pub name: Symbol,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Var {
     Free(Name),
     LateBound(DebruijnIndex, u32),
-    EarlyBound(u32),
+    EarlyParam(EarlyParamVar),
     EVar(EVar),
 }
 
@@ -374,8 +380,8 @@ impl Expr {
         Var::LateBound(bvar, idx).to_expr()
     }
 
-    pub fn early_bvar(idx: u32) -> Expr {
-        Var::EarlyBound(idx).to_expr()
+    pub fn early_param(index: u32, name: Symbol) -> Expr {
+        Var::EarlyParam(EarlyParamVar { index, name }).to_expr()
     }
 
     pub fn local(local: Local, espan: Option<ESpan>) -> Expr {
@@ -964,7 +970,7 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 Var::LateBound(bvar, idx) => w!("({:?}.{})", bvar, ^idx),
-                Var::EarlyBound(idx) => w!("#{}", ^idx),
+                Var::EarlyParam(var) => w!("{}", ^var.name),
                 Var::Free(name) => w!("{:?}", ^name),
                 Var::EVar(evar) => w!("{:?}", evar),
             }
