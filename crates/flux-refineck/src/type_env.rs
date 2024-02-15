@@ -7,12 +7,12 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        box_args,
+        canonicalize::Hoister,
         evars::EVarSol,
-        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
+        fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
-        BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path,
-        PtrKind, Region, SortCtor, Ty, TyKind, INNERMOST,
+        BaseTy, Binder, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path, PtrKind, Region,
+        SortCtor, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -543,9 +543,9 @@ impl BasicBlockEnvShape {
     pub fn into_bb_env(self, kvar_store: &mut KVarStore) -> BasicBlockEnv {
         let mut bindings = self.bindings;
 
-        let mut generalizer = Generalizer::new();
-        bindings.fmap_mut(|ty| generalizer.generalize(ty));
-        let (vars, preds) = generalizer.into_parts();
+        let mut hoister = Hoister::default();
+        bindings.fmap_mut(|ty| hoister.hoist(ty));
+        let (vars, preds) = hoister.into_parts();
 
         // Replace all holes with a single fresh kvar on all parameters
         let mut constrs = preds
@@ -571,63 +571,6 @@ impl BasicBlockEnvShape {
         let data = BasicBlockEnvData { constrs: constrs.into(), bindings };
 
         BasicBlockEnv { data: Binder::new(data, vars), scope: self.scope }
-    }
-}
-
-struct Generalizer {
-    vars: Vec<BoundVariableKind>,
-    preds: Vec<Expr>,
-}
-
-impl Generalizer {
-    fn new() -> Self {
-        Self { vars: vec![], preds: vec![] }
-    }
-
-    fn into_parts(self) -> (List<BoundVariableKind>, Vec<Expr>) {
-        (List::from_vec(self.vars), self.preds)
-    }
-
-    fn generalize(&mut self, ty: &Ty) -> Ty {
-        ty.fold_with(self)
-    }
-}
-
-impl TypeFolder for Generalizer {
-    fn fold_ty(&mut self, ty: &Ty) -> Ty {
-        match ty.kind() {
-            TyKind::Exists(ty) => {
-                ty.replace_bound_exprs_with(|sort, mode| {
-                    let idx = self.vars.len();
-                    self.vars
-                        .push(BoundVariableKind::Refine(sort.clone(), mode));
-                    Expr::late_bvar(INNERMOST, idx as u32)
-                })
-                .fold_with(self)
-            }
-            TyKind::Constr(pred, ty) => {
-                self.preds.push(pred.clone());
-                ty.fold_with(self)
-            }
-            _ => ty.clone(),
-        }
-    }
-
-    fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
-        match bty {
-            BaseTy::Adt(adt_def, args) if adt_def.is_box() => {
-                let (boxed, alloc) = box_args(args);
-                let args = List::from_arr([
-                    GenericArg::Ty(boxed.fold_with(self)),
-                    GenericArg::Ty(alloc.clone()),
-                ]);
-                BaseTy::Adt(adt_def.clone(), args)
-            }
-            BaseTy::Ref(re, ty, Mutability::Not) => {
-                BaseTy::Ref(*re, ty.fold_with(self), Mutability::Not)
-            }
-            _ => bty.clone(),
-        }
     }
 }
 
