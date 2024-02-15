@@ -10,7 +10,7 @@ use std::iter;
 use flux_common::{iter::IterExt, span_bug};
 use flux_errors::{FluxSession, ResultExt};
 use flux_middle::{
-    fhir::{self, FluxOwnerId, SurfaceIdent},
+    fhir::{self, ExprRes, FluxOwnerId, SurfaceIdent},
     global_env::GlobalEnv,
     rty::{self, GenericParamDefKind, WfckResults},
 };
@@ -42,7 +42,7 @@ struct Wf<'genv, 'tcx> {
 ///
 /// [Focusing on Liquid Refinement Typing]: https://arxiv.org/pdf/2209.13000.pdf
 #[derive(Default)]
-struct XiCtxt(SnapshotMap<fhir::Name, ()>);
+struct XiCtxt(SnapshotMap<fhir::ParamId, ()>);
 
 pub(crate) fn check_qualifier<'genv>(
     genv: GlobalEnv<'genv, '_>,
@@ -156,7 +156,7 @@ pub(crate) fn check_opaque_ty<'genv>(
         let wfckresults = genv.check_wf(parent).emit(genv.sess())?;
         for param in generics.refinement_params {
             let sort = wfckresults.node_sorts().get(param.fhir_id).unwrap().clone();
-            infcx.insert_param(param.name(), sort, param.kind);
+            infcx.insert_param(param.id, sort, param.kind);
         }
     }
     wf.check_opaque_ty(&mut infcx, opaque_ty)?;
@@ -234,9 +234,9 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
         params: &[fhir::RefineParam],
     ) -> Result {
         params.iter().try_for_each_exhaust(|param| {
-            let determined = self.xi.remove(param.name());
-            if infcx.infer_mode(param.ident) == fhir::InferMode::EVar && !determined {
-                return self.emit_err(errors::ParamNotDetermined::new(param.ident));
+            let determined = self.xi.remove(param.id);
+            if infcx.infer_mode(param.id) == fhir::InferMode::EVar && !determined {
+                return self.emit_err(errors::ParamNotDetermined::new(param.span, param.name));
             }
             Ok(())
         })
@@ -320,7 +320,8 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
             .iter()
             .try_for_each_exhaust(|constr| {
                 if let fhir::Constraint::Type(loc, ..) = constr
-                    && !output_locs.insert(loc.name)
+                    && let (_, id) = loc.res.expect_param()
+                    && !output_locs.insert(id)
                 {
                     self.emit_err(errors::DuplicatedEnsures::new(loc))
                 } else {
@@ -330,7 +331,8 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
 
         fn_decl.requires.iter().try_for_each_exhaust(|constr| {
             if let fhir::Constraint::Type(loc, ..) = constr
-                && !output_locs.contains(&loc.name)
+                && let (_, id) = loc.res.expect_param()
+                && !output_locs.contains(&id)
             {
                 self.emit_err(errors::MissingEnsures::new(loc))
             } else {
@@ -341,8 +343,8 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
 
     fn check_constraint(&mut self, infcx: &mut InferCtxt, constr: &fhir::Constraint) -> Result {
         match constr {
-            fhir::Constraint::Type(loc, ty, _) => {
-                [infcx.check_loc(*loc), self.check_type(infcx, ty)]
+            fhir::Constraint::Type(loc, ty) => {
+                [infcx.check_loc(loc), self.check_type(infcx, ty)]
                     .into_iter()
                     .try_collect_exhaust()
             }
@@ -368,8 +370,9 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
                 self.check_params_are_determined(infcx, params)
             }
             fhir::TyKind::Ptr(_, loc) => {
-                self.xi.insert(loc.name);
-                infcx.check_loc(*loc)
+                let (_, id) = loc.res.expect_param();
+                self.xi.insert(id);
+                infcx.check_loc(loc)
             }
             fhir::TyKind::Tuple(tys) => {
                 tys.iter()
@@ -524,7 +527,9 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
         match &arg.kind {
             fhir::RefineArgKind::Expr(expr) => {
                 if let fhir::ExprKind::Var(var, _) = &expr.kind {
-                    self.xi.insert(var.name);
+                    if let ExprRes::Param(_, id) = var.res {
+                        self.xi.insert(id);
+                    }
                 } else {
                     self.check_param_uses_expr(infcx, expr, false)?;
                 }
@@ -554,13 +559,11 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
             fhir::ExprKind::UnaryOp(_, e) => self.check_param_uses_expr(infcx, e, false),
             fhir::ExprKind::App(func, args) => {
                 if !is_top_level_conj
-                    && let fhir::Func::Var(var, _) = func
-                    && let fhir::InferMode::KVar = infcx.infer_mode(var)
+                    && let ExprRes::Param(_, id) = func.res
+                    && let fhir::InferMode::KVar = infcx.infer_mode(id)
                 {
-                    return self.emit_err(errors::InvalidParamPos::new(
-                        var.span(),
-                        &infcx.lookup_var(var),
-                    ));
+                    return self
+                        .emit_err(errors::InvalidParamPos::new(func.span, &infcx.param_sort(id)));
                 }
                 args.iter()
                     .try_for_each_exhaust(|arg| self.check_param_uses_expr(infcx, arg, false))
@@ -572,8 +575,10 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
                     .try_for_each_exhaust(|arg| self.check_param_uses_expr(infcx, arg, false))
             }
             fhir::ExprKind::Var(var, _) => {
-                if let sort @ rty::Sort::Func(_) = &infcx.lookup_var(var) {
-                    return self.emit_err(errors::InvalidParamPos::new(var.span(), sort));
+                if let ExprRes::Param(_, id) = var.res
+                    && let sort @ rty::Sort::Func(_) = infcx.param_sort(id)
+                {
+                    return self.emit_err(errors::InvalidParamPos::new(var.span, &sort));
                 }
                 Ok(())
             }
@@ -582,10 +587,12 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
                 self.check_param_uses_expr(infcx, e3, false)?;
                 self.check_param_uses_expr(infcx, e2, false)
             }
-            fhir::ExprKind::Literal(_) | fhir::ExprKind::Const(_, _) => Ok(()),
+            fhir::ExprKind::Literal(_) => Ok(()),
             fhir::ExprKind::Dot(var, _) => {
-                if let sort @ rty::Sort::Func(_) = &infcx.lookup_var(var) {
-                    return self.emit_err(errors::InvalidParamPos::new(var.span(), sort));
+                if let ExprRes::Param(_, id) = var.res
+                    && let sort @ rty::Sort::Func(_) = &infcx.param_sort(id)
+                {
+                    return self.emit_err(errors::InvalidParamPos::new(var.span, sort));
                 }
                 Ok(())
             }
@@ -605,12 +612,12 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
 }
 
 impl XiCtxt {
-    fn insert(&mut self, name: fhir::Name) {
-        self.0.insert(name, ());
+    fn insert(&mut self, id: fhir::ParamId) {
+        self.0.insert(id, ());
     }
 
-    fn remove(&mut self, name: fhir::Name) -> bool {
-        self.0.remove(name)
+    fn remove(&mut self, id: fhir::ParamId) -> bool {
+        self.0.remove(id)
     }
 
     fn snapshot(&mut self) -> snapshot_map::Snapshot {

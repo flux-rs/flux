@@ -284,7 +284,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         let mut infcx = self.infcx(rcx, ConstrReason::Ret);
 
         let output =
-            output.replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
+            output.replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
 
         infcx.subtyping(rcx, &ret_place_ty, &output.ret)?;
         for constraint in &output.ensures {
@@ -314,7 +314,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
 
         let variant = variant
             .instantiate(&generic_args, &[])
-            .replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
+            .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
 
         // Check arguments
         for (actual, formal) in iter::zip(fields, variant.fields()) {
@@ -517,7 +517,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
             (_, TyKind::Exists(ty2)) => {
                 self.push_scope(rcx);
                 let ty2 =
-                    ty2.replace_bound_exprs_with(|sort, mode| self.fresh_infer_var(sort, mode));
+                    ty2.replace_bound_refts_with(|sort, mode, _| self.fresh_infer_var(sort, mode));
                 self.subtyping(rcx, &ty1, &ty2)?;
                 self.pop_scope();
                 Ok(())
@@ -826,7 +826,7 @@ mod pretty {
     use super::*;
 
     impl Pretty for Tag {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?} at {:?}", ^self.reason, self.src_span)
         }

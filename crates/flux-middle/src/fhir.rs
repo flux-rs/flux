@@ -459,12 +459,7 @@ pub struct FnOutput<'fhir> {
 #[derive(Clone, Copy)]
 pub enum Constraint<'fhir> {
     /// A type constraint on a location
-    Type(
-        Ident,
-        Ty<'fhir>,
-        /// The index of the argument corresponding to the constraint.
-        usize,
-    ),
+    Type(PathExpr<'fhir>, Ty<'fhir>),
     /// A predicate that needs to hold
     Pred(Expr<'fhir>),
 }
@@ -492,7 +487,7 @@ pub enum TyKind<'fhir> {
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr<'fhir>, &'fhir Ty<'fhir>),
-    Ptr(Lifetime, Ident),
+    Ptr(Lifetime, PathExpr<'fhir>),
     Ref(Lifetime, MutTy<'fhir>),
     Tuple(&'fhir [Ty<'fhir>]),
     Array(&'fhir Ty<'fhir>, ArrayLen),
@@ -565,11 +560,13 @@ pub struct RefineArg<'fhir> {
 }
 
 impl<'fhir> RefineArg<'fhir> {
-    pub fn is_colon_param(&self) -> Option<Ident> {
+    pub fn is_colon_param(&self) -> Option<ParamId> {
         if let RefineArgKind::Expr(expr) = &self.kind
-            && let ExprKind::Var(var, Some(ParamKind::Colon)) = &expr.kind
+            && let ExprKind::Var(path, Some(ParamKind::Colon)) = &expr.kind
+            && let ExprRes::Param(kind, id) = path.res
         {
-            Some(*var)
+            debug_assert_eq!(kind, ParamKind::Colon);
+            Some(id)
         } else {
             None
         }
@@ -645,23 +642,19 @@ pub enum Res {
 
 #[derive(Debug, Clone, Copy)]
 pub struct RefineParam<'fhir> {
-    pub ident: Ident,
+    pub id: ParamId,
+    pub name: Symbol,
+    pub span: Span,
     pub sort: Sort<'fhir>,
     pub kind: ParamKind,
     pub fhir_id: FhirId,
-}
-
-impl<'fhir> RefineParam<'fhir> {
-    pub fn name(&self) -> Name {
-        self.ident.name
-    }
 }
 
 /// How the parameter was declared in the surface syntax. This is used to adjust how errors are
 /// reported and to control the [inference mode].
 ///
 /// [inference mode]: InferMode
-#[derive(Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum ParamKind {
     /// A parameter declared in an explicit scope, e.g., `fn foo<refine n: int>(x: i32[n])`
     Explicit,
@@ -799,23 +792,14 @@ pub struct Expr<'fhir> {
 
 #[derive(Clone, Copy)]
 pub enum ExprKind<'fhir> {
-    Const(DefId, Span),
-    Var(Ident, Option<ParamKind>),
-    Dot(Ident, SurfaceIdent),
+    Var(PathExpr<'fhir>, Option<ParamKind>),
+    Dot(PathExpr<'fhir>, SurfaceIdent),
     Literal(Lit),
     BinaryOp(BinOp, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     UnaryOp(UnOp, &'fhir Expr<'fhir>),
-    App(Func, &'fhir [Expr<'fhir>]),
+    App(PathExpr<'fhir>, &'fhir [Expr<'fhir>]),
     Alias(AliasReft<'fhir>, &'fhir [Expr<'fhir>]),
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
-}
-
-#[derive(Clone, Copy)]
-pub enum Func {
-    /// A function coming from a refinement parameter.
-    Var(Ident, FhirId),
-    /// A _global_ function symbol (including possibly theory symbols).
-    Global(Symbol, SpecFuncKind, Span, FhirId),
 }
 
 #[derive(Clone, Copy)]
@@ -827,15 +811,43 @@ pub enum Lit {
 
 pub type SurfaceIdent = rustc_span::symbol::Ident;
 
+#[derive(Clone, Copy, Debug)]
+pub enum ExprRes<Id = ParamId> {
+    Param(ParamKind, Id),
+    Const(DefId),
+    NumConst(i128),
+    GlobalFunc(SpecFuncKind, Symbol),
+}
+
+impl<Id> ExprRes<Id> {
+    pub fn expect_param(self) -> (ParamKind, Id) {
+        if let ExprRes::Param(kind, id) = self {
+            (kind, id)
+        } else {
+            bug!("expected param")
+        }
+    }
+
+    pub fn expect_loc_param(self) -> (usize, Id) {
+        if let ExprRes::Param(ParamKind::Loc(idx), id) = self {
+            (idx, id)
+        } else {
+            bug!("expected loc")
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
-pub struct Ident {
-    pub name: Name,
-    pub source_info: SurfaceIdent,
+pub struct PathExpr<'fhir> {
+    pub segments: &'fhir [SurfaceIdent],
+    pub res: ExprRes,
+    pub fhir_id: FhirId,
+    pub span: Span,
 }
 
 newtype_index! {
     #[debug_format = "a{}"]
-    pub struct Name {}
+    pub struct ParamId {}
 }
 
 impl<'fhir> PolyTraitRef<'fhir> {
@@ -937,31 +949,8 @@ impl<'fhir> From<QPath<'fhir>> for BaseTy<'fhir> {
     }
 }
 
-impl Func {
-    pub fn fhir_id(&self) -> FhirId {
-        match self {
-            Func::Var(_, fhir_id) => *fhir_id,
-            Func::Global(_, _, _, fhir_id) => *fhir_id,
-        }
-    }
-}
-
 impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
-}
-
-impl Ident {
-    pub fn new(name: Name, source_info: SurfaceIdent) -> Self {
-        Ident { name, source_info }
-    }
-
-    pub fn span(&self) -> Span {
-        self.source_info.span
-    }
-
-    pub fn sym(&self) -> Symbol {
-        self.source_info.name
-    }
 }
 
 /// Information about the refinement parameters associated with a type alias or a struct/enum.
@@ -1104,7 +1093,7 @@ impl fmt::Debug for FnDecl<'_> {
                     .refinement_params
                     .iter()
                     .format_with(", ", |param, f| {
-                        f(&format_args!("{:?}: {:?}", param.ident, param.sort))
+                        f(&format_args!("{}: {:?}", param.name, param.sort))
                     })
             )?;
         }
@@ -1122,7 +1111,7 @@ impl fmt::Debug for FnOutput<'_> {
                 f,
                 "exists<{}> ",
                 self.params.iter().format_with(", ", |param, f| {
-                    f(&format_args!("{:?}: {:?}", param.ident, param.sort))
+                    f(&format_args!("{}: {:?}", param.name, param.sort))
                 })
             )?;
         }
@@ -1138,7 +1127,7 @@ impl fmt::Debug for FnOutput<'_> {
 impl fmt::Debug for Constraint<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constraint::Type(loc, ty, _idx) => write!(f, "{loc:?}: {ty:?}"),
+            Constraint::Type(loc, ty) => write!(f, "{loc:?}: {ty:?}"),
             Constraint::Pred(e) => write!(f, "{e:?}"),
         }
     }
@@ -1155,7 +1144,7 @@ impl fmt::Debug for Ty<'_> {
                     f,
                     "{}",
                     params.iter().format_with(",", |param, f| {
-                        f(&format_args!("{:?}:{:?}", param.ident, param.sort))
+                        f(&format_args!("{}:{:?}", param.name, param.sort))
                     })
                 )?;
                 if let TyKind::Constr(pred, ty) = &ty.kind {
@@ -1271,7 +1260,7 @@ impl fmt::Debug for RefineArg<'_> {
                     f,
                     "|{}| {body:?}",
                     params.iter().format_with(", ", |param, f| {
-                        f(&format_args!("{:?}: {:?}", param.ident, param.sort))
+                        f(&format_args!("{}: {:?}", param.name, param.sort))
                     })
                 )
             }
@@ -1302,7 +1291,6 @@ impl fmt::Debug for Expr<'_> {
             ExprKind::BinaryOp(op, e1, e2) => write!(f, "({e1:?} {op:?} {e2:?})"),
             ExprKind::UnaryOp(op, e) => write!(f, "{op:?}{e:?}"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
-            ExprKind::Const(x, _) => write!(f, "{}", pretty::def_id_to_string(*x)),
             ExprKind::App(uf, es) => write!(f, "{uf:?}({:?})", es.iter().format(", ")),
             ExprKind::Alias(alias, refine_args) => {
                 write!(f, "{alias:?}({:?})", refine_args.iter().format(", "))
@@ -1315,18 +1303,9 @@ impl fmt::Debug for Expr<'_> {
     }
 }
 
-impl fmt::Debug for Func {
+impl fmt::Debug for PathExpr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Var(func, _) => write!(f, "{func:?}"),
-            Self::Global(sym, ..) => write!(f, "{sym}"),
-        }
-    }
-}
-
-impl fmt::Debug for Ident {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.name)
+        write!(f, "{}", self.segments.iter().format("::"))
     }
 }
 

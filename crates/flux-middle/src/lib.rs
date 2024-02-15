@@ -231,27 +231,14 @@ pub type ScopeId = NodeId;
 pub struct ResolverOutput {
     pub path_res_map: UnordMap<NodeId, fhir::Res>,
     pub impl_trait_res_map: UnordMap<NodeId, hir::ItemId>,
-    /// Resolution of parameters both explicit and implicit. The [`fhir::Name`] is unique per item.
+    /// Resolution of parameters both explicit and implicit. The [`fhir::ParamId`] is unique per item.
     /// The [`NodeId`] correspond to the node introducing the parameter. When explicit, this is the
     /// id of the [`surface::GenericArg`] or [`surface::RefineParam`], when implicit, this is the id
     /// of the [`surface::RefineArg::Bind`] or [`surface::Arg`].
-    pub param_res_map: UnordMap<NodeId, (fhir::Name, fhir::ParamKind)>,
+    pub param_res_map: UnordMap<NodeId, (fhir::ParamId, fhir::ParamKind)>,
     /// List of implicit params defined in a scope. The [`NodeId`] is the id of the node introducing
     /// the scope, i.e., [`surface::FnSig`], [`surface::FnOutput`], or [`surface::VariantDef`].
     pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
     pub sort_path_res_map: UnordMap<NodeId, fhir::SortRes>,
-    pub path_expr_res_map: UnordMap<NodeId, PathRes>,
-}
-
-pub struct ResolvedParam {
-    pub ident: fhir::Ident,
-    pub kind: fhir::ParamKind,
-}
-
-#[derive(Clone, Copy)]
-pub enum PathRes<Id = fhir::Name> {
-    Param(fhir::ParamKind, Id),
-    Const(DefId),
-    NumConst(i128),
-    GlobalFunc(fhir::SpecFuncKind, Symbol),
+    pub path_expr_res_map: UnordMap<NodeId, fhir::ExprRes>,
 }

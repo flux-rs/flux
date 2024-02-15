@@ -513,7 +513,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .check_fn_call(rcx, env, did, fn_sig, generic_args, &actuals)
             .with_span(terminator_span)?;
 
-        let output = output.replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
+        let output = output.replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
         for constr in &output.ensures {
             match constr {

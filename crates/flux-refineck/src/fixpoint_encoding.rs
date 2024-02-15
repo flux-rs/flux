@@ -301,12 +301,12 @@ impl Env {
                 self.get_fvar(*name)
                     .unwrap_or_else(|| span_bug!(dbg_span, "no entry found for name: `{name:?}`"))
             }
-            rty::Var::LateBound(debruijn, idx) => {
-                self.get_late_bvar(*debruijn, *idx).unwrap_or_else(|| {
+            rty::Var::LateBound(debruijn, var) => {
+                self.get_late_bvar(*debruijn, var.index).unwrap_or_else(|| {
                     span_bug!(dbg_span, "no entry found for late bound var: `{var:?}`")
                 })
             }
-            rty::Var::EarlyBound(_) | rty::Var::EVar(_) => {
+            rty::Var::EarlyParam(_) | rty::Var::EVar(_) => {
                 span_bug!(dbg_span, "unexpected var: `{var:?}`")
             }
         }
@@ -676,11 +676,11 @@ impl KVarStore {
         let args = itertools::chain(
             binders.iter().rev().enumerate().flat_map(|(level, sorts)| {
                 let debruijn = DebruijnIndex::from_usize(level);
-                sorts
-                    .iter()
-                    .cloned()
-                    .enumerate()
-                    .map(move |(idx, sort)| (rty::Var::LateBound(debruijn, idx as u32), sort))
+                sorts.iter().cloned().enumerate().map(move |(index, sort)| {
+                    let var =
+                        rty::BoundReft { index: index as u32, kind: rty::BoundReftKind::Annon };
+                    (rty::Var::LateBound(debruijn, var), sort)
+                })
             }),
             scope
                 .iter()

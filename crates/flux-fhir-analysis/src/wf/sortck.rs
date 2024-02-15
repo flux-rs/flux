@@ -1,10 +1,10 @@
 use std::iter;
 
 use ena::unify::InPlaceUnificationTable;
-use flux_common::{bug, iter::IterExt};
+use flux_common::{bug, iter::IterExt, span_bug};
 use flux_errors::{ErrorCollector, ErrorGuaranteed};
 use flux_middle::{
-    fhir::{self, FhirId, FluxOwnerId},
+    fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     pretty,
     rty::{
@@ -25,7 +25,7 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(super) struct InferCtxt<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
-    params: UnordMap<fhir::Name, (rty::Sort, fhir::ParamKind)>,
+    params: UnordMap<fhir::ParamId, (rty::Sort, fhir::ParamKind)>,
     pub(super) sort_unification_table: InPlaceUnificationTable<rty::SortVid>,
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
     pub wfckresults: WfckResults<'genv>,
@@ -73,9 +73,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 )));
             }
             iter::zip(params, fsort.inputs()).try_for_each_exhaust(|(param, expected)| {
-                let found = self.lookup_var(param.ident);
+                let found = self.param_sort(param.id);
                 if self.try_equate(&found, expected).is_none() {
-                    return Err(self.emit_sort_mismatch(param.ident.span(), expected, &found));
+                    return Err(self.emit_sort_mismatch(param.span, expected, &found));
                 }
                 Ok(())
             })?;
@@ -134,7 +134,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::Dot(..)
             | fhir::ExprKind::App(..)
             | fhir::ExprKind::Alias(..)
-            | fhir::ExprKind::Const(..)
             | fhir::ExprKind::Var(..)
             | fhir::ExprKind::Literal(..) => {
                 let found = self.synth_expr(expr)?;
@@ -148,22 +147,21 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         Ok(())
     }
 
-    pub(super) fn check_loc(&mut self, loc: fhir::Ident) -> Result {
-        let found = self.lookup_var(loc);
+    pub(super) fn check_loc(&mut self, loc: &fhir::PathExpr) -> Result {
+        let found = self.synth_var(loc);
         if found == rty::Sort::Loc {
             Ok(())
         } else {
-            Err(self.emit_sort_mismatch(loc.span(), &rty::Sort::Loc, &found))
+            Err(self.emit_sort_mismatch(loc.span, &rty::Sort::Loc, &found))
         }
     }
 
     fn synth_expr(&mut self, expr: &fhir::Expr) -> Result<rty::Sort> {
         match &expr.kind {
-            fhir::ExprKind::Var(var, _) => Ok(self.lookup_var(*var)),
+            fhir::ExprKind::Var(var, _) => Ok(self.synth_var(var)),
             fhir::ExprKind::Literal(lit) => Ok(synth_lit(*lit)),
             fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, *op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
-            fhir::ExprKind::Const(_, _) => Ok(rty::Sort::Int), // TODO: generalize const sorts
             fhir::ExprKind::App(f, es) => self.synth_app(f, es, expr.span),
             fhir::ExprKind::Alias(alias, func_args) => {
                 self.synth_alias_reft_app(alias, func_args, expr.span)
@@ -175,7 +173,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 Ok(sort)
             }
             fhir::ExprKind::Dot(var, fld) => {
-                let sort = self.ensure_resolved_var(*var)?;
+                let sort = self.ensure_resolved_var(var)?;
                 match &sort {
                     rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) => {
                         sort_def
@@ -187,6 +185,17 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     }
                     _ => Err(self.emit_field_not_found(&sort, *fld)),
                 }
+            }
+        }
+    }
+
+    fn synth_var(&mut self, path: &fhir::PathExpr) -> rty::Sort {
+        match path.res {
+            ExprRes::Param(_, id) => self.param_sort(id),
+            ExprRes::Const(_) => rty::Sort::Int, // TODO: generalize const sorts
+            ExprRes::NumConst(_) => rty::Sort::Int,
+            ExprRes::GlobalFunc(_, _) => {
+                span_bug!(path.span, "unexpected func in var position")
             }
         }
     }
@@ -254,7 +263,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn synth_app(
         &mut self,
-        func: &fhir::Func,
+        func: &fhir::PathExpr,
         args: &[fhir::Expr],
         span: Span,
     ) -> Result<rty::Sort> {
@@ -301,16 +310,17 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         Ok(fsort.output().clone())
     }
 
-    fn synth_func(&mut self, func: &fhir::Func) -> Result<rty::FuncSort> {
-        let poly_fsort = match func {
-            fhir::Func::Var(var, fhir_id) => {
-                let sort = self.ensure_resolved_var(*var)?;
-                let Some(fsort) = self.is_coercible_to_func(&sort, *fhir_id) else {
-                    return Err(self.emit_err(errors::ExpectedFun::new(var.span(), &sort)));
+    fn synth_func(&mut self, func: &fhir::PathExpr) -> Result<rty::FuncSort> {
+        let poly_fsort = match func.res {
+            ExprRes::Param(..) => {
+                let sort = self.ensure_resolved_var(func)?;
+                let Some(fsort) = self.is_coercible_to_func(&sort, func.fhir_id) else {
+                    return Err(self.emit_err(errors::ExpectedFun::new(func.span, &sort)));
                 };
                 fsort
             }
-            fhir::Func::Global(func, ..) => self.genv.func_decl(*func).sort.clone(),
+            ExprRes::GlobalFunc(.., sym) => self.genv.func_decl(sym).sort.clone(),
+            _ => span_bug!(func.span, "unexpected path in function position"),
         };
         Ok(self.instantiate_func_sort(poly_fsort))
     }
@@ -328,17 +338,17 @@ impl<'genv> InferCtxt<'genv, '_> {
     pub(super) fn insert_params(&mut self, params: &[fhir::RefineParam]) {
         for param in params {
             let sort = conv::conv_sort(self.genv, &param.sort, &mut || self.next_sort_var());
-            self.insert_param(param.name(), sort, param.kind);
+            self.insert_param(param.id, sort, param.kind);
         }
     }
 
     pub(super) fn insert_param(
         &mut self,
-        name: fhir::Name,
+        id: fhir::ParamId,
         sort: rty::Sort,
         kind: fhir::ParamKind,
     ) {
-        self.params.insert(name, (sort, kind));
+        self.params.insert(id, (sort, kind));
     }
 
     /// Whether a value of `sort1` can be automatically coerced to a value of `sort2`. A value of an
@@ -475,7 +485,7 @@ impl<'genv> InferCtxt<'genv, '_> {
     pub(crate) fn resolve_params_sorts(&mut self, params: &[fhir::RefineParam]) -> Result {
         params.iter().try_for_each_exhaust(|param| {
             if let fhir::Sort::Infer = param.sort {
-                let sort = self.lookup_var(param.ident);
+                let sort = self.param_sort(param.id);
                 match self.fully_resolve(&sort) {
                     Ok(sort) => {
                         self.wfckresults
@@ -491,14 +501,11 @@ impl<'genv> InferCtxt<'genv, '_> {
         })
     }
 
-    pub(crate) fn lookup_var(&mut self, var: fhir::Ident) -> rty::Sort {
-        self.params[&var.name].0.clone()
-    }
-
-    fn ensure_resolved_var(&mut self, var: fhir::Ident) -> Result<rty::Sort> {
-        let sort = self.params[&var.name].0.clone();
+    fn ensure_resolved_var(&mut self, path: &fhir::PathExpr) -> Result<rty::Sort> {
+        let ExprRes::Param(_, id) = path.res else { span_bug!(path.span, "unexpected path") };
+        let sort = self.param_sort(id);
         self.fully_resolve(&sort)
-            .map_err(|_| self.emit_err(errors::CannotInferSort::new(var.span())))
+            .map_err(|_| self.emit_err(errors::CannotInferSort::new(path.span)))
     }
 
     fn is_single_field_record(&mut self, sort: &rty::Sort) -> Option<(DefId, rty::Sort)> {
@@ -527,9 +534,13 @@ impl<'genv> InferCtxt<'genv, '_> {
         self.wfckresults
     }
 
-    pub(crate) fn infer_mode(&self, var: fhir::Ident) -> fhir::InferMode {
-        let (sort, kind) = &self.params[&var.name];
+    pub(crate) fn infer_mode(&self, id: fhir::ParamId) -> fhir::InferMode {
+        let (sort, kind) = &self.params[&id];
         sort.infer_mode(*kind)
+    }
+
+    pub(crate) fn param_sort(&self, id: fhir::ParamId) -> rty::Sort {
+        self.params[&id].0.clone()
     }
 
     fn shallow_resolve(&mut self, sort: &rty::Sort) -> rty::Sort {
@@ -564,7 +575,8 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
         match idx.kind {
             fhir::RefineArgKind::Expr(expr) => {
                 if let fhir::ExprKind::Var(var, Some(_)) = &expr.kind {
-                    let found = self.infcx.lookup_var(*var);
+                    let (_, id) = var.res.expect_param();
+                    let found = self.infcx.param_sort(id);
                     self.infcx.equate(&found, expected);
                 }
             }
@@ -602,8 +614,8 @@ impl fhir::visit::Visitor for ImplicitParamInferer<'_, '_, '_> {
         if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
             if let Some(expected) = self.infcx.genv.sort_of_bty(bty) {
                 self.infer_implicit_params(idx, &expected);
-            } else if let Some(var) = idx.is_colon_param() {
-                let found = self.infcx.lookup_var(var);
+            } else if let Some(id) = idx.is_colon_param() {
+                let found = self.infcx.param_sort(id);
                 self.infcx.equate(&found, &rty::Sort::Err);
             } else {
                 self.errors

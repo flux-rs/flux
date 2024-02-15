@@ -7,13 +7,13 @@
 //! [`fhir`]: flux_middle::fhir
 use std::iter;
 
-use flux_common::{bug, index::IndexGen, iter::IterExt};
+use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     fhir::{
         self,
         lift::{self, LiftCtxt},
-        Res,
+        ExprRes, Res,
     },
     global_env::GlobalEnv,
     rty::WfckResults,
@@ -94,7 +94,7 @@ struct Zipper<'zip, 'genv, 'tcx> {
     self_ty: Option<fhir::Ty<'genv>>,
 }
 
-type LocsMap<'genv> = UnordMap<fhir::Name, fhir::Ty<'genv>>;
+type LocsMap<'genv> = UnordMap<fhir::ParamId, fhir::Ty<'genv>>;
 
 impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
     fn new(
@@ -139,8 +139,11 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
 
     fn zip_constraints(&mut self, constrs: &[fhir::Constraint]) -> Result<(), ErrorGuaranteed> {
         constrs.iter().try_for_each_exhaust(|constr| {
-            if let fhir::Constraint::Type(loc, ty, _) = constr {
-                let expected_ty = self.locs[&loc.name];
+            if let fhir::Constraint::Type(loc, ty) = constr {
+                let ExprRes::Param(_, id) = loc.res else {
+                    span_bug!(loc.span, "unexpected path in loc position")
+                };
+                let expected_ty = self.locs[&id];
                 self.zip_ty(ty, &expected_ty)
             } else {
                 Ok(())
@@ -172,8 +175,11 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
             ) => self.zip_bty(&bty, &expected_bty),
             (fhir::TyKind::Ptr(lft, loc), fhir::TyKind::Ref(expected_lft, expected_mut_ty)) => {
                 if expected_mut_ty.mutbl.is_mut() {
+                    let ExprRes::Param(_, id) = loc.res else {
+                        span_bug!(loc.span, "unexpected path in loc position")
+                    };
                     self.zip_lifetime(lft, expected_lft);
-                    self.locs.insert(loc.name, *expected_mut_ty.ty);
+                    self.locs.insert(id, *expected_mut_ty.ty);
                     Ok(())
                 } else {
                     Err(self.emit_err(

@@ -7,7 +7,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        box_args,
+        self, box_args,
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
@@ -231,7 +231,7 @@ impl TypeEnv<'_> {
 
         let bb_env = bb_env
             .data
-            .replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
+            .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
 
         // Check constraints
         for constr in &bb_env.constrs {
@@ -489,7 +489,11 @@ impl BasicBlockEnvShape {
                     e1.clone()
                 } else {
                     bound_sorts.push(sort.clone());
-                    Expr::late_bvar(INNERMOST, (bound_sorts.len() - 1) as u32)
+                    Expr::late_bvar(
+                        INNERMOST,
+                        (bound_sorts.len() - 1) as u32,
+                        rty::BoundReftKind::Annon,
+                    )
                 }
             }
         }
@@ -597,11 +601,11 @@ impl TypeFolder for Generalizer {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(ty) => {
-                ty.replace_bound_exprs_with(|sort, mode| {
+                ty.replace_bound_refts_with(|sort, mode, kind| {
                     let idx = self.vars.len();
                     self.vars
-                        .push(BoundVariableKind::Refine(sort.clone(), mode));
-                    Expr::late_bvar(INNERMOST, idx as u32)
+                        .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
+                    Expr::late_bvar(INNERMOST, idx as u32, kind)
                 })
                 .fold_with(self)
             }
@@ -654,7 +658,7 @@ impl BasicBlockEnv {
     ) -> TypeEnv<'a> {
         let data = self
             .data
-            .replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
+            .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
         for constr in &data.constrs {
             rcx.assume_pred(constr);
         }
@@ -670,56 +674,53 @@ mod pretty {
     use std::fmt;
 
     use flux_middle::pretty::*;
-    use itertools::Itertools;
 
     use super::*;
 
     impl Pretty for TypeEnv<'_> {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?}", &self.bindings)
         }
 
-        fn default_cx(tcx: TyCtxt) -> PPrintCx {
+        fn default_cx(tcx: TyCtxt) -> PrettyCx {
             PlacesTree::default_cx(tcx)
         }
     }
 
     impl Pretty for BasicBlockEnvShape {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?} {:?}", &self.scope, &self.bindings)
         }
 
-        fn default_cx(tcx: TyCtxt) -> PPrintCx {
+        fn default_cx(tcx: TyCtxt) -> PrettyCx {
             PlacesTree::default_cx(tcx)
         }
     }
 
     impl Pretty for BasicBlockEnv {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?} ", &self.scope)?;
 
-            if !self.data.vars().is_empty() {
-                w!(
-                    "∃ {}. ",
-                    ^self.data.vars()
-                        .iter()
-                        .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s)))
-                )?;
-            }
-            let data = self.data.as_ref().skip_binder();
-            if !data.constrs.is_empty() {
-                w!(
-                    "{:?} ⇒ ",
-                    join!(", ", data.constrs.iter().filter(|pred| !pred.is_trivially_true()))
-                )?;
-            }
-            w!("{:?}", &data.bindings)
+            let vars = self.data.vars();
+            cx.with_bound_vars(vars, || {
+                if !vars.is_empty() {
+                    cx.fmt_bound_vars("for<", vars, ">", f)?;
+                }
+                let data = self.data.as_ref().skip_binder();
+                if !data.constrs.is_empty() {
+                    w!(
+                        "{:?} ⇒ ",
+                        join!(", ", data.constrs.iter().filter(|pred| !pred.is_trivially_true()))
+                    )?;
+                }
+                w!("{:?}", &data.bindings)
+            })
         }
 
-        fn default_cx(tcx: TyCtxt) -> PPrintCx {
+        fn default_cx(tcx: TyCtxt) -> PrettyCx {
             PlacesTree::default_cx(tcx)
         }
     }
