@@ -1,13 +1,15 @@
 pub(crate) mod refinement_resolver;
 
-use flux_common::{bug, span_bug};
+use std::collections::hash_map::Entry;
+
+use flux_common::bug;
 use flux_errors::{ErrorCollector, FluxSession};
 use flux_middle::{
     fhir::{self, Res},
     global_env::GlobalEnv,
     ResolverOutput, Specs,
 };
-use flux_syntax::surface::{self, visit::Visitor as _, Ident};
+use flux_syntax::surface::{self, visit::Visitor as _, Ident, NodeId};
 use hir::{
     def::{DefKind, Namespace::TypeNS},
     intravisit::Visitor as _,
@@ -374,9 +376,15 @@ struct ItemResolver<'a, 'genv, 'tcx> {
     errors: ErrorCollector<'genv>,
 }
 
-#[derive(Hash, Eq, PartialEq, Debug)]
-pub struct ResKey {
-    s: String,
+struct ResTableNode {
+    res: Res,
+    children: UnordMap<Symbol, ResTableNode>,
+}
+
+impl ResTableNode {
+    fn new(res: Res) -> Self {
+        Self { res, children: Default::default() }
+    }
 }
 
 #[derive(Default)]
@@ -385,44 +393,34 @@ struct NameResTable {
 }
 
 impl NameResTable {
-    fn insert_ident(&mut self, ident: Ident, res: impl Into<ResEntry>) {
+    fn insert_ident(&mut self, ident: Ident, res: Res) {
         self.nodes
             .entry(ident.name)
             .or_insert_with(|| ResTableNode::new(res));
     }
 
     fn insert_hir_path(&mut self, path: &hir::Path) {
-        let [first, rest @ ..] = path.segments else {
-            span_bug!(path.span, "expected at least one segment")
-        };
-
-        let mut node = self
-            .nodes
-            .entry(first.ident.name)
-            .or_insert_with(|| ResTableNode::new(*first));
-        for segment in rest {
-            node = node
-                .children
-                .entry(segment.ident.name)
-                .or_insert_with(|| ResTableNode::new(*segment));
+        let mut nodes = &mut self.nodes;
+        for segment in path.segments {
+            let node = match nodes.entry(segment.ident.name) {
+                Entry::Occupied(entry) => entry.into_mut(),
+                Entry::Vacant(entry) => {
+                    let Ok(res) = Res::try_from(segment.res) else { return };
+                    entry.insert(ResTableNode::new(res))
+                }
+            };
+            nodes = &mut node.children;
         }
     }
-}
 
-#[derive(Debug, PartialEq, Eq)]
-enum ResEntry {
-    Res(Res),
-    Unsupported { reason: String, span: Span },
-}
-
-struct ResTableNode {
-    entry: ResEntry,
-    children: UnordMap<Symbol, ResTableNode>,
-}
-
-impl ResTableNode {
-    fn new(entry: impl Into<ResEntry>) -> Self {
-        Self { entry: entry.into(), children: Default::default() }
+    fn visit_path(&self, path: &surface::Path, mut f: impl FnMut(NodeId, Res)) -> bool {
+        let mut nodes = &self.nodes;
+        for segment in &path.segments {
+            let Some(node) = nodes.get(&segment.ident.name) else { return false };
+            f(segment.node_id, node.res);
+            nodes = &node.children;
+        }
+        true
     }
 }
 
@@ -470,9 +468,9 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     }
 
     fn resolve_path(&mut self, path: &surface::Path) {
-        // This could insert stuff in `segment_res_map` twice if resolution fails midway with
-        // the table. This is ok because we will only proceed if the entire path is resolved.
-        if self.try_resolve_with_table(path).is_some() {
+        // This could insert stuff in `path_res_map` twice if table resolution fails midway. This
+        // is ok because we will only proceed to further stages if the entire path is resolved.
+        if self.try_resolve_with_table(path) {
             return;
         }
         if self.resolver.try_resolve_path(path).is_some() {
@@ -481,28 +479,10 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         self.errors.emit(errors::UnresolvedPath::new(path));
     }
 
-    fn try_resolve_with_table(&mut self, path: &surface::Path) -> Option<()> {
-        let [first, rest @ ..] = &path.segments[..] else {
-            span_bug!(path.span, "expected at least one segment")
-        };
-        let mut resolve = |node_id, entry: &ResEntry| {
-            match entry {
-                ResEntry::Res(res) => {
-                    self.resolver.output.path_res_map.insert(node_id, *res);
-                }
-                ResEntry::Unsupported { reason, span } => {
-                    self.errors
-                        .emit(errors::UnsupportedSignature::new(*span, reason));
-                }
-            }
-        };
-        let mut node = self.table.nodes.get(&first.ident.name)?;
-        resolve(first.node_id, &node.entry);
-        for segment in rest {
-            node = node.children.get(&segment.ident.name)?;
-            resolve(segment.node_id, &node.entry);
-        }
-        Some(())
+    fn try_resolve_with_table(&mut self, path: &surface::Path) -> bool {
+        self.table.visit_path(path, |segment_id, res| {
+            self.resolver.output.path_res_map.insert(segment_id, res);
+        })
     }
 }
 
@@ -723,27 +703,6 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for NameResCollector<'_, 'tcx> {
     fn visit_path(&mut self, path: &hir::Path<'tcx>, _id: hir::HirId) {
         self.table.insert_hir_path(path);
         hir::intravisit::walk_path(self, path);
-    }
-}
-
-impl From<Res> for ResEntry {
-    fn from(res: Res) -> Self {
-        ResEntry::Res(res)
-    }
-}
-
-impl From<hir::PathSegment<'_>> for ResEntry {
-    fn from(segment: hir::PathSegment<'_>) -> Self {
-        let res = segment.res;
-        res.try_into().map_or_else(
-            |_| {
-                ResEntry::Unsupported {
-                    span: segment.ident.span,
-                    reason: format!("unsupported res `{res:?}`"),
-                }
-            },
-            ResEntry::Res,
-        )
     }
 }
 
