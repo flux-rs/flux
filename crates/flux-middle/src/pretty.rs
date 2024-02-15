@@ -1,10 +1,14 @@
 use std::{cell::RefCell, fmt};
 
+use flux_common::index::IndexGen;
 use flux_config as config;
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
+use rustc_macros::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Pos, Span};
 use rustc_target::abi::FieldIdx;
+use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use crate::intern::{Internable, Interned};
 
@@ -130,6 +134,7 @@ pub fn pprint_with_default_cx<T: Pretty>(
 }
 
 pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
+use crate::rty::{BoundReft, BoundReftKind, BoundVariableKind};
 
 #[derive(Copy, Clone)]
 pub enum KVarArgs {
@@ -138,7 +143,7 @@ pub enum KVarArgs {
     Hide,
 }
 
-pub struct PPrintCx<'tcx> {
+pub struct PrettyCx<'tcx> {
     pub tcx: TyCtxt<'tcx>,
     pub kvar_args: KVarArgs,
     pub fully_qualified_paths: bool,
@@ -152,11 +157,47 @@ pub struct PPrintCx<'tcx> {
     pub hide_refinements: bool,
     pub hide_regions: bool,
     pub hide_binder: bool,
+    env: RefCell<Env>,
+}
+
+newtype_index! {
+    /// Name used during pretty printing to format annonymous bound variables
+    #[debug_format = "b{}"]
+    struct BoundVarName {}
+}
+
+#[derive(Default)]
+struct Env {
+    name_gen: IndexGen<BoundVarName>,
+    layers: Vec<FxHashMap<u32, BoundVarName>>,
+}
+
+impl Env {
+    fn lookup(&self, debruijn: DebruijnIndex, index: u32) -> Option<BoundVarName> {
+        self.layers
+            .get(self.layers.len() - debruijn.as_usize() - 1)?
+            .get(&index)
+            .copied()
+    }
+
+    fn push_layer(&mut self, vars: &[BoundVariableKind]) {
+        let mut layer = FxHashMap::default();
+        for (idx, var) in vars.iter().enumerate() {
+            if let BoundVariableKind::Refine(_, _, BoundReftKind::Annon) = var {
+                layer.insert(idx as u32, self.name_gen.fresh());
+            }
+        }
+        self.layers.push(layer);
+    }
+
+    fn pop_layer(&mut self) {
+        self.layers.pop();
+    }
 }
 
 pub struct WithCx<'a, 'tcx, T> {
     data: T,
-    cx: &'a PPrintCx<'tcx>,
+    cx: &'a PrettyCx<'tcx>,
 }
 
 pub struct Join<'a, I> {
@@ -170,10 +211,10 @@ pub struct Parens<'a, T> {
 }
 
 pub trait Pretty {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 
-    fn default_cx(tcx: TyCtxt) -> PPrintCx {
-        PPrintCx::default(tcx)
+    fn default_cx(tcx: TyCtxt) -> PrettyCx {
+        PrettyCx::default(tcx)
     }
 }
 
@@ -199,9 +240,9 @@ macro_rules! set_opts {
     };
 }
 
-impl PPrintCx<'_> {
-    pub fn default(tcx: TyCtxt) -> PPrintCx {
-        PPrintCx {
+impl PrettyCx<'_> {
+    pub fn default(tcx: TyCtxt) -> PrettyCx {
+        PrettyCx {
             tcx,
             kvar_args: KVarArgs::SelfOnly,
             fully_qualified_paths: false,
@@ -215,6 +256,7 @@ impl PPrintCx<'_> {
             hide_refinements: false,
             hide_regions: false,
             hide_binder: false,
+            env: RefCell::new(Env::default()),
         }
     }
 
@@ -239,6 +281,60 @@ impl PPrintCx<'_> {
         );
     }
 
+    pub fn with_bound_vars<R>(&self, vars: &[BoundVariableKind], f: impl FnOnce() -> R) -> R {
+        self.env.borrow_mut().push_layer(vars);
+        let r = f();
+        self.env.borrow_mut().pop_layer();
+        r
+    }
+
+    pub fn fmt_bound_vars(
+        &self,
+        left: &str,
+        vars: &[BoundVariableKind],
+        right: &str,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        define_scoped!(self, f);
+        w!("{left}")?;
+        for (i, var) in vars.iter().enumerate() {
+            if i > 0 {
+                w!(", ")?;
+            }
+            match var {
+                BoundVariableKind::Region(re) => w!("{:?}", re)?,
+                BoundVariableKind::Refine(_, _, BoundReftKind::Named(name)) => w!("{}", ^name)?,
+                BoundVariableKind::Refine(_, _, BoundReftKind::Annon) => {
+                    if let Some(name) = self.env.borrow().lookup(INNERMOST, i as u32) {
+                        w!("{:?}", ^name)?;
+                    } else {
+                        w!("_")?;
+                    }
+                }
+            }
+        }
+        w!("{right}")
+    }
+
+    pub fn fmt_bound_reft(
+        &self,
+        debruijn: DebruijnIndex,
+        var: BoundReft,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        define_scoped!(self, f);
+        match var.kind {
+            BoundReftKind::Annon => {
+                if let Some(name) = self.env.borrow().lookup(debruijn, var.index) {
+                    w!("{name:?}")
+                } else {
+                    w!("(⭡{debruijn:?}.{})", ^var.index)
+                }
+            }
+            BoundReftKind::Named(name) => w!("{name}"),
+        }
+    }
+
     pub fn kvar_args(self, kvar_args: KVarArgs) -> Self {
         Self { kvar_args, ..self }
     }
@@ -261,19 +357,19 @@ impl PPrintCx<'_> {
 }
 
 impl<'a, 'tcx, T> WithCx<'a, 'tcx, T> {
-    pub fn new(cx: &'a PPrintCx<'tcx>, data: T) -> Self {
+    pub fn new(cx: &'a PrettyCx<'tcx>, data: T) -> Self {
         Self { data, cx }
     }
 }
 
 impl<T: Pretty + ?Sized> Pretty for &'_ T {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         <T as Pretty>::fmt(self, cx, f)
     }
 }
 
 impl<T: Pretty + Internable> Pretty for Interned<T> {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         <T as Pretty>::fmt(self, cx, f)
     }
 }
@@ -302,7 +398,7 @@ where
     T: Pretty,
     I: Iterator<Item = T>,
 {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Some(iter) = self.iter.borrow_mut().take() else {
             panic!("Join: was already formatted once")
         };
@@ -319,7 +415,7 @@ impl<'a, T> Pretty for Parens<'a, T>
 where
     T: Pretty,
 {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.parenthesize {
             write!(f, "(")?;
         }
@@ -338,7 +434,7 @@ impl<T: Pretty> fmt::Debug for WithCx<'_, '_, T> {
 }
 
 impl Pretty for DefId {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
 
         let path = cx.tcx.def_path(*self);
@@ -352,17 +448,17 @@ impl Pretty for DefId {
 }
 
 pub fn def_id_to_string(def_id: DefId) -> String {
-    rustc_middle::ty::tls::with(|tcx| format!("{:?}", WithCx::new(&PPrintCx::default(tcx), def_id)))
+    rustc_middle::ty::tls::with(|tcx| format!("{:?}", WithCx::new(&PrettyCx::default(tcx), def_id)))
 }
 
 impl Pretty for FieldIdx {
-    fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_u32())
     }
 }
 
 impl Pretty for Span {
-    fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if cx.full_spans {
             write!(f, "{self:?}")
         } else {

@@ -674,56 +674,53 @@ mod pretty {
     use std::fmt;
 
     use flux_middle::pretty::*;
-    use itertools::Itertools;
 
     use super::*;
 
     impl Pretty for TypeEnv<'_> {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?}", &self.bindings)
         }
 
-        fn default_cx(tcx: TyCtxt) -> PPrintCx {
+        fn default_cx(tcx: TyCtxt) -> PrettyCx {
             PlacesTree::default_cx(tcx)
         }
     }
 
     impl Pretty for BasicBlockEnvShape {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?} {:?}", &self.scope, &self.bindings)
         }
 
-        fn default_cx(tcx: TyCtxt) -> PPrintCx {
+        fn default_cx(tcx: TyCtxt) -> PrettyCx {
             PlacesTree::default_cx(tcx)
         }
     }
 
     impl Pretty for BasicBlockEnv {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?} ", &self.scope)?;
 
-            if !self.data.vars().is_empty() {
-                w!(
-                    "∃ {}. ",
-                    ^self.data.vars()
-                        .iter()
-                        .format_with(", ", |s, f| f(&format_args_cx!("{:?}", s)))
-                )?;
-            }
-            let data = self.data.as_ref().skip_binder();
-            if !data.constrs.is_empty() {
-                w!(
-                    "{:?} ⇒ ",
-                    join!(", ", data.constrs.iter().filter(|pred| !pred.is_trivially_true()))
-                )?;
-            }
-            w!("{:?}", &data.bindings)
+            let vars = self.data.vars();
+            cx.with_bound_vars(vars, || {
+                if !vars.is_empty() {
+                    cx.fmt_bound_vars("for<", vars, ">", f)?;
+                }
+                let data = self.data.as_ref().skip_binder();
+                if !data.constrs.is_empty() {
+                    w!(
+                        "{:?} ⇒ ",
+                        join!(", ", data.constrs.iter().filter(|pred| !pred.is_trivially_true()))
+                    )?;
+                }
+                w!("{:?}", &data.bindings)
+            })
         }
 
-        fn default_cx(tcx: TyCtxt) -> PPrintCx {
+        fn default_cx(tcx: TyCtxt) -> PrettyCx {
             PlacesTree::default_cx(tcx)
         }
     }

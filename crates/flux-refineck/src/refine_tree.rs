@@ -713,21 +713,21 @@ mod pretty {
     }
 
     impl Pretty for RefineTree {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?}", &self.root)
         }
     }
 
     impl Pretty for RefineSubtree<'_> {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?}", &self.root)
         }
     }
 
     impl Pretty for NodePtr {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             let node = self.borrow();
             match &node.kind {
@@ -783,7 +783,7 @@ mod pretty {
 
     fn fmt_children(
         children: &[NodePtr],
-        cx: &PPrintCx,
+        cx: &PrettyCx,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         let mut f = PadAdapter::wrap_fmt(f, 2);
@@ -804,7 +804,7 @@ mod pretty {
     }
 
     impl Pretty for RefineCtxt<'_> {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             let parents = ParentsIter::new(NodePtr::clone(&self.ptr)).collect_vec();
             write!(
@@ -836,7 +836,7 @@ mod pretty {
     }
 
     impl Pretty for Scope {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             write!(
                 f,

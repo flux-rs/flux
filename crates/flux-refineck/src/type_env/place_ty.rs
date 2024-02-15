@@ -886,7 +886,7 @@ mod pretty {
     use super::*;
 
     impl Pretty for PlacesTree {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!(
                 "{{{}}}",
@@ -900,15 +900,15 @@ mod pretty {
             )
         }
 
-        fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx)
+        fn default_cx(tcx: TyCtxt) -> PrettyCx {
+            PrettyCx::default(tcx)
                 .kvar_args(KVarArgs::Hide)
                 .hide_binder(true)
         }
     }
 
     impl Pretty for LocKind {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
                 LocKind::Local | LocKind::Universal => Ok(()),
