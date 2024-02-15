@@ -408,14 +408,20 @@ RefineArgs: Vec<surface::RefineArg> = {
 }
 
 Path: surface::Path = {
-    <lo:@L> <segments:Sep1<"::", Ident>> <generics:GenericArgs?> <refine:RefineArgs?> <hi:@R> => {
+    <lo:@L> <segments:Sep1<"::", PathSegment>> <generics:GenericArgs?> <refine:RefineArgs?> <hi:@R> => {
         surface::Path {
             segments,
             generics: generics.unwrap_or_default(),
             refine: refine.unwrap_or_default(),
             span: cx.map_span(lo, hi),
-            node_id: cx.next_node_id(),
         }
+    }
+}
+
+PathSegment: surface::PathSegment = {
+    <ident:Ident> => surface::PathSegment {
+        ident,
+        node_id: cx.next_node_id(),
     }
 }
 

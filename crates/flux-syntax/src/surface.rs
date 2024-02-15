@@ -422,10 +422,33 @@ pub enum BindKind {
 
 #[derive(Debug)]
 pub struct Path {
-    pub segments: Vec<Ident>,
+    pub segments: Vec<PathSegment>,
     pub generics: Vec<GenericArg>,
     pub refine: Vec<RefineArg>,
     pub span: Span,
+}
+
+impl Path {
+    pub fn is_hole(&self) -> bool {
+        if let [segment] = &self.segments[..] {
+            segment.ident.name == kw::Underscore
+                && self.generics.is_empty()
+                && self.refine.is_empty()
+        } else {
+            false
+        }
+    }
+
+    pub fn last(&self) -> &PathSegment {
+        self.segments
+            .last()
+            .expect("path must have at least one segment")
+    }
+}
+
+#[derive(Debug)]
+pub struct PathSegment {
+    pub ident: Ident,
     pub node_id: NodeId,
 }
 
@@ -490,16 +513,6 @@ pub enum BinOp {
 pub enum UnOp {
     Not,
     Neg,
-}
-
-impl Path {
-    pub fn is_hole(&self) -> bool {
-        if let [segment] = &self.segments[..] {
-            segment.name == kw::Underscore && self.generics.is_empty() && self.refine.is_empty()
-        } else {
-            false
-        }
-    }
 }
 
 impl BindKind {

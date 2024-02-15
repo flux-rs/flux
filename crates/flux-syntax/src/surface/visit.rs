@@ -3,9 +3,9 @@ use rustc_span::symbol::Ident;
 use super::{
     AliasReft, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
     ExprKind, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, GenericParamKind,
-    Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathExpr, Qualifier, RefineArg, RefineParam,
-    RefinedBy, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias,
-    TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathExpr, PathSegment, Qualifier, RefineArg,
+    RefineParam, RefinedBy, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef,
+    Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -153,6 +153,10 @@ pub trait Visitor: Sized {
         walk_path(self, path);
     }
 
+    fn visit_path_segment(&mut self, segment: &PathSegment) {
+        walk_path_segment(self, segment);
+    }
+
     fn visit_expr(&mut self, expr: &Expr) {
         walk_expr(self, expr);
     }
@@ -161,8 +165,8 @@ pub trait Visitor: Sized {
         walk_alias_pred(self, alias_pred);
     }
 
-    fn visit_qpath_expr(&mut self, qpath: &PathExpr) {
-        walk_qpath_expr(self, qpath);
+    fn vist_path_expr(&mut self, qpath: &PathExpr) {
+        walk_path_expr(self, qpath);
     }
 
     fn visit_ident(&mut self, _ident: Ident) {}
@@ -449,9 +453,13 @@ pub fn walk_bty<V: Visitor>(vis: &mut V, bty: &BaseTy) {
 }
 
 pub fn walk_path<V: Visitor>(vis: &mut V, path: &Path) {
-    walk_list!(vis, visit_ident, path.segments.iter().copied());
+    walk_list!(vis, visit_path_segment, &path.segments);
     walk_list!(vis, visit_generic_arg, &path.generics);
     walk_list!(vis, visit_refine_arg, &path.refine);
+}
+
+pub fn walk_path_segment<V: Visitor>(vis: &mut V, segment: &PathSegment) {
+    vis.visit_ident(segment.ident);
 }
 
 pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasReft) {
@@ -462,9 +470,9 @@ pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasReft) {
 
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
     match &expr.kind {
-        ExprKind::Path(qpath) => vis.visit_qpath_expr(qpath),
+        ExprKind::Path(qpath) => vis.vist_path_expr(qpath),
         ExprKind::Dot(qpath, fld) => {
-            vis.visit_qpath_expr(qpath);
+            vis.vist_path_expr(qpath);
             vis.visit_ident(*fld);
         }
         ExprKind::Literal(lit) => {
@@ -490,6 +498,6 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
     }
 }
 
-pub fn walk_qpath_expr<V: Visitor>(vis: &mut V, qpath: &PathExpr) {
+pub fn walk_path_expr<V: Visitor>(vis: &mut V, qpath: &PathExpr) {
     walk_list!(vis, visit_ident, qpath.segments.iter().copied());
 }
