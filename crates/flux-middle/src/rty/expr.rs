@@ -12,7 +12,8 @@ use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
-    evars::EVar, AliasReft, BaseTy, Binder, BoundVariableKind, FuncSort, IntTy, Sort, UintTy,
+    evars::EVar, AliasReft, BaseTy, Binder, BoundReftKind, BoundVariableKind, FuncSort, IntTy,
+    Sort, UintTy,
 };
 use crate::{
     fhir::SpecFuncKind,
@@ -40,7 +41,7 @@ impl Lambda {
     }
 
     pub fn apply(&self, args: &[Expr]) -> Expr {
-        self.body.replace_bound_exprs(args)
+        self.body.replace_bound_refts(args)
     }
 
     pub fn inputs(&self) -> List<Sort> {
@@ -232,16 +233,22 @@ pub struct KVar {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
-pub struct EarlyParamVar {
+pub struct EarlyReftParam {
     pub index: u32,
     pub name: Symbol,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable, Debug)]
+pub struct BoundReft {
+    pub index: u32,
+    pub kind: BoundReftKind,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Var {
     Free(Name),
-    LateBound(DebruijnIndex, u32),
-    EarlyParam(EarlyParamVar),
+    LateBound(DebruijnIndex, BoundReft),
+    EarlyParam(EarlyReftParam),
     EVar(EVar),
 }
 
@@ -348,7 +355,7 @@ impl Expr {
     }
 
     pub fn nu() -> Expr {
-        Expr::late_bvar(INNERMOST, 0)
+        Expr::late_bvar(INNERMOST, 0, BoundReftKind::Annon)
     }
 
     #[track_caller]
@@ -376,12 +383,12 @@ impl Expr {
         Var::EVar(evar).to_expr()
     }
 
-    pub fn late_bvar(bvar: DebruijnIndex, idx: u32) -> Expr {
-        Var::LateBound(bvar, idx).to_expr()
+    pub fn late_bvar(debruijn: DebruijnIndex, index: u32, kind: BoundReftKind) -> Expr {
+        Var::LateBound(debruijn, BoundReft { index, kind }).to_expr()
     }
 
     pub fn early_param(index: u32, name: Symbol) -> Expr {
-        Var::EarlyParam(EarlyParamVar { index, name }).to_expr()
+        Var::EarlyParam(EarlyReftParam { index, name }).to_expr()
     }
 
     pub fn local(local: Local, espan: Option<ESpan>) -> Expr {
@@ -657,7 +664,7 @@ impl Expr {
 
     pub fn eta_expand_abs(&self, inputs: &[Sort], output: Sort) -> Lambda {
         let args = (0..inputs.len())
-            .map(|idx| Expr::late_bvar(INNERMOST, idx as u32))
+            .map(|idx| Expr::late_bvar(INNERMOST, idx as u32, BoundReftKind::Annon))
             .collect_vec();
         let body = Expr::app(self, args, None);
         Lambda::with_sorts(body, inputs, output)
@@ -969,7 +976,16 @@ mod pretty {
         fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Var::LateBound(bvar, idx) => w!("({:?}.{})", bvar, ^idx),
+                Var::LateBound(debruijn, var) => {
+                    match var.kind {
+                        BoundReftKind::Annon => {
+                            w!("({:?}.{})", debruijn, ^var.index)
+                        }
+                        BoundReftKind::Named(name) => {
+                            w!("{}", ^name)
+                        }
+                    }
+                }
                 Var::EarlyParam(var) => w!("{}", ^var.name),
                 Var::Free(name) => w!("{:?}", ^name),
                 Var::EVar(evar) => w!("{:?}", evar),

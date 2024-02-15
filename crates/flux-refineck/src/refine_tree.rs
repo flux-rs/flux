@@ -329,7 +329,7 @@ impl TypeFolder for Unpacker<'_, '_> {
                 // opening of mutable references. See also `ConstrGen::check_fn_call`.
                 if !self.in_mut_ref || self.unpack_inside_mut_ref {
                     let bound_ty = bound_ty
-                        .replace_bound_exprs_with(|sort, _| self.rcx.define_vars(sort))
+                        .replace_bound_refts_with(|sort, _, _| self.rcx.define_vars(sort))
                         .fold_with(self);
                     if let AssumeInvariants::Yes { check_overflow } = self.assume_invariants {
                         self.rcx.assume_invariants(&bound_ty, check_overflow);

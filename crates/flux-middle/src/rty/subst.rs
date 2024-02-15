@@ -5,6 +5,7 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_middle::ty::RegionVid;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
+use self::expr::BoundReft;
 use super::{
     evars::EVarSol,
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -120,7 +121,7 @@ pub(super) struct BoundVarReplacer<D> {
 }
 
 pub trait BoundVarReplacerDelegate {
-    fn replace_expr(&mut self, idx: u32) -> Expr;
+    fn replace_expr(&mut self, var: BoundReft) -> Expr;
     fn replace_region(&mut self, br: BoundRegion) -> Region;
 }
 
@@ -129,13 +130,23 @@ pub(crate) struct FnMutDelegate<F1, F2> {
     pub regions: F2,
 }
 
-impl<F1, F2> BoundVarReplacerDelegate for FnMutDelegate<F1, F2>
+impl<F1, F2> FnMutDelegate<F1, F2>
 where
-    F1: FnMut(u32) -> Expr,
+    F1: FnMut(BoundReft) -> Expr,
     F2: FnMut(BoundRegion) -> Region,
 {
-    fn replace_expr(&mut self, idx: u32) -> Expr {
-        (self.exprs)(idx)
+    pub(crate) fn new(exprs: F1, regions: F2) -> Self {
+        Self { exprs, regions }
+    }
+}
+
+impl<F1, F2> BoundVarReplacerDelegate for FnMutDelegate<F1, F2>
+where
+    F1: FnMut(BoundReft) -> Expr,
+    F2: FnMut(BoundRegion) -> Region,
+{
+    fn replace_expr(&mut self, var: BoundReft) -> Expr {
+        (self.exprs)(var)
     }
 
     fn replace_region(&mut self, br: BoundRegion) -> Region {
@@ -164,15 +175,15 @@ where
     }
 
     fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::Var(Var::LateBound(debruijn, idx)) = e.kind() {
+        if let ExprKind::Var(Var::LateBound(debruijn, var)) = e.kind() {
             match debruijn.cmp(&self.current_index) {
-                Ordering::Less => Expr::late_bvar(*debruijn, *idx),
+                Ordering::Less => Expr::late_bvar(*debruijn, var.index, var.kind),
                 Ordering::Equal => {
                     self.delegate
-                        .replace_expr(*idx)
+                        .replace_expr(*var)
                         .shift_in_escaping(self.current_index.as_u32())
                 }
-                Ordering::Greater => Expr::late_bvar(debruijn.shifted_out(1), *idx),
+                Ordering::Greater => Expr::late_bvar(debruijn.shifted_out(1), var.index, var.kind),
             }
         } else {
             e.super_fold_with(self)
@@ -292,7 +303,7 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
 
     fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> Ty {
         match self.0.get(param_ty.index as usize) {
-            Some(GenericArg::BaseTy(arg)) => arg.replace_bound_expr(idx),
+            Some(GenericArg::BaseTy(arg)) => arg.replace_bound_reft(idx),
             Some(arg) => {
                 bug!("expected base type for generic parameter, found `{:?}`", arg)
             }

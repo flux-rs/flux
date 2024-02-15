@@ -7,7 +7,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        box_args,
+        self, box_args,
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
@@ -231,7 +231,7 @@ impl TypeEnv<'_> {
 
         let bb_env = bb_env
             .data
-            .replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
+            .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
 
         // Check constraints
         for constr in &bb_env.constrs {
@@ -489,7 +489,11 @@ impl BasicBlockEnvShape {
                     e1.clone()
                 } else {
                     bound_sorts.push(sort.clone());
-                    Expr::late_bvar(INNERMOST, (bound_sorts.len() - 1) as u32)
+                    Expr::late_bvar(
+                        INNERMOST,
+                        (bound_sorts.len() - 1) as u32,
+                        rty::BoundReftKind::Annon,
+                    )
                 }
             }
         }
@@ -597,11 +601,11 @@ impl TypeFolder for Generalizer {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(ty) => {
-                ty.replace_bound_exprs_with(|sort, mode| {
+                ty.replace_bound_refts_with(|sort, mode, kind| {
                     let idx = self.vars.len();
                     self.vars
-                        .push(BoundVariableKind::Refine(sort.clone(), mode));
-                    Expr::late_bvar(INNERMOST, idx as u32)
+                        .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
+                    Expr::late_bvar(INNERMOST, idx as u32, kind)
                 })
                 .fold_with(self)
             }
@@ -654,7 +658,7 @@ impl BasicBlockEnv {
     ) -> TypeEnv<'a> {
         let data = self
             .data
-            .replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
+            .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
         for constr in &data.constrs {
             rcx.assume_pred(constr);
         }

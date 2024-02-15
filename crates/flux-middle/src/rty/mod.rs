@@ -16,8 +16,8 @@ use std::{borrow::Cow, fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{
-    AggregateKind, BinOp, Constant, ESpan, Expr, ExprKind, FieldProj, HoleKind, KVar, KVid, Lambda,
-    Loc, Name, Path, UnOp, Var,
+    AggregateKind, BinOp, BoundReft, Constant, ESpan, Expr, ExprKind, FieldProj, HoleKind, KVar,
+    KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
 use flux_common::bug;
 use itertools::Itertools;
@@ -461,7 +461,7 @@ impl Invariant {
         // binder itself but since we are removing it we can avoid the explicit instantiation.
         // Ultimately, this works because the expression we generate in fixpoint/z3 doesn't need
         // sort annotations (sorts are re-inferred).
-        self.pred.replace_bound_expr(idx)
+        self.pred.replace_bound_reft(idx)
     }
 }
 
@@ -476,10 +476,16 @@ pub struct VariantSig {
     pub idx: Expr,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable, Debug)]
+pub enum BoundReftKind {
+    Annon,
+    Named(Symbol),
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub enum BoundVariableKind {
     Region(BoundRegionKind),
-    Refine(Sort, InferMode),
+    Refine(Sort, InferMode, BoundReftKind),
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -920,9 +926,9 @@ impl Sort {
 }
 
 impl BoundVariableKind {
-    fn expect_refine(&self) -> (&Sort, InferMode) {
-        if let BoundVariableKind::Refine(sort, mode) = self {
-            (sort, *mode)
+    fn expect_refine(&self) -> (&Sort, InferMode, BoundReftKind) {
+        if let BoundVariableKind::Refine(sort, mode, kind) = self {
+            (sort, *mode, *kind)
         } else {
             bug!("expected `BoundVariableKind::Refine`")
         }
@@ -943,7 +949,8 @@ impl<T> Binder<T> {
             .iter()
             .map(|s| {
                 let infer_mode = s.default_infer_mode();
-                BoundVariableKind::Refine(s.clone(), infer_mode)
+                let kind = BoundReftKind::Annon;
+                BoundVariableKind::Refine(s.clone(), infer_mode, kind)
             })
             .collect();
         Binder { vars, value }
@@ -986,7 +993,7 @@ impl List<BoundVariableKind> {
                     BoundVariableKind::Region(_) => {
                         bug!("`to_sort_list` called on bound variable list with non-refinements")
                     }
-                    BoundVariableKind::Refine(sort, _) => sort.clone(),
+                    BoundVariableKind::Refine(sort, ..) => sort.clone(),
                 }
             })
             .collect()
@@ -1028,49 +1035,52 @@ where
         mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
     ) -> T {
         let mut exprs = UnordMap::default();
-        let delegate = FnMutDelegate {
-            exprs: |idx| {
+        let delegate = FnMutDelegate::new(
+            |var| {
                 exprs
-                    .entry(idx)
+                    .entry(var.index)
                     .or_insert_with(|| {
-                        let (sort, mode) = self.vars[idx as usize].expect_refine();
+                        let (sort, mode, _) = self.vars[var.index as usize].expect_refine();
                         replace_expr(sort, mode)
                     })
                     .clone()
             },
-            regions: replace_region,
-        };
+            replace_region,
+        );
 
         self.value
             .fold_with(&mut BoundVarReplacer::new(delegate))
             .normalize(&Default::default())
     }
 
-    pub fn replace_bound_exprs(&self, exprs: &[Expr]) -> T {
-        let delegate = FnMutDelegate {
-            exprs: |idx| exprs[idx as usize].clone(),
-            regions: |_| bug!("unexpected escaping region"),
-        };
+    pub fn replace_bound_refts(&self, exprs: &[Expr]) -> T {
+        let delegate = FnMutDelegate::new(
+            |var| exprs[var.index as usize].clone(),
+            |_| bug!("unexpected escaping region"),
+        );
         self.value
             .fold_with(&mut BoundVarReplacer::new(delegate))
             .normalize(&Default::default())
     }
 
-    pub fn replace_bound_expr(&self, expr: &Expr) -> T {
+    pub fn replace_bound_reft(&self, expr: &Expr) -> T {
         debug_assert!(matches!(&self.vars[..], [BoundVariableKind::Refine(..)]));
-        self.replace_bound_exprs(slice::from_ref(expr))
+        self.replace_bound_refts(slice::from_ref(expr))
     }
 
-    pub fn replace_bound_exprs_with(&self, mut f: impl FnMut(&Sort, InferMode) -> Expr) -> T {
+    pub fn replace_bound_refts_with(
+        &self,
+        mut f: impl FnMut(&Sort, InferMode, BoundReftKind) -> Expr,
+    ) -> T {
         let exprs = self
             .vars
             .iter()
             .map(|param| {
-                let (sort, mode) = param.expect_refine();
-                f(sort, mode)
+                let (sort, mode, kind) = param.expect_refine();
+                f(sort, mode, kind)
             })
             .collect_vec();
-        self.replace_bound_exprs(&exprs)
+        self.replace_bound_refts(&exprs)
     }
 }
 
@@ -1893,12 +1903,14 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 BoundVariableKind::Region(re) => w!("{:?}", re),
-                BoundVariableKind::Refine(sort, mode) => {
-                    if let InferMode::KVar = mode {
-                        w!("${:?}", sort)
-                    } else {
-                        w!("{:?}", sort)
+                BoundVariableKind::Refine(sort, _, kind) => {
+                    match kind {
+                        BoundReftKind::Annon => {}
+                        BoundReftKind::Named(name) => {
+                            w!("{}: ", ^name)?;
+                        }
                     }
+                    w!("{:?}", sort)
                 }
             }
         }

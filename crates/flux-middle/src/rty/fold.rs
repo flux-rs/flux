@@ -358,10 +358,10 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::Var(Var::LateBound(debruijn, idx)) = expr.kind()
+                if let ExprKind::Var(Var::LateBound(debruijn, var)) = expr.kind()
                     && *debruijn >= self.current_index
                 {
-                    Expr::late_bvar(debruijn.shifted_in(self.amount), *idx)
+                    Expr::late_bvar(debruijn.shifted_in(self.amount), var.index, var.kind)
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -395,10 +395,10 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::Var(Var::LateBound(debruijn, idx)) = expr.kind()
+                if let ExprKind::Var(Var::LateBound(debruijn, var)) = expr.kind()
                     && debruijn >= &self.current_index
                 {
-                    Expr::late_bvar(debruijn.shifted_out(self.amount), *idx)
+                    Expr::late_bvar(debruijn.shifted_out(self.amount), var.index, var.kind)
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -660,7 +660,7 @@ impl TypeVisitable for BoundVariableKind {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             BoundVariableKind::Region(_) => ControlFlow::Continue(()),
-            BoundVariableKind::Refine(sort, _) => sort.visit_with(visitor),
+            BoundVariableKind::Refine(sort, ..) => sort.visit_with(visitor),
         }
     }
 }
@@ -669,8 +669,8 @@ impl TypeFoldable for BoundVariableKind {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let re = match self {
             BoundVariableKind::Region(re) => BoundVariableKind::Region(*re),
-            BoundVariableKind::Refine(sort, mode) => {
-                BoundVariableKind::Refine(sort.try_fold_with(folder)?, *mode)
+            BoundVariableKind::Refine(sort, mode, kind) => {
+                BoundVariableKind::Refine(sort.try_fold_with(folder)?, *mode, *kind)
             }
         };
         Ok(re)

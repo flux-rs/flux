@@ -61,6 +61,7 @@ enum LayerKind {
 enum Entry {
     Sort {
         infer_mode: rty::InferMode,
+        name: Symbol,
         sort: rty::Sort,
         /// The index of the entry in the layer skipping all [`Entry::Unit`] if [`Layer::filter_unit`]
         /// is true
@@ -68,7 +69,7 @@ enum Entry {
     },
     /// We track parameters of unit sort separately because we avoid creating bound variables for them
     /// in function signatures.
-    Unit,
+    Unit(Symbol),
 }
 
 #[derive(Debug)]
@@ -80,7 +81,7 @@ struct LookupResult<'a> {
 
 #[derive(Debug)]
 enum LookupResultKind<'a> {
-    LateBoundList { level: u32, entry: &'a Entry, kind: LayerKind },
+    LateBound { level: u32, entry: &'a Entry, kind: LayerKind },
     EarlyParam { idx: u32, name: Symbol, sort: rty::Sort },
 }
 
@@ -614,7 +615,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             let idx = rty::Expr::adt(
                 def_id.to_def_id(),
                 (0..vars.len())
-                    .map(|idx| rty::Expr::late_bvar(INNERMOST, idx as u32))
+                    .map(|idx| {
+                        rty::Expr::late_bvar(INNERMOST, idx as u32, rty::BoundReftKind::Annon)
+                    })
                     .collect(),
             );
             let variant = rty::VariantSig::new(
@@ -897,7 +900,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .genv
                     .type_of(*alias_to)?
                     .instantiate_identity(&[])
-                    .replace_bound_expr(&idx));
+                    .replace_bound_reft(&idx));
             }
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
                 let generics = self.conv_generic_args(env, *def_id, path.last_segment().args)?;
@@ -910,7 +913,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .genv
                     .type_of(*def_id)?
                     .instantiate(&generics, &refine)
-                    .replace_bound_expr(&idx));
+                    .replace_bound_reft(&idx));
             }
             fhir::Res::Def(..) => {
                 span_bug!(path.span, "unexpected resolution in conv_indexed_path: {:?}", path.res)
@@ -1177,8 +1180,8 @@ impl Layer {
             .map(|param| {
                 let sort = cx.resolve_param_sort(param);
                 let infer_mode = sort.infer_mode(param.kind);
-                let entry = Entry::new(idx, sort, infer_mode);
-                if !filter_unit || !matches!(entry, Entry::Unit) {
+                let entry = Entry::new(idx, sort, infer_mode, param.name);
+                if !filter_unit || !matches!(entry, Entry::Unit(_)) {
                     idx += 1;
                 }
                 (param.id, entry)
@@ -1205,7 +1208,7 @@ impl Layer {
     }
 
     fn get(&self, name: impl Borrow<fhir::ParamId>, level: u32) -> Option<LookupResultKind> {
-        Some(LookupResultKind::LateBoundList {
+        Some(LookupResultKind::LateBound {
             level,
             entry: self.map.get(name.borrow())?,
             kind: self.kind,
@@ -1216,7 +1219,10 @@ impl Layer {
         match self.kind {
             LayerKind::List => {
                 self.into_iter()
-                    .map(|(sort, mode)| rty::BoundVariableKind::Refine(sort, mode))
+                    .map(|(sort, mode, name)| {
+                        let kind = rty::BoundReftKind::Named(name);
+                        rty::BoundVariableKind::Refine(sort, mode, kind)
+                    })
                     .collect()
             }
             LayerKind::Record(def_id) => {
@@ -1225,7 +1231,8 @@ impl Layer {
                 let ctor = rty::SortCtor::Adt(sort_def);
                 let sort = rty::Sort::App(ctor, args);
                 let infer_mode = sort.default_infer_mode();
-                List::singleton(rty::BoundVariableKind::Refine(sort, infer_mode))
+                let kind = rty::BoundReftKind::Annon;
+                List::singleton(rty::BoundVariableKind::Refine(sort, infer_mode, kind))
             }
         }
     }
@@ -1234,17 +1241,17 @@ impl Layer {
         self.clone().into_bound_vars(genv)
     }
 
-    fn into_iter(self) -> impl Iterator<Item = (rty::Sort, rty::InferMode)> {
+    fn into_iter(self) -> impl Iterator<Item = (rty::Sort, rty::InferMode, Symbol)> {
         self.map.into_values().filter_map(move |entry| {
             match entry {
-                Entry::Sort { infer_mode, sort: conv, .. } => Some((conv, infer_mode)),
-                Entry::Unit => {
+                Entry::Sort { infer_mode, sort, name, .. } => Some((sort, infer_mode, name)),
+                Entry::Unit(name) => {
                     if self.filter_unit {
                         None
                     } else {
                         let unit = rty::Sort::unit();
                         let infer_mode = unit.default_infer_mode();
-                        Some((unit, infer_mode))
+                        Some((unit, infer_mode, name))
                     }
                 }
             }
@@ -1253,11 +1260,11 @@ impl Layer {
 }
 
 impl Entry {
-    fn new(idx: u32, sort: rty::Sort, infer_mode: fhir::InferMode) -> Self {
+    fn new(idx: u32, sort: rty::Sort, infer_mode: fhir::InferMode, name: Symbol) -> Self {
         if sort.is_unit() {
-            Entry::Unit
+            Entry::Unit(name)
         } else {
-            Entry::Sort { sort, infer_mode, idx }
+            Entry::Sort { sort, infer_mode, idx, name }
         }
     }
 }
@@ -1265,26 +1272,36 @@ impl Entry {
 impl LookupResult<'_> {
     fn to_expr(&self) -> rty::Expr {
         match &self.kind {
-            LookupResultKind::LateBoundList { level, entry: Entry::Sort { idx, .. }, kind } => {
+            LookupResultKind::LateBound { level, entry: Entry::Sort { idx, name, .. }, kind } => {
                 match *kind {
-                    LayerKind::List => rty::Expr::late_bvar(DebruijnIndex::from_u32(*level), *idx),
+                    LayerKind::List => {
+                        rty::Expr::late_bvar(
+                            DebruijnIndex::from_u32(*level),
+                            *idx,
+                            rty::BoundReftKind::Named(*name),
+                        )
+                    }
                     LayerKind::Record(def_id) => {
                         rty::Expr::field_proj(
-                            rty::Expr::late_bvar(DebruijnIndex::from_u32(*level), 0),
+                            rty::Expr::late_bvar(
+                                DebruijnIndex::from_u32(*level),
+                                0,
+                                rty::BoundReftKind::Annon,
+                            ),
                             rty::FieldProj::Adt { def_id, field: *idx },
                             None,
                         )
                     }
                 }
             }
-            LookupResultKind::LateBoundList { entry: Entry::Unit, .. } => rty::Expr::unit(),
+            LookupResultKind::LateBound { entry: Entry::Unit(_), .. } => rty::Expr::unit(),
             LookupResultKind::EarlyParam { idx, name, .. } => rty::Expr::early_param(*idx, *name),
         }
     }
 
     fn is_adt(&self) -> Option<&AdtSortDef> {
         match &self.kind {
-            LookupResultKind::LateBoundList {
+            LookupResultKind::LateBound {
                 entry: Entry::Sort { sort: rty::Sort::App(rty::SortCtor::Adt(sort_def), _), .. },
                 ..
             } => Some(sort_def),
