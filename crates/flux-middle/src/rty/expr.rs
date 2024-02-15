@@ -644,6 +644,11 @@ impl Expr {
         matches!(self.kind(), ExprKind::Abs(..))
     }
 
+    /// Wether this is an aggregate expression with no fields.
+    pub fn is_unit(&self) -> bool {
+        matches!(self.kind(), ExprKind::Aggregate(_, flds) if flds.is_empty())
+    }
+
     pub fn eta_expand_abs(&self, inputs: &[Sort], output: Sort) -> Lambda {
         let args = (0..inputs.len())
             .map(|idx| Expr::late_bvar(INNERMOST, idx as u32))

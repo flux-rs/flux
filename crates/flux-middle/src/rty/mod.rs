@@ -557,7 +557,6 @@ pub struct AliasReft {
     pub trait_id: DefId,
     pub name: Symbol,
     pub args: GenericArgs,
-    // pub refine_args: RefineArgs,
 }
 
 impl AliasReft {
@@ -2099,7 +2098,12 @@ mod pretty {
             match self.kind() {
                 TyKind::Indexed(bty, idx) => {
                     w!("{:?}", bty)?;
-                    if !cx.hide_refinements && !bty.sort().is_unit() {
+                    if cx.hide_refinements {
+                        return Ok(());
+                    }
+                    if idx.is_unit() {
+                        w!("[]")?;
+                    } else {
                         w!("[{:?}]", idx)?;
                     }
                     Ok(())
