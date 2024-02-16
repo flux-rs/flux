@@ -71,8 +71,8 @@ impl RegionSubst {
                 debug_assert_eq!(args1.len(), args2.len());
                 for (arg1, arg2) in iter::zip(args1, args2) {
                     match (arg1, arg2) {
-                        (GenericArg::Base(ty1), ty::GenericArg::Ty(ty2)) => {
-                            self.infer_from_bty(ty1.bty_skipping_existential(), ty2);
+                        (GenericArg::Base(ctor1), ty::GenericArg::Ty(ty2)) => {
+                            self.infer_from_bty(ctor1.as_bty_skipping_binder(), ty2);
                         }
                         (GenericArg::Ty(ty1), ty::GenericArg::Ty(ty2)) => {
                             self.infer_from_ty(ty1, ty2);
@@ -253,7 +253,7 @@ pub(crate) struct GenericsSubstFolder<'a, D> {
 trait GenericsSubstDelegate {
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Sort;
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty;
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Binder<SimpleConstrTy>;
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SimpleTyCtor;
     fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region;
 }
 
@@ -273,9 +273,9 @@ impl GenericsSubstDelegate for IdentitySubstDelegate {
         Ty::param(param_ty)
     }
 
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Binder<SimpleConstrTy> {
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SimpleTyCtor {
         Binder::with_sort(
-            SimpleConstrTy::indexed(BaseTy::Param(param_ty), Expr::nu()),
+            SimpleTy::indexed(BaseTy::Param(param_ty), Expr::nu()),
             Sort::Param(param_ty),
         )
     }
@@ -304,9 +304,9 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
         }
     }
 
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Binder<SimpleConstrTy> {
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SimpleTyCtor {
         match self.0.get(param_ty.index as usize) {
-            Some(GenericArg::Base(arg)) => arg.to_ctor(),
+            Some(GenericArg::Base(ctor)) => ctor.clone(),
             Some(arg) => {
                 bug!("expected base type for generic parameter, found `{:?}`", arg)
             }
@@ -353,7 +353,7 @@ where
         bug!("unexpected type param {param_ty:?}");
     }
 
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Binder<SimpleConstrTy> {
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SimpleTyCtor {
         bug!("unexpected base type param {param_ty:?}");
     }
 
@@ -398,7 +398,7 @@ impl<D: GenericsSubstDelegate> TypeFolder for GenericsSubstFolder<'_, D> {
         }
     }
 
-    fn fold_simple_constr_ty(&mut self, constr: &SimpleConstrTy) -> SimpleConstrTy {
+    fn fold_simple_ty(&mut self, constr: &SimpleTy) -> SimpleTy {
         if let BaseTy::Param(param_ty) = &constr.bty {
             self.delegate
                 .ctor_for_param(*param_ty)

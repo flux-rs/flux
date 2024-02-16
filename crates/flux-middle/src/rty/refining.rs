@@ -38,14 +38,14 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> QueryResult<rty
 pub struct Refiner<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     generics: rty::Generics,
-    refine: fn(rty::BaseTy) -> rty::Binder<rty::SimpleConstrTy>,
+    refine: fn(rty::BaseTy) -> rty::Binder<rty::SimpleTy>,
 }
 
 impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     pub fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         generics: &rty::Generics,
-        refine: fn(rty::BaseTy) -> rty::Binder<rty::SimpleConstrTy>,
+        refine: fn(rty::BaseTy) -> rty::Binder<rty::SimpleTy>,
     ) -> Self {
         Self { genv, generics: generics.clone(), refine }
     }
@@ -60,7 +60,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             generics: generics.clone(),
             refine: |bty| {
                 let sort = bty.sort();
-                let constr = rty::SimpleConstrTy::new(
+                let constr = rty::SimpleTy::new(
                     bty.shift_in_escaping(1),
                     rty::Expr::nu(),
                     rty::Expr::hole(rty::HoleKind::Pred),
@@ -241,7 +241,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             }
             (rty::GenericParamDefKind::BaseTy, rustc::ty::GenericArg::Ty(ty)) => {
                 let poly_constr = self.refine_ty_inner(ty)?.expect_simple();
-                Ok(rty::GenericArg::Base(rty::SimpleTy::Exists(poly_constr)))
+                Ok(rty::GenericArg::Base(poly_constr))
             }
             (rty::GenericParamDefKind::Lifetime, rustc::ty::GenericArg::Lifetime(re)) => {
                 Ok(rty::GenericArg::Lifetime(*re))
@@ -285,7 +285,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         }
     }
 
-    fn refine_ty_inner(&self, ty: &rustc::ty::Ty) -> QueryResult<TyOrSimple> {
+    fn refine_ty_inner(&self, ty: &rustc::ty::Ty) -> QueryResult<TyOrBase> {
         let bty = match ty.kind() {
             rustc::ty::TyKind::Closure(did, args) => {
                 let args = args.as_closure();
@@ -323,7 +323,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             rustc::ty::TyKind::Param(param_ty) => {
                 match self.param(*param_ty)?.kind {
                     rty::GenericParamDefKind::Type { .. } | rty::GenericParamDefKind::SplTy => {
-                        return Ok(TyOrSimple::Ty(rty::Ty::param(*param_ty)));
+                        return Ok(TyOrBase::Ty(rty::Ty::param(*param_ty)));
                     }
                     rty::GenericParamDefKind::BaseTy => rty::BaseTy::Param(*param_ty),
                     rty::GenericParamDefKind::Lifetime | rty::GenericParamDefKind::Const { .. } => {
@@ -339,7 +339,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             rustc::ty::TyKind::Alias(alias_kind, alias_ty) => {
                 let kind = Self::refine_alias_kind(alias_kind);
                 let alias_ty = self.as_default().refine_alias_ty(alias_kind, alias_ty)?;
-                return Ok(TyOrSimple::Ty(rty::Ty::alias(kind, alias_ty)));
+                return Ok(TyOrBase::Ty(rty::Ty::alias(kind, alias_ty)));
             }
             rustc::ty::TyKind::Bool => rty::BaseTy::Bool,
             rustc::ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),
@@ -352,7 +352,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
             }
         };
-        Ok(TyOrSimple::Simple((self.refine)(bty)))
+        Ok(TyOrBase::Base((self.refine)(bty)))
     }
 
     fn as_default(&self) -> Self {
@@ -388,22 +388,22 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     }
 }
 
-enum TyOrSimple {
+enum TyOrBase {
     Ty(rty::Ty),
-    Simple(rty::Binder<rty::SimpleConstrTy>),
+    Base(rty::SimpleTyCtor),
 }
 
-impl TyOrSimple {
+impl TyOrBase {
     fn into_ty(self) -> rty::Ty {
         match self {
-            TyOrSimple::Ty(ty) => ty,
-            TyOrSimple::Simple(poly_constr) => rty::SimpleTy::Exists(poly_constr).to_ty(),
+            TyOrBase::Ty(ty) => ty,
+            TyOrBase::Base(ctor) => ctor.to_ty(),
         }
     }
 
     #[track_caller]
-    fn expect_simple(self) -> rty::Binder<rty::SimpleConstrTy> {
-        if let TyOrSimple::Simple(poly_constr) = self {
+    fn expect_simple(self) -> rty::Binder<rty::SimpleTy> {
+        if let TyOrBase::Base(poly_constr) = self {
             poly_constr
         } else {
             bug!("unexpected ty")
@@ -411,9 +411,9 @@ impl TyOrSimple {
     }
 }
 
-fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::SimpleConstrTy> {
+fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::SimpleTy> {
     let sort = bty.sort();
-    let constr = rty::SimpleConstrTy::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
+    let constr = rty::SimpleTy::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
     rty::Binder::with_sort(constr, sort)
 }
 

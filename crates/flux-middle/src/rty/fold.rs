@@ -17,8 +17,8 @@ use super::{
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
     CoroutineObligPredicate, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate,
-    PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, SimpleConstrTy,
-    SimpleTy, Sort, TraitPredicate, TraitRef, Ty, TyKind,
+    PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, SimpleTy, Sort,
+    TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -77,10 +77,7 @@ pub trait FallibleTypeFolder: Sized {
         bty.try_super_fold_with(self)
     }
 
-    fn try_fold_simple_constr_ty(
-        &mut self,
-        constr: &SimpleConstrTy,
-    ) -> Result<SimpleConstrTy, Self::Error> {
+    fn try_fold_simple_ty(&mut self, constr: &SimpleTy) -> Result<SimpleTy, Self::Error> {
         constr.try_super_fold_with(self)
     }
 
@@ -110,7 +107,7 @@ pub trait TypeFolder: FallibleTypeFolder<Error = !> {
         bty.super_fold_with(self)
     }
 
-    fn fold_simple_constr_ty(&mut self, constr: &SimpleConstrTy) -> SimpleConstrTy {
+    fn fold_simple_ty(&mut self, constr: &SimpleTy) -> SimpleTy {
         constr.super_fold_with(self)
     }
 
@@ -148,11 +145,8 @@ where
         Ok(self.fold_bty(bty))
     }
 
-    fn try_fold_simple_constr_ty(
-        &mut self,
-        constr: &SimpleConstrTy,
-    ) -> Result<SimpleConstrTy, Self::Error> {
-        Ok(self.fold_simple_constr_ty(constr))
+    fn try_fold_simple_ty(&mut self, constr: &SimpleTy) -> Result<SimpleTy, Self::Error> {
+        Ok(self.fold_simple_ty(constr))
     }
 
     fn try_fold_region(&mut self, re: &Region) -> Result<Region, Self::Error> {
@@ -985,7 +979,7 @@ impl TypeFoldable for AliasTy {
     }
 }
 
-impl TypeVisitable for SimpleConstrTy {
+impl TypeVisitable for SimpleTy {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
         self.bty.visit_with(visitor)?;
         self.idx.visit_with(visitor)?;
@@ -993,39 +987,19 @@ impl TypeVisitable for SimpleConstrTy {
     }
 }
 
-impl TypeFoldable for SimpleConstrTy {
+impl TypeFoldable for SimpleTy {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        folder.try_fold_simple_constr_ty(self)
+        folder.try_fold_simple_ty(self)
     }
 }
 
-impl TypeSuperFoldable for SimpleConstrTy {
+impl TypeSuperFoldable for SimpleTy {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(SimpleConstrTy {
+        Ok(SimpleTy {
             bty: self.bty.try_fold_with(folder)?,
             idx: self.idx.try_fold_with(folder)?,
             pred: self.pred.try_fold_with(folder)?,
         })
-    }
-}
-
-impl TypeVisitable for SimpleTy {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
-        match self {
-            SimpleTy::Constr(constr) => constr.visit_with(visitor),
-            SimpleTy::Exists(constr) => constr.visit_with(visitor),
-        }
-    }
-}
-
-impl TypeFoldable for SimpleTy {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        match self {
-            SimpleTy::Constr(constr) => Ok(SimpleTy::Constr(constr.try_fold_with(folder)?)),
-            SimpleTy::Exists(poly_constr) => {
-                Ok(SimpleTy::Exists(poly_constr.try_fold_with(folder)?))
-            }
-        }
     }
 }
 

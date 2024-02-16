@@ -959,7 +959,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     let sty = self
                         .conv_ty(env, ty)?
                         .shallow_canonicalize()
-                        .to_simple_ty()
+                        .to_simple_ty_ctor()
                         .unwrap();
                     into.push(rty::GenericArg::Base(sty));
                 }

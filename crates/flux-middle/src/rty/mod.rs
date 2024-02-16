@@ -793,14 +793,33 @@ pub type RefineArgs = List<Expr>;
 
 pub type OpaqueArgsMap = FxHashMap<DefId, (GenericArgs, RefineArgs)>;
 
+type SimpleTyCtor = Binder<SimpleTy>;
+
+impl SimpleTyCtor {
+    pub fn as_bty_skipping_binder(&self) -> &BaseTy {
+        &self.as_ref().skip_binder().bty
+    }
+
+    pub fn to_ty(&self) -> Ty {
+        let sort = self.sort();
+        if sort.is_unit() {
+            self.replace_bound_reft(&Expr::unit()).to_ty()
+        } else if let Some(def_id) = sort.is_unit_adt() {
+            self.replace_bound_reft(&Expr::unit_adt(def_id)).to_ty()
+        } else {
+            Ty::exists(self.as_ref().map(SimpleTy::to_ty))
+        }
+    }
+}
+
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct SimpleConstrTy {
+pub struct SimpleTy {
     pub bty: BaseTy,
     pub idx: Expr,
     pub pred: Expr,
 }
 
-impl SimpleConstrTy {
+impl SimpleTy {
     pub fn new(bty: BaseTy, idx: impl Into<Expr>, pred: impl Into<Expr>) -> Self {
         Self { bty, idx: idx.into(), pred: pred.into() }
     }
@@ -814,6 +833,10 @@ impl SimpleConstrTy {
         Self { bty: this.bty, idx: this.idx, pred: Expr::and([this.pred, pred.into()]) }
     }
 
+    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
+        self.bty.to_rustc(tcx)
+    }
+
     fn to_ty(&self) -> Ty {
         let bty = self.bty.clone();
         if self.pred.is_trivially_true() {
@@ -825,74 +848,9 @@ impl SimpleConstrTy {
 }
 
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
-pub enum SimpleTy {
-    Constr(SimpleConstrTy),
-    Exists(Binder<SimpleConstrTy>),
-}
-
-impl SimpleTy {
-    fn sort(&self) -> Sort {
-        self.bty_skipping_existential().sort()
-    }
-
-    pub fn bty_skipping_existential(&self) -> &BaseTy {
-        match self {
-            SimpleTy::Exists(constr) => &constr.as_ref().skip_binder().bty,
-            SimpleTy::Constr(constr) => &constr.bty,
-        }
-    }
-
-    pub fn to_ctor(&self) -> Binder<SimpleConstrTy> {
-        match self {
-            SimpleTy::Constr(constr) => {
-                // given {b[e] | p} return λv. {b[v] | p ∧ v == e}
-                let sort = constr.bty.sort();
-                let bty = constr.bty.shift_in_escaping(1);
-                let pred = constr.pred.shift_in_escaping(1);
-                let constr = SimpleConstrTy::new(
-                    bty,
-                    Expr::nu(),
-                    Expr::and([pred, Expr::eq(Expr::nu(), &constr.idx)]),
-                );
-                Binder::with_sort(constr, sort)
-            }
-            SimpleTy::Exists(poly_constr) => poly_constr.clone(),
-        }
-    }
-
-    pub fn to_ty(&self) -> Ty {
-        match self {
-            SimpleTy::Constr(constr) => constr.to_ty(),
-            SimpleTy::Exists(poly_constr) => {
-                let sort = poly_constr.vars()[0].expect_sort();
-                if sort.is_unit() {
-                    poly_constr.replace_bound_reft(&Expr::unit()).to_ty()
-                } else if let Some(def_id) = sort.is_unit_adt() {
-                    poly_constr
-                        .replace_bound_reft(&Expr::unit_adt(def_id))
-                        .to_ty()
-                } else {
-                    Ty::exists(poly_constr.as_ref().map(SimpleConstrTy::to_ty))
-                }
-            }
-        }
-    }
-
-    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
-        self.bty_skipping_existential().to_rustc(tcx)
-    }
-}
-
-impl From<SimpleConstrTy> for SimpleTy {
-    fn from(v: SimpleConstrTy) -> Self {
-        Self::Constr(v)
-    }
-}
-
-#[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
     Ty(Ty),
-    Base(SimpleTy),
+    Base(SimpleTyCtor),
     Lifetime(Region),
     Const(Const),
 }
@@ -909,7 +867,7 @@ impl GenericArg {
     pub fn peel_out_sort(&self) -> Option<Sort> {
         match self {
             GenericArg::Ty(ty) => ty.as_bty_skipping_existentials().map(BaseTy::sort),
-            GenericArg::Base(ty) => Some(ty.sort()),
+            GenericArg::Base(ctor) => Some(ctor.sort()),
             GenericArg::Lifetime(_) | GenericArg::Const(_) => None,
         }
     }
@@ -949,7 +907,9 @@ impl GenericArg {
         use rustc_middle::ty;
         match self {
             GenericArg::Ty(ty) => ty::GenericArg::from(ty.to_rustc(tcx)),
-            GenericArg::Base(ty) => ty::GenericArg::from(ty.to_rustc(tcx)),
+            GenericArg::Base(ctor) => {
+                ty::GenericArg::from(ctor.as_ref().skip_binder().to_rustc(tcx))
+            }
             GenericArg::Lifetime(re) => ty::GenericArg::from(re.to_rustc(tcx)),
             GenericArg::Const(_) => todo!(),
         }
@@ -1250,6 +1210,13 @@ impl<T> Binder<T> {
 
     pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<Binder<U>, E> {
         Ok(Binder { vars: self.vars, value: f(self.value)? })
+    }
+
+    pub fn sort(&self) -> Sort {
+        match &self.vars[..] {
+            [BoundVariableKind::Refine(sort, ..)] => sort.clone(),
+            _ => bug!("expected single-sorted binder"),
+        }
     }
 }
 
@@ -2263,23 +2230,6 @@ mod pretty {
     impl Pretty for SimpleTy {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            match self {
-                SimpleTy::Constr(constr) => {
-                    w!("{:?}", constr)
-                }
-                SimpleTy::Exists(poly_constr) => {
-                    cx.with_bound_vars(poly_constr.vars(), || {
-                        cx.fmt_bound_vars("∃", poly_constr.vars(), ". ", f)?;
-                        w!("{:?}", &poly_constr.value)
-                    })
-                }
-            }
-        }
-    }
-
-    impl Pretty for SimpleConstrTy {
-        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
             w!("{{ {:?}[{:?}] | {:?} }}", &self.bty, &self.idx, &self.pred)
         }
     }
@@ -2467,8 +2417,13 @@ mod pretty {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                GenericArg::Ty(arg) => w!("{:?}", arg),
-                GenericArg::Base(arg) => w!("{:?}", arg.to_ty()),
+                GenericArg::Ty(ty) => w!("{:?}", ty),
+                GenericArg::Base(ctor) => {
+                    cx.with_bound_vars(ctor.vars(), || {
+                        cx.fmt_bound_vars("λ", ctor.vars(), ". ", f)?;
+                        w!("{:?}", &ctor.value)
+                    })
+                }
                 GenericArg::Lifetime(re) => w!("{:?}", re),
                 GenericArg::Const(c) => w!("{:?}", c),
             }
@@ -2508,6 +2463,5 @@ mod pretty {
         FuncSort,
         SortCtor,
         SimpleTy,
-        SimpleConstrTy,
     );
 }

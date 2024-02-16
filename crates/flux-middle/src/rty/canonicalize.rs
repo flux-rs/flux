@@ -3,7 +3,7 @@ use rustc_type_ir::{Mutability, INNERMOST};
 use super::{
     box_args,
     fold::{TypeFoldable, TypeFolder},
-    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, SimpleConstrTy, SimpleTy, Ty, TyKind,
+    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, SimpleTy, SimpleTyCtor, Ty, TyKind,
 };
 use crate::intern::List;
 
@@ -87,12 +87,20 @@ pub enum CanonicalTy {
 }
 
 impl CanonicalTy {
-    pub fn to_simple_ty(&self) -> Option<SimpleTy> {
+    pub fn to_simple_ty_ctor(&self) -> Option<SimpleTyCtor> {
         match self {
             CanonicalTy::Constr(constr) => {
                 if let TyKind::Indexed(bty, idx) = constr.ty.kind() {
-                    let constr = SimpleConstrTy::new(bty.clone(), idx, &constr.pred);
-                    Some(SimpleTy::Constr(constr))
+                    // given {b[e] | p} return λv. {b[v] | p ∧ v == e}
+                    let sort = bty.sort();
+                    let bty = bty.shift_in_escaping(1);
+                    let pred = constr.pred.shift_in_escaping(1);
+                    let constr = SimpleTy::new(
+                        bty,
+                        Expr::nu(),
+                        Expr::and([pred, Expr::eq(Expr::nu(), idx)]),
+                    );
+                    Some(Binder::with_sort(constr, sort))
                 } else {
                     None
                 }
@@ -102,10 +110,10 @@ impl CanonicalTy {
                 if let TyKind::Indexed(bty, idx) = constr.ty.kind()
                     && idx.is_nu()
                 {
-                    let poly_constr = poly_constr
+                    let ctor = poly_constr
                         .as_ref()
-                        .map(|constr| SimpleConstrTy::new(bty.clone(), Expr::nu(), &constr.pred));
-                    Some(SimpleTy::Exists(poly_constr))
+                        .map(|constr| SimpleTy::new(bty.clone(), Expr::nu(), &constr.pred));
+                    Some(ctor)
                 } else {
                     None
                 }
