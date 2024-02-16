@@ -88,10 +88,10 @@ impl CanonicalTy {
             CanonicalTy::Exists(poly_constr_ty) => {
                 let vars = poly_constr_ty.vars();
                 let constr_ty = poly_constr_ty.as_ref().skip_binder();
-                if let TyKind::Indexed(bty, idx) = constr_ty.ty.kind()
+                if let TyKind::Indexed(_, idx) = constr_ty.ty.kind()
                     && idx.is_nu()
                 {
-                    let ty = Ty::constr(constr_ty.pred.clone(), Ty::indexed(bty.clone(), idx));
+                    let ty = constr_ty.to_ty();
                     Some(GenericArg::BaseTy(Binder::new(ty, vars.clone())))
                 } else {
                     None
@@ -119,4 +119,14 @@ impl CanonicalTy {
 pub struct ConstrTy {
     ty: Ty,
     pred: Expr,
+}
+
+impl ConstrTy {
+    pub fn to_ty(&self) -> Ty {
+        if self.pred.is_trivially_true() {
+            self.ty.clone()
+        } else {
+            Ty::constr(self.pred.clone(), self.ty.clone())
+        }
+    }
 }
