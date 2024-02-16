@@ -224,7 +224,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 Ok(rty::GenericArg::Ty(self.refine_ty(ty)?))
             }
             (rty::GenericParamDefKind::BaseTy, rustc::ty::GenericArg::Ty(ty)) => {
-                Ok(rty::GenericArg::BaseTy(self.refine_poly_ty(ty)?))
+                Ok(rty::GenericArg::Base(self.refine_poly_ty(ty)?))
             }
             (rty::GenericParamDefKind::Lifetime, rustc::ty::GenericArg::Lifetime(re)) => {
                 Ok(rty::GenericArg::Lifetime(*re))

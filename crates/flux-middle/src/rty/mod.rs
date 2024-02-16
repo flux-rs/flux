@@ -608,7 +608,7 @@ pub enum BaseTy {
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
-    Closure(DefId, List<Ty>),
+    Closure(DefId, /* upvar_tys */ List<Ty>),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
     Param(ParamTy),
 }
@@ -633,11 +633,77 @@ pub type GenericArgs = List<GenericArg>;
 pub type OpaqueArgsMap = FxHashMap<DefId, (GenericArgs, RefineArgs)>;
 
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct SimpleTy {
+    bty: BaseTy,
+    pred: Expr,
+}
+
+impl SimpleTy {
+    pub fn sort(&self) -> Sort {
+        self.bty.sort()
+    }
+
+    pub fn as_ty_ctor(&self) -> Binder<Ty> {
+        let ty = Ty::constr(self.pred.clone(), Ty::indexed(self.bty.clone(), Expr::nu()));
+        Binder::with_sort(ty, self.sort())
+    }
+}
+
+#[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
     Ty(Ty),
-    BaseTy(Binder<Ty>),
+    Base(SimpleTy),
     Lifetime(Region),
     Const(Const),
+}
+
+impl GenericArg {
+    pub fn expect_type(&self) -> &Ty {
+        if let GenericArg::Ty(ty) = self {
+            ty
+        } else {
+            bug!("expected `rty::GenericArg::Ty`, found {:?}", self)
+        }
+    }
+
+    pub fn peel_out_sort(&self) -> Option<Sort> {
+        match self {
+            GenericArg::Ty(ty) => ty.as_bty_skipping_existentials().map(BaseTy::sort),
+            GenericArg::Base(ty) => Some(ty.sort()),
+            GenericArg::Lifetime(_) | GenericArg::Const(_) => None,
+        }
+    }
+
+    pub fn is_valid_base_arg(&self) -> bool {
+        match self {
+            GenericArg::Ty(ty) => ty.kind().is_valid_base_ty(),
+            GenericArg::Base(ty) => true,
+            _ => false,
+        }
+    }
+
+    fn from_param_def(genv: GlobalEnv, param: &GenericParamDef) -> QueryResult<Self> {
+        match param.kind {
+            GenericParamDefKind::Type { .. } | GenericParamDefKind::SplTy => {
+                let param_ty = ParamTy { index: param.index, name: param.name };
+                Ok(GenericArg::Ty(Ty::param(param_ty)))
+            }
+            GenericParamDefKind::Lifetime => {
+                let region =
+                    EarlyBoundRegion { index: param.index, name: param.name, def_id: param.def_id };
+                Ok(GenericArg::Lifetime(Region::ReEarlyBound(region)))
+            }
+            GenericParamDefKind::Const { .. } => {
+                let param_const = ParamConst { index: param.index, name: param.name };
+                let kind = ConstKind::Param(param_const);
+                let ty = genv.lower_type_of(param.def_id)?.skip_binder();
+                Ok(GenericArg::Const(Const { kind, ty }))
+            }
+            GenericParamDefKind::BaseTy => {
+                bug!("")
+            }
+        }
+    }
 }
 
 impl GenericArgs {
@@ -669,55 +735,6 @@ impl GenericArgs {
             args.push(kind);
         }
         Ok(())
-    }
-}
-
-impl GenericArg {
-    pub fn expect_type(&self) -> &Ty {
-        if let GenericArg::Ty(ty) = self {
-            ty
-        } else {
-            bug!("expected `rty::GenericArg::Ty`, found {:?}", self)
-        }
-    }
-
-    pub fn peel_out_sort(&self) -> Option<Sort> {
-        match self {
-            GenericArg::Ty(ty) => ty.as_bty_skipping_existentials().map(BaseTy::sort),
-            GenericArg::BaseTy(abs) => Some(abs.vars()[0].expect_sort().clone()),
-            GenericArg::Lifetime(_) | GenericArg::Const(_) => None,
-        }
-    }
-
-    pub fn is_valid_base_arg(&self) -> bool {
-        match self {
-            GenericArg::Ty(ty) => ty.kind().is_valid_base_ty(),
-            GenericArg::BaseTy(bty) => bty.as_ref().skip_binder().kind().is_valid_base_ty(),
-            _ => false,
-        }
-    }
-
-    fn from_param_def(genv: GlobalEnv, param: &GenericParamDef) -> QueryResult<Self> {
-        match param.kind {
-            GenericParamDefKind::Type { .. } | GenericParamDefKind::SplTy => {
-                let param_ty = ParamTy { index: param.index, name: param.name };
-                Ok(GenericArg::Ty(Ty::param(param_ty)))
-            }
-            GenericParamDefKind::Lifetime => {
-                let region =
-                    EarlyBoundRegion { index: param.index, name: param.name, def_id: param.def_id };
-                Ok(GenericArg::Lifetime(Region::ReEarlyBound(region)))
-            }
-            GenericParamDefKind::Const { .. } => {
-                let param_const = ParamConst { index: param.index, name: param.name };
-                let kind = ConstKind::Param(param_const);
-                let ty = genv.lower_type_of(param.def_id)?.skip_binder();
-                Ok(GenericArg::Const(Const { kind, ty }))
-            }
-            GenericParamDefKind::BaseTy => {
-                bug!("")
-            }
-        }
     }
 }
 
@@ -2262,10 +2279,11 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 GenericArg::Ty(arg) => w!("{:?}", arg),
-                GenericArg::BaseTy(arg) => {
-                    cx.with_bound_vars(arg.vars(), || {
-                        cx.fmt_bound_vars("λ", arg.vars(), ". ", f)?;
-                        w!("{:?}", arg.as_ref().skip_binder())
+                GenericArg::Base(arg) => {
+                    let ctor = arg.as_ty_ctor();
+                    cx.with_bound_vars(ctor.vars(), || {
+                        cx.fmt_bound_vars("λ", ctor.vars(), ". ", f)?;
+                        w!("{:?}", ctor.as_ref().skip_binder())
                     })
                 }
                 GenericArg::Lifetime(re) => w!("{:?}", re),

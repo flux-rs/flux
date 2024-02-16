@@ -280,7 +280,7 @@ fn into_rustc_generic_arg<'tcx>(
     use rustc_middle::ty;
     match arg {
         GenericArg::Ty(ty) => ty::GenericArg::from(into_rustc_ty(tcx, ty)),
-        GenericArg::BaseTy(bty) => {
+        GenericArg::Base(ty) => {
             ty::GenericArg::from(into_rustc_ty(tcx, &bty.clone().skip_binder()))
         }
         GenericArg::Lifetime(re) => ty::GenericArg::from(into_rustc_region(tcx, *re)),
@@ -449,7 +449,7 @@ impl TVarSubst {
                 self.infer_from_ty(&src.as_type().unwrap(), dst);
             }
             GenericArg::Lifetime(dst) => self.infer_from_region(&src.as_region().unwrap(), dst),
-            GenericArg::BaseTy(bty) => {
+            GenericArg::Base(bty) => {
                 self.infer_from_ty(&src.as_type().unwrap(), &bty.clone().skip_binder());
             }
             _ => (),

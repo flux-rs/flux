@@ -373,8 +373,8 @@ impl BasicBlockEnvShape {
     fn pack_generic_arg(scope: &Scope, arg: &GenericArg) -> GenericArg {
         match arg {
             GenericArg::Ty(ty) => GenericArg::Ty(Self::pack_ty(scope, ty)),
-            GenericArg::BaseTy(arg) => {
-                GenericArg::BaseTy(arg.as_ref().map(|ty| Self::pack_ty(scope, ty)))
+            GenericArg::Base(arg) => {
+                GenericArg::Base(arg.as_ref().map(|ty| Self::pack_ty(scope, ty)))
             }
             GenericArg::Lifetime(re) => GenericArg::Lifetime(*re),
             GenericArg::Const(c) => GenericArg::Const(c.clone()),
@@ -529,7 +529,7 @@ impl BasicBlockEnvShape {
     fn join_generic_arg(&self, arg1: &GenericArg, arg2: &GenericArg) -> GenericArg {
         match (arg1, arg2) {
             (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => GenericArg::Ty(self.join_ty(ty1, ty2)),
-            (GenericArg::BaseTy(_), GenericArg::BaseTy(_)) => {
+            (GenericArg::Base(_), GenericArg::Base(_)) => {
                 tracked_span_bug!("generic argument join for base types is not implemented")
             }
             (GenericArg::Lifetime(re1), GenericArg::Lifetime(re2)) => {

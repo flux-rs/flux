@@ -693,7 +693,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                     Variance::Bivariant => Ok(()),
                 }
             }
-            (GenericArg::BaseTy(_), GenericArg::BaseTy(_)) => {
+            (GenericArg::Base(_), GenericArg::Base(_)) => {
                 tracked_span_bug!("generic argument subtyping for base types is not implemented");
             }
             (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => Ok(()),
