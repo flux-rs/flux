@@ -12,7 +12,8 @@ use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
-    evars::EVar, AliasReft, BaseTy, Binder, BoundVariableKind, FuncSort, IntTy, Sort, UintTy,
+    evars::EVar, AliasReft, BaseTy, Binder, BoundReftKind, BoundVariableKind, FuncSort, IntTy,
+    Sort, UintTy,
 };
 use crate::{
     fhir::SpecFuncKind,
@@ -40,7 +41,7 @@ impl Lambda {
     }
 
     pub fn apply(&self, args: &[Expr]) -> Expr {
-        self.body.replace_bound_exprs(args)
+        self.body.replace_bound_refts(args)
     }
 
     pub fn inputs(&self) -> List<Sort> {
@@ -232,10 +233,22 @@ pub struct KVar {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+pub struct EarlyReftParam {
+    pub index: u32,
+    pub name: Symbol,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable, Debug)]
+pub struct BoundReft {
+    pub index: u32,
+    pub kind: BoundReftKind,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum Var {
     Free(Name),
-    LateBound(DebruijnIndex, u32),
-    EarlyBound(u32),
+    LateBound(DebruijnIndex, BoundReft),
+    EarlyParam(EarlyReftParam),
     EVar(EVar),
 }
 
@@ -342,7 +355,17 @@ impl Expr {
     }
 
     pub fn nu() -> Expr {
-        Expr::late_bvar(INNERMOST, 0)
+        Expr::late_bvar(INNERMOST, 0, BoundReftKind::Annon)
+    }
+
+    pub fn is_nu(&self) -> bool {
+        if let ExprKind::Var(Var::LateBound(INNERMOST, var)) = self.kind()
+            && var.index == 0
+        {
+            true
+        } else {
+            false
+        }
     }
 
     #[track_caller]
@@ -370,12 +393,12 @@ impl Expr {
         Var::EVar(evar).to_expr()
     }
 
-    pub fn late_bvar(bvar: DebruijnIndex, idx: u32) -> Expr {
-        Var::LateBound(bvar, idx).to_expr()
+    pub fn late_bvar(debruijn: DebruijnIndex, index: u32, kind: BoundReftKind) -> Expr {
+        Var::LateBound(debruijn, BoundReft { index, kind }).to_expr()
     }
 
-    pub fn early_bvar(idx: u32) -> Expr {
-        Var::EarlyBound(idx).to_expr()
+    pub fn early_param(index: u32, name: Symbol) -> Expr {
+        Var::EarlyParam(EarlyReftParam { index, name }).to_expr()
     }
 
     pub fn local(local: Local, espan: Option<ESpan>) -> Expr {
@@ -644,9 +667,14 @@ impl Expr {
         matches!(self.kind(), ExprKind::Abs(..))
     }
 
+    /// Wether this is an aggregate expression with no fields.
+    pub fn is_unit(&self) -> bool {
+        matches!(self.kind(), ExprKind::Aggregate(_, flds) if flds.is_empty())
+    }
+
     pub fn eta_expand_abs(&self, inputs: &[Sort], output: Sort) -> Lambda {
         let args = (0..inputs.len())
-            .map(|idx| Expr::late_bvar(INNERMOST, idx as u32))
+            .map(|idx| Expr::late_bvar(INNERMOST, idx as u32, BoundReftKind::Annon))
             .collect_vec();
         let body = Expr::app(self, args, None);
         Lambda::with_sorts(body, inputs, output)
@@ -841,7 +869,7 @@ mod pretty {
     }
 
     impl Pretty for Expr {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             fn should_parenthesize(op: &BinOp, child: &Expr) -> bool {
                 if let ExprKind::BinaryOp(child_op, ..) = child.kind() {
@@ -936,7 +964,7 @@ mod pretty {
     }
 
     impl Pretty for AliasReft {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("<{:?} as {:?}", &self.args[0], self.trait_id)?;
             let args = &self.args[1..];
@@ -948,18 +976,22 @@ mod pretty {
     }
 
     impl Pretty for Lambda {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("λ{:?}. {:?}", join!(", ", self.body.vars()), self.body.as_ref().skip_binder())
+            let vars = self.body.vars();
+            cx.with_bound_vars(vars, || {
+                cx.fmt_bound_vars("λ", vars, ". ", f)?;
+                w!("{:?}", self.body.as_ref().skip_binder())
+            })
         }
     }
 
     impl Pretty for Var {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Var::LateBound(bvar, idx) => w!("({:?}.{})", bvar, ^idx),
-                Var::EarlyBound(idx) => w!("#{}", ^idx),
+                Var::LateBound(debruijn, var) => cx.fmt_bound_reft(*debruijn, *var, f),
+                Var::EarlyParam(var) => w!("{}", ^var.name),
                 Var::Free(name) => w!("{:?}", ^name),
                 Var::EVar(evar) => w!("{:?}", evar),
             }
@@ -967,7 +999,7 @@ mod pretty {
     }
 
     impl Pretty for KVar {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?}", ^self.kvid)?;
             match cx.kvar_args {
@@ -982,7 +1014,7 @@ mod pretty {
     }
 
     impl Pretty for Path {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?}", &self.loc)?;
             for field in &self.projection {
@@ -993,7 +1025,7 @@ mod pretty {
     }
 
     impl Pretty for Loc {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
                 Loc::Local(local) => w!("{:?}", ^local),
@@ -1003,7 +1035,7 @@ mod pretty {
     }
 
     impl Pretty for BinOp {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
                 BinOp::Iff => w!("⇔"),
@@ -1026,7 +1058,7 @@ mod pretty {
     }
 
     impl Pretty for UnOp {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
                 UnOp::Not => w!("¬"),
@@ -1035,5 +1067,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar, Lambda);
+    impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar, Lambda, AliasReft);
 }

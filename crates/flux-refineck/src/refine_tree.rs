@@ -329,7 +329,7 @@ impl TypeFolder for Unpacker<'_, '_> {
                 // opening of mutable references. See also `ConstrGen::check_fn_call`.
                 if !self.in_mut_ref || self.unpack_inside_mut_ref {
                     let bound_ty = bound_ty
-                        .replace_bound_exprs_with(|sort, _| self.rcx.define_vars(sort))
+                        .replace_bound_refts_with(|sort, _, _| self.rcx.define_vars(sort))
                         .fold_with(self);
                     if let AssumeInvariants::Yes { check_overflow } = self.assume_invariants {
                         self.rcx.assume_invariants(&bound_ty, check_overflow);
@@ -713,21 +713,21 @@ mod pretty {
     }
 
     impl Pretty for RefineTree {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?}", &self.root)
         }
     }
 
     impl Pretty for RefineSubtree<'_> {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!("{:?}", &self.root)
         }
     }
 
     impl Pretty for NodePtr {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             let node = self.borrow();
             match &node.kind {
@@ -783,7 +783,7 @@ mod pretty {
 
     fn fmt_children(
         children: &[NodePtr],
-        cx: &PPrintCx,
+        cx: &PrettyCx,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         let mut f = PadAdapter::wrap_fmt(f, 2);
@@ -804,7 +804,7 @@ mod pretty {
     }
 
     impl Pretty for RefineCtxt<'_> {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             let parents = ParentsIter::new(NodePtr::clone(&self.ptr)).collect_vec();
             write!(
@@ -836,7 +836,7 @@ mod pretty {
     }
 
     impl Pretty for Scope {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             write!(
                 f,

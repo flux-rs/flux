@@ -59,12 +59,12 @@ impl EarlyBoundArgCountMismatch {
 pub(super) struct DuplicatedEnsures {
     #[primary_span]
     span: Span,
-    loc: Symbol,
+    loc: String,
 }
 
 impl DuplicatedEnsures {
-    pub(super) fn new(loc: &fhir::Ident) -> DuplicatedEnsures {
-        Self { span: loc.span(), loc: loc.sym() }
+    pub(super) fn new(loc: &fhir::PathExpr) -> DuplicatedEnsures {
+        Self { span: loc.span, loc: format!("{loc:?}") }
     }
 }
 
@@ -89,8 +89,8 @@ pub(super) struct MissingEnsures {
 }
 
 impl MissingEnsures {
-    pub(super) fn new(loc: &fhir::Ident) -> MissingEnsures {
-        Self { span: loc.span() }
+    pub(super) fn new(loc: &fhir::PathExpr) -> MissingEnsures {
+        Self { span: loc.span }
     }
 }
 
@@ -205,12 +205,12 @@ pub(super) struct ParamNotDetermined {
     #[primary_span]
     #[label]
     span: Span,
-    sym: Symbol,
+    name: Symbol,
 }
 
 impl ParamNotDetermined {
-    pub(super) fn new(ident: fhir::Ident) -> Self {
-        Self { span: ident.span(), sym: ident.sym() }
+    pub(super) fn new(span: Span, name: Symbol) -> Self {
+        Self { span, name }
     }
 }
 
@@ -224,7 +224,7 @@ pub(super) struct SortAnnotationNeeded {
 
 impl SortAnnotationNeeded {
     pub(super) fn new(param: &fhir::RefineParam) -> Self {
-        Self { span: param.ident.span() }
+        Self { span: param.span }
     }
 }
 

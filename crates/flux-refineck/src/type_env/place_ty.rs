@@ -762,7 +762,7 @@ fn downcast_struct(
     let (.., flds) = idx.expect_adt();
     Ok(struct_variant(genv, adt.did())?
         .instantiate(args, &[])
-        .replace_bound_exprs(&flds)
+        .replace_bound_refts(&flds)
         .fields
         .to_vec())
 }
@@ -796,7 +796,7 @@ fn downcast_enum(
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
         .instantiate(args, &[])
-        .replace_bound_exprs_with(|sort, _| rcx.define_vars(sort));
+        .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
     // FIXME(nilehmann) flatten indices
     let (.., exprs1) = idx1.expect_adt();
@@ -886,7 +886,7 @@ mod pretty {
     use super::*;
 
     impl Pretty for PlacesTree {
-        fn fmt(&self, cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             w!(
                 "{{{}}}",
@@ -900,15 +900,15 @@ mod pretty {
             )
         }
 
-        fn default_cx(tcx: TyCtxt) -> PPrintCx {
-            PPrintCx::default(tcx)
+        fn default_cx(tcx: TyCtxt) -> PrettyCx {
+            PrettyCx::default(tcx)
                 .kvar_args(KVarArgs::Hide)
                 .hide_binder(true)
         }
     }
 
     impl Pretty for LocKind {
-        fn fmt(&self, _cx: &PPrintCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
                 LocKind::Local | LocKind::Universal => Ok(()),

@@ -2,7 +2,10 @@ use std::ops::ControlFlow;
 
 use flux_common::index::IndexGen;
 use flux_errors::ErrorCollector;
-use flux_middle::{fhir, PathRes, ResolverOutput};
+use flux_middle::{
+    fhir::{self, ExprRes},
+    ResolverOutput,
+};
 use flux_syntax::surface::{self, visit::Visitor as _, Ident, NodeId};
 use rustc_data_structures::{
     fx::{FxIndexMap, IndexEntry},
@@ -380,7 +383,7 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     sorts_res: UnordMap<Symbol, fhir::SortRes>,
     param_defs: FxIndexMap<NodeId, ParamDef>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
-    path_res_map: FxHashMap<NodeId, PathRes<NodeId>>,
+    path_res_map: FxHashMap<NodeId, ExprRes<NodeId>>,
     errors: ErrorCollector<'genv>,
 }
 
@@ -546,17 +549,17 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 return;
             }
             self.path_res_map
-                .insert(node_id, PathRes::Param(res.kind(), res.param_id()));
+                .insert(node_id, ExprRes::Param(res.kind(), res.param_id()));
             return;
         }
         if let Some(const_def_id) = self.resolver.consts.get(&ident.name) {
             self.path_res_map
-                .insert(node_id, PathRes::Const(*const_def_id));
+                .insert(node_id, ExprRes::Const(*const_def_id));
             return;
         }
         if let Some(decl) = self.resolver.func_decls.get(&ident.name) {
             self.path_res_map
-                .insert(node_id, PathRes::GlobalFunc(*decl, ident.name));
+                .insert(node_id, ExprRes::GlobalFunc(*decl, ident.name));
             return;
         }
         self.errors
@@ -596,17 +599,17 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     }
 
     pub(crate) fn finish(self) -> Result {
-        let name_gen: IndexGen<fhir::Name> = IndexGen::new();
+        let name_gen: IndexGen<fhir::ParamId> = IndexGen::new();
         let mut params = FxIndexMap::default();
         let mut name_for_param =
             |param_id| *params.entry(param_id).or_insert_with(|| name_gen.fresh());
 
         for (node_id, res) in self.path_res_map {
             let res = match res {
-                PathRes::Param(kind, param_id) => PathRes::Param(kind, name_for_param(param_id)),
-                PathRes::Const(def_id) => PathRes::Const(def_id),
-                PathRes::NumConst(val) => PathRes::NumConst(val),
-                PathRes::GlobalFunc(kind, name) => PathRes::GlobalFunc(kind, name),
+                ExprRes::Param(kind, param_id) => ExprRes::Param(kind, name_for_param(param_id)),
+                ExprRes::Const(def_id) => ExprRes::Const(def_id),
+                ExprRes::NumConst(val) => ExprRes::NumConst(val),
+                ExprRes::GlobalFunc(kind, name) => ExprRes::GlobalFunc(kind, name),
             };
             self.resolver.output.path_expr_res_map.insert(node_id, res);
         }
@@ -754,13 +757,13 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
 
 macro_rules! define_resolve_num_const {
     ($($typ:ident),*) => {
-        fn resolve_num_const(typ: surface::Ident, name: surface::Ident) -> Option<PathRes> {
+        fn resolve_num_const(typ: surface::Ident, name: surface::Ident) -> Option<ExprRes> {
             match typ.name.as_str() {
                 $(
                     stringify!($typ) => {
                         match name.name.as_str() {
-                            "MAX" => Some(PathRes::NumConst($typ::MAX.try_into().unwrap())),
-                            "MIN" => Some(PathRes::NumConst($typ::MIN.try_into().unwrap())),
+                            "MAX" => Some(ExprRes::NumConst($typ::MAX.try_into().unwrap())),
+                            "MIN" => Some(ExprRes::NumConst($typ::MIN.try_into().unwrap())),
                             _ => None,
                         }
                     },

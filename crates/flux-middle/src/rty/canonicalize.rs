@@ -3,7 +3,7 @@ use rustc_type_ir::{Mutability, INNERMOST};
 use super::{
     box_args,
     fold::{TypeFoldable, TypeFolder},
-    BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, Ty, TyKind, Var,
+    BaseTy, Binder, BoundReftKind, BoundVariableKind, Expr, GenericArg, Ty, TyKind,
 };
 use crate::intern::List;
 
@@ -27,11 +27,11 @@ impl TypeFolder for Hoister {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Exists(ty) => {
-                ty.replace_bound_exprs_with(|sort, mode| {
+                ty.replace_bound_refts_with(|sort, mode, kind| {
                     let idx = self.vars.len();
                     self.vars
-                        .push(BoundVariableKind::Refine(sort.clone(), mode));
-                    Expr::late_bvar(INNERMOST, idx as u32)
+                        .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
+                    Expr::late_bvar(INNERMOST, idx as u32, kind)
                 })
                 .fold_with(self)
             }
@@ -89,8 +89,7 @@ impl CanonicalTy {
                 let vars = poly_constr_ty.vars();
                 let constr_ty = poly_constr_ty.as_ref().skip_binder();
                 if let TyKind::Indexed(bty, idx) = constr_ty.ty.kind()
-                    && vars.to_sort_list()[..] == [bty.sort()][..]
-                    && let ExprKind::Var(Var::LateBound(INNERMOST, 0)) = idx.kind()
+                    && idx.is_nu()
                 {
                     let ty = Ty::constr(constr_ty.pred.clone(), Ty::indexed(bty.clone(), idx));
                     Some(GenericArg::BaseTy(Binder::new(ty, vars.clone())))
@@ -103,7 +102,11 @@ impl CanonicalTy {
                     let sort = bty.sort();
                     let infer_mode = sort.default_infer_mode();
                     let ty = Ty::constr(Expr::eq(Expr::nu(), idx), Ty::indexed(bty.clone(), idx));
-                    let vars = List::singleton(BoundVariableKind::Refine(sort, infer_mode));
+                    let vars = List::singleton(BoundVariableKind::Refine(
+                        sort,
+                        infer_mode,
+                        BoundReftKind::Annon,
+                    ));
                     Some(GenericArg::BaseTy(Binder::new(ty, vars)))
                 } else {
                     None

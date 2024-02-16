@@ -124,7 +124,7 @@ impl<'a> Normalizer<'a> {
             ExprKind::GlobalFunc(sym, SpecFuncKind::Def)
                 if let Some(defn) = self.defs.func_defn(sym) =>
             {
-                let res = defn.expr.replace_bound_exprs(args);
+                let res = defn.expr.replace_bound_refts(args);
                 Self::at_base(res, espan)
             }
             ExprKind::Abs(lam) => {

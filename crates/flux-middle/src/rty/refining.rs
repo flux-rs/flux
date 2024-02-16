@@ -267,11 +267,11 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         let poly_ty = self.refine_poly_ty(ty)?;
         let ty = match &poly_ty.vars()[..] {
             [] => poly_ty.skip_binder().shift_out_escaping(1),
-            [rty::BoundVariableKind::Refine(s, _)] => {
+            [rty::BoundVariableKind::Refine(s, ..)] => {
                 if s.is_unit() {
-                    poly_ty.replace_bound_expr(&rty::Expr::unit())
+                    poly_ty.replace_bound_reft(&rty::Expr::unit())
                 } else if let Some(def_id) = s.is_unit_adt() {
-                    poly_ty.replace_bound_expr(&rty::Expr::unit_adt(def_id))
+                    poly_ty.replace_bound_reft(&rty::Expr::unit_adt(def_id))
                 } else {
                     rty::Ty::exists(poly_ty)
                 }
