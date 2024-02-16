@@ -27,7 +27,10 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
 use rustc_macros::{newtype_index, Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::ParamConst};
+use rustc_middle::{
+    middle::resolve_bound_vars::ResolvedArg,
+    ty::{ParamConst, TyCtxt},
+};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, OutlivesPredicate, ParamTy, ScalarInt, UintTy},
@@ -553,6 +556,162 @@ pub struct ClosureOblig {
 pub type PolyTy = Binder<Ty>;
 pub type Ty = Interned<TyS>;
 
+impl Ty {
+    pub fn alias(kind: AliasKind, alias_ty: AliasTy) -> Ty {
+        TyKind::Alias(kind, alias_ty).intern()
+    }
+
+    pub fn opaque(def_id: impl Into<DefId>, args: GenericArgs, refine_args: RefineArgs) -> Ty {
+        TyKind::Alias(AliasKind::Opaque, AliasTy { def_id: def_id.into(), args, refine_args })
+            .intern()
+    }
+
+    pub fn projection(alias_ty: AliasTy) -> Ty {
+        Self::alias(AliasKind::Projection, alias_ty)
+    }
+
+    pub fn ptr(pk: impl Into<PtrKind>, path: impl Into<Path>) -> Ty {
+        TyKind::Ptr(pk.into(), path.into()).intern()
+    }
+
+    pub fn constr(p: impl Into<Expr>, ty: Ty) -> Ty {
+        TyKind::Constr(p.into(), ty).intern()
+    }
+
+    pub fn uninit() -> Ty {
+        TyKind::Uninit.intern()
+    }
+
+    pub fn indexed(bty: BaseTy, idx: impl Into<Expr>) -> Ty {
+        TyKind::Indexed(bty, idx.into()).intern()
+    }
+
+    pub fn exists(ty: Binder<Ty>) -> Ty {
+        TyKind::Exists(ty).intern()
+    }
+
+    pub fn exists_with_constr(bty: BaseTy, pred: Expr) -> Ty {
+        let sort = bty.sort();
+        let ty = Ty::indexed(bty, Expr::nu());
+        Ty::exists(Binder::with_sort(Ty::constr(pred, ty), sort))
+    }
+
+    pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
+        TyKind::Discr(adt_def, place).intern()
+    }
+
+    pub fn unit() -> Ty {
+        Ty::tuple(vec![])
+    }
+
+    pub fn bool() -> Ty {
+        BaseTy::Bool.into_ty()
+    }
+
+    pub fn int(int_ty: IntTy) -> Ty {
+        BaseTy::Int(int_ty).into_ty()
+    }
+
+    pub fn uint(uint_ty: UintTy) -> Ty {
+        BaseTy::Uint(uint_ty).into_ty()
+    }
+
+    pub fn param(param_ty: ParamTy) -> Ty {
+        TyKind::Param(param_ty).intern()
+    }
+
+    pub fn downcast(
+        adt: AdtDef,
+        args: GenericArgs,
+        ty: Ty,
+        variant: VariantIdx,
+        fields: List<Ty>,
+    ) -> Ty {
+        TyKind::Downcast(adt, args, ty, variant, fields).intern()
+    }
+
+    pub fn blocked(ty: Ty) -> Ty {
+        TyKind::Blocked(ty).intern()
+    }
+
+    pub fn str() -> Ty {
+        BaseTy::Str.into_ty()
+    }
+
+    pub fn char() -> Ty {
+        BaseTy::Char.into_ty()
+    }
+
+    pub fn float(float_ty: FloatTy) -> Ty {
+        BaseTy::Float(float_ty).into_ty()
+    }
+
+    pub fn mk_ref(region: Region, ty: Ty, mutbl: Mutability) -> Ty {
+        BaseTy::Ref(region, ty, mutbl).into_ty()
+    }
+
+    pub fn mk_slice(ty: Ty) -> Ty {
+        BaseTy::Slice(ty).into_ty()
+    }
+
+    pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
+        BaseTy::Tuple(tys.into()).into_ty()
+    }
+
+    pub fn array(ty: Ty, c: Const) -> Ty {
+        BaseTy::Array(ty, c).into_ty()
+    }
+
+    pub fn closure(did: DefId, tys: impl Into<List<Ty>>) -> Ty {
+        BaseTy::Closure(did, tys.into()).into_ty()
+    }
+
+    pub fn coroutine(did: DefId, resume_ty: Ty, upvar_tys: List<Ty>) -> Ty {
+        BaseTy::Coroutine(did, resume_ty, upvar_tys).into_ty()
+    }
+
+    pub fn never() -> Ty {
+        BaseTy::Never.into_ty()
+    }
+
+    pub fn unconstr(&self) -> (Ty, Expr) {
+        fn go(this: &Ty, preds: &mut Vec<Expr>) -> Ty {
+            if let TyKind::Constr(pred, ty) = this.kind() {
+                preds.push(pred.clone());
+                go(ty, preds)
+            } else {
+                this.clone()
+            }
+        }
+        let mut preds = vec![];
+        (go(self, &mut preds), Expr::and(preds))
+    }
+
+    pub fn unblocked(&self) -> Ty {
+        match self.kind() {
+            TyKind::Blocked(ty) => ty.clone(),
+            _ => self.clone(),
+        }
+    }
+
+    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
+        match self.kind() {
+            TyKind::Indexed(bty, _) => bty.to_rustc(tcx),
+            TyKind::Exists(ty) => ty.as_ref().skip_binder().to_rustc(tcx),
+            TyKind::Constr(_, ty) => ty.to_rustc(tcx),
+            TyKind::Param(pty) => pty.to_ty(tcx),
+            TyKind::Alias(kind, alias_ty) => {
+                rustc_middle::ty::Ty::new_alias(tcx, kind.to_rustc(), alias_ty.to_rustc(tcx))
+            }
+            TyKind::Uninit
+            | TyKind::Ptr(_, _)
+            | TyKind::Discr(_, _)
+            | TyKind::Downcast(_, _, _, _, _)
+            | TyKind::Blocked(_) => todo!(),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct TyS {
     kind: TyKind,
@@ -563,6 +722,17 @@ pub struct AliasReft {
     pub trait_id: DefId,
     pub name: Symbol,
     pub args: GenericArgs,
+}
+
+impl AliasReft {
+    pub fn to_rustc_trait_ref<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::TraitRef<'tcx> {
+        let trait_def_id = self.trait_id;
+        let args = self
+            .args
+            .to_rustc(tcx)
+            .truncate_to(tcx, tcx.generics_of(trait_def_id));
+        rustc_middle::ty::TraitRef::new(tcx, trait_def_id, args)
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
@@ -626,8 +796,17 @@ pub enum AliasKind {
     Opaque,
 }
 
+impl AliasKind {
+    fn to_rustc(self) -> rustc_middle::ty::AliasKind {
+        use rustc_middle::ty;
+        match self {
+            AliasKind::Opaque => ty::AliasKind::Opaque,
+            AliasKind::Projection => ty::AliasKind::Projection,
+        }
+    }
+}
+
 pub type RefineArgs = List<Expr>;
-pub type GenericArgs = List<GenericArg>;
 
 pub type OpaqueArgsMap = FxHashMap<DefId, (GenericArgs, RefineArgs)>;
 
@@ -637,38 +816,6 @@ pub enum GenericArg {
     BaseTy(Binder<Ty>),
     Lifetime(Region),
     Const(Const),
-}
-
-impl GenericArgs {
-    pub fn identity_for_item(genv: GlobalEnv, def_id: impl Into<DefId>) -> QueryResult<Self> {
-        let mut args = vec![];
-        let generics = genv.generics_of(def_id)?;
-        Self::fill_item(genv, &mut args, &generics, &mut |param, _| {
-            GenericArg::from_param_def(genv, param)
-        })?;
-        Ok(List::from_vec(args))
-    }
-
-    fn fill_item<F>(
-        genv: GlobalEnv,
-        args: &mut Vec<GenericArg>,
-        generics: &Generics,
-        mk_kind: &mut F,
-    ) -> QueryResult<()>
-    where
-        F: FnMut(&GenericParamDef, &[GenericArg]) -> QueryResult<GenericArg>,
-    {
-        if let Some(def_id) = generics.parent {
-            let parent_generics = genv.generics_of(def_id)?;
-            Self::fill_item(genv, args, &parent_generics, mk_kind)?;
-        }
-        for param in &generics.params {
-            let kind = mk_kind(param, args)?;
-            assert_eq!(param.index as usize, args.len(), "{args:#?}, {generics:#?}");
-            args.push(kind);
-        }
-        Ok(())
-    }
 }
 
 impl GenericArg {
@@ -717,6 +864,56 @@ impl GenericArg {
                 bug!("")
             }
         }
+    }
+
+    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::GenericArg<'tcx> {
+        use rustc_middle::ty;
+        match self {
+            GenericArg::Ty(ty) => ty::GenericArg::from(ty.to_rustc(tcx)),
+            GenericArg::BaseTy(bty) => {
+                ty::GenericArg::from(bty.as_ref().skip_binder().to_rustc(tcx))
+            }
+            GenericArg::Lifetime(re) => ty::GenericArg::from(re.to_rustc(tcx)),
+            GenericArg::Const(_) => todo!(),
+        }
+    }
+}
+
+pub type GenericArgs = List<GenericArg>;
+
+impl GenericArgs {
+    pub fn identity_for_item(genv: GlobalEnv, def_id: impl Into<DefId>) -> QueryResult<Self> {
+        let mut args = vec![];
+        let generics = genv.generics_of(def_id)?;
+        Self::fill_item(genv, &mut args, &generics, &mut |param, _| {
+            GenericArg::from_param_def(genv, param)
+        })?;
+        Ok(List::from_vec(args))
+    }
+
+    fn fill_item<F>(
+        genv: GlobalEnv,
+        args: &mut Vec<GenericArg>,
+        generics: &Generics,
+        mk_kind: &mut F,
+    ) -> QueryResult<()>
+    where
+        F: FnMut(&GenericParamDef, &[GenericArg]) -> QueryResult<GenericArg>,
+    {
+        if let Some(def_id) = generics.parent {
+            let parent_generics = genv.generics_of(def_id)?;
+            Self::fill_item(genv, args, &parent_generics, mk_kind)?;
+        }
+        for param in &generics.params {
+            let kind = mk_kind(param, args)?;
+            assert_eq!(param.index as usize, args.len(), "{args:#?}, {generics:#?}");
+            args.push(kind);
+        }
+        Ok(())
+    }
+
+    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::GenericArgsRef<'tcx> {
+        tcx.mk_args_from_iter(self.iter().map(|arg| arg.to_rustc(tcx)))
     }
 }
 
@@ -1322,145 +1519,6 @@ impl PtrKind {
     }
 }
 
-impl Ty {
-    pub fn alias(kind: AliasKind, alias_ty: AliasTy) -> Ty {
-        TyKind::Alias(kind, alias_ty).intern()
-    }
-
-    pub fn opaque(def_id: impl Into<DefId>, args: GenericArgs, refine_args: RefineArgs) -> Ty {
-        TyKind::Alias(AliasKind::Opaque, AliasTy { def_id: def_id.into(), args, refine_args })
-            .intern()
-    }
-
-    pub fn projection(alias_ty: AliasTy) -> Ty {
-        Self::alias(AliasKind::Projection, alias_ty)
-    }
-
-    pub fn ptr(pk: impl Into<PtrKind>, path: impl Into<Path>) -> Ty {
-        TyKind::Ptr(pk.into(), path.into()).intern()
-    }
-
-    pub fn constr(p: impl Into<Expr>, ty: Ty) -> Ty {
-        TyKind::Constr(p.into(), ty).intern()
-    }
-
-    pub fn uninit() -> Ty {
-        TyKind::Uninit.intern()
-    }
-
-    pub fn indexed(bty: BaseTy, idx: impl Into<Expr>) -> Ty {
-        TyKind::Indexed(bty, idx.into()).intern()
-    }
-
-    pub fn exists(ty: Binder<Ty>) -> Ty {
-        TyKind::Exists(ty).intern()
-    }
-
-    pub fn exists_with_constr(bty: BaseTy, pred: Expr) -> Ty {
-        let sort = bty.sort();
-        let ty = Ty::indexed(bty, Expr::nu());
-        Ty::exists(Binder::with_sort(Ty::constr(pred, ty), sort))
-    }
-
-    pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
-        TyKind::Discr(adt_def, place).intern()
-    }
-
-    pub fn unit() -> Ty {
-        Ty::tuple(vec![])
-    }
-
-    pub fn bool() -> Ty {
-        BaseTy::Bool.into_ty()
-    }
-
-    pub fn int(int_ty: IntTy) -> Ty {
-        BaseTy::Int(int_ty).into_ty()
-    }
-
-    pub fn uint(uint_ty: UintTy) -> Ty {
-        BaseTy::Uint(uint_ty).into_ty()
-    }
-
-    pub fn param(param_ty: ParamTy) -> Ty {
-        TyKind::Param(param_ty).intern()
-    }
-
-    pub fn downcast(
-        adt: AdtDef,
-        args: GenericArgs,
-        ty: Ty,
-        variant: VariantIdx,
-        fields: List<Ty>,
-    ) -> Ty {
-        TyKind::Downcast(adt, args, ty, variant, fields).intern()
-    }
-
-    pub fn blocked(ty: Ty) -> Ty {
-        TyKind::Blocked(ty).intern()
-    }
-
-    pub fn str() -> Ty {
-        BaseTy::Str.into_ty()
-    }
-
-    pub fn char() -> Ty {
-        BaseTy::Char.into_ty()
-    }
-
-    pub fn float(float_ty: FloatTy) -> Ty {
-        BaseTy::Float(float_ty).into_ty()
-    }
-
-    pub fn mk_ref(region: Region, ty: Ty, mutbl: Mutability) -> Ty {
-        BaseTy::Ref(region, ty, mutbl).into_ty()
-    }
-
-    pub fn mk_slice(ty: Ty) -> Ty {
-        BaseTy::Slice(ty).into_ty()
-    }
-
-    pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
-        BaseTy::Tuple(tys.into()).into_ty()
-    }
-
-    pub fn array(ty: Ty, c: Const) -> Ty {
-        BaseTy::Array(ty, c).into_ty()
-    }
-
-    pub fn closure(did: DefId, tys: impl Into<List<Ty>>) -> Ty {
-        BaseTy::Closure(did, tys.into()).into_ty()
-    }
-
-    pub fn coroutine(did: DefId, resume_ty: Ty, upvar_tys: List<Ty>) -> Ty {
-        BaseTy::Coroutine(did, resume_ty, upvar_tys).into_ty()
-    }
-
-    pub fn never() -> Ty {
-        BaseTy::Never.into_ty()
-    }
-
-    pub fn unconstr(&self) -> (Ty, Expr) {
-        fn go(this: &Ty, preds: &mut Vec<Expr>) -> Ty {
-            if let TyKind::Constr(pred, ty) = this.kind() {
-                preds.push(pred.clone());
-                go(ty, preds)
-            } else {
-                this.clone()
-            }
-        }
-        let mut preds = vec![];
-        (go(self, &mut preds), Expr::and(preds))
-    }
-
-    pub fn unblocked(&self) -> Ty {
-        match self.kind() {
-            TyKind::Blocked(ty) => ty.clone(),
-            _ => self.clone(),
-        }
-    }
-}
-
 impl TyKind {
     fn intern(self) -> Ty {
         Interned::new(TyS { kind: self })
@@ -1572,6 +1630,10 @@ impl AliasTy {
     pub fn self_ty(&self) -> &Ty {
         self.args[0].expect_type()
     }
+
+    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::AliasTy<'tcx> {
+        rustc_middle::ty::AliasTy::new(tcx, self.def_id, self.args.to_rustc(tcx))
+    }
 }
 
 impl BaseTy {
@@ -1641,6 +1703,49 @@ impl BaseTy {
             | BaseTy::Closure(_, _)
             | BaseTy::Coroutine(..)
             | BaseTy::Never => Sort::unit(),
+        }
+    }
+
+    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
+        use rustc_middle::ty;
+        match self {
+            BaseTy::Int(i) => ty::Ty::new_int(tcx, *i),
+            BaseTy::Uint(i) => ty::Ty::new_uint(tcx, *i),
+            BaseTy::Param(pty) => pty.to_ty(tcx),
+            BaseTy::Slice(ty) => ty::Ty::new_slice(tcx, ty.to_rustc(tcx)),
+            BaseTy::Bool => tcx.types.bool,
+            BaseTy::Char => tcx.types.char,
+            BaseTy::Str => tcx.types.str_,
+            BaseTy::Adt(adt_def, args) => {
+                let did = adt_def.did();
+                let adt_def = tcx.adt_def(did);
+                let args = args.to_rustc(tcx);
+                ty::Ty::new_adt(tcx, adt_def, args)
+            }
+            BaseTy::Float(f) => ty::Ty::new_float(tcx, *f),
+            BaseTy::RawPtr(ty, mutbl) => {
+                ty::Ty::new_ptr(tcx, ty::TypeAndMut { ty: ty.to_rustc(tcx), mutbl: *mutbl })
+            }
+            BaseTy::Ref(re, ty, mutbl) => {
+                ty::Ty::new_ref(
+                    tcx,
+                    re.to_rustc(tcx),
+                    ty::TypeAndMut { ty: ty.to_rustc(tcx), mutbl: *mutbl },
+                )
+            }
+            BaseTy::Tuple(tys) => {
+                let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
+                ty::Ty::new_tup(tcx, &ts)
+            }
+            BaseTy::Array(_, _) => todo!(),
+            BaseTy::Never => tcx.types.never,
+            BaseTy::Closure(_, _) => todo!(),
+            BaseTy::Coroutine(def_id, resume_ty, upvars) => {
+                todo!("Generator {def_id:?} {resume_ty:?} {upvars:?}")
+                // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
+                // let args = tcx.mk_args_from_iter(args);
+                // ty::Ty::new_generator(*tcx, *def_id, args, mov)
+            }
         }
     }
 }

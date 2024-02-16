@@ -2,7 +2,6 @@ use std::iter;
 
 #[allow(unused_imports)]
 use flux_common::bug;
-use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{
@@ -13,14 +12,13 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{FallibleTypeFolder, TypeSuperFoldable},
-    AliasKind, AliasReft, AliasTy, BaseTy, BoundRegion, Clause, ClauseKind, Expr, ExprKind,
-    GenericArg, GenericArgs, ProjectionPredicate, RefineArgs, Region, Ty, TyKind,
+    AliasKind, AliasReft, AliasTy, BaseTy, Clause, ClauseKind, Expr, ExprKind, GenericArg,
+    GenericArgs, ProjectionPredicate, RefineArgs, Region, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     rty::fold::TypeVisitable,
-    rustc::ty::FreeRegion,
 };
 
 pub(crate) struct Normalizer<'genv, 'tcx, 'cx> {
@@ -167,13 +165,13 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         Ok(())
     }
 
-    fn impl_id_of_alias_reft(&mut self, alias_pred: &AliasReft) -> QueryResult<Option<DefId>> {
+    fn impl_id_of_alias_reft(&mut self, alias: &AliasReft) -> QueryResult<Option<DefId>> {
         let trait_pred = Obligation::with_depth(
             self.tcx(),
             ObligationCause::dummy(),
             5,
             self.rustc_param_env(),
-            into_rustc_trait_ref(self.tcx(), alias_pred),
+            alias.to_rustc_trait_ref(self.tcx()),
         );
         match self.selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data.impl_def_id)),
@@ -192,7 +190,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
             ObligationCause::dummy(),
             5,
             self.rustc_param_env(),
-            into_rustc_alias_ty(self.tcx(), obligation).trait_ref(self.tcx()),
+            obligation.to_rustc(self.tcx()).trait_ref(self.tcx()),
         );
         match self.selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => {
@@ -254,143 +252,6 @@ pub enum Candidate {
     UserDefinedImpl(DefId),
     ParamEnv(ProjectionPredicate),
     TraitDef(ProjectionPredicate),
-}
-
-pub fn into_rustc_trait_ref<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    alias_pred: &AliasReft,
-) -> rustc_middle::ty::TraitRef<'tcx> {
-    let trait_def_id = alias_pred.trait_id;
-    let args = into_rustc_generic_args(tcx, &alias_pred.args)
-        .truncate_to(tcx, tcx.generics_of(trait_def_id));
-    rustc_middle::ty::TraitRef::new(tcx, trait_def_id, args)
-}
-
-fn into_rustc_generic_args<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    args: &[GenericArg],
-) -> rustc_middle::ty::GenericArgsRef<'tcx> {
-    tcx.mk_args_from_iter(args.iter().map(|arg| into_rustc_generic_arg(tcx, arg)))
-}
-
-fn into_rustc_generic_arg<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    arg: &GenericArg,
-) -> rustc_middle::ty::GenericArg<'tcx> {
-    use rustc_middle::ty;
-    match arg {
-        GenericArg::Ty(ty) => ty::GenericArg::from(into_rustc_ty(tcx, ty)),
-        GenericArg::BaseTy(bty) => {
-            ty::GenericArg::from(into_rustc_ty(tcx, &bty.clone().skip_binder()))
-        }
-        GenericArg::Lifetime(re) => ty::GenericArg::from(into_rustc_region(tcx, *re)),
-        GenericArg::Const(_) => todo!(),
-    }
-}
-
-fn into_rustc_ty<'tcx>(tcx: TyCtxt<'tcx>, ty: &Ty) -> rustc_middle::ty::Ty<'tcx> {
-    match ty.kind() {
-        TyKind::Indexed(bty, _) => into_rustc_bty(tcx, bty),
-        TyKind::Exists(ty) => into_rustc_ty(tcx, &ty.clone().skip_binder()),
-        TyKind::Constr(_, ty) => into_rustc_ty(tcx, ty),
-        TyKind::Param(pty) => pty.to_ty(tcx),
-        TyKind::Alias(kind, alias_ty) => {
-            rustc_middle::ty::Ty::new_alias(
-                tcx,
-                into_rustc_alias_kind(kind),
-                into_rustc_alias_ty(tcx, alias_ty),
-            )
-        }
-        TyKind::Uninit
-        | TyKind::Ptr(_, _)
-        | TyKind::Discr(_, _)
-        | TyKind::Downcast(_, _, _, _, _)
-        | TyKind::Blocked(_) => bug!(),
-    }
-}
-
-fn into_rustc_alias_ty<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    alias_ty: &AliasTy,
-) -> rustc_middle::ty::AliasTy<'tcx> {
-    rustc_middle::ty::AliasTy::new(
-        tcx,
-        alias_ty.def_id,
-        into_rustc_generic_args(tcx, &alias_ty.args),
-    )
-}
-
-fn into_rustc_alias_kind(kind: &AliasKind) -> rustc_middle::ty::AliasKind {
-    use rustc_middle::ty;
-    match kind {
-        AliasKind::Opaque => ty::AliasKind::Opaque,
-        AliasKind::Projection => ty::AliasKind::Projection,
-    }
-}
-
-fn into_rustc_bty<'tcx>(tcx: TyCtxt<'tcx>, bty: &BaseTy) -> rustc_middle::ty::Ty<'tcx> {
-    use rustc_middle::ty;
-    match bty {
-        BaseTy::Int(i) => ty::Ty::new_int(tcx, *i),
-        BaseTy::Uint(i) => ty::Ty::new_uint(tcx, *i),
-        BaseTy::Param(pty) => pty.to_ty(tcx),
-        BaseTy::Slice(ty) => ty::Ty::new_slice(tcx, into_rustc_ty(tcx, ty)),
-        BaseTy::Bool => tcx.types.bool,
-        BaseTy::Char => tcx.types.char,
-        BaseTy::Str => tcx.types.str_,
-        BaseTy::Adt(adt_def, args) => {
-            let did = adt_def.did();
-            let adt_def = tcx.adt_def(did);
-            let args = into_rustc_generic_args(tcx, args);
-            ty::Ty::new_adt(tcx, adt_def, args)
-        }
-        BaseTy::Float(f) => ty::Ty::new_float(tcx, *f),
-        BaseTy::RawPtr(ty, mutbl) => {
-            ty::Ty::new_ptr(tcx, ty::TypeAndMut { ty: into_rustc_ty(tcx, ty), mutbl: *mutbl })
-        }
-        BaseTy::Ref(re, ty, mutbl) => {
-            ty::Ty::new_ref(
-                tcx,
-                into_rustc_region(tcx, *re),
-                ty::TypeAndMut { ty: into_rustc_ty(tcx, ty), mutbl: *mutbl },
-            )
-        }
-        BaseTy::Tuple(tys) => {
-            let ts = tys.iter().map(|ty| into_rustc_ty(tcx, ty)).collect_vec();
-            ty::Ty::new_tup(tcx, &ts)
-        }
-        BaseTy::Array(_, _) => todo!(),
-        BaseTy::Never => tcx.types.never,
-        BaseTy::Closure(_, _) => todo!(),
-        BaseTy::Coroutine(def_id, resume_ty, upvars) => {
-            todo!("Generator {def_id:?} {resume_ty:?} {upvars:?}")
-            // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
-            // let args = tcx.mk_args_from_iter(args);
-            // ty::Ty::new_generator(*tcx, *def_id, args, mov)
-        }
-    }
-}
-
-fn into_rustc_region(tcx: TyCtxt, re: Region) -> rustc_middle::ty::Region {
-    match re {
-        Region::ReLateBound(debruijn, bound_region) => {
-            rustc_middle::ty::Region::new_late_bound(
-                tcx,
-                debruijn,
-                into_rustc_bound_region(bound_region),
-            )
-        }
-        Region::ReEarlyBound(ebr) => rustc_middle::ty::Region::new_early_bound(tcx, ebr),
-        Region::ReStatic => tcx.lifetimes.re_static,
-        Region::ReVar(rvid) => rustc_middle::ty::Region::new_var(tcx, rvid),
-        Region::ReFree(FreeRegion { scope, bound_region }) => {
-            rustc_middle::ty::Region::new_free(tcx, scope, bound_region)
-        }
-    }
-}
-
-fn into_rustc_bound_region(bound_region: BoundRegion) -> rustc_middle::ty::BoundRegion {
-    rustc_middle::ty::BoundRegion { var: bound_region.var, kind: bound_region.kind }
 }
 
 #[derive(Debug)]

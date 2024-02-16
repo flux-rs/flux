@@ -241,6 +241,22 @@ pub enum Region {
     ReFree(FreeRegion),
 }
 
+impl Region {
+    pub fn to_rustc(self, tcx: TyCtxt) -> rustc_middle::ty::Region {
+        match self {
+            Region::ReLateBound(debruijn, bound_region) => {
+                rustc_middle::ty::Region::new_late_bound(tcx, debruijn, bound_region.to_rustc())
+            }
+            Region::ReEarlyBound(ebr) => rustc_middle::ty::Region::new_early_bound(tcx, ebr),
+            Region::ReStatic => tcx.lifetimes.re_static,
+            Region::ReVar(rvid) => rustc_middle::ty::Region::new_var(tcx, rvid),
+            Region::ReFree(FreeRegion { scope, bound_region }) => {
+                rustc_middle::ty::Region::new_free(tcx, scope, bound_region)
+            }
+        }
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct FreeRegion {
     pub scope: DefId,
@@ -251,6 +267,12 @@ pub struct FreeRegion {
 pub struct BoundRegion {
     pub var: BoundVar,
     pub kind: BoundRegionKind,
+}
+
+impl BoundRegion {
+    fn to_rustc(self) -> rustc_middle::ty::BoundRegion {
+        rustc_middle::ty::BoundRegion { var: self.var, kind: self.kind }
+    }
 }
 
 impl Generics<'_> {
