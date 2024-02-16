@@ -17,8 +17,8 @@ use super::{
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
     CoroutineObligPredicate, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate,
-    PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, SimpleTy, Sort,
-    TraitPredicate, TraitRef, Ty, TyKind,
+    PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, SimpleTy,
+    SimpleTyInner, Sort, TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -969,14 +969,26 @@ impl TypeFoldable for AliasTy {
 
 impl TypeVisitable for SimpleTy {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
-        self.bty.visit_with(visitor)?;
-        self.pred.visit_with(visitor)
+        self.0.visit_with(visitor)
     }
 }
 
 impl TypeFoldable for SimpleTy {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(SimpleTy {
+        Ok(SimpleTy(self.0.try_fold_with(folder)?))
+    }
+}
+
+impl TypeVisitable for SimpleTyInner {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.bty.visit_with(visitor)?;
+        self.pred.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for SimpleTyInner {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(SimpleTyInner {
             bty: self.bty.try_fold_with(folder)?,
             pred: self.pred.try_fold_with(folder)?,
         })
@@ -987,10 +999,7 @@ impl TypeVisitable for GenericArg {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
         match self {
             GenericArg::Ty(ty) => ty.visit_with(visitor),
-            GenericArg::Base(ty) => {
-                todo!()
-                // ty.visit_with(visitor)
-            }
+            GenericArg::Base(ty) => ty.visit_with(visitor),
             GenericArg::Lifetime(_) => ControlFlow::Continue(()),
             GenericArg::Const(_) => ControlFlow::Continue(()),
         }
@@ -1001,10 +1010,7 @@ impl TypeFoldable for GenericArg {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let arg = match self {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.try_fold_with(folder)?),
-            GenericArg::Base(ty) => {
-                todo!()
-                // GenericArg::Base(ty.try_fold_with(folder)?)
-            }
+            GenericArg::Base(ty) => GenericArg::Base(ty.try_fold_with(folder)?),
             GenericArg::Lifetime(re) => GenericArg::Lifetime(re.try_fold_with(folder)?),
             GenericArg::Const(c) => GenericArg::Const(c.clone()),
         };

@@ -1047,7 +1047,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         alias_reft: &rty::AliasReft,
         arity: usize,
     ) -> fixpoint::GlobalVar {
-        let key = Key::Alias(rty::projections::into_rustc_trait_ref(self.genv.tcx(), alias_reft));
+        let key = Key::Alias(alias_reft.to_rustc_trait_ref(self.genv.tcx()));
         self.const_map
             .entry(key)
             .or_insert_with(|| {

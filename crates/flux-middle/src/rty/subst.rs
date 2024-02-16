@@ -71,8 +71,8 @@ impl RegionSubst {
                 debug_assert_eq!(args1.len(), args2.len());
                 for (arg1, arg2) in iter::zip(args1, args2) {
                     match (arg1, arg2) {
-                        (GenericArg::Base(ty_con), ty::GenericArg::Ty(ty2)) => {
-                            self.infer_from_ty(ty_con.as_ref().skip_binder(), ty2);
+                        (GenericArg::Base(ty1), ty::GenericArg::Ty(ty2)) => {
+                            self.infer_from_bty(ty1.bty_skipping_binder(), ty2);
                         }
                         (GenericArg::Ty(ty1), ty::GenericArg::Ty(ty2)) => {
                             self.infer_from_ty(ty1, ty2);
@@ -303,7 +303,7 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
 
     fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> Ty {
         match self.0.get(param_ty.index as usize) {
-            Some(GenericArg::Base(arg)) => arg.replace_bound_reft(idx),
+            Some(GenericArg::Base(arg)) => arg.as_ty_ctor().replace_bound_reft(idx),
             Some(arg) => {
                 bug!("expected base type for generic parameter, found `{:?}`", arg)
             }

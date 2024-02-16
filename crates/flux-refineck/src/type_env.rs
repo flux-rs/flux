@@ -374,7 +374,8 @@ impl BasicBlockEnvShape {
         match arg {
             GenericArg::Ty(ty) => GenericArg::Ty(Self::pack_ty(scope, ty)),
             GenericArg::Base(arg) => {
-                GenericArg::Base(arg.as_ref().map(|ty| Self::pack_ty(scope, ty)))
+                assert!(!scope.has_free_vars(arg));
+                GenericArg::Base(arg.clone())
             }
             GenericArg::Lifetime(re) => GenericArg::Lifetime(*re),
             GenericArg::Const(c) => GenericArg::Const(c.clone()),
