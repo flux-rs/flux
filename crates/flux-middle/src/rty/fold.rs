@@ -1010,7 +1010,7 @@ impl TypeFoldable for GenericArg {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let arg = match self {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.try_fold_with(folder)?),
-            GenericArg::Base(ty) => GenericArg::Base(ty.try_fold_with(folder)?),
+            GenericArg::Base(sty) => GenericArg::Base(sty.try_fold_with(folder)?),
             GenericArg::Lifetime(re) => GenericArg::Lifetime(re.try_fold_with(folder)?),
             GenericArg::Const(c) => GenericArg::Const(c.clone()),
         };
@@ -1104,9 +1104,8 @@ impl TypeVisitable for Var {
 impl TypeFoldable for AliasReft {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let trait_id = self.trait_id;
-        let generic_args = self.args.try_fold_with(folder)?;
-        let alias_pred = AliasReft { trait_id, name: self.name, args: generic_args };
-        Ok(alias_pred)
+        let args = self.args.try_fold_with(folder)?;
+        Ok(AliasReft { trait_id, name: self.name, args })
     }
 }
 

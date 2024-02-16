@@ -311,7 +311,7 @@ impl TVarSubst {
             }
             GenericArg::Lifetime(dst) => self.infer_from_region(&src.as_region().unwrap(), dst),
             GenericArg::Base(ty) => {
-                todo!()
+                // todo!()
                 // self.infer_from_ty(&src.as_type().unwrap(), ty.bty_skipping_binder());
             }
             _ => (),

@@ -17,8 +17,8 @@ use std::{borrow::Cow, fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{
-    AggregateKind, BinOp, BoundReft, Constant, ESpan, Expr, ExprKind, FieldProj, HoleKind, KVar,
-    KVid, Lambda, Loc, Name, Path, UnOp, Var,
+    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, Expr, ExprKind, FieldProj,
+    HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
 use flux_common::bug;
 use itertools::Itertools;
@@ -718,24 +718,6 @@ pub struct TyS {
     kind: TyKind,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct AliasReft {
-    pub trait_id: DefId,
-    pub name: Symbol,
-    pub args: GenericArgs,
-}
-
-impl AliasReft {
-    pub fn to_rustc_trait_ref<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::TraitRef<'tcx> {
-        let trait_def_id = self.trait_id;
-        let args = self
-            .args
-            .to_rustc(tcx)
-            .truncate_to(tcx, tcx.generics_of(trait_def_id));
-        rustc_middle::ty::TraitRef::new(tcx, trait_def_id, args)
-    }
-}
-
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum TyKind {
     Indexed(BaseTy, Expr),
@@ -814,16 +796,16 @@ pub type OpaqueArgsMap = FxHashMap<DefId, (GenericArgs, RefineArgs)>;
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct SimpleTy(Binder<SimpleTyInner>);
 
-#[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 struct SimpleTyInner {
     bty: BaseTy,
     pred: Expr,
 }
 
 impl SimpleTy {
-    pub fn new(bty: BaseTy, pred: Expr) -> Self {
+    pub fn new(bty: BaseTy, pred: impl Into<Expr>) -> Self {
         let sort = bty.sort();
-        SimpleTy(Binder::with_sort(SimpleTyInner { bty, pred }, sort))
+        SimpleTy(Binder::with_sort(SimpleTyInner { bty, pred: pred.into() }, sort))
     }
 
     pub fn sort(&self) -> Sort {
@@ -835,9 +817,13 @@ impl SimpleTy {
     }
 
     pub fn as_ty_ctor(&self) -> Binder<Ty> {
-        self.0
-            .as_ref()
-            .map(|sty| Ty::constr(sty.pred.clone(), Ty::indexed(sty.bty.clone(), Expr::nu())))
+        self.0.as_ref().map(|sty| {
+            if sty.pred.is_trivially_true() {
+                Ty::indexed(sty.bty.clone(), Expr::nu())
+            } else {
+                Ty::constr(sty.pred.clone(), Ty::indexed(sty.bty.clone(), Expr::nu()))
+            }
+        })
     }
 
     pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
@@ -1594,11 +1580,12 @@ impl TyS {
         }
     }
 
+    #[track_caller]
     pub(crate) fn expect_tuple(&self) -> &[Ty] {
         if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
             tys
         } else {
-            bug!("expected adt")
+            bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
         }
     }
 
@@ -2079,7 +2066,7 @@ mod pretty {
             let vars = &self.vars;
             cx.with_bound_vars(vars, || {
                 if !vars.is_empty() {
-                    cx.fmt_bound_vars("for<", vars, ">", f)?;
+                    cx.fmt_bound_vars("for<", vars, "> ", f)?;
                 }
                 w!("{:?}", &self.value)
             })

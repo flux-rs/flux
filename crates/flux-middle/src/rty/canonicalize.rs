@@ -3,7 +3,7 @@ use rustc_type_ir::{Mutability, INNERMOST};
 use super::{
     box_args,
     fold::{TypeFoldable, TypeFolder},
-    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, Ty, TyKind,
+    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, SimpleTy, Ty, TyKind,
 };
 use crate::intern::List;
 
@@ -84,36 +84,27 @@ pub enum CanonicalTy {
 
 impl CanonicalTy {
     pub fn to_bty_arg(&self) -> Option<GenericArg> {
-        todo!()
-        // match self {
-        //     CanonicalTy::Exists(poly_constr_ty) => {
-        //         let vars = poly_constr_ty.vars();
-        //         let constr_ty = poly_constr_ty.as_ref().skip_binder();
-        //         if let TyKind::Indexed(_, idx) = constr_ty.ty.kind()
-        //             && idx.is_nu()
-        //         {
-        //             let ty = constr_ty.to_ty();
-        //             Some(GenericArg::Base(Binder::new(ty, vars.clone())))
-        //         } else {
-        //             None
-        //         }
-        //     }
-        //     CanonicalTy::Constr(constr_ty) => {
-        //         if let TyKind::Indexed(bty, idx) = constr_ty.ty.kind() {
-        //             let sort = bty.sort();
-        //             let infer_mode = sort.default_infer_mode();
-        //             let ty = Ty::constr(Expr::eq(Expr::nu(), idx), Ty::indexed(bty.clone(), idx));
-        //             let vars = List::singleton(BoundVariableKind::Refine(
-        //                 sort,
-        //                 infer_mode,
-        //                 BoundReftKind::Annon,
-        //             ));
-        //             Some(GenericArg::Base(Binder::new(ty, vars)))
-        //         } else {
-        //             None
-        //         }
-        //     }
-        // }
+        match self {
+            CanonicalTy::Exists(poly_constr_ty) => {
+                let constr_ty = poly_constr_ty.as_ref().skip_binder();
+                if let TyKind::Indexed(bty, idx) = constr_ty.ty.kind()
+                    && idx.is_nu()
+                {
+                    let sty = SimpleTy::new(bty.clone(), &constr_ty.pred);
+                    Some(GenericArg::Base(sty))
+                } else {
+                    None
+                }
+            }
+            CanonicalTy::Constr(constr_ty) => {
+                if let TyKind::Indexed(bty, idx) = constr_ty.ty.kind() {
+                    let sty = SimpleTy::new(bty.clone(), Expr::eq(Expr::nu(), idx));
+                    Some(GenericArg::Base(sty))
+                } else {
+                    None
+                }
+            }
+        }
     }
 }
 
