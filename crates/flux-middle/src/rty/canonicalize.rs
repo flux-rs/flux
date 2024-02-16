@@ -3,7 +3,7 @@ use rustc_type_ir::{Mutability, INNERMOST};
 use super::{
     box_args,
     fold::{TypeFoldable, TypeFolder},
-    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, SimpleTy, Ty, TyKind,
+    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, SimpleConstrTy, SimpleTy, Ty, TyKind,
 };
 use crate::intern::List;
 
@@ -68,7 +68,7 @@ impl Ty {
         let ty = hoister.hoist(self);
         let (vars, preds) = hoister.into_parts();
         let pred = Expr::and(preds);
-        let constr_ty = ConstrTy { ty, pred };
+        let constr_ty = CanonicalConstrTy { ty, pred };
         if vars.is_empty() {
             CanonicalTy::Constr(constr_ty)
         } else {
@@ -76,49 +76,40 @@ impl Ty {
         }
     }
 }
-
-pub enum CanonicalTy {
-    Exists(Binder<ConstrTy>),
-    Constr(ConstrTy),
-}
-
-impl CanonicalTy {
-    pub fn to_bty_arg(&self) -> Option<GenericArg> {
-        match self {
-            CanonicalTy::Exists(poly_constr_ty) => {
-                let constr_ty = poly_constr_ty.as_ref().skip_binder();
-                if let TyKind::Indexed(bty, idx) = constr_ty.ty.kind()
-                    && idx.is_nu()
-                {
-                    let sty = SimpleTy::new(bty.clone(), &constr_ty.pred);
-                    Some(GenericArg::Base(sty))
-                } else {
-                    None
-                }
-            }
-            CanonicalTy::Constr(constr_ty) => {
-                if let TyKind::Indexed(bty, idx) = constr_ty.ty.kind() {
-                    let sty = SimpleTy::new(bty.clone(), Expr::eq(Expr::nu(), idx));
-                    Some(GenericArg::Base(sty))
-                } else {
-                    None
-                }
-            }
-        }
-    }
-}
-
-pub struct ConstrTy {
+pub struct CanonicalConstrTy {
     ty: Ty,
     pred: Expr,
 }
 
-impl ConstrTy {
-    pub fn to_ty(&self) -> Ty {
-        if self.pred.is_trivially_true() {
-            self.ty.clone()
-        } else {
-            Ty::constr(self.pred.clone(), self.ty.clone())
+pub enum CanonicalTy {
+    Constr(CanonicalConstrTy),
+    Exists(Binder<CanonicalConstrTy>),
+}
+
+impl CanonicalTy {
+    pub fn to_simple_ty(&self) -> Option<SimpleTy> {
+        match self {
+            CanonicalTy::Constr(constr) => {
+                if let TyKind::Indexed(bty, idx) = constr.ty.kind() {
+                    let constr = SimpleConstrTy::new(bty.clone(), idx, &constr.pred);
+                    Some(SimpleTy::Constr(constr))
+                } else {
+                    None
+                }
+            }
+            CanonicalTy::Exists(poly_constr) => {
+                let constr = poly_constr.as_ref().skip_binder();
+                if let TyKind::Indexed(bty, idx) = constr.ty.kind()
+                    && idx.is_nu()
+                {
+                    let poly_constr = poly_constr
+                        .as_ref()
+                        .map(|constr| SimpleConstrTy::new(bty.clone(), Expr::nu(), &constr.pred));
+                    Some(SimpleTy::Exists(poly_constr))
+                } else {
+                    None
+                }
+            }
         }
     }
 }

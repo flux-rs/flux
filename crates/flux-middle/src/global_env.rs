@@ -268,7 +268,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.item_bounds(self, def_id)
     }
 
-    pub fn type_of(self, def_id: DefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
+    pub fn type_of(self, def_id: DefId) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
         self.inner.queries.type_of(self, def_id)
     }
 

@@ -956,12 +956,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     into.push(rty::GenericArg::Ty(self.conv_ty(env, ty)?));
                 }
                 (fhir::GenericArg::Type(ty), rty::GenericParamDefKind::BaseTy) => {
-                    let arg = self
+                    let sty = self
                         .conv_ty(env, ty)?
                         .shallow_canonicalize()
-                        .to_bty_arg()
+                        .to_simple_ty()
                         .unwrap();
-                    into.push(arg);
+                    into.push(rty::GenericArg::Base(sty));
                 }
                 _ => {
                     bug!("unexpected param `{:?}` for arg `{arg:?}`", param.kind);

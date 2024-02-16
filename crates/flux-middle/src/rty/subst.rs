@@ -72,7 +72,7 @@ impl RegionSubst {
                 for (arg1, arg2) in iter::zip(args1, args2) {
                     match (arg1, arg2) {
                         (GenericArg::Base(ty1), ty::GenericArg::Ty(ty2)) => {
-                            self.infer_from_bty(ty1.bty_skipping_binder(), ty2);
+                            self.infer_from_bty(ty1.bty_skipping_existential(), ty2);
                         }
                         (GenericArg::Ty(ty1), ty::GenericArg::Ty(ty2)) => {
                             self.infer_from_ty(ty1, ty2);
@@ -253,7 +253,7 @@ pub(crate) struct GenericsSubstFolder<'a, D> {
 trait GenericsSubstDelegate {
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Sort;
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty;
-    fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> Ty;
+    fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> SimpleTy;
     fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region;
 }
 
@@ -273,8 +273,8 @@ impl GenericsSubstDelegate for IdentitySubstDelegate {
         Ty::param(param_ty)
     }
 
-    fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> Ty {
-        Ty::indexed(BaseTy::Param(param_ty), idx.clone())
+    fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> SimpleTy {
+        SimpleTy::indexed(BaseTy::Param(param_ty), idx)
     }
 
     fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region {
@@ -301,9 +301,9 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
         }
     }
 
-    fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> Ty {
+    fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> SimpleTy {
         match self.0.get(param_ty.index as usize) {
-            Some(GenericArg::Base(arg)) => arg.as_ty_ctor().replace_bound_reft(idx),
+            Some(GenericArg::Base(arg)) => arg.to_ctor().replace_bound_reft(idx).into(),
             Some(arg) => {
                 bug!("expected base type for generic parameter, found `{:?}`", arg)
             }
@@ -350,7 +350,7 @@ where
         bug!("unexpected type param {param_ty:?}");
     }
 
-    fn bty_for_param(&mut self, param_ty: ParamTy, _idx: &Expr) -> Ty {
+    fn bty_for_param(&mut self, param_ty: ParamTy, _idx: &Expr) -> SimpleTy {
         bug!("unexpected base type param {param_ty:?}");
     }
 
@@ -386,7 +386,7 @@ impl<D: GenericsSubstDelegate> TypeFolder for GenericsSubstFolder<'_, D> {
             TyKind::Param(param_ty) => self.delegate.ty_for_param(*param_ty),
             TyKind::Indexed(BaseTy::Param(param_ty), idx) => {
                 let idx = idx.fold_with(self);
-                self.delegate.bty_for_param(*param_ty, &idx)
+                self.delegate.bty_for_param(*param_ty, &idx).to_ty()
             }
             _ => ty.super_fold_with(self),
         }

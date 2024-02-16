@@ -554,7 +554,7 @@ pub struct ClosureOblig {
     pub oblig_sig: PolyFnSig,
 }
 
-pub type PolyTy = Binder<Ty>;
+pub type TyCtor = Binder<Ty>;
 pub type Ty = Interned<TyS>;
 
 impl Ty {
@@ -794,40 +794,97 @@ pub type RefineArgs = List<Expr>;
 pub type OpaqueArgsMap = FxHashMap<DefId, (GenericArgs, RefineArgs)>;
 
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct SimpleTy(Binder<SimpleTyInner>);
-
-#[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable, Debug)]
-struct SimpleTyInner {
+pub struct SimpleConstrTy {
     bty: BaseTy,
+    idx: Expr,
     pred: Expr,
 }
 
+impl SimpleConstrTy {
+    pub fn new(bty: BaseTy, idx: impl Into<Expr>, pred: impl Into<Expr>) -> Self {
+        Self { bty, idx: idx.into(), pred: pred.into() }
+    }
+
+    pub fn indexed(bty: BaseTy, idx: impl Into<Expr>) -> Self {
+        Self::new(bty, idx, Expr::tt())
+    }
+
+    fn to_ty(&self) -> Ty {
+        let bty = self.bty.clone();
+        if self.pred.is_trivially_true() {
+            Ty::indexed(bty, &self.idx)
+        } else {
+            Ty::constr(&self.pred, Ty::indexed(bty, &self.idx))
+        }
+    }
+}
+
+#[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum SimpleTy {
+    Constr(SimpleConstrTy),
+    Exists(Binder<SimpleConstrTy>),
+}
+
 impl SimpleTy {
-    pub fn new(bty: BaseTy, pred: impl Into<Expr>) -> Self {
-        let sort = bty.sort();
-        SimpleTy(Binder::with_sort(SimpleTyInner { bty, pred: pred.into() }, sort))
+    fn indexed(bty: BaseTy, idx: impl Into<Expr>) -> SimpleTy {
+        SimpleTy::Constr(SimpleConstrTy::indexed(bty, idx))
     }
 
-    pub fn sort(&self) -> Sort {
-        self.0.vars().to_sort_list()[0].clone()
+    fn sort(&self) -> Sort {
+        self.bty_skipping_existential().sort()
     }
 
-    pub fn bty_skipping_binder(&self) -> &BaseTy {
-        &self.0.as_ref().skip_binder().bty
+    pub fn bty_skipping_existential(&self) -> &BaseTy {
+        match self {
+            SimpleTy::Exists(constr) => &constr.as_ref().skip_binder().bty,
+            SimpleTy::Constr(constr) => &constr.bty,
+        }
     }
 
-    pub fn as_ty_ctor(&self) -> Binder<Ty> {
-        self.0.as_ref().map(|sty| {
-            if sty.pred.is_trivially_true() {
-                Ty::indexed(sty.bty.clone(), Expr::nu())
-            } else {
-                Ty::constr(sty.pred.clone(), Ty::indexed(sty.bty.clone(), Expr::nu()))
+    pub fn to_ctor(&self) -> Binder<SimpleConstrTy> {
+        match self {
+            SimpleTy::Constr(constr) => {
+                // given {b[e] | p} return λv. {b[v] | p ∧ v == e}
+                let sort = constr.bty.sort();
+                let bty = constr.bty.shift_in_escaping(1);
+                let pred = constr.pred.shift_in_escaping(1);
+                let constr = SimpleConstrTy::new(
+                    bty,
+                    Expr::nu(),
+                    Expr::and([pred, Expr::eq(Expr::nu(), &constr.idx)]),
+                );
+                Binder::with_sort(constr, sort)
             }
-        })
+            SimpleTy::Exists(poly_constr) => poly_constr.clone(),
+        }
+    }
+
+    pub fn to_ty(&self) -> Ty {
+        match self {
+            SimpleTy::Constr(constr) => constr.to_ty(),
+            SimpleTy::Exists(poly_constr) => {
+                let sort = poly_constr.vars()[0].expect_sort();
+                if sort.is_unit() {
+                    poly_constr.replace_bound_reft(&Expr::unit()).to_ty()
+                } else if let Some(def_id) = sort.is_unit_adt() {
+                    poly_constr
+                        .replace_bound_reft(&Expr::unit_adt(def_id))
+                        .to_ty()
+                } else {
+                    Ty::exists(poly_constr.as_ref().map(SimpleConstrTy::to_ty))
+                }
+            }
+        }
     }
 
     pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
-        self.0.as_ref().skip_binder().bty.to_rustc(tcx)
+        self.bty_skipping_existential().to_rustc(tcx)
+    }
+}
+
+impl From<SimpleConstrTy> for SimpleTy {
+    fn from(v: SimpleConstrTy) -> Self {
+        Self::Constr(v)
     }
 }
 
@@ -2386,13 +2443,7 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 GenericArg::Ty(arg) => w!("{:?}", arg),
-                GenericArg::Base(arg) => {
-                    let ctor = arg.as_ty_ctor();
-                    cx.with_bound_vars(ctor.vars(), || {
-                        cx.fmt_bound_vars("λ", ctor.vars(), ". ", f)?;
-                        w!("{:?}", ctor.as_ref().skip_binder())
-                    })
-                }
+                GenericArg::Base(arg) => w!("{:?}", arg.to_ty()),
                 GenericArg::Lifetime(re) => w!("{:?}", re),
                 GenericArg::Const(c) => w!("{:?}", c),
             }

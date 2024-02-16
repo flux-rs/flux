@@ -56,7 +56,7 @@ pub struct Providers {
         FluxLocalDefId,
     ) -> QueryResult<Rc<rty::WfckResults<'genv>>>,
     pub adt_def: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
-    pub type_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>>,
+    pub type_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyCtor>>,
     pub variants_of: fn(
         GlobalEnv,
         LocalDefId,
@@ -129,7 +129,7 @@ pub struct Queries<'genv, 'tcx> {
     assoc_refinement_def: Cache<(DefId, Symbol), QueryResult<rty::EarlyBinder<rty::Lambda>>>,
     sort_of_assoc_reft: Cache<(DefId, Symbol), Option<rty::EarlyBinder<rty::FuncSort>>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
-    type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
+    type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::TyCtor>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<rustc::ty::BoundVariableKind>>>,
@@ -443,7 +443,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv,
         def_id: DefId,
-    ) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
+    ) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
         run_with_cache(&self.type_of, def_id, || {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.type_of)(genv, local_id)
