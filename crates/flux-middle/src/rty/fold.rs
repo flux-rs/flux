@@ -77,6 +77,13 @@ pub trait FallibleTypeFolder: Sized {
         bty.try_super_fold_with(self)
     }
 
+    fn try_fold_simple_constr_ty(
+        &mut self,
+        constr: &SimpleConstrTy,
+    ) -> Result<SimpleConstrTy, Self::Error> {
+        constr.try_super_fold_with(self)
+    }
+
     fn try_fold_region(&mut self, re: &Region) -> Result<Region, Self::Error> {
         Ok(*re)
     }
@@ -101,6 +108,10 @@ pub trait TypeFolder: FallibleTypeFolder<Error = !> {
 
     fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
         bty.super_fold_with(self)
+    }
+
+    fn fold_simple_constr_ty(&mut self, constr: &SimpleConstrTy) -> SimpleConstrTy {
+        constr.super_fold_with(self)
     }
 
     fn fold_region(&mut self, re: &Region) -> Region {
@@ -135,6 +146,13 @@ where
 
     fn try_fold_bty(&mut self, bty: &BaseTy) -> Result<BaseTy, Self::Error> {
         Ok(self.fold_bty(bty))
+    }
+
+    fn try_fold_simple_constr_ty(
+        &mut self,
+        constr: &SimpleConstrTy,
+    ) -> Result<SimpleConstrTy, Self::Error> {
+        Ok(self.fold_simple_constr_ty(constr))
     }
 
     fn try_fold_region(&mut self, re: &Region) -> Result<Region, Self::Error> {
@@ -977,6 +995,12 @@ impl TypeVisitable for SimpleConstrTy {
 
 impl TypeFoldable for SimpleConstrTy {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        folder.try_fold_simple_constr_ty(self)
+    }
+}
+
+impl TypeSuperFoldable for SimpleConstrTy {
+    fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         Ok(SimpleConstrTy {
             bty: self.bty.try_fold_with(folder)?,
             idx: self.idx.try_fold_with(folder)?,

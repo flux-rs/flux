@@ -253,7 +253,7 @@ pub(crate) struct GenericsSubstFolder<'a, D> {
 trait GenericsSubstDelegate {
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Sort;
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty;
-    fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> SimpleTy;
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Binder<SimpleConstrTy>;
     fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region;
 }
 
@@ -273,8 +273,11 @@ impl GenericsSubstDelegate for IdentitySubstDelegate {
         Ty::param(param_ty)
     }
 
-    fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> SimpleTy {
-        SimpleTy::indexed(BaseTy::Param(param_ty), idx)
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Binder<SimpleConstrTy> {
+        Binder::with_sort(
+            SimpleConstrTy::indexed(BaseTy::Param(param_ty), Expr::nu()),
+            Sort::Param(param_ty),
+        )
     }
 
     fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region {
@@ -301,9 +304,9 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
         }
     }
 
-    fn bty_for_param(&mut self, param_ty: ParamTy, idx: &Expr) -> SimpleTy {
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Binder<SimpleConstrTy> {
         match self.0.get(param_ty.index as usize) {
-            Some(GenericArg::Base(arg)) => arg.to_ctor().replace_bound_reft(idx).into(),
+            Some(GenericArg::Base(arg)) => arg.to_ctor(),
             Some(arg) => {
                 bug!("expected base type for generic parameter, found `{:?}`", arg)
             }
@@ -350,7 +353,7 @@ where
         bug!("unexpected type param {param_ty:?}");
     }
 
-    fn bty_for_param(&mut self, param_ty: ParamTy, _idx: &Expr) -> SimpleTy {
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> Binder<SimpleConstrTy> {
         bug!("unexpected base type param {param_ty:?}");
     }
 
@@ -386,9 +389,23 @@ impl<D: GenericsSubstDelegate> TypeFolder for GenericsSubstFolder<'_, D> {
             TyKind::Param(param_ty) => self.delegate.ty_for_param(*param_ty),
             TyKind::Indexed(BaseTy::Param(param_ty), idx) => {
                 let idx = idx.fold_with(self);
-                self.delegate.bty_for_param(*param_ty, &idx).to_ty()
+                self.delegate
+                    .ctor_for_param(*param_ty)
+                    .replace_bound_reft(&idx)
+                    .to_ty()
             }
             _ => ty.super_fold_with(self),
+        }
+    }
+
+    fn fold_simple_constr_ty(&mut self, constr: &SimpleConstrTy) -> SimpleConstrTy {
+        if let BaseTy::Param(param_ty) = &constr.bty {
+            self.delegate
+                .ctor_for_param(*param_ty)
+                .replace_bound_reft(&constr.idx)
+                .strengthen(&constr.pred)
+        } else {
+            constr.super_fold_with(self)
         }
     }
 

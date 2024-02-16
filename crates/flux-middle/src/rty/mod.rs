@@ -795,9 +795,9 @@ pub type OpaqueArgsMap = FxHashMap<DefId, (GenericArgs, RefineArgs)>;
 
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct SimpleConstrTy {
-    bty: BaseTy,
-    idx: Expr,
-    pred: Expr,
+    pub bty: BaseTy,
+    pub idx: Expr,
+    pub pred: Expr,
 }
 
 impl SimpleConstrTy {
@@ -807,6 +807,11 @@ impl SimpleConstrTy {
 
     pub fn indexed(bty: BaseTy, idx: impl Into<Expr>) -> Self {
         Self::new(bty, idx, Expr::tt())
+    }
+
+    pub fn strengthen(&self, pred: impl Into<Expr>) -> Self {
+        let this = self.clone();
+        Self { bty: this.bty, idx: this.idx, pred: Expr::and([this.pred, pred.into()]) }
     }
 
     fn to_ty(&self) -> Ty {
@@ -826,10 +831,6 @@ pub enum SimpleTy {
 }
 
 impl SimpleTy {
-    fn indexed(bty: BaseTy, idx: impl Into<Expr>) -> SimpleTy {
-        SimpleTy::Constr(SimpleConstrTy::indexed(bty, idx))
-    }
-
     fn sort(&self) -> Sort {
         self.bty_skipping_existential().sort()
     }
@@ -2259,6 +2260,30 @@ mod pretty {
         }
     }
 
+    impl Pretty for SimpleTy {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                SimpleTy::Constr(constr) => {
+                    w!("{:?}", constr)
+                }
+                SimpleTy::Exists(poly_constr) => {
+                    cx.with_bound_vars(poly_constr.vars(), || {
+                        cx.fmt_bound_vars("∃", poly_constr.vars(), ". ", f)?;
+                        w!("{:?}", &poly_constr.value)
+                    })
+                }
+            }
+        }
+    }
+
+    impl Pretty for SimpleConstrTy {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("{{ {:?}[{:?}] | {:?} }}", &self.bty, &self.idx, &self.pred)
+        }
+    }
+
     impl Pretty for TyS {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -2482,5 +2507,7 @@ mod pretty {
         PtrKind,
         FuncSort,
         SortCtor,
+        SimpleTy,
+        SimpleConstrTy,
     );
 }

@@ -175,7 +175,7 @@ struct Env {
 impl Env {
     fn lookup(&self, debruijn: DebruijnIndex, index: u32) -> Option<BoundVarName> {
         self.layers
-            .get(self.layers.len() - debruijn.as_usize() - 1)?
+            .get(self.layers.len().checked_sub(debruijn.as_usize() + 1)?)?
             .get(&index)
             .copied()
     }
@@ -328,7 +328,7 @@ impl PrettyCx<'_> {
                 if let Some(name) = self.env.borrow().lookup(debruijn, var.index) {
                     w!("{name:?}")
                 } else {
-                    w!("(⭡{debruijn:?}.{})", ^var.index)
+                    w!("⭡{}/#{}", ^debruijn.as_usize(), ^var.index)
                 }
             }
             BoundReftKind::Named(name) => w!("{name}"),
