@@ -185,20 +185,6 @@ impl<'a> InvalidPrimitiveDotAccess<'a> {
 }
 
 #[derive(Diagnostic)]
-#[diag(fhir_analysis_invalid_base_instance, code = "FLUX")]
-pub(super) struct InvalidBaseInstance<'fhir> {
-    #[primary_span]
-    span: Span,
-    ty: fhir::Ty<'fhir>,
-}
-
-impl<'fhir> InvalidBaseInstance<'fhir> {
-    pub(super) fn new(ty: fhir::Ty<'fhir>) -> Self {
-        Self { ty, span: ty.span }
-    }
-}
-
-#[derive(Diagnostic)]
 #[diag(fhir_analysis_param_not_determined, code = "FLUX")]
 #[help]
 pub(super) struct ParamNotDetermined {

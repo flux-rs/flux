@@ -12,7 +12,7 @@ use flux_middle::{
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
         BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path,
-        PtrKind, Region, SortCtor, Ty, TyKind, INNERMOST,
+        PtrKind, Region, SimpleTy, SortCtor, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -530,8 +530,20 @@ impl BasicBlockEnvShape {
     fn join_generic_arg(&self, arg1: &GenericArg, arg2: &GenericArg) -> GenericArg {
         match (arg1, arg2) {
             (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => GenericArg::Ty(self.join_ty(ty1, ty2)),
-            (GenericArg::Base(_), GenericArg::Base(_)) => {
-                tracked_span_bug!("generic argument join for base types is not implemented")
+            (GenericArg::Base(ctor1), GenericArg::Base(ctor2)) => {
+                let sty1 = ctor1.as_ref().skip_binder();
+                let sty2 = ctor2.as_ref().skip_binder();
+                debug_assert_eq3!(&sty1.idx, &sty2.idx, &Expr::nu());
+
+                let bty = self.join_bty(&sty1.bty, &sty2.bty);
+                let pred = if self.scope.has_free_vars(&sty2.pred) || sty1.pred != sty2.pred {
+                    Expr::hole(HoleKind::Pred)
+                } else {
+                    sty1.pred.clone()
+                };
+                let sort = bty.sort();
+                let ctor = Binder::with_sort(SimpleTy::new(bty, Expr::nu(), pred), sort);
+                GenericArg::Base(ctor)
             }
             (GenericArg::Lifetime(re1), GenericArg::Lifetime(re2)) => {
                 debug_assert_eq!(re1, re2);

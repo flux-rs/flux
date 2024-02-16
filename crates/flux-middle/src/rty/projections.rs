@@ -124,7 +124,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                     .genv
                     .type_of(assoc_type_id)?
                     .instantiate(&args, &[])
-                    .into_ty())
+                    .to_ty())
             }
         }
     }

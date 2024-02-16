@@ -152,8 +152,7 @@ pub struct GenericParamDef {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
-    SplTy,
-    BaseTy,
+    Base,
     Lifetime,
     Const { has_default: bool },
 }
@@ -555,6 +554,25 @@ pub struct ClosureOblig {
 }
 
 pub type TyCtor = Binder<Ty>;
+
+impl TyCtor {
+    pub fn to_ty(&self) -> Ty {
+        match &self.vars[..] {
+            [] => return self.value.shift_out_escaping(1),
+            [BoundVariableKind::Refine(sort, ..)] => {
+                if sort.is_unit() {
+                    return self.replace_bound_reft(&Expr::unit());
+                }
+                if let Some(def_id) = sort.is_unit_adt() {
+                    return self.replace_bound_reft(&Expr::unit_adt(def_id));
+                }
+            }
+            _ => {}
+        }
+        Ty::exists(self.clone())
+    }
+}
+
 pub type Ty = Interned<TyS>;
 
 impl Ty {
@@ -793,7 +811,7 @@ pub type RefineArgs = List<Expr>;
 
 pub type OpaqueArgsMap = FxHashMap<DefId, (GenericArgs, RefineArgs)>;
 
-type SimpleTyCtor = Binder<SimpleTy>;
+pub type SimpleTyCtor = Binder<SimpleTy>;
 
 impl SimpleTyCtor {
     pub fn as_bty_skipping_binder(&self) -> &BaseTy {
@@ -882,7 +900,7 @@ impl GenericArg {
 
     fn from_param_def(genv: GlobalEnv, param: &GenericParamDef) -> QueryResult<Self> {
         match param.kind {
-            GenericParamDefKind::Type { .. } | GenericParamDefKind::SplTy => {
+            GenericParamDefKind::Type { .. } => {
                 let param_ty = ParamTy { index: param.index, name: param.name };
                 Ok(GenericArg::Ty(Ty::param(param_ty)))
             }
@@ -897,7 +915,7 @@ impl GenericArg {
                 let ty = genv.lower_type_of(param.def_id)?.skip_binder();
                 Ok(GenericArg::Const(Const { kind, ty }))
             }
-            GenericParamDefKind::BaseTy => {
+            GenericParamDefKind::Base => {
                 bug!("")
             }
         }
@@ -1212,6 +1230,7 @@ impl<T> Binder<T> {
         Ok(Binder { vars: self.vars, value: f(self.value)? })
     }
 
+    #[track_caller]
     pub fn sort(&self) -> Sort {
         match &self.vars[..] {
             [BoundVariableKind::Refine(sort, ..)] => sort.clone(),
@@ -1316,16 +1335,6 @@ where
             })
             .collect_vec();
         self.replace_bound_refts(&exprs)
-    }
-}
-
-impl Binder<Ty> {
-    pub fn into_ty(self) -> Ty {
-        if self.vars.is_empty() {
-            self.value
-        } else {
-            Ty::exists(self)
-        }
     }
 }
 

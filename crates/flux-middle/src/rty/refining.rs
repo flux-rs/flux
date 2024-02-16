@@ -236,10 +236,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             (rty::GenericParamDefKind::Type { .. }, rustc::ty::GenericArg::Ty(ty)) => {
                 Ok(rty::GenericArg::Ty(self.refine_ty(ty)?))
             }
-            (rty::GenericParamDefKind::SplTy, rustc::ty::GenericArg::Ty(ty)) => {
-                Ok(rty::GenericArg::Ty(self.refine_ty(ty)?))
-            }
-            (rty::GenericParamDefKind::BaseTy, rustc::ty::GenericArg::Ty(ty)) => {
+            (rty::GenericParamDefKind::Base, rustc::ty::GenericArg::Ty(ty)) => {
                 let poly_constr = self.refine_ty_inner(ty)?.expect_simple();
                 Ok(rty::GenericArg::Base(poly_constr))
             }
@@ -322,10 +319,10 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             }
             rustc::ty::TyKind::Param(param_ty) => {
                 match self.param(*param_ty)?.kind {
-                    rty::GenericParamDefKind::Type { .. } | rty::GenericParamDefKind::SplTy => {
+                    rty::GenericParamDefKind::Type { .. } => {
                         return Ok(TyOrBase::Ty(rty::Ty::param(*param_ty)));
                     }
-                    rty::GenericParamDefKind::BaseTy => rty::BaseTy::Param(*param_ty),
+                    rty::GenericParamDefKind::Base => rty::BaseTy::Param(*param_ty),
                     rty::GenericParamDefKind::Lifetime | rty::GenericParamDefKind::Const { .. } => {
                         bug!()
                     }

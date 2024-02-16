@@ -62,8 +62,7 @@ pub struct GenericParam<'fhir> {
 #[derive(Debug, Clone, Copy)]
 pub enum GenericParamKind<'fhir> {
     Type { default: Option<Ty<'fhir>> },
-    SplTy,
-    BaseTy,
+    Base,
     Lifetime,
 }
 
@@ -1004,7 +1003,7 @@ impl<'fhir> Generics<'fhir> {
     pub fn with_refined_by(self, genv: GlobalEnv<'fhir, '_>, refined_by: &RefinedBy) -> Self {
         let params = genv.alloc_slice_fill_iter(self.params.iter().map(|param| {
             let kind = if refined_by.is_base_generic(param.def_id.to_def_id()) {
-                GenericParamKind::SplTy
+                GenericParamKind::Base
             } else {
                 param.kind
             };

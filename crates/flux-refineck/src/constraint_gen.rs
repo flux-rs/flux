@@ -150,7 +150,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         for (idx, arg) in generic_args.iter().enumerate() {
             let param = generics.param_at(idx, self.genv)?;
             match param.kind {
-                GenericParamDefKind::BaseTy => {
+                GenericParamDefKind::Base => {
                     if !arg.is_valid_base_arg() {
                         return Err(CheckerErrKind::InvalidGenericArg);
                     }
@@ -681,23 +681,23 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         arg1: &GenericArg,
         arg2: &GenericArg,
     ) -> Result {
-        match (arg1, arg2) {
-            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => {
-                match variance {
-                    Variance::Covariant => self.subtyping(rcx, ty1, ty2),
-                    Variance::Invariant => {
-                        self.subtyping(rcx, ty1, ty2)?;
-                        self.subtyping(rcx, ty2, ty1)
-                    }
-                    Variance::Contravariant => self.subtyping(rcx, ty2, ty1),
-                    Variance::Bivariant => Ok(()),
-                }
+        let (ty1, ty2) = match (arg1, arg2) {
+            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => (ty1.clone(), ty2.clone()),
+            (GenericArg::Base(ctor1), GenericArg::Base(ctor2)) => {
+                debug_assert_eq!(ctor1.sort(), ctor2.sort());
+                (ctor1.to_ty(), ctor2.to_ty())
             }
-            (GenericArg::Base(_), GenericArg::Base(_)) => {
-                tracked_span_bug!("generic argument subtyping for base types is not implemented");
-            }
-            (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => Ok(()),
+            (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => return Ok(()),
             _ => tracked_span_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}"),
+        };
+        match variance {
+            Variance::Covariant => self.subtyping(rcx, &ty1, &ty2),
+            Variance::Invariant => {
+                self.subtyping(rcx, &ty1, &ty2)?;
+                self.subtyping(rcx, &ty2, &ty1)
+            }
+            Variance::Contravariant => self.subtyping(rcx, &ty2, &ty1),
+            Variance::Bivariant => Ok(()),
         }
     }
 

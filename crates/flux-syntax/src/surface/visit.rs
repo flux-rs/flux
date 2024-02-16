@@ -203,7 +203,7 @@ pub fn walk_generic_param<V: Visitor>(vis: &mut V, param: &GenericParam) {
     vis.visit_ident(param.name);
     match &param.kind {
         GenericParamKind::Refine { sort } => vis.visit_sort(sort),
-        GenericParamKind::Type | GenericParamKind::Spl | GenericParamKind::Base => {}
+        GenericParamKind::Type | GenericParamKind::Base => {}
     }
 }
 
