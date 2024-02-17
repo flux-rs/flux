@@ -2245,7 +2245,11 @@ mod pretty {
     impl Pretty for SimpleTy {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("{{ {:?}[{:?}] | {:?} }}", &self.bty, &self.idx, &self.pred)
+            if self.pred.is_trivially_true() {
+                w!("{:?}[{:?}]", &self.bty, &self.idx)
+            } else {
+                w!("{{ {:?}[{:?}] | {:?} }}", &self.bty, &self.idx, &self.pred)
+            }
         }
     }
 
