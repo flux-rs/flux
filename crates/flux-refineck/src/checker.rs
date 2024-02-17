@@ -1425,7 +1425,6 @@ pub(crate) mod errors {
         Inference,
         OpaqueStruct(DefId),
         Query(QueryErr),
-        InvalidGenericArg,
     }
 
     impl CheckerError {
@@ -1444,12 +1443,6 @@ pub(crate) mod errors {
                 CheckerErrKind::Inference => {
                     handler.struct_err_with_code(
                         fluent::refineck_param_inference_error,
-                        flux_errors::diagnostic_id(),
-                    )
-                }
-                CheckerErrKind::InvalidGenericArg => {
-                    handler.struct_err_with_code(
-                        fluent::refineck_invalid_generic_arg,
                         flux_errors::diagnostic_id(),
                     )
                 }

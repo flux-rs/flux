@@ -7,7 +7,12 @@ use rustc_hir::def_id::DefId;
 use rustc_middle::ty::{ClosureKind, ParamTy};
 
 use super::fold::TypeFoldable;
-use crate::{global_env::GlobalEnv, intern::List, queries::QueryResult, rty, rustc};
+use crate::{
+    global_env::GlobalEnv,
+    intern::List,
+    queries::{QueryErr, QueryResult},
+    rty, rustc,
+};
 
 pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> QueryResult<rty::Generics> {
     let params = generics
@@ -237,8 +242,11 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 Ok(rty::GenericArg::Ty(self.refine_ty(ty)?))
             }
             (rty::GenericParamDefKind::Base, rustc::ty::GenericArg::Ty(ty)) => {
-                let poly_constr = self.refine_ty_inner(ty)?.expect_simple();
-                Ok(rty::GenericArg::Base(poly_constr))
+                let TyOrBase::Base(contr) = self.refine_ty_inner(ty)? else {
+                    let def_span = self.genv.tcx().def_span(param.def_id);
+                    return Err(QueryErr::InvalidGenericArg { def_id: param.def_id, def_span });
+                };
+                Ok(rty::GenericArg::Base(contr))
             }
             (rty::GenericParamDefKind::Lifetime, rustc::ty::GenericArg::Lifetime(re)) => {
                 Ok(rty::GenericArg::Lifetime(*re))

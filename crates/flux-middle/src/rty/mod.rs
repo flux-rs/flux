@@ -1719,6 +1719,10 @@ impl BaseTy {
         matches!(self, BaseTy::Slice(..))
     }
 
+    fn is_adt(&self) -> bool {
+        matches!(self, BaseTy::Adt(..))
+    }
+
     pub fn is_box(&self) -> bool {
         matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_box())
     }
@@ -2216,7 +2220,9 @@ mod pretty {
             define_scoped!(cx, f);
             let vars = &self.vars;
             cx.with_bound_vars(vars, || {
-                cx.fmt_bound_vars("exists<", vars, ">", f)?;
+                if !vars.is_empty() {
+                    cx.fmt_bound_vars("exists<", vars, "> ", f)?;
+                }
                 w!("{:?}", &self.value.ret)?;
                 if !self.value.ensures.is_empty() {
                     w!("; [{:?}]", join!(", ", &self.value.ensures))?;
@@ -2253,7 +2259,9 @@ mod pretty {
                         return Ok(());
                     }
                     if idx.is_unit() {
-                        w!("[]")?;
+                        if bty.is_adt() {
+                            w!("[]")?;
+                        }
                     } else {
                         w!("[{:?}]", idx)?;
                     }

@@ -9,9 +9,8 @@ use flux_middle::{
         evars::{EVarCxId, EVarSol},
         fold::TypeFoldable,
         AliasTy, BaseTy, BinOp, Binder, Constraint, CoroutineObligPredicate, ESpan, EVarGen,
-        EarlyBinder, Expr, ExprKind, FnOutput, GenericArg, GenericParamDefKind, HoleKind,
-        InferMode, Lambda, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty,
-        TyKind, Var,
+        EarlyBinder, Expr, ExprKind, FnOutput, GenericArg, HoleKind, InferMode, Lambda, Mutability,
+        Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -145,22 +144,6 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             .collect()
     }
 
-    fn check_generic_args(&self, did: DefId, generic_args: &[GenericArg]) -> Result {
-        let generics = self.genv.generics_of(did)?;
-        for (idx, arg) in generic_args.iter().enumerate() {
-            let param = generics.param_at(idx, self.genv)?;
-            match param.kind {
-                GenericParamDefKind::Base => {
-                    if !arg.is_valid_base_arg() {
-                        return Err(CheckerErrKind::InvalidGenericArg);
-                    }
-                }
-                _ => continue,
-            }
-        }
-        Ok(())
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn check_fn_call(
         &mut self,
@@ -173,10 +156,6 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
     ) -> Result<(Binder<FnOutput>, Obligations)> {
         let genv = self.genv;
         let span = self.span;
-
-        if let Some(did) = callee_def_id {
-            self.check_generic_args(did, generic_args)?;
-        }
 
         let mut infcx = self.infcx(rcx, ConstrReason::Call);
         let snapshot = rcx.snapshot();

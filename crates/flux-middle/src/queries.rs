@@ -40,6 +40,7 @@ pub type QueryResult<T = ()> = Result<T, QueryErr>;
 #[derive(Debug, Clone)]
 pub enum QueryErr {
     Unsupported { def_id: DefId, def_span: Span, err: UnsupportedErr },
+    InvalidGenericArg { def_id: DefId, def_span: Span },
     Emitted(ErrorGuaranteed),
 }
 
@@ -574,6 +575,14 @@ impl<'a> IntoDiagnostic<'a> for QueryErr {
             QueryErr::Emitted(_) => {
                 let mut builder = handler.struct_err("QueryErr::Emitted should be emitted");
                 builder.downgrade_to_delayed_bug();
+                builder
+            }
+            QueryErr::InvalidGenericArg { def_span, .. } => {
+                let builder = handler.struct_span_err_with_code(
+                    def_span,
+                    fluent::middle_query_invalid_generic_arg,
+                    flux_errors::diagnostic_id(),
+                );
                 builder
             }
         }
