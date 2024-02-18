@@ -893,7 +893,7 @@ impl SubsetTy {
         Self { bty, idx: idx.into(), pred: pred.into() }
     }
 
-    pub fn indexed(bty: BaseTy, idx: impl Into<Expr>) -> Self {
+    pub fn trivial(bty: BaseTy, idx: impl Into<Expr>) -> Self {
         Self::new(bty, idx, Expr::tt())
     }
 
@@ -2086,7 +2086,7 @@ mod pretty {
         default fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             cx.with_bound_vars(&self.vars, || {
-                cx.fmt_bound_vars("for<", &self.vars, ">", f)?;
+                cx.fmt_bound_vars("for<", &self.vars, "> ", f)?;
                 w!("{:?}", &self.value)
             })
         }

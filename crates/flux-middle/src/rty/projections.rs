@@ -6,15 +6,14 @@ use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
-    ty::{EarlyBoundRegion, ParamTy, TyCtxt},
+    ty::TyCtxt,
 };
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
-    canonicalize::{CanonicalConstrTy, CanonicalTy},
     fold::{FallibleTypeFolder, TypeSuperFoldable},
-    AliasKind, AliasReft, AliasTy, BaseTy, Clause, ClauseKind, Expr, ExprKind, GenericArg,
-    GenericArgs, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
+    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Expr, ExprKind, GenericArg,
+    ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -56,7 +55,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                 .skip_binder();
             let generics = self.tcx().generics_of(impl_def_id);
 
-            let mut subst = Equate::new(generics);
+            let mut subst = TVarSubst::new(generics);
             for (a, b) in iter::zip(&impl_trait_ref.args, &obligation.args) {
                 subst.generic_args(a, b);
             }
@@ -110,7 +109,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
 
                 let generics = self.tcx().generics_of(impl_def_id);
 
-                let mut subst = Equate::new(generics);
+                let mut subst = TVarSubst::new(generics);
                 for (a, b) in iter::zip(&impl_trait_ref.args, &obligation.args) {
                     subst.generic_args(a, b);
                 }
@@ -259,139 +258,12 @@ pub enum Candidate {
     TraitDef(ProjectionPredicate),
 }
 
-// #[derive(Debug)]
-// struct TVarSubst {
-//     args: Vec<Option<GenericArg>>,
-// }
-
-// impl TVarSubst {
-//     fn new(generics: &rustc_middle::ty::Generics) -> Self {
-//         Self { args: vec![None; generics.count()] }
-//     }
-
-//     fn finish<'tcx>(
-//         self,
-//         tcx: TyCtxt<'tcx>,
-//         generics: &'tcx rustc_middle::ty::Generics,
-//     ) -> Vec<GenericArg> {
-//         self.args
-//             .into_iter()
-//             .enumerate()
-//             .map(|(idx, arg)| {
-//                 if let Some(arg) = arg {
-//                     arg
-//                 } else {
-//                     let param = generics.param_at(idx, tcx);
-//                     bug!("cannot infer substitution for param {param:?}");
-//                 }
-//             })
-//             .collect()
-//     }
-
-//     fn insert_param_ty(&mut self, pty: ParamTy, ty: &Ty) {
-//         let arg = GenericArg::Ty(ty.clone());
-//         if self.args[pty.index as usize].replace(arg).is_some() {
-//             bug!("duplicate insert");
-//         }
-//     }
-
-//     fn insert_early_bound_region(&mut self, ebr: EarlyBoundRegion, re: Region) {
-//         let arg = GenericArg::Lifetime(re);
-//         if self.args[ebr.index as usize].replace(arg).is_some() {
-//             bug!("duplicate insert");
-//         }
-//     }
-
-//     fn infer_from_args(&mut self, src: rustc_middle::ty::GenericArgsRef, dst: &GenericArgs) {
-//         debug_assert_eq!(src.len(), dst.len());
-//         for (src, dst) in iter::zip(src, dst) {
-//             self.infer_from_arg(src, dst);
-//         }
-//     }
-
-//     fn infer_from_arg(&mut self, src: rustc_middle::ty::GenericArg, dst: &GenericArg) {
-//         match dst {
-//             GenericArg::Ty(dst) => {
-//                 self.infer_from_ty(&src.as_type().unwrap(), dst);
-//             }
-//             GenericArg::Lifetime(dst) => self.infer_from_region(&src.as_region().unwrap(), dst),
-//             GenericArg::Base(ty) => {
-//                 // todo!()
-//                 // self.infer_from_ty(&src.as_type().unwrap(), ty.bty_skipping_binder());
-//             }
-//             _ => (),
-//         }
-//     }
-
-//     fn infer_from_ty(&mut self, src: &rustc_middle::ty::Ty, dst: &Ty) {
-//         use rustc_middle::ty;
-//         match src.kind() {
-//             ty::TyKind::Param(pty) => {
-//                 if !dst.has_escaping_bvars() {
-//                     self.insert_param_ty(*pty, dst);
-//                 }
-//             }
-//             ty::TyKind::Adt(_, src_subst) => {
-//                 // NOTE: see https://github.com/flux-rs/flux/pull/478#issuecomment-1650983695
-//                 if let Some(dst) = dst.as_bty_skipping_existentials()
-//                     && let BaseTy::Adt(_, dst_subst) = dst
-//                 {
-//                     debug_assert_eq!(src_subst.len(), dst_subst.len());
-//                     for (src_arg, dst_arg) in iter::zip(*src_subst, dst_subst) {
-//                         self.infer_from_arg(src_arg, dst_arg);
-//                     }
-//                 } else {
-//                     bug!("unexpected type {dst:?}");
-//                 }
-//             }
-//             ty::TyKind::Array(src, _) => {
-//                 if let Some(BaseTy::Array(dst, _)) = dst.as_bty_skipping_existentials() {
-//                     self.infer_from_ty(src, dst);
-//                 } else {
-//                     bug!("unexpected type {dst:?}");
-//                 }
-//             }
-//             ty::TyKind::Slice(src) => {
-//                 if let Some(BaseTy::Slice(dst)) = dst.as_bty_skipping_existentials() {
-//                     self.infer_from_ty(src, dst);
-//                 } else {
-//                     bug!("unexpected type {dst:?}");
-//                 }
-//             }
-//             ty::TyKind::Tuple(src_tys) => {
-//                 if let Some(BaseTy::Tuple(dst_tys)) = dst.as_bty_skipping_existentials() {
-//                     debug_assert_eq!(src_tys.len(), dst_tys.len());
-//                     iter::zip(src_tys.iter(), dst_tys.iter())
-//                         .for_each(|(src, dst)| self.infer_from_ty(&src, dst));
-//                 } else {
-//                     bug!("unexpected type {dst:?}");
-//                 }
-//             }
-//             ty::TyKind::Ref(src_re, src_ty, _) => {
-//                 if let Some(BaseTy::Ref(dst_re, dst_ty, _)) = dst.as_bty_skipping_existentials() {
-//                     self.infer_from_region(src_re, dst_re);
-//                     self.infer_from_ty(src_ty, dst_ty);
-//                 } else {
-//                     bug!("unexpected type {dst:?}");
-//                 }
-//             }
-//             _ => {}
-//         }
-//     }
-
-//     fn infer_from_region(&mut self, src: &rustc_middle::ty::Region, dst: &Region) {
-//         if let rustc_middle::ty::RegionKind::ReEarlyBound(ebr) = src.kind() {
-//             self.insert_early_bound_region(ebr, *dst);
-//         }
-//     }
-// }
-
 #[derive(Debug)]
-struct Equate {
+struct TVarSubst {
     args: Vec<Option<GenericArg>>,
 }
 
-impl Equate {
+impl TVarSubst {
     fn new(generics: &rustc_middle::ty::Generics) -> Self {
         Self { args: vec![None; generics.count()] }
     }
@@ -420,7 +292,6 @@ impl Equate {
             (GenericArg::Ty(a), GenericArg::Ty(b)) => self.tys(a, b),
             (GenericArg::Lifetime(a), GenericArg::Lifetime(b)) => self.regions(*a, *b),
             (GenericArg::Base(a), GenericArg::Base(b)) => {
-                debug_assert_eq!(a.sort(), b.sort());
                 self.btys(a.as_bty_skipping_binder(), b.as_bty_skipping_binder());
             }
             _ => {}
@@ -441,7 +312,13 @@ impl Equate {
 
     fn btys(&mut self, a: &BaseTy, b: &BaseTy) {
         match (a, b) {
-            (BaseTy::Param(_), _) => todo!(),
+            (BaseTy::Param(param_ty), _) => {
+                if !b.has_escaping_bvars() {
+                    let sort = b.sort();
+                    let ctor = Binder::with_sort(SubsetTy::trivial(b.clone(), Expr::nu()), sort);
+                    self.insert_generic_arg(param_ty.index, GenericArg::Base(ctor));
+                }
+            }
             (BaseTy::Adt(_, a_args), BaseTy::Adt(_, b_args)) => {
                 debug_assert_eq!(a_args.len(), b_args.len());
                 for (a_arg, b_arg) in iter::zip(a_args, b_args) {

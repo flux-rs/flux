@@ -275,7 +275,7 @@ impl GenericsSubstDelegate for IdentitySubstDelegate {
 
     fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor {
         Binder::with_sort(
-            SubsetTy::indexed(BaseTy::Param(param_ty), Expr::nu()),
+            SubsetTy::trivial(BaseTy::Param(param_ty), Expr::nu()),
             Sort::Param(param_ty),
         )
     }

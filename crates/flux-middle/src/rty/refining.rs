@@ -418,7 +418,7 @@ impl TyOrBase {
 
 fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::SubsetTy> {
     let sort = bty.sort();
-    let constr = rty::SubsetTy::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
+    let constr = rty::SubsetTy::trivial(bty.shift_in_escaping(1), rty::Expr::nu());
     rty::Binder::with_sort(constr, sort)
 }
 
