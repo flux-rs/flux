@@ -6,14 +6,14 @@ use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::InferCtxt, traits::Obligation};
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
-    ty::{EarlyBoundRegion, ParamTy, TyCtxt},
+    ty::TyCtxt,
 };
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{FallibleTypeFolder, TypeSuperFoldable},
-    AliasKind, AliasReft, AliasTy, BaseTy, Clause, ClauseKind, Expr, ExprKind, GenericArg,
-    GenericArgs, ProjectionPredicate, RefineArgs, Region, Ty, TyKind,
+    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Expr, ExprKind, GenericArg,
+    ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -49,14 +49,16 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
     ) -> QueryResult<Expr> {
         if let Some(impl_def_id) = self.impl_id_of_alias_reft(obligation)? {
             let impl_trait_ref = self
-                .tcx()
-                .impl_trait_ref(impl_def_id)
+                .genv
+                .impl_trait_ref(impl_def_id)?
                 .unwrap()
                 .skip_binder();
             let generics = self.tcx().generics_of(impl_def_id);
 
             let mut subst = TVarSubst::new(generics);
-            subst.infer_from_args(impl_trait_ref.args, &obligation.args);
+            for (a, b) in iter::zip(&impl_trait_ref.args, &obligation.args) {
+                subst.generic_args(a, b);
+            }
             let args = subst.finish(self.tcx(), generics);
 
             let pred = self
@@ -100,15 +102,17 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                 //            => {T -> {v. i32[v] | v > 0}, A -> Global}
 
                 let impl_trait_ref = self
-                    .tcx()
-                    .impl_trait_ref(impl_def_id)
+                    .genv
+                    .impl_trait_ref(impl_def_id)?
                     .unwrap()
                     .skip_binder();
 
                 let generics = self.tcx().generics_of(impl_def_id);
 
                 let mut subst = TVarSubst::new(generics);
-                subst.infer_from_args(impl_trait_ref.args, &obligation.args);
+                for (a, b) in iter::zip(&impl_trait_ref.args, &obligation.args) {
+                    subst.generic_args(a, b);
+                }
                 let args = subst.finish(self.tcx(), generics);
 
                 // 2. Get the associated type in the impl block and apply the substitution to it
@@ -124,7 +128,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                     .genv
                     .type_of(assoc_type_id)?
                     .instantiate(&args, &[])
-                    .into_ty())
+                    .to_ty())
             }
         }
     }
@@ -146,7 +150,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         &self,
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
-    ) -> QueryResult<()> {
+    ) -> QueryResult {
         if let GenericArg::Ty(ty) = &obligation.args[0]
             && let TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind()
         {
@@ -283,96 +287,73 @@ impl TVarSubst {
             .collect()
     }
 
-    fn insert_param_ty(&mut self, pty: ParamTy, ty: &Ty) {
-        let arg = GenericArg::Ty(ty.clone());
-        if self.args[pty.index as usize].replace(arg).is_some() {
-            bug!("duplicate insert");
-        }
-    }
-
-    fn insert_early_bound_region(&mut self, ebr: EarlyBoundRegion, re: Region) {
-        let arg = GenericArg::Lifetime(re);
-        if self.args[ebr.index as usize].replace(arg).is_some() {
-            bug!("duplicate insert");
-        }
-    }
-
-    fn infer_from_args(&mut self, src: rustc_middle::ty::GenericArgsRef, dst: &GenericArgs) {
-        debug_assert_eq!(src.len(), dst.len());
-        for (src, dst) in iter::zip(src, dst) {
-            self.infer_from_arg(src, dst);
-        }
-    }
-
-    fn infer_from_arg(&mut self, src: rustc_middle::ty::GenericArg, dst: &GenericArg) {
-        match dst {
-            GenericArg::Ty(dst) => {
-                self.infer_from_ty(&src.as_type().unwrap(), dst);
-            }
-            GenericArg::Lifetime(dst) => self.infer_from_region(&src.as_region().unwrap(), dst),
-            GenericArg::BaseTy(bty) => {
-                self.infer_from_ty(&src.as_type().unwrap(), &bty.clone().skip_binder());
-            }
-            _ => (),
-        }
-    }
-
-    fn infer_from_ty(&mut self, src: &rustc_middle::ty::Ty, dst: &Ty) {
-        use rustc_middle::ty;
-        match src.kind() {
-            ty::TyKind::Param(pty) => self.insert_param_ty(*pty, dst),
-            ty::TyKind::Adt(_, src_subst) => {
-                // NOTE: see https://github.com/flux-rs/flux/pull/478#issuecomment-1650983695
-                if let Some(dst) = dst.as_bty_skipping_existentials()
-                    && !dst.has_escaping_bvars()
-                    && let BaseTy::Adt(_, dst_subst) = dst
-                {
-                    debug_assert_eq!(src_subst.len(), dst_subst.len());
-                    for (src_arg, dst_arg) in iter::zip(*src_subst, dst_subst) {
-                        self.infer_from_arg(src_arg, dst_arg);
-                    }
-                } else {
-                    bug!("unexpected type {dst:?}");
-                }
-            }
-            ty::TyKind::Array(src, _) => {
-                if let Some(BaseTy::Array(dst, _)) = dst.as_bty_skipping_existentials() {
-                    self.infer_from_ty(src, dst);
-                } else {
-                    bug!("unexpected type {dst:?}");
-                }
-            }
-            ty::TyKind::Slice(src) => {
-                if let Some(BaseTy::Slice(dst)) = dst.as_bty_skipping_existentials() {
-                    self.infer_from_ty(src, dst);
-                } else {
-                    bug!("unexpected type {dst:?}");
-                }
-            }
-            ty::TyKind::Tuple(src_tys) => {
-                if let Some(BaseTy::Tuple(dst_tys)) = dst.as_bty_skipping_existentials() {
-                    debug_assert_eq!(src_tys.len(), dst_tys.len());
-                    iter::zip(src_tys.iter(), dst_tys.iter())
-                        .for_each(|(src, dst)| self.infer_from_ty(&src, dst));
-                } else {
-                    bug!("unexpected type {dst:?}");
-                }
-            }
-            ty::TyKind::Ref(src_re, src_ty, _) => {
-                if let Some(BaseTy::Ref(dst_re, dst_ty, _)) = dst.as_bty_skipping_existentials() {
-                    self.infer_from_region(src_re, dst_re);
-                    self.infer_from_ty(src_ty, dst_ty);
-                } else {
-                    bug!("unexpected type {dst:?}");
-                }
+    fn generic_args(&mut self, a: &GenericArg, b: &GenericArg) {
+        match (a, b) {
+            (GenericArg::Ty(a), GenericArg::Ty(b)) => self.tys(a, b),
+            (GenericArg::Lifetime(a), GenericArg::Lifetime(b)) => self.regions(*a, *b),
+            (GenericArg::Base(a), GenericArg::Base(b)) => {
+                self.btys(a.as_bty_skipping_binder(), b.as_bty_skipping_binder());
             }
             _ => {}
         }
     }
 
-    fn infer_from_region(&mut self, src: &rustc_middle::ty::Region, dst: &Region) {
-        if let rustc_middle::ty::RegionKind::ReEarlyBound(ebr) = src.kind() {
-            self.insert_early_bound_region(ebr, *dst);
+    fn tys(&mut self, a: &Ty, b: &Ty) {
+        if let TyKind::Param(param_ty) = a.kind() {
+            if !b.has_escaping_bvars() {
+                self.insert_generic_arg(param_ty.index, GenericArg::Ty(b.clone()));
+            }
+            return;
+        }
+        let Some(a_bty) = a.as_bty_skipping_existentials() else { return };
+        let Some(b_bty) = b.as_bty_skipping_existentials() else { return };
+        self.btys(a_bty, b_bty);
+    }
+
+    fn btys(&mut self, a: &BaseTy, b: &BaseTy) {
+        match (a, b) {
+            (BaseTy::Param(param_ty), _) => {
+                if !b.has_escaping_bvars() {
+                    let sort = b.sort();
+                    let ctor = Binder::with_sort(SubsetTy::trivial(b.clone(), Expr::nu()), sort);
+                    self.insert_generic_arg(param_ty.index, GenericArg::Base(ctor));
+                }
+            }
+            (BaseTy::Adt(_, a_args), BaseTy::Adt(_, b_args)) => {
+                debug_assert_eq!(a_args.len(), b_args.len());
+                for (a_arg, b_arg) in iter::zip(a_args, b_args) {
+                    self.generic_args(a_arg, b_arg);
+                }
+            }
+            (BaseTy::Array(a_ty, _), BaseTy::Array(b_ty, _)) => {
+                self.tys(a_ty, b_ty);
+            }
+            (BaseTy::Tuple(a_tys), BaseTy::Tuple(b_tys)) => {
+                debug_assert_eq!(a_tys.len(), b_tys.len());
+                for (a_ty, b_ty) in iter::zip(a_tys, b_tys) {
+                    self.tys(a_ty, b_ty);
+                }
+            }
+            (BaseTy::Ref(a_re, a_ty, _), BaseTy::Ref(b_re, b_ty, _)) => {
+                self.regions(*a_re, *b_re);
+                self.tys(a_ty, b_ty);
+            }
+            (BaseTy::Slice(a_ty), BaseTy::Slice(b_ty)) => {
+                self.tys(a_ty, b_ty);
+            }
+            _ => {}
+        }
+    }
+
+    fn regions(&mut self, a: Region, b: Region) {
+        if let Region::ReEarlyBound(ebr) = a {
+            self.insert_generic_arg(ebr.index, GenericArg::Lifetime(b));
+        }
+    }
+
+    fn insert_generic_arg(&mut self, idx: u32, arg: GenericArg) {
+        if self.args[idx as usize].replace(arg).is_some() {
+            bug!("duplicate insert");
         }
     }
 }

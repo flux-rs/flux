@@ -40,6 +40,7 @@ pub type QueryResult<T = ()> = Result<T, QueryErr>;
 #[derive(Debug, Clone)]
 pub enum QueryErr {
     Unsupported { def_id: DefId, def_span: Span, err: UnsupportedErr },
+    InvalidGenericArg { def_id: DefId, def_span: Span },
     Emitted(ErrorGuaranteed),
 }
 
@@ -56,7 +57,7 @@ pub struct Providers {
         FluxLocalDefId,
     ) -> QueryResult<Rc<rty::WfckResults<'genv>>>,
     pub adt_def: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
-    pub type_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>>,
+    pub type_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyCtor>>,
     pub variants_of: fn(
         GlobalEnv,
         LocalDefId,
@@ -129,7 +130,7 @@ pub struct Queries<'genv, 'tcx> {
     assoc_refinement_def: Cache<(DefId, Symbol), QueryResult<rty::EarlyBinder<rty::Lambda>>>,
     sort_of_assoc_reft: Cache<(DefId, Symbol), Option<rty::EarlyBinder<rty::FuncSort>>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
-    type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyTy>>>,
+    type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::TyCtor>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<rustc::ty::BoundVariableKind>>>,
@@ -443,7 +444,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv,
         def_id: DefId,
-    ) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
+    ) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
         run_with_cache(&self.type_of, def_id, || {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.type_of)(genv, local_id)
@@ -574,6 +575,14 @@ impl<'a> IntoDiagnostic<'a> for QueryErr {
             QueryErr::Emitted(_) => {
                 let mut builder = handler.struct_err("QueryErr::Emitted should be emitted");
                 builder.downgrade_to_delayed_bug();
+                builder
+            }
+            QueryErr::InvalidGenericArg { def_span, .. } => {
+                let builder = handler.struct_span_err_with_code(
+                    def_span,
+                    fluent::middle_query_invalid_generic_arg,
+                    flux_errors::diagnostic_id(),
+                );
                 builder
             }
         }

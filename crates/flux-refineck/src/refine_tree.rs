@@ -193,16 +193,17 @@ impl<'rcx> RefineCtxt<'rcx> {
         fresh
     }
 
-    /// Given a [`sort`] that may contain aggregate sorts ([tuples] or [records]), it destructs the sort
-    /// recursively, generating multiple fresh variables and returning the "eta-expanded" tuple of fresh
-    /// variables. This is in contrast to generating a single fresh variable of tuple sort.
+    /// Given a [`sort`] that may contain aggregate sorts ([tuple] or [adt]), it destructs the sort
+    /// recursively, generating multiple fresh variables and returning an "eta-expanded" expression
+    /// of fresh variables. This is in contrast to generating a single fresh variable of aggregate
+    /// sort.
     ///
     /// For example, given the sort `(int, (bool, int))` it returns `(a0, (a1, a2))` for fresh variables
     /// `a0: int`, `a1: bool`, and `a2: int`.
     ///
     /// [`sort`]: Sort
-    /// [tuples]: Sort::Tuple
-    /// [records]: Sort::Adt
+    /// [tuple]: Sort::Tuple
+    /// [adt]: flux_middle::rty::SortCtor::Adt
     pub(crate) fn define_vars(&mut self, sort: &Sort) -> Expr {
         Expr::fold_sort(sort, |sort| Expr::fvar(self.define_var(sort)))
     }
@@ -321,7 +322,7 @@ impl<'a, 'rcx> Unpacker<'a, 'rcx> {
 impl TypeFolder for Unpacker<'_, '_> {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
-            TyKind::Indexed(bty, idxs) => Ty::indexed(bty.fold_with(self), idxs.clone()),
+            TyKind::Indexed(bty, idx) => Ty::indexed(bty.fold_with(self), idx.clone()),
             TyKind::Exists(bound_ty) if self.unpack_exists => {
                 // HACK(nilehmann) In general we shouldn't unpack through mutable references because
                 // that makes referent type too specific. We only have this as a workaround to infer

@@ -847,7 +847,7 @@ fn fold(
                     .map(|ty| fold(bindings, rcx, gen, ty, is_strg))
                     .try_collect_vec()?;
 
-                let partially_moved = fields.iter().any(|ty| ty.is_uninit());
+                let partially_moved = fields.iter().any(Ty::is_uninit);
                 let ty = if partially_moved {
                     Ty::uninit()
                 } else {
@@ -868,7 +868,7 @@ fn fold(
                 .map(|ty| fold(bindings, rcx, gen, ty, is_strg))
                 .try_collect_vec()?;
 
-            let partially_moved = fields.iter().any(|ty| ty.is_uninit());
+            let partially_moved = fields.iter().any(Ty::is_uninit);
             let ty = if partially_moved { Ty::uninit() } else { Ty::tuple(fields) };
             Ok(ty)
         }

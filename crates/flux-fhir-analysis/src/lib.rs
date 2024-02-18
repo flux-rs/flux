@@ -291,7 +291,7 @@ fn refinement_generics_of(
     }
 }
 
-fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
+fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
     let ty = match genv.def_kind(def_id) {
         DefKind::TyAlias { .. } => {
             let alias = genv.map().expect_item(def_id).expect_type_alias();
@@ -310,7 +310,7 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
         DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy => {
             let generics = genv.generics_of(def_id)?;
             let ty = genv.lower_type_of(def_id)?.skip_binder();
-            Refiner::default(genv, &generics).refine_poly_ty(&ty)?
+            Refiner::default(genv, &generics).refine_ty_ctor(&ty)?
         }
         kind => {
             bug!("`{:?}` not supported", kind.descr(def_id.to_def_id()))

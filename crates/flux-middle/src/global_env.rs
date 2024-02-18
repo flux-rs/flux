@@ -213,12 +213,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         let Some(poly_trait_ref) = self.tcx().impl_trait_ref(impl_id) else { return Ok(None) };
 
-        let impl_generics = self.generics_of(impl_id)?;
-        let trait_ref = poly_trait_ref.skip_binder();
-        let args = lowering::lower_generic_args(self.tcx(), trait_ref.args)
+        let trait_ref = lowering::lower_trait_ref(self.tcx(), poly_trait_ref.skip_binder())
             .map_err(|err| QueryErr::unsupported(self.tcx(), impl_id, err.into_err()))?;
-        let args = self.refine_default_generic_args(&impl_generics, &args)?;
-        let trait_ref = rty::TraitRef { def_id: trait_ref.def_id, args };
+        let impl_generics = self.generics_of(impl_id)?;
+        let trait_ref = Refiner::default(self, &impl_generics).refine_trait_ref(&trait_ref)?;
         Ok(Some(rty::EarlyBinder(trait_ref)))
     }
 
@@ -268,7 +266,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.item_bounds(self, def_id)
     }
 
-    pub fn type_of(self, def_id: DefId) -> QueryResult<rty::EarlyBinder<rty::PolyTy>> {
+    pub fn type_of(self, def_id: DefId) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
         self.inner.queries.type_of(self, def_id)
     }
 
@@ -320,19 +318,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let item_def_id = self.hir().ty_param_owner(def_id);
         let generics = self.tcx().generics_of(item_def_id);
         generics.param_def_id_to_index[&def_id.to_def_id()]
-    }
-
-    pub fn refine_default_generic_args(
-        self,
-        generics: &rty::Generics,
-        args: &ty::GenericArgs,
-    ) -> QueryResult<rty::GenericArgs> {
-        let refiner = Refiner::default(self, generics);
-        let mut res = vec![];
-        for arg in args {
-            res.push(refiner.refine_generic_arg_raw(arg)?);
-        }
-        Ok(res.into())
     }
 
     pub fn refine_default(

@@ -62,8 +62,7 @@ pub struct GenericParam<'fhir> {
 #[derive(Debug, Clone, Copy)]
 pub enum GenericParamKind<'fhir> {
     Type { default: Option<Ty<'fhir>> },
-    SplTy,
-    BaseTy,
+    Base,
     Lifetime,
 }
 
@@ -475,12 +474,11 @@ pub enum TyKind<'fhir> {
     /// A type that parses as a [`BaseTy`] but was written without refinements. Most types in
     /// this category are base types and will be converted into an [existential], e.g., `i32` is
     /// converted into `∃v:int. i32[v]`. However, this category also contains generic variables
-    /// of kind [type] or [*special*]. We cannot distinguish these syntactially so we resolve them
-    /// later in the analysis.
+    /// of kind [type]. We cannot distinguish these syntactially so we resolve them later in the
+    /// analysis.
     ///
     /// [existential]: crate::rty::TyKind::Exists
     /// [type]: GenericParamKind::Type
-    /// [*special*]: GenericParamKind::SplTy
     BaseTy(BaseTy<'fhir>),
     Indexed(BaseTy<'fhir>, RefineArg<'fhir>),
     Exists(&'fhir [RefineParam<'fhir>], &'fhir Ty<'fhir>),
@@ -1004,7 +1002,7 @@ impl<'fhir> Generics<'fhir> {
     pub fn with_refined_by(self, genv: GlobalEnv<'fhir, '_>, refined_by: &RefinedBy) -> Self {
         let params = genv.alloc_slice_fill_iter(self.params.iter().map(|param| {
             let kind = if refined_by.is_base_generic(param.def_id.to_def_id()) {
-                GenericParamKind::SplTy
+                GenericParamKind::Base
             } else {
                 param.kind
             };

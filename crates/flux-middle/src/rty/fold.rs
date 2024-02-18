@@ -17,7 +17,7 @@ use super::{
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
     CoroutineObligPredicate, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate,
-    PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort,
+    PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, SubsetTy,
     TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
@@ -77,6 +77,10 @@ pub trait FallibleTypeFolder: Sized {
         bty.try_super_fold_with(self)
     }
 
+    fn try_fold_subset_ty(&mut self, constr: &SubsetTy) -> Result<SubsetTy, Self::Error> {
+        constr.try_super_fold_with(self)
+    }
+
     fn try_fold_region(&mut self, re: &Region) -> Result<Region, Self::Error> {
         Ok(*re)
     }
@@ -101,6 +105,10 @@ pub trait TypeFolder: FallibleTypeFolder<Error = !> {
 
     fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
         bty.super_fold_with(self)
+    }
+
+    fn fold_subset_ty(&mut self, constr: &SubsetTy) -> SubsetTy {
+        constr.super_fold_with(self)
     }
 
     fn fold_region(&mut self, re: &Region) -> Region {
@@ -135,6 +143,10 @@ where
 
     fn try_fold_bty(&mut self, bty: &BaseTy) -> Result<BaseTy, Self::Error> {
         Ok(self.fold_bty(bty))
+    }
+
+    fn try_fold_subset_ty(&mut self, ty: &SubsetTy) -> Result<SubsetTy, Self::Error> {
+        Ok(self.fold_subset_ty(ty))
     }
 
     fn try_fold_region(&mut self, re: &Region) -> Result<Region, Self::Error> {
@@ -967,11 +979,35 @@ impl TypeFoldable for AliasTy {
     }
 }
 
+impl TypeVisitable for SubsetTy {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+        self.bty.visit_with(visitor)?;
+        self.idx.visit_with(visitor)?;
+        self.pred.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for SubsetTy {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        folder.try_fold_subset_ty(self)
+    }
+}
+
+impl TypeSuperFoldable for SubsetTy {
+    fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(SubsetTy {
+            bty: self.bty.try_fold_with(folder)?,
+            idx: self.idx.try_fold_with(folder)?,
+            pred: self.pred.try_fold_with(folder)?,
+        })
+    }
+}
+
 impl TypeVisitable for GenericArg {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
         match self {
             GenericArg::Ty(ty) => ty.visit_with(visitor),
-            GenericArg::BaseTy(ty) => ty.visit_with(visitor),
+            GenericArg::Base(ty) => ty.visit_with(visitor),
             GenericArg::Lifetime(_) => ControlFlow::Continue(()),
             GenericArg::Const(_) => ControlFlow::Continue(()),
         }
@@ -982,7 +1018,7 @@ impl TypeFoldable for GenericArg {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let arg = match self {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.try_fold_with(folder)?),
-            GenericArg::BaseTy(ty) => GenericArg::BaseTy(ty.try_fold_with(folder)?),
+            GenericArg::Base(sty) => GenericArg::Base(sty.try_fold_with(folder)?),
             GenericArg::Lifetime(re) => GenericArg::Lifetime(re.try_fold_with(folder)?),
             GenericArg::Const(c) => GenericArg::Const(c.clone()),
         };
@@ -1076,9 +1112,8 @@ impl TypeVisitable for Var {
 impl TypeFoldable for AliasReft {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let trait_id = self.trait_id;
-        let generic_args = self.args.try_fold_with(folder)?;
-        let alias_pred = AliasReft { trait_id, name: self.name, args: generic_args };
-        Ok(alias_pred)
+        let args = self.args.try_fold_with(folder)?;
+        Ok(AliasReft { trait_id, name: self.name, args })
     }
 }
 

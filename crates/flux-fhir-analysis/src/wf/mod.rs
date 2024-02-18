@@ -12,7 +12,7 @@ use flux_errors::{FluxSession, ResultExt};
 use flux_middle::{
     fhir::{self, ExprRes, FluxOwnerId, SurfaceIdent},
     global_env::GlobalEnv,
-    rty::{self, GenericParamDefKind, WfckResults},
+    rty::{self, WfckResults},
 };
 use rustc_data_structures::{
     snapshot_map::{self, SnapshotMap},
@@ -20,7 +20,7 @@ use rustc_data_structures::{
 };
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::FxHashSet;
-use rustc_hir::{def::DefKind, def_id::DefId, OwnerId};
+use rustc_hir::{def::DefKind, OwnerId};
 use rustc_span::Symbol;
 
 use self::sortck::InferCtxt;
@@ -37,7 +37,7 @@ struct Wf<'genv, 'tcx> {
 /// determined. The context is called Xi because in the paper [Focusing on Liquid Refinement Typing],
 /// the well-formedness judgment uses an uppercase Xi (Ξ) for a context that is similar in purpose.
 ///
-/// This is basically a set of [`fhir::Name`] implemented with a snapshot map such that elements
+/// This is basically a set of [`fhir::ParamId`] implemented with a snapshot map such that elements
 /// can be removed in batch when there's a change in polarity.
 ///
 /// [Focusing on Liquid Refinement Typing]: https://arxiv.org/pdf/2209.13000.pdf
@@ -255,9 +255,8 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
     fn check_generic_bound(&mut self, infcx: &mut InferCtxt, bound: &fhir::GenericBound) -> Result {
         match bound {
             fhir::GenericBound::Trait(trait_ref, _) => self.check_path(infcx, &trait_ref.trait_ref),
-            fhir::GenericBound::LangItemTrait(lang_item, args, bindings) => {
-                let def_id = self.genv.tcx().require_lang_item(*lang_item, None);
-                self.check_generic_args(infcx, def_id, args)?;
+            fhir::GenericBound::LangItemTrait(_, args, bindings) => {
+                self.check_generic_args(infcx, args)?;
                 self.check_type_bindings(infcx, bindings)?;
                 Ok(())
             }
@@ -385,10 +384,9 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
                 self.check_type(infcx, ty)?;
                 self.check_expr_as_pred(infcx, pred)
             }
-            fhir::TyKind::OpaqueDef(item_id, args, _refine_args, _) => {
+            fhir::TyKind::OpaqueDef(_item_id, args, _refine_args, _) => {
                 // TODO sanity check the _refine_args (though they should never fail!) but we'd need their expected sorts
-                let def_id = item_id.owner_id.to_def_id();
-                self.check_generic_args(infcx, def_id, args)
+                self.check_generic_args(infcx, args)
             }
             fhir::TyKind::RawPtr(ty, _) => self.check_type(infcx, ty),
             fhir::TyKind::Hole(_) | fhir::TyKind::Never => Ok(()),
@@ -408,26 +406,7 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
             .try_collect_exhaust()
     }
 
-    fn check_generic_args_kinds(&self, def_id: DefId, args: &[fhir::GenericArg]) -> Result {
-        let generics = self.genv.generics_of(def_id).emit(self.genv.sess())?;
-        for (arg, param) in iter::zip(args, &generics.params) {
-            if param.kind == GenericParamDefKind::SplTy {
-                let ty = arg.expect_type();
-                if self.genv.sort_of_ty(ty).is_none() {
-                    return self.emit_err(errors::InvalidBaseInstance::new(*ty));
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn check_generic_args(
-        &mut self,
-        infcx: &mut InferCtxt,
-        def_id: DefId,
-        args: &[fhir::GenericArg],
-    ) -> Result {
-        self.check_generic_args_kinds(def_id, args)?;
+    fn check_generic_args(&mut self, infcx: &mut InferCtxt, args: &[fhir::GenericArg]) -> Result {
         args.iter()
             .try_for_each_exhaust(|arg| self.check_generic_arg(infcx, arg))
     }
@@ -490,10 +469,8 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
 
         // TODO(nilehmann) we should check all segments
         let last_segment = path.last_segment();
-        if let fhir::Res::Def(_kind, did) = &path.res
-            && !last_segment.args.is_empty()
-        {
-            self.check_generic_args(infcx, *did, last_segment.args)?;
+        if !last_segment.args.is_empty() {
+            self.check_generic_args(infcx, last_segment.args)?;
         }
         let bindings = self.check_type_bindings(infcx, last_segment.bindings);
         if !self.genv.is_box(path.res) {

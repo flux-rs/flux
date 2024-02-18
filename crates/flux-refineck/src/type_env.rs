@@ -7,12 +7,12 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        self, box_args,
+        canonicalize::ShallowHoister,
         evars::EVarSol,
-        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
+        fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
-        BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path,
-        PtrKind, Region, SortCtor, Ty, TyKind, INNERMOST,
+        BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path,
+        PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -373,8 +373,9 @@ impl BasicBlockEnvShape {
     fn pack_generic_arg(scope: &Scope, arg: &GenericArg) -> GenericArg {
         match arg {
             GenericArg::Ty(ty) => GenericArg::Ty(Self::pack_ty(scope, ty)),
-            GenericArg::BaseTy(arg) => {
-                GenericArg::BaseTy(arg.as_ref().map(|ty| Self::pack_ty(scope, ty)))
+            GenericArg::Base(arg) => {
+                assert!(!scope.has_free_vars(arg));
+                GenericArg::Base(arg.clone())
             }
             GenericArg::Lifetime(re) => GenericArg::Lifetime(*re),
             GenericArg::Const(c) => GenericArg::Const(c.clone()),
@@ -489,11 +490,7 @@ impl BasicBlockEnvShape {
                     e1.clone()
                 } else {
                     bound_sorts.push(sort.clone());
-                    Expr::late_bvar(
-                        INNERMOST,
-                        (bound_sorts.len() - 1) as u32,
-                        rty::BoundReftKind::Annon,
-                    )
+                    Expr::late_bvar(INNERMOST, (bound_sorts.len() - 1) as u32, BoundReftKind::Annon)
                 }
             }
         }
@@ -533,8 +530,20 @@ impl BasicBlockEnvShape {
     fn join_generic_arg(&self, arg1: &GenericArg, arg2: &GenericArg) -> GenericArg {
         match (arg1, arg2) {
             (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) => GenericArg::Ty(self.join_ty(ty1, ty2)),
-            (GenericArg::BaseTy(_), GenericArg::BaseTy(_)) => {
-                tracked_span_bug!("generic argument join for base types is not implemented")
+            (GenericArg::Base(ctor1), GenericArg::Base(ctor2)) => {
+                let sty1 = ctor1.as_ref().skip_binder();
+                let sty2 = ctor2.as_ref().skip_binder();
+                debug_assert_eq3!(&sty1.idx, &sty2.idx, &Expr::nu());
+
+                let bty = self.join_bty(&sty1.bty, &sty2.bty);
+                let pred = if self.scope.has_free_vars(&sty2.pred) || sty1.pred != sty2.pred {
+                    Expr::hole(HoleKind::Pred)
+                } else {
+                    sty1.pred.clone()
+                };
+                let sort = bty.sort();
+                let ctor = Binder::with_sort(SubsetTy::new(bty, Expr::nu(), pred), sort);
+                GenericArg::Base(ctor)
             }
             (GenericArg::Lifetime(re1), GenericArg::Lifetime(re2)) => {
                 debug_assert_eq!(re1, re2);
@@ -547,9 +556,9 @@ impl BasicBlockEnvShape {
     pub fn into_bb_env(self, kvar_store: &mut KVarStore) -> BasicBlockEnv {
         let mut bindings = self.bindings;
 
-        let mut generalizer = Generalizer::new();
-        bindings.fmap_mut(|ty| generalizer.generalize(ty));
-        let (vars, preds) = generalizer.into_parts();
+        let mut hoister = ShallowHoister::default();
+        bindings.fmap_mut(|ty| hoister.hoist(ty));
+        let (vars, preds) = hoister.into_parts();
 
         // Replace all holes with a single fresh kvar on all parameters
         let mut constrs = preds
@@ -575,63 +584,6 @@ impl BasicBlockEnvShape {
         let data = BasicBlockEnvData { constrs: constrs.into(), bindings };
 
         BasicBlockEnv { data: Binder::new(data, vars), scope: self.scope }
-    }
-}
-
-struct Generalizer {
-    vars: Vec<BoundVariableKind>,
-    preds: Vec<Expr>,
-}
-
-impl Generalizer {
-    fn new() -> Self {
-        Self { vars: vec![], preds: vec![] }
-    }
-
-    fn into_parts(self) -> (List<BoundVariableKind>, Vec<Expr>) {
-        (List::from_vec(self.vars), self.preds)
-    }
-
-    fn generalize(&mut self, ty: &Ty) -> Ty {
-        ty.fold_with(self)
-    }
-}
-
-impl TypeFolder for Generalizer {
-    fn fold_ty(&mut self, ty: &Ty) -> Ty {
-        match ty.kind() {
-            TyKind::Exists(ty) => {
-                ty.replace_bound_refts_with(|sort, mode, kind| {
-                    let idx = self.vars.len();
-                    self.vars
-                        .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
-                    Expr::late_bvar(INNERMOST, idx as u32, kind)
-                })
-                .fold_with(self)
-            }
-            TyKind::Constr(pred, ty) => {
-                self.preds.push(pred.clone());
-                ty.fold_with(self)
-            }
-            _ => ty.clone(),
-        }
-    }
-
-    fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
-        match bty {
-            BaseTy::Adt(adt_def, args) if adt_def.is_box() => {
-                let (boxed, alloc) = box_args(args);
-                let args = List::from_arr([
-                    GenericArg::Ty(boxed.fold_with(self)),
-                    GenericArg::Ty(alloc.clone()),
-                ]);
-                BaseTy::Adt(adt_def.clone(), args)
-            }
-            BaseTy::Ref(re, ty, Mutability::Not) => {
-                BaseTy::Ref(*re, ty.fold_with(self), Mutability::Not)
-            }
-            _ => bty.clone(),
-        }
     }
 }
 

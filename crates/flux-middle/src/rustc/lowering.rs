@@ -865,10 +865,7 @@ fn lower_clause<'tcx>(
     let kind = match kind {
         rustc_ty::ClauseKind::Trait(trait_pred) => {
             ClauseKind::Trait(TraitPredicate {
-                trait_ref: TraitRef {
-                    def_id: trait_pred.trait_ref.def_id,
-                    args: lower_generic_args(tcx, trait_pred.trait_ref.args)?,
-                },
+                trait_ref: lower_trait_ref(tcx, trait_pred.trait_ref)?,
             })
         }
         rustc_ty::ClauseKind::Projection(proj_pred) => {
@@ -892,6 +889,13 @@ fn lower_clause<'tcx>(
         }
     };
     Ok(Clause::new(kind))
+}
+
+pub(crate) fn lower_trait_ref<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    trait_ref: rustc_ty::TraitRef<'tcx>,
+) -> Result<TraitRef, UnsupportedReason> {
+    Ok(TraitRef { def_id: trait_ref.def_id, args: lower_generic_args(tcx, trait_ref.args)? })
 }
 
 fn lower_type_outlives<'tcx>(

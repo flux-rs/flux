@@ -28,9 +28,6 @@ refineck_assert_error =
 refineck_param_inference_error =
     parameter inference error at function call
 
-refineck_invalid_generic_arg =
-    cannot instantiate base or spl generic with opaque type
-
 refineck_fold_error =
     type invariant may not hold (when place is folded)
 

@@ -13,3 +13,6 @@ pub fn test00_bad() -> RSet<impl Eq + Hash> {
     //~^ ERROR values of this type cannot be used as base sorted instances
     RSet::<i32>::new()
 }
+
+#[flux::sig(fn(soup:RSet<Tinker>))] //~ ERROR values of this type cannot be used as base sorted instances
+pub fn test01<Tinker: Eq + Hash>(_s: RSet<Tinker>) {}

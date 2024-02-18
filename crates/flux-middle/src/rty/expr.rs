@@ -6,13 +6,13 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::mir::Local;
+use rustc_middle::{mir::Local, ty::TyCtxt};
 use rustc_span::{BytePos, Span, Symbol, SyntaxContext};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
-    evars::EVar, AliasReft, BaseTy, Binder, BoundReftKind, BoundVariableKind, FuncSort, IntTy,
+    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKind, FuncSort, GenericArgs, IntTy,
     Sort, UintTy,
 };
 use crate::{
@@ -54,6 +54,24 @@ impl Lambda {
 
     pub fn sort(&self) -> FuncSort {
         FuncSort::new(self.inputs().to_vec(), self.output())
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct AliasReft {
+    pub trait_id: DefId,
+    pub name: Symbol,
+    pub args: GenericArgs,
+}
+
+impl AliasReft {
+    pub fn to_rustc_trait_ref<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::TraitRef<'tcx> {
+        let trait_def_id = self.trait_id;
+        let args = self
+            .args
+            .to_rustc(tcx)
+            .truncate_to(tcx, tcx.generics_of(trait_def_id));
+        rustc_middle::ty::TraitRef::new(tcx, trait_def_id, args)
     }
 }
 
@@ -358,6 +376,16 @@ impl Expr {
         Expr::late_bvar(INNERMOST, 0, BoundReftKind::Annon)
     }
 
+    pub fn is_nu(&self) -> bool {
+        if let ExprKind::Var(Var::LateBound(INNERMOST, var)) = self.kind()
+            && var.index == 0
+        {
+            true
+        } else {
+            false
+        }
+    }
+
     #[track_caller]
     pub fn expect_adt(&self) -> (DefId, List<Expr>) {
         if let ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) = self.kind() {
@@ -548,8 +576,7 @@ impl Expr {
     }
 
     /// Simple syntactic check to see if the expression is a trivially true predicate. This is used
-    /// mostly for filtering predicates when pretty printing but also to simplify the constraint
-    /// before encoding it into fixpoint.
+    /// mostly for filtering predicates when pretty printing but also to simplify types in general.
     pub fn is_trivially_true(&self) -> bool {
         self.is_true()
             || matches!(self.kind(), ExprKind::BinaryOp(BinOp::Eq | BinOp::Iff | BinOp::Imp, e1, e2) if e1 == e2)
@@ -797,6 +824,12 @@ impl From<Name> for Expr {
     }
 }
 
+impl From<Var> for Expr {
+    fn from(var: Var) -> Self {
+        Expr::var(var, None)
+    }
+}
+
 impl From<Loc> for Path {
     fn from(loc: Loc) -> Self {
         Path::new(loc, vec![])
@@ -956,7 +989,7 @@ mod pretty {
     impl Pretty for AliasReft {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
-            w!("<{:?} as {:?}", &self.args[0], self.trait_id)?;
+            w!("<({:?}) as {:?}", &self.args[0], self.trait_id)?;
             let args = &self.args[1..];
             if !args.is_empty() {
                 w!("<{:?}>", join!(", ", args))?;

@@ -212,8 +212,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                     surface::GenericParamKind::Type => {
                         fhir::GenericParamKind::Type { default: None }
                     }
-                    surface::GenericParamKind::Spl => fhir::GenericParamKind::SplTy,
-                    surface::GenericParamKind::Base => fhir::GenericParamKind::BaseTy,
+                    surface::GenericParamKind::Base => fhir::GenericParamKind::Base,
                     surface::GenericParamKind::Refine { .. } => unreachable!(),
                 };
                 self_kind = Some(kind);
@@ -230,8 +229,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                                 .transpose()?,
                         }
                     }
-                    surface::GenericParamKind::Base => fhir::GenericParamKind::BaseTy,
-                    surface::GenericParamKind::Spl => fhir::GenericParamKind::SplTy,
+                    surface::GenericParamKind::Base => fhir::GenericParamKind::Base,
                     surface::GenericParamKind::Refine { .. } => unreachable!(),
                 };
                 surface_params.insert(def_id, fhir::GenericParam { def_id, kind });

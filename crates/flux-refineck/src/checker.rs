@@ -1147,11 +1147,13 @@ fn instantiate_args_for_fun_call(
 
     let refiner = Refiner::new(genv, caller_generics, |bty| {
         let sort = bty.sort();
-        let mut ty = rty::Ty::indexed(bty.shift_in_escaping(1), rty::Expr::nu());
-        if !sort.is_unit() {
-            ty = rty::Ty::constr(rty::Expr::hole(rty::HoleKind::Pred), ty);
-        }
-        rty::Binder::with_sort(ty, sort)
+        let bty = bty.shift_in_escaping(1);
+        let constr = if !sort.is_unit() {
+            rty::SubsetTy::new(bty, Expr::nu(), Expr::hole(rty::HoleKind::Pred))
+        } else {
+            rty::SubsetTy::trivial(bty, Expr::nu())
+        };
+        Binder::with_sort(constr, sort)
     });
 
     args.iter()
@@ -1423,7 +1425,6 @@ pub(crate) mod errors {
         Inference,
         OpaqueStruct(DefId),
         Query(QueryErr),
-        InvalidGenericArg,
     }
 
     impl CheckerError {
@@ -1442,12 +1443,6 @@ pub(crate) mod errors {
                 CheckerErrKind::Inference => {
                     handler.struct_err_with_code(
                         fluent::refineck_param_inference_error,
-                        flux_errors::diagnostic_id(),
-                    )
-                }
-                CheckerErrKind::InvalidGenericArg => {
-                    handler.struct_err_with_code(
-                        fluent::refineck_invalid_generic_arg,
                         flux_errors::diagnostic_id(),
                     )
                 }

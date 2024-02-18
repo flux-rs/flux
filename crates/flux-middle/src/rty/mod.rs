@@ -4,6 +4,7 @@
 //!
 //! * Types in this module use debruijn indices to represent local binders.
 //! * Data structures are interned so they can be cheaply cloned.
+pub mod canonicalize;
 pub mod evars;
 mod expr;
 pub mod fold;
@@ -16,8 +17,8 @@ use std::{borrow::Cow, fmt, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{
-    AggregateKind, BinOp, BoundReft, Constant, ESpan, Expr, ExprKind, FieldProj, HoleKind, KVar,
-    KVid, Lambda, Loc, Name, Path, UnOp, Var,
+    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, Expr, ExprKind, FieldProj,
+    HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
 use flux_common::bug;
 use itertools::Itertools;
@@ -151,8 +152,7 @@ pub struct GenericParamDef {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
-    SplTy,
-    BaseTy,
+    Base,
     Lifetime,
     Const { has_default: bool },
 }
@@ -553,7 +553,26 @@ pub struct ClosureOblig {
     pub oblig_sig: PolyFnSig,
 }
 
-pub type PolyTy = Binder<Ty>;
+pub type TyCtor = Binder<Ty>;
+
+impl TyCtor {
+    pub fn to_ty(&self) -> Ty {
+        match &self.vars[..] {
+            [] => return self.value.shift_out_escaping(1),
+            [BoundVariableKind::Refine(sort, ..)] => {
+                if sort.is_unit() {
+                    return self.replace_bound_reft(&Expr::unit());
+                }
+                if let Some(def_id) = sort.is_unit_adt() {
+                    return self.replace_bound_reft(&Expr::unit_adt(def_id));
+                }
+            }
+            _ => {}
+        }
+        Ty::exists(self.clone())
+    }
+}
+
 pub type Ty = Interned<TyS>;
 
 impl Ty {
@@ -710,29 +729,62 @@ impl Ty {
             | TyKind::Blocked(_) => todo!(),
         }
     }
+
+    /// Whether the type is an `int` or a `uint`
+    pub fn is_integral(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_integral)
+            .unwrap_or_default()
+    }
+
+    /// Whether the type is a `bool`
+    pub fn is_bool(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_bool)
+            .unwrap_or_default()
+    }
+
+    pub fn is_uninit(&self) -> bool {
+        matches!(self.kind(), TyKind::Uninit)
+    }
+
+    pub fn is_box(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_box)
+            .unwrap_or_default()
+    }
+
+    pub fn is_struct(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_struct)
+            .unwrap_or_default()
+    }
+
+    pub fn is_array(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_array)
+            .unwrap_or_default()
+    }
+
+    pub fn is_slice(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_slice)
+            .unwrap_or_default()
+    }
+
+    pub fn as_bty_skipping_existentials(&self) -> Option<&BaseTy> {
+        match self.kind() {
+            TyKind::Indexed(bty, _) => Some(bty),
+            TyKind::Exists(ty) => Some(ty.as_ref().skip_binder().as_bty_skipping_existentials()?),
+            TyKind::Constr(_, ty) => ty.as_bty_skipping_existentials(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct TyS {
     kind: TyKind,
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct AliasReft {
-    pub trait_id: DefId,
-    pub name: Symbol,
-    pub args: GenericArgs,
-}
-
-impl AliasReft {
-    pub fn to_rustc_trait_ref<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::TraitRef<'tcx> {
-        let trait_def_id = self.trait_id;
-        let args = self
-            .args
-            .to_rustc(tcx)
-            .truncate_to(tcx, tcx.generics_of(trait_def_id));
-        rustc_middle::ty::TraitRef::new(tcx, trait_def_id, args)
-    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
@@ -777,7 +829,7 @@ pub enum BaseTy {
     Tuple(List<Ty>),
     Array(Ty, Const),
     Never,
-    Closure(DefId, List<Ty>),
+    Closure(DefId, /* upvar_tys */ List<Ty>),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
     Param(ParamTy),
 }
@@ -810,10 +862,106 @@ pub type RefineArgs = List<Expr>;
 
 pub type OpaqueArgsMap = FxHashMap<DefId, (GenericArgs, RefineArgs)>;
 
+/// A type constructor meant to be used as generic a argument of [kind base]. This is just an alias
+/// to [`Binder<SubsetTy>`], but we expect the binder to have a single bound variable of the sort of
+/// the underlying [`BaseTy`].
+///
+/// [kind base]: GenericParamDefKind::Base
+pub type SubsetTyCtor = Binder<SubsetTy>;
+
+impl SubsetTyCtor {
+    pub fn as_bty_skipping_binder(&self) -> &BaseTy {
+        &self.as_ref().skip_binder().bty
+    }
+
+    pub fn to_ty(&self) -> Ty {
+        let sort = self.sort();
+        if sort.is_unit() {
+            self.replace_bound_reft(&Expr::unit()).to_ty()
+        } else if let Some(def_id) = sort.is_unit_adt() {
+            self.replace_bound_reft(&Expr::unit_adt(def_id)).to_ty()
+        } else {
+            Ty::exists(self.as_ref().map(SubsetTy::to_ty))
+        }
+    }
+}
+
+/// A subset type is a simplified version of a type that has the form `{b[e] | p}` where `b` is a
+/// [`BaseTy`], `e` a refinement index, and `p` a predicate. These are mainly found under a [`Binder`]
+/// with a single variable of the base type's sort. This can be interpreted as a type constructor or
+/// an existial type. For example, under a binder with a variable `v` of sort `int`, we can interpret
+/// `{i32[v] | v > 0}` as a lambda `λv:int. {i32[v] | v > 0}` that "constructs" types when applied to
+/// ints, or as an existential type `∃v:int. {i32[v] | v > 0}`. This second interpretation is the
+/// reason we call this a subset type, i.e., the type `∃v. {b[v] | p}` corresponds to the subset of
+/// values of (base) type `b` whose index satisfies `p`. In other words, these are the types supported
+/// by liquid haskell (with the difference that we are explicit about separating refinements from
+/// program values via an index).
+///
+/// The main purpose for a [`SubsetTy`] is to be used as generic arguments of [kind base] when
+/// interpreted as a type contructor. The key property of a [`SubsetTy`] is that it can be eagerly
+/// canonicalized via [*strengthening*] during substitution. For example, suppose we have a function:
+/// ```text
+/// fn foo<T>(x: T[@a], y: { T[@b] | b == a }) { }
+/// ```
+/// If we instantiate `T` with `λv. { i32[v] | v > 0}`, after substitution and applying the lambda,
+/// we get:
+/// ```text
+/// fn foo(x: {i32[@a] | a > 0}, y: { { i32[@b] | b > 0 } | b == a }) { }
+/// ```
+/// By the strengthening rule we can canonicalize this to
+/// ```text
+/// fn foo(x: {i32[@a] | a > 0}, y: { i32[@b] | b == a && b > 0 }) { }
+/// ```
+/// As a result, we can guarantee a simple canonical form that makes it easier to manipulate types
+/// syntactically.
+///
+/// [kind base]: GenericParamDefKind::Base
+/// [*strengthening*]: https://arxiv.org/pdf/2010.07763.pdf
+#[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct SubsetTy {
+    /// **NOTE:** This [`BaseTy`] is mainly going to be under a [`Binder`]. It is not yet clear whether
+    /// this [`BaseTy`] should be able to mention variables in the binder. In general, in a type
+    /// `∃v. {b[e] | p}`, it's fine to mention `v` inside `b`, but since [`SubsetTy`] is meant to
+    /// facilitate syntatic manipulation we may restrict this.
+    pub bty: BaseTy,
+    /// This can be an arbitrary expression which makes the syntatic manipulation easier, but since
+    /// this is mostly going to be under a binder we expect it to be [`Expr::nu()`].
+    pub idx: Expr,
+    pub pred: Expr,
+}
+
+impl SubsetTy {
+    pub fn new(bty: BaseTy, idx: impl Into<Expr>, pred: impl Into<Expr>) -> Self {
+        Self { bty, idx: idx.into(), pred: pred.into() }
+    }
+
+    pub fn trivial(bty: BaseTy, idx: impl Into<Expr>) -> Self {
+        Self::new(bty, idx, Expr::tt())
+    }
+
+    pub fn strengthen(&self, pred: impl Into<Expr>) -> Self {
+        let this = self.clone();
+        Self { bty: this.bty, idx: this.idx, pred: Expr::and([this.pred, pred.into()]) }
+    }
+
+    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
+        self.bty.to_rustc(tcx)
+    }
+
+    fn to_ty(&self) -> Ty {
+        let bty = self.bty.clone();
+        if self.pred.is_trivially_true() {
+            Ty::indexed(bty, &self.idx)
+        } else {
+            Ty::constr(&self.pred, Ty::indexed(bty, &self.idx))
+        }
+    }
+}
+
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
     Ty(Ty),
-    BaseTy(Binder<Ty>),
+    Base(SubsetTyCtor),
     Lifetime(Region),
     Const(Const),
 }
@@ -830,7 +978,7 @@ impl GenericArg {
     pub fn peel_out_sort(&self) -> Option<Sort> {
         match self {
             GenericArg::Ty(ty) => ty.as_bty_skipping_existentials().map(BaseTy::sort),
-            GenericArg::BaseTy(abs) => Some(abs.vars()[0].expect_sort().clone()),
+            GenericArg::Base(ctor) => Some(ctor.sort()),
             GenericArg::Lifetime(_) | GenericArg::Const(_) => None,
         }
     }
@@ -838,14 +986,14 @@ impl GenericArg {
     pub fn is_valid_base_arg(&self) -> bool {
         match self {
             GenericArg::Ty(ty) => ty.kind().is_valid_base_ty(),
-            GenericArg::BaseTy(bty) => bty.as_ref().skip_binder().kind().is_valid_base_ty(),
+            GenericArg::Base(_) => true,
             _ => false,
         }
     }
 
     fn from_param_def(genv: GlobalEnv, param: &GenericParamDef) -> QueryResult<Self> {
         match param.kind {
-            GenericParamDefKind::Type { .. } | GenericParamDefKind::SplTy => {
+            GenericParamDefKind::Type { .. } => {
                 let param_ty = ParamTy { index: param.index, name: param.name };
                 Ok(GenericArg::Ty(Ty::param(param_ty)))
             }
@@ -860,7 +1008,7 @@ impl GenericArg {
                 let ty = genv.lower_type_of(param.def_id)?.skip_binder();
                 Ok(GenericArg::Const(Const { kind, ty }))
             }
-            GenericParamDefKind::BaseTy => {
+            GenericParamDefKind::Base => {
                 bug!("")
             }
         }
@@ -870,8 +1018,8 @@ impl GenericArg {
         use rustc_middle::ty;
         match self {
             GenericArg::Ty(ty) => ty::GenericArg::from(ty.to_rustc(tcx)),
-            GenericArg::BaseTy(bty) => {
-                ty::GenericArg::from(bty.as_ref().skip_binder().to_rustc(tcx))
+            GenericArg::Base(ctor) => {
+                ty::GenericArg::from(ctor.as_ref().skip_binder().to_rustc(tcx))
             }
             GenericArg::Lifetime(re) => ty::GenericArg::from(re.to_rustc(tcx)),
             GenericArg::Const(_) => todo!(),
@@ -1174,6 +1322,14 @@ impl<T> Binder<T> {
     pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<Binder<U>, E> {
         Ok(Binder { vars: self.vars, value: f(self.value)? })
     }
+
+    #[track_caller]
+    pub fn sort(&self) -> Sort {
+        match &self.vars[..] {
+            [BoundVariableKind::Refine(sort, ..)] => sort.clone(),
+            _ => bug!("expected single-sorted binder"),
+        }
+    }
 }
 
 impl List<BoundVariableKind> {
@@ -1272,16 +1428,6 @@ where
             })
             .collect_vec();
         self.replace_bound_refts(&exprs)
-    }
-}
-
-impl Binder<Ty> {
-    pub fn into_ty(self) -> Ty {
-        if self.vars.is_empty() {
-            self.value
-        } else {
-            Ty::exists(self)
-        }
     }
 }
 
@@ -1561,62 +1707,12 @@ impl TyS {
         }
     }
 
+    #[track_caller]
     pub(crate) fn expect_tuple(&self) -> &[Ty] {
         if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
             tys
         } else {
-            bug!("expected adt")
-        }
-    }
-
-    /// Whether the type is an `int` or a `uint`
-    pub fn is_integral(&self) -> bool {
-        self.as_bty_skipping_existentials()
-            .map(BaseTy::is_integral)
-            .unwrap_or_default()
-    }
-
-    /// Whether the type is a `bool`
-    pub fn is_bool(&self) -> bool {
-        self.as_bty_skipping_existentials()
-            .map(BaseTy::is_bool)
-            .unwrap_or_default()
-    }
-
-    pub fn is_uninit(&self) -> bool {
-        matches!(self.kind(), TyKind::Uninit)
-    }
-
-    pub fn is_box(&self) -> bool {
-        self.as_bty_skipping_existentials()
-            .map(BaseTy::is_box)
-            .unwrap_or_default()
-    }
-
-    pub fn is_struct(&self) -> bool {
-        self.as_bty_skipping_existentials()
-            .map(BaseTy::is_struct)
-            .unwrap_or_default()
-    }
-
-    pub fn is_array(&self) -> bool {
-        self.as_bty_skipping_existentials()
-            .map(BaseTy::is_array)
-            .unwrap_or_default()
-    }
-
-    pub fn is_slice(&self) -> bool {
-        self.as_bty_skipping_existentials()
-            .map(BaseTy::is_slice)
-            .unwrap_or_default()
-    }
-
-    pub fn as_bty_skipping_existentials(&self) -> Option<&BaseTy> {
-        match self.kind() {
-            TyKind::Indexed(bty, _) => Some(bty),
-            TyKind::Exists(ty) => Some(ty.as_ref().skip_binder().as_bty_skipping_existentials()?),
-            TyKind::Constr(_, ty) => ty.as_bty_skipping_existentials(),
-            _ => None,
+            bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
         }
     }
 }
@@ -1663,6 +1759,10 @@ impl BaseTy {
 
     fn is_slice(&self) -> bool {
         matches!(self, BaseTy::Slice(..))
+    }
+
+    fn is_adt(&self) -> bool {
+        matches!(self, BaseTy::Adt(..))
     }
 
     pub fn is_box(&self) -> bool {
@@ -2028,7 +2128,7 @@ mod pretty {
         default fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             cx.with_bound_vars(&self.vars, || {
-                cx.fmt_bound_vars("for<", &self.vars, ">", f)?;
+                cx.fmt_bound_vars("for<", &self.vars, "> ", f)?;
                 w!("{:?}", &self.value)
             })
         }
@@ -2046,7 +2146,7 @@ mod pretty {
             let vars = &self.vars;
             cx.with_bound_vars(vars, || {
                 if !vars.is_empty() {
-                    cx.fmt_bound_vars("for<", vars, ">", f)?;
+                    cx.fmt_bound_vars("for<", vars, "> ", f)?;
                 }
                 w!("{:?}", &self.value)
             })
@@ -2162,13 +2262,22 @@ mod pretty {
             define_scoped!(cx, f);
             let vars = &self.vars;
             cx.with_bound_vars(vars, || {
-                cx.fmt_bound_vars("exists<", vars, ">", f)?;
-                w!("{:?}", &self.value.ret)?;
-                if !self.value.ensures.is_empty() {
-                    w!("; [{:?}]", join!(", ", &self.value.ensures))?;
+                if !vars.is_empty() {
+                    cx.fmt_bound_vars("exists<", vars, "> ", f)?;
                 }
-                Ok(())
+                w!("{:?}", &self.value)
             })
+        }
+    }
+
+    impl Pretty for FnOutput {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("{:?}", &self.ret)?;
+            if !self.ensures.is_empty() {
+                w!("; [{:?}]", join!(", ", &self.ensures))?;
+            }
+            Ok(())
         }
     }
 
@@ -2178,6 +2287,17 @@ mod pretty {
             match self {
                 Constraint::Type(loc, ty, _) => w!("{:?}: {:?}", ^loc, ty),
                 Constraint::Pred(e) => w!("{:?}", e),
+            }
+        }
+    }
+
+    impl Pretty for SubsetTy {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            if self.pred.is_trivially_true() {
+                w!("{:?}[{:?}]", &self.bty, &self.idx)
+            } else {
+                w!("{{ {:?}[{:?}] | {:?} }}", &self.bty, &self.idx, &self.pred)
             }
         }
     }
@@ -2192,7 +2312,9 @@ mod pretty {
                         return Ok(());
                     }
                     if idx.is_unit() {
-                        w!("[]")?;
+                        if bty.is_adt() {
+                            w!("[]")?;
+                        }
                     } else {
                         w!("[{:?}]", idx)?;
                     }
@@ -2365,11 +2487,11 @@ mod pretty {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                GenericArg::Ty(arg) => w!("{:?}", arg),
-                GenericArg::BaseTy(arg) => {
-                    cx.with_bound_vars(arg.vars(), || {
-                        cx.fmt_bound_vars("λ", arg.vars(), ". ", f)?;
-                        w!("{:?}", arg.as_ref().skip_binder())
+                GenericArg::Ty(ty) => w!("{:?}", ty),
+                GenericArg::Base(ctor) => {
+                    cx.with_bound_vars(ctor.vars(), || {
+                        cx.fmt_bound_vars("λ", ctor.vars(), ". ", f)?;
+                        w!("{:?}", &ctor.value)
                     })
                 }
                 GenericArg::Lifetime(re) => w!("{:?}", re),
@@ -2410,5 +2532,6 @@ mod pretty {
         PtrKind,
         FuncSort,
         SortCtor,
+        SubsetTy,
     );
 }

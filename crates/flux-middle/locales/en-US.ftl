@@ -24,3 +24,6 @@ middle_unsupported_generic_bound =
 middle_query_unsupported =
     unsupported signature
     .note = {$reason}
+
+middle_query_invalid_generic_arg =
+    cannot instantiate base generic with opaque type or a type parameter of kind type
