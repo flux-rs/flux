@@ -831,6 +831,33 @@
 <a href="#831" id="831">831</a>
 <a href="#832" id="832">832</a>
 <a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
@@ -953,10 +980,6 @@
         RefineTree { root }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>as_subtree(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; RefineSubtree {
-        RefineSubtree { root: NodePtr(Rc::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.root)), tree: <span class="self">self </span>}
-    }
-
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>simplify(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.root.borrow_mut().simplify();
     }
@@ -1014,7 +1037,9 @@
         <span class="self">self</span>.snapshot().scope().unwrap()
     }
 
-    <span class="attr">#[must_use]
+    <span class="attr">#[allow(dead_code)]
+    #[must_use]
+    #[allow(dead_code)]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>push_comment(<span class="kw-2">&amp;mut </span><span class="self">self</span>, comment: <span class="kw">impl </span>ToString) -&gt; RefineCtxt {
         <span class="kw">let </span>ptr = <span class="self">self</span>.ptr.push_node(NodeKind::Comment(comment.to_string()));
         RefineCtxt { tree: <span class="self">self</span>.tree, ptr }
@@ -1028,14 +1053,17 @@
         fresh
     }
 
-    <span class="doccomment">/// Given a [`sort`] that may contain nested tuples, it destructs the tuples recursively, generating
-    /// multiple fresh variables and returning the &quot;eta-expanded&quot; tuple of fresh variables. This is in contrast
-    /// to generating a single fresh variable of tuple sort.
+    <span class="doccomment">/// Given a [`sort`] that may contain aggregate sorts ([tuple] or [adt]), it destructs the sort
+    /// recursively, generating multiple fresh variables and returning an &quot;eta-expanded&quot; expression
+    /// of fresh variables. This is in contrast to generating a single fresh variable of aggregate
+    /// sort.
     ///
     /// For example, given the sort `(int, (bool, int))` it returns `(a0, (a1, a2))` for fresh variables
     /// `a0: int`, `a1: bool`, and `a2: int`.
     ///
     /// [`sort`]: Sort
+    /// [tuple]: Sort::Tuple
+    /// [adt]: flux_middle::rty::SortCtor::Adt
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>define_vars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
         Expr::fold_sort(sort, |sort| Expr::fvar(<span class="self">self</span>.define_var(sort)))
     }
@@ -1057,12 +1085,12 @@
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, assume_invariants: AssumeInvariants) -&gt; Ty {
-        <span class="self">self</span>.unpacker(assume_invariants).unpack(ty)
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
+        <span class="self">self</span>.unpacker().unpack(ty)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpacker(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assume_invariants: AssumeInvariants) -&gt; Unpacker&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;rcx</span>&gt; {
-        Unpacker::new(<span class="self">self</span>, assume_invariants)
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpacker(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Unpacker&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;rcx</span>&gt; {
+        Unpacker::new(<span class="self">self</span>)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, overflow_checking: bool) {
@@ -1085,8 +1113,8 @@
                     &amp;&amp; !idx.has_escaping_bvars()
                 {
                     <span class="kw">for </span>invariant <span class="kw">in </span>bty.invariants(<span class="self">self</span>.overflow_checking) {
-                        <span class="kw">let </span>invariant = invariant.pred.replace_bound_expr(<span class="kw-2">&amp;</span>idx.expr);
-                        <span class="self">self</span>.rcx.assume_pred(invariant);
+                        <span class="kw">let </span>invariant = invariant.apply(idx);
+                        <span class="self">self</span>.rcx.assume_pred(<span class="kw-2">&amp;</span>invariant);
                     }
                 }
                 ty.super_visit_with(<span class="self">self</span>)
@@ -1100,6 +1128,11 @@
     }
 }
 
+<span class="kw">enum </span>AssumeInvariants {
+    Yes { check_overflow: bool },
+    No,
+}
+
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Unpacker&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;rcx</span>&gt; {
     rcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">&#39;rcx</span>&gt;,
     in_mut_ref: bool,
@@ -1109,28 +1142,22 @@
     assume_invariants: AssumeInvariants,
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>AssumeInvariants {
-    Yes { check_overflow: bool },
-    No,
-}
-
-<span class="kw">impl </span>AssumeInvariants {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>yes(check_overflow: bool) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::Yes { check_overflow }
-    }
-}
-
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;rcx</span>&gt; Unpacker&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;rcx</span>&gt; {
-    <span class="kw">fn </span>new(rcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">&#39;rcx</span>&gt;, assume_invariants: AssumeInvariants) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(rcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">&#39;rcx</span>&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             rcx,
             in_mut_ref: <span class="bool-val">false</span>,
             unpack_inside_mut_ref: <span class="bool-val">false</span>,
             shallow: <span class="bool-val">false</span>,
             unpack_exists: <span class="bool-val">true</span>,
-            assume_invariants,
+            assume_invariants: AssumeInvariants::No,
         }
     }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assume_invariants(<span class="kw-2">mut </span><span class="self">self</span>, check_overflow: bool) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.assume_invariants = AssumeInvariants::Yes { check_overflow };
+        <span class="self">self
+    </span>}
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpack_inside_mut_ref(<span class="kw-2">mut </span><span class="self">self</span>, unpack_inside_mut_ref: bool) -&gt; <span class="self">Self </span>{
         <span class="self">self</span>.unpack_inside_mut_ref = unpack_inside_mut_ref;
@@ -1155,7 +1182,7 @@
 <span class="kw">impl </span>TypeFolder <span class="kw">for </span>Unpacker&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
     <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
         <span class="kw">match </span>ty.kind() {
-            TyKind::Indexed(bty, idxs) =&gt; Ty::indexed(bty.fold_with(<span class="self">self</span>), idxs.clone()),
+            TyKind::Indexed(bty, idx) =&gt; Ty::indexed(bty.fold_with(<span class="self">self</span>), idx.clone()),
             TyKind::Exists(bound_ty) <span class="kw">if </span><span class="self">self</span>.unpack_exists =&gt; {
                 <span class="comment">// HACK(nilehmann) In general we shouldn&#39;t unpack through mutable references because
                 // that makes referent type too specific. We only have this as a workaround to infer
@@ -1163,7 +1190,7 @@
                 // opening of mutable references. See also `ConstrGen::check_fn_call`.
                 </span><span class="kw">if </span>!<span class="self">self</span>.in_mut_ref || <span class="self">self</span>.unpack_inside_mut_ref {
                     <span class="kw">let </span>bound_ty = bound_ty
-                        .replace_bound_exprs_with(|sort, <span class="kw">_</span>| <span class="self">self</span>.rcx.define_vars(sort))
+                        .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| <span class="self">self</span>.rcx.define_vars(sort))
                         .fold_with(<span class="self">self</span>);
                     <span class="kw">if let </span>AssumeInvariants::Yes { check_overflow } = <span class="self">self</span>.assume_invariants {
                         <span class="self">self</span>.rcx.assume_invariants(<span class="kw-2">&amp;</span>bound_ty, check_overflow);
@@ -1174,7 +1201,7 @@
                 }
             }
             TyKind::Constr(pred, ty) =&gt; {
-                <span class="self">self</span>.rcx.assume_pred(pred);
+                <span class="self">self</span>.rcx.assume_pred(pred.clone());
                 ty.fold_with(<span class="self">self</span>)
             }
             TyKind::Downcast(..) <span class="kw">if </span>!<span class="self">self</span>.shallow =&gt; ty.super_fold_with(<span class="self">self</span>),
@@ -1369,9 +1396,11 @@
             NodeKind::ForAll(name, sort) =&gt; {
                 cx.with_name_map(<span class="kw-2">*</span>name, |cx, fresh| {
                     <span class="prelude-val">Some</span>(fixpoint::Constraint::ForAll(
-                        fixpoint::Var::Local(fresh),
-                        sort_to_fixpoint(sort),
-                        fixpoint::Pred::TRUE,
+                        fixpoint::Bind {
+                            name: fixpoint::Var::Local(fresh),
+                            sort: sort_to_fixpoint(sort),
+                            pred: fixpoint::Pred::TRUE,
+                        },
                         Box::new(children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)<span class="question-mark">?</span>),
                     ))
                 })
@@ -1382,8 +1411,12 @@
                 <span class="kw">let </span>pred = fixpoint::Pred::And(preds);
                 <span class="prelude-val">Some</span>(stitch(
                     bindings,
-                    fixpoint::Constraint::Guard(
-                        pred,
+                    fixpoint::Constraint::ForAll(
+                        fixpoint::Bind {
+                            name: fixpoint::Var::Underscore,
+                            sort: fixpoint::Sort::Int,
+                            pred,
+                        },
                         Box::new(children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)<span class="question-mark">?</span>),
                     ),
                 ))
@@ -1455,6 +1488,27 @@
     }
 }
 
+<span class="kw">impl </span>TypeVisitable <span class="kw">for </span>RefineTree {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
+        <span class="self">self</span>.root.visit_with(visitor)
+    }
+}
+
+<span class="kw">impl </span>TypeVisitable <span class="kw">for </span>NodePtr {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
+        <span class="kw">let </span>node = <span class="self">self</span>.borrow();
+        <span class="kw">match </span><span class="kw-2">&amp;</span>node.kind {
+            NodeKind::Conj | NodeKind::Comment(<span class="kw">_</span>) | NodeKind::True =&gt; {}
+            NodeKind::Guard(pred) | NodeKind::Head(pred, <span class="kw">_</span>) =&gt; pred.visit_with(visitor)<span class="question-mark">?</span>,
+            NodeKind::ForAll(<span class="kw">_</span>, sort) =&gt; sort.visit_with(visitor)<span class="question-mark">?</span>,
+        }
+        <span class="kw">for </span>child <span class="kw">in </span><span class="kw-2">&amp;</span>node.children {
+            child.visit_with(visitor)<span class="question-mark">?</span>;
+        }
+        ControlFlow::Continue(())
+    }
+}
+
 <span class="kw">mod </span>pretty {
     <span class="kw">use </span>std::{
         fmt::{<span class="self">self</span>, Write},
@@ -1520,21 +1574,21 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>RefineTree {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.root)
         }
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>RefineSubtree&lt;<span class="lifetime">&#39;_</span>&gt; {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.root)
         }
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>NodePtr {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">let </span>node = <span class="self">self</span>.borrow();
             <span class="kw">match </span><span class="kw-2">&amp;</span>node.kind {
@@ -1590,7 +1644,7 @@
 
     <span class="kw">fn </span>fmt_children(
         children: <span class="kw-2">&amp;</span>[NodePtr],
-        cx: <span class="kw-2">&amp;</span>PPrintCx,
+        cx: <span class="kw-2">&amp;</span>PrettyCx,
         f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;,
     ) -&gt; fmt::Result {
         <span class="kw">let </span><span class="kw-2">mut </span>f = PadAdapter::wrap_fmt(f, <span class="number">2</span>);
@@ -1611,7 +1665,7 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>RefineCtxt&lt;<span class="lifetime">&#39;_</span>&gt; {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">let </span>parents = ParentsIter::new(NodePtr::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.ptr)).collect_vec();
             <span class="macro">write!</span>(
@@ -1643,7 +1697,7 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Scope {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="macro">write!</span>(
                 f,

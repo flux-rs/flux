@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["_DERIVE_rustc_errors_IntoDiagnostic_diagnostic_handler_sess_G_FOR_AssocTypeNotFound"],"struct":["AssocTypeNotFound"]};
+window.SIDEBAR_ITEMS = {"constant":["_DERIVE_rustc_errors_IntoDiagnostic_diagnostic_handler_sess_G_FOR_AssocTypeNotFound","_DERIVE_rustc_errors_IntoDiagnostic_diagnostic_handler_sess_G_FOR_InvalidBaseInstance"],"struct":["AssocTypeNotFound","InvalidBaseInstance"]};

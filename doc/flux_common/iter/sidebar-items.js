@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["MapTakeWhile","ReportResiduals"],"trait":["IterExt"]};
+window.SIDEBAR_ITEMS = {"struct":["CollectErrors","MapTakeWhile"],"trait":["ErrorCollector","IterExt"]};

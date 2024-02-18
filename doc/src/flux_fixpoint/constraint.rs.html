@@ -630,6 +630,22 @@
 <a href="#630" id="630">630</a>
 <a href="#631" id="631">631</a>
 <a href="#632" id="632">632</a>
+<a href="#633" id="633">633</a>
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     fmt::{<span class="self">self</span>, Write},
     sync::LazyLock,
@@ -639,46 +655,87 @@
 <span class="kw">use </span>flux_common::format::PadAdapter;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable};
-<span class="kw">use </span>rustc_span::Symbol;
 
 <span class="kw">use crate</span>::{big_int::BigInt, StringTypes, Types};
+
+<span class="attr">#[derive_where(Hash)]
+</span><span class="kw">pub struct </span>Bind&lt;T: Types&gt; {
+    <span class="kw">pub </span>name: T::Var,
+    <span class="kw">pub </span>sort: Sort&lt;T&gt;,
+    <span class="kw">pub </span>pred: Pred&lt;T&gt;,
+}
 
 <span class="attr">#[derive_where(Hash)]
 </span><span class="kw">pub enum </span>Constraint&lt;T: Types&gt; {
     Pred(Pred&lt;T&gt;, <span class="attr">#[derive_where(skip)] </span><span class="prelude-ty">Option</span>&lt;T::Tag&gt;),
     Conj(Vec&lt;<span class="self">Self</span>&gt;),
-    Guard(Pred&lt;T&gt;, Box&lt;<span class="self">Self</span>&gt;),
-    ForAll(T::Var, Sort, Pred&lt;T&gt;, Box&lt;<span class="self">Self</span>&gt;),
+    ForAll(Bind&lt;T&gt;, Box&lt;<span class="self">Self</span>&gt;),
 }
 
-<span class="attr">#[derive(Clone, Hash)]
-</span><span class="kw">pub enum </span>Sort {
+<span class="attr">#[derive_where(Hash)]
+</span><span class="kw">pub struct </span>DataDecl&lt;T: Types&gt; {
+    <span class="kw">pub </span>name: T::Sort,
+    <span class="kw">pub </span>vars: usize,
+    <span class="kw">pub </span>ctors: Vec&lt;DataCtor&lt;T&gt;&gt;,
+}
+
+<span class="attr">#[derive_where(Hash)]
+</span><span class="kw">pub struct </span>DataCtor&lt;T: Types&gt; {
+    <span class="kw">pub </span>name: T::Var,
+    <span class="kw">pub </span>fields: Vec&lt;DataField&lt;T&gt;&gt;,
+}
+
+<span class="attr">#[derive_where(Hash)]
+</span><span class="kw">pub struct </span>DataField&lt;T: Types&gt; {
+    <span class="kw">pub </span>name: T::Var,
+    <span class="kw">pub </span>sort: Sort&lt;T&gt;,
+}
+
+<span class="attr">#[derive_where(Clone, Hash)]
+</span><span class="kw">pub enum </span>Sort&lt;T: Types&gt; {
     Int,
     Bool,
     Real,
-    Unit,
     BitVec(usize),
-    Pair(Box&lt;Sort&gt;, Box&lt;Sort&gt;),
-    Func(PolyFuncSort),
-    App(SortCtor, Vec&lt;Sort&gt;),
+    Var(usize),
+    Func(Box&lt;[<span class="self">Self</span>; <span class="number">2</span>]&gt;),
+    Abs(usize, Box&lt;<span class="self">Self</span>&gt;),
+    App(SortCtor&lt;T&gt;, Vec&lt;<span class="self">Self</span>&gt;),
 }
 
-<span class="attr">#[derive(Clone, Hash)]
-</span><span class="kw">pub enum </span>SortCtor {
+<span class="kw">impl</span>&lt;T: Types&gt; Sort&lt;T&gt; {
+    <span class="kw">pub fn </span>mk_func&lt;I&gt;(params: usize, inputs: I, output: Sort&lt;T&gt;) -&gt; Sort&lt;T&gt;
+    <span class="kw">where
+        </span>I: IntoIterator&lt;Item = Sort&lt;T&gt;&gt;,
+        I::IntoIter: DoubleEndedIterator,
+    {
+        <span class="kw">let </span>sort = inputs
+            .into_iter()
+            .rev()
+            .fold(output, |output, input| Sort::Func(Box::new([input, output])));
+
+        (<span class="number">0</span>..params)
+            .rev()
+            .fold(sort, |sort, i| Sort::Abs(i, Box::new(sort)))
+    }
+
+    <span class="kw">fn </span>peel_out_abs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (usize, <span class="kw-2">&amp;</span>Sort&lt;T&gt;) {
+        <span class="kw">let </span><span class="kw-2">mut </span>n = <span class="number">0</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>curr = <span class="self">self</span>;
+        <span class="kw">while let </span>Sort::Abs(i, sort) = curr {
+            <span class="macro">assert_eq!</span>(<span class="kw-2">*</span>i, n);
+            n += <span class="number">1</span>;
+            curr = sort;
+        }
+        (n, curr)
+    }
+}
+
+<span class="attr">#[derive_where(Clone, Hash)]
+</span><span class="kw">pub enum </span>SortCtor&lt;T: Types&gt; {
     Set,
     Map,
-    <span class="comment">// User { name: Symbol, arity: usize },
-</span>}
-
-<span class="attr">#[derive(Clone, Hash)]
-</span><span class="kw">pub struct </span>FuncSort {
-    inputs_and_output: Vec&lt;Sort&gt;,
-}
-
-<span class="attr">#[derive(Clone, Hash)]
-</span><span class="kw">pub struct </span>PolyFuncSort {
-    params: usize,
-    fsort: FuncSort,
+    Data(T::Sort),
 }
 
 <span class="attr">#[derive_where(Hash)]
@@ -688,38 +745,41 @@
     Expr(Expr&lt;T&gt;),
 }
 
+<span class="attr">#[derive(Hash, Debug, Copy, Clone, PartialEq, Eq)]
+</span><span class="kw">pub enum </span>BinRel {
+    Eq,
+    Ne,
+    Gt,
+    Ge,
+    Lt,
+    Le,
+}
+
+<span class="kw">impl </span>BinRel {
+    <span class="kw">pub const </span>INEQUALITIES: [BinRel; <span class="number">4</span>] = [BinRel::Gt, BinRel::Ge, BinRel::Lt, BinRel::Le];
+}
+
 <span class="attr">#[derive_where(Hash)]
 </span><span class="kw">pub enum </span>Expr&lt;T: Types&gt; {
-    Var(T::Var),
     Constant(Constant),
-    BinaryOp(BinOp, Box&lt;[<span class="self">Self</span>; <span class="number">2</span>]&gt;),
-    App(Func&lt;T&gt;, Vec&lt;<span class="self">Self</span>&gt;),
-    UnaryOp(UnOp, Box&lt;<span class="self">Self</span>&gt;),
-    Pair(Box&lt;[<span class="self">Self</span>; <span class="number">2</span>]&gt;),
-    Proj(Box&lt;<span class="self">Self</span>&gt;, Proj),
-    IfThenElse(Box&lt;[<span class="self">Self</span>; <span class="number">3</span>]&gt;),
-    Unit,
-}
-
-<span class="attr">#[derive_where(Hash)]
-</span><span class="kw">pub enum </span>Func&lt;T: Types&gt; {
     Var(T::Var),
-    <span class="doccomment">/// interpreted (theory) function
-    </span>Itf(Symbol),
-}
-
-<span class="attr">#[derive(Clone, Copy, Hash)]
-</span><span class="kw">pub enum </span>Proj {
-    Fst,
-    Snd,
+    App(T::Var, Vec&lt;<span class="self">Self</span>&gt;),
+    Neg(Box&lt;<span class="self">Self</span>&gt;),
+    BinaryOp(BinOp, Box&lt;[<span class="self">Self</span>; <span class="number">2</span>]&gt;),
+    IfThenElse(Box&lt;[<span class="self">Self</span>; <span class="number">3</span>]&gt;),
+    And(Vec&lt;Expr&lt;T&gt;&gt;),
+    Or(Vec&lt;Expr&lt;T&gt;&gt;),
+    Not(Box&lt;<span class="self">Self</span>&gt;),
+    Imp(Box&lt;[Expr&lt;T&gt;; <span class="number">2</span>]&gt;),
+    Iff(Box&lt;[Expr&lt;T&gt;; <span class="number">2</span>]&gt;),
+    Atom(BinRel, Box&lt;[<span class="self">Self</span>; <span class="number">2</span>]&gt;),
 }
 
 <span class="attr">#[derive_where(Hash)]
 </span><span class="kw">pub struct </span>Qualifier&lt;T: Types&gt; {
     <span class="kw">pub </span>name: String,
-    <span class="kw">pub </span>args: Vec&lt;(T::Var, Sort)&gt;,
+    <span class="kw">pub </span>args: Vec&lt;(T::Var, Sort&lt;T&gt;)&gt;,
     <span class="kw">pub </span>body: Expr&lt;T&gt;,
-    <span class="kw">pub </span>global: bool,
 }
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -728,29 +788,13 @@
     <span class="kw">pub </span>val: i128,
 }
 
-<span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+<span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 </span><span class="kw">pub enum </span>BinOp {
-    Iff,
-    Imp,
-    Or,
-    And,
-    Eq,
-    Ne,
-    Gt,
-    Ge,
-    Lt,
-    Le,
     Add,
     Sub,
     Mul,
     Div,
     Mod,
-}
-
-<span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
-</span><span class="kw">pub enum </span>UnOp {
-    Not,
-    Neg,
 }
 
 <span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
@@ -768,7 +812,7 @@
     </span><span class="kw">pub fn </span>is_concrete(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">match </span><span class="self">self </span>{
             Constraint::Conj(cs) =&gt; cs.iter().any(Constraint::is_concrete),
-            Constraint::Guard(<span class="kw">_</span>, c) | Constraint::ForAll(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, c) =&gt; c.is_concrete(),
+            Constraint::ForAll(<span class="kw">_</span>, c) =&gt; c.is_concrete(),
             Constraint::Pred(p, <span class="kw">_</span>) =&gt; p.is_concrete() &amp;&amp; !p.is_trivially_true(),
         }
     }
@@ -794,15 +838,21 @@
     }
 }
 
-<span class="kw">impl </span>PolyFuncSort {
-    <span class="kw">pub fn </span>new(
-        params: usize,
-        inputs: <span class="kw">impl </span>IntoIterator&lt;Item = Sort&gt;,
-        output: Sort,
-    ) -&gt; PolyFuncSort {
-        <span class="kw">let </span><span class="kw-2">mut </span>inputs = inputs.into_iter().collect_vec();
-        inputs.push(output);
-        PolyFuncSort { params, fsort: FuncSort { inputs_and_output: inputs } }
+<span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>DataDecl&lt;T&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;(data {} {} = [{}])&quot;</span>, <span class="self">self</span>.name, <span class="self">self</span>.vars, <span class="self">self</span>.ctors.iter().format(<span class="string">&quot; &quot;</span>))
+    }
+}
+
+<span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>DataCtor&lt;T&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;| {} {{ {} }}&quot;</span>, <span class="self">self</span>.name, <span class="self">self</span>.fields.iter().format(<span class="string">&quot;, &quot;</span>))
+    }
+}
+
+<span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>DataField&lt;T&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}: {}&quot;</span>, <span class="self">self</span>.name, <span class="self">self</span>.sort)
     }
 }
 
@@ -821,13 +871,8 @@
                     }
                 }
             }
-            Constraint::Guard(body, head) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;(forall ((_ Unit) {body})&quot;</span>)<span class="question-mark">?</span>;
-                <span class="macro">write!</span>(PadAdapter::wrap_fmt(f, <span class="number">2</span>), <span class="string">&quot;\n{head}&quot;</span>)<span class="question-mark">?</span>;
-                <span class="macro">write!</span>(f, <span class="string">&quot;\n)&quot;</span>)
-            }
-            Constraint::ForAll(x, sort, body, head) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;(forall (({x} {sort}) {body})&quot;</span>)<span class="question-mark">?</span>;
+            Constraint::ForAll(bind, head) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">&quot;(forall (({} {}) {})&quot;</span>, bind.name, bind.sort, bind.pred)<span class="question-mark">?</span>;
                 <span class="macro">write!</span>(PadAdapter::wrap_fmt(f, <span class="number">2</span>), <span class="string">&quot;\n{head}&quot;</span>)<span class="question-mark">?</span>;
                 <span class="macro">write!</span>(f, <span class="string">&quot;\n)&quot;</span>)
             }
@@ -866,39 +911,48 @@
     }
 }
 
-<span class="kw">impl </span>fmt::Display <span class="kw">for </span>SortCtor {
+<span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>SortCtor&lt;T&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
             SortCtor::Set =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;Set_Set&quot;</span>),
             SortCtor::Map =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;Map_t&quot;</span>),
+            SortCtor::Data(name) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{name}&quot;</span>),
         }
     }
 }
-<span class="kw">impl </span>fmt::Display <span class="kw">for </span>Sort {
+
+<span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>Sort&lt;T&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
             Sort::Int =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;int&quot;</span>),
             Sort::Bool =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;bool&quot;</span>),
             Sort::Real =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;real&quot;</span>),
-            Sort::Unit =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;Unit&quot;</span>),
+            Sort::Var(i) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;@({i})&quot;</span>),
             Sort::BitVec(size) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;(BitVec Size{})&quot;</span>, size),
-            Sort::Pair(s1, s2) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;(Pair {s1} {s2})&quot;</span>),
-            Sort::Func(sort) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{sort}&quot;</span>),
-            Sort::App(ctor, ts) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;({ctor} {})&quot;</span>, ts.iter().format(<span class="string">&quot; &quot;</span>)),
+            Sort::Abs(..) =&gt; {
+                <span class="kw">let </span>(params, sort) = <span class="self">self</span>.peel_out_abs();
+                fmt_func(params, sort, f)
+            }
+            Sort::Func(..) =&gt; fmt_func(<span class="number">0</span>, <span class="self">self</span>, f),
+            Sort::App(ctor, args) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">&quot;({ctor}&quot;</span>)<span class="question-mark">?</span>;
+                <span class="kw">for </span>arg <span class="kw">in </span>args {
+                    <span class="macro">write!</span>(f, <span class="string">&quot; {arg}&quot;</span>)<span class="question-mark">?</span>;
+                }
+                <span class="macro">write!</span>(f, <span class="string">&quot;)&quot;</span>)
+            }
         }
     }
 }
 
-<span class="kw">impl </span>fmt::Display <span class="kw">for </span>PolyFuncSort {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;(func({}, [{}]))&quot;</span>, <span class="self">self</span>.params, <span class="self">self</span>.fsort.inputs_and_output.iter().format(<span class="string">&quot;; &quot;</span>))
+<span class="kw">fn </span>fmt_func&lt;T: Types&gt;(params: usize, sort: <span class="kw-2">&amp;</span>Sort&lt;T&gt;, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="macro">write!</span>(f, <span class="string">&quot;(func({params}, [&quot;</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>curr = sort;
+    <span class="kw">while let </span>Sort::Func(<span class="kw">box </span>[input, output]) = curr {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{input};&quot;</span>)<span class="question-mark">?</span>;
+        curr = output;
     }
-}
-
-<span class="kw">impl </span>fmt::Display <span class="kw">for </span>FuncSort {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;(func(0, [{}]))&quot;</span>, <span class="self">self</span>.inputs_and_output.iter().format(<span class="string">&quot;; &quot;</span>))
-    }
+    <span class="macro">write!</span>(f, <span class="string">&quot;{curr}]))&quot;</span>)
 }
 
 <span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>Pred&lt;T&gt; {
@@ -922,8 +976,9 @@
 <span class="kw">impl</span>&lt;T: Types&gt; Expr&lt;T&gt; {
     <span class="kw">pub const </span>ZERO: Expr&lt;T&gt; = Expr::Constant(Constant::ZERO);
     <span class="kw">pub const </span>ONE: Expr&lt;T&gt; = Expr::Constant(Constant::ONE);
+    <span class="kw">pub const </span>TRUE: Expr&lt;T&gt; = Expr::Constant(Constant::TRUE);
     <span class="kw">pub fn </span>eq(<span class="self">self</span>, other: <span class="self">Self</span>) -&gt; <span class="self">Self </span>{
-        Expr::BinaryOp(BinOp::Eq, Box::new([<span class="self">self</span>, other]))
+        Expr::Atom(BinRel::Eq, Box::new([<span class="self">self</span>, other]))
     }
 }
 
@@ -931,10 +986,9 @@
 
 <span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>FmtParens&lt;<span class="lifetime">&#39;_</span>, T&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="comment">// Fixpoint parser has `=` at two different precedence levels depending on whether it is
-        // used in a sequence of boolean expressions or not. To avoid complexity we parenthesize
-        // all binary expressions no matter the parent operator.
-        </span><span class="kw">let </span>should_parenthesize = <span class="macro">matches!</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, Expr::BinaryOp(..) | Expr::IfThenElse(..));
+        <span class="comment">// Avoid some obvious unnecesary parentheses
+        </span><span class="kw">let </span>should_parenthesize =
+            !<span class="macro">matches!</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, Expr::Var(<span class="kw">_</span>) | Expr::Constant(<span class="kw">_</span>) | Expr::App(..));
         <span class="kw">if </span>should_parenthesize {
             <span class="macro">write!</span>(f, <span class="string">&quot;({})&quot;</span>, <span class="self">self</span>.<span class="number">0</span>)
         } <span class="kw">else </span>{
@@ -946,38 +1000,38 @@
 <span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>Expr&lt;T&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            Expr::Var(x) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{x}&quot;</span>),
             Expr::Constant(c) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{c}&quot;</span>),
-            Expr::BinaryOp(op, <span class="kw">box </span>[e1, e2]) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;{} {op} {}&quot;</span>, FmtParens(e1), FmtParens(e2))<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(())
-            }
-            Expr::UnaryOp(op, e) =&gt; {
-                <span class="kw">if </span><span class="macro">matches!</span>(e.as_ref(), Expr::Constant(<span class="kw">_</span>) | Expr::Var(<span class="kw">_</span>)) {
-                    <span class="macro">write!</span>(f, <span class="string">&quot;{op}{e}&quot;</span>)
-                } <span class="kw">else </span>{
-                    <span class="macro">write!</span>(f, <span class="string">&quot;{op}({e})&quot;</span>)
-                }
-            }
-            Expr::Pair(<span class="kw">box </span>[e1, e2]) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;(Pair ({e1}) ({e2}))&quot;</span>),
-            Expr::Proj(e, Proj::Fst) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;(fst {e})&quot;</span>),
-            Expr::Proj(e, Proj::Snd) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;(snd {e})&quot;</span>),
-            Expr::Unit =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;Unit&quot;</span>),
+            Expr::Var(x) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{x}&quot;</span>),
             Expr::App(func, args) =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">&quot;({func} {})&quot;</span>, args.iter().map(FmtParens).format(<span class="string">&quot; &quot;</span>),)
+            }
+            Expr::Neg(e) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">&quot;-{}&quot;</span>, FmtParens(e))
+            }
+            Expr::BinaryOp(op, <span class="kw">box </span>[e1, e2]) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">&quot;{} {op} {}&quot;</span>, FmtParens(e1), FmtParens(e2))
             }
             Expr::IfThenElse(<span class="kw">box </span>[p, e1, e2]) =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">&quot;if {p} then {e1} else {e2}&quot;</span>)
             }
-        }
-    }
-}
-
-<span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>Func&lt;T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="self">self </span>{
-            Func::Var(name) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{name}&quot;</span>),
-            Func::Itf(itf) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{itf}&quot;</span>),
+            Expr::And(exprs) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, exprs.iter().map(FmtParens).format(<span class="string">&quot; &amp;&amp; &quot;</span>))
+            }
+            Expr::Or(exprs) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, exprs.iter().map(FmtParens).format(<span class="string">&quot; || &quot;</span>))
+            }
+            Expr::Not(e) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">&quot;~{}&quot;</span>, FmtParens(e))
+            }
+            Expr::Imp(<span class="kw">box </span>[e1, e2]) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">&quot;{} =&gt; {}&quot;</span>, FmtParens(e1), FmtParens(e2))
+            }
+            Expr::Iff(<span class="kw">box </span>[e1, e2]) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">&quot;{} &lt;=&gt; {}&quot;</span>, FmtParens(e1), FmtParens(e2))
+            }
+            Expr::Atom(rel, <span class="kw">box </span>[e1, e2]) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">&quot;{} {rel} {}&quot;</span>, FmtParens(e1), FmtParens(e2))
+            }
         }
     }
 }
@@ -990,41 +1044,36 @@
     // (qualif EqZero ((v int)) (v == 0))
     </span><span class="kw">let </span>eqzero = Qualifier {
         args: <span class="macro">vec!</span>[(<span class="string">&quot;v&quot;</span>, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var(<span class="string">&quot;v&quot;</span>), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Eq, Box::new([Expr::Var(<span class="string">&quot;v&quot;</span>), Expr::ZERO])),
         name: String::from(<span class="string">&quot;EqZero&quot;</span>),
-        global: <span class="bool-val">true</span>,
     };
 
     <span class="comment">// (qualif GtZero ((v int)) (v &gt; 0))
     </span><span class="kw">let </span>gtzero = Qualifier {
         args: <span class="macro">vec!</span>[(<span class="string">&quot;v&quot;</span>, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var(<span class="string">&quot;v&quot;</span>), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Gt, Box::new([Expr::Var(<span class="string">&quot;v&quot;</span>), Expr::ZERO])),
         name: String::from(<span class="string">&quot;GtZero&quot;</span>),
-        global: <span class="bool-val">true</span>,
     };
 
     <span class="comment">// (qualif GeZero ((v int)) (v &gt;= 0))
     </span><span class="kw">let </span>gezero = Qualifier {
         args: <span class="macro">vec!</span>[(<span class="string">&quot;v&quot;</span>, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var(<span class="string">&quot;v&quot;</span>), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Ge, Box::new([Expr::Var(<span class="string">&quot;v&quot;</span>), Expr::ZERO])),
         name: String::from(<span class="string">&quot;GeZero&quot;</span>),
-        global: <span class="bool-val">true</span>,
     };
 
     <span class="comment">// (qualif LtZero ((v int)) (v &lt; 0))
     </span><span class="kw">let </span>ltzero = Qualifier {
         args: <span class="macro">vec!</span>[(<span class="string">&quot;v&quot;</span>, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var(<span class="string">&quot;v&quot;</span>), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Lt, Box::new([Expr::Var(<span class="string">&quot;v&quot;</span>), Expr::ZERO])),
         name: String::from(<span class="string">&quot;LtZero&quot;</span>),
-        global: <span class="bool-val">true</span>,
     };
 
     <span class="comment">// (qualif LeZero ((v int)) (v &lt;= 0))
     </span><span class="kw">let </span>lezero = Qualifier {
         args: <span class="macro">vec!</span>[(<span class="string">&quot;v&quot;</span>, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var(<span class="string">&quot;v&quot;</span>), Expr::ZERO])),
+        body: Expr::Atom(BinRel::Le, Box::new([Expr::Var(<span class="string">&quot;v&quot;</span>), Expr::ZERO])),
         name: String::from(<span class="string">&quot;LeZero&quot;</span>),
-        global: <span class="bool-val">true</span>,
     };
 
     <span class="comment">// ------
@@ -1034,55 +1083,49 @@
     // (qualif Eq ((a int) (b int)) (a == b))
     </span><span class="kw">let </span>eq = Qualifier {
         args: <span class="macro">vec!</span>[(<span class="string">&quot;a&quot;</span>, Sort::Int), (<span class="string">&quot;b&quot;</span>, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Eq, Box::new([Expr::Var(<span class="string">&quot;a&quot;</span>), Expr::Var(<span class="string">&quot;b&quot;</span>)])),
+        body: Expr::Atom(BinRel::Eq, Box::new([Expr::Var(<span class="string">&quot;a&quot;</span>), Expr::Var(<span class="string">&quot;b&quot;</span>)])),
         name: String::from(<span class="string">&quot;Eq&quot;</span>),
-        global: <span class="bool-val">true</span>,
     };
 
     <span class="comment">// (qualif Gt ((a int) (b int)) (a &gt; b))
     </span><span class="kw">let </span>gt = Qualifier {
         args: <span class="macro">vec!</span>[(<span class="string">&quot;a&quot;</span>, Sort::Int), (<span class="string">&quot;b&quot;</span>, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Gt, Box::new([Expr::Var(<span class="string">&quot;a&quot;</span>), Expr::Var(<span class="string">&quot;b&quot;</span>)])),
+        body: Expr::Atom(BinRel::Gt, Box::new([Expr::Var(<span class="string">&quot;a&quot;</span>), Expr::Var(<span class="string">&quot;b&quot;</span>)])),
         name: String::from(<span class="string">&quot;Gt&quot;</span>),
-        global: <span class="bool-val">true</span>,
     };
 
     <span class="comment">// (qualif Lt ((a int) (b int)) (a &lt; b))
     </span><span class="kw">let </span>ge = Qualifier {
         args: <span class="macro">vec!</span>[(<span class="string">&quot;a&quot;</span>, Sort::Int), (<span class="string">&quot;b&quot;</span>, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Ge, Box::new([Expr::Var(<span class="string">&quot;a&quot;</span>), Expr::Var(<span class="string">&quot;b&quot;</span>)])),
+        body: Expr::Atom(BinRel::Ge, Box::new([Expr::Var(<span class="string">&quot;a&quot;</span>), Expr::Var(<span class="string">&quot;b&quot;</span>)])),
         name: String::from(<span class="string">&quot;Ge&quot;</span>),
-        global: <span class="bool-val">true</span>,
     };
 
     <span class="comment">// (qualif Ge ((a int) (b int)) (a &gt;= b))
     </span><span class="kw">let </span>lt = Qualifier {
         args: <span class="macro">vec!</span>[(<span class="string">&quot;a&quot;</span>, Sort::Int), (<span class="string">&quot;b&quot;</span>, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Lt, Box::new([Expr::Var(<span class="string">&quot;a&quot;</span>), Expr::Var(<span class="string">&quot;b&quot;</span>)])),
+        body: Expr::Atom(BinRel::Lt, Box::new([Expr::Var(<span class="string">&quot;a&quot;</span>), Expr::Var(<span class="string">&quot;b&quot;</span>)])),
         name: String::from(<span class="string">&quot;Lt&quot;</span>),
-        global: <span class="bool-val">true</span>,
     };
 
     <span class="comment">// (qualif Le ((a int) (b int)) (a &lt;= b))
     </span><span class="kw">let </span>le = Qualifier {
         args: <span class="macro">vec!</span>[(<span class="string">&quot;a&quot;</span>, Sort::Int), (<span class="string">&quot;b&quot;</span>, Sort::Int)],
-        body: Expr::BinaryOp(BinOp::Le, Box::new([Expr::Var(<span class="string">&quot;a&quot;</span>), Expr::Var(<span class="string">&quot;b&quot;</span>)])),
+        body: Expr::Atom(BinRel::Le, Box::new([Expr::Var(<span class="string">&quot;a&quot;</span>), Expr::Var(<span class="string">&quot;b&quot;</span>)])),
         name: String::from(<span class="string">&quot;Le&quot;</span>),
-        global: <span class="bool-val">true</span>,
     };
 
     <span class="comment">// (qualif Le1 ((a int) (b int)) (a &lt; b - 1))
     </span><span class="kw">let </span>le1 = Qualifier {
         args: <span class="macro">vec!</span>[(<span class="string">&quot;a&quot;</span>, Sort::Int), (<span class="string">&quot;b&quot;</span>, Sort::Int)],
-        body: Expr::BinaryOp(
-            BinOp::Le,
+        body: Expr::Atom(
+            BinRel::Le,
             Box::new([
                 Expr::Var(<span class="string">&quot;a&quot;</span>),
                 Expr::BinaryOp(BinOp::Sub, Box::new([Expr::Var(<span class="string">&quot;b&quot;</span>), Expr::ONE])),
             ]),
         ),
         name: String::from(<span class="string">&quot;Le1&quot;</span>),
-        global: <span class="bool-val">true</span>,
     };
 
     <span class="macro">vec!</span>[eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
@@ -1105,16 +1148,6 @@
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>BinOp {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            BinOp::Iff =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;&lt;=&gt;&quot;</span>),
-            BinOp::Imp =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;=&gt;&quot;</span>),
-            BinOp::Or =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;||&quot;</span>),
-            BinOp::And =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;&amp;&amp;&quot;</span>),
-            BinOp::Eq =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;=&quot;</span>),
-            BinOp::Ne =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;/=&quot;</span>),
-            BinOp::Gt =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;&gt;&quot;</span>),
-            BinOp::Ge =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;&gt;=&quot;</span>),
-            BinOp::Lt =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;&lt;&quot;</span>),
-            BinOp::Le =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;&lt;=&quot;</span>),
             BinOp::Add =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;+&quot;</span>),
             BinOp::Sub =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;-&quot;</span>),
             BinOp::Mul =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;*&quot;</span>),
@@ -1124,22 +1157,20 @@
     }
 }
 
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>BinOp {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        fmt::Display::fmt(<span class="self">self</span>, f)
-    }
-}
-
-<span class="kw">impl </span>fmt::Display <span class="kw">for </span>UnOp {
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>BinRel {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            UnOp::Not =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;~&quot;</span>),
-            UnOp::Neg =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;-&quot;</span>),
+            BinRel::Eq =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;=&quot;</span>),
+            BinRel::Ne =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;/=&quot;</span>),
+            BinRel::Gt =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;&gt;&quot;</span>),
+            BinRel::Ge =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;&gt;=&quot;</span>),
+            BinRel::Lt =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;&lt;&quot;</span>),
+            BinRel::Le =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;&lt;=&quot;</span>),
         }
     }
 }
 
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>UnOp {
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>BinOp {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         fmt::Display::fmt(<span class="self">self</span>, f)
     }
@@ -1158,6 +1189,7 @@
 <span class="kw">impl </span>Constant {
     <span class="kw">pub const </span>ZERO: Constant = Constant::Int(BigInt::ZERO);
     <span class="kw">pub const </span>ONE: Constant = Constant::Int(BigInt::ONE);
+    <span class="kw">pub const </span>TRUE: Constant = Constant::Bool(<span class="bool-val">true</span>);
 
     <span class="kw">fn </span>to_bool(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;bool&gt; {
         <span class="kw">match </span><span class="self">self </span>{

@@ -269,11 +269,12 @@
 <a href="#269" id="269">269</a>
 <a href="#270" id="270">270</a>
 <a href="#271" id="271">271</a>
-</pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, min_specialization, lazy_cell, box_patterns, let_chains)]
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+</pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, lazy_cell, box_patterns)]
 
 </span><span class="kw">extern crate </span>rustc_macros;
 <span class="kw">extern crate </span>rustc_serialize;
-<span class="kw">extern crate </span>rustc_span;
 
 <span class="kw">pub mod </span>big_int;
 <span class="kw">mod </span>constraint;
@@ -288,8 +289,8 @@
 };
 
 <span class="kw">pub use </span>constraint::{
-    BinOp, Const, Constant, Constraint, Expr, Func, FuncSort, PolyFuncSort, Pred, Proj, Qualifier,
-    Sort, SortCtor, UnOp,
+    BinOp, BinRel, Bind, Const, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Pred,
+    Qualifier, Sort, SortCtor,
 };
 <span class="kw">use </span>derive_where::derive_where;
 <span class="kw">use </span>flux_common::{cache::QueryCache, format::PadAdapter};
@@ -299,11 +300,12 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::constraint::DEFAULT_QUALIFIERS;
 
-<span class="kw">pub trait </span>Symbol: fmt::Display + Hash {}
+<span class="kw">pub trait </span>Symbol: fmt::Display + Hash + Clone {}
 
-<span class="kw">impl</span>&lt;T: fmt::Display + Hash&gt; Symbol <span class="kw">for </span>T {}
+<span class="kw">impl</span>&lt;T: fmt::Display + Hash + Clone&gt; Symbol <span class="kw">for </span>T {}
 
 <span class="kw">pub trait </span>Types {
+    <span class="kw">type </span>Sort: Symbol;
     <span class="kw">type </span>KVar: Symbol;
     <span class="kw">type </span>Var: Symbol;
     <span class="kw">type </span>Tag: fmt::Display + Hash + FromStr;
@@ -311,21 +313,27 @@
 
 <span class="attr">#[macro_export]
 </span><span class="macro">macro_rules! </span>declare_types {
-    (<span class="kw">type </span>KVar = <span class="macro-nonterminal">$kvar</span>:ty; <span class="kw">type </span>Var = <span class="macro-nonterminal">$var</span>:ty; <span class="kw">type </span>Tag = <span class="macro-nonterminal">$tag</span>:ty;) =&gt; {
+    (<span class="kw">type </span>Sort = <span class="macro-nonterminal">$sort</span>:ty; <span class="kw">type </span>KVar = <span class="macro-nonterminal">$kvar</span>:ty; <span class="kw">type </span>Var = <span class="macro-nonterminal">$var</span>:ty; <span class="kw">type </span>Tag = <span class="macro-nonterminal">$tag</span>:ty;) =&gt; {
         <span class="kw">pub mod </span>fixpoint_generated {
             <span class="kw">pub struct </span>FixpointTypes;
             <span class="kw">pub type </span>Expr = <span class="macro-nonterminal">$crate::Expr</span>&lt;FixpointTypes&gt;;
             <span class="kw">pub type </span>Pred = <span class="macro-nonterminal">$crate::Pred</span>&lt;FixpointTypes&gt;;
-            <span class="kw">pub type </span>Func = <span class="macro-nonterminal">$crate::Func</span>&lt;FixpointTypes&gt;;
             <span class="kw">pub type </span>Constraint = <span class="macro-nonterminal">$crate::Constraint</span>&lt;FixpointTypes&gt;;
             <span class="kw">pub type </span>KVar = <span class="macro-nonterminal">$crate::KVar</span>&lt;FixpointTypes&gt;;
             <span class="kw">pub type </span>ConstInfo = <span class="macro-nonterminal">$crate::ConstInfo</span>&lt;FixpointTypes&gt;;
             <span class="kw">pub type </span>Task = <span class="macro-nonterminal">$crate::Task</span>&lt;FixpointTypes&gt;;
             <span class="kw">pub type </span>Qualifier = <span class="macro-nonterminal">$crate::Qualifier</span>&lt;FixpointTypes&gt;;
-            <span class="kw">pub use </span><span class="macro-nonterminal">$</span><span class="kw">crate</span>::{<span class="macro-nonterminal">PolyFuncSort</span>, Proj, Sort, SortCtor};
+            <span class="kw">pub type </span>Sort = <span class="macro-nonterminal">$crate::Sort</span>&lt;FixpointTypes&gt;;
+            <span class="kw">pub type </span>SortCtor = <span class="macro-nonterminal">$crate::SortCtor</span>&lt;FixpointTypes&gt;;
+            <span class="kw">pub type </span>DataDecl = <span class="macro-nonterminal">$crate::DataDecl</span>&lt;FixpointTypes&gt;;
+            <span class="kw">pub type </span>DataCtor = <span class="macro-nonterminal">$crate::DataCtor</span>&lt;FixpointTypes&gt;;
+            <span class="kw">pub type </span>DataField = <span class="macro-nonterminal">$crate::DataField</span>&lt;FixpointTypes&gt;;
+            <span class="kw">pub type </span>Bind = <span class="macro-nonterminal">$crate::Bind</span>&lt;FixpointTypes&gt;;
+            <span class="kw">pub use </span><span class="macro-nonterminal">$</span><span class="kw">crate</span>::{<span class="macro-nonterminal">BinOp</span>, BinRel};
         }
 
         <span class="kw">impl </span><span class="macro-nonterminal">$crate::Types </span><span class="kw">for </span>fixpoint_generated::FixpointTypes {
+            <span class="kw">type </span>Sort = <span class="macro-nonterminal">$sort</span>;
             <span class="kw">type </span>KVar = <span class="macro-nonterminal">$kvar</span>;
             <span class="kw">type </span>Var = <span class="macro-nonterminal">$var</span>;
             <span class="kw">type </span>Tag = <span class="macro-nonterminal">$tag</span>;
@@ -336,6 +344,7 @@
 <span class="kw">struct </span>StringTypes;
 
 <span class="kw">impl </span>Types <span class="kw">for </span>StringTypes {
+    <span class="kw">type </span>Sort = <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
     <span class="kw">type </span>KVar = <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
     <span class="kw">type </span>Var = <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
     <span class="kw">type </span>Tag = String;
@@ -344,8 +353,9 @@
 <span class="attr">#[derive_where(Hash)]
 </span><span class="kw">pub struct </span>ConstInfo&lt;T: Types&gt; {
     <span class="kw">pub </span>name: T::Var,
-    <span class="kw">pub </span>orig: rustc_span::Symbol,
-    <span class="kw">pub </span>sort: Sort,
+    <span class="attr">#[derive_where(skip)]
+    </span><span class="kw">pub </span>orig: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="kw">pub </span>sort: Sort&lt;T&gt;,
 }
 
 <span class="attr">#[derive_where(Hash)]
@@ -353,10 +363,10 @@
     <span class="attr">#[derive_where(skip)]
     </span><span class="kw">pub </span>comments: Vec&lt;String&gt;,
     <span class="kw">pub </span>constants: Vec&lt;ConstInfo&lt;T&gt;&gt;,
+    <span class="kw">pub </span>data_decls: Vec&lt;DataDecl&lt;T&gt;&gt;,
     <span class="kw">pub </span>kvars: Vec&lt;KVar&lt;T&gt;&gt;,
     <span class="kw">pub </span>constraint: Constraint&lt;T&gt;,
     <span class="kw">pub </span>qualifiers: Vec&lt;Qualifier&lt;T&gt;&gt;,
-    <span class="kw">pub </span>sorts: Vec&lt;String&gt;,
     <span class="kw">pub </span>scrape_quals: bool,
 }
 
@@ -389,23 +399,12 @@
 <span class="attr">#[derive_where(Hash)]
 </span><span class="kw">pub struct </span>KVar&lt;T: Types&gt; {
     kvid: T::KVar,
-    sorts: Vec&lt;Sort&gt;,
-    comment: String,
+    sorts: Vec&lt;Sort&lt;T&gt;&gt;,
+    <span class="attr">#[derive_where(skip)]
+    </span>comment: String,
 }
 
 <span class="kw">impl</span>&lt;T: Types&gt; Task&lt;T&gt; {
-    <span class="kw">pub fn </span>new(
-        comments: Vec&lt;String&gt;,
-        constants: Vec&lt;ConstInfo&lt;T&gt;&gt;,
-        kvars: Vec&lt;KVar&lt;T&gt;&gt;,
-        constraint: Constraint&lt;T&gt;,
-        qualifiers: Vec&lt;Qualifier&lt;T&gt;&gt;,
-        sorts: Vec&lt;String&gt;,
-        scrape_quals: bool,
-    ) -&gt; <span class="self">Self </span>{
-        Task { comments, constants, kvars, constraint, qualifiers, sorts, scrape_quals }
-    }
-
     <span class="kw">pub fn </span>hash_with_default(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
         <span class="kw">let </span><span class="kw-2">mut </span>hasher = DefaultHasher::new();
         <span class="self">self</span>.hash(<span class="kw-2">&amp;mut </span>hasher);
@@ -425,10 +424,10 @@
 
         <span class="kw">let </span>result = <span class="self">self</span>.check();
 
-        <span class="kw">if </span>config::is_cache_enabled()
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(FixpointResult::Safe(<span class="kw">_</span>)) = result
-        {
-            cache.insert(key, hash);
+        <span class="kw">if </span>config::is_cache_enabled() {
+            <span class="kw">if let </span><span class="prelude-val">Ok</span>(FixpointResult::Safe(<span class="kw">_</span>)) = result {
+                cache.insert(key, hash);
+            }
         }
         result
     }
@@ -458,7 +457,7 @@
 }
 
 <span class="kw">impl</span>&lt;T: Types&gt; KVar&lt;T&gt; {
-    <span class="kw">pub fn </span>new(kvid: T::KVar, sorts: Vec&lt;Sort&gt;, comment: String) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(kvid: T::KVar, sorts: Vec&lt;Sort&lt;T&gt;&gt;, comment: String) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ kvid, sorts, comment }
     }
 }
@@ -473,6 +472,10 @@
         }
         <span class="macro">writeln!</span>(f)<span class="question-mark">?</span>;
 
+        <span class="kw">for </span>data_decl <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.data_decls {
+            <span class="macro">writeln!</span>(f, <span class="string">&quot;{data_decl}&quot;</span>)<span class="question-mark">?</span>;
+        }
+
         <span class="kw">for </span>qualif <span class="kw">in </span>DEFAULT_QUALIFIERS.iter() {
             <span class="macro">writeln!</span>(f, <span class="string">&quot;{qualif}&quot;</span>)<span class="question-mark">?</span>;
         }
@@ -480,9 +483,6 @@
         <span class="kw">for </span>qualif <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.qualifiers {
             <span class="macro">writeln!</span>(f, <span class="string">&quot;{qualif}&quot;</span>)<span class="question-mark">?</span>;
         }
-
-        <span class="macro">writeln!</span>(f, <span class="string">&quot;(data Pair 2 = [| Pair {{ fst: @(0), snd: @(1) }} ])&quot;</span>)<span class="question-mark">?</span>;
-        <span class="macro">writeln!</span>(f, <span class="string">&quot;(data Unit 0 = [| Unit {{ }}])&quot;</span>)<span class="question-mark">?</span>;
 
         <span class="kw">for </span>cinfo <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.constants {
             <span class="macro">writeln!</span>(f, <span class="string">&quot;{cinfo}&quot;</span>)<span class="question-mark">?</span>;
@@ -515,7 +515,11 @@
 
 <span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>ConstInfo&lt;T&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;(constant {} {}) // orig: {}&quot;</span>, <span class="self">self</span>.name, <span class="self">self</span>.sort, <span class="self">self</span>.orig)
+        <span class="macro">write!</span>(f, <span class="string">&quot;(constant {} {})&quot;</span>, <span class="self">self</span>.name, <span class="self">self</span>.sort)<span class="question-mark">?</span>;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(orig) = <span class="kw-2">&amp;</span><span class="self">self</span>.orig {
+            <span class="macro">write!</span>(f, <span class="string">&quot;  // orig: {orig}&quot;</span>)<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(())
     }
 }
 

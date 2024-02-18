@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["refine_bound_variables","refine_default","refine_generics"],"struct":["Refiner"]};
+window.SIDEBAR_ITEMS = {"enum":["TyOrBase"],"fn":["refine_bound_variables","refine_default","refine_generics"],"struct":["Refiner"]};

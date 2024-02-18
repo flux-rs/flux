@@ -631,600 +631,825 @@
 <a href="#631" id="631">631</a>
 <a href="#632" id="632">632</a>
 <a href="#633" id="633">633</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, iter::IterExt};
-<span class="kw">use </span>flux_errors::FluxSession;
-<span class="kw">use </span>flux_middle::fhir::Res;
-<span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, BaseTy, BaseTyKind, Ident, Path, Ty};
-<span class="kw">use </span>hir::{def::DefKind, ItemId, ItemKind, OwnerId, PathSegment};
-<span class="kw">use </span>itertools::Itertools;
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
+<a href="#663" id="663">663</a>
+<a href="#664" id="664">664</a>
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
+<a href="#687" id="687">687</a>
+<a href="#688" id="688">688</a>
+<a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
+<a href="#691" id="691">691</a>
+<a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+</pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
+
+<span class="kw">use </span>std::collections::hash_map::Entry;
+
+<span class="kw">use </span>flux_common::bug;
+<span class="kw">use </span>flux_errors::{ErrorCollector, FluxSession};
+<span class="kw">use </span>flux_middle::{
+    fhir::{<span class="self">self</span>, Res},
+    global_env::GlobalEnv,
+    ResolverOutput, Specs,
+};
+<span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, visit::Visitor <span class="kw">as _</span>, Ident, NodeId};
+<span class="kw">use </span>hir::{
+    def::{DefKind, Namespace::TypeNS},
+    intravisit::Visitor <span class="kw">as _</span>,
+    ItemId, ItemKind, OwnerId,
+};
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
+<span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir <span class="kw">as </span>hir;
-<span class="kw">use </span>rustc_middle::ty::TyCtxt;
-<span class="kw">use </span>rustc_span::Span;
+<span class="kw">use </span>rustc_middle::{metadata::ModChild, ty::TyCtxt};
+<span class="kw">use </span>rustc_span::{
+    def_id::{CrateNum, DefId},
+    Span, Symbol,
+};
+
+<span class="kw">use </span><span class="self">self</span>::refinement_resolver::RefinementResolver;
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
-<span class="kw">pub struct </span>Resolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FluxSession,
+<span class="macro">macro_rules! </span>collect_err {
+    (<span class="macro-nonterminal">$self</span>:expr, <span class="macro-nonterminal">$body</span>:expr) =&gt; {
+        <span class="macro-nonterminal">$self</span>.err = <span class="macro-nonterminal">$body</span>.err().or(<span class="macro-nonterminal">$self</span>.err)
+    };
+}
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_crate(genv: GlobalEnv) -&gt; ResolverOutput {
+    <span class="kw">match </span>try_resolve_crate(genv) {
+        <span class="prelude-val">Ok</span>(output) =&gt; output,
+        <span class="prelude-val">Err</span>(err) =&gt; genv.sess().abort(err),
+    }
+}
+
+<span class="kw">fn </span>try_resolve_crate(genv: GlobalEnv) -&gt; <span class="prelude-ty">Result</span>&lt;ResolverOutput&gt; {
+    <span class="kw">let </span>specs = genv.collect_specs();
+    <span class="kw">let </span><span class="kw-2">mut </span>resolver = CrateResolver::new(genv, specs);
+
+    resolver.collect_flux_global_items();
+
+    <span class="kw">for </span>qualifier <span class="kw">in </span><span class="kw-2">&amp;</span>specs.qualifs {
+        <span class="macro">collect_err!</span>(resolver, resolver.resolve_qualifier(qualifier));
+    }
+
+    <span class="kw">for </span>defn <span class="kw">in </span><span class="kw-2">&amp;</span>specs.func_defs {
+        <span class="macro">collect_err!</span>(resolver, resolver.resolve_defn(defn));
+    }
+
+    genv.hir().walk_toplevel_module(<span class="kw-2">&amp;mut </span>resolver);
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(err) = resolver.err {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(err);
+    }
+
+    <span class="prelude-val">Ok</span>(resolver.into_output())
+}
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    specs: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>Specs,
     output: ResolverOutput,
+    extern_crates: UnordMap&lt;Symbol, CrateNum&gt;,
+    ribs: Vec&lt;Rib&gt;,
+    func_decls: UnordMap&lt;Symbol, fhir::SpecFuncKind&gt;,
+    sort_decls: UnordMap&lt;Symbol, fhir::SortDecl&gt;,
+    consts: UnordMap&lt;Symbol, DefId&gt;,
+    err: <span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt;,
 }
 
-<span class="attr">#[derive(Default)]
-</span><span class="kw">pub struct </span>ResolverOutput {
-    <span class="kw">pub </span>path_res_map: UnordMap&lt;surface::NodeId, Res&gt;,
-    <span class="kw">pub </span>impl_trait_res_map: UnordMap&lt;surface::NodeId, ItemId&gt;,
+<span class="attr">#[derive(Debug, Default)]
+</span><span class="kw">struct </span>Rib {
+    type_ns_bindings: FxHashMap&lt;Symbol, hir::def::Res&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; Resolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub fn </span>new(tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;, sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FluxSession) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ tcx, sess, output: ResolverOutput::default() }
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;tcx</span>&gt; hir::intravisit::Visitor&lt;<span class="lifetime">&#39;tcx</span>&gt; <span class="kw">for </span>CrateResolver&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">type </span>NestedFilter = rustc_middle::hir::nested_filter::All;
+
+    <span class="kw">fn </span>nested_visit_map(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="self">Self</span>::Map {
+        <span class="self">self</span>.genv.hir()
+    }
+
+    <span class="kw">fn </span>visit_mod(<span class="kw-2">&amp;mut </span><span class="self">self</span>, module: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::Mod&lt;<span class="lifetime">&#39;tcx</span>&gt;, _s: Span, hir_id: hir::HirId) {
+        <span class="self">self</span>.push_rib();
+        <span class="kw">for </span>item_id <span class="kw">in </span>module.item_ids {
+            <span class="kw">let </span>item = <span class="self">self</span>.genv.hir().item(<span class="kw-2">*</span>item_id);
+            <span class="kw">let </span>def_kind = <span class="kw">match </span>item.kind {
+                ItemKind::Use(path, kind) =&gt; {
+                    <span class="kw">match </span>kind {
+                        hir::UseKind::Single =&gt; {
+                            <span class="self">self</span>.define_res_in_type_ns(
+                                path.segments.last().unwrap().ident.name,
+                                path.res[<span class="number">0</span>],
+                            );
+                        }
+                        hir::UseKind::Glob =&gt; {
+                            <span class="kw">let </span>res = path.segments.last().unwrap().res;
+                            <span class="kw">let </span>hir::def::Res::Def(DefKind::Mod, module_id) = res <span class="kw">else </span>{
+                                <span class="kw">continue</span>;
+                            };
+                            <span class="kw">for </span>child <span class="kw">in </span>module_children(<span class="self">self</span>.genv.tcx(), module_id) {
+                                <span class="kw">if </span>child.res.ns() == <span class="prelude-val">Some</span>(TypeNS) {
+                                    <span class="self">self</span>.define_res_in_type_ns(
+                                        child.ident.name,
+                                        map_res(child.res),
+                                    );
+                                }
+                            }
+                        }
+                        hir::UseKind::ListStem =&gt; {}
+                    }
+                    <span class="kw">continue</span>;
+                }
+                ItemKind::TyAlias(..) =&gt; DefKind::TyAlias,
+                ItemKind::Enum(..) =&gt; DefKind::Enum,
+                ItemKind::Struct(..) =&gt; DefKind::Struct,
+                ItemKind::Trait(..) =&gt; DefKind::Trait,
+                ItemKind::Mod(..) =&gt; DefKind::Mod,
+                <span class="kw">_ </span>=&gt; <span class="kw">continue</span>,
+            };
+            <span class="self">self</span>.define_res_in_type_ns(
+                item.ident.name,
+                hir::def::Res::Def(def_kind, item.owner_id.to_def_id()),
+            );
+        }
+        hir::intravisit::walk_mod(<span class="self">self</span>, module, hir_id);
+        <span class="self">self</span>.pop_rib();
+    }
+
+    <span class="kw">fn </span>visit_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::Item&lt;<span class="lifetime">&#39;tcx</span>&gt;) {
+        <span class="kw">match </span>item.kind {
+            ItemKind::Trait(..) =&gt; {
+                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_trait(item.owner_id));
+            }
+            ItemKind::Impl(..) =&gt; {
+                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_impl(item.owner_id));
+            }
+            ItemKind::TyAlias(..) =&gt; {
+                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_type_alias(item.owner_id));
+            }
+            ItemKind::Enum(..) =&gt; {
+                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_enum_def(item.owner_id));
+            }
+            ItemKind::Struct(..) =&gt; {
+                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_struct_def(item.owner_id));
+            }
+            ItemKind::Fn(..) =&gt; {
+                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_fn_sig(item.owner_id));
+            }
+            <span class="kw">_ </span>=&gt; {}
+        }
+        hir::intravisit::walk_item(<span class="self">self</span>, item);
+    }
+
+    <span class="kw">fn </span>visit_impl_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_item: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::ImplItem&lt;<span class="lifetime">&#39;tcx</span>&gt;) {
+        <span class="kw">if let </span>hir::ImplItemKind::Fn(..) = impl_item.kind {
+            <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_fn_sig(impl_item.owner_id));
+        }
+        hir::intravisit::walk_impl_item(<span class="self">self</span>, impl_item);
+    }
+
+    <span class="kw">fn </span>visit_trait_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_item: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::TraitItem&lt;<span class="lifetime">&#39;tcx</span>&gt;) {
+        <span class="kw">if let </span>hir::TraitItemKind::Fn(..) = trait_item.kind {
+            <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_fn_sig(trait_item.owner_id));
+        }
+        hir::intravisit::walk_trait_item(<span class="self">self</span>, trait_item);
+    }
+}
+
+<span class="kw">fn </span>module_children(tcx: TyCtxt, def_id: DefId) -&gt; <span class="kw-2">&amp;</span>[ModChild] {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
+        tcx.module_children_local(local_id)
+    } <span class="kw">else </span>{
+        tcx.module_children(def_id)
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, specs: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>Specs) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>extern_crates = UnordMap::default();
+        <span class="kw">for </span>cnum <span class="kw">in </span>genv.tcx().crates(()) {
+            <span class="kw">let </span>name = genv.tcx().crate_name(<span class="kw-2">*</span>cnum);
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_crate) = genv.tcx().extern_crate(cnum.as_def_id())
+                &amp;&amp; extern_crate.is_direct()
+            {
+                extern_crates.insert(name, <span class="kw-2">*</span>cnum);
+            }
+        }
+
+        <span class="self">Self </span>{
+            genv,
+            output: ResolverOutput::default(),
+            specs,
+            ribs: <span class="macro">vec!</span>[],
+            extern_crates,
+            err: <span class="prelude-val">None</span>,
+            func_decls: Default::default(),
+            sort_decls: Default::default(),
+            consts: Default::default(),
+        }
+    }
+    <span class="kw">fn </span>collect_flux_global_items(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">for </span>sort_decl <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.specs.sort_decls {
+            <span class="self">self</span>.sort_decls.insert(
+                sort_decl.name.name,
+                fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
+            );
+        }
+
+        <span class="kw">for </span>def_id <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.specs.consts {
+            <span class="kw">let </span>did = def_id.to_def_id();
+            <span class="kw">let </span>sym = <span class="kw">super</span>::def_id_symbol(<span class="self">self</span>.genv.tcx(), <span class="kw-2">*</span>def_id);
+            <span class="self">self</span>.consts.insert(sym, did);
+        }
+
+        <span class="kw">for </span>defn <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.specs.func_defs {
+            <span class="kw">let </span>kind =
+                <span class="kw">if </span>defn.body.is_some() { fhir::SpecFuncKind::Def } <span class="kw">else </span>{ fhir::SpecFuncKind::Uif };
+            <span class="self">self</span>.func_decls.insert(defn.name.name, kind);
+        }
+
+        <span class="kw">for </span>itf <span class="kw">in </span>flux_middle::theory_funcs() {
+            <span class="self">self</span>.func_decls
+                .insert(itf.name, fhir::SpecFuncKind::Thy(itf.fixpoint_name));
+        }
+    }
+
+    <span class="kw">fn </span>push_rib(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.ribs.push(Rib::default());
+    }
+
+    <span class="kw">fn </span>define_res_in_type_ns(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: Symbol, res: hir::def::Res) {
+        <span class="self">self</span>.ribs
+            .last_mut()
+            .unwrap()
+            .type_ns_bindings
+            .insert(name, res);
+    }
+
+    <span class="kw">fn </span>pop_rib(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.ribs.pop();
+    }
+
+    <span class="kw">fn </span>resolve_qualifier(<span class="kw-2">&amp;mut </span><span class="self">self</span>, qualifier: <span class="kw-2">&amp;</span>surface::Qualifier) -&gt; <span class="prelude-ty">Result </span>{
+        RefinementResolver::resolve_qualifier(<span class="self">self</span>, qualifier)
+    }
+
+    <span class="kw">fn </span>resolve_defn(<span class="kw-2">&amp;mut </span><span class="self">self</span>, defn: <span class="kw-2">&amp;</span>surface::SpecFunc) -&gt; <span class="prelude-ty">Result </span>{
+        RefinementResolver::resolve_defn(<span class="self">self</span>, defn)
+    }
+
+    <span class="kw">fn </span>resolve_trait(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span>trait_ = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.traits[<span class="kw-2">&amp;</span>owner_id];
+        RefinementResolver::resolve_trait(<span class="self">self</span>, owner_id, trait_)
+    }
+
+    <span class="kw">fn </span>resolve_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span>impl_ = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.impls[<span class="kw-2">&amp;</span>owner_id];
+        ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
+            item_resolver.visit_impl(impl_);
+        })<span class="question-mark">?</span>;
+        RefinementResolver::resolve_impl(<span class="self">self</span>, owner_id, impl_)
+    }
+
+    <span class="kw">fn </span>resolve_type_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(ty_alias) = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.ty_aliases[<span class="kw-2">&amp;</span>owner_id] {
+            ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
+                item_resolver.visit_ty_alias(ty_alias);
+            })<span class="question-mark">?</span>;
+            RefinementResolver::resolve_ty_alias(<span class="self">self</span>, owner_id, ty_alias)<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>resolve_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span>struct_def = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.structs[<span class="kw-2">&amp;</span>owner_id];
+        ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
+            item_resolver.visit_struct_def(struct_def);
+        })<span class="question-mark">?</span>;
+        RefinementResolver::resolve_struct_def(<span class="self">self</span>, owner_id, struct_def)
+    }
+
+    <span class="kw">fn </span>resolve_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span>enum_def = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.enums[<span class="kw-2">&amp;</span>owner_id];
+        ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
+            item_resolver.visit_enum_def(enum_def);
+        })<span class="question-mark">?</span>;
+        RefinementResolver::resolve_enum_def(<span class="self">self</span>, owner_id, enum_def)
+    }
+
+    <span class="kw">fn </span>resolve_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="kw-2">&amp;</span><span class="self">self</span>.specs.fn_sigs[<span class="kw-2">&amp;</span>owner_id].fn_sig {
+            ItemResolver::run(<span class="self">self</span>, owner_id, |item_resolver| {
+                item_resolver.visit_fn_sig(fn_sig);
+            })<span class="question-mark">?</span>;
+            RefinementResolver::resolve_fn_sig(<span class="self">self</span>, owner_id, fn_sig)<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>try_resolve_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="prelude-ty">Option</span>&lt;()&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>module: <span class="prelude-ty">Option</span>&lt;DefId&gt; = <span class="prelude-val">None</span>;
+        <span class="kw">for </span>(i, segment) <span class="kw">in </span>path.segments.iter().enumerate() {
+            <span class="kw">let </span>res = <span class="kw">if let </span><span class="prelude-val">Some</span>(module) = module {
+                <span class="self">self</span>.resolve_ident_in_module(module, segment.ident)<span class="question-mark">?
+            </span>} <span class="kw">else </span>{
+                <span class="self">self</span>.resolve_ident(segment.ident)<span class="question-mark">?
+            </span>};
+
+            <span class="kw">let </span>hir::def::Res::Def(def_kind, res_def_id) = res <span class="kw">else </span>{
+                <span class="kw">return </span><span class="prelude-val">None</span>;
+            };
+
+            <span class="self">self</span>.output
+                .path_res_map
+                .insert(segment.node_id, Res::Def(def_kind, res_def_id));
+
+            <span class="kw">match </span>def_kind {
+                DefKind::Struct | DefKind::Enum | DefKind::Trait =&gt; {
+                    <span class="kw">if </span>i &lt; path.segments.len() - <span class="number">1 </span>{
+                        <span class="kw">return </span><span class="prelude-val">None</span>;
+                    }
+                }
+                DefKind::Mod =&gt; {
+                    module = <span class="prelude-val">Some</span>(res_def_id);
+                }
+                <span class="kw">_ </span>=&gt; {
+                    <span class="kw">return </span><span class="prelude-val">None</span>;
+                }
+            }
+        }
+        <span class="prelude-val">Some</span>(())
+    }
+
+    <span class="kw">fn </span>resolve_ident(<span class="kw-2">&amp;</span><span class="self">self</span>, ident: Ident) -&gt; <span class="prelude-ty">Option</span>&lt;hir::def::Res&gt; {
+        <span class="kw">for </span>rib <span class="kw">in </span><span class="self">self</span>.ribs.iter().rev() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(res) = rib.type_ns_bindings.get(<span class="kw-2">&amp;</span>ident.name) {
+                <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="kw-2">*</span>res);
+            }
+        }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(cnum) = <span class="self">self</span>.extern_crates.get(<span class="kw-2">&amp;</span>ident.name) {
+            <span class="kw">return </span><span class="prelude-val">Some</span>(hir::def::Res::Def(DefKind::Mod, cnum.as_def_id()));
+        }
+        <span class="prelude-val">None
+    </span>}
+
+    <span class="kw">fn </span>resolve_ident_in_module(<span class="kw-2">&amp;</span><span class="self">self</span>, module_id: DefId, ident: Ident) -&gt; <span class="prelude-ty">Option</span>&lt;hir::def::Res&gt; {
+        module_children(<span class="self">self</span>.genv.tcx(), module_id)
+            .iter()
+            .find_map(|child| {
+                <span class="kw">if </span>child.vis.is_public() &amp;&amp; child.ident == ident {
+                    <span class="prelude-val">Some</span>(map_res(child.res))
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">None
+                </span>}
+            })
     }
 
     <span class="kw">pub fn </span>into_output(<span class="self">self</span>) -&gt; ResolverOutput {
         <span class="self">self</span>.output
     }
-
-    <span class="kw">pub fn </span>resolve_type_alias(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        owner_id: OwnerId,
-        alias_def: <span class="kw-2">&amp;</span>surface::TyAlias,
-    ) -&gt; <span class="prelude-ty">Result </span>{
-        ItemLikeResolver::new(<span class="self">self</span>.tcx, <span class="self">self</span>.sess, owner_id, <span class="kw-2">&amp;mut </span><span class="self">self</span>.output)<span class="question-mark">?
-            </span>.resolve_ty(<span class="kw-2">&amp;</span>alias_def.ty)
-    }
-
-    <span class="kw">pub fn </span>resolve_struct_def(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        owner_id: OwnerId,
-        struct_def: <span class="kw-2">&amp;</span>surface::StructDef,
-    ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">if </span>!struct_def.needs_resolving() {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-        }
-
-        <span class="kw">let </span><span class="kw-2">mut </span>item_resolver =
-            ItemLikeResolver::new(<span class="self">self</span>.tcx, <span class="self">self</span>.sess, owner_id, <span class="kw-2">&amp;mut </span><span class="self">self</span>.output)<span class="question-mark">?</span>;
-        struct_def.fields.iter().try_for_each_exhaust(|ty| {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(ty) = ty {
-                item_resolver.resolve_ty(ty)<span class="question-mark">?</span>;
-            }
-            <span class="prelude-val">Ok</span>(())
-        })
-    }
-
-    <span class="kw">pub fn </span>resolve_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, enum_def: <span class="kw-2">&amp;</span>surface::EnumDef) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">if </span>!enum_def.needs_resolving() {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-        }
-
-        <span class="kw">let </span><span class="kw-2">mut </span>item_resolver =
-            ItemLikeResolver::new(<span class="self">self</span>.tcx, <span class="self">self</span>.sess, owner_id, <span class="kw-2">&amp;mut </span><span class="self">self</span>.output)<span class="question-mark">?</span>;
-        enum_def
-            .variants
-            .iter()
-            .try_for_each_exhaust(|variant| item_resolver.resolve_variant(variant.as_ref()))
-    }
-
-    <span class="kw">pub fn </span>resolve_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, fn_sig: <span class="kw-2">&amp;</span>surface::FnSig) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>item_resolver =
-            ItemLikeResolver::new(<span class="self">self</span>.tcx, <span class="self">self</span>.sess, owner_id, <span class="kw-2">&amp;mut </span><span class="self">self</span>.output)<span class="question-mark">?</span>;
-        <span class="kw">let </span>asyncness = item_resolver.resolve_asyncness(<span class="kw-2">&amp;</span>fn_sig.asyncness);
-
-        <span class="kw">let </span>args = fn_sig
-            .args
-            .iter()
-            .try_for_each_exhaust(|arg| item_resolver.resolve_arg(arg));
-
-        <span class="kw">let </span>ensures = fn_sig
-            .ensures
-            .iter()
-            .try_for_each_exhaust(|cstr| item_resolver.resolve_constraint(cstr));
-
-        <span class="kw">let </span>predicates = <span class="kw">if let </span><span class="prelude-val">Some</span>(predicates) = <span class="kw-2">&amp;</span>fn_sig.predicates {
-            predicates
-                .iter()
-                .try_for_each_exhaust(|pred| item_resolver.resolve_where_bound_predicate(pred))
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Ok</span>(())
-        };
-
-        <span class="kw">let </span>returns = item_resolver.resolve_fn_ret_ty(<span class="kw-2">&amp;</span>fn_sig.returns);
-
-        asyncness<span class="question-mark">?</span>;
-        args<span class="question-mark">?</span>;
-        returns<span class="question-mark">?</span>;
-        predicates<span class="question-mark">?</span>;
-        ensures<span class="question-mark">?</span>;
-
-        <span class="prelude-val">Ok</span>(())
-    }
 }
 
-<span class="kw">struct </span>ItemLikeResolver&lt;<span class="lifetime">&#39;a</span>&gt; {
-    sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FluxSession,
-    table: NameResTable&lt;<span class="lifetime">&#39;a</span>&gt;,
-    output: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>ResolverOutput,
-}
-
-<span class="attr">#[derive(Hash, Eq, PartialEq, Debug)]
-</span><span class="kw">pub struct </span>ResKey {
-    s: String,
-}
-
-<span class="kw">struct </span>NameResTable&lt;<span class="lifetime">&#39;sess</span>&gt; {
-    res: UnordMap&lt;ResKey, ResEntry&gt;,
+<span class="kw">struct </span>ItemResolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    table: NameResTable,
+    resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     opaque: <span class="prelude-ty">Option</span>&lt;ItemId&gt;, <span class="comment">// TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
-    </span>sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession,
+    </span>errors: ErrorCollector&lt;<span class="lifetime">&#39;genv</span>&gt;,
 }
 
-<span class="kw">enum </span>ResEntry {
-    Res(Res),
-    Unsupported { reason: String, span: Span },
+<span class="kw">struct </span>ResTableNode {
+    res: Res,
+    children: UnordMap&lt;Symbol, ResTableNode&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; ItemLikeResolver&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>new(
-        tcx: TyCtxt,
-        sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FluxSession,
+<span class="kw">impl </span>ResTableNode {
+    <span class="kw">fn </span>new(res: Res) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ res, children: Default::default() }
+    }
+}
+
+<span class="attr">#[derive(Default)]
+</span><span class="kw">struct </span>NameResTable {
+    nodes: UnordMap&lt;Symbol, ResTableNode&gt;,
+}
+
+<span class="kw">impl </span>NameResTable {
+    <span class="kw">fn </span>insert_ident(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ident: Ident, res: Res) {
+        <span class="self">self</span>.nodes
+            .entry(ident.name)
+            .or_insert_with(|| ResTableNode::new(res));
+    }
+
+    <span class="kw">fn </span>insert_hir_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>hir::Path) {
+        <span class="kw">let </span><span class="kw-2">mut </span>nodes = <span class="kw-2">&amp;mut </span><span class="self">self</span>.nodes;
+        <span class="kw">for </span>segment <span class="kw">in </span>path.segments {
+            <span class="kw">let </span>node = <span class="kw">match </span>nodes.entry(segment.ident.name) {
+                Entry::Occupied(entry) =&gt; entry.into_mut(),
+                Entry::Vacant(entry) =&gt; {
+                    <span class="kw">let </span><span class="prelude-val">Ok</span>(res) = Res::try_from(segment.res) <span class="kw">else </span>{ <span class="kw">return </span>};
+                    entry.insert(ResTableNode::new(res))
+                }
+            };
+            nodes = <span class="kw-2">&amp;mut </span>node.children;
+        }
+    }
+
+    <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path, <span class="kw-2">mut </span>f: <span class="kw">impl </span>FnMut(NodeId, Res)) -&gt; bool {
+        <span class="kw">let </span><span class="kw-2">mut </span>nodes = <span class="kw-2">&amp;</span><span class="self">self</span>.nodes;
+        <span class="kw">for </span>segment <span class="kw">in </span><span class="kw-2">&amp;</span>path.segments {
+            <span class="kw">let </span><span class="prelude-val">Some</span>(node) = nodes.get(<span class="kw-2">&amp;</span>segment.ident.name) <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
+            f(segment.node_id, node.res);
+            nodes = <span class="kw-2">&amp;</span>node.children;
+        }
+        <span class="bool-val">true
+    </span>}
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; ItemResolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">fn </span>run(
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         owner_id: OwnerId,
-        output: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>ResolverOutput,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>table = <span class="kw">match </span>tcx.hir().owner(owner_id) {
-            hir::OwnerNode::Item(item) =&gt; NameResTable::from_item(tcx, sess, item)<span class="question-mark">?</span>,
+        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>ItemResolver),
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>item_resolver = ItemResolver::new(resolver, owner_id)<span class="question-mark">?</span>;
+        f(<span class="kw-2">&amp;mut </span>item_resolver);
+        item_resolver.errors.into_result()
+    }
+
+    <span class="kw">fn </span>new(resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>tcx = resolver.genv.tcx();
+        <span class="kw">let </span>sess = resolver.genv.sess();
+        <span class="kw">let </span>(table, opaque) = <span class="kw">match </span>tcx.hir().owner(owner_id) {
+            hir::OwnerNode::Item(item) =&gt; NameResCollector::collect_item(tcx, sess, item)<span class="question-mark">?</span>,
             hir::OwnerNode::ImplItem(impl_item) =&gt; {
-                NameResTable::from_impl_item(tcx, sess, impl_item)<span class="question-mark">?
+                NameResCollector::collect_impl_item(tcx, sess, impl_item)<span class="question-mark">?
             </span>}
             hir::OwnerNode::TraitItem(trait_item) =&gt; {
-                NameResTable::from_trait_item(tcx, sess, trait_item)<span class="question-mark">?
+                NameResCollector::collect_trait_item(tcx, sess, trait_item)<span class="question-mark">?
             </span>}
             node @ (hir::OwnerNode::ForeignItem(<span class="kw">_</span>) | hir::OwnerNode::Crate(<span class="kw">_</span>)) =&gt; {
                 <span class="macro">bug!</span>(<span class="string">&quot;unsupported node {node:?}&quot;</span>)
             }
         };
 
-        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ sess, table, output })
+        <span class="kw">let </span>errors = ErrorCollector::new(resolver.genv.sess());
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ table, resolver, opaque, errors })
     }
 
-    <span class="kw">fn </span>resolve_variant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, variant_def: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>surface::VariantDef&gt;) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(variant_def) = variant_def {
-            variant_def
-                .fields
-                .iter()
-                .try_for_each_exhaust(|ty| <span class="self">self</span>.resolve_ty(ty))<span class="question-mark">?</span>;
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(ret) = <span class="kw-2">&amp;</span>variant_def.ret {
-                <span class="self">self</span>.resolve_variant_ret(ret)<span class="question-mark">?</span>;
-            }
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>resolve_variant_ret(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ret: <span class="kw-2">&amp;</span>surface::VariantRet) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="self">self</span>.resolve_path(<span class="kw-2">&amp;</span>ret.path)
-    }
-
-    <span class="kw">fn </span>resolve_where_bound_predicate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw-2">&amp;</span>surface::WhereBoundPredicate) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="self">self</span>.resolve_ty(<span class="kw-2">&amp;</span>pred.bounded_ty)<span class="question-mark">?</span>;
-        <span class="self">self</span>.resolve_bounds(<span class="kw-2">&amp;</span>pred.bounds)
-    }
-
-    <span class="kw">fn </span>resolve_bounds(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bounds: <span class="kw-2">&amp;</span>surface::GenericBounds) -&gt; <span class="prelude-ty">Result </span>{
-        bounds
-            .iter()
-            .try_for_each_exhaust(|trait_ref| <span class="self">self</span>.resolve_trait_ref(trait_ref))
-    }
-
-    <span class="kw">fn </span>resolve_trait_ref(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_ref: <span class="kw-2">&amp;</span>surface::TraitRef) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="self">self</span>.resolve_path(<span class="kw-2">&amp;</span>trait_ref.path)
-    }
-
-    <span class="kw">fn </span>resolve_constraint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cstr: <span class="kw-2">&amp;</span>surface::Constraint) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">match </span>cstr {
-            surface::Constraint::Type(<span class="kw">_</span>, ty) =&gt; <span class="self">self</span>.resolve_ty(ty),
-            surface::Constraint::Pred(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
-        }
-    }
-
-    <span class="kw">fn </span>resolve_asyncness(<span class="kw-2">&amp;mut </span><span class="self">self</span>, asyncness: <span class="kw-2">&amp;</span>surface::Async) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">match </span>asyncness {
-            surface::Async::Yes { node_id, span } =&gt; <span class="self">self</span>.resolve_opaque_impl(<span class="kw-2">*</span>node_id, <span class="kw-2">*</span>span),
-            surface::Async::No =&gt; <span class="prelude-val">Ok</span>(()),
-        }
-    }
-
-    <span class="kw">fn </span>resolve_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>surface::Arg) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">match </span>arg {
-            surface::Arg::Constr(<span class="kw">_</span>, path, <span class="kw">_</span>) =&gt; <span class="self">self</span>.resolve_path(path),
-            surface::Arg::StrgRef(<span class="kw">_</span>, ty) =&gt; <span class="self">self</span>.resolve_ty(ty),
-            surface::Arg::Ty(<span class="kw">_</span>, ty) =&gt; <span class="self">self</span>.resolve_ty(ty),
-        }
-    }
-
-    <span class="kw">fn </span>resolve_fn_ret_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, returns: <span class="kw-2">&amp;</span>surface::FnRetTy) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">match </span>returns {
-            surface::FnRetTy::Default(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
-            surface::FnRetTy::Ty(ty) =&gt; <span class="self">self</span>.resolve_ty(ty),
-        }
-    }
-
-    <span class="kw">fn </span>resolve_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
-            surface::TyKind::Base(bty) =&gt; {
-                <span class="comment">// CODESYNC(type-holes, 3) we don&#39;t resolve type holes because they will be desugared
-                // to `fhir::TyKind::Hole`. The path won&#39;t have an entry in `path_res_map` which we
-                // should consider during desugaring. Holes in other positions (e.g., _[10] or _{v: v &gt; 0})
-                // will fail resolving so they don&#39;t show up in desugaring.
-                </span><span class="kw">if let </span>BaseTyKind::Path(path) = <span class="kw-2">&amp;</span>bty.kind
-                    &amp;&amp; path.is_hole()
-                {
-                    <span class="prelude-val">Ok</span>(())
-                } <span class="kw">else </span>{
-                    <span class="self">self</span>.resolve_bty(bty)
-                }
-            }
-            surface::TyKind::Indexed { bty, .. } =&gt; <span class="self">self</span>.resolve_bty(bty),
-            surface::TyKind::Exists { bty, .. } =&gt; <span class="self">self</span>.resolve_bty(bty),
-            surface::TyKind::GeneralExists { ty, .. } =&gt; <span class="self">self</span>.resolve_ty(ty),
-            surface::TyKind::Ref(<span class="kw">_</span>, ty) =&gt; <span class="self">self</span>.resolve_ty(ty),
-            surface::TyKind::Constr(<span class="kw">_</span>, ty) =&gt; <span class="self">self</span>.resolve_ty(ty),
-            surface::TyKind::Tuple(tys) =&gt; {
-                tys.iter().try_for_each_exhaust(|ty| <span class="self">self</span>.resolve_ty(ty))
-            }
-            surface::TyKind::Array(ty, <span class="kw">_</span>) =&gt; <span class="self">self</span>.resolve_ty(ty),
-            surface::TyKind::ImplTrait(node_id, bounds) =&gt; {
-                <span class="self">self</span>.resolve_bounds(bounds)<span class="question-mark">?</span>;
-                <span class="self">self</span>.resolve_opaque_impl(<span class="kw-2">*</span>node_id, ty.span)
-            }
-        }
-    }
-
-    <span class="kw">fn </span>resolve_opaque_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node_id: surface::NodeId, span: Span) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = <span class="self">self</span>.table.opaque {
-            <span class="self">self</span>.output.impl_trait_res_map.insert(node_id, def_id);
-            <span class="prelude-val">Ok</span>(())
+    <span class="kw">fn </span>resolve_opaque_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node_id: surface::NodeId, span: Span) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = <span class="self">self</span>.opaque {
+            <span class="self">self</span>.resolver
+                .output
+                .impl_trait_res_map
+                .insert(node_id, def_id);
         } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(<span class="self">self
-                </span>.sess
-                .emit_err(errors::UnresolvedPath { span, path: <span class="string">&quot;opaque type&quot;</span>.into() }))
+            <span class="self">self</span>.errors
+                .emit(errors::UnresolvedPath { span, path: <span class="string">&quot;opaque type&quot;</span>.into() });
         }
     }
 
-    <span class="kw">fn </span>resolve_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
-            BaseTyKind::Path(path) =&gt; <span class="self">self</span>.resolve_path(path),
-            BaseTyKind::Slice(ty) =&gt; <span class="self">self</span>.resolve_ty(ty),
+    <span class="kw">fn </span>resolve_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) {
+        <span class="comment">// This could insert stuff in `path_res_map` twice if table resolution fails midway. This
+        // is ok because we will only proceed to further stages if the entire path is resolved.
+        </span><span class="kw">if </span><span class="self">self</span>.try_resolve_with_table(path) {
+            <span class="kw">return</span>;
         }
+        <span class="kw">if </span><span class="self">self</span>.resolver.try_resolve_path(path).is_some() {
+            <span class="kw">return</span>;
+        }
+        <span class="self">self</span>.errors.emit(errors::UnresolvedPath::new(path));
     }
 
-    <span class="kw">fn </span>resolve_generic_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>surface::GenericArg) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">match </span>arg {
-            surface::GenericArg::Type(ty) =&gt; <span class="self">self</span>.resolve_ty(ty),
-            surface::GenericArg::Constraint(<span class="kw">_</span>, ty) =&gt; <span class="self">self</span>.resolve_ty(ty),
-        }
-    }
-
-    <span class="kw">fn </span>resolve_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span><span class="prelude-val">Some</span>(res) = <span class="self">self</span>.table.get(<span class="kw-2">&amp;</span>ResKey::from_path(path)) <span class="kw">else </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.sess.emit_err(errors::UnresolvedPath::new(path)));
-        };
-        <span class="kw">match </span>res {
-            <span class="kw-2">&amp;</span>ResEntry::Res(res) =&gt; {
-                <span class="self">self</span>.output.path_res_map.insert(path.node_id, res);
-                path.generics
-                    .iter()
-                    .try_for_each_exhaust(|arg| <span class="self">self</span>.resolve_generic_arg(arg))
-            }
-            ResEntry::Unsupported { reason, span } =&gt; {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self
-                    </span>.sess
-                    .emit_err(errors::UnsupportedSignature::new(<span class="kw-2">*</span>span, reason)))
-            }
-        }
+    <span class="kw">fn </span>try_resolve_with_table(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; bool {
+        <span class="self">self</span>.table.visit_path(path, |segment_id, res| {
+            <span class="self">self</span>.resolver.output.path_res_map.insert(segment_id, res);
+        })
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;sess</span>&gt; NameResTable&lt;<span class="lifetime">&#39;sess</span>&gt; {
-    <span class="kw">fn </span>new(sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession) -&gt; NameResTable&lt;<span class="lifetime">&#39;sess</span>&gt; {
-        NameResTable { sess, opaque: <span class="prelude-val">None</span>, res: UnordMap::default() }
+<span class="kw">impl </span>surface::visit::Visitor <span class="kw">for </span>ItemResolver&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">fn </span>visit_async(<span class="kw-2">&amp;mut </span><span class="self">self</span>, asyncness: <span class="kw-2">&amp;</span>surface::Async) {
+        <span class="kw">if let </span>surface::Async::Yes { node_id, span } = asyncness {
+            <span class="self">self</span>.resolve_opaque_impl(<span class="kw-2">*</span>node_id, <span class="kw-2">*</span>span);
+        }
     }
 
-    <span class="kw">fn </span>from_item(tcx: TyCtxt, sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession, item: <span class="kw-2">&amp;</span>hir::Item) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>table = <span class="self">Self</span>::new(sess);
-        <span class="kw">let </span>def_id = item.owner_id.def_id;
-        <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
-            ItemKind::TyAlias(ty, <span class="kw">_</span>) =&gt; {
-                table.collect_from_ty(ty)<span class="question-mark">?</span>;
-            }
-            ItemKind::Struct(data, <span class="kw">_</span>) =&gt; {
-                table.insert(
-                    ResKey::from_ident(item.ident),
-                    Res::Def(DefKind::Struct, def_id.to_def_id()),
-                );
-
-                <span class="kw">for </span>field <span class="kw">in </span>data.fields() {
-                    table.collect_from_ty(field.ty)<span class="question-mark">?</span>;
+    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>surface::Ty) {
+        <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
+            surface::TyKind::Base(bty) =&gt; {
+                <span class="comment">// We don&#39;t resolve type holes because they will be desugared to `fhir::TyKind::Hole`.
+                // The path won&#39;t have an entry in `path_res_map` which we should consider during
+                // desugaring. Holes in other positions (e.g., _[10] or _{v: v &gt; 0}) will fail
+                // resolving so they don&#39;t show up in desugaring.
+                </span><span class="kw">if </span>bty.is_hole() {
+                    <span class="kw">return</span>;
                 }
             }
-            ItemKind::Enum(data, <span class="kw">_</span>) =&gt; {
-                table.insert(
-                    ResKey::from_ident(item.ident),
-                    Res::Def(DefKind::Enum, def_id.to_def_id()),
-                );
-
-                <span class="kw">for </span>variant <span class="kw">in </span>data.variants {
-                    <span class="kw">for </span>field <span class="kw">in </span>variant.data.fields() {
-                        table.collect_from_ty(field.ty)<span class="question-mark">?</span>;
-                    }
-                }
-            }
-            ItemKind::Fn(fn_sig, generics, ..) =&gt; {
-                table.collect_from_fn_sig(fn_sig)<span class="question-mark">?</span>;
-                table.collect_from_generics(generics)<span class="question-mark">?</span>;
-                table.collect_from_opaque_impls(tcx)<span class="question-mark">?</span>;
+            surface::TyKind::ImplTrait(node_id, <span class="kw">_</span>) =&gt; {
+                <span class="self">self</span>.resolve_opaque_impl(<span class="kw-2">*</span>node_id, ty.span);
             }
             <span class="kw">_ </span>=&gt; {}
         }
-        <span class="prelude-val">Ok</span>(table)
+        surface::visit::walk_ty(<span class="self">self</span>, ty);
     }
 
-    <span class="kw">fn </span>from_impl_item(
-        tcx: TyCtxt,
+    <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) {
+        <span class="self">self</span>.resolve_path(path);
+        surface::visit::walk_path(<span class="self">self</span>, path);
+    }
+}
+
+<span class="kw">fn </span>map_res(res: hir::def::Res&lt;!&gt;) -&gt; hir::def::Res {
+    <span class="kw">match </span>res {
+        hir::def::Res::Def(k, id) =&gt; hir::def::Res::Def(k, id),
+        hir::def::Res::PrimTy(pty) =&gt; hir::def::Res::PrimTy(pty),
+        hir::def::Res::SelfTyParam { trait_ } =&gt; hir::def::Res::SelfTyParam { trait_ },
+        hir::def::Res::SelfTyAlias { alias_to, forbid_generic, is_trait_impl } =&gt; {
+            hir::def::Res::SelfTyAlias { alias_to, forbid_generic, is_trait_impl }
+        }
+        hir::def::Res::SelfCtor(id) =&gt; hir::def::Res::SelfCtor(id),
+        hir::def::Res::ToolMod =&gt; hir::def::Res::ToolMod,
+        hir::def::Res::NonMacroAttr(nma) =&gt; hir::def::Res::NonMacroAttr(nma),
+        hir::def::Res::Err =&gt; hir::def::Res::Err,
+        hir::def::Res::Local(<span class="kw">_</span>) =&gt; <span class="macro">unreachable!</span>(),
+    }
+}
+
+<span class="kw">struct </span>NameResCollector&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    table: NameResTable,
+    opaque: <span class="prelude-ty">Option</span>&lt;ItemId&gt;, <span class="comment">// TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
+    </span>errors: ErrorCollector&lt;<span class="lifetime">&#39;sess</span>&gt;,
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; NameResCollector&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">fn </span>new(tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;, sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            tcx,
+            table: NameResTable::default(),
+            opaque: <span class="prelude-val">None</span>,
+            errors: ErrorCollector::new(sess),
+        }
+    }
+
+    <span class="kw">fn </span>collect_item(
+        tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
         sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession,
-        impl_item: <span class="kw-2">&amp;</span>hir::ImplItem,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+        item: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::Item,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(NameResTable, <span class="prelude-ty">Option</span>&lt;ItemId&gt;)&gt; {
+        <span class="kw">let </span>def_id = item.owner_id.def_id;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>collector = <span class="self">Self</span>::new(tcx, sess);
+
+        <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
+            ItemKind::Struct(variant, generics) =&gt; {
+                collector
+                    .table
+                    .insert_ident(item.ident, Res::Def(DefKind::Struct, def_id.to_def_id()));
+                collector.visit_generics(generics);
+                collector.visit_variant_data(variant);
+            }
+            ItemKind::Enum(enum_def, generics) =&gt; {
+                collector
+                    .table
+                    .insert_ident(item.ident, Res::Def(DefKind::Enum, def_id.to_def_id()));
+                collector.visit_generics(generics);
+                collector.visit_enum_def(enum_def, item.hir_id());
+            }
+            ItemKind::Fn(fn_sig, generics, <span class="kw">_</span>) =&gt; {
+                collector.visit_generics(generics);
+                collector.visit_fn_decl(fn_sig.decl);
+                collector.collect_from_opaque_impl()<span class="question-mark">?</span>;
+            }
+            ItemKind::TyAlias(ty, generics) =&gt; {
+                collector.visit_generics(generics);
+                collector.visit_ty(ty);
+            }
+            ItemKind::Impl(impl_) =&gt; {
+                collector.visit_generics(impl_.generics);
+                collector.visit_ty(impl_.self_ty);
+            }
+            <span class="kw">_ </span>=&gt; {}
+        }
+        collector.into_result()
+    }
+
+    <span class="kw">fn </span>collect_impl_item(
+        tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession,
+        impl_item: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::ImplItem,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(NameResTable, <span class="prelude-ty">Option</span>&lt;ItemId&gt;)&gt; {
         <span class="kw">let </span>def_id = impl_item.owner_id.def_id;
 
-        <span class="kw">let </span><span class="kw-2">mut </span>table = <span class="self">Self</span>::new(sess);
+        <span class="kw">let </span><span class="kw-2">mut </span>collector = <span class="self">Self</span>::new(tcx, sess);
 
-        <span class="comment">// Insert generics from parent impl
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(parent_impl_did) = tcx.impl_of_method(def_id.to_def_id()) {
-            <span class="kw">let </span>parent_impl_item = tcx.hir().expect_item(parent_impl_did.expect_local());
-            <span class="kw">if let </span>ItemKind::Impl(parent) = <span class="kw-2">&amp;</span>parent_impl_item.kind {
-                table.collect_from_ty(parent.self_ty)<span class="question-mark">?</span>;
+        <span class="kw">match </span>impl_item.kind {
+            hir::ImplItemKind::Fn(fn_sig, <span class="kw">_</span>) =&gt; {
+                collector.visit_generics(impl_item.generics);
+                collector.visit_fn_decl(fn_sig.decl);
             }
+            hir::ImplItemKind::Const(<span class="kw">_</span>, <span class="kw">_</span>) | hir::ImplItemKind::Type(<span class="kw">_</span>) =&gt; {}
         }
 
-        <span class="kw">match </span><span class="kw-2">&amp;</span>impl_item.kind {
-            rustc_hir::ImplItemKind::Fn(fn_sig, <span class="kw">_</span>) =&gt; {
-                table.collect_from_fn_sig(fn_sig)<span class="question-mark">?</span>;
-                table.collect_from_opaque_impls(tcx)<span class="question-mark">?</span>;
+        <span class="comment">// Insert paths from parent impl
+        </span><span class="kw">let </span>impl_did = tcx.local_parent(def_id);
+        <span class="kw">if let </span>ItemKind::Impl(impl_) = <span class="kw-2">&amp;</span>tcx.hir().expect_item(impl_did).kind {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(trait_ref) = impl_.of_trait {
+                collector.table.insert_hir_path(trait_ref.path);
             }
-            rustc_hir::ImplItemKind::Const(<span class="kw">_</span>, <span class="kw">_</span>) | rustc_hir::ImplItemKind::Type(<span class="kw">_</span>) =&gt; {}
+            collector.visit_generics(impl_.generics);
+            collector.visit_ty(impl_.self_ty);
         }
 
-        <span class="prelude-val">Ok</span>(table)
+        <span class="kw">match </span>impl_item.kind {
+            hir::ImplItemKind::Fn(fn_sig, <span class="kw">_</span>) =&gt; {
+                collector.visit_generics(impl_item.generics);
+                collector.visit_fn_decl(fn_sig.decl);
+            }
+            hir::ImplItemKind::Const(<span class="kw">_</span>, <span class="kw">_</span>) | hir::ImplItemKind::Type(<span class="kw">_</span>) =&gt; {}
+        }
+
+        collector.into_result()
     }
 
-    <span class="kw">fn </span>from_trait_item(
-        tcx: TyCtxt,
+    <span class="kw">fn </span>collect_trait_item(
+        tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
         sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession,
-        trait_item: <span class="kw-2">&amp;</span>hir::TraitItem,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+        trait_item: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::TraitItem,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(NameResTable, <span class="prelude-ty">Option</span>&lt;ItemId&gt;)&gt; {
         <span class="kw">let </span>def_id = trait_item.owner_id.def_id;
 
-        <span class="kw">let </span><span class="kw-2">mut </span>table = <span class="self">Self</span>::new(sess);
+        <span class="kw">let </span><span class="kw-2">mut </span>collector = <span class="self">Self</span>::new(tcx, sess);
 
         <span class="comment">// Insert generics from parent trait
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(parent_impl_did) = tcx.trait_of_item(def_id.to_def_id()) {
             <span class="kw">let </span>parent_impl_item = tcx.hir().expect_item(parent_impl_did.expect_local());
+
+            <span class="comment">// Insert NAME of parent trait
+            </span><span class="kw">if let </span>ItemKind::Trait(..) = <span class="kw-2">&amp;</span>parent_impl_item.kind {
+                collector.table.insert_ident(
+                    parent_impl_item.ident,
+                    Res::Def(DefKind::Trait, parent_impl_did),
+                );
+            }
+
             <span class="kw">if let </span>ItemKind::Impl(parent) = <span class="kw-2">&amp;</span>parent_impl_item.kind {
-                table.collect_from_ty(parent.self_ty)<span class="question-mark">?</span>;
+                collector.visit_ty(parent.self_ty);
             }
         }
 
         <span class="kw">match </span><span class="kw-2">&amp;</span>trait_item.kind {
             rustc_hir::TraitItemKind::Fn(fn_sig, <span class="kw">_</span>) =&gt; {
-                table.collect_from_fn_sig(fn_sig)<span class="question-mark">?</span>;
-                table.collect_from_opaque_impls(tcx)<span class="question-mark">?</span>;
+                collector.visit_generics(trait_item.generics);
+                collector.visit_fn_decl(fn_sig.decl);
+                collector.collect_from_opaque_impl()<span class="question-mark">?</span>;
             }
             rustc_hir::TraitItemKind::Const(..) | rustc_hir::TraitItemKind::Type(..) =&gt; {}
         }
 
-        <span class="prelude-val">Ok</span>(table)
+        collector.into_result()
     }
 
-    <span class="kw">fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: ResKey, res: <span class="kw">impl </span>Into&lt;ResEntry&gt;) {
-        <span class="self">self</span>.res.insert(key, res.into());
-    }
-
-    <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>ResKey) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ResEntry&gt; {
-        <span class="self">self</span>.res.get(key)
-    }
-
-    <span class="kw">fn </span>collect_from_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, generics: <span class="kw-2">&amp;</span>hir::Generics&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
-        generics
-            .predicates
-            .iter()
-            .try_for_each_exhaust(|pred| <span class="self">self</span>.collect_from_where_predicate(pred))
-    }
-
-    <span class="kw">fn </span>collect_from_where_predicate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, clause: <span class="kw-2">&amp;</span>hir::WherePredicate) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">if let </span>hir::WherePredicate::BoundPredicate(bound) = clause {
-            <span class="self">self</span>.collect_from_ty(bound.bounded_ty)<span class="question-mark">?</span>;
-            <span class="self">self</span>.collect_from_generic_bounds(bound.bounds)<span class="question-mark">?</span>;
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>collect_from_generic_bounds(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bounds: <span class="kw-2">&amp;</span>[hir::GenericBound&lt;<span class="lifetime">&#39;_</span>&gt;]) -&gt; <span class="prelude-ty">Result </span>{
-        bounds
-            .iter()
-            .try_for_each_exhaust(|b| <span class="self">self</span>.collect_from_generic_bound(b))<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>collect_from_generic_bound(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bound: <span class="kw-2">&amp;</span>hir::GenericBound) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">match </span>bound {
-            hir::GenericBound::Trait(poly_trait_ref, <span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.collect_from_path(poly_trait_ref.trait_ref.path)
-            }
-            hir::GenericBound::LangItemTrait(.., args) =&gt; <span class="self">self</span>.collect_from_generic_args(args),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(()),
-        }
-    }
-
-    <span class="kw">fn </span>collect_from_opaque_impls(<span class="kw-2">&amp;mut </span><span class="self">self</span>, tcx: TyCtxt) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>collect_from_opaque_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">if let </span><span class="prelude-val">Some</span>(item_id) = <span class="self">self</span>.opaque {
-            <span class="kw">let </span>item_kind = tcx.hir().item(item_id).kind;
-            <span class="kw">if let </span>ItemKind::OpaqueTy(opaque_ty) = item_kind {
-                <span class="self">self</span>.collect_from_generic_bounds(opaque_ty.bounds)<span class="question-mark">?</span>;
+            <span class="kw">let </span>item = <span class="self">self</span>.tcx.hir().item(item_id);
+            <span class="kw">if let </span>ItemKind::OpaqueTy(<span class="kw">_</span>) = item.kind {
+                <span class="self">self</span>.visit_item(item);
             }
         }
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>collect_from_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fn_sig: <span class="kw-2">&amp;</span>hir::FnSig) -&gt; <span class="prelude-ty">Result </span>{
-        fn_sig
-            .decl
-            .inputs
-            .iter()
-            .try_for_each_exhaust(|ty| <span class="self">self</span>.collect_from_ty(ty))<span class="question-mark">?</span>;
-
-        <span class="kw">if let </span>hir::FnRetTy::Return(ty) = fn_sig.decl.output {
-            <span class="self">self</span>.collect_from_ty(ty)<span class="question-mark">?</span>;
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>collect_from_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>hir::Ty) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
-            hir::TyKind::Slice(ty) | hir::TyKind::Array(ty, <span class="kw">_</span>) =&gt; <span class="self">self</span>.collect_from_ty(ty),
-            hir::TyKind::Ptr(mut_ty) | hir::TyKind::Ref(<span class="kw">_</span>, mut_ty) =&gt; {
-                <span class="self">self</span>.collect_from_ty(mut_ty.ty)
-            }
-            hir::TyKind::Tup(tys) =&gt; tys.iter().try_for_each(|ty| <span class="self">self</span>.collect_from_ty(ty)),
-            hir::TyKind::Path(qpath) =&gt; {
-                <span class="kw">match </span>qpath {
-                    hir::QPath::Resolved(self_ty, path) =&gt; {
-                        <span class="self">self</span>.collect_from_path(path)<span class="question-mark">?</span>;
-                        <span class="kw">if let </span><span class="prelude-val">Some</span>(self_ty) = self_ty {
-                            <span class="self">self</span>.collect_from_ty(self_ty)<span class="question-mark">?</span>;
-                        }
-                    }
-                    hir::QPath::TypeRelative(ty, _path_segment) =&gt; {
-                        <span class="self">self</span>.collect_from_ty(ty)<span class="question-mark">?</span>;
-                    }
-                    hir::QPath::LangItem(..) =&gt; {}
-                }
-                <span class="prelude-val">Ok</span>(())
-            }
-            hir::TyKind::OpaqueDef(item_id, ..) =&gt; {
-                <span class="macro">assert!</span>(<span class="self">self</span>.opaque.is_none());
-                <span class="kw">if </span><span class="self">self</span>.opaque.is_some() {
-                    <span class="prelude-val">Err</span>(<span class="self">self</span>.sess.emit_err(errors::UnsupportedSignature::new(
-                        ty.span,
-                        <span class="string">&quot;duplicate opaque types in signature&quot;</span>,
-                    )))
-                } <span class="kw">else </span>{
-                    <span class="self">self</span>.opaque = <span class="prelude-val">Some</span>(<span class="kw-2">*</span>item_id);
-                    <span class="prelude-val">Ok</span>(())
-                }
-            }
-            hir::TyKind::BareFn(<span class="kw">_</span>)
-            | hir::TyKind::Never
-            | hir::TyKind::TraitObject(..)
-            | hir::TyKind::Typeof(<span class="kw">_</span>)
-            | hir::TyKind::Infer
-            | hir::TyKind::Err(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
-        }
-    }
-
-    <span class="kw">fn </span>collect_from_generic_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>rustc_hir::GenericArgs) -&gt; <span class="prelude-ty">Result </span>{
-        args.args
-            .iter()
-            .copied()
-            .try_for_each_exhaust(|arg| <span class="self">self</span>.collect_from_generic_arg(<span class="kw-2">&amp;</span>arg))<span class="question-mark">?</span>;
-
-        args.bindings
-            .iter()
-            .copied()
-            .try_for_each_exhaust(|binding| <span class="self">self</span>.collect_from_type_binding(<span class="kw-2">&amp;</span>binding))<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>collect_from_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>hir::Path&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span>key = ResKey::from_hir_path(<span class="self">self</span>.sess, path)<span class="question-mark">?</span>;
-
-        <span class="kw">let </span>res = path
-            .res
-            .try_into()
-            .map_or_else(|<span class="kw">_</span>| ResEntry::unsupported(<span class="kw-2">*</span>path), ResEntry::Res);
-        <span class="self">self</span>.insert(key, res);
-
-        <span class="kw">if let </span>[.., PathSegment { args: <span class="prelude-val">Some</span>(args), .. }] = path.segments {
-            <span class="self">self</span>.collect_from_generic_args(args)<span class="question-mark">?</span>;
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>collect_from_type_binding(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binding: <span class="kw-2">&amp;</span>hir::TypeBinding&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">match </span>binding.kind {
-            hir::TypeBindingKind::Equality { term } =&gt; <span class="self">self</span>.collect_from_term(<span class="kw-2">&amp;</span>term),
-            hir::TypeBindingKind::Constraint { bounds } =&gt; {
-                bounds
-                    .iter()
-                    .try_for_each_exhaust(|bound| <span class="self">self</span>.collect_from_generic_bound(bound))
-            }
-        }
-    }
-
-    <span class="kw">fn </span>collect_from_term(<span class="kw-2">&amp;mut </span><span class="self">self</span>, term: <span class="kw-2">&amp;</span>hir::Term&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">match </span>term {
-            hir::Term::Ty(ty) =&gt; <span class="self">self</span>.collect_from_ty(ty),
-            hir::Term::Const(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
-        }
-    }
-
-    <span class="kw">fn </span>collect_from_generic_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>hir::GenericArg) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">match </span>arg {
-            hir::GenericArg::Type(ty) =&gt; <span class="self">self</span>.collect_from_ty(ty),
-            hir::GenericArg::Lifetime(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
-            hir::GenericArg::Const(<span class="kw">_</span>) =&gt; {
-                <span class="prelude-val">Err</span>(<span class="self">self</span>.sess.emit_err(errors::UnsupportedSignature::new(
-                    arg.span(),
-                    <span class="string">&quot;const generics are not supported yet&quot;</span>,
-                )))
-            }
-
-            hir::GenericArg::Infer(<span class="kw">_</span>) =&gt; <span class="macro">unreachable!</span>(),
-        }
+    <span class="kw">fn </span>into_result(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(NameResTable, <span class="prelude-ty">Option</span>&lt;ItemId&gt;)&gt; {
+        <span class="self">self</span>.errors.into_result()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>((<span class="self">self</span>.table, <span class="self">self</span>.opaque))
     }
 }
 
-<span class="kw">impl </span>ResKey {
-    <span class="kw">fn </span>from_ident(ident: Ident) -&gt; <span class="self">Self </span>{
-        ResKey { s: <span class="macro">format!</span>(<span class="string">&quot;{ident}&quot;</span>) }
-    }
-
-    <span class="kw">fn </span>from_path(path: <span class="kw-2">&amp;</span>Path) -&gt; ResKey {
-        <span class="kw">let </span>s = path.segments.iter().join(<span class="string">&quot;::&quot;</span>);
-        ResKey { s }
-    }
-
-    <span class="kw">fn </span>from_hir_path(sess: <span class="kw-2">&amp;</span>FluxSession, path: <span class="kw-2">&amp;</span>rustc_hir::Path) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">if let </span>[prefix @ .., <span class="kw">_</span>] = path.segments
-            &amp;&amp; prefix.iter().any(|segment| segment.args.is_some())
-        {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(sess.emit_err(errors::UnsupportedSignature::new(
-                path.span,
-                <span class="string">&quot;path segments with generic arguments are not supported&quot;</span>,
-            )));
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;tcx</span>&gt; hir::intravisit::Visitor&lt;<span class="lifetime">&#39;tcx</span>&gt; <span class="kw">for </span>NameResCollector&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::Ty&lt;<span class="lifetime">&#39;tcx</span>&gt;) {
+        <span class="kw">if let </span>hir::TyKind::OpaqueDef(item_id, ..) = ty.kind {
+            <span class="kw">if </span><span class="self">self</span>.opaque.is_some() {
+                <span class="self">self</span>.errors.emit(errors::UnsupportedSignature::new(
+                    ty.span,
+                    <span class="string">&quot;duplicate opaque types in signature&quot;</span>,
+                ));
+            } <span class="kw">else </span>{
+                <span class="self">self</span>.opaque = <span class="prelude-val">Some</span>(item_id);
+            }
         }
-        <span class="kw">let </span>s = path.segments.iter().map(|segment| segment.ident).join(<span class="string">&quot;::&quot;</span>);
-        <span class="prelude-val">Ok</span>(ResKey { s })
+        hir::intravisit::walk_ty(<span class="self">self</span>, ty);
     }
-}
 
-<span class="kw">impl </span>From&lt;Res&gt; <span class="kw">for </span>ResEntry {
-    <span class="kw">fn </span>from(res: Res) -&gt; <span class="self">Self </span>{
-        ResEntry::Res(res)
-    }
-}
-
-<span class="kw">impl </span>ResEntry {
-    <span class="kw">fn </span>unsupported(path: hir::Path) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::Unsupported { span: path.span, reason: <span class="macro">format!</span>(<span class="string">&quot;unsupported res `{:?}`&quot;</span>, path.res) }
+    <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>hir::Path&lt;<span class="lifetime">&#39;tcx</span>&gt;, _id: hir::HirId) {
+        <span class="self">self</span>.table.insert_hir_path(path);
+        hir::intravisit::walk_path(<span class="self">self</span>, path);
     }
 }
 
@@ -1260,7 +1485,10 @@
 
     <span class="kw">impl </span>UnresolvedPath {
         <span class="kw">pub fn </span>new(path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="self">Self </span>{
-            <span class="self">Self </span>{ span: path.span, path: path.segments.iter().join(<span class="string">&quot;::&quot;</span>) }
+            <span class="self">Self </span>{
+                span: path.span,
+                path: path.segments.iter().map(|segment| segment.ident).join(<span class="string">&quot;::&quot;</span>),
+            }
         }
     }
 }

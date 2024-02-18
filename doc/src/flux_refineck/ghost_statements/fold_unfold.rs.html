@@ -843,11 +843,6 @@
 <a href="#843" id="843">843</a>
 <a href="#844" id="844">844</a>
 <a href="#845" id="845">845</a>
-<a href="#846" id="846">846</a>
-<a href="#847" id="847">847</a>
-<a href="#848" id="848">848</a>
-<a href="#849" id="849">849</a>
-<a href="#850" id="850">850</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, fmt, iter};
 
 <span class="kw">use </span>flux_common::tracked_span_bug;
@@ -880,7 +875,7 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>add_ghost_statements&lt;<span class="lifetime">&#39;tcx</span>&gt;(
     stmts: <span class="kw-2">&amp;mut </span>GhostStatements,
-    genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     body: <span class="kw-2">&amp;</span>Body&lt;<span class="lifetime">&#39;tcx</span>&gt;,
 ) -&gt; QueryResult {
     <span class="kw">let </span><span class="kw-2">mut </span>bb_envs = FxHashMap::default();
@@ -894,8 +889,8 @@
     map: IndexVec&lt;Local, PlaceNode&gt;,
 }
 
-<span class="kw">struct </span>FoldUnfoldAnalysis&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, M&gt; {
-    genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">struct </span>FoldUnfoldAnalysis&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, M&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     body: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Body&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     bb_envs: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>FxHashMap&lt;BasicBlock, Env&gt;,
     visited: BitSet&lt;BasicBlock&gt;,
@@ -1041,7 +1036,7 @@
     Ty(Ty),
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, M: Mode&gt; FoldUnfoldAnalysis&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, M&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, M: Mode&gt; FoldUnfoldAnalysis&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, M&gt; {
     <span class="kw">fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; QueryResult {
         <span class="self">self</span>.goto(START_BLOCK, START_BLOCK, Env::new(<span class="self">self</span>.body))<span class="question-mark">?</span>;
         <span class="kw">while let </span><span class="prelude-val">Some</span>(bb) = <span class="self">self</span>.queue.pop() {
@@ -1201,9 +1196,9 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, M&gt; FoldUnfoldAnalysis&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, M&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, M&gt; FoldUnfoldAnalysis&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, M&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(
-        genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         body: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Body&lt;<span class="lifetime">&#39;tcx</span>&gt;,
         bb_envs: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>FxHashMap&lt;BasicBlock, Env&gt;,
         mode: M,
@@ -1238,7 +1233,7 @@
         }
     }
 
-    <span class="kw">fn </span>projection(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: <span class="kw-2">&amp;</span>GlobalEnv, place: <span class="kw-2">&amp;</span>Place) -&gt; QueryResult&lt;ProjResult&gt; {
+    <span class="kw">fn </span>projection(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, place: <span class="kw-2">&amp;</span>Place) -&gt; QueryResult&lt;ProjResult&gt; {
         <span class="kw">let </span>(node, unfolded) = <span class="self">self</span>.unfold(genv, place)<span class="question-mark">?</span>;
         <span class="kw">if </span>unfolded {
             <span class="prelude-val">Ok</span>(ProjResult::Unfold)
@@ -1249,18 +1244,13 @@
         }
     }
 
-    <span class="kw">fn </span>downcast(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
-        place: <span class="kw-2">&amp;</span>Place,
-        variant_idx: VariantIdx,
-    ) -&gt; QueryResult {
+    <span class="kw">fn </span>downcast(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, place: <span class="kw-2">&amp;</span>Place, variant_idx: VariantIdx) -&gt; QueryResult {
         <span class="kw">let </span>(node, <span class="kw">_</span>) = <span class="self">self</span>.unfold(genv, place)<span class="question-mark">?</span>;
         node.downcast(genv, variant_idx)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>unfold(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: <span class="kw-2">&amp;</span>GlobalEnv, place: <span class="kw-2">&amp;</span>Place) -&gt; QueryResult&lt;(<span class="kw-2">&amp;mut </span>PlaceNode, bool)&gt; {
+    <span class="kw">fn </span>unfold(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, place: <span class="kw-2">&amp;</span>Place) -&gt; QueryResult&lt;(<span class="kw-2">&amp;mut </span>PlaceNode, bool)&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>node = <span class="kw-2">&amp;mut </span><span class="self">self</span>.map[place.local];
         <span class="kw">let </span><span class="kw-2">mut </span>unfolded = <span class="bool-val">false</span>;
         <span class="kw">for </span>elem <span class="kw">in </span><span class="kw-2">&amp;</span>place.projection {
@@ -1276,7 +1266,7 @@
         <span class="prelude-val">Ok</span>((node, unfolded))
     }
 
-    <span class="kw">fn </span>join(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: <span class="kw-2">&amp;</span>GlobalEnv, <span class="kw-2">mut </span>other: Env) -&gt; QueryResult&lt;bool&gt; {
+    <span class="kw">fn </span>join(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, <span class="kw-2">mut </span>other: Env) -&gt; QueryResult&lt;bool&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>modified = <span class="bool-val">false</span>;
         <span class="kw">for </span>(local, node) <span class="kw">in </span><span class="self">self</span>.map.iter_enumerated_mut() {
             <span class="kw">let </span>(m, <span class="kw">_</span>) = node.join(genv, <span class="kw-2">&amp;mut </span>other.map[local], <span class="bool-val">false</span>)<span class="question-mark">?</span>;
@@ -1313,7 +1303,7 @@
 
     <span class="kw">fn </span>downcast(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        genv: GlobalEnv,
         idx: VariantIdx,
     ) -&gt; QueryResult&lt;(<span class="kw-2">&amp;mut </span>PlaceNode, bool)&gt; {
         <span class="kw">match </span><span class="self">self </span>{
@@ -1334,12 +1324,12 @@
         }
     }
 
-    <span class="kw">fn </span>field(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: <span class="kw-2">&amp;</span>GlobalEnv, f: FieldIdx) -&gt; QueryResult&lt;(<span class="kw-2">&amp;mut </span>PlaceNode, bool)&gt; {
+    <span class="kw">fn </span>field(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, f: FieldIdx) -&gt; QueryResult&lt;(<span class="kw-2">&amp;mut </span>PlaceNode, bool)&gt; {
         <span class="kw">let </span>(fields, unfolded) = <span class="self">self</span>.fields(genv)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>((<span class="kw-2">&amp;mut </span>fields[f.as_usize()], unfolded))
     }
 
-    <span class="kw">fn </span>fields(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: <span class="kw-2">&amp;</span>GlobalEnv) -&gt; QueryResult&lt;(<span class="kw-2">&amp;mut </span>Vec&lt;PlaceNode&gt;, bool)&gt; {
+    <span class="kw">fn </span>fields(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;(<span class="kw-2">&amp;mut </span>Vec&lt;PlaceNode&gt;, bool)&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             PlaceNode::Ty(ty) =&gt; {
                 <span class="kw">let </span>fields = <span class="kw">match </span>ty.kind() {
@@ -1374,7 +1364,7 @@
                     }
                     TyKind::Coroutine(def_id, args) =&gt; {
                         <span class="kw">let </span>fields = args
-                            .as_generator()
+                            .as_coroutine()
                             .upvar_tys()
                             .cloned()
                             .map(PlaceNode::Ty)
@@ -1425,7 +1415,7 @@
 
     <span class="kw">fn </span>join(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        genv: GlobalEnv,
         other: <span class="kw-2">&amp;mut </span>PlaceNode,
         in_mut_ref: bool,
     ) -&gt; QueryResult&lt;(bool, bool)&gt; {
@@ -1614,7 +1604,7 @@
 }
 
 <span class="kw">fn </span>downcast(
-    genv: <span class="kw-2">&amp;</span>GlobalEnv,
+    genv: GlobalEnv,
     adt_def: <span class="kw-2">&amp;</span>AdtDef,
     args: <span class="kw-2">&amp;</span>GenericArgs,
     variant: VariantIdx,
@@ -1631,7 +1621,7 @@
 }
 
 <span class="kw">fn </span>downcast_struct(
-    genv: <span class="kw-2">&amp;</span>GlobalEnv,
+    genv: GlobalEnv,
     adt_def: <span class="kw-2">&amp;</span>AdtDef,
     args: <span class="kw-2">&amp;</span>GenericArgs,
 ) -&gt; QueryResult&lt;Vec&lt;PlaceNode&gt;&gt; {

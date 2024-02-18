@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ResEntry"],"mod":["errors"],"struct":["ItemLikeResolver","NameResTable","ResKey","Resolver","ResolverOutput"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"fn":["map_res","module_children","resolve_crate","try_resolve_crate"],"macro":["collect_err"],"mod":["errors","refinement_resolver"],"struct":["CrateResolver","ItemResolver","NameResCollector","NameResTable","ResTableNode","Rib"],"type":["Result"]};

@@ -225,7 +225,7 @@ thing).</p>
 <h2 id="a-note-about-the-flux-driver-binary"><a class="header" href="#a-note-about-the-flux-driver-binary">A note about the flux-driver binary</a></h2>
 <p>The <code>flux-driver</code> binary is a <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface">rustc
 driver</a>
-(similar to how clippy works) meaning it uses rustc as a library to &quot;drive&quot;
+(similar to how clippy works) meaning it uses rustc as a library to "drive"
 compilation performing additional analysis along the way. Running the binary
 requires dynamically linking a correct version of <code>librustc</code>. Thus, to avoid the
 hassle you should never execute it directly.  Instead, use <code>rustc-flux</code> or <code>cargo-flux</code>.</p>
@@ -234,11 +234,11 @@ hassle you should never execute it directly.  Instead, use <code>rustc-flux</cod
 <h3 id="rust-analyzer-in-vscode"><a class="header" href="#rust-analyzer-in-vscode">Rust-Analyzer in VSCode</a></h3>
 <p>Add this to the workspace settings i.e. <code>.vscode/settings.json</code></p>
 <pre><code class="language-json">{
-  &quot;rust-analyzer.check.overrideCommand&quot;: [
-    &quot;cargo&quot;,
-    &quot;flux&quot;,
-    &quot;--workspace&quot;,
-    &quot;--message-format=json-diagnostic-rendered-ansi&quot;
+  "rust-analyzer.check.overrideCommand": [
+    "cargo",
+    "flux",
+    "--workspace",
+    "--message-format=json-diagnostic-rendered-ansi"
   ]
 }
 </code></pre>
@@ -264,7 +264,7 @@ hassle you should never execute it directly.  Instead, use <code>rustc-flux</cod
 <li><code>FLUX_DUMP_MIR=1</code> saves the low-level MIR for each analyzed function</li>
 <li><code>FLUX_POINTER_WIDTH=N</code> the size of (either <code>32</code> or <code>64</code>), used to determine if an integer cast is lossy (default <code>64</code>).</li>
 <li><code>FLUX_CHECK_DEF=name</code> only checks definitions containing <code>name</code> as a substring</li>
-<li><code>FLUX_CACHE=1&quot;</code> switches on query caching and saves the cache in <code>FLUX_CACHE_FILE</code></li>
+<li><code>FLUX_CACHE=1"</code> switches on query caching and saves the cache in <code>FLUX_CACHE_FILE</code></li>
 <li><code>FLUX_CACHE_FILE=file.json</code> customizes the cache file, default <code>FLUX_LOG_DIR/cache.json</code></li>
 <li><code>FLUX_CHECK_OVERFLOW=1</code> checks for over and underflow on arithmetic integer
 operations, default <code>0</code>. When set to <code>0</code>, it still checks for underflow on
@@ -276,7 +276,7 @@ of a <code>flux</code> command line flag without the <code>FLUX_</code> prefix. 
 variables take priority over the config file.</p>
 <p>The config file should be in the project root.</p>
 <p>For example, suppose your project root contains the following <code>flux.toml</code>.</p>
-<pre><code class="language-toml">log_dir = &quot;./test&quot;
+<pre><code class="language-toml">log_dir = "./test"
 dump_timings = true
 dump_mir = true
 cache = true

@@ -423,13 +423,113 @@
 <a href="#423" id="423">423</a>
 <a href="#424" id="424">424</a>
 <a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
 
+<span class="kw">use </span>flux_common::index::IndexGen;
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
+<span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
+<span class="kw">use </span>rustc_macros::newtype_index;
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">use </span>rustc_span::{Pos, Span};
 <span class="kw">use </span>rustc_target::abi::FieldIdx;
+<span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 <span class="kw">use </span><span class="kw">crate</span>::intern::{Internable, Interned};
 
@@ -555,6 +655,7 @@
 }
 
 <span class="kw">pub use </span><span class="kw">crate</span>::_impl_debug_with_default_cx <span class="kw">as </span>impl_debug_with_default_cx;
+<span class="kw">use </span><span class="kw">crate</span>::rty::{BoundReft, BoundReftKind, BoundVariableKind};
 
 <span class="attr">#[derive(Copy, Clone)]
 </span><span class="kw">pub enum </span>KVarArgs {
@@ -563,7 +664,7 @@
     Hide,
 }
 
-<span class="kw">pub struct </span>PPrintCx&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">pub struct </span>PrettyCx&lt;<span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">pub </span>tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     <span class="kw">pub </span>kvar_args: KVarArgs,
     <span class="kw">pub </span>fully_qualified_paths: bool,
@@ -577,11 +678,47 @@
     <span class="kw">pub </span>hide_refinements: bool,
     <span class="kw">pub </span>hide_regions: bool,
     <span class="kw">pub </span>hide_binder: bool,
+    env: RefCell&lt;Env&gt;,
+}
+
+<span class="macro">newtype_index! </span>{
+    <span class="doccomment">/// Name used during pretty printing to format annonymous bound variables
+    </span><span class="attr">#[debug_format = <span class="string">&quot;b{}&quot;</span>]
+    </span><span class="kw">struct </span>BoundVarName {}
+}
+
+<span class="attr">#[derive(Default)]
+</span><span class="kw">struct </span>Env {
+    name_gen: IndexGen&lt;BoundVarName&gt;,
+    layers: Vec&lt;FxHashMap&lt;u32, BoundVarName&gt;&gt;,
+}
+
+<span class="kw">impl </span>Env {
+    <span class="kw">fn </span>lookup(<span class="kw-2">&amp;</span><span class="self">self</span>, debruijn: DebruijnIndex, index: u32) -&gt; <span class="prelude-ty">Option</span>&lt;BoundVarName&gt; {
+        <span class="self">self</span>.layers
+            .get(<span class="self">self</span>.layers.len().checked_sub(debruijn.as_usize() + <span class="number">1</span>)<span class="question-mark">?</span>)<span class="question-mark">?
+            </span>.get(<span class="kw-2">&amp;</span>index)
+            .copied()
+    }
+
+    <span class="kw">fn </span>push_layer(<span class="kw-2">&amp;mut </span><span class="self">self</span>, vars: <span class="kw-2">&amp;</span>[BoundVariableKind]) {
+        <span class="kw">let </span><span class="kw-2">mut </span>layer = FxHashMap::default();
+        <span class="kw">for </span>(idx, var) <span class="kw">in </span>vars.iter().enumerate() {
+            <span class="kw">if let </span>BoundVariableKind::Refine(<span class="kw">_</span>, <span class="kw">_</span>, BoundReftKind::Annon) = var {
+                layer.insert(idx <span class="kw">as </span>u32, <span class="self">self</span>.name_gen.fresh());
+            }
+        }
+        <span class="self">self</span>.layers.push(layer);
+    }
+
+    <span class="kw">fn </span>pop_layer(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.layers.pop();
+    }
 }
 
 <span class="kw">pub struct </span>WithCx&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, T&gt; {
     data: T,
-    cx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>PPrintCx&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    cx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>PrettyCx&lt;<span class="lifetime">&#39;tcx</span>&gt;,
 }
 
 <span class="kw">pub struct </span>Join&lt;<span class="lifetime">&#39;a</span>, I&gt; {
@@ -595,10 +732,10 @@
 }
 
 <span class="kw">pub trait </span>Pretty {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result;
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result;
 
-    <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PPrintCx {
-        PPrintCx::default(tcx)
+    <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
+        PrettyCx::default(tcx)
     }
 }
 
@@ -624,9 +761,9 @@
     };
 }
 
-<span class="kw">impl </span>PPrintCx&lt;<span class="lifetime">&#39;_</span>&gt; {
-    <span class="kw">pub fn </span>default(tcx: TyCtxt) -&gt; PPrintCx {
-        PPrintCx {
+<span class="kw">impl </span>PrettyCx&lt;<span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">pub fn </span>default(tcx: TyCtxt) -&gt; PrettyCx {
+        PrettyCx {
             tcx,
             kvar_args: KVarArgs::SelfOnly,
             fully_qualified_paths: <span class="bool-val">false</span>,
@@ -640,6 +777,7 @@
             hide_refinements: <span class="bool-val">false</span>,
             hide_regions: <span class="bool-val">false</span>,
             hide_binder: <span class="bool-val">false</span>,
+            env: RefCell::new(Env::default()),
         }
     }
 
@@ -664,6 +802,60 @@
         );
     }
 
+    <span class="kw">pub fn </span>with_bound_vars&lt;R&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, vars: <span class="kw-2">&amp;</span>[BoundVariableKind], f: <span class="kw">impl </span>FnOnce() -&gt; R) -&gt; R {
+        <span class="self">self</span>.env.borrow_mut().push_layer(vars);
+        <span class="kw">let </span>r = f();
+        <span class="self">self</span>.env.borrow_mut().pop_layer();
+        r
+    }
+
+    <span class="kw">pub fn </span>fmt_bound_vars(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        left: <span class="kw-2">&amp;</span>str,
+        vars: <span class="kw-2">&amp;</span>[BoundVariableKind],
+        right: <span class="kw-2">&amp;</span>str,
+        f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; fmt::Result {
+        <span class="macro">define_scoped!</span>(<span class="self">self</span>, f);
+        <span class="macro">w!</span>(<span class="string">&quot;{left}&quot;</span>)<span class="question-mark">?</span>;
+        <span class="kw">for </span>(i, var) <span class="kw">in </span>vars.iter().enumerate() {
+            <span class="kw">if </span>i &gt; <span class="number">0 </span>{
+                <span class="macro">w!</span>(<span class="string">&quot;, &quot;</span>)<span class="question-mark">?</span>;
+            }
+            <span class="kw">match </span>var {
+                BoundVariableKind::Region(re) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, re)<span class="question-mark">?</span>,
+                BoundVariableKind::Refine(<span class="kw">_</span>, <span class="kw">_</span>, BoundReftKind::Named(name)) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^name)<span class="question-mark">?</span>,
+                BoundVariableKind::Refine(<span class="kw">_</span>, <span class="kw">_</span>, BoundReftKind::Annon) =&gt; {
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.borrow().lookup(INNERMOST, i <span class="kw">as </span>u32) {
+                        <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ^name)<span class="question-mark">?</span>;
+                    } <span class="kw">else </span>{
+                        <span class="macro">w!</span>(<span class="string">&quot;_&quot;</span>)<span class="question-mark">?</span>;
+                    }
+                }
+            }
+        }
+        <span class="macro">w!</span>(<span class="string">&quot;{right}&quot;</span>)
+    }
+
+    <span class="kw">pub fn </span>fmt_bound_reft(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        debruijn: DebruijnIndex,
+        var: BoundReft,
+        f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; fmt::Result {
+        <span class="macro">define_scoped!</span>(<span class="self">self</span>, f);
+        <span class="kw">match </span>var.kind {
+            BoundReftKind::Annon =&gt; {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.borrow().lookup(debruijn, var.index) {
+                    <span class="macro">w!</span>(<span class="string">&quot;{name:?}&quot;</span>)
+                } <span class="kw">else </span>{
+                    <span class="macro">w!</span>(<span class="string">&quot;⭡{}/#{}&quot;</span>, ^debruijn.as_usize(), ^var.index)
+                }
+            }
+            BoundReftKind::Named(name) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{name}&quot;</span>),
+        }
+    }
+
     <span class="kw">pub fn </span>kvar_args(<span class="self">self</span>, kvar_args: KVarArgs) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ kvar_args, ..<span class="self">self </span>}
     }
@@ -686,19 +878,19 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, T&gt; WithCx&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, T&gt; {
-    <span class="kw">pub fn </span>new(cx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>PPrintCx&lt;<span class="lifetime">&#39;tcx</span>&gt;, data: T) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(cx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>PrettyCx&lt;<span class="lifetime">&#39;tcx</span>&gt;, data: T) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ data, cx }
     }
 }
 
 <span class="kw">impl</span>&lt;T: Pretty + <span class="question-mark">?</span>Sized&gt; Pretty <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>T {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         &lt;T <span class="kw">as </span>Pretty&gt;::fmt(<span class="self">self</span>, cx, f)
     }
 }
 
 <span class="kw">impl</span>&lt;T: Pretty + Internable&gt; Pretty <span class="kw">for </span>Interned&lt;T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         &lt;T <span class="kw">as </span>Pretty&gt;::fmt(<span class="self">self</span>, cx, f)
     }
 }
@@ -727,7 +919,7 @@
     </span>T: Pretty,
     I: Iterator&lt;Item = T&gt;,
 {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">let </span><span class="prelude-val">Some</span>(iter) = <span class="self">self</span>.iter.borrow_mut().take() <span class="kw">else </span>{
             <span class="macro">panic!</span>(<span class="string">&quot;Join: was already formatted once&quot;</span>)
         };
@@ -744,7 +936,7 @@
 <span class="kw">where
     </span>T: Pretty,
 {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">if </span><span class="self">self</span>.parenthesize {
             <span class="macro">write!</span>(f, <span class="string">&quot;(&quot;</span>)<span class="question-mark">?</span>;
         }
@@ -763,7 +955,7 @@
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>DefId {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
 
         <span class="kw">let </span>path = cx.tcx.def_path(<span class="kw-2">*</span><span class="self">self</span>);
@@ -777,17 +969,17 @@
 }
 
 <span class="kw">pub fn </span>def_id_to_string(def_id: DefId) -&gt; String {
-    rustc_middle::ty::tls::with(|tcx| <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, WithCx::new(<span class="kw-2">&amp;</span>PPrintCx::default(tcx), def_id)))
+    rustc_middle::ty::tls::with(|tcx| <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, WithCx::new(<span class="kw-2">&amp;</span>PrettyCx::default(tcx), def_id)))
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>FieldIdx {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.as_u32())
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>Span {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">if </span>cx.full_spans {
             <span class="macro">write!</span>(f, <span class="string">&quot;{self:?}&quot;</span>)
         } <span class="kw">else </span>{

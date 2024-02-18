@@ -749,24 +749,6 @@
 <a href="#749" id="749">749</a>
 <a href="#750" id="750">750</a>
 <a href="#751" id="751">751</a>
-<a href="#752" id="752">752</a>
-<a href="#753" id="753">753</a>
-<a href="#754" id="754">754</a>
-<a href="#755" id="755">755</a>
-<a href="#756" id="756">756</a>
-<a href="#757" id="757">757</a>
-<a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
-<a href="#762" id="762">762</a>
-<a href="#763" id="763">763</a>
-<a href="#764" id="764">764</a>
-<a href="#765" id="765">765</a>
-<a href="#766" id="766">766</a>
-<a href="#767" id="767">767</a>
-<a href="#768" id="768">768</a>
-<a href="#769" id="769">769</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
@@ -777,7 +759,7 @@
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">pub use </span>rustc_borrowck::borrow_set::BorrowData;
-<span class="kw">use </span>rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex, RegionInferenceContext};
+<span class="kw">use </span>rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex};
 <span class="kw">use </span>rustc_data_structures::{fx::FxIndexMap, graph::dominators::Dominators};
 <span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
 <span class="kw">use </span>rustc_index::IndexSlice;
@@ -852,7 +834,7 @@
 
 <span class="kw">pub type </span>LocalDecls = IndexSlice&lt;Local, LocalDecl&gt;;
 
-<span class="attr">#[derive(Clone)]
+<span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>LocalDecl {
     <span class="kw">pub </span>ty: Ty,
     <span class="kw">pub </span>source_info: SourceInfo,
@@ -1090,11 +1072,6 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.body_with_facts.body
     }
 
-    <span class="doccomment">/// see (NOTE:YIELD)
-    </span><span class="kw">pub fn </span>resume_local(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Local&gt; {
-        <span class="self">self</span>.args_iter().nth(<span class="number">1</span>)
-    }
-
     <span class="attr">#[inline]
     </span><span class="kw">pub fn </span>args_iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>ExactSizeIterator&lt;Item = Local&gt; {
         (<span class="number">1</span>..<span class="self">self</span>.body_with_facts.body.arg_count + <span class="number">1</span>).map(Local::new)
@@ -1133,10 +1110,6 @@
         )
     }
 
-    <span class="kw">pub fn </span>region_inference_context(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RegionInferenceContext&lt;<span class="lifetime">&#39;tcx</span>&gt; {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.body_with_facts.region_inference_context
-    }
-
     <span class="kw">pub fn </span>borrow_data(<span class="kw-2">&amp;</span><span class="self">self</span>, idx: BorrowIndex) -&gt; <span class="kw-2">&amp;</span>BorrowData&lt;<span class="lifetime">&#39;tcx</span>&gt; {
         <span class="self">self</span>.body_with_facts
             .borrow_set
@@ -1162,7 +1135,7 @@
         Place { local, projection }
     }
 
-    <span class="kw">pub fn </span>ty(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: <span class="kw-2">&amp;</span>GlobalEnv, local_decls: <span class="kw-2">&amp;</span>LocalDecls) -&gt; QueryResult&lt;PlaceTy&gt; {
+    <span class="kw">pub fn </span>ty(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv, local_decls: <span class="kw-2">&amp;</span>LocalDecls) -&gt; QueryResult&lt;PlaceTy&gt; {
         <span class="self">self</span>.projection
             .iter()
             .try_fold(PlaceTy::from_ty(local_decls[<span class="self">self</span>.local].ty.clone()), |place_ty, elem| {
@@ -1170,7 +1143,7 @@
             })
     }
 
-    <span class="kw">pub fn </span>behind_raw_ptr(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: <span class="kw-2">&amp;</span>GlobalEnv, local_decls: <span class="kw-2">&amp;</span>LocalDecls) -&gt; QueryResult&lt;bool&gt; {
+    <span class="kw">pub fn </span>behind_raw_ptr(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv, local_decls: <span class="kw-2">&amp;</span>LocalDecls) -&gt; QueryResult&lt;bool&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>place_ty = PlaceTy::from_ty(local_decls[<span class="self">self</span>.local].ty.clone());
         <span class="kw">for </span>elem <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.projection {
             <span class="kw">if let </span>(PlaceElem::Deref, TyKind::RawPtr(..)) = (elem, place_ty.ty.kind()) {
@@ -1187,7 +1160,7 @@
         PlaceTy { ty, variant_index: <span class="prelude-val">None </span>}
     }
 
-    <span class="kw">fn </span>projection_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: <span class="kw-2">&amp;</span>GlobalEnv, elem: PlaceElem) -&gt; QueryResult&lt;PlaceTy&gt; {
+    <span class="kw">fn </span>projection_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv, elem: PlaceElem) -&gt; QueryResult&lt;PlaceTy&gt; {
         <span class="kw">if </span><span class="self">self</span>.variant_index.is_some() &amp;&amp; !<span class="macro">matches!</span>(elem, PlaceElem::Field(..)) {
             <span class="macro">bug!</span>(<span class="string">&quot;cannot use non field projection on downcasted place&quot;</span>);
         }
@@ -1208,7 +1181,7 @@
         <span class="prelude-val">Ok</span>(place_ty)
     }
 
-    <span class="kw">fn </span>field_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: <span class="kw-2">&amp;</span>GlobalEnv, f: FieldIdx) -&gt; QueryResult&lt;Ty&gt; {
+    <span class="kw">fn </span>field_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv, f: FieldIdx) -&gt; QueryResult&lt;Ty&gt; {
         <span class="kw">match </span><span class="self">self</span>.ty.kind() {
             TyKind::Adt(adt_def, args) =&gt; {
                 <span class="kw">let </span>variant_def = <span class="kw">match </span><span class="self">self</span>.variant_index {
@@ -1224,15 +1197,6 @@
             }
             TyKind::Tuple(tys) =&gt; <span class="prelude-val">Ok</span>(tys[f.index()].clone()),
             <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;extracting field of non-tuple non-adt: {self:?}&quot;</span>),
-        }
-    }
-}
-
-<span class="kw">impl </span>PlaceElem {
-    <span class="kw">pub fn </span>as_field(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;FieldIdx&gt; {
-        <span class="kw">match </span><span class="self">self </span>{
-            PlaceElem::Field(field) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>field),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
 }

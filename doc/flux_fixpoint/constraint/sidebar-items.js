@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["BinOp","Constant","Constraint","Expr","Func","Pred","Proj","Sort","SortCtor","UnOp"],"static":["DEFAULT_QUALIFIERS"],"struct":["Const","FmtParens","FuncSort","PolyFuncSort","PredTag","Qualifier"]};
+window.SIDEBAR_ITEMS = {"enum":["BinOp","BinRel","Constant","Constraint","Expr","Pred","Sort","SortCtor"],"fn":["fmt_func"],"static":["DEFAULT_QUALIFIERS"],"struct":["Bind","Const","DataCtor","DataDecl","DataField","FmtParens","PredTag","Qualifier"]};

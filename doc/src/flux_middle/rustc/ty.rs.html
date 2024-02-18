@@ -718,6 +718,33 @@
 <a href="#718" id="718">718</a>
 <a href="#719" id="719">719</a>
 <a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
@@ -728,8 +755,8 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_index::{IndexSlice, IndexVec};
-<span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-<span class="kw">use </span>rustc_middle::ty::{AdtFlags, ParamConst};
+<span class="kw">use </span>rustc_macros::{TyDecodable, TyEncodable};
+<span class="kw">use </span>rustc_middle::ty::{AdtFlags, ParamConst, TyCtxt};
 <span class="kw">pub use </span>rustc_middle::{
     mir::Mutability,
     ty::{
@@ -746,7 +773,8 @@
     pretty::def_id_to_string,
 };
 
-<span class="kw">pub struct </span>Generics&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+<span class="attr">#[derive(Clone)]
+</span><span class="kw">pub struct </span>Generics&lt;<span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">pub </span>params: List&lt;GenericParamDef&gt;,
     <span class="kw">pub </span>orig: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>rustc_middle::ty::Generics,
 }
@@ -754,7 +782,7 @@
 <span class="attr">#[derive(Clone)]
 </span><span class="kw">pub struct </span>EarlyBinder&lt;T&gt;(<span class="kw">pub </span>T);
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash)]
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>Binder&lt;T&gt;(T, List&lt;BoundVariableKind&gt;);
 
 <span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
@@ -777,7 +805,7 @@
     Const { has_default: bool },
 }
 
-<span class="attr">#[derive(Debug)]
+<span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>GenericPredicates {
     <span class="kw">pub </span>parent: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
     <span class="kw">pub </span>predicates: List&lt;Clause&gt;,
@@ -813,14 +841,14 @@
     <span class="kw">pub </span>projection_ty: AliasTy,
     <span class="kw">pub </span>term: Ty,
 }
-<span class="attr">#[derive(Clone, Hash, PartialEq, Eq)]
+<span class="attr">#[derive(Clone, Hash, PartialEq, Eq, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>FnSig {
     <span class="kw">pub</span>(<span class="kw">crate</span>) inputs_and_output: List&lt;Ty&gt;,
 }
 
 <span class="kw">pub type </span>PolyFnSig = Binder&lt;FnSig&gt;;
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash)]
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>Ty(Interned&lt;TyS&gt;);
 
 <span class="attr">#[derive(Debug, Eq, PartialEq, Hash, Clone, TyEncodable, TyDecodable)]
@@ -846,12 +874,12 @@
     <span class="kw">pub </span>name: Symbol,
 }
 
-<span class="attr">#[derive(Debug, PartialEq, Eq, Hash)]
+<span class="attr">#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">struct </span>TyS {
     kind: TyKind,
 }
 
-<span class="attr">#[derive(Debug, PartialEq, Eq, Hash)]
+<span class="attr">#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>TyKind {
     Adt(AdtDef, GenericArgs),
     Array(Ty, Const),
@@ -874,36 +902,40 @@
     RawPtr(Ty, Mutability),
 }
 
-<span class="attr">#[derive(Debug, PartialEq, Eq, Hash)]
+<span class="attr">#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>AliasTy {
     <span class="kw">pub </span>args: GenericArgs,
     <span class="kw">pub </span>def_id: DefId,
 }
 
-<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>AliasKind {
     Projection,
     Opaque,
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable, Debug)]
-</span><span class="kw">pub struct </span>ValueConst {
-    <span class="kw">pub </span>val: usize,
-}
-
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-</span><span class="kw">pub enum </span>Const {
-    Param(ParamConst),
-    Value(ValueConst),
+</span><span class="kw">pub struct </span>Const {
+    <span class="kw">pub </span>kind: ConstKind,
+    <span class="kw">pub </span>ty: Ty,
 }
 
-<span class="kw">impl </span>From&lt;usize&gt; <span class="kw">for </span>Const {
-    <span class="kw">fn </span>from(val: usize) -&gt; <span class="self">Self </span>{
-        Const::Value(ValueConst { val })
+<span class="kw">impl </span>Const {
+    <span class="kw">pub fn </span>from_array_len(tcx: TyCtxt, len: usize) -&gt; Const {
+        Const {
+            kind: ConstKind::Value(ScalarInt::try_from_target_usize(len <span class="kw">as </span>u128, tcx).unwrap()),
+            ty: Ty::mk_uint(UintTy::Usize),
+        }
     }
 }
 
-<span class="attr">#[derive(PartialEq, Eq, Hash)]
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+</span><span class="kw">pub enum </span>ConstKind {
+    Param(ParamConst),
+    Value(ScalarInt),
+}
+
+<span class="attr">#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>GenericArg {
     Ty(Ty),
     Lifetime(Region),
@@ -917,11 +949,11 @@
         ClosureArgs { args: <span class="self">self</span>.clone() }
     }
 
-    <span class="kw">pub fn </span>as_generator(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; GeneratorArgs {
-        GeneratorArgs { args: <span class="self">self</span>.clone() }
+    <span class="kw">pub fn </span>as_coroutine(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CoroutineArgs {
+        CoroutineArgs { args: <span class="self">self</span>.clone() }
     }
 }
-<span class="kw">pub struct </span>GeneratorArgs {
+<span class="kw">pub struct </span>CoroutineArgs {
     <span class="kw">pub </span>args: GenericArgs,
 }
 
@@ -938,13 +970,13 @@
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>GeneratorArgsParts&lt;<span class="lifetime">&#39;a</span>, T&gt; {
-    <span class="kw">pub </span>parent_args: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[T],
-    <span class="kw">pub </span>resume_ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T,
-    <span class="kw">pub </span>yield_ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T,
-    <span class="kw">pub </span>return_ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T,
-    <span class="kw">pub </span>witness: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T,
-    <span class="kw">pub </span>tupled_upvars_ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T,
+</span><span class="kw">pub struct </span>CoroutineArgsParts&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">pub </span>parent_args: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[GenericArg],
+    <span class="kw">pub </span>resume_ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Ty,
+    <span class="kw">pub </span>yield_ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Ty,
+    <span class="kw">pub </span>return_ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Ty,
+    <span class="kw">pub </span>witness: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Ty,
+    <span class="kw">pub </span>tupled_upvars_ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Ty,
 }
 
 <span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -954,6 +986,22 @@
     ReStatic,
     ReVar(RegionVid),
     ReFree(FreeRegion),
+}
+
+<span class="kw">impl </span>Region {
+    <span class="kw">pub fn </span>to_rustc(<span class="self">self</span>, tcx: TyCtxt) -&gt; rustc_middle::ty::Region {
+        <span class="kw">match </span><span class="self">self </span>{
+            Region::ReLateBound(debruijn, bound_region) =&gt; {
+                rustc_middle::ty::Region::new_late_bound(tcx, debruijn, bound_region.to_rustc())
+            }
+            Region::ReEarlyBound(ebr) =&gt; rustc_middle::ty::Region::new_early_bound(tcx, ebr),
+            Region::ReStatic =&gt; tcx.lifetimes.re_static,
+            Region::ReVar(rvid) =&gt; rustc_middle::ty::Region::new_var(tcx, rvid),
+            Region::ReFree(FreeRegion { scope, bound_region }) =&gt; {
+                rustc_middle::ty::Region::new_free(tcx, scope, bound_region)
+            }
+        }
+    }
 }
 
 <span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -966,6 +1014,12 @@
 </span><span class="kw">pub struct </span>BoundRegion {
     <span class="kw">pub </span>var: BoundVar,
     <span class="kw">pub </span>kind: BoundRegionKind,
+}
+
+<span class="kw">impl </span>BoundRegion {
+    <span class="kw">fn </span>to_rustc(<span class="self">self</span>) -&gt; rustc_middle::ty::BoundRegion {
+        rustc_middle::ty::BoundRegion { var: <span class="self">self</span>.var, kind: <span class="self">self</span>.kind }
+    }
 }
 
 <span class="kw">impl </span>Generics&lt;<span class="lifetime">&#39;_</span>&gt; {
@@ -1054,25 +1108,29 @@
     }
 }
 
-<span class="kw">impl </span>GeneratorArgs {
+<span class="kw">impl </span>CoroutineArgs {
     <span class="kw">pub fn </span>tupled_upvars_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Ty {
-        <span class="self">self</span>.split().tupled_upvars_ty.expect_type()
+        <span class="self">self</span>.split().tupled_upvars_ty
     }
 
     <span class="kw">pub fn </span>upvar_tys(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>Ty&gt; {
         <span class="self">self</span>.tupled_upvars_ty().tuple_fields().iter()
     }
 
-    <span class="kw">fn </span>split(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; GeneratorArgsParts&lt;GenericArg&gt; {
+    <span class="kw">pub fn </span>resume_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Ty {
+        <span class="self">self</span>.split().resume_ty
+    }
+
+    <span class="kw">fn </span>split(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CoroutineArgsParts {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.args[..] {
             [<span class="kw-2">ref </span>parent_args @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] =&gt; {
-                GeneratorArgsParts {
+                CoroutineArgsParts {
                     parent_args,
-                    resume_ty,
-                    yield_ty,
-                    return_ty,
-                    witness,
-                    tupled_upvars_ty,
+                    resume_ty: resume_ty.expect_type(),
+                    yield_ty: yield_ty.expect_type(),
+                    return_ty: return_ty.expect_type(),
+                    witness: witness.expect_type(),
+                    tupled_upvars_ty: tupled_upvars_ty.expect_type(),
                 }
             }
             <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;generator args missing synthetics&quot;</span>),
@@ -1255,10 +1313,6 @@
         TyKind::Char.intern()
     }
 
-    <span class="kw">pub fn </span>mk_usize() -&gt; Ty {
-        TyKind::Uint(UintTy::Usize).intern()
-    }
-
     <span class="kw">pub fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
         <span class="kw">match </span><span class="self">self</span>.kind() {
             TyKind::Adt(adt_def, args) <span class="kw">if </span>adt_def.is_box() =&gt; args[<span class="number">0</span>].expect_type().clone(),
@@ -1410,9 +1464,9 @@
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Const {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="self">self </span>{
-            Const::Param(param_const) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{:?}&quot;</span>, param_const),
-            Const::Value(value_const) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{:?}&quot;</span>, value_const),
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
+            ConstKind::Param(param) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{:?}&quot;</span>, param),
+            ConstKind::Value(scalar_int) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, scalar_int),
         }
     }
 }

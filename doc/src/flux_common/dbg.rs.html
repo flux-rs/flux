@@ -117,6 +117,14 @@
 <a href="#117" id="117">117</a>
 <a href="#118" id="118">118</a>
 <a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This file contains functions and macros to log debugging information meant for developers.
 </span><span class="kw">use </span>std::{
     fmt, fs,
@@ -143,7 +151,7 @@
     tcx: TyCtxt,
     def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
     ext: <span class="kw">impl </span>AsRef&lt;str&gt;,
-    val: <span class="kw-2">&amp;</span>T,
+    val: T,
 ) -&gt; io::Result&lt;()&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>writer = writer_for_item(tcx, def_id.into(), ext)<span class="question-mark">?</span>;
     <span class="macro">write!</span>(writer, <span class="string">&quot;{val:#?}&quot;</span>)
@@ -236,4 +244,12 @@
     <span class="kw">let </span>item_name = tcx.def_path(def_id).to_filename_friendly_no_crate();
     <span class="macro">format!</span>(<span class="string">&quot;{crate_name}.{item_name}.{}&quot;</span>, ext.as_ref())
 }
+
+<span class="attr">#[macro_export]
+</span><span class="macro">macro_rules! </span>_debug_assert_eq3 {
+    (<span class="macro-nonterminal">$e1</span>:expr, <span class="macro-nonterminal">$e2</span>:expr, <span class="macro-nonterminal">$e3</span>:expr) =&gt; {{
+        <span class="macro">debug_assert!</span>(<span class="macro-nonterminal">$e1 </span>== <span class="macro-nonterminal">$e2 </span>&amp;&amp; <span class="macro-nonterminal">$e2 </span>== <span class="macro-nonterminal">$e3</span>, <span class="string">&quot;{:?} != {:?} != {:?}&quot;</span>, <span class="macro-nonterminal">$e1</span>, <span class="macro-nonterminal">$e2</span>, <span class="macro-nonterminal">$e3</span>);
+    }};
+}
+<span class="kw">pub use </span><span class="kw">crate</span>::_debug_assert_eq3 <span class="kw">as </span>debug_assert_eq3;
 </code></pre></div></section></main></body></html>

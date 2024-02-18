@@ -255,7 +255,7 @@ thing).</p>
 <h2 id="a-note-about-the-flux-driver-binary"><a class="header" href="#a-note-about-the-flux-driver-binary">A note about the flux-driver binary</a></h2>
 <p>The <code>flux-driver</code> binary is a <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface">rustc
 driver</a>
-(similar to how clippy works) meaning it uses rustc as a library to &quot;drive&quot;
+(similar to how clippy works) meaning it uses rustc as a library to "drive"
 compilation performing additional analysis along the way. Running the binary
 requires dynamically linking a correct version of <code>librustc</code>. Thus, to avoid the
 hassle you should never execute it directly.  Instead, use <code>rustc-flux</code> or <code>cargo-flux</code>.</p>
@@ -264,11 +264,11 @@ hassle you should never execute it directly.  Instead, use <code>rustc-flux</cod
 <h3 id="rust-analyzer-in-vscode"><a class="header" href="#rust-analyzer-in-vscode">Rust-Analyzer in VSCode</a></h3>
 <p>Add this to the workspace settings i.e. <code>.vscode/settings.json</code></p>
 <pre><code class="language-json">{
-  &quot;rust-analyzer.check.overrideCommand&quot;: [
-    &quot;cargo&quot;,
-    &quot;flux&quot;,
-    &quot;--workspace&quot;,
-    &quot;--message-format=json-diagnostic-rendered-ansi&quot;
+  "rust-analyzer.check.overrideCommand": [
+    "cargo",
+    "flux",
+    "--workspace",
+    "--message-format=json-diagnostic-rendered-ansi"
   ]
 }
 </code></pre>
@@ -294,7 +294,7 @@ hassle you should never execute it directly.  Instead, use <code>rustc-flux</cod
 <li><code>FLUX_DUMP_MIR=1</code> saves the low-level MIR for each analyzed function</li>
 <li><code>FLUX_POINTER_WIDTH=N</code> the size of (either <code>32</code> or <code>64</code>), used to determine if an integer cast is lossy (default <code>64</code>).</li>
 <li><code>FLUX_CHECK_DEF=name</code> only checks definitions containing <code>name</code> as a substring</li>
-<li><code>FLUX_CACHE=1&quot;</code> switches on query caching and saves the cache in <code>FLUX_CACHE_FILE</code></li>
+<li><code>FLUX_CACHE=1"</code> switches on query caching and saves the cache in <code>FLUX_CACHE_FILE</code></li>
 <li><code>FLUX_CACHE_FILE=file.json</code> customizes the cache file, default <code>FLUX_LOG_DIR/cache.json</code></li>
 <li><code>FLUX_CHECK_OVERFLOW=1</code> checks for over and underflow on arithmetic integer
 operations, default <code>0</code>. When set to <code>0</code>, it still checks for underflow on
@@ -306,7 +306,7 @@ of a <code>flux</code> command line flag without the <code>FLUX_</code> prefix. 
 variables take priority over the config file.</p>
 <p>The config file should be in the project root.</p>
 <p>For example, suppose your project root contains the following <code>flux.toml</code>.</p>
-<pre><code class="language-toml">log_dir = &quot;./test&quot;
+<pre><code class="language-toml">log_dir = "./test"
 dump_timings = true
 dump_mir = true
 cache = true
@@ -360,7 +360,7 @@ entire crate.</p>
 <p><code>fn({i32[@n] | n &lt; 10}) -&gt; i32[n + 1]</code></p>
 <p>Constraint types serve a similar role as existentials as they can also be used to constraint some
 refinement value with a predicate, but an existential type can only be used to constraint refinement
-variable that it bound locally, in contrast constraint types can be used to constraint a &quot;non-local&quot; parameter. This can be seen in the example above where the parameter <code>n</code> cannot be bound locally
+variable that it bound locally, in contrast constraint types can be used to constraint a "non-local" parameter. This can be seen in the example above where the parameter <code>n</code> cannot be bound locally
 because it has to be used in the return type.</p>
 </li>
 </ul>
@@ -376,8 +376,8 @@ to specify that <code>y</code> must be greater than <code>x</code> using argumen
 <p><code>fn(i32[@x], {i32[@y] | x &gt; y}) -&gt; i32[x + y]</code></p>
 <h2 id="extern-specs"><a class="header" href="#extern-specs">Extern specs</a></h2>
 <p>Sometimes you may want to refine a struct or function that outside your code. We
-refer to such a specification as an &quot;extern spec,&quot; which is short for &quot;external
-specification.&quot;</p>
+refer to such a specification as an "extern spec," which is short for "external
+specification."</p>
 <p>Flux right now has rudimentary support for extern specs: they are supported for
 functions, impls, and structs. Impls are only supported for structs and if you
 have multiple impls for a struct (such as <code>&amp;[T]</code> and <code>[T]</code>), those may conflict.
@@ -389,7 +389,7 @@ Right now this needs to be done as a local dependency since it is not published.
 Below is an example of how you can include it, although the version may be
 different.</p>
 <pre><code class="language-toml">[dependencies]
-flux-rs = { path = &quot;path-to-flux/flux/flux-rs&quot;, version = &quot;0.1.0&quot; }
+flux-rs = { path = "path-to-flux/flux/flux-rs", version = "0.1.0" }
 </code></pre>
 <p>Then in your code you will need to include the <code>extern_spec</code> attribute macro.</p>
 <pre><code>use flux_rs::extern_spec;
@@ -674,7 +674,7 @@ struct HashSet&lt;T, S = RandomState&gt;;
 <li><code>crates/flux-desugar</code>: Implementation of name resolution and desugaring from Flux surface syntax into Flux high-level intermediate representation (<code>fhir</code>). This includes name resolution.</li>
 <li><code>crates/flux-driver</code>: Main entry point to Flux. It contains the <code>flux-driver</code> binary and the implementation of the <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_driver/trait.Callbacks.html"><code>Callbacks</code></a> trait.</li>
 <li><code>crates/flux-errors</code>: Utility definitions for user facing error reporting.</li>
-<li><code>crates/flux-fhir-analysis</code>: Implements the &quot;analyses&quot; performed in the <code>fhir</code>, most notably well-formedness checking and conversion from <code>fhir</code> into <code>rty</code>.</li>
+<li><code>crates/flux-fhir-analysis</code>: Implements the "analyses" performed in the <code>fhir</code>, most notably well-formedness checking and conversion from <code>fhir</code> into <code>rty</code>.</li>
 <li><code>crates/flux-fixpoint</code>: Code to interact with the Liquid Fixpoint binary.</li>
 <li><code>crates/flux-macros</code>: Procedural macros used internally to implement Flux.</li>
 <li><code>crates/flux-metadata</code>: Logic for saving Flux crate metadata that can be used to import refined signatures from external crates.</li>
@@ -683,7 +683,7 @@ struct HashSet&lt;T, S = RandomState&gt;;
 <li><code>crates/flux-syntax</code>: Definition of the surface syntax AST and parser.</li>
 <li><code>crates/flux-tests</code>: Flux regression tests.</li>
 <li><code>lib/flux-attrs</code>: Implementation of user facing procedural macros for annotating programs with Flux specs.</li>
-<li><code>lib/flux-rs</code>: This is just a re-export of the macros implemented in <code>flux-attrs</code>. The intention is to eventually put Flux &quot;standard library&quot; here, i.e., a set of definitions that are useful when working with Flux.</li>
+<li><code>lib/flux-rs</code>: This is just a re-export of the macros implemented in <code>flux-attrs</code>. The intention is to eventually put Flux "standard library" here, i.e., a set of definitions that are useful when working with Flux.</li>
 </ul>
 <h2 id="intermediate-representations"><a class="header" href="#intermediate-representations">Intermediate Representations</a></h2>
 <p>Flux has several intermediate representations (IR) for types. They represent a refined version of an equivalent type in some <code>rustc</code> IR. We have picked a distinct <em>verb</em> to refer to the process of going between these different representations to make it easier to refer to them. The following image summarizes all the IRs and the process for going between them.</p>
@@ -754,7 +754,7 @@ the space of <em>inputs</em> that a function expects.</p>
 </span><span class="boring">fn main() {
 </span>#[flux::sig(fn (b:bool[true]))]
 pub fn assert(b:bool) {
-  if !b { panic!(&quot;assertion failed&quot;) }
+  if !b { panic!("assertion failed") }
 }
 <span class="boring">}</span></code></pre></pre>
 <p>Here, the refined specification for <code>assert</code> says that you can <em>only</em> call
@@ -1117,9 +1117,13 @@ support the cases where the type itself is <em>changed</em> by a call.</p>
 <p>Next, we'll see how refinements and ownership yield a simple refined API
 for <em>vectors</em> that lets Flux check bounds safety at compile time...</p>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
-<p>For those familiar with the term, these types are <em>loop invariants</em>
-<sup class="footnote-reference"><a href="#2">2</a></sup>: Setting aside the issue of overflows for now
-<sup class="footnote-reference"><a href="#3">3</a></sup>: Thereby allowing so-called <em>strong updates</em> in the type specifications</p>
+<p>For those familiar with the term, these types are <em>loop invariants</em></p>
+</div>
+<div class="footnote-definition" id="2"><sup class="footnote-definition-label">2</sup>
+<p>Setting aside the issue of overflows for now</p>
+</div>
+<div class="footnote-definition" id="3"><sup class="footnote-definition-label">3</sup>
+<p>Thereby allowing so-called <em>strong updates</em> in the type specifications</p>
 </div>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="refined-vectors"><a class="header" href="#refined-vectors">Refined Vectors</a></h1>
 <p><a href="http://goto.ucsd.edu:8091/index.html#?demo=vectors.rs">Online demo</a></p>
@@ -1166,7 +1170,7 @@ manipulating vectors. I suppose one must start with nothing: an empty vector.</p
 <span class="boring">}</span></code></pre></pre>
 <p>The above implements <code>RVec::new</code> as a wrapper around <code>Vec::new</code>.
 The <code>#[flux::trusted]</code> attribute tells Flux there is nothing to
-&quot;check&quot; here, as we are <em>defining</em> the API itself and trusting
+"check" here, as we are <em>defining</em> the API itself and trusting
 that the implementation (using <code>vec</code> is correct).
 However, the signature says that <em>callers</em> of the <code>RVec::new</code> get
 back a vector indexed with <code>0</code> i.e. an empty vector.</p>
@@ -1240,7 +1244,7 @@ pub fn len(&amp;self) -&gt; usize {
     self.inner.len()
 }
 <span class="boring">}</span></code></pre></pre>
-<p>Now, flux &quot;knows&quot; that after two <code>push</code>es, the size of the vector is <code>2</code> and after
+<p>Now, flux "knows" that after two <code>push</code>es, the size of the vector is <code>2</code> and after
 the two <code>pop</code>s, the size is <code>0</code> again</p>
 <img src="blog/../img/push_pop_len.gif" width="100%">
 <h3 id="random-access"><a class="header" href="#random-access">Random Access</a></h3>
@@ -1290,7 +1294,7 @@ impl&lt;T&gt; std::ops::IndexMut&lt;usize&gt; for RVec&lt;T&gt; {
 <p>And now the above <code>vec_sum</code> example looks a little nicer</p>
 <img src="blog/../img/vec_sum_index.gif" width="100%">
 <h2 id="memoization"><a class="header" href="#memoization">Memoization</a></h2>
-<p>Lets put the whole API to work in this &quot;memoized&quot; version of the fibonacci
+<p>Lets put the whole API to work in this "memoized" version of the fibonacci
 function which uses a vector to store the results of previous calls</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -1324,7 +1328,7 @@ which returns the <em>last</em> value as the result.</p>
 <span class="boring">}</span></code></pre></pre>
 <p>Flux complains that the vector may be <em>empty</em> and so the <code>pop</code> call may
 fail ... but why? Can you spot the problem?</p>
-<p>Indeed, we missed a &quot;corner&quot; case -- when <code>n</code> is <code>0</code> we skip the loop and
+<p>Indeed, we missed a "corner" case -- when <code>n</code> is <code>0</code> we skip the loop and
 so the vector is empty! Once we add a test for that, flux is happy.</p>
 <img src="blog/../img/fib.gif" width="100%">
 <h2 id="binary-search"><a class="header" href="#binary-search">Binary Search</a></h2>

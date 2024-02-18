@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ScopeKind"],"fn":["resolve_num_const","self_res"],"macro":["define_resolve_num_const"],"mod":["errors"],"static":["SORTS"],"struct":["IllegalBinderVisitor","ImplicitParamCollector","ParamDef","ParamRes","RefinementResolver","Scope","ScopedVisitorWrapper","Sorts"],"trait":["ScopedVisitor"],"type":["Result"]};

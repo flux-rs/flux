@@ -606,227 +606,311 @@
 <a href="#606" id="606">606</a>
 <a href="#607" id="607">607</a>
 <a href="#608" id="608">608</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::{borrow::Borrow, collections::HashSet, iter};
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
+<a href="#624" id="624">624</a>
+<a href="#625" id="625">625</a>
+<a href="#626" id="626">626</a>
+<a href="#627" id="627">627</a>
+<a href="#628" id="628">628</a>
+<a href="#629" id="629">629</a>
+<a href="#630" id="630">630</a>
+<a href="#631" id="631">631</a>
+<a href="#632" id="632">632</a>
+<a href="#633" id="633">633</a>
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
+<a href="#663" id="663">663</a>
+<a href="#664" id="664">664</a>
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
+<a href="#687" id="687">687</a>
+<a href="#688" id="688">688</a>
+<a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
+<a href="#691" id="691">691</a>
+<a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, span_bug};
-<span class="kw">use </span>flux_errors::ErrorGuaranteed;
+<span class="kw">use </span>flux_errors::{ErrorCollector, ErrorGuaranteed};
 <span class="kw">use </span>flux_middle::{
-    fhir::{<span class="self">self</span>, FhirId, FluxOwnerId, WfckResults},
+    fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
+    pretty,
+    rty::{
+        <span class="self">self</span>,
+        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable},
+        WfckResults,
+    },
 };
 <span class="kw">use </span>itertools::izip;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_errors::IntoDiagnostic;
-<span class="kw">use </span>rustc_hir::def_id::DefId;
-<span class="kw">use </span>rustc_span::Span;
+<span class="kw">use </span>rustc_span::{def_id::DefId, Span};
 
 <span class="kw">use </span><span class="kw">super</span>::errors;
+<span class="kw">use crate</span>::{compare_impl_item::errors::InvalidAssocReft, conv};
 
-<span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InferCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub </span>genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    params: UnordMap&lt;fhir::Name, (fhir::Sort, fhir::ParamKind)&gt;,
-    unification_table: InPlaceUnificationTable&lt;fhir::SortVid&gt;,
-    wfckresults: fhir::WfckResults,
-    <span class="doccomment">/// sort variables that can only be instantiated to sorts that support equality (i.e. non `FuncSort`)
-    </span>eq_vids: HashSet&lt;fhir::SortVid&gt;,
+<span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
+
+<span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub </span>genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    params: UnordMap&lt;fhir::ParamId, (rty::Sort, fhir::ParamKind)&gt;,
+    <span class="kw">pub</span>(<span class="kw">super</span>) sort_unification_table: InPlaceUnificationTable&lt;rty::SortVid&gt;,
+    num_unification_table: InPlaceUnificationTable&lt;rty::NumVid&gt;,
+    <span class="kw">pub </span>wfckresults: WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; InferCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;, owner: FluxOwnerId) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, owner: FluxOwnerId) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             genv,
-            wfckresults: fhir::WfckResults::new(owner),
-            unification_table: InPlaceUnificationTable::new(),
+            wfckresults: WfckResults::new(owner),
+            sort_unification_table: InPlaceUnificationTable::new(),
+            num_unification_table: InPlaceUnificationTable::new(),
             params: Default::default(),
-            eq_vids: Default::default(),
         }
     }
 
     <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>check_refine_arg(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         arg: <span class="kw-2">&amp;</span>fhir::RefineArg,
-        expected: <span class="kw-2">&amp;</span>fhir::Sort,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">match </span>arg {
-            fhir::RefineArg::Expr { expr, .. } =&gt; <span class="self">self</span>.check_expr(expr, expected),
-            fhir::RefineArg::Abs(params, body, span, fhir_id) =&gt; {
-                <span class="self">self</span>.check_abs(params, body, span, fhir_id, expected)
-            }
-            fhir::RefineArg::Record(def_id, sort_args, flds, span) =&gt; {
-                <span class="self">self</span>.check_record(<span class="kw-2">*</span>def_id, sort_args, flds, <span class="kw-2">*</span>span)<span class="question-mark">?</span>;
-                <span class="kw">let </span>found = fhir::Sort::Record(<span class="kw-2">*</span>def_id, sort_args.clone());
-                <span class="kw">if </span><span class="kw-2">&amp;</span>found != expected {
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_sort_mismatch(<span class="kw-2">*</span>span, expected, <span class="kw-2">&amp;</span>found));
-                }
-                <span class="prelude-val">Ok</span>(())
-            }
+        expected: <span class="kw-2">&amp;</span>rty::Sort,
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">match </span><span class="kw-2">&amp;</span>arg.kind {
+            fhir::RefineArgKind::Expr(expr) =&gt; <span class="self">self</span>.check_expr(expr, expected),
+            fhir::RefineArgKind::Abs(params, body) =&gt; <span class="self">self</span>.check_abs(arg, params, body, expected),
+            fhir::RefineArgKind::Record(flds) =&gt; <span class="self">self</span>.check_record(arg, flds, expected),
         }
     }
 
     <span class="kw">fn </span>check_abs(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        params: <span class="kw-2">&amp;</span>Vec&lt;fhir::RefineParam&gt;,
+        arg: <span class="kw-2">&amp;</span>fhir::RefineArg,
+        params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
         body: <span class="kw-2">&amp;</span>fhir::Expr,
-        span: <span class="kw-2">&amp;</span>Span,
-        fhir_id: <span class="kw-2">&amp;</span>FhirId,
-        expected: <span class="kw-2">&amp;</span>fhir::Sort,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.is_coercible_to_func(expected, <span class="kw-2">*</span>fhir_id) {
-            <span class="kw">let </span>fsort = fsort.skip_binders();
-            <span class="self">self</span>.push_layer(params);
+        expected: <span class="kw-2">&amp;</span>rty::Sort,
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.is_coercible_from_func(expected, arg.fhir_id) {
+            <span class="kw">let </span>fsort = fsort.expect_mono();
+            <span class="self">self</span>.insert_params(params);
 
             <span class="kw">if </span>params.len() != fsort.inputs().len() {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ParamCountMismatch::new(
-                    <span class="kw-2">*</span>span,
+                    arg.span,
                     fsort.inputs().len(),
                     params.len(),
                 )));
             }
             iter::zip(params, fsort.inputs()).try_for_each_exhaust(|(param, expected)| {
-                <span class="kw">let </span>found = <span class="self">self</span>[<span class="kw-2">&amp;</span>param.ident.name].clone();
+                <span class="kw">let </span>found = <span class="self">self</span>.param_sort(param.id);
                 <span class="kw">if </span><span class="self">self</span>.try_equate(<span class="kw-2">&amp;</span>found, expected).is_none() {
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_sort_mismatch(param.ident.span(), expected, <span class="kw-2">&amp;</span>found));
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_sort_mismatch(param.span, expected, <span class="kw-2">&amp;</span>found));
                 }
                 <span class="prelude-val">Ok</span>(())
             })<span class="question-mark">?</span>;
             <span class="self">self</span>.check_expr(body, fsort.output())<span class="question-mark">?</span>;
+            <span class="self">self</span>.wfckresults
+                .node_sorts_mut()
+                .insert(arg.fhir_id, fsort.output().clone());
             <span class="self">self</span>.resolve_params_sorts(params)
         } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::UnexpectedFun::new(<span class="kw-2">*</span>span, expected)))
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::UnexpectedFun::new(arg.span, expected)))
         }
     }
 
     <span class="kw">fn </span>check_record(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        def_id: DefId,
-        sort_args: <span class="kw-2">&amp;</span>[fhir::Sort],
-        args: <span class="kw-2">&amp;</span>[fhir::RefineArg],
-        span: Span,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">let </span>sorts = <span class="self">self</span>.genv.index_sorts_of(def_id, sort_args);
-        <span class="kw">if </span>args.len() != sorts.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArgCountMismatch::new(
-                <span class="prelude-val">Some</span>(span),
+        arg: <span class="kw-2">&amp;</span>fhir::RefineArg,
+        flds: <span class="kw-2">&amp;</span>[fhir::RefineArg],
+        expected: <span class="kw-2">&amp;</span>rty::Sort,
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">if let </span>rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
+            <span class="kw">let </span>sorts = sort_def.sorts(sort_args);
+            <span class="kw">if </span>flds.len() != sorts.len() {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArgCountMismatch::new(
+                    <span class="prelude-val">Some</span>(arg.span),
+                    String::from(<span class="string">&quot;type&quot;</span>),
+                    sorts.len(),
+                    flds.len(),
+                )));
+            }
+            <span class="self">self</span>.wfckresults
+                .record_ctors_mut()
+                .insert(arg.fhir_id, sort_def.did());
+
+            <span class="macro">izip!</span>(flds, <span class="kw-2">&amp;</span>sorts)
+                .map(|(arg, expected)| <span class="self">self</span>.check_refine_arg(arg, expected))
+                .try_collect_exhaust()
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArgCountMismatch::new(
+                <span class="prelude-val">Some</span>(arg.span),
                 String::from(<span class="string">&quot;type&quot;</span>),
-                sorts.len(),
-                args.len(),
-            )));
+                <span class="number">1</span>,
+                flds.len(),
+            )))
         }
-        <span class="macro">izip!</span>(args, sorts)
-            .map(|(arg, expected)| <span class="self">self</span>.check_refine_arg(arg, <span class="kw-2">&amp;</span>expected))
-            .try_collect_exhaust()
     }
 
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>check_expr(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        expr: <span class="kw-2">&amp;</span>fhir::Expr,
-        expected: <span class="kw-2">&amp;</span>fhir::Sort,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>check_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>fhir::Expr, expected: <span class="kw-2">&amp;</span>rty::Sort) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
-            fhir::ExprKind::BinaryOp(op, <span class="kw">box </span>[e1, e2]) =&gt; {
-                <span class="self">self</span>.check_binary_op(expr, <span class="kw-2">*</span>op, e1, e2, expected)<span class="question-mark">?</span>;
-            }
-            fhir::ExprKind::IfThenElse(<span class="kw">box </span>[p, e1, e2]) =&gt; {
-                <span class="self">self</span>.check_expr(p, <span class="kw-2">&amp;</span>fhir::Sort::Bool)<span class="question-mark">?</span>;
+            fhir::ExprKind::IfThenElse(p, e1, e2) =&gt; {
+                <span class="self">self</span>.check_expr(p, <span class="kw-2">&amp;</span>rty::Sort::Bool)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_expr(e1, expected)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_expr(e2, expected)<span class="question-mark">?</span>;
             }
-            fhir::ExprKind::UnaryOp(<span class="kw">_</span>, <span class="kw">_</span>)
-            | fhir::ExprKind::Dot(<span class="kw">_</span>, <span class="kw">_</span>)
-            | fhir::ExprKind::App(<span class="kw">_</span>, <span class="kw">_</span>)
-            | fhir::ExprKind::Const(<span class="kw">_</span>, <span class="kw">_</span>)
-            | fhir::ExprKind::Var(<span class="kw">_</span>)
-            | fhir::ExprKind::Literal(<span class="kw">_</span>) =&gt; {
+            fhir::ExprKind::UnaryOp(..)
+            | fhir::ExprKind::BinaryOp(..)
+            | fhir::ExprKind::Dot(..)
+            | fhir::ExprKind::App(..)
+            | fhir::ExprKind::Alias(..)
+            | fhir::ExprKind::Var(..)
+            | fhir::ExprKind::Literal(..) =&gt; {
                 <span class="kw">let </span>found = <span class="self">self</span>.synth_expr(expr)<span class="question-mark">?</span>;
-                <span class="kw">if </span>!<span class="self">self</span>.is_coercible(<span class="kw-2">&amp;</span>found, expected, expr.fhir_id) {
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_sort_mismatch(expr.span, expected, <span class="kw-2">&amp;</span>found));
+                <span class="kw">let </span>found = <span class="self">self</span>.resolve_vars_if_possible(<span class="kw-2">&amp;</span>found);
+                <span class="kw">let </span>expected = <span class="self">self</span>.resolve_vars_if_possible(expected);
+                <span class="kw">if </span>!<span class="self">self</span>.is_coercible(<span class="kw-2">&amp;</span>found, <span class="kw-2">&amp;</span>expected, expr.fhir_id) {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_sort_mismatch(expr.span, <span class="kw-2">&amp;</span>expected, <span class="kw-2">&amp;</span>found));
                 }
             }
         }
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>check_binary_op(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        expr: <span class="kw-2">&amp;</span>fhir::Expr,
-        op: fhir::BinOp,
-        e1: <span class="kw-2">&amp;</span>fhir::Expr,
-        e2: <span class="kw-2">&amp;</span>fhir::Expr,
-        expected: <span class="kw-2">&amp;</span>fhir::Sort,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">match </span>op {
-            fhir::BinOp::Or | fhir::BinOp::And | fhir::BinOp::Iff | fhir::BinOp::Imp =&gt; {
-                <span class="kw">if </span><span class="self">self</span>.is_bool(expected) {
-                    <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>fhir::Sort::Bool)<span class="question-mark">?</span>;
-                    <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>fhir::Sort::Bool)<span class="question-mark">?</span>;
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-                }
-            }
-            fhir::BinOp::Mod =&gt; {
-                <span class="kw">if </span><span class="self">self</span>.is_int(expected) {
-                    <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>fhir::Sort::Int)<span class="question-mark">?</span>;
-                    <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>fhir::Sort::Int)<span class="question-mark">?</span>;
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-                }
-            }
-            fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div =&gt; {
-                <span class="kw">if </span><span class="self">self</span>.is_numeric(expected) {
-                    <span class="self">self</span>.check_expr(e1, expected)<span class="question-mark">?</span>;
-                    <span class="self">self</span>.check_expr(e2, expected)<span class="question-mark">?</span>;
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-                }
-            }
-            fhir::BinOp::Eq
-            | fhir::BinOp::Ne
-            | fhir::BinOp::Lt
-            | fhir::BinOp::Le
-            | fhir::BinOp::Gt
-            | fhir::BinOp::Ge =&gt; {}
-        }
-        <span class="kw">let </span>found = <span class="self">self</span>.synth_binary_op(expr, op, e1, e2)<span class="question-mark">?</span>;
-        <span class="kw">if </span><span class="kw-2">&amp;</span>found != expected {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_sort_mismatch(expr.span, expected, <span class="kw-2">&amp;</span>found));
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>check_loc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: fhir::Ident) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">let </span>found = <span class="self">self</span>[<span class="kw-2">&amp;</span>loc.name].clone();
-        <span class="kw">if </span>found == fhir::Sort::Loc {
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>check_loc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span>found = <span class="self">self</span>.synth_var(loc);
+        <span class="kw">if </span>found == rty::Sort::Loc {
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_sort_mismatch(loc.span(), <span class="kw-2">&amp;</span>fhir::Sort::Loc, <span class="kw-2">&amp;</span>found))
+            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_sort_mismatch(loc.span, <span class="kw-2">&amp;</span>rty::Sort::Loc, <span class="kw-2">&amp;</span>found))
         }
     }
 
-    <span class="kw">fn </span>synth_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort, ErrorGuaranteed&gt; {
+    <span class="kw">fn </span>synth_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
-            fhir::ExprKind::Var(var) =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>[var.name].clone()),
+            fhir::ExprKind::Var(var, <span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.synth_var(var)),
             fhir::ExprKind::Literal(lit) =&gt; <span class="prelude-val">Ok</span>(synth_lit(<span class="kw-2">*</span>lit)),
-            fhir::ExprKind::BinaryOp(op, <span class="kw">box </span>[e1, e2]) =&gt; <span class="self">self</span>.synth_binary_op(expr, <span class="kw-2">*</span>op, e1, e2),
+            fhir::ExprKind::BinaryOp(op, e1, e2) =&gt; <span class="self">self</span>.synth_binary_op(expr, <span class="kw-2">*</span>op, e1, e2),
             fhir::ExprKind::UnaryOp(op, e) =&gt; <span class="self">self</span>.synth_unary_op(<span class="kw-2">*</span>op, e),
-            fhir::ExprKind::Const(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(fhir::Sort::Int), <span class="comment">// TODO: generalize const sorts
-            </span>fhir::ExprKind::App(f, es) =&gt; <span class="self">self</span>.synth_app(f, es, expr.span),
-            fhir::ExprKind::IfThenElse(<span class="kw">box </span>[p, e1, e2]) =&gt; {
-                <span class="self">self</span>.check_expr(p, <span class="kw-2">&amp;</span>fhir::Sort::Bool)<span class="question-mark">?</span>;
+            fhir::ExprKind::App(f, es) =&gt; <span class="self">self</span>.synth_app(f, es, expr.span),
+            fhir::ExprKind::Alias(alias, func_args) =&gt; {
+                <span class="self">self</span>.synth_alias_reft_app(alias, func_args, expr.span)
+            }
+            fhir::ExprKind::IfThenElse(p, e1, e2) =&gt; {
+                <span class="self">self</span>.check_expr(p, <span class="kw-2">&amp;</span>rty::Sort::Bool)<span class="question-mark">?</span>;
                 <span class="kw">let </span>sort = <span class="self">self</span>.synth_expr(e1)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(sort)
             }
             fhir::ExprKind::Dot(var, fld) =&gt; {
-                <span class="kw">let </span>sort = <span class="self">self</span>.ensure_resolved_var(<span class="kw-2">*</span>var)<span class="question-mark">?</span>;
+                <span class="kw">let </span>sort = <span class="self">self</span>.ensure_resolved_var(var)<span class="question-mark">?</span>;
                 <span class="kw">match </span><span class="kw-2">&amp;</span>sort {
-                    fhir::Sort::Record(def_id, sort_args) =&gt; {
-                        <span class="self">self</span>.genv
-                            .field_sort(<span class="kw-2">*</span>def_id, sort_args.clone(), fld.name)
+                    rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) =&gt; {
+                        sort_def
+                            .field_sort(sort_args, fld.name)
                             .ok_or_else(|| <span class="self">self</span>.emit_field_not_found(<span class="kw-2">&amp;</span>sort, <span class="kw-2">*</span>fld))
                     }
-                    fhir::Sort::Bool | fhir::Sort::Int | fhir::Sort::Real =&gt; {
+                    rty::Sort::Bool | rty::Sort::Int | rty::Sort::Real =&gt; {
                         <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::InvalidPrimitiveDotAccess::new(<span class="kw-2">&amp;</span>sort, <span class="kw-2">*</span>fld)))
                     }
                     <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_field_not_found(<span class="kw-2">&amp;</span>sort, <span class="kw-2">*</span>fld)),
                 }
+            }
+        }
+    }
+
+    <span class="kw">fn </span>synth_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; rty::Sort {
+        <span class="kw">match </span>path.res {
+            ExprRes::Param(<span class="kw">_</span>, id) =&gt; <span class="self">self</span>.param_sort(id),
+            ExprRes::Const(<span class="kw">_</span>) =&gt; rty::Sort::Int, <span class="comment">// TODO: generalize const sorts
+            </span>ExprRes::NumConst(<span class="kw">_</span>) =&gt; rty::Sort::Int,
+            ExprRes::GlobalFunc(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
+                <span class="macro">span_bug!</span>(path.span, <span class="string">&quot;unexpected func in var position&quot;</span>)
             }
         }
     }
@@ -837,70 +921,67 @@
         op: fhir::BinOp,
         e1: <span class="kw-2">&amp;</span>fhir::Expr,
         e2: <span class="kw-2">&amp;</span>fhir::Expr,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
         <span class="kw">match </span>op {
             fhir::BinOp::Or | fhir::BinOp::And | fhir::BinOp::Iff | fhir::BinOp::Imp =&gt; {
-                <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>fhir::Sort::Bool)<span class="question-mark">?</span>;
-                <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>fhir::Sort::Bool)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(fhir::Sort::Bool)
+                <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>rty::Sort::Bool)<span class="question-mark">?</span>;
+                <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>rty::Sort::Bool)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(rty::Sort::Bool)
             }
             fhir::BinOp::Eq | fhir::BinOp::Ne =&gt; {
-                <span class="kw">let </span>s = <span class="self">self</span>.synth_expr(e1)<span class="question-mark">?</span>;
-                <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>s)<span class="question-mark">?</span>;
-                <span class="kw">if </span>!<span class="self">self</span>.has_equality(<span class="kw-2">&amp;</span>s) {
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::NoEquality::new(expr.span, <span class="kw-2">&amp;</span>s)));
-                }
-                <span class="prelude-val">Ok</span>(fhir::Sort::Bool)
+                <span class="kw">let </span>sort = <span class="self">self</span>.next_sort_var();
+                <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
+                <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(rty::Sort::Bool)
             }
             fhir::BinOp::Mod =&gt; {
-                <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>fhir::Sort::Int)<span class="question-mark">?</span>;
-                <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>fhir::Sort::Int)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(fhir::Sort::Int)
+                <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>rty::Sort::Int)<span class="question-mark">?</span>;
+                <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>rty::Sort::Int)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(rty::Sort::Int)
             }
             fhir::BinOp::Lt | fhir::BinOp::Le | fhir::BinOp::Gt | fhir::BinOp::Ge =&gt; {
-                <span class="kw">let </span>sort = <span class="self">self</span>.synth_expr(e1)<span class="question-mark">?</span>;
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.is_coercible_to_numeric(<span class="kw-2">&amp;</span>sort, e1.fhir_id) {
-                    <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
-                    <span class="prelude-val">Ok</span>(fhir::Sort::Bool)
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ExpectedNumeric::new(e1.span, <span class="kw-2">&amp;</span>sort)))
-                }
+                <span class="kw">let </span>sort = <span class="self">self</span>.next_sort_var();
+                <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
+                <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
+
+                <span class="comment">// Elaborate sort of operator
+                </span><span class="kw">let </span>sort = <span class="self">self
+                    </span>.fully_resolve(<span class="kw-2">&amp;</span>sort)
+                    .map_err(|<span class="kw">_</span>| <span class="self">self</span>.emit_err(errors::CannotInferSort::new(expr.span)))<span class="question-mark">?</span>;
+                <span class="self">self</span>.wfckresults
+                    .bin_rel_sorts_mut()
+                    .insert(expr.fhir_id, sort);
+
+                <span class="prelude-val">Ok</span>(rty::Sort::Bool)
             }
             fhir::BinOp::Add | fhir::BinOp::Sub | fhir::BinOp::Mul | fhir::BinOp::Div =&gt; {
-                <span class="kw">let </span>sort = <span class="self">self</span>.synth_expr(e1)<span class="question-mark">?</span>;
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.is_coercible_to_numeric(<span class="kw-2">&amp;</span>sort, e1.fhir_id) {
-                    <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
-                    <span class="prelude-val">Ok</span>(sort)
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ExpectedNumeric::new(e1.span, <span class="kw-2">&amp;</span>sort)))
-                }
+                <span class="kw">let </span>sort = <span class="self">self</span>.next_num_var();
+                <span class="self">self</span>.check_expr(e1, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
+                <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(sort)
             }
         }
     }
 
-    <span class="kw">fn </span>synth_unary_op(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        op: fhir::UnOp,
-        e: <span class="kw-2">&amp;</span>fhir::Expr,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort, ErrorGuaranteed&gt; {
+    <span class="kw">fn </span>synth_unary_op(<span class="kw-2">&amp;mut </span><span class="self">self</span>, op: fhir::UnOp, e: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
         <span class="kw">match </span>op {
             fhir::UnOp::Not =&gt; {
-                <span class="self">self</span>.check_expr(e, <span class="kw-2">&amp;</span>fhir::Sort::Bool)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(fhir::Sort::Bool)
+                <span class="self">self</span>.check_expr(e, <span class="kw-2">&amp;</span>rty::Sort::Bool)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(rty::Sort::Bool)
             }
             fhir::UnOp::Neg =&gt; {
-                <span class="self">self</span>.check_expr(e, <span class="kw-2">&amp;</span>fhir::Sort::Int)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(fhir::Sort::Int)
+                <span class="self">self</span>.check_expr(e, <span class="kw-2">&amp;</span>rty::Sort::Int)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(rty::Sort::Int)
             }
         }
     }
 
     <span class="kw">fn </span>synth_app(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        func: <span class="kw-2">&amp;</span>fhir::Func,
+        func: <span class="kw-2">&amp;</span>fhir::PathExpr,
         args: <span class="kw-2">&amp;</span>[fhir::Expr],
         span: Span,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort, ErrorGuaranteed&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
         <span class="kw">let </span>fsort = <span class="self">self</span>.synth_func(func)<span class="question-mark">?</span>;
         <span class="kw">if </span>args.len() != fsort.inputs().len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArgCountMismatch::new(
@@ -917,62 +998,79 @@
         <span class="prelude-val">Ok</span>(fsort.output().clone())
     }
 
-    <span class="kw">fn </span>synth_func(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>fhir::Func) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::FuncSort, ErrorGuaranteed&gt; {
-        <span class="kw">let </span>func_sort = <span class="kw">match </span>func {
-            fhir::Func::Var(var, fhir_id) =&gt; {
-                <span class="kw">let </span>sort = <span class="self">self</span>[<span class="kw-2">&amp;</span>var.name].clone();
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.is_coercible_to_func(<span class="kw-2">&amp;</span>sort, <span class="kw-2">*</span>fhir_id) {
-                    <span class="prelude-val">Ok</span>(fsort)
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ExpectedFun::new(var.span(), <span class="kw-2">&amp;</span>sort)))
-                }
-            }
-            fhir::Func::Global(func, <span class="kw">_</span>, span, <span class="kw">_</span>) =&gt; {
-                <span class="prelude-val">Ok</span>(<span class="self">self
-                    </span>.genv
-                    .func_decl(func)
-                    .unwrap_or_else(|| {
-                        <span class="macro">span_bug!</span>(<span class="kw-2">*</span>span, <span class="string">&quot;no definition found for uif `{func:?}` - {span:?}&quot;</span>)
-                    })
-                    .sort
-                    .clone())
-            }
+    <span class="kw">fn </span>synth_alias_reft_app(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        alias: <span class="kw-2">&amp;</span>fhir::AliasReft,
+        args: <span class="kw-2">&amp;</span>[fhir::Expr],
+        span: Span,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.genv.sort_of_alias_reft(alias) <span class="kw">else </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(InvalidAssocReft::new(
+                span,
+                alias.name,
+                pretty::def_id_to_string(alias.trait_id),
+            )));
         };
-        func_sort.map(|fsort| <span class="self">self</span>.instantiate_func_sort(fsort))
+        <span class="kw">if </span>args.len() != fsort.inputs().len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArgCountMismatch::new(
+                <span class="prelude-val">Some</span>(span),
+                String::from(<span class="string">&quot;function&quot;</span>),
+                fsort.inputs().len(),
+                args.len(),
+            )));
+        }
+        iter::zip(args, fsort.inputs())
+            .try_for_each_exhaust(|(arg, formal)| <span class="self">self</span>.check_expr(arg, formal))<span class="question-mark">?</span>;
+
+        <span class="prelude-val">Ok</span>(fsort.output().clone())
     }
 
-    <span class="kw">fn </span>instantiate_func_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fsort: fhir::PolyFuncSort) -&gt; fhir::FuncSort {
-        <span class="kw">let </span>args: Vec&lt;fhir::Sort&gt; =
-            std::iter::repeat_with(|| fhir::Sort::Infer(<span class="self">self</span>.next_eq_sort_vid()))
-                .take(fsort.params)
-                .collect();
+    <span class="kw">fn </span>synth_func(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::FuncSort&gt; {
+        <span class="kw">let </span>poly_fsort = <span class="kw">match </span>func.res {
+            ExprRes::Param(..) =&gt; {
+                <span class="kw">let </span>sort = <span class="self">self</span>.ensure_resolved_var(func)<span class="question-mark">?</span>;
+                <span class="kw">let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.is_coercible_to_func(<span class="kw-2">&amp;</span>sort, func.fhir_id) <span class="kw">else </span>{
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ExpectedFun::new(func.span, <span class="kw-2">&amp;</span>sort)));
+                };
+                fsort
+            }
+            ExprRes::GlobalFunc(.., sym) =&gt; <span class="self">self</span>.genv.func_decl(sym).sort.clone(),
+            <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(func.span, <span class="string">&quot;unexpected path in function position&quot;</span>),
+        };
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.instantiate_func_sort(poly_fsort))
+    }
+
+    <span class="kw">fn </span>instantiate_func_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fsort: rty::PolyFuncSort) -&gt; rty::FuncSort {
+        <span class="kw">let </span>args: Vec&lt;rty::Sort&gt; = std::iter::repeat_with(|| <span class="self">self</span>.next_sort_var())
+            .take(fsort.params)
+            .collect();
         fsort.instantiate(<span class="kw-2">&amp;</span>args)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; InferCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>&gt; InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt; {
     <span class="doccomment">/// Push a layer of binders. We assume all names are fresh so we don&#39;t care about shadowing
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>push_layer&lt;<span class="lifetime">&#39;b</span>&gt;(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        params: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;b </span>fhir::RefineParam&gt;,
-    ) {
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>insert_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) {
         <span class="kw">for </span>param <span class="kw">in </span>params {
-            <span class="kw">let </span>sort = <span class="kw">if </span>param.sort == fhir::Sort::Wildcard {
-                fhir::Sort::Infer(<span class="self">self</span>.next_sort_vid())
-            } <span class="kw">else </span>{
-                param.sort.clone()
-            };
-            <span class="self">self</span>.params.insert(param.name(), (sort, param.kind));
+            <span class="kw">let </span>sort = conv::conv_sort(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>param.sort, <span class="kw-2">&amp;mut </span>|| <span class="self">self</span>.next_sort_var());
+            <span class="self">self</span>.insert_param(param.id, sort, param.kind);
         }
     }
 
-    <span class="doccomment">/// Whether a value of `sort1` can be automatically coerced to a value of `sort2`. A value of a
-    /// [`Record`] sort with a single field of sort `s` can be coerced to a value of sort `s` and vice
-    /// versa, i.e., we can automatically project the field out of the record or inject a value into a
-    /// record.
-    ///
-    /// [`Record`]: fhir::Sort::Record
-    </span><span class="kw">fn </span>is_coercible(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort1: <span class="kw-2">&amp;</span>fhir::Sort, sort2: <span class="kw-2">&amp;</span>fhir::Sort, fhir_id: FhirId) -&gt; bool {
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>insert_param(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        id: fhir::ParamId,
+        sort: rty::Sort,
+        kind: fhir::ParamKind,
+    ) {
+        <span class="self">self</span>.params.insert(id, (sort, kind));
+    }
+
+    <span class="doccomment">/// Whether a value of `sort1` can be automatically coerced to a value of `sort2`. A value of an
+    /// [`rty::SortCtor::Adt`] sort with a single field of sort `s` can be coerced to a value of sort
+    /// `s` and vice versa, i.e., we can automatically project the field out of the record or inject
+    /// a value into a record.
+    </span><span class="kw">fn </span>is_coercible(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort1: <span class="kw-2">&amp;</span>rty::Sort, sort2: <span class="kw-2">&amp;</span>rty::Sort, fhir_id: FhirId) -&gt; bool {
         <span class="kw">if </span><span class="self">self</span>.try_equate(sort1, sort2).is_some() {
             <span class="kw">return </span><span class="bool-val">true</span>;
         }
@@ -981,32 +1079,30 @@
         <span class="kw">let </span><span class="kw-2">mut </span>sort2 = sort2.clone();
 
         <span class="kw">let </span><span class="kw-2">mut </span>coercions = <span class="macro">vec!</span>[];
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.is_single_field_record(<span class="kw-2">&amp;</span>sort1) {
-            coercions.push(fhir::Coercion::Project);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>((def_id, sort)) = <span class="self">self</span>.is_single_field_record(<span class="kw-2">&amp;</span>sort1) {
+            coercions.push(rty::Coercion::Project(def_id));
             sort1 = sort.clone();
         }
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.is_single_field_record(<span class="kw-2">&amp;</span>sort2) {
-            coercions.push(fhir::Coercion::Inject);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>((def_id, sort)) = <span class="self">self</span>.is_single_field_record(<span class="kw-2">&amp;</span>sort2) {
+            coercions.push(rty::Coercion::Inject(def_id));
             sort2 = sort.clone();
         }
         <span class="self">self</span>.wfckresults.coercions_mut().insert(fhir_id, coercions);
         <span class="self">self</span>.try_equate(<span class="kw-2">&amp;</span>sort1, <span class="kw-2">&amp;</span>sort2).is_some()
     }
 
-    <span class="kw">fn </span>is_coercible_to_numeric(
+    <span class="kw">fn </span>is_coercible_from_func(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        sort: <span class="kw-2">&amp;</span>fhir::Sort,
+        sort: <span class="kw-2">&amp;</span>rty::Sort,
         fhir_id: FhirId,
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-        <span class="kw">if </span><span class="self">self</span>.is_numeric(sort) {
-            <span class="prelude-val">Some</span>(sort.clone())
-        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.is_single_field_record(sort)
-            &amp;&amp; sort.is_numeric()
-        {
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;rty::PolyFuncSort&gt; {
+        <span class="kw">if let </span>rty::Sort::Func(fsort) = sort {
+            <span class="prelude-val">Some</span>(fsort.clone())
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>((def_id, rty::Sort::Func(fsort))) = <span class="self">self</span>.is_single_field_record(sort) {
             <span class="self">self</span>.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, <span class="macro">vec!</span>[fhir::Coercion::Project]);
-            <span class="prelude-val">Some</span>(sort.clone())
+                .insert(fhir_id, <span class="macro">vec!</span>[rty::Coercion::Inject(def_id)]);
+            <span class="prelude-val">Some</span>(fsort.clone())
         } <span class="kw">else </span>{
             <span class="prelude-val">None
         </span>}
@@ -1014,154 +1110,234 @@
 
     <span class="kw">fn </span>is_coercible_to_func(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        sort: <span class="kw-2">&amp;</span>fhir::Sort,
+        sort: <span class="kw-2">&amp;</span>rty::Sort,
         fhir_id: FhirId,
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::PolyFuncSort&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.is_func(sort) {
-            <span class="prelude-val">Some</span>(fsort)
-        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(fhir::Sort::Func(fsort)) = <span class="self">self</span>.is_single_field_record(sort) {
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;rty::PolyFuncSort&gt; {
+        <span class="kw">if let </span>rty::Sort::Func(fsort) = sort {
+            <span class="prelude-val">Some</span>(fsort.clone())
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>((def_id, rty::Sort::Func(fsort))) = <span class="self">self</span>.is_single_field_record(sort) {
             <span class="self">self</span>.wfckresults
                 .coercions_mut()
-                .insert(fhir_id, <span class="macro">vec!</span>[fhir::Coercion::Project]);
+                .insert(fhir_id, <span class="macro">vec!</span>[rty::Coercion::Project(def_id)]);
             <span class="prelude-val">Some</span>(fsort.clone())
         } <span class="kw">else </span>{
             <span class="prelude-val">None
         </span>}
     }
 
-    <span class="kw">fn </span>try_equate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort1: <span class="kw-2">&amp;</span>fhir::Sort, sort2: <span class="kw-2">&amp;</span>fhir::Sort) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
+    <span class="kw">fn </span>try_equate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort1: <span class="kw-2">&amp;</span>rty::Sort, sort2: <span class="kw-2">&amp;</span>rty::Sort) -&gt; <span class="prelude-ty">Option</span>&lt;rty::Sort&gt; {
+        <span class="kw">let </span>sort1 = <span class="self">self</span>.resolve_vars_if_possible(sort1);
+        <span class="kw">let </span>sort2 = <span class="self">self</span>.resolve_vars_if_possible(sort2);
+        <span class="self">self</span>.try_equate_inner(<span class="kw-2">&amp;</span>sort1, <span class="kw-2">&amp;</span>sort2)
+    }
+
+    <span class="kw">fn </span>try_equate_inner(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort1: <span class="kw-2">&amp;</span>rty::Sort, sort2: <span class="kw-2">&amp;</span>rty::Sort) -&gt; <span class="prelude-ty">Option</span>&lt;rty::Sort&gt; {
         <span class="kw">match </span>(sort1, sort2) {
-            (fhir::Sort::Infer(vid1), fhir::Sort::Infer(vid2)) =&gt; {
-                <span class="self">self</span>.unification_table.unify_var_var(<span class="kw-2">*</span>vid2, <span class="kw-2">*</span>vid2).ok()<span class="question-mark">?</span>;
-                <span class="prelude-val">Some</span>(fhir::Sort::Infer(<span class="kw-2">*</span>vid1))
+            (rty::Sort::Infer(rty::SortVar(vid1)), rty::Sort::Infer(rty::SortVar(vid2))) =&gt; {
+                <span class="self">self</span>.sort_unification_table
+                    .unify_var_var(<span class="kw-2">*</span>vid1, <span class="kw-2">*</span>vid2)
+                    .ok()<span class="question-mark">?</span>;
             }
-            (fhir::Sort::Infer(vid), sort) | (sort, fhir::Sort::Infer(vid))
-                <span class="kw">if </span>!<span class="self">self</span>.is_eq_sort_vid(<span class="kw-2">*</span>vid) || <span class="self">self</span>.has_equality(sort) =&gt;
-            {
-                <span class="self">self</span>.unification_table
+            (rty::Sort::Infer(rty::SortVar(vid)), sort)
+            | (sort, rty::Sort::Infer(rty::SortVar(vid))) =&gt; {
+                <span class="self">self</span>.sort_unification_table
                     .unify_var_value(<span class="kw-2">*</span>vid, <span class="prelude-val">Some</span>(sort.clone()))
                     .ok()<span class="question-mark">?</span>;
-                <span class="prelude-val">Some</span>(sort.clone())
             }
-            (fhir::Sort::App(c1, args1), fhir::Sort::App(c2, args2)) =&gt; {
-                <span class="kw">if </span>c1 != c2 || args1.len() != args2.len() {
+            (rty::Sort::Infer(rty::NumVar(vid1)), rty::Sort::Infer(rty::NumVar(vid2))) =&gt; {
+                <span class="self">self</span>.num_unification_table
+                    .unify_var_var(<span class="kw-2">*</span>vid1, <span class="kw-2">*</span>vid2)
+                    .ok()<span class="question-mark">?</span>;
+            }
+            (rty::Sort::Infer(rty::NumVar(vid)), rty::Sort::Int)
+            | (rty::Sort::Int, rty::Sort::Infer(rty::NumVar(vid))) =&gt; {
+                <span class="self">self</span>.num_unification_table
+                    .unify_var_value(<span class="kw-2">*</span>vid, <span class="prelude-val">Some</span>(rty::NumVarValue::Int))
+                    .ok()<span class="question-mark">?</span>;
+            }
+            (rty::Sort::Infer(rty::NumVar(vid)), rty::Sort::Real)
+            | (rty::Sort::Real, rty::Sort::Infer(rty::NumVar(vid))) =&gt; {
+                <span class="self">self</span>.num_unification_table
+                    .unify_var_value(<span class="kw-2">*</span>vid, <span class="prelude-val">Some</span>(rty::NumVarValue::Real))
+                    .ok()<span class="question-mark">?</span>;
+            }
+            (rty::Sort::App(ctor1, args1), rty::Sort::App(ctor2, args2)) =&gt; {
+                <span class="kw">if </span>ctor1 != ctor2 || args1.len() != args2.len() {
                     <span class="kw">return </span><span class="prelude-val">None</span>;
                 }
                 <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[];
                 <span class="kw">for </span>(t1, t2) <span class="kw">in </span>args1.iter().zip(args2.iter()) {
-                    args.push(<span class="self">self</span>.try_equate(t1, t2)<span class="question-mark">?</span>);
+                    args.push(<span class="self">self</span>.try_equate_inner(t1, t2)<span class="question-mark">?</span>);
                 }
-                <span class="prelude-val">Some</span>(fhir::Sort::App(c1.clone(), args.into()))
             }
-            <span class="kw">_ if </span>sort1 == sort2 =&gt; <span class="prelude-val">Some</span>(sort1.clone()),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+            <span class="kw">_ if </span>sort1 == sort2 =&gt; {}
+            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
         }
+        <span class="prelude-val">Some</span>(sort1.clone())
     }
 
-    <span class="kw">fn </span>next_sort_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; fhir::SortVid {
-        <span class="self">self</span>.unification_table.new_key(<span class="prelude-val">None</span>)
+    <span class="kw">fn </span>equate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort1: <span class="kw-2">&amp;</span>rty::Sort, sort2: <span class="kw-2">&amp;</span>rty::Sort) -&gt; rty::Sort {
+        <span class="self">self</span>.try_equate(sort1, sort2)
+            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">&quot;failed to equate sorts: `{sort1:?}` `{sort2:?}`&quot;</span>))
     }
 
-    <span class="kw">fn </span>next_eq_sort_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; fhir::SortVid {
-        <span class="kw">let </span>vid = <span class="self">self</span>.next_sort_vid();
-        <span class="self">self</span>.eq_vids.insert(vid);
-        vid
+    <span class="kw">fn </span>next_sort_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::Sort {
+        rty::Sort::Infer(rty::SortVar(<span class="self">self</span>.next_sort_vid()))
     }
 
-    <span class="kw">fn </span>is_eq_sort_vid(<span class="kw-2">&amp;</span><span class="self">self</span>, vid: fhir::SortVid) -&gt; bool {
-        <span class="self">self</span>.eq_vids.contains(<span class="kw-2">&amp;</span>vid)
+    <span class="kw">fn </span>next_num_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::Sort {
+        rty::Sort::Infer(rty::NumVar(<span class="self">self</span>.next_num_vid()))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_params_sorts(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+    <span class="kw">fn </span>next_sort_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::SortVid {
+        <span class="self">self</span>.sort_unification_table.new_key(<span class="prelude-val">None</span>)
+    }
+
+    <span class="kw">fn </span>next_num_vid(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::NumVid {
+        <span class="self">self</span>.num_unification_table.new_key(<span class="prelude-val">None</span>)
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_params_sorts(<span class="kw-2">&amp;mut </span><span class="self">self</span>, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) -&gt; <span class="prelude-ty">Result </span>{
         params.iter().try_for_each_exhaust(|param| {
-            <span class="kw">if </span>param.sort == fhir::Sort::Wildcard {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.resolve_param(param) {
-                    <span class="self">self</span>.wfckresults
-                        .node_sorts_mut()
-                        .insert(param.fhir_id, sort);
-                } <span class="kw">else </span>{
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::SortAnnotationNeeded::new(param)));
+            <span class="kw">if let </span>fhir::Sort::Infer = param.sort {
+                <span class="kw">let </span>sort = <span class="self">self</span>.param_sort(param.id);
+                <span class="kw">match </span><span class="self">self</span>.fully_resolve(<span class="kw-2">&amp;</span>sort) {
+                    <span class="prelude-val">Ok</span>(sort) =&gt; {
+                        <span class="self">self</span>.wfckresults
+                            .node_sorts_mut()
+                            .insert(param.fhir_id, sort);
+                    }
+                    <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+                        <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::SortAnnotationNeeded::new(param)));
+                    }
                 }
             }
             <span class="prelude-val">Ok</span>(())
         })
     }
 
-    <span class="kw">fn </span>resolve_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-        <span class="kw">if let </span>fhir::Sort::Infer(vid) = <span class="self">self</span>.params[<span class="kw-2">&amp;</span>param.ident.name].<span class="number">0 </span>{
-            <span class="self">self</span>.unification_table.probe_value(vid)
+    <span class="kw">fn </span>ensure_resolved_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
+        <span class="kw">let </span>ExprRes::Param(<span class="kw">_</span>, id) = path.res <span class="kw">else </span>{ <span class="macro">span_bug!</span>(path.span, <span class="string">&quot;unexpected path&quot;</span>) };
+        <span class="kw">let </span>sort = <span class="self">self</span>.param_sort(id);
+        <span class="self">self</span>.fully_resolve(<span class="kw-2">&amp;</span>sort)
+            .map_err(|<span class="kw">_</span>| <span class="self">self</span>.emit_err(errors::CannotInferSort::new(path.span)))
+    }
+
+    <span class="kw">fn </span>is_single_field_record(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rty::Sort)&gt; {
+        <span class="kw">if let </span>rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = sort
+            &amp;&amp; <span class="kw">let </span>[sort] = <span class="kw-2">&amp;</span>sort_def.sorts(sort_args)[..]
+        {
+            <span class="prelude-val">Some</span>((sort_def.did(), sort.clone()))
         } <span class="kw">else </span>{
-            <span class="macro">span_bug!</span>(param.ident.span(), <span class="string">&quot;expected wildcard sort&quot;</span>)
-        }
+            <span class="prelude-val">None
+        </span>}
     }
 
-    <span class="kw">fn </span>ensure_resolved_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, var: fhir::Ident) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Sort, ErrorGuaranteed&gt; {
-        <span class="kw">let </span>sort = <span class="self">self</span>[var.name].clone();
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.resolve_sort(<span class="kw-2">&amp;</span>sort) {
-            <span class="prelude-val">Ok</span>(sort)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::CannotInferSort::new(var)))
-        }
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infer_implicit_params_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>vis = ImplicitParamInferer::new(<span class="self">self</span>);
+        fhir::visit::Visitor::visit_ty(<span class="kw-2">&amp;mut </span>vis, ty);
+        vis.into_result()
     }
 
-    <span class="kw">fn </span>resolve_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>fhir::Sort) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-        <span class="kw">if let </span>fhir::Sort::Infer(vid) = sort {
-            <span class="self">self</span>.unification_table.probe_value(<span class="kw-2">*</span>vid)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Some</span>(sort.clone())
-        }
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infer_implicit_params_constraint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constr: <span class="kw-2">&amp;</span>fhir::Constraint) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>vis = ImplicitParamInferer::new(<span class="self">self</span>);
+        fhir::visit::Visitor::visit_constraint(<span class="kw-2">&amp;mut </span>vis, constr);
+        vis.into_result()
     }
 
-    <span class="kw">fn </span>is_numeric(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>fhir::Sort) -&gt; bool {
-        <span class="self">self</span>.resolve_sort(sort).map_or(<span class="bool-val">false</span>, |s| s.is_numeric())
-    }
-
-    <span class="kw">fn </span>is_bool(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>fhir::Sort) -&gt; bool {
-        <span class="self">self</span>.resolve_sort(sort).map_or(<span class="bool-val">false</span>, |s| s.is_bool())
-    }
-
-    <span class="kw">fn </span>is_int(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>fhir::Sort) -&gt; bool {
-        <span class="self">self</span>.resolve_sort(sort)
-            .map_or(<span class="bool-val">false</span>, |s| <span class="macro">matches!</span>(s, fhir::Sort::Int))
-    }
-
-    <span class="kw">fn </span>is_func(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>fhir::Sort) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::PolyFuncSort&gt; {
-        <span class="self">self</span>.resolve_sort(sort).and_then(|s| {
-            <span class="kw">if let </span>fhir::Sort::Func(fsort) = s {
-                <span class="prelude-val">Some</span>(fsort)
-            } <span class="kw">else </span>{
-                <span class="prelude-val">None
-            </span>}
-        })
-    }
-
-    <span class="kw">fn </span>is_single_field_record(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>fhir::Sort) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-        <span class="self">self</span>.resolve_sort(sort).and_then(|s| {
-            <span class="kw">if let </span>fhir::Sort::Record(def_id, sort_args) = s
-                &amp;&amp; <span class="kw">let </span>[sort] = <span class="kw-2">&amp;</span><span class="self">self</span>.genv.index_sorts_of(def_id, <span class="kw-2">&amp;</span>sort_args)[..]
-            {
-                <span class="prelude-val">Some</span>(sort.clone())
-            } <span class="kw">else </span>{
-                <span class="prelude-val">None
-            </span>}
-        })
-    }
-
-    <span class="kw">fn </span>has_equality(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>fhir::Sort) -&gt; bool {
-        <span class="self">self</span>.resolve_sort(sort)
-            .map_or(<span class="bool-val">false</span>, |s| <span class="self">self</span>.genv.has_equality(<span class="kw-2">&amp;</span>s))
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_results(<span class="self">self</span>) -&gt; WfckResults {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_results(<span class="self">self</span>) -&gt; WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt; {
         <span class="self">self</span>.wfckresults
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infer_mode(<span class="kw-2">&amp;</span><span class="self">self</span>, var: fhir::Ident) -&gt; fhir::InferMode {
-        <span class="kw">let </span>(sort, kind) = <span class="kw-2">&amp;</span><span class="self">self</span>.params[<span class="kw-2">&amp;</span>var.name];
-        kind.infer_mode(sort)
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infer_mode(<span class="kw-2">&amp;</span><span class="self">self</span>, id: fhir::ParamId) -&gt; fhir::InferMode {
+        <span class="kw">let </span>(sort, kind) = <span class="kw-2">&amp;</span><span class="self">self</span>.params[<span class="kw-2">&amp;</span>id];
+        sort.infer_mode(<span class="kw-2">*</span>kind)
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>param_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, id: fhir::ParamId) -&gt; rty::Sort {
+        <span class="self">self</span>.params[<span class="kw-2">&amp;</span>id].<span class="number">0</span>.clone()
+    }
+
+    <span class="kw">fn </span>shallow_resolve(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; rty::Sort {
+        sort.fold_with(<span class="kw-2">&amp;mut </span>ShallowResolver { infcx: <span class="self">self </span>})
+    }
+
+    <span class="kw">fn </span>resolve_vars_if_possible(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; rty::Sort {
+        sort.fold_with(<span class="kw-2">&amp;mut </span>OpportunisticResolver { infcx: <span class="self">self </span>})
+    }
+
+    <span class="kw">fn </span>fully_resolve(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; std::result::Result&lt;rty::Sort, ()&gt; {
+        sort.try_fold_with(<span class="kw-2">&amp;mut </span>FullResolver { infcx: <span class="self">self </span>})
+    }
+}
+
+<span class="kw">struct </span>ImplicitParamInferer&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    errors: ErrorCollector&lt;<span class="lifetime">&#39;genv</span>&gt;,
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; ImplicitParamInferer&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">fn </span>new(infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>errors = ErrorCollector::new(infcx.genv.sess());
+        <span class="self">Self </span>{ infcx, errors }
+    }
+
+    <span class="kw">fn </span>into_result(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="self">self</span>.errors.into_result()
+    }
+
+    <span class="kw">fn </span>infer_implicit_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, idx: <span class="kw-2">&amp;</span>fhir::RefineArg, expected: <span class="kw-2">&amp;</span>rty::Sort) {
+        <span class="kw">match </span>idx.kind {
+            fhir::RefineArgKind::Expr(expr) =&gt; {
+                <span class="kw">if let </span>fhir::ExprKind::Var(var, <span class="prelude-val">Some</span>(<span class="kw">_</span>)) = <span class="kw-2">&amp;</span>expr.kind {
+                    <span class="kw">let </span>(<span class="kw">_</span>, id) = var.res.expect_param();
+                    <span class="kw">let </span>found = <span class="self">self</span>.infcx.param_sort(id);
+                    <span class="self">self</span>.infcx.equate(<span class="kw-2">&amp;</span>found, expected);
+                }
+            }
+            fhir::RefineArgKind::Abs(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {}
+            fhir::RefineArgKind::Record(flds) =&gt; {
+                <span class="kw">if let </span>rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
+                    <span class="kw">let </span>sorts = sort_def.sorts(sort_args);
+                    <span class="kw">if </span>flds.len() != sorts.len() {
+                        <span class="self">self</span>.errors.emit(errors::ArgCountMismatch::new(
+                            <span class="prelude-val">Some</span>(idx.span),
+                            String::from(<span class="string">&quot;type&quot;</span>),
+                            sorts.len(),
+                            flds.len(),
+                        ));
+                        <span class="kw">return</span>;
+                    }
+                    <span class="kw">for </span>(f, sort) <span class="kw">in </span>iter::zip(flds, <span class="kw-2">&amp;</span>sorts) {
+                        <span class="self">self</span>.infer_implicit_params(f, sort);
+                    }
+                } <span class="kw">else </span>{
+                    <span class="self">self</span>.errors.emit(errors::ArgCountMismatch::new(
+                        <span class="prelude-val">Some</span>(idx.span),
+                        String::from(<span class="string">&quot;type&quot;</span>),
+                        <span class="number">1</span>,
+                        flds.len(),
+                    ));
+                }
+            }
+        }
+    }
+}
+
+<span class="kw">impl </span>fhir::visit::Visitor <span class="kw">for </span>ImplicitParamInferer&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty) {
+        <span class="kw">if let </span>fhir::TyKind::Indexed(bty, idx) = <span class="kw-2">&amp;</span>ty.kind {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(expected) = <span class="self">self</span>.infcx.genv.sort_of_bty(bty) {
+                <span class="self">self</span>.infer_implicit_params(idx, <span class="kw-2">&amp;</span>expected);
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(id) = idx.is_colon_param() {
+                <span class="kw">let </span>found = <span class="self">self</span>.infcx.param_sort(id);
+                <span class="self">self</span>.infcx.equate(<span class="kw-2">&amp;</span>found, <span class="kw-2">&amp;</span>rty::Sort::Err);
+            } <span class="kw">else </span>{
+                <span class="self">self</span>.errors
+                    .emit(errors::RefinedUnrefinableType::new(bty.span));
+            }
+        }
+        fhir::visit::walk_ty(<span class="self">self</span>, ty);
     }
 }
 
@@ -1170,48 +1346,86 @@
     </span><span class="kw">fn </span>emit_sort_mismatch(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         span: Span,
-        expected: <span class="kw-2">&amp;</span>fhir::Sort,
-        found: <span class="kw-2">&amp;</span>fhir::Sort,
+        expected: <span class="kw-2">&amp;</span>rty::Sort,
+        found: <span class="kw-2">&amp;</span>rty::Sort,
     ) -&gt; ErrorGuaranteed {
-        <span class="kw">let </span>expected = <span class="self">self
-            </span>.resolve_sort(expected)
-            .unwrap_or_else(|| expected.clone());
-        <span class="kw">let </span>found = <span class="self">self</span>.resolve_sort(found).unwrap_or_else(|| found.clone());
+        <span class="kw">let </span>expected = <span class="self">self</span>.resolve_vars_if_possible(expected);
+        <span class="kw">let </span>found = <span class="self">self</span>.resolve_vars_if_possible(found);
         <span class="self">self</span>.emit_err(errors::SortMismatch::new(span, expected, found))
     }
 
     <span class="kw">fn </span>emit_field_not_found(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        sort: <span class="kw-2">&amp;</span>fhir::Sort,
+        sort: <span class="kw-2">&amp;</span>rty::Sort,
         field: fhir::SurfaceIdent,
     ) -&gt; ErrorGuaranteed {
-        <span class="kw">let </span>sort = <span class="self">self</span>.resolve_sort(sort).unwrap_or_else(|| sort.clone());
-        <span class="self">self</span>.emit_err(errors::FieldNotFound::new(sort, field))
+        <span class="self">self</span>.emit_err(errors::FieldNotFound::new(sort.clone(), field))
     }
 
     <span class="attr">#[track_caller]
     </span><span class="kw">fn </span>emit_err&lt;<span class="lifetime">&#39;b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;b </span><span class="self">self</span>, err: <span class="kw">impl </span>IntoDiagnostic&lt;<span class="lifetime">&#39;b</span>&gt;) -&gt; ErrorGuaranteed {
-        <span class="self">self</span>.genv.sess.emit_err(err)
+        <span class="self">self</span>.genv.sess().emit_err(err)
     }
 }
 
-<span class="kw">impl</span>&lt;T: Borrow&lt;fhir::Name&gt;&gt; std::ops::Index&lt;T&gt; <span class="kw">for </span>InferCtxt&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
-    <span class="kw">type </span>Output = fhir::Sort;
-
-    <span class="kw">fn </span>index(<span class="kw-2">&amp;</span><span class="self">self</span>, var: T) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Output {
-        <span class="kw-2">&amp;</span><span class="self">self
-            </span>.params
-            .get(var.borrow())
-            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">&quot;no enty found for key: `{:?}`&quot;</span>, var.borrow()))
-            .<span class="number">0
-    </span>}
+<span class="kw">fn </span>synth_lit(lit: fhir::Lit) -&gt; rty::Sort {
+    <span class="kw">match </span>lit {
+        fhir::Lit::Int(<span class="kw">_</span>) =&gt; rty::Sort::Int,
+        fhir::Lit::Bool(<span class="kw">_</span>) =&gt; rty::Sort::Bool,
+        fhir::Lit::Real(<span class="kw">_</span>) =&gt; rty::Sort::Real,
+    }
 }
 
-<span class="kw">fn </span>synth_lit(lit: fhir::Lit) -&gt; fhir::Sort {
-    <span class="kw">match </span>lit {
-        fhir::Lit::Int(<span class="kw">_</span>) =&gt; fhir::Sort::Int,
-        fhir::Lit::Bool(<span class="kw">_</span>) =&gt; fhir::Sort::Bool,
-        fhir::Lit::Real(<span class="kw">_</span>) =&gt; fhir::Sort::Real,
+<span class="kw">struct </span>ShallowResolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+}
+
+<span class="kw">impl </span>TypeFolder <span class="kw">for </span>ShallowResolver&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">fn </span>fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; rty::Sort {
+        <span class="kw">match </span>sort {
+            rty::Sort::Infer(rty::SortVar(vid)) =&gt; {
+                <span class="self">self</span>.infcx
+                    .sort_unification_table
+                    .probe_value(<span class="kw-2">*</span>vid)
+                    .map(|sort| sort.fold_with(<span class="self">self</span>))
+                    .unwrap_or(sort.clone())
+            }
+            rty::Sort::Infer(rty::NumVar(vid)) =&gt; {
+                <span class="self">self</span>.infcx
+                    .num_unification_table
+                    .probe_value(<span class="kw-2">*</span>vid)
+                    .map(rty::NumVarValue::to_sort)
+                    .unwrap_or(sort.clone())
+            }
+            <span class="kw">_ </span>=&gt; sort.clone(),
+        }
+    }
+}
+
+<span class="kw">struct </span>OpportunisticResolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+}
+
+<span class="kw">impl </span>TypeFolder <span class="kw">for </span>OpportunisticResolver&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">fn </span>fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; rty::Sort {
+        <span class="kw">let </span>s = <span class="self">self</span>.infcx.shallow_resolve(sort);
+        s.super_fold_with(<span class="self">self</span>)
+    }
+}
+
+<span class="kw">struct </span>FullResolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+}
+
+<span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>FullResolver&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">type </span>Error = ();
+
+    <span class="kw">fn </span>try_fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; std::result::Result&lt;rty::Sort, <span class="self">Self</span>::Error&gt; {
+        <span class="kw">let </span>s = <span class="self">self</span>.infcx.shallow_resolve(sort);
+        <span class="kw">match </span>s {
+            rty::Sort::Infer(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(()),
+            <span class="kw">_ </span>=&gt; s.try_super_fold_with(<span class="self">self</span>),
+        }
     }
 }
 </code></pre></div></section></main></body></html>

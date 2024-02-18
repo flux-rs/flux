@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["desugar_defn","desugar_enum_def","desugar_fn_sig","desugar_generics_and_predicates","desugar_qualifier","desugar_refined_by","desugar_sort_decl","desugar_struct_def","desugar_type_alias","func_def_to_func_decl"],"mod":["desugar","errors","resolver","sort_resolver"],"static":["DEFAULT_LOCALE_RESOURCE"]};
+window.SIDEBAR_ITEMS = {"fn":["def_id_symbol","desugar_crate","provide","try_desugar_crate"],"macro":["collect_err"],"mod":["desugar","errors","resolver"],"static":["DEFAULT_LOCALE_RESOURCE"],"struct":["CrateDesugar"],"type":["Result"]};

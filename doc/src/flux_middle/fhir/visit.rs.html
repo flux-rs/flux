@@ -306,10 +306,37 @@
 <a href="#306" id="306">306</a>
 <a href="#307" id="307">307</a>
 <a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
-    BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnOutput, FnSig, FuncSort,
-    GenericArg, Ident, Lifetime, Lit, Path, PolyFuncSort, QPath, RefineArg, RefineParam, Sort,
-    StructDef, Ty, TyKind, TypeBinding, VariantDef, VariantRet,
+    AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
+    FnSig, FuncSort, GenericArg, Generics, Lifetime, Lit, Path, PathExpr, PathSegment,
+    PolyFuncSort, QPath, RefineArg, RefineArgKind, RefineParam, Sort, SortPath, StructDef, Ty,
+    TyKind, TypeBinding, VariantDef, VariantRet,
 };
 
 <span class="attr">#[macro_export]
@@ -325,6 +352,10 @@
 }
 
 <span class="kw">pub trait </span>Visitor: Sized {
+    <span class="kw">fn </span>visit_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, generics: <span class="kw-2">&amp;</span>Generics) {
+        walk_generics(<span class="self">self</span>, generics);
+    }
+
     <span class="kw">fn </span>visit_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, struct_def: <span class="kw-2">&amp;</span>StructDef) {
         walk_struct_def(<span class="self">self</span>, struct_def);
     }
@@ -347,6 +378,10 @@
 
     <span class="kw">fn </span>visit_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sig: <span class="kw-2">&amp;</span>FnSig) {
         walk_fn_sig(<span class="self">self</span>, sig);
+    }
+
+    <span class="kw">fn </span>visit_fn_decl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, decl: <span class="kw-2">&amp;</span>FnDecl) {
+        walk_fn_decl(<span class="self">self</span>, decl);
     }
 
     <span class="kw">fn </span>visit_refine_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>RefineParam) {
@@ -379,12 +414,24 @@
         walk_qpath(<span class="self">self</span>, qpath);
     }
 
+    <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) {
+        walk_path(<span class="self">self</span>, path);
+    }
+
+    <span class="kw">fn </span>visit_path_segment(<span class="kw-2">&amp;mut </span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>PathSegment) {
+        walk_path_segment(<span class="self">self</span>, segment);
+    }
+
     <span class="kw">fn </span>visit_type_binding(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binding: <span class="kw-2">&amp;</span>TypeBinding) {
         walk_type_binding(<span class="self">self</span>, binding);
     }
 
     <span class="kw">fn </span>visit_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) {
         walk_sort(<span class="self">self</span>, sort);
+    }
+
+    <span class="kw">fn </span>visit_sort_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>SortPath) {
+        walk_sort_path(<span class="self">self</span>, path);
     }
 
     <span class="kw">fn </span>visit_poly_func_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>PolyFuncSort) {
@@ -403,29 +450,30 @@
         walk_expr(<span class="self">self</span>, expr);
     }
 
+    <span class="kw">fn </span>visit_alias_pred(<span class="kw-2">&amp;mut </span><span class="self">self</span>, alias_pred: <span class="kw-2">&amp;</span>AliasReft) {
+        walk_alias_pred(<span class="self">self</span>, alias_pred);
+    }
+
     <span class="kw">fn </span>visit_literal(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _lit: <span class="kw-2">&amp;</span>Lit) {}
 
-    <span class="kw">fn </span>visit_ident(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _ident: Ident) {}
+    <span class="kw">fn </span>visit_path_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _path: <span class="kw-2">&amp;</span>PathExpr) {}
 }
 
 <span class="kw">pub fn </span>walk_struct_def&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, struct_def: <span class="kw-2">&amp;</span>StructDef) {
-    <span class="kw">let </span>StructDef { owner_id: <span class="kw">_</span>, params, kind: <span class="kw">_</span>, invariants } = struct_def;
-    <span class="macro">walk_list!</span>(vis, visit_refine_param, params);
-    <span class="macro">walk_list!</span>(vis, visit_expr, invariants);
+    <span class="macro">walk_list!</span>(vis, visit_refine_param, struct_def.params);
+    <span class="macro">walk_list!</span>(vis, visit_expr, struct_def.invariants);
 }
 
 <span class="kw">pub fn </span>walk_enum_def&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, enum_def: <span class="kw-2">&amp;</span>EnumDef) {
-    <span class="kw">let </span>EnumDef { owner_id: <span class="kw">_</span>, params, variants, invariants } = enum_def;
-    <span class="macro">walk_list!</span>(vis, visit_refine_param, params);
-    <span class="macro">walk_list!</span>(vis, visit_variant, variants);
-    <span class="macro">walk_list!</span>(vis, visit_expr, invariants);
+    <span class="macro">walk_list!</span>(vis, visit_refine_param, enum_def.params);
+    <span class="macro">walk_list!</span>(vis, visit_variant, enum_def.variants);
+    <span class="macro">walk_list!</span>(vis, visit_expr, enum_def.invariants);
 }
 
 <span class="kw">pub fn </span>walk_variant&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, variant: <span class="kw-2">&amp;</span>VariantDef) {
-    <span class="kw">let </span>VariantDef { def_id: <span class="kw">_</span>, params, fields, ret, span: <span class="kw">_</span>, lifted: <span class="kw">_ </span>} = variant;
-    <span class="macro">walk_list!</span>(vis, visit_refine_param, params);
-    <span class="macro">walk_list!</span>(vis, visit_field_def, fields);
-    vis.visit_variant_ret(ret);
+    <span class="macro">walk_list!</span>(vis, visit_refine_param, variant.params);
+    <span class="macro">walk_list!</span>(vis, visit_field_def, variant.fields);
+    vis.visit_variant_ret(<span class="kw-2">&amp;</span>variant.ret);
 }
 
 <span class="kw">pub fn </span>walk_field_def&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, field: <span class="kw-2">&amp;</span>FieldDef) {
@@ -439,24 +487,28 @@
     vis.visit_refine_arg(idx);
 }
 
+<span class="kw">pub fn </span>walk_generics&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, generics: <span class="kw-2">&amp;</span>Generics) {
+    <span class="macro">walk_list!</span>(vis, visit_refine_param, generics.refinement_params);
+}
+
 <span class="kw">pub fn </span>walk_fn_sig&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, sig: <span class="kw-2">&amp;</span>FnSig) {
-    <span class="kw">let </span>FnSig { params, requires, args, output, lifted: <span class="kw">_</span>, span: <span class="kw">_ </span>} = sig;
-    <span class="macro">walk_list!</span>(vis, visit_refine_param, params);
-    <span class="macro">walk_list!</span>(vis, visit_constraint, requires);
-    <span class="macro">walk_list!</span>(vis, visit_ty, args);
-    vis.visit_fn_output(output);
+    vis.visit_fn_decl(sig.decl);
+}
+
+<span class="kw">pub fn </span>walk_fn_decl&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, decl: <span class="kw-2">&amp;</span>FnDecl) {
+    <span class="macro">walk_list!</span>(vis, visit_constraint, decl.requires);
+    <span class="macro">walk_list!</span>(vis, visit_ty, decl.args);
+    vis.visit_fn_output(<span class="kw-2">&amp;</span>decl.output);
 }
 
 <span class="kw">pub fn </span>walk_refine_param&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, param: <span class="kw-2">&amp;</span>RefineParam) {
-    <span class="kw">let </span>RefineParam { ident, sort, kind: <span class="kw">_</span>, fhir_id: <span class="kw">_ </span>} = param;
-    vis.visit_ident(<span class="kw-2">*</span>ident);
-    vis.visit_sort(sort);
+    vis.visit_sort(<span class="kw-2">&amp;</span>param.sort);
 }
 
 <span class="kw">pub fn </span>walk_constraint&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, constraint: <span class="kw-2">&amp;</span>Constraint) {
     <span class="kw">match </span>constraint {
         Constraint::Type(loc, ty) =&gt; {
-            vis.visit_ident(<span class="kw-2">*</span>loc);
+            vis.visit_path_expr(loc);
             vis.visit_ty(ty);
         }
         Constraint::Pred(p) =&gt; vis.visit_expr(p),
@@ -464,10 +516,9 @@
 }
 
 <span class="kw">pub fn </span>walk_fn_output&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, output: <span class="kw-2">&amp;</span>FnOutput) {
-    <span class="kw">let </span>FnOutput { params, ret, ensures } = output;
-    <span class="macro">walk_list!</span>(vis, visit_refine_param, params);
-    vis.visit_ty(ret);
-    <span class="macro">walk_list!</span>(vis, visit_constraint, ensures);
+    <span class="macro">walk_list!</span>(vis, visit_refine_param, output.params);
+    vis.visit_ty(<span class="kw-2">&amp;</span>output.ret);
+    <span class="macro">walk_list!</span>(vis, visit_constraint, output.ensures);
 }
 
 <span class="kw">pub fn </span>walk_generic_arg&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, arg: <span class="kw-2">&amp;</span>GenericArg) {
@@ -478,27 +529,27 @@
 }
 
 <span class="kw">pub fn </span>walk_ty&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, ty: <span class="kw-2">&amp;</span>Ty) {
-    <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
-        TyKind::BaseTy(bty) =&gt; vis.visit_bty(bty),
+    <span class="kw">match </span>ty.kind {
+        TyKind::BaseTy(bty) =&gt; vis.visit_bty(<span class="kw-2">&amp;</span>bty),
         TyKind::Indexed(bty, idx) =&gt; {
-            vis.visit_bty(bty);
-            vis.visit_refine_arg(idx);
+            vis.visit_bty(<span class="kw-2">&amp;</span>bty);
+            vis.visit_refine_arg(<span class="kw-2">&amp;</span>idx);
         }
         TyKind::Exists(params, ty) =&gt; {
             <span class="macro">walk_list!</span>(vis, visit_refine_param, params);
             vis.visit_ty(ty);
         }
         TyKind::Constr(pred, ty) =&gt; {
-            vis.visit_expr(pred);
+            vis.visit_expr(<span class="kw-2">&amp;</span>pred);
             vis.visit_ty(ty);
         }
         TyKind::Ptr(lft, loc) =&gt; {
-            vis.visit_lifetime(lft);
-            vis.visit_ident(<span class="kw-2">*</span>loc);
+            vis.visit_lifetime(<span class="kw-2">&amp;</span>lft);
+            vis.visit_path_expr(<span class="kw-2">&amp;</span>loc);
         }
         TyKind::Ref(lft, mty) =&gt; {
-            vis.visit_lifetime(lft);
-            vis.visit_ty(<span class="kw-2">&amp;</span>mty.ty);
+            vis.visit_lifetime(<span class="kw-2">&amp;</span>lft);
+            vis.visit_ty(mty.ty);
         }
         TyKind::Tuple(tys) =&gt; {
             <span class="macro">walk_list!</span>(vis, visit_ty, tys);
@@ -531,12 +582,19 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(self_ty) = self_ty {
                 vis.visit_ty(self_ty);
             }
-            <span class="kw">let </span>Path { res: <span class="kw">_</span>, args, bindings, refine, span: <span class="kw">_ </span>} = path;
-            <span class="macro">walk_list!</span>(vis, visit_generic_arg, args);
-            <span class="macro">walk_list!</span>(vis, visit_type_binding, bindings);
-            <span class="macro">walk_list!</span>(vis, visit_refine_arg, refine);
+            <span class="macro">walk_list!</span>(vis, visit_refine_arg, path.refine);
         }
     }
+}
+
+<span class="kw">pub fn </span>walk_path&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, path: <span class="kw-2">&amp;</span>Path) {
+    <span class="macro">walk_list!</span>(vis, visit_path_segment, path.segments);
+    <span class="macro">walk_list!</span>(vis, visit_refine_arg, path.refine);
+}
+
+<span class="kw">pub fn </span>walk_path_segment&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>PathSegment) {
+    <span class="macro">walk_list!</span>(vis, visit_generic_arg, segment.args);
+    <span class="macro">walk_list!</span>(vis, visit_type_binding, segment.bindings);
 }
 
 <span class="kw">pub fn </span>walk_type_binding&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, binding: <span class="kw-2">&amp;</span>TypeBinding) {
@@ -546,25 +604,14 @@
 
 <span class="kw">pub fn </span>walk_sort&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, sort: <span class="kw-2">&amp;</span>Sort) {
     <span class="kw">match </span>sort {
-        Sort::App(_ctor, args) =&gt; {
-            <span class="macro">walk_list!</span>(vis, visit_sort, args);
-        }
-        Sort::Func(fun) =&gt; vis.visit_poly_func_sort(fun),
-        Sort::Record(_def_id, args) =&gt; {
-            <span class="macro">walk_list!</span>(vis, visit_sort, args);
-        }
-        Sort::BitVec(<span class="kw">_</span>)
-        | Sort::Int
-        | Sort::Param(<span class="kw">_</span>)
-        | Sort::Var(<span class="kw">_</span>)
-        | Sort::Bool
-        | Sort::Real
-        | Sort::Loc
-        | Sort::Unit
-        | Sort::Wildcard
-        | Sort::Infer(<span class="kw">_</span>)
-        | Sort::Error =&gt; {}
+        Sort::Path(path) =&gt; vis.visit_sort_path(path),
+        Sort::Func(func) =&gt; vis.visit_poly_func_sort(func),
+        Sort::Loc | Sort::BitVec(<span class="kw">_</span>) | Sort::Infer =&gt; {}
     }
+}
+
+<span class="kw">pub fn </span>walk_sort_path&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, path: <span class="kw-2">&amp;</span>SortPath) {
+    <span class="macro">walk_list!</span>(vis, visit_sort, path.args);
 }
 
 <span class="kw">pub fn </span>walk_poly_func_sort&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, func: <span class="kw-2">&amp;</span>PolyFuncSort) {
@@ -573,33 +620,34 @@
 }
 
 <span class="kw">pub fn </span>walk_func_sort&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, func: <span class="kw-2">&amp;</span>FuncSort) {
-    <span class="kw">let </span>FuncSort { inputs_and_output } = func;
-    <span class="macro">walk_list!</span>(vis, visit_sort, inputs_and_output);
+    <span class="macro">walk_list!</span>(vis, visit_sort, func.inputs_and_output);
 }
 
 <span class="kw">pub fn </span>walk_refine_arg&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, arg: <span class="kw-2">&amp;</span>RefineArg) {
-    <span class="kw">match </span>arg {
-        RefineArg::Expr { expr, is_binder: <span class="kw">_ </span>} =&gt; vis.visit_expr(expr),
-        RefineArg::Abs(params, body, _span, _fhir_id) =&gt; {
+    <span class="kw">match </span>arg.kind {
+        RefineArgKind::Expr(expr) =&gt; vis.visit_expr(<span class="kw-2">&amp;</span>expr),
+        RefineArgKind::Abs(params, body) =&gt; {
             <span class="macro">walk_list!</span>(vis, visit_refine_param, params);
-            vis.visit_expr(body);
+            vis.visit_expr(<span class="kw-2">&amp;</span>body);
         }
-        RefineArg::Record(_def_id, vars, args, _span) =&gt; {
-            <span class="macro">walk_list!</span>(vis, visit_sort, vars);
-            <span class="macro">walk_list!</span>(vis, visit_refine_arg, args);
+        RefineArgKind::Record(flds) =&gt; {
+            <span class="macro">walk_list!</span>(vis, visit_refine_arg, flds);
         }
     }
 }
 
+<span class="kw">pub fn </span>walk_alias_pred&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, alias_pred: <span class="kw-2">&amp;</span>AliasReft) {
+    <span class="macro">walk_list!</span>(vis, visit_generic_arg, alias_pred.generic_args);
+}
+
 <span class="kw">pub fn </span>walk_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, expr: <span class="kw-2">&amp;</span>Expr) {
-    <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
-        ExprKind::Const(_def_id, _span) =&gt; {}
-        ExprKind::Var(var) =&gt; vis.visit_ident(<span class="kw-2">*</span>var),
-        ExprKind::Dot(base, _fld) =&gt; {
-            vis.visit_ident(<span class="kw-2">*</span>base);
+    <span class="kw">match </span>expr.kind {
+        ExprKind::Var(path, <span class="kw">_</span>) =&gt; vis.visit_path_expr(<span class="kw-2">&amp;</span>path),
+        ExprKind::Dot(path, _fld) =&gt; {
+            vis.visit_path_expr(<span class="kw-2">&amp;</span>path);
         }
-        ExprKind::Literal(lit) =&gt; vis.visit_literal(lit),
-        ExprKind::BinaryOp(_op, <span class="kw">box </span>[e1, e2]) =&gt; {
+        ExprKind::Literal(lit) =&gt; vis.visit_literal(<span class="kw-2">&amp;</span>lit),
+        ExprKind::BinaryOp(_op, e1, e2) =&gt; {
             vis.visit_expr(e1);
             vis.visit_expr(e2);
         }
@@ -607,7 +655,11 @@
         ExprKind::App(_func, args) =&gt; {
             <span class="macro">walk_list!</span>(vis, visit_expr, args);
         }
-        ExprKind::IfThenElse(<span class="kw">box </span>[e1, e2, e3]) =&gt; {
+        ExprKind::Alias(alias_pred, args) =&gt; {
+            vis.visit_alias_pred(<span class="kw-2">&amp;</span>alias_pred);
+            <span class="macro">walk_list!</span>(vis, visit_expr, args);
+        }
+        ExprKind::IfThenElse(e1, e2, e3) =&gt; {
             vis.visit_expr(e1);
             vis.visit_expr(e2);
             vis.visit_expr(e3);

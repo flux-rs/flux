@@ -100,7 +100,7 @@
 };
 
 <span class="kw">pub fn </span>check_invariants(
-    genv: <span class="kw-2">&amp;</span>GlobalEnv,
+    genv: GlobalEnv,
     cache: <span class="kw-2">&amp;mut </span>QueryCache,
     def_id: LocalDefId,
     invariants: <span class="kw-2">&amp;</span>[fhir::Expr],
@@ -118,7 +118,7 @@
 }
 
 <span class="kw">fn </span>check_invariant(
-    genv: <span class="kw-2">&amp;</span>GlobalEnv,
+    genv: GlobalEnv,
     cache: <span class="kw-2">&amp;mut </span>QueryCache,
     def_id: LocalDefId,
     adt_def: <span class="kw-2">&amp;</span>rty::AdtDef,
@@ -133,31 +133,31 @@
 
         <span class="kw">let </span>variant = genv
             .variant_sig(adt_def.did(), variant_idx)
-            .emit(genv.sess)<span class="question-mark">?
+            .emit(genv.sess())<span class="question-mark">?
             </span>.expect(<span class="string">&quot;cannot check opaque structs&quot;</span>)
             .instantiate_identity(<span class="kw-2">&amp;</span>[])
-            .replace_bound_exprs_with(|sort, <span class="kw">_</span>| rcx.define_vars(sort));
+            .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| rcx.define_vars(sort));
 
         <span class="kw">for </span>ty <span class="kw">in </span>variant.fields() {
-            <span class="kw">let </span>ty = rcx.unpack(ty, <span class="kw">crate</span>::refine_tree::AssumeInvariants::No);
+            <span class="kw">let </span>ty = rcx.unpack(ty);
             rcx.assume_invariants(<span class="kw-2">&amp;</span>ty, checker_config.check_overflow);
         }
-        <span class="kw">let </span>pred = invariant.pred.replace_bound_expr(<span class="kw-2">&amp;</span>variant.idx);
-        rcx.check_pred(pred, Tag::new(ConstrReason::Other, DUMMY_SP));
+        <span class="kw">let </span>pred = invariant.apply(<span class="kw-2">&amp;</span>variant.idx);
+        rcx.check_pred(<span class="kw-2">&amp;</span>pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
     <span class="kw">let </span><span class="kw-2">mut </span>fcx = FixpointCtxt::new(genv, def_id, KVarStore::default());
     <span class="kw">if </span>config::dump_constraint() {
-        dbg::dump_item_info(genv.tcx, def_id, <span class="string">&quot;fluxc&quot;</span>, <span class="kw-2">&amp;</span>refine_tree).unwrap();
+        dbg::dump_item_info(genv.tcx(), def_id, <span class="string">&quot;fluxc&quot;</span>, <span class="kw-2">&amp;</span>refine_tree).unwrap();
     }
 
     <span class="kw">let </span>constraint = refine_tree.into_fixpoint(<span class="kw-2">&amp;mut </span>fcx);
     <span class="kw">let </span>errors = fcx
         .check(cache, constraint, <span class="kw-2">&amp;</span>checker_config)
-        .emit(genv.sess)<span class="question-mark">?</span>;
+        .emit(genv.sess())<span class="question-mark">?</span>;
     <span class="kw">if </span>errors.is_empty() {
         <span class="prelude-val">Ok</span>(())
     } <span class="kw">else </span>{
-        <span class="prelude-val">Err</span>(genv.sess.emit_err(errors::Invalid { span }))
+        <span class="prelude-val">Err</span>(genv.sess().emit_err(errors::Invalid { span }))
     }
 }
 

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["GlobalEnv","Ident","Symbol"]};
+window.SIDEBAR_ITEMS = {"struct":["GlobalEnv","GlobalEnvInner","Ident","Map","Symbol"]};

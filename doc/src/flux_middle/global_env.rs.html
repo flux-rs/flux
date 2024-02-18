@@ -442,7 +442,43 @@
 <a href="#442" id="442">442</a>
 <a href="#443" id="443">443</a>
 <a href="#444" id="444">444</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::{borrow::Borrow, rc::Rc};
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_errors::FluxSession;
@@ -450,7 +486,7 @@
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    LangItem, PrimTy,
+    LangItem,
 };
 <span class="kw">use </span>rustc_middle::ty::{TyCtxt, Variance};
 <span class="kw">pub use </span>rustc_span::{symbol::Ident, Symbol};
@@ -459,133 +495,274 @@
     cstore::CrateStoreDyn,
     fhir::{<span class="self">self</span>, FluxLocalDefId, VariantIdx},
     intern::List,
-    queries::{Providers, Queries, QueryResult},
-    rty::{<span class="self">self</span>, fold::TypeFoldable, normalize::Defns, refining::Refiner, GenericParamDefKind},
-    rustc::{<span class="self">self</span>, ty},
+    queries::{Providers, Queries, QueryErr, QueryResult},
+    rty::{<span class="self">self</span>, normalize::SpecFuncDefns, refining::Refiner},
+    rustc::{<span class="self">self</span>, lowering, ty},
 };
 
-<span class="kw">pub struct </span>GlobalEnv&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub </span>tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    <span class="kw">pub </span>sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession,
-    cstore: Box&lt;CrateStoreDyn&gt;,
-    map: fhir::Map,
-    queries: Queries&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="attr">#[derive(Clone, Copy)]
+</span><span class="kw">pub struct </span>GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    inner: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>GlobalEnvInner&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; GlobalEnv&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub fn </span>new(tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;, sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession, cstore: Box&lt;CrateStoreDyn&gt;) -&gt; <span class="self">Self </span>{
-        GlobalEnv { tcx, sess, cstore, map: fhir::Map::new(), queries: Queries::default() }
+<span class="kw">struct </span>GlobalEnvInner&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>FluxSession,
+    arena: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Arena,
+    cstore: Box&lt;CrateStoreDyn&gt;,
+    queries: Queries&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;tcx</span>&gt; GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub fn </span>enter&lt;<span class="lifetime">&#39;a</span>, R&gt;(
+        tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FluxSession,
+        cstore: Box&lt;CrateStoreDyn&gt;,
+        arena: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Arena,
+        providers: Providers,
+        f: <span class="kw">impl for</span>&lt;<span class="lifetime">&#39;genv</span>&gt; FnOnce(GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;) -&gt; R,
+    ) -&gt; R {
+        <span class="kw">let </span>inner = GlobalEnvInner { tcx, sess, cstore, arena, queries: Queries::new(providers) };
+        f(GlobalEnv { inner: <span class="kw-2">&amp;</span>inner })
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub fn </span>tcx(<span class="self">self</span>) -&gt; TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+        <span class="self">self</span>.inner.tcx
     }
 
-    <span class="kw">pub fn </span>providers(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>Providers {
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>.queries.providers
+    <span class="kw">pub fn </span>hir(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; rustc_middle::hir::map::Map&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+        <span class="self">self</span>.tcx().hir()
     }
 
-    <span class="kw">pub fn </span>map(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>fhir::Map {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.map
+    <span class="kw">pub fn </span>sess(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>FluxSession {
+        <span class="self">self</span>.inner.sess
     }
 
-    <span class="kw">pub fn </span>map_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span>fhir::Map {
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>.map
+    <span class="kw">pub fn </span>collect_specs(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span><span class="kw">crate</span>::Specs {
+        <span class="self">self</span>.inner.queries.collect_specs(<span class="self">self</span>)
     }
 
-    <span class="kw">pub fn </span>defns(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span>Defns&gt; {
-        <span class="self">self</span>.queries.defns(<span class="self">self</span>)
+    <span class="kw">pub fn </span>resolve_crate(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span><span class="kw">crate</span>::ResolverOutput {
+        <span class="self">self</span>.inner.queries.resolve_crate(<span class="self">self</span>)
     }
 
-    <span class="kw">pub fn </span>qualifiers(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+    <span class="kw">pub fn </span>fhir_crate(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Crate&lt;<span class="lifetime">&#39;genv</span>&gt; {
+        <span class="self">self</span>.inner.queries.fhir_crate(<span class="self">self</span>)
+    }
+
+    <span class="kw">pub fn </span>map(<span class="self">self</span>) -&gt; Map&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+        Map::new(<span class="self">self</span>, <span class="self">self</span>.fhir_crate())
+    }
+
+    <span class="kw">pub fn </span>alloc&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, val: T) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>T {
+        <span class="self">self</span>.inner.arena.alloc(val)
+    }
+
+    <span class="kw">pub fn </span>alloc_slice&lt;T: Copy&gt;(<span class="self">self</span>, slice: <span class="kw-2">&amp;</span>[T]) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>[T] {
+        <span class="self">self</span>.inner.arena.alloc_slice_copy(slice)
+    }
+
+    <span class="kw">pub fn </span>alloc_slice_fill_iter&lt;T, I&gt;(<span class="self">self</span>, it: I) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>[T]
+    <span class="kw">where
+        </span>I: IntoIterator&lt;Item = T&gt;,
+        I::IntoIter: ExactSizeIterator,
+    {
+        <span class="self">self</span>.inner.arena.alloc_slice_fill_iter(it)
+    }
+
+    <span class="kw">pub fn </span>def_kind(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; DefKind {
+        <span class="self">self</span>.tcx().def_kind(def_id.into())
+    }
+
+    <span class="doccomment">/// Allocates space to store `cap` elements of type `T`.
+    ///
+    /// The elements are initialized using the supplied iterator. At most `cap` elements will be
+    /// retrived from the iterator. If the iterator yields fewer than `cap` elements, the returned
+    /// slice will be of length less than the allocated capacity.
+    ///
+    /// ## Panics
+    ///
+    /// Panics if reserving space for the slice fails.
+    </span><span class="kw">pub fn </span>alloc_slice_with_capacity&lt;T, I&gt;(<span class="self">self</span>, cap: usize, it: I) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>[T]
+    <span class="kw">where
+        </span>I: IntoIterator&lt;Item = T&gt;,
+    {
+        <span class="kw">let </span>layout = alloc::Layout::array::&lt;T&gt;(cap).unwrap_or_else(|<span class="kw">_</span>| <span class="macro">panic!</span>(<span class="string">&quot;out of memory&quot;</span>));
+        <span class="kw">let </span>dst = <span class="self">self</span>.inner.arena.alloc_layout(layout).cast::&lt;T&gt;();
+        <span class="kw">unsafe </span>{
+            <span class="kw">let </span><span class="kw-2">mut </span>len = <span class="number">0</span>;
+            <span class="kw">for </span>(i, v) <span class="kw">in </span>it.into_iter().take(cap).enumerate() {
+                len += <span class="number">1</span>;
+                ptr::write(dst.as_ptr().add(i), v);
+            }
+
+            slice::from_raw_parts(dst.as_ptr(), len)
+        }
+    }
+
+    <span class="kw">pub fn </span>spec_func_defns(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span>SpecFuncDefns&gt; {
+        <span class="self">self</span>.inner.queries.spec_func_defns(<span class="kw-2">*</span><span class="self">self</span>)
+    }
+
+    <span class="doccomment">/// Return all the qualifiers that apply to an item, including both global and local qualifiers.
+    </span><span class="kw">pub fn </span>qualifiers_for(
+        <span class="self">self</span>,
         did: LocalDefId,
-    ) -&gt; QueryResult&lt;<span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>rty::Qualifier&gt;&gt; {
-        <span class="kw">let </span>names: FxHashSet&lt;Symbol&gt; = <span class="self">self</span>.map().get_fn_quals(did).map(|qual| qual.name).collect();
+    ) -&gt; QueryResult&lt;<span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>rty::Qualifier&gt;&gt; {
+        <span class="kw">let </span>names: FxHashSet&lt;Symbol&gt; = <span class="self">self
+            </span>.map()
+            .fn_quals_for(did)
+            .iter()
+            .map(|qual| qual.name)
+            .collect();
         <span class="prelude-val">Ok</span>(<span class="self">self
-            </span>.queries
+            </span>.inner
+            .queries
             .qualifiers(<span class="self">self</span>)<span class="question-mark">?
             </span>.iter()
             .filter(<span class="kw">move </span>|qualifier| qualifier.global || names.contains(<span class="kw-2">&amp;</span>qualifier.name)))
     }
 
-    <span class="kw">pub fn </span>func_decls(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>rty::FuncDecl&gt; {
-        <span class="self">self</span>.queries.func_decls(<span class="self">self</span>).values()
+    <span class="kw">pub fn </span>func_decls(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>rty::SpecFuncDecl&gt; {
+        <span class="self">self</span>.inner.queries.func_decls(<span class="self">self</span>).values()
     }
 
-    <span class="kw">pub fn </span>variances_of(<span class="kw-2">&amp;</span><span class="self">self</span>, did: DefId) -&gt; <span class="kw-2">&amp;</span>[Variance] {
-        <span class="self">self</span>.tcx.variances_of(did)
+    <span class="kw">pub fn </span>func_decl(<span class="self">self</span>, name: Symbol) -&gt; rty::SpecFuncDecl {
+        <span class="self">self</span>.inner.queries.func_decls(<span class="self">self</span>)[<span class="kw-2">&amp;</span>name].clone()
+    }
+
+    <span class="kw">pub fn </span>variances_of(<span class="self">self</span>, did: DefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>[Variance] {
+        <span class="self">self</span>.tcx().variances_of(did)
     }
 
     <span class="kw">pub fn </span>mk_box(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: rty::Ty, alloc: rty::Ty) -&gt; rty::Ty {
-        <span class="kw">let </span>def_id = <span class="self">self</span>.tcx.require_lang_item(LangItem::OwnedBox, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>def_id = <span class="self">self</span>.tcx().require_lang_item(LangItem::OwnedBox, <span class="prelude-val">None</span>);
         <span class="kw">let </span>adt_def = <span class="self">self</span>.adt_def(def_id).unwrap();
 
-        <span class="comment">// this is harcoding that `Box` has two type parameters and
-        // it is indexed by unit. We leave this as a reminder in case
-        // that ever changes.
-        </span><span class="macro">debug_assert_eq!</span>(<span class="self">self</span>.generics_of(def_id).unwrap().params.len(), <span class="number">2</span>);
-        <span class="macro">debug_assert!</span>(adt_def.sort().is_unit());
+        <span class="kw">let </span>args = <span class="macro">vec!</span>[rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)];
 
-        <span class="kw">let </span>bty =
-            rty::BaseTy::adt(adt_def, <span class="macro">vec!</span>[rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)]);
-        rty::Ty::indexed(bty, rty::Index::unit())
+        <span class="kw">let </span>bty = rty::BaseTy::adt(adt_def, args);
+        rty::Ty::indexed(bty, rty::Expr::unit_adt(def_id))
     }
 
-    <span class="kw">pub fn </span>mir(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;Rc&lt;rustc::mir::Body&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt;&gt; {
-        <span class="self">self</span>.queries.mir(<span class="self">self</span>, def_id)
+    <span class="kw">pub fn </span>mir(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;Rc&lt;rustc::mir::Body&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt;&gt; {
+        <span class="self">self</span>.inner.queries.mir(<span class="self">self</span>, def_id)
     }
 
-    <span class="kw">pub fn </span>lower_type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;ty::EarlyBinder&lt;ty::Ty&gt;&gt; {
-        <span class="self">self</span>.queries.lower_type_of(<span class="self">self</span>, def_id.into())
+    <span class="kw">pub fn </span>lower_generics_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;ty::Generics&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt; {
+        <span class="self">self</span>.inner.queries.lower_generics_of(<span class="self">self</span>, def_id.into())
     }
 
-    <span class="kw">pub fn </span>lower_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;ty::EarlyBinder&lt;ty::PolyFnSig&gt;&gt; {
-        <span class="self">self</span>.queries.lower_fn_sig(<span class="self">self</span>, def_id)
+    <span class="kw">pub fn </span>lower_predicates_of(
+        <span class="self">self</span>,
+        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
+    ) -&gt; QueryResult&lt;ty::GenericPredicates&gt; {
+        <span class="self">self</span>.inner.queries.lower_predicates_of(<span class="self">self</span>, def_id.into())
     }
 
-    <span class="kw">pub fn </span>adt_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::AdtDef&gt; {
-        <span class="self">self</span>.queries.adt_def(<span class="self">self</span>, def_id.into())
+    <span class="kw">pub fn </span>lower_type_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;ty::EarlyBinder&lt;ty::Ty&gt;&gt; {
+        <span class="self">self</span>.inner.queries.lower_type_of(<span class="self">self</span>, def_id.into())
+    }
+
+    <span class="kw">pub fn </span>lower_fn_sig(<span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;ty::EarlyBinder&lt;ty::PolyFnSig&gt;&gt; {
+        <span class="self">self</span>.inner.queries.lower_fn_sig(<span class="self">self</span>, def_id)
+    }
+
+    <span class="kw">pub fn </span>adt_def(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::AdtDef&gt; {
+        <span class="self">self</span>.inner.queries.adt_def(<span class="self">self</span>, def_id.into())
+    }
+
+    <span class="kw">pub fn </span>adt_sort_def_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; rty::AdtSortDef {
+        <span class="self">self</span>.inner.queries.adt_sort_def_of(<span class="self">self</span>, def_id.into())
     }
 
     <span class="kw">pub fn </span>check_wf(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="self">self</span>,
         flux_id: <span class="kw">impl </span>Into&lt;FluxLocalDefId&gt;,
-    ) -&gt; QueryResult&lt;Rc&lt;fhir::WfckResults&gt;&gt; {
-        <span class="self">self</span>.queries.check_wf(<span class="self">self</span>, flux_id.into())
+    ) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;&gt; {
+        <span class="self">self</span>.inner.queries.check_wf(<span class="self">self</span>, flux_id.into())
     }
 
-    <span class="kw">pub fn </span>generics_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::Generics&gt; {
-        <span class="self">self</span>.queries.generics_of(<span class="self">self</span>, def_id.into())
+    <span class="kw">pub fn </span>impl_trait_ref(
+        <span class="self">self</span>,
+        impl_id: DefId,
+    ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::TraitRef&gt;&gt;&gt; {
+        <span class="kw">let </span>impl_id = <span class="self">self</span>.extern_id_of(impl_id).unwrap_or(impl_id);
+
+        <span class="kw">let </span><span class="prelude-val">Some</span>(poly_trait_ref) = <span class="self">self</span>.tcx().impl_trait_ref(impl_id) <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
+
+        <span class="kw">let </span>trait_ref = lowering::lower_trait_ref(<span class="self">self</span>.tcx(), poly_trait_ref.skip_binder())
+            .map_err(|err| QueryErr::unsupported(<span class="self">self</span>.tcx(), impl_id, err.into_err()))<span class="question-mark">?</span>;
+        <span class="kw">let </span>impl_generics = <span class="self">self</span>.generics_of(impl_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>trait_ref = Refiner::default(<span class="self">self</span>, <span class="kw-2">&amp;</span>impl_generics).refine_trait_ref(<span class="kw-2">&amp;</span>trait_ref)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(trait_ref)))
+    }
+
+    <span class="kw">pub fn </span>generics_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::Generics&gt; {
+        <span class="self">self</span>.inner.queries.generics_of(<span class="self">self</span>, def_id.into())
+    }
+
+    <span class="kw">pub fn </span>refinement_generics_of(
+        <span class="self">self</span>,
+        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
+    ) -&gt; QueryResult&lt;rty::RefinementGenerics&gt; {
+        <span class="self">self</span>.inner
+            .queries
+            .refinement_generics_of(<span class="self">self</span>, def_id.into())
     }
 
     <span class="kw">pub fn </span>predicates_of(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="self">self</span>,
         def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
     ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt; {
-        <span class="self">self</span>.queries.predicates_of(<span class="self">self</span>, def_id.into())
+        <span class="self">self</span>.inner.queries.predicates_of(<span class="self">self</span>, def_id.into())
     }
 
-    <span class="kw">pub fn </span>item_bounds(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt; {
-        <span class="self">self</span>.queries.item_bounds(<span class="self">self</span>, def_id)
+    <span class="kw">pub fn </span>assoc_refinements_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; rty::AssocPredicates {
+        <span class="self">self</span>.inner.queries.assoc_refinements_of(<span class="self">self</span>, def_id.into())
     }
 
-    <span class="kw">pub fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyTy&gt;&gt; {
-        <span class="self">self</span>.queries.type_of(<span class="self">self</span>, def_id)
+    <span class="kw">pub fn </span>assoc_refinement_def(
+        <span class="self">self</span>,
+        impl_id: DefId,
+        name: Symbol,
+    ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt; {
+        <span class="self">self</span>.inner.queries.assoc_refinement_def(<span class="self">self</span>, impl_id, name)
     }
 
-    <span class="kw">pub fn </span>fn_sig(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+    <span class="kw">pub fn </span>sort_of_assoc_reft(
+        <span class="self">self</span>,
         def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
-    ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
-        <span class="self">self</span>.queries.fn_sig(<span class="self">self</span>, def_id.into())
+        name: Symbol,
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt; {
+        <span class="self">self</span>.inner
+            .queries
+            .sort_of_assoc_reft(<span class="self">self</span>, def_id.into(), name)
+    }
+
+    <span class="kw">pub fn </span>item_bounds(<span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt; {
+        <span class="self">self</span>.inner.queries.item_bounds(<span class="self">self</span>, def_id)
+    }
+
+    <span class="kw">pub fn </span>type_of(<span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt; {
+        <span class="self">self</span>.inner.queries.type_of(<span class="self">self</span>, def_id)
+    }
+
+    <span class="kw">pub fn </span>fn_sig(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
+        <span class="self">self</span>.inner.queries.fn_sig(<span class="self">self</span>, def_id.into())
     }
 
     <span class="kw">pub fn </span>variants_of(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="self">self</span>,
         def_id: DefId,
     ) -&gt; QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt; {
-        <span class="self">self</span>.queries.variants_of(<span class="self">self</span>, def_id)
+        <span class="self">self</span>.inner.queries.variants_of(<span class="self">self</span>, def_id)
     }
 
     <span class="kw">pub fn </span>variant_sig(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="self">self</span>,
         def_id: DefId,
         variant_idx: VariantIdx,
     ) -&gt; QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariant&gt;&gt;&gt; {
@@ -595,10 +772,10 @@
     }
 
     <span class="kw">pub fn </span>lower_late_bound_vars(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="self">self</span>,
         def_id: LocalDefId,
     ) -&gt; QueryResult&lt;List&lt;rustc::ty::BoundVariableKind&gt;&gt; {
-        <span class="self">self</span>.queries.lower_late_bound_vars(<span class="self">self</span>, def_id)
+        <span class="self">self</span>.inner.queries.lower_late_bound_vars(<span class="self">self</span>, def_id)
     }
 
     <span class="kw">pub fn </span>get_generic_param(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span>fhir::GenericParam {
@@ -607,227 +784,24 @@
     }
 
     <span class="kw">pub fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, res: fhir::Res) -&gt; bool {
-        <span class="kw">if let </span>fhir::Res::Def(DefKind::Struct, def_id) = res {
-            <span class="self">self</span>.tcx.adt_def(def_id).is_box()
-        } <span class="kw">else </span>{
-            <span class="bool-val">false
-        </span>}
+        res.is_box(<span class="self">self</span>.tcx())
     }
 
-    <span class="kw">pub fn </span>func_decl(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw">impl </span>Borrow&lt;Symbol&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>fhir::FuncDecl&gt; {
-        <span class="self">self</span>.map().func_decl(name)
-    }
-
-    <span class="kw">pub fn </span>const_by_name(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw">impl </span>Borrow&lt;Symbol&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>fhir::ConstInfo&gt; {
-        <span class="self">self</span>.map().const_by_name(name)
-    }
-
-    <span class="kw">pub fn </span>sort_of_bty(<span class="kw-2">&amp;</span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>fhir::BaseTy) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-        <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
-            fhir::BaseTyKind::Path(fhir::QPath::Resolved(<span class="kw">_</span>, path)) =&gt; <span class="self">self</span>.sort_of_path(path),
-            fhir::BaseTyKind::Slice(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Int),
+    <span class="kw">pub fn </span>def_id_to_param_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; rty::ParamTy {
+        rty::ParamTy {
+            index: <span class="self">self</span>.def_id_to_param_index(def_id),
+            name: <span class="self">self</span>.tcx().hir().ty_param_name(def_id),
         }
     }
 
-    <span class="kw">pub fn </span>index_sorts_of(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
-        sort_args: <span class="kw-2">&amp;</span>[fhir::Sort],
-    ) -&gt; Vec&lt;fhir::Sort&gt; {
-        <span class="kw">let </span>def_id = def_id.into();
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local().or_else(|| <span class="self">self</span>.map().get_extern(def_id)) {
-            <span class="self">self</span>.map().refined_by(local_id).index_sorts(sort_args)
-        } <span class="kw">else </span>{
-            <span class="self">self</span>.cstore()
-                .refined_by(def_id)
-                .map(|rby| rby.index_sorts(sort_args))
-                .unwrap_or_default()
-        }
-    }
-
-    <span class="kw">pub fn </span>sort_of_path(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::Path) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-        <span class="comment">// CODESYNC(sort-of, 3) sorts should be given consistently
-        </span><span class="kw">match </span>path.res {
-            fhir::Res::PrimTy(PrimTy::Int(<span class="kw">_</span>) | PrimTy::Uint(<span class="kw">_</span>)) =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Int),
-            fhir::Res::PrimTy(PrimTy::Bool) =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Bool),
-            fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) =&gt; {
-                <span class="prelude-val">Some</span>(fhir::Sort::Unit)
-            }
-            fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) =&gt; {
-                <span class="kw">let </span><span class="kw-2">mut </span>sort_args = <span class="macro">vec!</span>[];
-                <span class="kw">if let </span><span class="prelude-val">Ok</span>(generics) = <span class="self">self</span>.generics_of(def_id) {
-                    <span class="kw">for </span>(param, arg) <span class="kw">in </span>generics.params.iter().zip(<span class="kw-2">&amp;</span>path.args) {
-                        <span class="kw">if let </span>GenericParamDefKind::SplTy = param.kind {
-                            <span class="kw">let </span>fhir::GenericArg::Type(ty) = arg <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">None </span>};
-                            <span class="kw">let </span>sort = <span class="self">self</span>.sort_of_ty(ty)<span class="question-mark">?</span>;
-                            sort_args.push(sort);
-                        }
-                    }
-                };
-                <span class="prelude-val">Some</span>(fhir::Sort::Record(def_id, List::from_vec(sort_args)))
-            }
-            fhir::Res::SelfTyAlias { alias_to, .. } =&gt; <span class="self">self</span>.sort_of_self_ty_alias(alias_to),
-            fhir::Res::Def(DefKind::TyParam, def_id) =&gt; <span class="self">self</span>.sort_of_generic_param(def_id),
-            fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, <span class="kw">_</span>)
-            | fhir::Res::SelfTyParam { .. } =&gt; <span class="prelude-val">None</span>,
-            fhir::Res::Def(..) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;unexpected res `{:?}`&quot;</span>, path.res),
-        }
-    }
-
-    <span class="kw">pub fn </span>sort_of_self_ty_alias(<span class="kw-2">&amp;</span><span class="self">self</span>, alias_to: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-        <span class="kw">let </span>self_ty = <span class="self">self</span>.tcx.type_of(alias_to).instantiate_identity();
-        <span class="self">self</span>.sort_of_self_ty(alias_to, self_ty)
-    }
-
-    <span class="kw">pub fn </span>sort_of_generic_param(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-        <span class="kw">let </span>param = <span class="self">self</span>.get_generic_param(def_id.expect_local());
-        <span class="kw">match </span><span class="kw-2">&amp;</span>param.kind {
-            fhir::GenericParamKind::BaseTy | fhir::GenericParamKind::SplTy =&gt; {
-                <span class="prelude-val">Some</span>(fhir::Sort::Param(def_id))
-            }
-            fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime =&gt; <span class="prelude-val">None</span>,
-        }
-    }
-
-    <span class="kw">fn </span>sort_of_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-        <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
-            fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, <span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.sort_of_path(bty.as_path()<span class="question-mark">?</span>)
-            }
-            fhir::TyKind::Exists(<span class="kw">_</span>, ty) | fhir::TyKind::Constr(<span class="kw">_</span>, ty) =&gt; <span class="self">self</span>.sort_of_ty(ty),
-            fhir::TyKind::RawPtr(<span class="kw">_</span>, <span class="kw">_</span>)
-            | fhir::TyKind::Ref(<span class="kw">_</span>, <span class="kw">_</span>)
-            | fhir::TyKind::Tuple(<span class="kw">_</span>)
-            | fhir::TyKind::Array(<span class="kw">_</span>, <span class="kw">_</span>)
-            | fhir::TyKind::Never =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Unit),
-            fhir::TyKind::Hole(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Wildcard),
-            fhir::TyKind::Ptr(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-            fhir::TyKind::OpaqueDef(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-        }
-    }
-
-    <span class="kw">fn </span>sort_of_self_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId, ty: rustc_middle::ty::Ty) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-        <span class="kw">use </span>rustc_middle::ty;
-        <span class="comment">// CODESYNC(sort-of, 3) sorts should be given consistently
-        </span><span class="kw">match </span>ty.kind() {
-            ty::TyKind::Bool =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Bool),
-            ty::TyKind::Slice(<span class="kw">_</span>) | ty::TyKind::Int(<span class="kw">_</span>) | ty::TyKind::Uint(<span class="kw">_</span>) =&gt; {
-                <span class="prelude-val">Some</span>(fhir::Sort::Int)
-            }
-            ty::TyKind::Adt(adt_def, args) =&gt; {
-                <span class="kw">let </span><span class="kw-2">mut </span>sort_args = <span class="macro">vec!</span>[];
-                <span class="kw">for </span>arg <span class="kw">in </span><span class="kw-2">*</span>args {
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(ty) = arg.as_type()
-                        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.sort_of_self_ty(def_id, ty)
-                    {
-                        sort_args.push(sort);
-                    }
-                }
-                <span class="prelude-val">Some</span>(fhir::Sort::Record(adt_def.did(), List::from_vec(sort_args)))
-            }
-            ty::TyKind::Param(p) =&gt; {
-                <span class="kw">let </span>generic_param_def = <span class="self">self
-                    </span>.tcx
-                    .generics_of(def_id)
-                    .param_at(p.index <span class="kw">as </span>usize, <span class="self">self</span>.tcx);
-                <span class="self">self</span>.sort_of_generic_param(generic_param_def.def_id)
-            }
-            ty::TyKind::Float(<span class="kw">_</span>)
-            | ty::TyKind::Str
-            | ty::TyKind::Char
-            | ty::TyKind::RawPtr(<span class="kw">_</span>)
-            | ty::TyKind::Ref(..)
-            | ty::TyKind::Tuple(<span class="kw">_</span>)
-            | ty::TyKind::Array(..)
-            | ty::TyKind::Never =&gt; <span class="prelude-val">Some</span>(fhir::Sort::Unit),
-            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;unexpected self ty {ty:?}&quot;</span>),
-        }
-    }
-
-    <span class="kw">pub fn </span>early_bound_sorts_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId, sort_args: <span class="kw-2">&amp;</span>[fhir::Sort]) -&gt; Vec&lt;fhir::Sort&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
-            <span class="self">self</span>.map().refined_by(local_id).early_bound_sorts(sort_args)
-        } <span class="kw">else </span>{
-            <span class="self">self</span>.cstore()
-                .refined_by(def_id)
-                .map(|refined_by| refined_by.early_bound_sorts(sort_args))
-                .unwrap_or_default()
-        }
-    }
-
-    <span class="doccomment">/// Whether values of this sort can be compared for equality.
-    </span><span class="kw">pub fn </span>has_equality(<span class="kw-2">&amp;</span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>fhir::Sort) -&gt; bool {
-        <span class="kw">match </span>sort {
-            fhir::Sort::Int
-            | fhir::Sort::Bool
-            | fhir::Sort::Real
-            | fhir::Sort::Unit
-            | fhir::Sort::BitVec(<span class="kw">_</span>)
-            | fhir::Sort::Param(<span class="kw">_</span>)
-            | fhir::Sort::Var(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
-            fhir::Sort::Record(def_id, sort_args) =&gt; {
-                <span class="self">self</span>.index_sorts_of(<span class="kw-2">*</span>def_id, sort_args)
-                    .iter()
-                    .all(|sort| <span class="self">self</span>.has_equality(sort))
-            }
-            fhir::Sort::App(ctor, sorts) =&gt; <span class="self">self</span>.ctor_has_equality(ctor, sorts),
-            fhir::Sort::Loc
-            | fhir::Sort::Func(<span class="kw">_</span>)
-            | fhir::Sort::Wildcard
-            | fhir::Sort::Infer(<span class="kw">_</span>)
-            | fhir::Sort::Error =&gt; <span class="bool-val">false</span>,
-        }
-    }
-
-    <span class="doccomment">/// For now all sort constructors have equality if all the generic arguments do. In the
-    /// future we may have a more fine-grained notion of equality for sort constructors.
-    </span><span class="kw">fn </span>ctor_has_equality(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span>fhir::SortCtor, args: <span class="kw-2">&amp;</span>[fhir::Sort]) -&gt; bool {
-        args.iter().all(|sort| <span class="self">self</span>.has_equality(sort))
-    }
-
-    <span class="kw">pub fn </span>field_sort(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        def_id: DefId,
-        sort_args: List&lt;fhir::Sort&gt;,
-        fld: Symbol,
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::Sort&gt; {
-        <span class="kw">let </span>def_id = <span class="self">self</span>.lookup_extern(def_id).unwrap_or(def_id);
-        <span class="kw">let </span>poly_sort = <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
-            <span class="self">self</span>.map().refined_by(local_id).field_sort(fld, <span class="kw-2">&amp;</span>sort_args)
-        } <span class="kw">else </span>{
-            <span class="self">self</span>.cstore()
-                .refined_by(def_id)
-                .and_then(|refined_by| refined_by.field_sort(fld, <span class="kw-2">&amp;</span>sort_args))
-        };
-        poly_sort
-    }
-
-    <span class="kw">pub fn </span>field_index(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId, fld: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
-        <span class="kw">let </span>def_id = <span class="self">self</span>.lookup_extern(def_id).unwrap_or(def_id);
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
-            <span class="self">self</span>.map().refined_by(local_id).field_index(fld)
-        } <span class="kw">else </span>{
-            <span class="self">self</span>.cstore()
-                .refined_by(def_id)
-                .and_then(|refined_by| refined_by.field_index(fld))
-        }
-    }
-
-    <span class="kw">pub fn </span>refine_default_generic_args(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        generics: <span class="kw-2">&amp;</span>rty::Generics,
-        args: <span class="kw-2">&amp;</span>ty::GenericArgs,
-    ) -&gt; QueryResult&lt;rty::GenericArgs&gt; {
-        <span class="kw">let </span>refiner = Refiner::default(<span class="self">self</span>, generics);
-        <span class="kw">let </span><span class="kw-2">mut </span>res = <span class="macro">vec!</span>[];
-        <span class="kw">for </span>arg <span class="kw">in </span>args {
-            res.push(refiner.refine_generic_arg_raw(arg)<span class="question-mark">?</span>);
-        }
-        <span class="prelude-val">Ok</span>(res.into())
+    <span class="kw">pub fn </span>def_id_to_param_index(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; u32 {
+        <span class="kw">let </span>item_def_id = <span class="self">self</span>.hir().ty_param_owner(def_id);
+        <span class="kw">let </span>generics = <span class="self">self</span>.tcx().generics_of(item_def_id);
+        generics.param_def_id_to_index[<span class="kw-2">&amp;</span>def_id.to_def_id()]
     }
 
     <span class="kw">pub fn </span>refine_default(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="self">self</span>,
         generics: <span class="kw-2">&amp;</span>rty::Generics,
         rustc_ty: <span class="kw-2">&amp;</span>ty::Ty,
     ) -&gt; QueryResult&lt;rty::Ty&gt; {
@@ -835,55 +809,153 @@
     }
 
     <span class="kw">pub fn </span>refine_with_holes(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="self">self</span>,
         generics: <span class="kw-2">&amp;</span>rty::Generics,
         rustc_ty: <span class="kw-2">&amp;</span>ty::Ty,
     ) -&gt; QueryResult&lt;rty::Ty&gt; {
         Refiner::with_holes(<span class="self">self</span>, generics).refine_ty(rustc_ty)
     }
 
-    <span class="kw">pub fn </span>instantiate_arg_for_fun(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        generics: <span class="kw-2">&amp;</span>rty::Generics,
-        param: <span class="kw-2">&amp;</span>rty::GenericParamDef,
-        arg: <span class="kw-2">&amp;</span>ty::GenericArg,
-    ) -&gt; QueryResult&lt;rty::GenericArg&gt; {
-        Refiner::new(<span class="self">self</span>, generics, |bty| {
-            <span class="kw">let </span>sort = bty.sort();
-            <span class="kw">let </span><span class="kw-2">mut </span>ty = rty::Ty::indexed(bty.shift_in_escaping(<span class="number">1</span>), rty::Expr::nu());
-            <span class="kw">if </span>!sort.is_unit() {
-                ty = rty::Ty::constr(rty::Expr::hole(rty::HoleKind::Pred), ty);
-            }
-            rty::Binder::with_sort(ty, sort)
-        })
-        .refine_generic_arg(param, arg)
-    }
-
-    <span class="kw">pub fn </span>instantiate_arg_for_constructor(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        generics: <span class="kw-2">&amp;</span>rty::Generics,
-        param: <span class="kw-2">&amp;</span>rty::GenericParamDef,
-        arg: <span class="kw-2">&amp;</span>ty::GenericArg,
-    ) -&gt; QueryResult&lt;rty::GenericArg&gt; {
-        Refiner::with_holes(<span class="self">self</span>, generics).refine_generic_arg(param, arg)
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>cstore(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>CrateStoreDyn {
-        <span class="kw-2">&amp;*</span><span class="self">self</span>.cstore
-    }
-
-    <span class="kw">pub fn </span>hir(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; rustc_middle::hir::map::Map&lt;<span class="lifetime">&#39;tcx</span>&gt; {
-        <span class="self">self</span>.tcx.hir()
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>cstore(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>CrateStoreDyn {
+        <span class="kw-2">&amp;*</span><span class="self">self</span>.inner.cstore
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookup_extern(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
-        <span class="self">self</span>.map().get_extern(def_id).map(LocalDefId::to_def_id)
+        <span class="self">self</span>.map()
+            .get_local_id_for_extern(def_id)
+            .map(LocalDefId::to_def_id)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>is_fn_once_output(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; bool {
-        <span class="self">self</span>.tcx
+        <span class="self">self</span>.tcx()
             .require_lang_item(rustc_hir::LangItem::FnOnceOutput, <span class="prelude-val">None</span>)
             == def_id
     }
+
+    <span class="kw">pub fn </span>extern_id_of(<span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
+        <span class="self">self</span>.map().extern_id_of(def_id.as_local()<span class="question-mark">?</span>)
+    }
+}
+
+<span class="attr">#[derive(Clone, Copy)]
+</span><span class="kw">pub struct </span>Map&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    fhir: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Crate&lt;<span class="lifetime">&#39;genv</span>&gt;,
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; Map&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, fhir: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Crate&lt;<span class="lifetime">&#39;genv</span>&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ genv, fhir }
+    }
+
+    <span class="kw">pub fn </span>get_generics(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Generics&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
+        <span class="comment">// We don&#39;t have nodes for closures and coroutines
+        </span><span class="kw">if </span><span class="macro">matches!</span>(<span class="self">self</span>.genv.def_kind(def_id), DefKind::Closure | DefKind::Coroutine) {
+            <span class="prelude-val">None
+        </span>} <span class="kw">else </span>{
+            <span class="prelude-val">Some</span>(<span class="self">self</span>.node(def_id).generics())
+        }
+    }
+
+    <span class="kw">pub fn </span>get_local_id_for_extern(<span class="self">self</span>, extern_def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;LocalDefId&gt; {
+        <span class="self">self</span>.fhir.externs.get(<span class="kw-2">&amp;</span>extern_def_id).copied()
+    }
+
+    <span class="kw">pub fn </span>get_flux_item(<span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::FluxItem&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
+        <span class="self">self</span>.fhir.flux_items.get(<span class="kw-2">&amp;</span>name).as_ref().copied()
+    }
+
+    <span class="kw">pub fn </span>refined_by(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::RefinedBy&lt;<span class="lifetime">&#39;genv</span>&gt; {
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.expect_item(def_id).kind {
+            fhir::ItemKind::Enum(enum_def) =&gt; enum_def.refined_by,
+            fhir::ItemKind::Struct(struct_def) =&gt; struct_def.refined_by,
+            fhir::ItemKind::TyAlias(ty_alias) =&gt; ty_alias.refined_by,
+            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected struct, enum or type alias&quot;</span>),
+        }
+    }
+
+    <span class="kw">pub fn </span>extern_id_of(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.expect_item(def_id).kind {
+            fhir::ItemKind::Enum(enum_def) =&gt; enum_def.extern_id,
+            fhir::ItemKind::Struct(struct_def) =&gt; struct_def.extern_id,
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="kw">pub fn </span>spec_funcs(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::SpecFunc&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
+        <span class="self">self</span>.fhir.flux_items.values().filter_map(|item| {
+            <span class="kw">if let </span>fhir::FluxItem::Func(defn) = item {
+                <span class="prelude-val">Some</span>(defn)
+            } <span class="kw">else </span>{
+                <span class="prelude-val">None
+            </span>}
+        })
+    }
+
+    <span class="kw">pub fn </span>spec_func(<span class="kw-2">&amp;</span><span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::SpecFunc&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
+        <span class="self">self</span>.fhir.flux_items.get(<span class="kw-2">&amp;</span>name).and_then(|item| {
+            <span class="kw">if let </span>fhir::FluxItem::Func(defn) = item {
+                <span class="prelude-val">Some</span>(defn)
+            } <span class="kw">else </span>{
+                <span class="prelude-val">None
+            </span>}
+        })
+    }
+
+    <span class="kw">pub fn </span>qualifiers(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Qualifier&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
+        <span class="self">self</span>.fhir.flux_items.values().filter_map(|item| {
+            <span class="kw">if let </span>fhir::FluxItem::Qualifier(qual) = item {
+                <span class="prelude-val">Some</span>(qual)
+            } <span class="kw">else </span>{
+                <span class="prelude-val">None
+            </span>}
+        })
+    }
+
+    <span class="kw">pub fn </span>consts(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = fhir::ConstInfo&gt; + <span class="lifetime">&#39;genv </span>{
+        <span class="self">self</span>.fhir.consts.values().copied()
+    }
+
+    <span class="kw">pub fn </span>is_trusted(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
+        <span class="self">self</span>.node(def_id).fn_sig().unwrap().trusted
+    }
+
+    <span class="kw">pub fn </span>fn_quals_for(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>[fhir::SurfaceIdent] {
+        <span class="comment">// This is called on adts when checking invariants
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="self">self</span>.node(def_id).fn_sig() {
+            fn_sig.qualifiers
+        } <span class="kw">else </span>{
+            <span class="kw-2">&amp;</span>[]
+        }
+    }
+
+    <span class="kw">pub fn </span>expect_item(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Item&lt;<span class="lifetime">&#39;genv</span>&gt; {
+        <span class="self">self</span>.fhir.items.get(<span class="kw-2">&amp;</span>def_id).unwrap()
+    }
+
+    <span class="kw">pub fn </span>node(<span class="self">self</span>, def_id: LocalDefId) -&gt; fhir::Node&lt;<span class="lifetime">&#39;genv</span>&gt; {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = <span class="self">self</span>.fhir.items.get(<span class="kw-2">&amp;</span>def_id) {
+            fhir::Node::Item(item)
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(trait_item) = <span class="self">self</span>.fhir.trait_items.get(<span class="kw-2">&amp;</span>def_id) {
+            fhir::Node::TraitItem(trait_item)
+        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(impl_item) = <span class="self">self</span>.fhir.impl_items.get(<span class="kw-2">&amp;</span>def_id) {
+            fhir::Node::ImplItem(impl_item)
+        } <span class="kw">else </span>{
+            <span class="macro">bug!</span>(<span class="string">&quot;node not found {def_id:?}&quot;</span>);
+        }
+    }
+}
+
+<span class="attr">#[macro_export]
+</span><span class="macro">macro_rules! </span>try_alloc_slice {
+    (<span class="macro-nonterminal">$genv</span>:expr, <span class="macro-nonterminal">$slice</span>:expr, <span class="macro-nonterminal">$map</span>:expr $(,)<span class="question-mark">?</span>) =&gt; {{
+        <span class="kw">let </span>slice = <span class="macro-nonterminal">$slice</span>;
+        <span class="macro-nonterminal">$</span><span class="macro">crate::try_alloc_slice!</span>(<span class="macro-nonterminal">$genv</span>, cap: slice.len(), slice.into_iter().map(<span class="macro-nonterminal">$map</span>))
+    }};
+    (<span class="macro-nonterminal">$genv</span>:expr, cap: <span class="macro-nonterminal">$cap</span>:expr, <span class="macro-nonterminal">$it</span>:expr $(,)<span class="question-mark">?</span>) =&gt; {{
+        <span class="kw">let </span><span class="kw-2">mut </span>err = <span class="prelude-val">None</span>;
+        <span class="kw">let </span>slice = <span class="macro-nonterminal">$genv</span>.alloc_slice_with_capacity(<span class="macro-nonterminal">$cap</span>, <span class="macro-nonterminal">$it</span>.into_iter().collect_errors(<span class="kw-2">&amp;mut </span>err));
+        err.map_or(<span class="prelude-val">Ok</span>(slice), <span class="prelude-val">Err</span>)
+    }};
 }
 </code></pre></div></section></main></body></html>

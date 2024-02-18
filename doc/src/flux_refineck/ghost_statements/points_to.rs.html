@@ -878,7 +878,6 @@
 <a href="#878" id="878">878</a>
 <a href="#879" id="879">879</a>
 <a href="#880" id="880">880</a>
-<a href="#881" id="881">881</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements a points-to analysis for mutable references.
 //!
 //! We use the result of the analysis to insert ghost statements at the points where pointers (`ptr(l)`)
@@ -925,7 +924,7 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>add_ghost_statements&lt;<span class="lifetime">&#39;tcx</span>&gt;(
     stmts: <span class="kw-2">&amp;mut </span>GhostStatements,
-    genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     body: <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     def_id: LocalDefId,
 ) -&gt; QueryResult {
@@ -935,10 +934,10 @@
 
     <span class="comment">// We have fn_sig for function items, but not for closures or generators.
     </span><span class="kw">let </span>fn_sig =
-        <span class="kw">if </span>genv.tcx.def_kind(def_id) == DefKind::Fn { <span class="prelude-val">Some</span>(genv.fn_sig(def_id)<span class="question-mark">?</span>) } <span class="kw">else </span>{ <span class="prelude-val">None </span>};
+        <span class="kw">if </span>genv.def_kind(def_id) == DefKind::Fn { <span class="prelude-val">Some</span>(genv.fn_sig(def_id)<span class="question-mark">?</span>) } <span class="kw">else </span>{ <span class="prelude-val">None </span>};
 
     PointsToAnalysis::new(<span class="kw-2">&amp;</span>map, fn_sig)
-        .into_engine(genv.tcx, body)
+        .into_engine(genv.tcx(), body)
         .iterate_to_fixpoint()
         .visit_reachable_with(body, <span class="kw-2">&amp;mut </span>visitor);
 
@@ -1142,14 +1141,14 @@
 
 <span class="kw">struct </span>CollectPointerToBorrows&lt;<span class="lifetime">&#39;a</span>&gt; {
     map: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Map,
-    tracked_places: Vec&lt;(PlaceIndex, flux_middle::rustc::mir::Place)&gt;,
+    tracked_places: FxHashMap&lt;PlaceIndex, flux_middle::rustc::mir::Place&gt;,
     stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>GhostStatements,
-    before_assign: <span class="prelude-ty">Option</span>&lt;State&gt;,
+    before_state: Vec&lt;(PlaceIndex, FlatSet&lt;Loc&gt;)&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; CollectPointerToBorrows&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="kw">fn </span>new(map: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Map, stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>GhostStatements) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>tracked_places = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>tracked_places = FxHashMap::default();
         map.for_each_tracked_place(|place_idx, local, projection| {
             <span class="kw">let </span>projection = projection
                 .iter()
@@ -1157,39 +1156,26 @@
                 .map(flux_middle::rustc::mir::PlaceElem::Field)
                 .collect();
             tracked_places
-                .push((place_idx, flux_middle::rustc::mir::Place::new(local, projection)));
+                .insert(place_idx, flux_middle::rustc::mir::Place::new(local, projection));
         });
-        <span class="self">Self </span>{ map, tracked_places, stmts, before_assign: <span class="prelude-val">None </span>}
-    }
-
-    <span class="kw">fn </span>insert_ptr_to_borrows_at(<span class="kw-2">&amp;mut </span><span class="self">self</span>, point: Point, old: <span class="kw-2">&amp;</span>State, new: <span class="kw-2">&amp;</span>State) {
-        <span class="kw">for </span>(place_idx, place) <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.tracked_places {
-            <span class="kw">let </span>old_value = old.get_idx(<span class="kw-2">*</span>place_idx, <span class="self">self</span>.map);
-            <span class="kw">let </span>new_value = new.get_idx(<span class="kw-2">*</span>place_idx, <span class="self">self</span>.map);
-            <span class="kw">if let </span>(FlatSet::Elem(<span class="kw">_</span>), FlatSet::Top) = (old_value, new_value) {
-                <span class="self">self</span>.stmts
-                    .insert_at(point, GhostStatement::PtrToBorrow(place.clone()));
-            }
-        }
+        <span class="self">Self </span>{ map, tracked_places, stmts, before_state: <span class="macro">vec!</span>[] }
     }
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;mir</span>, <span class="lifetime">&#39;tcx</span>&gt; ResultsVisitor&lt;<span class="lifetime">&#39;mir</span>, <span class="lifetime">&#39;tcx</span>, Results&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;&gt; <span class="kw">for </span>CollectPointerToBorrows&lt;<span class="lifetime">&#39;_</span>&gt; {
     <span class="kw">type </span>FlowState = State;
 
-    <span class="kw">fn </span>visit_statement_before_primary_effect(
+    <span class="kw">fn </span>visit_block_start(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         _results: <span class="kw-2">&amp;mut </span>Results&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         state: <span class="kw-2">&amp;</span><span class="self">Self</span>::FlowState,
-        statement: <span class="kw-2">&amp;</span><span class="lifetime">&#39;mir </span>mir::Statement&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-        _location: mir::Location,
+        _block_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;mir </span>mir::BasicBlockData&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        _block: BasicBlock,
     ) {
-        <span class="kw">if let </span>mir::StatementKind::Assign(<span class="kw">box </span>(target, <span class="kw">_</span>)) = statement.kind
-            &amp;&amp; <span class="self">self</span>.map.locals[target.local].is_some()
-        {
-            <span class="self">self</span>.before_assign = <span class="prelude-val">Some</span>(state.clone());
-        } <span class="kw">else </span>{
-            <span class="self">self</span>.before_assign = <span class="prelude-val">None</span>;
+        <span class="self">self</span>.before_state.clear();
+        <span class="kw">for </span>place_idx <span class="kw">in </span><span class="self">self</span>.tracked_places.keys() {
+            <span class="kw">let </span>value = state.get_idx(<span class="kw-2">*</span>place_idx, <span class="self">self</span>.map);
+            <span class="self">self</span>.before_state.push((<span class="kw-2">*</span>place_idx, value));
         }
     }
 
@@ -1197,31 +1183,45 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         _results: <span class="kw-2">&amp;mut </span>Results&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         state: <span class="kw-2">&amp;</span><span class="self">Self</span>::FlowState,
-        statement: <span class="kw-2">&amp;</span><span class="lifetime">&#39;mir </span>mir::Statement&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        _statement: <span class="kw-2">&amp;</span><span class="lifetime">&#39;mir </span>mir::Statement&lt;<span class="lifetime">&#39;tcx</span>&gt;,
         location: mir::Location,
     ) {
-        <span class="kw">if let </span>mir::StatementKind::Assign(..) = statement.kind
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(old_state) = <span class="self">self</span>.before_assign.take()
-        {
-            <span class="self">self</span>.insert_ptr_to_borrows_at(Point::Location(location), <span class="kw-2">&amp;</span>old_state, state);
+        <span class="kw">let </span>point = Point::Location(location);
+        <span class="kw">for </span>(place_idx, old_value) <span class="kw">in </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.before_state {
+            <span class="kw">let </span>new_value = state.get_idx(<span class="kw-2">*</span>place_idx, <span class="self">self</span>.map);
+            <span class="kw">if let </span>(FlatSet::Elem(<span class="kw">_</span>), FlatSet::Top) = (<span class="kw-2">&amp;</span>old_value, <span class="kw-2">&amp;</span>new_value) {
+                <span class="kw">let </span>place = <span class="self">self</span>.tracked_places.get(place_idx).unwrap().clone();
+                <span class="self">self</span>.stmts
+                    .insert_at(point, GhostStatement::PtrToBorrow(place));
+            }
+            <span class="kw-2">*</span>old_value = new_value;
         }
     }
 
     <span class="kw">fn </span>visit_block_end(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         results: <span class="kw-2">&amp;mut </span>Results&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        state: <span class="kw-2">&amp;</span>State,
+        _state: <span class="kw-2">&amp;</span>State,
         block_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;mir </span>mir::BasicBlockData&lt;<span class="lifetime">&#39;tcx</span>&gt;,
         block: BasicBlock,
     ) {
         <span class="kw">for </span>target <span class="kw">in </span>block_data.terminator().successors() {
+            <span class="kw">let </span>point = Point::Edge(block, target);
             <span class="kw">let </span>target_state = results.entry_set_for_block(target);
-            <span class="self">self</span>.insert_ptr_to_borrows_at(Point::Edge(block, target), state, target_state);
+
+            <span class="kw">for </span>(place_idx, old_value) <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.before_state {
+                <span class="kw">let </span>new_value = target_state.get_idx(<span class="kw-2">*</span>place_idx, <span class="self">self</span>.map);
+                <span class="kw">if let </span>(FlatSet::Elem(<span class="kw">_</span>), FlatSet::Top) = (<span class="kw-2">&amp;</span>old_value, new_value) {
+                    <span class="kw">let </span>place = <span class="self">self</span>.tracked_places.get(place_idx).unwrap().clone();
+                    <span class="self">self</span>.stmts
+                        .insert_at(point, GhostStatement::PtrToBorrow(place));
+                }
+            }
         }
     }
 }
 
-<span class="doccomment">/// Partial mapping from [`Place`] to [`PlaceIndex`], where some places also have a [`ValueIndex`].
+<span class="doccomment">/// Partial mapping from `Place` to [`PlaceIndex`], where some places also have a [`ValueIndex`].
 ///
 /// This data structure essentially maintains a tree of places and their projections. Some
 /// additional bookkeeping is done, to speed up traversal over this tree:
@@ -1587,7 +1587,7 @@
     }
 }
 
-<span class="doccomment">/// The dataflow state for an instance of [`ValueAnalysis`].
+<span class="doccomment">/// The dataflow state for the [`PointsToAnalysis`].
 ///
 /// Every instance specifies a lattice that represents the possible values of a single tracked
 /// place. If we call this lattice `V` and set of tracked places `P`, then a [`State`] is an
@@ -1625,7 +1625,7 @@
 
     <span class="kw">fn </span>flood_with(<span class="kw-2">&amp;mut </span><span class="self">self</span>, place: mir::PlaceRef&lt;<span class="lifetime">&#39;_</span>&gt;, map: <span class="kw-2">&amp;</span>Map, value: FlatSet&lt;Loc&gt;) {
         map.for_each_aliasing_place(place, <span class="kw-2">&amp;mut </span>|vi| {
-            <span class="self">self</span>.values[vi] = value.clone();
+            <span class="self">self</span>.values[vi] = value;
         });
     }
 
@@ -1661,7 +1661,7 @@
         // already been performed.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(target_value) = map.places[target].value_index {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(source_value) = map.places[source].value_index {
-                <span class="self">self</span>.values[target_value] = <span class="self">self</span>.values[source_value].clone();
+                <span class="self">self</span>.values[target_value] = <span class="self">self</span>.values[source_value];
             }
         }
         <span class="kw">for </span>target_child <span class="kw">in </span>map.children(target) {
@@ -1696,9 +1696,7 @@
 
     <span class="doccomment">/// Retrieve the value stored for a place index if tracked
     </span><span class="kw">fn </span>get_tracked_idx(<span class="kw-2">&amp;</span><span class="self">self</span>, place: PlaceIndex, map: <span class="kw-2">&amp;</span>Map) -&gt; <span class="prelude-ty">Option</span>&lt;FlatSet&lt;Loc&gt;&gt; {
-        map.places[place]
-            .value_index
-            .map(|v| <span class="self">self</span>.values[v].clone())
+        map.places[place].value_index.map(|v| <span class="self">self</span>.values[v])
     }
 }
 

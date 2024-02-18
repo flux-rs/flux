@@ -813,75 +813,19 @@
 <a href="#813" id="813">813</a>
 <a href="#814" id="814">814</a>
 <a href="#815" id="815">815</a>
-<a href="#816" id="816">816</a>
-<a href="#817" id="817">817</a>
-<a href="#818" id="818">818</a>
-<a href="#819" id="819">819</a>
-<a href="#820" id="820">820</a>
-<a href="#821" id="821">821</a>
-<a href="#822" id="822">822</a>
-<a href="#823" id="823">823</a>
-<a href="#824" id="824">824</a>
-<a href="#825" id="825">825</a>
-<a href="#826" id="826">826</a>
-<a href="#827" id="827">827</a>
-<a href="#828" id="828">828</a>
-<a href="#829" id="829">829</a>
-<a href="#830" id="830">830</a>
-<a href="#831" id="831">831</a>
-<a href="#832" id="832">832</a>
-<a href="#833" id="833">833</a>
-<a href="#834" id="834">834</a>
-<a href="#835" id="835">835</a>
-<a href="#836" id="836">836</a>
-<a href="#837" id="837">837</a>
-<a href="#838" id="838">838</a>
-<a href="#839" id="839">839</a>
-<a href="#840" id="840">840</a>
-<a href="#841" id="841">841</a>
-<a href="#842" id="842">842</a>
-<a href="#843" id="843">843</a>
-<a href="#844" id="844">844</a>
-<a href="#845" id="845">845</a>
-<a href="#846" id="846">846</a>
-<a href="#847" id="847">847</a>
-<a href="#848" id="848">848</a>
-<a href="#849" id="849">849</a>
-<a href="#850" id="850">850</a>
-<a href="#851" id="851">851</a>
-<a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a>
-<a href="#855" id="855">855</a>
-<a href="#856" id="856">856</a>
-<a href="#857" id="857">857</a>
-<a href="#858" id="858">858</a>
-<a href="#859" id="859">859</a>
-<a href="#860" id="860">860</a>
-<a href="#861" id="861">861</a>
-<a href="#862" id="862">862</a>
-<a href="#863" id="863">863</a>
-<a href="#864" id="864">864</a>
-<a href="#865" id="865">865</a>
-<a href="#866" id="866">866</a>
-<a href="#867" id="867">867</a>
-<a href="#868" id="868">868</a>
-<a href="#869" id="869">869</a>
-<a href="#870" id="870">870</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
-<span class="kw">use </span>flux_common::tracked_span_bug;
+<span class="kw">use </span>flux_common::{bug, tracked_span_bug};
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
         <span class="self">self</span>,
-        evars::{EVarCxId, EVarSol, UnsolvedEvar},
+        evars::{EVarCxId, EVarSol},
         fold::TypeFoldable,
-        AliasTy, BaseTy, BinOp, Binder, Const, Constraint, ESpan, EVarGen, EarlyBinder, Expr,
-        ExprKind, FnOutput, GeneratorObligPredicate, GenericArg, GenericArgs, GenericParamDefKind,
-        HoleKind, InferMode, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort,
-        TupleTree, Ty, TyKind, Var,
+        AliasTy, BaseTy, BinOp, Binder, Constraint, CoroutineObligPredicate, ESpan, EVarGen,
+        EarlyBinder, Expr, ExprKind, FnOutput, GenericArg, HoleKind, InferMode, Lambda, Mutability,
+        Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -896,12 +840,14 @@
 <span class="kw">use crate</span>::{
     checker::errors::CheckerErrKind,
     fixpoint_encoding::KVarEncoding,
-    refine_tree::{AssumeInvariants, RefineCtxt, Scope, Snapshot},
+    refine_tree::{RefineCtxt, Scope, Snapshot},
     type_env::TypeEnv,
 };
 
-<span class="kw">pub struct </span>ConstrGen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub </span>genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, CheckerErrKind&gt;;
+
+<span class="kw">pub struct </span>ConstrGen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub </span>genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     def_id: DefId,
     refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
@@ -919,8 +865,8 @@
     <span class="kw">fn </span>fresh(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], kind: KVarEncoding) -&gt; Expr;
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>InferCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>InferCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     def_id: DefId,
     refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
@@ -962,9 +908,9 @@
     Other,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; ConstrGen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; ConstrGen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">pub fn </span>new&lt;G&gt;(
-        genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
         def_id: DefId,
         refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
@@ -998,43 +944,19 @@
         rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.solve().unwrap());
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>pack_closure_operands(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        env: <span class="kw-2">&amp;mut </span>TypeEnv,
-        operands: <span class="kw-2">&amp;</span>[Ty],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Ty&gt;, CheckerErrKind&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>res = Vec::new();
-        <span class="kw">for </span>ty <span class="kw">in </span>operands {
-            <span class="kw">let </span>packed_ty = <span class="kw">match </span>ty.kind() {
-                TyKind::Ptr(PtrKind::Shr(region), path) =&gt; {
-                    <span class="kw">let </span>ty = env.get(path);
-                    rty::Ty::mk_ref(<span class="kw-2">*</span>region, ty, Mutability::Not)
-                }
-                <span class="kw">_ </span>=&gt; ty.clone(),
-            };
-            res.push(packed_ty);
-        }
-        <span class="prelude-val">Ok</span>(res)
-    }
-
-    <span class="kw">fn </span>check_generic_args(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        did: DefId,
-        generic_args: <span class="kw-2">&amp;</span>[GenericArg],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CheckerErrKind&gt; {
-        <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(did)<span class="question-mark">?</span>;
-        <span class="kw">for </span>(idx, arg) <span class="kw">in </span>generic_args.iter().enumerate() {
-            <span class="kw">let </span>param = generics.param_at(idx, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
-            <span class="kw">match </span>param.kind {
-                GenericParamDefKind::BaseTy =&gt; {
-                    <span class="kw">if </span>!arg.is_valid_base_arg() {
-                        <span class="kw">return </span><span class="prelude-val">Err</span>(CheckerErrKind::InvalidGenericArg);
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>pack_closure_operands(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>TypeEnv, operands: <span class="kw-2">&amp;</span>[Ty]) -&gt; List&lt;Ty&gt; {
+        operands
+            .iter()
+            .map(|ty| {
+                <span class="kw">match </span>ty.kind() {
+                    TyKind::Ptr(PtrKind::Shr(region), path) =&gt; {
+                        <span class="kw">let </span>ty = env.get(path);
+                        rty::Ty::mk_ref(<span class="kw-2">*</span>region, ty, Mutability::Not)
                     }
+                    <span class="kw">_ </span>=&gt; ty.clone(),
                 }
-                <span class="kw">_ </span>=&gt; <span class="kw">continue</span>,
-            }
-        }
-        <span class="prelude-val">Ok</span>(())
+            })
+            .collect()
     }
 
     <span class="attr">#[allow(clippy::too_many_arguments)]
@@ -1046,33 +968,9 @@
         fn_sig: EarlyBinder&lt;PolyFnSig&gt;,
         generic_args: <span class="kw-2">&amp;</span>[GenericArg],
         actuals: <span class="kw-2">&amp;</span>[Ty],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(Binder&lt;FnOutput&gt;, Obligations), CheckerErrKind&gt; {
-        <span class="comment">// HACK(nilehmann) This let us infer parameters under mutable references for the simple case
-        // where the formal argument is of the form `&amp;mut B[@n]`, e.g., the type of the first argument
-        // to `RVec::get_mut` is `&amp;mut RVec&lt;T&gt;[@n]`. We should remove this after we implement opening of
-        // mutable references.
-        </span><span class="kw">let </span>actuals =
-            iter::zip(actuals, fn_sig.as_ref().skip_binder().as_ref().skip_binder().args())
-                .map(|(actual, formal)| {
-                    <span class="kw">if let </span>(<span class="macro">Ref!</span>(.., Mutability::Mut), <span class="macro">Ref!</span>(<span class="kw">_</span>, ty, Mutability::Mut)) =
-                        (actual.kind(), formal.kind())
-                        &amp;&amp; <span class="kw">let </span>TyKind::Indexed(..) = ty.kind()
-                    {
-                        rcx.unpacker(AssumeInvariants::No)
-                            .unpack_inside_mut_ref(<span class="bool-val">true</span>)
-                            .unpack(actual)
-                    } <span class="kw">else </span>{
-                        actual.clone()
-                    }
-                })
-                .collect_vec();
-
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(Binder&lt;FnOutput&gt;, Obligations)&gt; {
         <span class="kw">let </span>genv = <span class="self">self</span>.genv;
         <span class="kw">let </span>span = <span class="self">self</span>.span;
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(did) = callee_def_id {
-            <span class="self">self</span>.check_generic_args(did, generic_args)<span class="question-mark">?</span>;
-        }
 
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, ConstrReason::Call);
         <span class="kw">let </span>snapshot = rcx.snapshot();
@@ -1109,7 +1007,7 @@
         </span><span class="kw">let </span><span class="kw-2">mut </span>requires = FxHashMap::default();
         <span class="kw">for </span>constr <span class="kw">in </span>inst_fn_sig.requires() {
             <span class="kw">match </span>constr {
-                Constraint::Type(path, ty) =&gt; {
+                Constraint::Type(path, ty, <span class="kw">_</span>) =&gt; {
                     requires.insert(path.clone(), ty);
                 }
                 Constraint::Pred(pred) =&gt; {
@@ -1119,20 +1017,18 @@
         }
 
         <span class="comment">// Check arguments
-        </span><span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>actuals, inst_fn_sig.args()) {
-            <span class="kw">let </span>rcx = <span class="kw-2">&amp;mut </span>rcx.push_comment(<span class="macro">format!</span>(<span class="string">&quot;{actual:?} &lt;: {formal:?}&quot;</span>));
-
+        </span><span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(actuals, inst_fn_sig.args()) {
             <span class="kw">let </span>(formal, pred) = formal.unconstr();
-            infcx.check_pred(rcx, pred);
+            infcx.check_pred(rcx, <span class="kw-2">&amp;</span>pred);
             <span class="comment">// TODO(pack-closure): Generalize/refactor to reuse for mutable closures
             </span><span class="kw">match </span>(actual.kind(), formal.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path1), TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path2)) =&gt; {
                     <span class="kw">let </span>bound = requires[path2];
-                    infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr(), <span class="bool-val">false</span>);
+                    infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr());
                     infcx.check_type_constr(rcx, env, path1, bound)<span class="question-mark">?</span>;
                 }
                 (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path), <span class="macro">Ref!</span>(<span class="kw">_</span>, bound, Mutability::Mut)) =&gt; {
-                    <span class="kw">let </span>ty = env.block_with(path, bound.clone());
+                    <span class="kw">let </span>ty = env.block_with(genv, path, bound.clone())<span class="question-mark">?</span>;
                     infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ty, bound)<span class="question-mark">?</span>;
                 }
                 <span class="kw">_ </span>=&gt; infcx.subtyping(rcx, actual, <span class="kw-2">&amp;</span>formal)<span class="question-mark">?</span>,
@@ -1176,20 +1072,13 @@
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
         output: <span class="kw-2">&amp;</span>Binder&lt;FnOutput&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Obligations, CheckerErrKind&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Obligations&gt; {
         <span class="kw">let </span>ret_place_ty = env.lookup_place(<span class="self">self</span>.genv, rcx, Place::RETURN)<span class="question-mark">?</span>;
-
-        <span class="kw">let </span>output = output.normalize_projections(
-            <span class="self">self</span>.genv,
-            <span class="self">self</span>.region_infcx,
-            <span class="self">self</span>.def_id,
-            <span class="self">self</span>.refparams,
-        )<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, ConstrReason::Ret);
 
         <span class="kw">let </span>output =
-            output.replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
+            output.replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
 
         infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ret_place_ty, <span class="kw-2">&amp;</span>output.ret)<span class="question-mark">?</span>;
         <span class="kw">for </span>constraint <span class="kw">in </span><span class="kw-2">&amp;</span>output.ensures {
@@ -1210,7 +1099,7 @@
         variant: EarlyBinder&lt;PolyVariant&gt;,
         generic_args: <span class="kw-2">&amp;</span>[GenericArg],
         fields: <span class="kw-2">&amp;</span>[Ty],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, CheckerErrKind&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
         <span class="comment">// rn we are only calling `check_constructor` when folding so we mark this as a folding error.
         </span><span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, ConstrReason::Fold);
 
@@ -1219,7 +1108,7 @@
 
         <span class="kw">let </span>variant = variant
             .instantiate(<span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>[])
-            .replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
+            .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
 
         <span class="comment">// Check arguments
         </span><span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(fields, variant.fields()) {
@@ -1239,20 +1128,20 @@
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
         args: <span class="kw-2">&amp;</span>[Ty],
         arr_ty: Ty,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, CheckerErrKind&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, ConstrReason::Other);
 
         <span class="kw">let </span>arr_ty =
             arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
         <span class="kw">let </span>(arr_ty, pred) = arr_ty.unconstr();
-        infcx.check_pred(rcx, pred);
+        infcx.check_pred(rcx, <span class="kw-2">&amp;</span>pred);
 
         <span class="kw">for </span>ty <span class="kw">in </span>args {
             <span class="comment">// TODO(nilehmann) We should share this logic with `check_fn_call`
             </span><span class="kw">match </span>(ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path), <span class="macro">Ref!</span>(<span class="kw">_</span>, bound, Mutability::Mut)) =&gt; {
-                    <span class="kw">let </span>ty = env.block_with(path, bound.clone());
+                    <span class="kw">let </span>ty = env.block_with(infcx.genv, path, bound.clone())<span class="question-mark">?</span>;
                     infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ty, bound)<span class="question-mark">?</span>;
                 }
                 <span class="kw">_ </span>=&gt; infcx.subtyping(rcx, ty, <span class="kw-2">&amp;</span>arr_ty)<span class="question-mark">?</span>,
@@ -1260,10 +1149,14 @@
         }
         rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.solve()<span class="question-mark">?</span>);
 
-        <span class="prelude-val">Ok</span>(Ty::array(arr_ty, Const::from(args.len())))
+        <span class="prelude-val">Ok</span>(Ty::array(arr_ty, rty::Const::from_array_len(<span class="self">self</span>.genv.tcx(), args.len())))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infcx(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;</span>RefineCtxt, reason: ConstrReason) -&gt; InferCtxt&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infcx(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        rcx: <span class="kw-2">&amp;</span>RefineCtxt,
+        reason: ConstrReason,
+    ) -&gt; InferCtxt&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
         InferCtxt::new(
             <span class="self">self</span>.genv,
             <span class="self">self</span>.region_infcx,
@@ -1276,9 +1169,9 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; InferCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; InferCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">fn </span>new(
-        genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
         def_id: DefId,
         refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
@@ -1320,15 +1213,13 @@
 
     <span class="kw">fn </span>instantiate_refine_args(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        genv: GlobalEnv,
         callee_def_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Expr&gt;, CheckerErrKind&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Expr&gt;&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(callee_id) = callee_def_id {
             <span class="prelude-val">Ok</span>(genv
-                .generics_of(callee_id)<span class="question-mark">?
-                </span>.collect_all_refine_params(genv, |param| {
-                    <span class="self">self</span>.fresh_infer_var(<span class="kw-2">&amp;</span>param.sort, param.mode)
-                })<span class="question-mark">?</span>)
+                .refinement_generics_of(callee_id)<span class="question-mark">?
+                </span>.collect_all_params(genv, |param| <span class="self">self</span>.fresh_infer_var(<span class="kw-2">&amp;</span>param.sort, param.mode))<span class="question-mark">?</span>)
         } <span class="kw">else </span>{
             <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[])
         }
@@ -1343,10 +1234,10 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fresh_infer_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort, mode: InferMode) -&gt; Expr {
         <span class="kw">match </span>mode {
             InferMode::KVar =&gt; {
-                <span class="kw">let </span>fsort = sort.expect_func().skip_binders();
+                <span class="kw">let </span>fsort = sort.expect_func().expect_mono();
                 <span class="kw">let </span>inputs = List::from_slice(fsort.inputs());
                 <span class="kw">let </span>kvar = <span class="self">self</span>.fresh_kvar(<span class="kw-2">&amp;</span>[inputs.clone()], KVarEncoding::Single);
-                Expr::abs(Binder::with_sorts(kvar, inputs.iter().cloned()))
+                Expr::abs(Lambda::with_sorts(kvar, <span class="kw-2">&amp;</span>inputs, fsort.output().clone()))
             }
             InferMode::EVar =&gt; <span class="self">self</span>.fresh_evars(sort),
         }
@@ -1381,7 +1272,7 @@
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
         path: <span class="kw-2">&amp;</span>Path,
         ty: <span class="kw-2">&amp;</span>Ty,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CheckerErrKind&gt; {
+    ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>actual_ty = env.get(path);
         <span class="self">self</span>.subtyping(rcx, <span class="kw-2">&amp;</span>actual_ty, ty)
     }
@@ -1391,10 +1282,10 @@
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
         constraint: <span class="kw-2">&amp;</span>Constraint,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CheckerErrKind&gt; {
+    ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>rcx = <span class="kw-2">&amp;mut </span>rcx.branch();
         <span class="kw">match </span>constraint {
-            Constraint::Type(path, ty) =&gt; <span class="self">self</span>.check_type_constr(rcx, env, path, ty),
+            Constraint::Type(path, ty, <span class="kw">_</span>) =&gt; <span class="self">self</span>.check_type_constr(rcx, env, path, ty),
             Constraint::Pred(e) =&gt; {
                 rcx.check_pred(e, <span class="self">self</span>.tag);
                 <span class="prelude-val">Ok</span>(())
@@ -1402,34 +1293,32 @@
         }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>subtyping(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
-        ty1: <span class="kw-2">&amp;</span>Ty,
-        ty2: <span class="kw-2">&amp;</span>Ty,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CheckerErrKind&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>subtyping(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, ty1: <span class="kw-2">&amp;</span>Ty, ty2: <span class="kw-2">&amp;</span>Ty) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>rcx = <span class="kw-2">&amp;mut </span>rcx.branch();
 
+        <span class="comment">// We *fully* unpack the rhs before continuing to be able to prove goals like this
+        // ∃a. (i32[a], ∃b. {i32[b] | a &gt; b})} &lt;: ∃a,b. ({i32[a] | b &lt; a}, i32[b])
+        // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
+        </span><span class="kw">let </span>ty1 = rcx.unpack(ty1);
+
         <span class="kw">match </span>(ty1.kind(), ty2.kind()) {
-            (TyKind::Exists(ty1), <span class="kw">_</span>) =&gt; {
-                <span class="kw">let </span>ty1 = ty1.replace_bound_exprs_with(|sort, <span class="kw">_</span>| rcx.define_vars(sort));
-                <span class="self">self</span>.subtyping(rcx, <span class="kw-2">&amp;</span>ty1, ty2)
+            (TyKind::Exists(..), <span class="kw">_</span>) =&gt; {
+                <span class="macro">bug!</span>(<span class="string">&quot;existentials should be removed by the unpack&quot;</span>);
             }
-            (TyKind::Constr(p1, ty1), <span class="kw">_</span>) =&gt; {
-                rcx.assume_pred(p1);
-                <span class="self">self</span>.subtyping(rcx, ty1, ty2)
+            (TyKind::Constr(..), <span class="kw">_</span>) =&gt; {
+                <span class="macro">bug!</span>(<span class="string">&quot;constraint types should removed by the unpack&quot;</span>);
             }
             (<span class="kw">_</span>, TyKind::Exists(ty2)) =&gt; {
                 <span class="self">self</span>.push_scope(rcx);
                 <span class="kw">let </span>ty2 =
-                    ty2.replace_bound_exprs_with(|sort, mode| <span class="self">self</span>.fresh_infer_var(sort, mode));
-                <span class="self">self</span>.subtyping(rcx, ty1, <span class="kw-2">&amp;</span>ty2)<span class="question-mark">?</span>;
+                    ty2.replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| <span class="self">self</span>.fresh_infer_var(sort, mode));
+                <span class="self">self</span>.subtyping(rcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2)<span class="question-mark">?</span>;
                 <span class="self">self</span>.pop_scope();
                 <span class="prelude-val">Ok</span>(())
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) =&gt; {
                 <span class="self">self</span>.bty_subtyping(rcx, bty1, bty2)<span class="question-mark">?</span>;
-                <span class="self">self</span>.idx_subtyping(rcx, <span class="kw-2">&amp;</span>idx1.expr, <span class="kw-2">&amp;</span>idx2.expr, <span class="kw-2">&amp;</span>idx2.is_binder);
+                <span class="self">self</span>.idx_subtyping(rcx, idx1, idx2);
                 <span class="prelude-val">Ok</span>(())
             }
             (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) =&gt; {
@@ -1446,8 +1335,8 @@
                 </span><span class="prelude-val">Ok</span>(())
             }
             (<span class="kw">_</span>, TyKind::Constr(p2, ty2)) =&gt; {
-                rcx.check_pred(p2, <span class="self">self</span>.tag);
-                <span class="self">self</span>.subtyping(rcx, ty1, ty2)
+                rcx.check_pred(p2.clone(), <span class="self">self</span>.tag);
+                <span class="self">self</span>.subtyping(rcx, <span class="kw-2">&amp;</span>ty1, ty2)
             }
             (TyKind::Downcast(.., fields1), TyKind::Downcast(.., fields2)) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(fields1.len(), fields2.len());
@@ -1460,21 +1349,23 @@
                 <span class="kw">if let </span>TyKind::Alias(rty::AliasKind::Opaque, alias_ty1) = ty1.kind() {
                     <span class="macro">debug_assert_eq!</span>(alias_ty1.refine_args.len(), alias_ty.refine_args.len());
                     iter::zip(alias_ty1.refine_args.iter(), alias_ty.refine_args.iter())
-                        .for_each(|(e1, e2)| <span class="self">self</span>.unify_exprs(e1, e2, <span class="bool-val">false</span>));
+                        .for_each(|(e1, e2)| <span class="self">self</span>.unify_exprs(e1, e2));
                 }
 
-                <span class="self">self</span>.opaque_subtyping(rcx, ty1, alias_ty)
+                <span class="self">self</span>.opaque_subtyping(rcx, <span class="kw-2">&amp;</span>ty1, alias_ty)
+            }
+            (
+                TyKind::Alias(rty::AliasKind::Projection, alias_ty1),
+                TyKind::Alias(rty::AliasKind::Projection, alias_ty2),
+            ) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(alias_ty1, alias_ty2);
+                <span class="prelude-val">Ok</span>(())
             }
             <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;`{ty1:?}` &lt;: `{ty2:?}`&quot;</span>),
         }
     }
 
-    <span class="kw">fn </span>bty_subtyping(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
-        bty1: <span class="kw-2">&amp;</span>BaseTy,
-        bty2: <span class="kw-2">&amp;</span>BaseTy,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CheckerErrKind&gt; {
+    <span class="kw">fn </span>bty_subtyping(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, bty1: <span class="kw-2">&amp;</span>BaseTy, bty2: <span class="kw-2">&amp;</span>BaseTy) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">match </span>(bty1, bty2) {
             (BaseTy::Int(int_ty1), BaseTy::Int(int_ty2)) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(int_ty1, int_ty2);
@@ -1538,8 +1429,8 @@
         }
     }
 
-    <span class="kw">fn </span>project_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, self_ty: <span class="kw-2">&amp;</span>Ty, def_id: DefId) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, CheckerErrKind&gt; {
-        <span class="kw">let </span>args = <span class="macro">vec!</span>[GenericArg::Ty(self_ty.clone())];
+    <span class="kw">fn </span>project_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, self_ty: <span class="kw-2">&amp;</span>Ty, def_id: DefId) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+        <span class="kw">let </span>args = List::singleton(GenericArg::Ty(self_ty.clone()));
         <span class="kw">let </span>alias_ty = rty::AliasTy::new(def_id, args, List::empty());
         <span class="prelude-val">Ok</span>(Ty::projection(alias_ty).normalize_projections(
             <span class="self">self</span>.genv,
@@ -1549,14 +1440,17 @@
         )<span class="question-mark">?</span>)
     }
 
-    <span class="kw">fn </span>opaque_subtyping(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
-        ty: <span class="kw-2">&amp;</span>Ty,
-        alias_ty: <span class="kw-2">&amp;</span>AliasTy,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CheckerErrKind&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(BaseTy::Coroutine(def_id, args)) = ty.as_bty_skipping_existentials() {
-            <span class="kw">let </span>obligs = mk_generator_obligations(<span class="self">self</span>.genv, def_id, args, <span class="kw-2">&amp;</span>alias_ty.def_id)<span class="question-mark">?</span>;
+    <span class="kw">fn </span>opaque_subtyping(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, ty: <span class="kw-2">&amp;</span>Ty, alias_ty: <span class="kw-2">&amp;</span>AliasTy) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(BaseTy::Coroutine(def_id, resume_ty, upvar_tys)) =
+            ty.as_bty_skipping_existentials()
+        {
+            <span class="kw">let </span>obligs = mk_generator_obligations(
+                <span class="self">self</span>.genv,
+                def_id,
+                resume_ty,
+                upvar_tys,
+                <span class="kw-2">&amp;</span>alias_ty.def_id,
+            )<span class="question-mark">?</span>;
             <span class="self">self</span>.insert_obligations(obligs);
         } <span class="kw">else </span>{
             <span class="kw">let </span>bounds = <span class="self">self
@@ -1580,89 +1474,79 @@
         variance: Variance,
         arg1: <span class="kw-2">&amp;</span>GenericArg,
         arg2: <span class="kw-2">&amp;</span>GenericArg,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CheckerErrKind&gt; {
-        <span class="kw">match </span>(arg1, arg2) {
-            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) =&gt; {
-                <span class="kw">match </span>variance {
-                    Variance::Covariant =&gt; <span class="self">self</span>.subtyping(rcx, ty1, ty2),
-                    Variance::Invariant =&gt; {
-                        <span class="self">self</span>.subtyping(rcx, ty1, ty2)<span class="question-mark">?</span>;
-                        <span class="self">self</span>.subtyping(rcx, ty2, ty1)
-                    }
-                    Variance::Contravariant =&gt; <span class="self">self</span>.subtyping(rcx, ty2, ty1),
-                    Variance::Bivariant =&gt; <span class="prelude-val">Ok</span>(()),
-                }
+    ) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">let </span>(ty1, ty2) = <span class="kw">match </span>(arg1, arg2) {
+            (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) =&gt; (ty1.clone(), ty2.clone()),
+            (GenericArg::Base(ctor1), GenericArg::Base(ctor2)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(ctor1.sort(), ctor2.sort());
+                (ctor1.to_ty(), ctor2.to_ty())
             }
-            (GenericArg::BaseTy(<span class="kw">_</span>), GenericArg::BaseTy(<span class="kw">_</span>)) =&gt; {
-                <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;generic argument subtyping for base types is not implemented&quot;</span>);
-            }
-            (GenericArg::Lifetime(<span class="kw">_</span>), GenericArg::Lifetime(<span class="kw">_</span>)) =&gt; <span class="prelude-val">Ok</span>(()),
+            (GenericArg::Lifetime(<span class="kw">_</span>), GenericArg::Lifetime(<span class="kw">_</span>)) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
             <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;incompatible generic args: `{arg1:?}` `{arg2:?}&quot;</span>),
+        };
+        <span class="kw">match </span>variance {
+            Variance::Covariant =&gt; <span class="self">self</span>.subtyping(rcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2),
+            Variance::Invariant =&gt; {
+                <span class="self">self</span>.subtyping(rcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2)<span class="question-mark">?</span>;
+                <span class="self">self</span>.subtyping(rcx, <span class="kw-2">&amp;</span>ty2, <span class="kw-2">&amp;</span>ty1)
+            }
+            Variance::Contravariant =&gt; <span class="self">self</span>.subtyping(rcx, <span class="kw-2">&amp;</span>ty2, <span class="kw-2">&amp;</span>ty1),
+            Variance::Bivariant =&gt; <span class="prelude-val">Ok</span>(()),
         }
     }
 
-    <span class="kw">fn </span>idx_subtyping(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
-        e1: <span class="kw-2">&amp;</span>Expr,
-        e2: <span class="kw-2">&amp;</span>Expr,
-        is_binder: <span class="kw-2">&amp;</span>TupleTree&lt;bool&gt;,
-    ) {
+    <span class="kw">fn </span>idx_subtyping(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, e1: <span class="kw-2">&amp;</span>Expr, e2: <span class="kw-2">&amp;</span>Expr) {
         <span class="kw">if </span>e1 == e2 {
             <span class="kw">return</span>;
         }
 
         <span class="kw">match </span>(e1.kind(), e2.kind()) {
-            (ExprKind::Tuple(tup1), ExprKind::Tuple(tup2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(tup1.len(), tup2.len());
+            (ExprKind::Aggregate(kind1, flds1), ExprKind::Aggregate(kind2, flds2)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(kind1, kind2);
+                <span class="macro">debug_assert_eq!</span>(flds1.len(), flds2.len());
 
-                <span class="kw">for </span>(e1, e2, is_binder) <span class="kw">in </span><span class="macro">izip!</span>(tup1, tup2, is_binder.split()) {
-                    <span class="self">self</span>.idx_subtyping(rcx, e1, e2, is_binder);
+                <span class="kw">for </span>(e1, e2) <span class="kw">in </span>iter::zip(flds1, flds2) {
+                    <span class="self">self</span>.idx_subtyping(rcx, e1, e2);
                 }
             }
             (ExprKind::Abs(p1), ExprKind::Abs(p2)) =&gt; {
                 <span class="self">self</span>.pred_subtyping(rcx, p1, p2);
             }
             (<span class="kw">_</span>, ExprKind::Abs(p)) =&gt; {
-                <span class="self">self</span>.pred_subtyping(rcx, <span class="kw-2">&amp;</span>e1.eta_expand_abs(<span class="kw-2">&amp;</span>p.vars().to_sort_list()), p);
+                <span class="self">self</span>.pred_subtyping(rcx, <span class="kw-2">&amp;</span>e1.eta_expand_abs(<span class="kw-2">&amp;</span>p.inputs(), p.output()), p);
             }
             (ExprKind::Abs(p), <span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.unify_exprs(e1, e2, <span class="kw-2">*</span>is_binder.expect_leaf());
-                <span class="self">self</span>.pred_subtyping(rcx, p, <span class="kw-2">&amp;</span>e2.eta_expand_abs(<span class="kw-2">&amp;</span>p.vars().to_sort_list()));
+                <span class="self">self</span>.unify_exprs(e1, e2);
+                <span class="self">self</span>.pred_subtyping(rcx, p, <span class="kw-2">&amp;</span>e2.eta_expand_abs(<span class="kw-2">&amp;</span>p.inputs(), p.output()));
             }
             <span class="kw">_ </span>=&gt; {
-                <span class="self">self</span>.unify_exprs(e1, e2, <span class="kw-2">*</span>is_binder.expect_leaf());
+                <span class="self">self</span>.unify_exprs(e1, e2);
                 <span class="kw">let </span>span = e2.span();
-                rcx.check_pred(Expr::binary_op(BinOp::Eq, e1, e2, span), <span class="self">self</span>.tag);
+                rcx.check_pred(<span class="kw-2">&amp;</span>Expr::binary_op(BinOp::Eq, e1, e2, span), <span class="self">self</span>.tag);
             }
         }
     }
 
-    <span class="kw">fn </span>pred_subtyping(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, p1: <span class="kw-2">&amp;</span>Binder&lt;Expr&gt;, p2: <span class="kw-2">&amp;</span>Binder&lt;Expr&gt;) {
-        <span class="macro">debug_assert_eq!</span>(p1.vars(), p2.vars());
-        <span class="kw">let </span>vars = p1
-            .vars()
-            .to_sort_list()
-            .iter()
-            .map(|s| rcx.define_vars(s))
-            .collect_vec();
-        <span class="kw">let </span>p1 = p1.replace_bound_exprs(<span class="kw-2">&amp;</span>vars);
-        <span class="kw">let </span>p2 = p2.replace_bound_exprs(<span class="kw-2">&amp;</span>vars);
+    <span class="kw">fn </span>pred_subtyping(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, p1: <span class="kw-2">&amp;</span>Lambda, p2: <span class="kw-2">&amp;</span>Lambda) {
+        <span class="macro">debug_assert_eq!</span>(p1.inputs(), p2.inputs());
+        <span class="kw">let </span>vars = p1.inputs().iter().map(|s| rcx.define_vars(s)).collect_vec();
+        <span class="kw">let </span>p1 = p1.apply(<span class="kw-2">&amp;</span>vars);
+        <span class="kw">let </span>p2 = p2.apply(<span class="kw-2">&amp;</span>vars);
         rcx.check_impl(<span class="kw-2">&amp;</span>p1, <span class="kw-2">&amp;</span>p2, <span class="self">self</span>.tag);
         rcx.check_impl(<span class="kw-2">&amp;</span>p2, <span class="kw-2">&amp;</span>p1, <span class="self">self</span>.tag);
     }
 
-    <span class="kw">fn </span>unify_exprs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, e1: <span class="kw-2">&amp;</span>Expr, e2: <span class="kw-2">&amp;</span>Expr, replace: bool) {
+    <span class="kw">fn </span>unify_exprs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, e1: <span class="kw-2">&amp;</span>Expr, e2: <span class="kw-2">&amp;</span>Expr) {
         <span class="kw">if let </span>ExprKind::Var(Var::EVar(evar)) = e2.kind()
             &amp;&amp; <span class="kw">let </span>scope = <span class="kw-2">&amp;</span><span class="self">self</span>.scopes[<span class="kw-2">&amp;</span>evar.cx()]
             &amp;&amp; !scope.has_free_vars(e1)
         {
-            <span class="self">self</span>.evar_gen.unify(<span class="kw-2">*</span>evar, e1, replace);
+            <span class="self">self</span>.evar_gen.unify(<span class="kw-2">*</span>evar, e1, <span class="bool-val">false</span>);
         }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>solve(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;EVarSol, UnsolvedEvar&gt; {
-        <span class="self">self</span>.evar_gen.solve()
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>solve(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;EVarSol&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.evar_gen.solve()<span class="question-mark">?</span>)
     }
 }
 
@@ -1673,28 +1557,34 @@
 }
 
 <span class="kw">fn </span>mk_generator_obligations(
-    genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt;,
+    genv: GlobalEnv,
     generator_did: <span class="kw-2">&amp;</span>DefId,
-    generator_args: <span class="kw-2">&amp;</span>GenericArgs,
+    resume_ty: <span class="kw-2">&amp;</span>Ty,
+    upvar_tys: <span class="kw-2">&amp;</span>List&lt;Ty&gt;,
     opaque_def_id: <span class="kw-2">&amp;</span>DefId,
-) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;rty::Clause&gt;, CheckerErrKind&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;rty::Clause&gt;&gt; {
     <span class="kw">let </span>bounds = genv.item_bounds(<span class="kw-2">*</span>opaque_def_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>pred = <span class="kw">if let </span>rty::ClauseKind::Projection(proj) = bounds.skip_binder()[<span class="number">0</span>].kind() {
         <span class="kw">let </span>output = proj.term;
-        GeneratorObligPredicate { def_id: <span class="kw-2">*</span>generator_did, args: generator_args.clone(), output }
+        CoroutineObligPredicate {
+            def_id: <span class="kw-2">*</span>generator_did,
+            resume_ty: resume_ty.clone(),
+            upvar_tys: upvar_tys.clone(),
+            output,
+        }
     } <span class="kw">else </span>{
         <span class="macro">panic!</span>(<span class="string">&quot;mk_generator_obligations: unexpected bounds&quot;</span>)
     };
-    <span class="kw">let </span>clause = rty::Clause::new(<span class="macro">vec!</span>[], rty::ClauseKind::GeneratorOblig(pred));
+    <span class="kw">let </span>clause = rty::Clause::new(<span class="macro">vec!</span>[], rty::ClauseKind::CoroutineOblig(pred));
     <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[clause])
 }
 
 <span class="kw">fn </span>mk_obligations(
-    genv: <span class="kw-2">&amp;</span>GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt;,
+    genv: GlobalEnv,
     did: DefId,
     args: <span class="kw-2">&amp;</span>[GenericArg],
     refine_args: <span class="kw-2">&amp;</span>[Expr],
-) -&gt; <span class="prelude-ty">Result</span>&lt;List&lt;rty::Clause&gt;, CheckerErrKind&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;List&lt;rty::Clause&gt;&gt; {
     <span class="prelude-val">Ok</span>(genv
         .predicates_of(did)<span class="question-mark">?
         </span>.predicates()
@@ -1730,7 +1620,7 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Tag {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="macro">w!</span>(<span class="string">&quot;{:?} at {:?}&quot;</span>, ^<span class="self">self</span>.reason, <span class="self">self</span>.src_span)
         }

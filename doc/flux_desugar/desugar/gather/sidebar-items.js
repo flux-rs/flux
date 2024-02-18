@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Param","TypePos"],"struct":["CheckParamUses"],"type":["Env","Result"]};

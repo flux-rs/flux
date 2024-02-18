@@ -202,7 +202,7 @@
 <p><code>fn({i32[@n] | n &lt; 10}) -&gt; i32[n + 1]</code></p>
 <p>Constraint types serve a similar role as existentials as they can also be used to constraint some
 refinement value with a predicate, but an existential type can only be used to constraint refinement
-variable that it bound locally, in contrast constraint types can be used to constraint a &quot;non-local&quot; parameter. This can be seen in the example above where the parameter <code>n</code> cannot be bound locally
+variable that it bound locally, in contrast constraint types can be used to constraint a "non-local" parameter. This can be seen in the example above where the parameter <code>n</code> cannot be bound locally
 because it has to be used in the return type.</p>
 </li>
 </ul>
@@ -218,8 +218,8 @@ to specify that <code>y</code> must be greater than <code>x</code> using argumen
 <p><code>fn(i32[@x], {i32[@y] | x &gt; y}) -&gt; i32[x + y]</code></p>
 <h2 id="extern-specs"><a class="header" href="#extern-specs">Extern specs</a></h2>
 <p>Sometimes you may want to refine a struct or function that outside your code. We
-refer to such a specification as an &quot;extern spec,&quot; which is short for &quot;external
-specification.&quot;</p>
+refer to such a specification as an "extern spec," which is short for "external
+specification."</p>
 <p>Flux right now has rudimentary support for extern specs: they are supported for
 functions, impls, and structs. Impls are only supported for structs and if you
 have multiple impls for a struct (such as <code>&amp;[T]</code> and <code>[T]</code>), those may conflict.
@@ -231,7 +231,7 @@ Right now this needs to be done as a local dependency since it is not published.
 Below is an example of how you can include it, although the version may be
 different.</p>
 <pre><code class="language-toml">[dependencies]
-flux-rs = { path = &quot;path-to-flux/flux/flux-rs&quot;, version = &quot;0.1.0&quot; }
+flux-rs = { path = "path-to-flux/flux/flux-rs", version = "0.1.0" }
 </code></pre>
 <p>Then in your code you will need to include the <code>extern_spec</code> attribute macro.</p>
 <pre><code>use flux_rs::extern_spec;

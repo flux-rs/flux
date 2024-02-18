@@ -241,35 +241,11 @@
 <a href="#241" id="241">241</a>
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
-<a href="#244" id="244">244</a>
-<a href="#245" id="245">245</a>
-<a href="#246" id="246">246</a>
-<a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
-<a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a>
-<a href="#257" id="257">257</a>
-<a href="#258" id="258">258</a>
-<a href="#259" id="259">259</a>
-<a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_macros::Diagnostic;
-<span class="kw">use </span>flux_middle::fhir::{<span class="self">self</span>, SurfaceIdent};
+<span class="kw">use </span>flux_middle::{
+    fhir::{<span class="self">self</span>, SurfaceIdent},
+    rty,
+};
 <span class="kw">use </span>rustc_span::{Span, Symbol};
 
 <span class="attr">#[derive(Diagnostic)]
@@ -278,12 +254,12 @@
     <span class="attr">#[primary_span]
     #[label]
     </span>span: Span,
-    expected: fhir::Sort,
-    found: fhir::Sort,
+    expected: rty::Sort,
+    found: rty::Sort,
 }
 
 <span class="kw">impl </span>SortMismatch {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, expected: fhir::Sort, found: fhir::Sort) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, expected: rty::Sort, found: rty::Sort) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ span, expected, found }
     }
 }
@@ -326,12 +302,12 @@
 </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>DuplicatedEnsures {
     <span class="attr">#[primary_span]
     </span>span: Span,
-    loc: Symbol,
+    loc: String,
 }
 
 <span class="kw">impl </span>DuplicatedEnsures {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(loc: <span class="kw-2">&amp;</span>fhir::Ident) -&gt; DuplicatedEnsures {
-        <span class="self">Self </span>{ span: loc.span(), loc: loc.sym() }
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(loc: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; DuplicatedEnsures {
+        <span class="self">Self </span>{ span: loc.span, loc: <span class="macro">format!</span>(<span class="string">&quot;{loc:?}&quot;</span>) }
     }
 }
 
@@ -356,8 +332,8 @@
 }
 
 <span class="kw">impl </span>MissingEnsures {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(loc: <span class="kw-2">&amp;</span>fhir::Ident) -&gt; MissingEnsures {
-        <span class="self">Self </span>{ span: loc.span() }
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(loc: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; MissingEnsures {
+        <span class="self">Self </span>{ span: loc.span }
     }
 }
 
@@ -366,11 +342,11 @@
 </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>ExpectedFun&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="attr">#[primary_span]
     </span>span: Span,
-    found: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort,
+    found: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rty::Sort,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; ExpectedFun&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, found: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, found: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rty::Sort) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ span, found }
     }
 }
@@ -381,12 +357,12 @@
     <span class="attr">#[primary_span]
     #[label]
     </span>span: Span,
-    sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort,
+    sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rty::Sort,
     is_pred: bool,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; InvalidParamPos&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rty::Sort) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ span, sort, is_pred: sort.is_pred() }
     }
 }
@@ -397,27 +373,12 @@
     <span class="attr">#[primary_span]
     #[label]
     </span>span: Span,
-    sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort,
+    sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rty::Sort,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; UnexpectedFun&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rty::Sort) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ span, sort }
-    }
-}
-
-<span class="attr">#[derive(Diagnostic)]
-#[diag(fhir_analysis_expected_numeric, code = <span class="string">&quot;FLUX&quot;</span>)]
-</span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>ExpectedNumeric&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="attr">#[primary_span]
-    #[label]
-    </span>span: Span,
-    found: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort,
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; ExpectedNumeric&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, found: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ span, found }
     }
 }
 
@@ -442,12 +403,12 @@
 </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>FieldNotFound {
     <span class="attr">#[primary_span]
     </span>span: Span,
-    sort: fhir::Sort,
+    sort: rty::Sort,
     fld: SurfaceIdent,
 }
 
 <span class="kw">impl </span>FieldNotFound {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(sort: fhir::Sort, fld: SurfaceIdent) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(sort: rty::Sort, fld: SurfaceIdent) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ span: fld.span, sort, fld }
     }
 }
@@ -457,40 +418,12 @@
 </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InvalidPrimitiveDotAccess&lt;<span class="lifetime">&#39;a</span>&gt; {
     <span class="attr">#[primary_span]
     </span>span: Span,
-    sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort,
+    sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rty::Sort,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; InvalidPrimitiveDotAccess&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort, fld: SurfaceIdent) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rty::Sort, fld: SurfaceIdent) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ sort, span: fld.span }
-    }
-}
-
-<span class="attr">#[derive(Diagnostic)]
-#[diag(fhir_analysis_invalid_base_instance, code = <span class="string">&quot;FLUX&quot;</span>)]
-</span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InvalidBaseInstance&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="attr">#[primary_span]
-    </span>span: Span,
-    ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Ty,
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; InvalidBaseInstance&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Ty) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ ty, span: ty.span }
-    }
-}
-
-<span class="attr">#[derive(Diagnostic)]
-#[diag(fhir_analysis_no_equality, code = <span class="string">&quot;FLUX&quot;</span>)]
-</span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>NoEquality&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="attr">#[primary_span]
-    </span>span: Span,
-    sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort,
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; NoEquality&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, sort: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Sort) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ span, sort }
     }
 }
 
@@ -501,12 +434,12 @@
     <span class="attr">#[primary_span]
     #[label]
     </span>span: Span,
-    sym: Symbol,
+    name: Symbol,
 }
 
 <span class="kw">impl </span>ParamNotDetermined {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(ident: fhir::Ident) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ span: ident.span(), sym: ident.sym() }
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, name: Symbol) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ span, name }
     }
 }
 
@@ -520,7 +453,7 @@
 
 <span class="kw">impl </span>SortAnnotationNeeded {
     <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(param: <span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ span: param.ident.span() }
+        <span class="self">Self </span>{ span: param.span }
     }
 }
 
@@ -534,8 +467,21 @@
 }
 
 <span class="kw">impl </span>CannotInferSort {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(ident: fhir::Ident) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ span: ident.span() }
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ span }
+    }
+}
+
+<span class="attr">#[derive(Diagnostic)]
+#[diag(fhir_analysis_refined_unrefinable_type, code = <span class="string">&quot;FLUX&quot;</span>)]
+</span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>RefinedUnrefinableType {
+    <span class="attr">#[primary_span]
+    </span>span: Span,
+}
+
+<span class="kw">impl </span>RefinedUnrefinableType {
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ span }
     }
 }
 </code></pre></div></section></main></body></html>

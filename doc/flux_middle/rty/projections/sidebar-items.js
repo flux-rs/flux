@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Candidate"],"fn":["assemble_candidates_from_predicates","into_rustc_alias_kind","into_rustc_alias_ty","into_rustc_bound_region","into_rustc_bty","into_rustc_generic_arg","into_rustc_generic_args","into_rustc_region","into_rustc_ty"],"struct":["Normalizer","TVarSubst"]};
+window.SIDEBAR_ITEMS = {"enum":["Candidate"],"fn":["assemble_candidates_from_predicates"],"struct":["Normalizer","TVarSubst"]};

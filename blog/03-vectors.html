@@ -219,7 +219,7 @@ manipulating vectors. I suppose one must start with nothing: an empty vector.</p
 <span class="boring">}</span></code></pre></pre>
 <p>The above implements <code>RVec::new</code> as a wrapper around <code>Vec::new</code>.
 The <code>#[flux::trusted]</code> attribute tells Flux there is nothing to
-&quot;check&quot; here, as we are <em>defining</em> the API itself and trusting
+"check" here, as we are <em>defining</em> the API itself and trusting
 that the implementation (using <code>vec</code> is correct).
 However, the signature says that <em>callers</em> of the <code>RVec::new</code> get
 back a vector indexed with <code>0</code> i.e. an empty vector.</p>
@@ -293,7 +293,7 @@ pub fn len(&amp;self) -&gt; usize {
     self.inner.len()
 }
 <span class="boring">}</span></code></pre></pre>
-<p>Now, flux &quot;knows&quot; that after two <code>push</code>es, the size of the vector is <code>2</code> and after
+<p>Now, flux "knows" that after two <code>push</code>es, the size of the vector is <code>2</code> and after
 the two <code>pop</code>s, the size is <code>0</code> again</p>
 <img src="../img/push_pop_len.gif" width="100%">
 <h3 id="random-access"><a class="header" href="#random-access">Random Access</a></h3>
@@ -343,7 +343,7 @@ impl&lt;T&gt; std::ops::IndexMut&lt;usize&gt; for RVec&lt;T&gt; {
 <p>And now the above <code>vec_sum</code> example looks a little nicer</p>
 <img src="../img/vec_sum_index.gif" width="100%">
 <h2 id="memoization"><a class="header" href="#memoization">Memoization</a></h2>
-<p>Lets put the whole API to work in this &quot;memoized&quot; version of the fibonacci
+<p>Lets put the whole API to work in this "memoized" version of the fibonacci
 function which uses a vector to store the results of previous calls</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -377,7 +377,7 @@ which returns the <em>last</em> value as the result.</p>
 <span class="boring">}</span></code></pre></pre>
 <p>Flux complains that the vector may be <em>empty</em> and so the <code>pop</code> call may
 fail ... but why? Can you spot the problem?</p>
-<p>Indeed, we missed a &quot;corner&quot; case -- when <code>n</code> is <code>0</code> we skip the loop and
+<p>Indeed, we missed a "corner" case -- when <code>n</code> is <code>0</code> we skip the loop and
 so the vector is empty! Once we add a test for that, flux is happy.</p>
 <img src="../img/fib.gif" width="100%">
 <h2 id="binary-search"><a class="header" href="#binary-search">Binary Search</a></h2>

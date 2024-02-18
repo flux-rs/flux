@@ -955,26 +955,219 @@
 <a href="#955" id="955">955</a>
 <a href="#956" id="956">956</a>
 <a href="#957" id="957">957</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, iter, slice, sync::OnceLock};
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
+<a href="#1000" id="1000">1000</a>
+<a href="#1001" id="1001">1001</a>
+<a href="#1002" id="1002">1002</a>
+<a href="#1003" id="1003">1003</a>
+<a href="#1004" id="1004">1004</a>
+<a href="#1005" id="1005">1005</a>
+<a href="#1006" id="1006">1006</a>
+<a href="#1007" id="1007">1007</a>
+<a href="#1008" id="1008">1008</a>
+<a href="#1009" id="1009">1009</a>
+<a href="#1010" id="1010">1010</a>
+<a href="#1011" id="1011">1011</a>
+<a href="#1012" id="1012">1012</a>
+<a href="#1013" id="1013">1013</a>
+<a href="#1014" id="1014">1014</a>
+<a href="#1015" id="1015">1015</a>
+<a href="#1016" id="1016">1016</a>
+<a href="#1017" id="1017">1017</a>
+<a href="#1018" id="1018">1018</a>
+<a href="#1019" id="1019">1019</a>
+<a href="#1020" id="1020">1020</a>
+<a href="#1021" id="1021">1021</a>
+<a href="#1022" id="1022">1022</a>
+<a href="#1023" id="1023">1023</a>
+<a href="#1024" id="1024">1024</a>
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a>
+<a href="#1033" id="1033">1033</a>
+<a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a>
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
+<a href="#1040" id="1040">1040</a>
+<a href="#1041" id="1041">1041</a>
+<a href="#1042" id="1042">1042</a>
+<a href="#1043" id="1043">1043</a>
+<a href="#1044" id="1044">1044</a>
+<a href="#1045" id="1045">1045</a>
+<a href="#1046" id="1046">1046</a>
+<a href="#1047" id="1047">1047</a>
+<a href="#1048" id="1048">1048</a>
+<a href="#1049" id="1049">1049</a>
+<a href="#1050" id="1050">1050</a>
+<a href="#1051" id="1051">1051</a>
+<a href="#1052" id="1052">1052</a>
+<a href="#1053" id="1053">1053</a>
+<a href="#1054" id="1054">1054</a>
+<a href="#1055" id="1055">1055</a>
+<a href="#1056" id="1056">1056</a>
+<a href="#1057" id="1057">1057</a>
+<a href="#1058" id="1058">1058</a>
+<a href="#1059" id="1059">1059</a>
+<a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
+<a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
-<span class="kw">pub use </span>flux_fixpoint::{BinOp, Constant, UnOp};
+<span class="kw">pub use </span>flux_fixpoint::Constant;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_index::newtype_index;
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-<span class="kw">use </span>rustc_middle::mir::Local;
+<span class="kw">use </span>rustc_middle::{mir::Local, ty::TyCtxt};
 <span class="kw">use </span>rustc_span::{BytePos, Span, Symbol, SyntaxContext};
 <span class="kw">use </span>rustc_target::abi::FieldIdx;
 <span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST};
 
-<span class="kw">use super</span>::{evars::EVar, BaseTy, Binder, IntTy, Sort, UintTy};
-<span class="kw">use crate</span>::{
-    fhir::FuncKind,
-    intern::{impl_internable, impl_slice_internable, Interned, List},
-    rty::fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-    rustc::mir::{Place, PlaceElem},
+<span class="kw">use super</span>::{
+    evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKind, FuncSort, GenericArgs, IntTy,
+    Sort, UintTy,
 };
+<span class="kw">use crate</span>::{
+    fhir::SpecFuncKind,
+    intern::{impl_internable, impl_slice_internable, Interned, List},
+    rty::{
+        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+        SortCtor,
+    },
+};
+
+<span class="doccomment">/// A lambda abstraction
+</span><span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+</span><span class="kw">pub struct </span>Lambda {
+    <span class="kw">pub</span>(<span class="kw">super</span>) body: Binder&lt;Expr&gt;,
+    <span class="kw">pub</span>(<span class="kw">super</span>) output: Sort,
+}
+
+<span class="kw">impl </span>Lambda {
+    <span class="kw">pub fn </span>with_vars(body: Expr, inputs: List&lt;BoundVariableKind&gt;, output: Sort) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ body: Binder::new(body, inputs), output }
+    }
+
+    <span class="kw">pub fn </span>with_sorts(body: Expr, inputs: <span class="kw-2">&amp;</span>[Sort], output: Sort) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ body: Binder::with_sorts(body, inputs), output }
+    }
+
+    <span class="kw">pub fn </span>apply(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Expr]) -&gt; Expr {
+        <span class="self">self</span>.body.replace_bound_refts(args)
+    }
+
+    <span class="kw">pub fn </span>inputs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; List&lt;Sort&gt; {
+        <span class="self">self</span>.body.vars().to_sort_list()
+    }
+
+    <span class="kw">pub fn </span>output(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Sort {
+        <span class="self">self</span>.output.clone()
+    }
+
+    <span class="kw">pub fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FuncSort {
+        FuncSort::new(<span class="self">self</span>.inputs().to_vec(), <span class="self">self</span>.output())
+    }
+}
+
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+</span><span class="kw">pub struct </span>AliasReft {
+    <span class="kw">pub </span>trait_id: DefId,
+    <span class="kw">pub </span>name: Symbol,
+    <span class="kw">pub </span>args: GenericArgs,
+}
+
+<span class="kw">impl </span>AliasReft {
+    <span class="kw">pub fn </span>to_rustc_trait_ref&lt;<span class="lifetime">&#39;tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; rustc_middle::ty::TraitRef&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+        <span class="kw">let </span>trait_def_id = <span class="self">self</span>.trait_id;
+        <span class="kw">let </span>args = <span class="self">self
+            </span>.args
+            .to_rustc(tcx)
+            .truncate_to(tcx, tcx.generics_of(trait_def_id));
+        rustc_middle::ty::TraitRef::new(tcx, trait_def_id, args)
+    }
+}
 
 <span class="kw">pub type </span>Expr = Interned&lt;ExprS&gt;;
 
@@ -1030,41 +1223,95 @@
 }
 
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+</span><span class="kw">pub enum </span>BinOp {
+    Iff,
+    Imp,
+    Or,
+    And,
+    Eq,
+    Ne,
+    Gt(Sort),
+    Ge(Sort),
+    Lt(Sort),
+    Le(Sort),
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+}
+
+<span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+</span><span class="kw">pub enum </span>UnOp {
+    Not,
+    Neg,
+}
+
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>ExprKind {
     Var(Var),
     Local(Local),
     Constant(Constant),
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
-    App(Expr, List&lt;Expr&gt;),
-    GlobalFunc(Symbol, FuncKind),
+    GlobalFunc(Symbol, SpecFuncKind),
     UnaryOp(UnOp, Expr),
-    TupleProj(Expr, u32),
-    Tuple(List&lt;Expr&gt;),
+    FieldProj(Expr, FieldProj),
+    Aggregate(AggregateKind, List&lt;Expr&gt;),
     PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
+    Alias(AliasReft, List&lt;Expr&gt;),
+    <span class="doccomment">/// Function application. The syntax allows arbitrary expressions in function position, but in
+    /// practice we are restricted by what&#39;s possible to encode in fixpoint. In a nutshell, we need
+    /// to make sure that expressions that can&#39;t be encoded are eliminated before we generate the
+    /// fixpoint constraint. Most notably, lambda abstractions have to be fully applied before
+    /// encoding into fixpoint (except when they appear as an index at the top-level).
+    </span>App(Expr, List&lt;Expr&gt;),
     <span class="doccomment">/// Lambda abstractions. They are purely syntactic and we don&#39;t encode them in the logic. As such,
     /// they have some syntactic restrictions that we must carefully maintain:
     ///
     /// 1. They can appear as an index at the top level.
     /// 2. We can only substitute an abstraction for a variable in function position (or as an index).
     ///    More generaly, we need to partially evaluate expressions such that all abstractions in
-    ///    non-index position are eliminated before encoding into fixpoint. Right now, the implementation
-    ///    only evaluates abstractions that are immediately applied to arguments, thus the restriction.
-    </span>Abs(Binder&lt;Expr&gt;),
+    ///    non-index position are eliminated before encoding into fixpoint. Right now, the
+    ///    implementation only evaluates abstractions that are immediately applied to arguments,
+    ///    thus the restriction.
+    </span>Abs(Lambda),
     <span class="doccomment">/// A hole is an expression that must be inferred either *semantically* by generating a kvar or
-    /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or syntactically
-    /// depends on the position it appears: only holes appearing in predicate position can be inferred
-    /// with a kvar (provided it satisfy the fixpoint horn constraints) and only holes used as a refinement
-    /// argument or index (a position that fully determines their value) can be inferred with an evar.
+    /// *syntactically* by generating an evar. Whether a hole can be inferred semantically or
+    /// syntactically depends on the position it appears: only holes appearing in predicate position
+    /// can be inferred with a kvar (provided it satisfies the fixpoint horn constraints) and only
+    /// holes used as an index (a position that fully determines their value) can be inferred with
+    /// an evar.
     ///
-    /// Holes are implicitly defined in a scope, i.e., their solution could mention free and bound variables
-    /// in this scope. This must be considered when generating an inference variables for them (either evar or kvar).
-    /// In fact, the main reason we have holes is that we want to decouple the places where we generate them,
-    /// (where we don&#39;t want to worry about the scope) and the places where we infer them (where we do need to worry
+    /// Holes are implicitly defined in a scope, i.e., their solution could mention free and bound
+    /// variables in this scope. This must be considered when generating an inference variables for
+    /// them (either evar or kvar). In fact, the main reason we have holes is that we want to
+    /// decouple the places where we generate holes (where we don&#39;t want to worry about the scope),
+    /// and the places where we generate inference variable for them (where we do need to worry
     /// about the scope).
     </span>Hole(HoleKind),
+}
+
+<span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+</span><span class="kw">pub enum </span>AggregateKind {
+    Tuple,
+    Adt(DefId),
+}
+
+<span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
+</span><span class="kw">pub enum </span>FieldProj {
+    Tuple { arity: usize, field: u32 },
+    Adt { def_id: DefId, field: u32 },
+}
+
+<span class="kw">impl </span>FieldProj {
+    <span class="kw">pub fn </span>field(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
+        <span class="kw">match </span><span class="self">self </span>{
+            FieldProj::Tuple { field, .. } | FieldProj::Adt { field, .. } =&gt; <span class="kw-2">*</span>field,
+        }
+    }
 }
 
 <span class="doccomment">/// The position where a hole appears. This determines how it will be inferred. This is related but not
@@ -1098,10 +1345,22 @@
 }
 
 <span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+</span><span class="kw">pub struct </span>EarlyReftParam {
+    <span class="kw">pub </span>index: u32,
+    <span class="kw">pub </span>name: Symbol,
+}
+
+<span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable, Debug)]
+</span><span class="kw">pub struct </span>BoundReft {
+    <span class="kw">pub </span>index: u32,
+    <span class="kw">pub </span>kind: BoundReftKind,
+}
+
+<span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 </span><span class="kw">pub enum </span>Var {
     Free(Name),
-    LateBound(DebruijnIndex, u32),
-    EarlyBound(u32),
+    LateBound(DebruijnIndex, BoundReft),
+    EarlyParam(EarlyReftParam),
     EVar(EVar),
 }
 
@@ -1111,7 +1370,7 @@
     projection: List&lt;FieldIdx&gt;,
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 </span><span class="kw">pub enum </span>Loc {
     Local(Local),
     Var(Var),
@@ -1186,12 +1445,6 @@
             .clone()
     }
 
-    <span class="kw">pub fn </span>one() -&gt; Expr {
-        <span class="kw">static </span>ONE: OnceLock&lt;Expr&gt; = OnceLock::new();
-        ONE.get_or_init(|| ExprKind::Constant(Constant::ONE).intern())
-            .clone()
-    }
-
     <span class="kw">pub fn </span>int_max(int_ty: IntTy) -&gt; Expr {
         <span class="kw">let </span>bit_width: u64 = int_ty
             .bit_width()
@@ -1214,27 +1467,30 @@
     }
 
     <span class="kw">pub fn </span>nu() -&gt; Expr {
-        Expr::late_bvar(INNERMOST, <span class="number">0</span>)
+        Expr::late_bvar(INNERMOST, <span class="number">0</span>, BoundReftKind::Annon)
     }
 
-    <span class="kw">pub fn </span>as_tuple(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Expr] {
-        <span class="kw">if let </span>ExprKind::Tuple(tup) = <span class="self">self</span>.kind() {
-            tup
-        } <span class="kw">else </span>{
-            slice::from_ref(<span class="self">self</span>)
-        }
+    <span class="kw">pub fn </span>is_nu(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">if let </span>ExprKind::Var(Var::LateBound(INNERMOST, var)) = <span class="self">self</span>.kind()
+            &amp;&amp; var.index == <span class="number">0
+        </span>{
+            <span class="bool-val">true
+        </span>} <span class="kw">else </span>{
+            <span class="bool-val">false
+        </span>}
     }
 
-    <span class="kw">pub fn </span>expect_tuple(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Expr] {
-        <span class="kw">if let </span>ExprKind::Tuple(tup) = <span class="self">self</span>.kind() {
-            tup
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub fn </span>expect_adt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (DefId, List&lt;Expr&gt;) {
+        <span class="kw">if let </span>ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) = <span class="self">self</span>.kind() {
+            (<span class="kw-2">*</span>def_id, flds.clone())
         } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">&quot;expected tuple&quot;</span>)
+            <span class="macro">bug!</span>(<span class="string">&quot;expected record, found {self:?}&quot;</span>)
         }
     }
 
     <span class="kw">pub fn </span>unit() -&gt; Expr {
-        Expr::tuple(<span class="macro">vec!</span>[])
+        Expr::tuple(List::empty())
     }
 
     <span class="kw">pub fn </span>var(var: Var, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
@@ -1249,12 +1505,12 @@
         Var::EVar(evar).to_expr()
     }
 
-    <span class="kw">pub fn </span>late_bvar(bvar: DebruijnIndex, idx: u32) -&gt; Expr {
-        Var::LateBound(bvar, idx).to_expr()
+    <span class="kw">pub fn </span>late_bvar(debruijn: DebruijnIndex, index: u32, kind: BoundReftKind) -&gt; Expr {
+        Var::LateBound(debruijn, BoundReft { index, kind }).to_expr()
     }
 
-    <span class="kw">pub fn </span>early_bvar(idx: u32) -&gt; Expr {
-        Var::EarlyBound(idx).to_expr()
+    <span class="kw">pub fn </span>early_param(index: u32, name: Symbol) -&gt; Expr {
+        Var::EarlyParam(EarlyReftParam { index, name }).to_expr()
     }
 
     <span class="kw">pub fn </span>local(local: Local, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
@@ -1273,8 +1529,16 @@
         ExprKind::ConstDefId(c).intern_at(espan)
     }
 
-    <span class="kw">pub fn </span>tuple(exprs: <span class="kw">impl </span>Into&lt;List&lt;Expr&gt;&gt;) -&gt; Expr {
-        ExprKind::Tuple(exprs.into()).intern()
+    <span class="kw">pub fn </span>aggregate(kind: AggregateKind, flds: List&lt;Expr&gt;) -&gt; Expr {
+        ExprKind::Aggregate(kind, flds).intern()
+    }
+
+    <span class="kw">pub fn </span>tuple(flds: List&lt;Expr&gt;) -&gt; Expr {
+        Expr::aggregate(AggregateKind::Tuple, flds)
+    }
+
+    <span class="kw">pub fn </span>adt(def_id: DefId, flds: List&lt;Expr&gt;) -&gt; Expr {
+        ExprKind::Aggregate(AggregateKind::Adt(def_id), flds).intern()
     }
 
     <span class="kw">pub fn </span>from_bits(bty: <span class="kw-2">&amp;</span>BaseTy, bits: u128) -&gt; Expr {
@@ -1299,8 +1563,8 @@
         ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern_at(espan)
     }
 
-    <span class="kw">pub fn </span>abs(body: Binder&lt;Expr&gt;) -&gt; Expr {
-        ExprKind::Abs(body).intern()
+    <span class="kw">pub fn </span>abs(lam: Lambda) -&gt; Expr {
+        ExprKind::Abs(lam).intern()
     }
 
     <span class="kw">pub fn </span>hole(kind: HoleKind) -&gt; Expr {
@@ -1309,6 +1573,10 @@
 
     <span class="kw">pub fn </span>kvar(kvar: KVar) -&gt; Expr {
         ExprKind::KVar(kvar).intern()
+    }
+
+    <span class="kw">pub fn </span>alias(alias: AliasReft, args: List&lt;Expr&gt;) -&gt; Expr {
+        ExprKind::Alias(alias, args).intern()
     }
 
     <span class="kw">pub fn </span>binary_op(
@@ -1320,11 +1588,15 @@
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern_at(espan)
     }
 
+    <span class="kw">pub fn </span>unit_adt(def_id: DefId) -&gt; Expr {
+        Expr::adt(def_id, List::empty())
+    }
+
     <span class="kw">pub fn </span>app(func: <span class="kw">impl </span>Into&lt;Expr&gt;, args: <span class="kw">impl </span>Into&lt;List&lt;Expr&gt;&gt;, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
         ExprKind::App(func.into(), args.into()).intern_at(espan)
     }
 
-    <span class="kw">pub fn </span>global_func(func: Symbol, kind: FuncKind) -&gt; Expr {
+    <span class="kw">pub fn </span>global_func(func: Symbol, kind: SpecFuncKind) -&gt; Expr {
         ExprKind::GlobalFunc(func, kind).intern()
     }
 
@@ -1345,34 +1617,34 @@
     }
 
     <span class="kw">pub fn </span>ge(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
-        ExprKind::BinaryOp(BinOp::Ge, e1.into(), e2.into()).intern()
+        ExprKind::BinaryOp(BinOp::Ge(Sort::Int), e1.into(), e2.into()).intern()
     }
 
     <span class="kw">pub fn </span>gt(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
-        ExprKind::BinaryOp(BinOp::Gt, e1.into(), e2.into()).intern()
+        ExprKind::BinaryOp(BinOp::Gt(Sort::Int), e1.into(), e2.into()).intern()
     }
 
     <span class="kw">pub fn </span>lt(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
-        ExprKind::BinaryOp(BinOp::Lt, e1.into(), e2.into()).intern()
+        ExprKind::BinaryOp(BinOp::Lt(Sort::Int), e1.into(), e2.into()).intern()
     }
 
     <span class="kw">pub fn </span>le(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
-        ExprKind::BinaryOp(BinOp::Le, e1.into(), e2.into()).intern()
+        ExprKind::BinaryOp(BinOp::Le(Sort::Int), e1.into(), e2.into()).intern()
     }
 
     <span class="kw">pub fn </span>implies(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
         ExprKind::BinaryOp(BinOp::Imp, e1.into(), e2.into()).intern()
     }
 
-    <span class="kw">pub fn </span>tuple_proj(e: <span class="kw">impl </span>Into&lt;Expr&gt;, proj: u32, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
-        ExprKind::TupleProj(e.into(), proj).intern_at(espan)
+    <span class="kw">pub fn </span>field_proj(e: <span class="kw">impl </span>Into&lt;Expr&gt;, proj: FieldProj, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
+        ExprKind::FieldProj(e.into(), proj).intern_at(espan)
     }
 
-    <span class="kw">pub fn </span>tuple_projs(e: <span class="kw">impl </span>Into&lt;Expr&gt;, projs: <span class="kw-2">&amp;</span>[u32]) -&gt; Expr {
+    <span class="kw">pub fn </span>field_projs(e: <span class="kw">impl </span>Into&lt;Expr&gt;, projs: <span class="kw-2">&amp;</span>[FieldProj]) -&gt; Expr {
         projs
             .iter()
             .copied()
-            .fold(e.into(), |e, p| Expr::tuple_proj(e, p, <span class="prelude-val">None</span>))
+            .fold(e.into(), |e, p| Expr::field_proj(e, p, <span class="prelude-val">None</span>))
     }
 
     <span class="kw">pub fn </span>path_proj(base: Expr, field: FieldIdx) -&gt; Expr {
@@ -1394,12 +1666,11 @@
     <span class="doccomment">/// An expression is an *atom* if it is &quot;self-delimiting&quot;, i.e., it has a clear boundary
     /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
     </span><span class="kw">pub fn </span>is_atom(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        !<span class="self">self</span>.is_binary_op()
+        !<span class="macro">matches!</span>(<span class="self">self</span>.kind, ExprKind::Abs(..) | ExprKind::BinaryOp(..))
     }
 
     <span class="doccomment">/// Simple syntactic check to see if the expression is a trivially true predicate. This is used
-    /// mostly for filtering predicates when pretty printing but also to simplify the constraint
-    /// before encoding it into fixpoint.
+    /// mostly for filtering predicates when pretty printing but also to simplify types in general.
     </span><span class="kw">pub fn </span>is_trivially_true(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.is_true()
             || <span class="macro">matches!</span>(<span class="self">self</span>.kind(), ExprKind::BinaryOp(BinOp::Eq | BinOp::Iff | BinOp::Imp, e1, e2) <span class="kw">if </span>e1 == e2)
@@ -1420,10 +1691,10 @@
             BinOp::Imp =&gt; c1.imp(c2),
             BinOp::Or =&gt; c1.or(c2),
             BinOp::And =&gt; c1.and(c2),
-            BinOp::Gt =&gt; c1.gt(c2),
-            BinOp::Ge =&gt; c1.ge(c2),
-            BinOp::Lt =&gt; c2.gt(c1),
-            BinOp::Le =&gt; c2.ge(c1),
+            BinOp::Gt(Sort::Int) =&gt; c1.gt(c2),
+            BinOp::Ge(Sort::Int) =&gt; c1.ge(c2),
+            BinOp::Lt(Sort::Int) =&gt; c2.gt(c1),
+            BinOp::Le(Sort::Int) =&gt; c2.ge(c1),
             BinOp::Eq =&gt; <span class="prelude-val">Some</span>(c1.eq(c2)),
             BinOp::Ne =&gt; <span class="prelude-val">Some</span>(c1.ne(c2)),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
@@ -1458,10 +1729,10 @@
                                 <span class="kw">let </span>e2_span = e2.span();
                                 <span class="kw">match </span>Expr::const_op(op, c1, c2) {
                                     <span class="prelude-val">Some</span>(c) =&gt; Expr::constant_at(c, span.or(e2_span)),
-                                    <span class="prelude-val">None </span>=&gt; Expr::binary_op(<span class="kw-2">*</span>op, e1, e2, span),
+                                    <span class="prelude-val">None </span>=&gt; Expr::binary_op(op.clone(), e1, e2, span),
                                 }
                             }
-                            <span class="kw">_ </span>=&gt; Expr::binary_op(<span class="kw-2">*</span>op, e1, e2, span),
+                            <span class="kw">_ </span>=&gt; Expr::binary_op(op.clone(), e1, e2, span),
                         }
                     }
                     ExprKind::UnaryOp(UnOp::Not, e) =&gt; {
@@ -1482,14 +1753,6 @@
             }
         }
         <span class="self">self</span>.fold_with(<span class="kw-2">&amp;mut </span>Simplify)
-    }
-
-    <span class="kw">pub fn </span>to_var(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Var&gt; {
-        <span class="kw">if let </span>ExprKind::Var(var) = <span class="self">self</span>.kind() {
-            <span class="prelude-val">Some</span>(<span class="kw-2">*</span>var)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>}
     }
 
     <span class="kw">pub fn </span>to_loc(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Loc&gt; {
@@ -1515,56 +1778,39 @@
         <span class="macro">matches!</span>(<span class="self">self</span>.kind(), ExprKind::Abs(..))
     }
 
-    <span class="kw">pub fn </span>is_tuple(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>.kind(), ExprKind::Tuple(..))
+    <span class="doccomment">/// Wether this is an aggregate expression with no fields.
+    </span><span class="kw">pub fn </span>is_unit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>.kind(), ExprKind::Aggregate(<span class="kw">_</span>, flds) <span class="kw">if </span>flds.is_empty())
     }
 
-    <span class="kw">pub fn </span>eta_expand_abs(<span class="kw-2">&amp;</span><span class="self">self</span>, sorts: <span class="kw-2">&amp;</span>[Sort]) -&gt; Binder&lt;Expr&gt; {
-        <span class="kw">let </span>args = (<span class="number">0</span>..sorts.len())
-            .map(|idx| Expr::late_bvar(INNERMOST, idx <span class="kw">as </span>u32))
+    <span class="kw">pub fn </span>eta_expand_abs(<span class="kw-2">&amp;</span><span class="self">self</span>, inputs: <span class="kw-2">&amp;</span>[Sort], output: Sort) -&gt; Lambda {
+        <span class="kw">let </span>args = (<span class="number">0</span>..inputs.len())
+            .map(|idx| Expr::late_bvar(INNERMOST, idx <span class="kw">as </span>u32, BoundReftKind::Annon))
             .collect_vec();
-        Binder::with_sorts(Expr::app(<span class="self">self</span>, args, <span class="prelude-val">None</span>), sorts.iter().cloned())
-    }
-
-    <span class="kw">pub fn </span>eta_expand_tuple(<span class="kw-2">&amp;</span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
-        <span class="kw">fn </span>go(sort: <span class="kw-2">&amp;</span>Sort, projs: <span class="kw-2">&amp;mut </span>Vec&lt;u32&gt;, f: <span class="kw-2">&amp;</span><span class="kw">impl </span>Fn(<span class="kw-2">&amp;</span>[u32]) -&gt; Expr) -&gt; Expr {
-            <span class="kw">if let </span>Sort::Tuple(sorts) = sort {
-                Expr::tuple(
-                    sorts
-                        .iter()
-                        .enumerate()
-                        .map(|(i, sort)| {
-                            projs.push(i <span class="kw">as </span>u32);
-                            <span class="kw">let </span>e = go(sort, projs, f);
-                            projs.pop();
-                            e
-                        })
-                        .collect_vec(),
-                )
-            } <span class="kw">else </span>{
-                f(projs)
-            }
-        }
-        <span class="kw">if let </span>(ExprKind::Tuple(exprs), Sort::Tuple(sorts)) = (<span class="self">self</span>.kind(), sort) {
-            Expr::tuple(
-                iter::zip(exprs, sorts)
-                    .map(|(e, s)| e.eta_expand_tuple(s))
-                    .collect_vec(),
-            )
-        } <span class="kw">else </span>{
-            go(sort, <span class="kw-2">&amp;mut </span><span class="macro">vec!</span>[], <span class="kw-2">&amp;</span>|projs| Expr::tuple_projs(<span class="self">self</span>, projs))
-        }
+        <span class="kw">let </span>body = Expr::app(<span class="self">self</span>, args, <span class="prelude-val">None</span>);
+        Lambda::with_sorts(body, inputs, output)
     }
 
     <span class="kw">pub fn </span>fold_sort(sort: <span class="kw-2">&amp;</span>Sort, <span class="kw-2">mut </span>f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>Sort) -&gt; Expr) -&gt; Expr {
         <span class="kw">fn </span>go(sort: <span class="kw-2">&amp;</span>Sort, f: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>Sort) -&gt; Expr) -&gt; Expr {
-            <span class="kw">if let </span>Sort::Tuple(sorts) = sort {
-                Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect_vec())
-            } <span class="kw">else </span>{
-                f(sort)
+            <span class="kw">match </span>sort {
+                Sort::Tuple(sorts) =&gt; Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect()),
+                Sort::App(SortCtor::Adt(adt_sort_def), args) =&gt; {
+                    <span class="kw">let </span>flds = adt_sort_def.sorts(args);
+                    Expr::adt(adt_sort_def.did(), flds.iter().map(|sort| go(sort, f)).collect())
+                }
+                <span class="kw">_ </span>=&gt; f(sort),
             }
         }
         go(sort, <span class="kw-2">&amp;mut </span>f)
+    }
+
+    <span class="doccomment">/// Applies a projection to an expression an optimistically try to beta reduce it if possible.
+    </span><span class="kw">pub fn </span>proj_and_simplify(<span class="kw-2">&amp;</span><span class="self">self</span>, proj: FieldProj) -&gt; Expr {
+        <span class="kw">match </span><span class="self">self</span>.kind() {
+            ExprKind::Aggregate(<span class="kw">_</span>, flds) =&gt; flds[proj.field() <span class="kw">as </span>usize].clone(),
+            <span class="kw">_ </span>=&gt; Expr::field_proj(<span class="self">self</span>.clone(), proj, <span class="prelude-val">None</span>),
+        }
     }
 }
 
@@ -1593,18 +1839,6 @@
         Path { loc, projection: projection.into() }
     }
 
-    <span class="kw">pub fn </span>from_place(place: <span class="kw-2">&amp;</span>Place) -&gt; <span class="prelude-ty">Option</span>&lt;Path&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>proj = <span class="macro">vec!</span>[];
-        <span class="kw">for </span>elem <span class="kw">in </span><span class="kw-2">&amp;</span>place.projection {
-            <span class="kw">if let </span>PlaceElem::Field(field) = elem {
-                proj.push(<span class="kw-2">*</span>field);
-            } <span class="kw">else </span>{
-                <span class="kw">return </span><span class="prelude-val">None</span>;
-            }
-        }
-        <span class="prelude-val">Some</span>(Path::new(Loc::Local(place.local), proj))
-    }
-
     <span class="kw">pub fn </span>projection(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[FieldIdx] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.projection[..]
     }
@@ -1617,7 +1851,7 @@
 
     <span class="kw">pub fn </span>to_loc(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Loc&gt; {
         <span class="kw">if </span><span class="self">self</span>.projection.is_empty() {
-            <span class="prelude-val">Some</span>(<span class="self">self</span>.loc.clone())
+            <span class="prelude-val">Some</span>(<span class="self">self</span>.loc)
         } <span class="kw">else </span>{
             <span class="prelude-val">None
         </span>}
@@ -1684,6 +1918,12 @@
     }
 }
 
+<span class="kw">impl </span>From&lt;Var&gt; <span class="kw">for </span>Expr {
+    <span class="kw">fn </span>from(var: Var) -&gt; <span class="self">Self </span>{
+        Expr::var(var, <span class="prelude-val">None</span>)
+    }
+}
+
 <span class="kw">impl </span>From&lt;Loc&gt; <span class="kw">for </span>Path {
     <span class="kw">fn </span>from(loc: Loc) -&gt; <span class="self">Self </span>{
         Path::new(loc, <span class="macro">vec!</span>[])
@@ -1710,7 +1950,7 @@
     <span class="kw">use </span><span class="kw">crate</span>::pretty::<span class="kw-2">*</span>;
 
     <span class="attr">#[derive(PartialEq, Eq, PartialOrd, Ord)]
-    </span><span class="kw">pub enum </span>Precedence {
+    </span><span class="kw">enum </span>Precedence {
         Iff,
         Imp,
         Or,
@@ -1720,17 +1960,22 @@
         MulDiv,
     }
 
-    <span class="kw">pub fn </span>precedence(bin_op: <span class="kw-2">&amp;</span>BinOp) -&gt; Precedence {
-        <span class="kw">match </span>bin_op {
-            BinOp::Iff =&gt; Precedence::Iff,
-            BinOp::Imp =&gt; Precedence::Imp,
-            BinOp::Or =&gt; Precedence::Or,
-            BinOp::And =&gt; Precedence::And,
-            BinOp::Eq | BinOp::Ne | BinOp::Gt | BinOp::Lt | BinOp::Ge | BinOp::Le =&gt; {
-                Precedence::Cmp
+    <span class="kw">impl </span>BinOp {
+        <span class="kw">fn </span>precedence(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Precedence {
+            <span class="kw">match </span><span class="self">self </span>{
+                BinOp::Iff =&gt; Precedence::Iff,
+                BinOp::Imp =&gt; Precedence::Imp,
+                BinOp::Or =&gt; Precedence::Or,
+                BinOp::And =&gt; Precedence::And,
+                BinOp::Eq
+                | BinOp::Ne
+                | BinOp::Gt(<span class="kw">_</span>)
+                | BinOp::Lt(<span class="kw">_</span>)
+                | BinOp::Ge(<span class="kw">_</span>)
+                | BinOp::Le(<span class="kw">_</span>) =&gt; Precedence::Cmp,
+                BinOp::Add | BinOp::Sub =&gt; Precedence::AddSub,
+                BinOp::Mul | BinOp::Div | BinOp::Mod =&gt; Precedence::MulDiv,
             }
-            BinOp::Add | BinOp::Sub =&gt; Precedence::AddSub,
-            BinOp::Mul | BinOp::Div | BinOp::Mod =&gt; Precedence::MulDiv,
         }
     }
 
@@ -1741,13 +1986,13 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Expr {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">fn </span>should_parenthesize(op: <span class="kw-2">&amp;</span>BinOp, child: <span class="kw-2">&amp;</span>Expr) -&gt; bool {
                 <span class="kw">if let </span>ExprKind::BinaryOp(child_op, ..) = child.kind() {
-                    precedence(child_op) &lt; precedence(op)
-                        || (precedence(child_op) == precedence(op)
-                            &amp;&amp; !precedence(op).is_associative())
+                    child_op.precedence() &lt; op.precedence()
+                        || (child_op.precedence() == op.precedence()
+                            &amp;&amp; !op.precedence().is_associative())
                 } <span class="kw">else </span>{
                     <span class="bool-val">false
                 </span>}
@@ -1777,31 +2022,34 @@
                     <span class="prelude-val">Ok</span>(())
                 }
                 ExprKind::UnaryOp(op, e) =&gt; {
-                    <span class="kw">if </span>e.is_binary_op() {
-                        <span class="macro">w!</span>(<span class="string">&quot;{:?}({:?})&quot;</span>, op, e)
-                    } <span class="kw">else </span>{
+                    <span class="kw">if </span>e.is_atom() {
                         <span class="macro">w!</span>(<span class="string">&quot;{:?}{:?}&quot;</span>, op, e)
-                    }
-                }
-                ExprKind::TupleProj(e, field) =&gt; {
-                    <span class="kw">if </span>e.is_binary_op() {
-                        <span class="macro">w!</span>(<span class="string">&quot;({:?}).{:?}&quot;</span>, e, ^field)
                     } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(<span class="string">&quot;{:?}.{:?}&quot;</span>, e, ^field)
+                        <span class="macro">w!</span>(<span class="string">&quot;{:?}({:?})&quot;</span>, op, e)
                     }
                 }
-                ExprKind::Tuple(exprs) =&gt; {
-                    <span class="kw">if let </span>[e] = <span class="kw-2">&amp;</span>exprs[..] {
+                ExprKind::FieldProj(e, proj) =&gt; {
+                    <span class="kw">if </span>e.is_atom() {
+                        <span class="macro">w!</span>(<span class="string">&quot;{:?}.{:?}&quot;</span>, e, ^proj.field())
+                    } <span class="kw">else </span>{
+                        <span class="macro">w!</span>(<span class="string">&quot;({:?}).{:?}&quot;</span>, e, ^proj.field())
+                    }
+                }
+                ExprKind::Aggregate(AggregateKind::Tuple, flds) =&gt; {
+                    <span class="kw">if let </span>[e] = <span class="kw-2">&amp;</span>flds[..] {
                         <span class="macro">w!</span>(<span class="string">&quot;({:?},)&quot;</span>, e)
                     } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(<span class="string">&quot;({:?})&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, exprs))
+                        <span class="macro">w!</span>(<span class="string">&quot;({:?})&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, flds))
                     }
                 }
+                ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) =&gt; {
+                    <span class="macro">w!</span>(<span class="string">&quot;{:?} {{ {:?} }}&quot;</span>, def_id, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, flds))
+                }
                 ExprKind::PathProj(e, field) =&gt; {
-                    <span class="kw">if </span>e.is_binary_op() {
-                        <span class="macro">w!</span>(<span class="string">&quot;({:?}).{:?}&quot;</span>, e, field)
-                    } <span class="kw">else </span>{
+                    <span class="kw">if </span>e.is_atom() {
                         <span class="macro">w!</span>(<span class="string">&quot;{:?}.{:?}&quot;</span>, e, field)
+                    } <span class="kw">else </span>{
+                        <span class="macro">w!</span>(<span class="string">&quot;({:?}).{:?}&quot;</span>, e, field)
                     }
                 }
                 ExprKind::App(func, args) =&gt; {
@@ -1821,20 +2069,46 @@
                 ExprKind::KVar(kvar) =&gt; {
                     <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, kvar)
                 }
-                ExprKind::Abs(body) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, body)
+                ExprKind::Alias(alias, args) =&gt; {
+                    <span class="macro">w!</span>(<span class="string">&quot;{:?}({:?})&quot;</span>, alias, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, args))
+                }
+                ExprKind::Abs(lam) =&gt; {
+                    <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, lam)
                 }
                 ExprKind::GlobalFunc(func, <span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^func),
             }
         }
     }
 
+    <span class="kw">impl </span>Pretty <span class="kw">for </span>AliasReft {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+            <span class="macro">define_scoped!</span>(cx, f);
+            <span class="macro">w!</span>(<span class="string">&quot;&lt;({:?}) as {:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.args[<span class="number">0</span>], <span class="self">self</span>.trait_id)<span class="question-mark">?</span>;
+            <span class="kw">let </span>args = <span class="kw-2">&amp;</span><span class="self">self</span>.args[<span class="number">1</span>..];
+            <span class="kw">if </span>!args.is_empty() {
+                <span class="macro">w!</span>(<span class="string">&quot;&lt;{:?}&gt;&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, args))<span class="question-mark">?</span>;
+            }
+            <span class="macro">w!</span>(<span class="string">&quot;&gt;::{}&quot;</span>, ^<span class="self">self</span>.name)
+        }
+    }
+
+    <span class="kw">impl </span>Pretty <span class="kw">for </span>Lambda {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+            <span class="macro">define_scoped!</span>(cx, f);
+            <span class="kw">let </span>vars = <span class="self">self</span>.body.vars();
+            cx.with_bound_vars(vars, || {
+                cx.fmt_bound_vars(<span class="string">&quot;λ&quot;</span>, vars, <span class="string">&quot;. &quot;</span>, f)<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="self">self</span>.body.as_ref().skip_binder())
+            })
+        }
+    }
+
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Var {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">match </span><span class="self">self </span>{
-                Var::LateBound(bvar, idx) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}#{}&quot;</span>, bvar, ^idx),
-                Var::EarlyBound(idx) =&gt; <span class="macro">w!</span>(<span class="string">&quot;#{}&quot;</span>, ^idx),
+                Var::LateBound(debruijn, var) =&gt; cx.fmt_bound_reft(<span class="kw-2">*</span>debruijn, <span class="kw-2">*</span>var, f),
+                Var::EarlyParam(var) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^var.name),
                 Var::Free(name) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ^name),
                 Var::EVar(evar) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, evar),
             }
@@ -1842,7 +2116,7 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>KVar {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ^<span class="self">self</span>.kvid)<span class="question-mark">?</span>;
             <span class="kw">match </span>cx.kvar_args {
@@ -1857,7 +2131,7 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Path {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.loc)<span class="question-mark">?</span>;
             <span class="kw">for </span>field <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.projection {
@@ -1868,7 +2142,7 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Loc {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">match </span><span class="self">self </span>{
                 Loc::Local(local) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ^local),
@@ -1878,7 +2152,7 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>BinOp {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">match </span><span class="self">self </span>{
                 BinOp::Iff =&gt; <span class="macro">w!</span>(<span class="string">&quot;⇔&quot;</span>),
@@ -1887,10 +2161,10 @@
                 BinOp::And =&gt; <span class="macro">w!</span>(<span class="string">&quot;∧&quot;</span>),
                 BinOp::Eq =&gt; <span class="macro">w!</span>(<span class="string">&quot;=&quot;</span>),
                 BinOp::Ne =&gt; <span class="macro">w!</span>(<span class="string">&quot;≠&quot;</span>),
-                BinOp::Gt =&gt; <span class="macro">w!</span>(<span class="string">&quot;&gt;&quot;</span>),
-                BinOp::Ge =&gt; <span class="macro">w!</span>(<span class="string">&quot;≥&quot;</span>),
-                BinOp::Lt =&gt; <span class="macro">w!</span>(<span class="string">&quot;&lt;&quot;</span>),
-                BinOp::Le =&gt; <span class="macro">w!</span>(<span class="string">&quot;≤&quot;</span>),
+                BinOp::Gt(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">&quot;&gt;&quot;</span>),
+                BinOp::Ge(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">&quot;≥&quot;</span>),
+                BinOp::Lt(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">&quot;&lt;&quot;</span>),
+                BinOp::Le(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">&quot;≤&quot;</span>),
                 BinOp::Add =&gt; <span class="macro">w!</span>(<span class="string">&quot;+&quot;</span>),
                 BinOp::Sub =&gt; <span class="macro">w!</span>(<span class="string">&quot;-&quot;</span>),
                 BinOp::Mul =&gt; <span class="macro">w!</span>(<span class="string">&quot;*&quot;</span>),
@@ -1901,7 +2175,7 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>UnOp {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">match </span><span class="self">self </span>{
                 UnOp::Not =&gt; <span class="macro">w!</span>(<span class="string">&quot;¬&quot;</span>),
@@ -1910,6 +2184,6 @@
         }
     }
 
-    <span class="macro">impl_debug_with_default_cx!</span>(Expr, Loc, Path, Var, KVar);
+    <span class="macro">impl_debug_with_default_cx!</span>(Expr, Loc, Path, Var, KVar, Lambda, AliasReft);
 }
 </code></pre></div></section></main></body></html>

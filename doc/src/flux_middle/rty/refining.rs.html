@@ -433,14 +433,6 @@
 <a href="#433" id="433">433</a>
 <a href="#434" id="434">434</a>
 <a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
-<a href="#437" id="437">437</a>
-<a href="#438" id="438">438</a>
-<a href="#439" id="439">439</a>
-<a href="#440" id="440">440</a>
-<a href="#441" id="441">441</a>
-<a href="#442" id="442">442</a>
-<a href="#443" id="443">443</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
@@ -450,12 +442,14 @@
 <span class="kw">use </span>rustc_middle::ty::{ClosureKind, ParamTy};
 
 <span class="kw">use </span><span class="kw">super</span>::fold::TypeFoldable;
-<span class="kw">use crate</span>::{global_env::GlobalEnv, intern::List, queries::QueryResult, rty, rustc};
+<span class="kw">use crate</span>::{
+    global_env::GlobalEnv,
+    intern::List,
+    queries::{QueryErr, QueryResult},
+    rty, rustc,
+};
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_generics(
-    genv: <span class="kw-2">&amp;</span>GlobalEnv,
-    generics: <span class="kw-2">&amp;</span>rustc::ty::Generics,
-) -&gt; QueryResult&lt;rty::Generics&gt; {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_generics(generics: <span class="kw-2">&amp;</span>rustc::ty::Generics) -&gt; QueryResult&lt;rty::Generics&gt; {
     <span class="kw">let </span>params = generics
         .params
         .iter()
@@ -478,46 +472,39 @@
         })
         .collect();
 
-    <span class="prelude-val">Ok</span>(rty::Generics {
-        params,
-        refine_params: List::empty(),
-        parent: generics.parent(),
-        parent_count: generics.parent_count(),
-        parent_refine_count: generics
-            .parent()
-            .map(|parent| genv.generics_of(parent))
-            .transpose()<span class="question-mark">?
-            </span>.map_or(<span class="number">0</span>, |g| g.refine_count()),
-    })
+    <span class="prelude-val">Ok</span>(rty::Generics { params, parent: generics.parent(), parent_count: generics.parent_count() })
 }
 
-<span class="kw">pub struct </span>Refiner&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    generics: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rty::Generics,
-    refine: <span class="kw">fn</span>(rty::BaseTy) -&gt; rty::Binder&lt;rty::Ty&gt;,
+<span class="kw">pub struct </span>Refiner&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    generics: rty::Generics,
+    refine: <span class="kw">fn</span>(rty::BaseTy) -&gt; rty::Binder&lt;rty::SubsetTy&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; Refiner&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(
-        genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        generics: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rty::Generics,
-        refine: <span class="kw">fn</span>(rty::BaseTy) -&gt; rty::Binder&lt;rty::Ty&gt;,
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; Refiner&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub fn </span>new(
+        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        generics: <span class="kw-2">&amp;</span>rty::Generics,
+        refine: <span class="kw">fn</span>(rty::BaseTy) -&gt; rty::Binder&lt;rty::SubsetTy&gt;,
     ) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ genv, generics, refine }
+        <span class="self">Self </span>{ genv, generics: generics.clone(), refine }
     }
 
-    <span class="kw">pub fn </span>default(genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;, generics: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rty::Generics) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ genv, generics, refine: refine_default }
+    <span class="kw">pub fn </span>default(genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, generics: <span class="kw-2">&amp;</span>rty::Generics) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ genv, generics: generics.clone(), refine: refine_default }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>with_holes(genv: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>GlobalEnv&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;, generics: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rty::Generics) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>with_holes(genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, generics: <span class="kw-2">&amp;</span>rty::Generics) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             genv,
-            generics,
+            generics: generics.clone(),
             refine: |bty| {
                 <span class="kw">let </span>sort = bty.sort();
-                <span class="kw">let </span>indexed = rty::Ty::indexed(bty.shift_in_escaping(<span class="number">1</span>), rty::Expr::nu());
-                <span class="kw">let </span>constr = rty::Ty::constr(rty::Expr::hole(rty::HoleKind::Pred), indexed);
+                <span class="kw">let </span>constr = rty::SubsetTy::new(
+                    bty.shift_in_escaping(<span class="number">1</span>),
+                    rty::Expr::nu(),
+                    rty::Expr::hole(rty::HoleKind::Pred),
+                );
                 rty::Binder::with_sort(constr, sort)
             },
         }
@@ -553,7 +540,7 @@
         <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>clause.kind {
             rustc::ty::ClauseKind::Trait(trait_pred) =&gt; {
                 <span class="kw">let </span>trait_ref = <span class="kw-2">&amp;</span>trait_pred.trait_ref;
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(kind) = <span class="self">self</span>.genv.tcx.fn_trait_kind_from_def_id(trait_ref.def_id) {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(kind) = <span class="self">self</span>.genv.tcx().fn_trait_kind_from_def_id(trait_ref.def_id) {
                     <span class="self">self</span>.refine_fn_trait_pred(clauses, kind, trait_ref)<span class="question-mark">?
                 </span>} <span class="kw">else </span>{
                     <span class="kw">let </span>pred = rty::TraitPredicate { trait_ref: <span class="self">self</span>.refine_trait_ref(trait_ref)<span class="question-mark">? </span>};
@@ -569,12 +556,12 @@
                         <span class="kw-2">&amp;</span>rustc::ty::AliasKind::Projection,
                         <span class="kw-2">&amp;</span>proj_pred.projection_ty,
                     )<span class="question-mark">?</span>,
-                    term: <span class="self">self</span>.as_default().refine_ty(<span class="kw-2">&amp;</span>proj_pred.term)<span class="question-mark">?</span>,
+                    term: <span class="self">self</span>.refine_ty(<span class="kw-2">&amp;</span>proj_pred.term)<span class="question-mark">?</span>,
                 };
                 rty::ClauseKind::Projection(pred)
             }
             rustc::ty::ClauseKind::TypeOutlives(pred) =&gt; {
-                <span class="kw">let </span>pred = rty::OutlivesPredicate(<span class="self">self</span>.as_default().refine_ty(<span class="kw-2">&amp;</span>pred.<span class="number">0</span>)<span class="question-mark">?</span>, pred.<span class="number">1</span>);
+                <span class="kw">let </span>pred = rty::OutlivesPredicate(<span class="self">self</span>.refine_ty(<span class="kw-2">&amp;</span>pred.<span class="number">0</span>)<span class="question-mark">?</span>, pred.<span class="number">1</span>);
                 rty::ClauseKind::TypeOutlives(pred)
             }
         };
@@ -609,14 +596,13 @@
         <span class="prelude-val">Ok</span>(rty::ClauseKind::FnTrait(pred))
     }
 
-    <span class="kw">fn </span>refine_trait_ref(<span class="kw-2">&amp;</span><span class="self">self</span>, trait_ref: <span class="kw-2">&amp;</span>rustc::ty::TraitRef) -&gt; QueryResult&lt;rty::TraitRef&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_trait_ref(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        trait_ref: <span class="kw-2">&amp;</span>rustc::ty::TraitRef,
+    ) -&gt; QueryResult&lt;rty::TraitRef&gt; {
         <span class="kw">let </span>trait_ref = rty::TraitRef {
             def_id: trait_ref.def_id,
-            args: trait_ref
-                .args
-                .iter()
-                .map(|arg| <span class="self">self</span>.refine_generic_arg_raw(arg))
-                .try_collect()<span class="question-mark">?</span>,
+            args: <span class="self">self</span>.refine_generic_args(trait_ref.def_id, <span class="kw-2">&amp;</span>trait_ref.args)<span class="question-mark">?</span>,
         };
         <span class="prelude-val">Ok</span>(trait_ref)
     }
@@ -632,7 +618,7 @@
             adt_def,
             rty::GenericArgs::identity_for_item(<span class="self">self</span>.genv, adt_def_id)<span class="question-mark">?</span>,
             fields,
-            rty::Expr::unit(),
+            rty::Expr::unit_adt(adt_def_id),
         );
         <span class="prelude-val">Ok</span>(rty::Binder::new(value, List::empty()))
     }
@@ -667,7 +653,21 @@
         })
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_generic_arg(
+    <span class="kw">fn </span>refine_generic_args(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        def_id: DefId,
+        args: <span class="kw-2">&amp;</span>rustc::ty::GenericArgs,
+    ) -&gt; QueryResult&lt;rty::GenericArgs&gt; {
+        <span class="kw">let </span>generics = <span class="self">self</span>.generics_of(def_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="macro">vec!</span>[];
+        <span class="kw">for </span>(idx, arg) <span class="kw">in </span>args.iter().enumerate() {
+            <span class="kw">let </span>param = generics.param_at(idx, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
+            result.push(<span class="self">self</span>.refine_generic_arg(<span class="kw-2">&amp;</span>param, arg)<span class="question-mark">?</span>);
+        }
+        <span class="prelude-val">Ok</span>(List::from_vec(result))
+    }
+
+    <span class="kw">pub fn </span>refine_generic_arg(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         param: <span class="kw-2">&amp;</span>rty::GenericParamDef,
         arg: <span class="kw-2">&amp;</span>rustc::ty::GenericArg,
@@ -676,11 +676,12 @@
             (rty::GenericParamDefKind::Type { .. }, rustc::ty::GenericArg::Ty(ty)) =&gt; {
                 <span class="prelude-val">Ok</span>(rty::GenericArg::Ty(<span class="self">self</span>.refine_ty(ty)<span class="question-mark">?</span>))
             }
-            (rty::GenericParamDefKind::SplTy, rustc::ty::GenericArg::Ty(ty)) =&gt; {
-                <span class="prelude-val">Ok</span>(rty::GenericArg::Ty(<span class="self">self</span>.refine_ty(ty)<span class="question-mark">?</span>))
-            }
-            (rty::GenericParamDefKind::BaseTy, rustc::ty::GenericArg::Ty(ty)) =&gt; {
-                <span class="prelude-val">Ok</span>(rty::GenericArg::BaseTy(<span class="self">self</span>.refine_poly_ty(ty)<span class="question-mark">?</span>))
+            (rty::GenericParamDefKind::Base, rustc::ty::GenericArg::Ty(ty)) =&gt; {
+                <span class="kw">let </span>TyOrBase::Base(contr) = <span class="self">self</span>.refine_ty_inner(ty)<span class="question-mark">? </span><span class="kw">else </span>{
+                    <span class="kw">let </span>def_span = <span class="self">self</span>.genv.tcx().def_span(param.def_id);
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(QueryErr::InvalidGenericArg { def_id: param.def_id, def_span });
+                };
+                <span class="prelude-val">Ok</span>(rty::GenericArg::Base(contr))
             }
             (rty::GenericParamDefKind::Lifetime, rustc::ty::GenericArg::Lifetime(re)) =&gt; {
                 <span class="prelude-val">Ok</span>(rty::GenericArg::Lifetime(<span class="kw-2">*</span>re))
@@ -692,26 +693,13 @@
         }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_generic_arg_raw(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        arg: <span class="kw-2">&amp;</span>rustc::ty::GenericArg,
-    ) -&gt; QueryResult&lt;rty::GenericArg&gt; {
-        <span class="kw">match </span>arg {
-            rustc::ty::GenericArg::Ty(ty) =&gt; <span class="prelude-val">Ok</span>(rty::GenericArg::Ty(<span class="self">self</span>.refine_ty(ty)<span class="question-mark">?</span>)),
-            rustc::ty::GenericArg::Lifetime(re) =&gt; <span class="prelude-val">Ok</span>(rty::GenericArg::Lifetime(<span class="kw-2">*</span>re)),
-            rustc::ty::GenericArg::Const(c) =&gt; <span class="prelude-val">Ok</span>(rty::GenericArg::Const(c.clone())),
-        }
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_alias_ty(
+    <span class="kw">fn </span>refine_alias_ty(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         alias_kind: <span class="kw-2">&amp;</span>rustc::ty::AliasKind,
         alias_ty: <span class="kw-2">&amp;</span>rustc::ty::AliasTy,
     ) -&gt; QueryResult&lt;rty::AliasTy&gt; {
         <span class="kw">let </span>def_id = alias_ty.def_id;
-        <span class="kw">let </span>args = <span class="self">self</span>.iter_with_generics_of(def_id, <span class="kw-2">&amp;</span>alias_ty.args, |param, arg| {
-            <span class="self">self</span>.as_default().refine_generic_arg(param, arg)
-        })<span class="question-mark">?</span>;
+        <span class="kw">let </span>args = <span class="self">self</span>.refine_generic_args(def_id, <span class="kw-2">&amp;</span>alias_ty.args)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>refine_args = <span class="self">self</span>.refine_args_of(def_id, alias_kind)<span class="question-mark">?</span>;
 
@@ -719,15 +707,15 @@
         <span class="prelude-val">Ok</span>(res)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; QueryResult&lt;rty::Ty&gt; {
-        <span class="kw">let </span>ty = <span class="self">self</span>.refine_poly_ty(ty)<span class="question-mark">?</span>;
-        <span class="kw">match </span><span class="kw-2">&amp;</span>ty.vars()[..] {
-            [] =&gt; <span class="prelude-val">Ok</span>(ty.skip_binder().shift_out_escaping(<span class="number">1</span>)),
-            [rty::BoundVariableKind::Refine(s, <span class="kw">_</span>)] <span class="kw">if </span>s.is_unit() =&gt; {
-                <span class="prelude-val">Ok</span>(ty.replace_bound_exprs(<span class="kw-2">&amp;</span>[rty::Expr::unit()]))
-            }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(rty::Ty::exists(ty)),
-        }
+    <span class="kw">pub fn </span>refine_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; QueryResult&lt;rty::Ty&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.refine_ty_inner(ty)<span class="question-mark">?</span>.into_ty())
+    }
+
+    <span class="kw">pub fn </span>refine_ty_ctor(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; QueryResult&lt;rty::TyCtor&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self
+            </span>.refine_ty_inner(ty)<span class="question-mark">?
+            </span>.expect_simple()
+            .map(|constr| constr.to_ty()))
     }
 
     <span class="kw">fn </span>refine_alias_kind(kind: <span class="kw-2">&amp;</span>rustc::ty::AliasKind) -&gt; rty::AliasKind {
@@ -737,7 +725,7 @@
         }
     }
 
-    <span class="kw">pub fn </span>refine_poly_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; QueryResult&lt;rty::PolyTy&gt; {
+    <span class="kw">fn </span>refine_ty_inner(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; QueryResult&lt;TyOrBase&gt; {
         <span class="kw">let </span>bty = <span class="kw">match </span>ty.kind() {
             rustc::ty::TyKind::Closure(did, args) =&gt; {
                 <span class="kw">let </span>args = args.as_closure();
@@ -749,18 +737,16 @@
                 rty::BaseTy::Closure(<span class="kw-2">*</span>did, upvar_tys)
             }
             rustc::ty::TyKind::Coroutine(did, args) =&gt; {
-                <span class="kw">let </span>args = args
-                    .iter()
-                    .map(|arg| <span class="self">self</span>.refine_generic_arg_raw(arg))
+                <span class="kw">let </span>args = args.as_coroutine();
+                <span class="kw">let </span>resume_ty = <span class="self">self</span>.refine_ty(args.resume_ty())<span class="question-mark">?</span>;
+                <span class="kw">let </span>upvar_tys = args
+                    .upvar_tys()
+                    .map(|ty| <span class="self">self</span>.refine_ty(ty))
                     .try_collect()<span class="question-mark">?</span>;
-                rty::BaseTy::Coroutine(<span class="kw-2">*</span>did, args)
+                rty::BaseTy::Coroutine(<span class="kw-2">*</span>did, resume_ty, upvar_tys)
             }
-            rustc::ty::TyKind::CoroutineWitness(did, args) =&gt; {
-                <span class="kw">let </span>args = args
-                    .iter()
-                    .map(|arg| <span class="self">self</span>.refine_generic_arg_raw(arg))
-                    .try_collect()<span class="question-mark">?</span>;
-                rty::BaseTy::CoroutineWitness(<span class="kw-2">*</span>did, args)
+            rustc::ty::TyKind::CoroutineWitness(..) =&gt; {
+                <span class="macro">bug!</span>(<span class="string">&quot;implement when we know what this is&quot;</span>);
             }
             rustc::ty::TyKind::Never =&gt; rty::BaseTy::Never,
             rustc::ty::TyKind::Ref(r, ty, mutbl) =&gt; {
@@ -776,25 +762,24 @@
             }
             rustc::ty::TyKind::Param(param_ty) =&gt; {
                 <span class="kw">match </span><span class="self">self</span>.param(<span class="kw-2">*</span>param_ty)<span class="question-mark">?</span>.kind {
-                    rty::GenericParamDefKind::Type { .. } | rty::GenericParamDefKind::SplTy =&gt; {
-                        <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Binder::new(rty::Ty::param(<span class="kw-2">*</span>param_ty), List::empty()));
+                    rty::GenericParamDefKind::Type { .. } =&gt; {
+                        <span class="kw">return </span><span class="prelude-val">Ok</span>(TyOrBase::Ty(rty::Ty::param(<span class="kw-2">*</span>param_ty)));
                     }
-                    rty::GenericParamDefKind::BaseTy =&gt; rty::BaseTy::Param(<span class="kw-2">*</span>param_ty),
-                    rty::GenericParamDefKind::Lifetime =&gt; <span class="macro">bug!</span>(),
-                    rty::GenericParamDefKind::Const { .. } =&gt; <span class="macro">bug!</span>(),
+                    rty::GenericParamDefKind::Base =&gt; rty::BaseTy::Param(<span class="kw-2">*</span>param_ty),
+                    rty::GenericParamDefKind::Lifetime | rty::GenericParamDefKind::Const { .. } =&gt; {
+                        <span class="macro">bug!</span>()
+                    }
                 }
             }
             rustc::ty::TyKind::Adt(adt_def, args) =&gt; {
                 <span class="kw">let </span>adt_def = <span class="self">self</span>.genv.adt_def(adt_def.did())<span class="question-mark">?</span>;
-                <span class="kw">let </span>args = <span class="self">self</span>.iter_with_generics_of(adt_def.did(), args, |param, arg| {
-                    <span class="self">self</span>.refine_generic_arg(param, arg)
-                })<span class="question-mark">?</span>;
+                <span class="kw">let </span>args = <span class="self">self</span>.refine_generic_args(adt_def.did(), args)<span class="question-mark">?</span>;
                 rty::BaseTy::adt(adt_def, args)
             }
             rustc::ty::TyKind::Alias(alias_kind, alias_ty) =&gt; {
                 <span class="kw">let </span>kind = <span class="self">Self</span>::refine_alias_kind(alias_kind);
-                <span class="kw">let </span>alias_ty = <span class="self">self</span>.refine_alias_ty(alias_kind, alias_ty)<span class="question-mark">?</span>;
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Binder::new(rty::Ty::alias(kind, alias_ty), List::empty()));
+                <span class="kw">let </span>alias_ty = <span class="self">self</span>.as_default().refine_alias_ty(alias_kind, alias_ty)<span class="question-mark">?</span>;
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(TyOrBase::Ty(rty::Ty::alias(kind, alias_ty)));
             }
             rustc::ty::TyKind::Bool =&gt; rty::BaseTy::Bool,
             rustc::ty::TyKind::Int(int_ty) =&gt; rty::BaseTy::Int(<span class="kw-2">*</span>int_ty),
@@ -807,11 +792,11 @@
                 rty::BaseTy::RawPtr(<span class="self">self</span>.as_default().refine_ty(ty)<span class="question-mark">?</span>, <span class="kw-2">*</span>mu)
             }
         };
-        <span class="prelude-val">Ok</span>((<span class="self">self</span>.refine)(bty))
+        <span class="prelude-val">Ok</span>(TyOrBase::Base((<span class="self">self</span>.refine)(bty)))
     }
 
     <span class="kw">fn </span>as_default(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
-        Refiner { refine: refine_default, ..<span class="kw-2">*</span><span class="self">self </span>}
+        Refiner { refine: refine_default, generics: <span class="self">self</span>.generics.clone(), ..<span class="kw-2">*</span><span class="self">self </span>}
     }
 
     <span class="kw">fn </span>adt_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;rty::AdtDef&gt; {
@@ -829,8 +814,8 @@
     ) -&gt; QueryResult&lt;rty::RefineArgs&gt; {
         <span class="kw">if let </span>rustc::ty::AliasKind::Opaque = alias_kind {
             <span class="self">self</span>.genv
-                .generics_of(def_id)<span class="question-mark">?
-                </span>.collect_all_refine_params(<span class="self">self</span>.genv, |param| {
+                .refinement_generics_of(def_id)<span class="question-mark">?
+                </span>.collect_all_params(<span class="self">self</span>.genv, |param| {
                     rty::Expr::hole(rty::HoleKind::Expr(param.sort.clone()))
                 })
         } <span class="kw">else </span>{
@@ -838,39 +823,38 @@
         }
     }
 
-    <span class="kw">fn </span>iter_with_generics_of(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        def_id: DefId,
-        args: <span class="kw-2">&amp;</span>[rustc::ty::GenericArg],
-        f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>rty::GenericParamDef, <span class="kw-2">&amp;</span>rustc::ty::GenericArg) -&gt; QueryResult&lt;rty::GenericArg&gt;,
-    ) -&gt; QueryResult&lt;rty::GenericArgs&gt; {
-        <span class="kw">let </span>generics = <span class="self">self</span>.generics_of(def_id)<span class="question-mark">?</span>;
-        <span class="self">self</span>.iter_with_generic_params(<span class="kw-2">&amp;</span>generics, args, f)
-    }
-
-    <span class="kw">fn </span>iter_with_generic_params(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        generics: <span class="kw-2">&amp;</span>rty::Generics,
-        args: <span class="kw-2">&amp;</span>[rustc::ty::GenericArg],
-        <span class="kw-2">mut </span>f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>rty::GenericParamDef, <span class="kw-2">&amp;</span>rustc::ty::GenericArg) -&gt; QueryResult&lt;rty::GenericArg&gt;,
-    ) -&gt; QueryResult&lt;rty::GenericArgs&gt; {
-        args.iter()
-            .enumerate()
-            .map(|(idx, arg)| {
-                <span class="kw">let </span>param = generics.param_at(idx, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
-                f(<span class="kw-2">&amp;</span>param, arg)
-            })
-            .try_collect()
-    }
-
     <span class="kw">fn </span>param(<span class="kw-2">&amp;</span><span class="self">self</span>, param_ty: ParamTy) -&gt; QueryResult&lt;rty::GenericParamDef&gt; {
         <span class="self">self</span>.generics.param_at(param_ty.index <span class="kw">as </span>usize, <span class="self">self</span>.genv)
     }
 }
 
-<span class="kw">fn </span>refine_default(bty: rty::BaseTy) -&gt; rty::Binder&lt;rty::Ty&gt; {
+<span class="kw">enum </span>TyOrBase {
+    Ty(rty::Ty),
+    Base(rty::SubsetTyCtor),
+}
+
+<span class="kw">impl </span>TyOrBase {
+    <span class="kw">fn </span>into_ty(<span class="self">self</span>) -&gt; rty::Ty {
+        <span class="kw">match </span><span class="self">self </span>{
+            TyOrBase::Ty(ty) =&gt; ty,
+            TyOrBase::Base(ctor) =&gt; ctor.to_ty(),
+        }
+    }
+
+    <span class="attr">#[track_caller]
+    </span><span class="kw">fn </span>expect_simple(<span class="self">self</span>) -&gt; rty::Binder&lt;rty::SubsetTy&gt; {
+        <span class="kw">if let </span>TyOrBase::Base(poly_constr) = <span class="self">self </span>{
+            poly_constr
+        } <span class="kw">else </span>{
+            <span class="macro">bug!</span>(<span class="string">&quot;unexpected ty&quot;</span>)
+        }
+    }
+}
+
+<span class="kw">fn </span>refine_default(bty: rty::BaseTy) -&gt; rty::Binder&lt;rty::SubsetTy&gt; {
     <span class="kw">let </span>sort = bty.sort();
-    rty::Binder::with_sort(rty::Ty::indexed(bty.shift_in_escaping(<span class="number">1</span>), rty::Expr::nu()), sort)
+    <span class="kw">let </span>constr = rty::SubsetTy::trivial(bty.shift_in_escaping(<span class="number">1</span>), rty::Expr::nu());
+    rty::Binder::with_sort(constr, sort)
 }
 
 <span class="kw">pub fn </span>refine_bound_variables(

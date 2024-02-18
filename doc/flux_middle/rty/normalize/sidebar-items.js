@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["BaseSpanner","Defns","Normalizer"]};
+window.SIDEBAR_ITEMS = {"struct":["BaseSpanner","Normalizer","SpecFuncDefns"]};

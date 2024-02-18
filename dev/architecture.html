@@ -184,7 +184,7 @@
 <li><code>crates/flux-desugar</code>: Implementation of name resolution and desugaring from Flux surface syntax into Flux high-level intermediate representation (<code>fhir</code>). This includes name resolution.</li>
 <li><code>crates/flux-driver</code>: Main entry point to Flux. It contains the <code>flux-driver</code> binary and the implementation of the <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_driver/trait.Callbacks.html"><code>Callbacks</code></a> trait.</li>
 <li><code>crates/flux-errors</code>: Utility definitions for user facing error reporting.</li>
-<li><code>crates/flux-fhir-analysis</code>: Implements the &quot;analyses&quot; performed in the <code>fhir</code>, most notably well-formedness checking and conversion from <code>fhir</code> into <code>rty</code>.</li>
+<li><code>crates/flux-fhir-analysis</code>: Implements the "analyses" performed in the <code>fhir</code>, most notably well-formedness checking and conversion from <code>fhir</code> into <code>rty</code>.</li>
 <li><code>crates/flux-fixpoint</code>: Code to interact with the Liquid Fixpoint binary.</li>
 <li><code>crates/flux-macros</code>: Procedural macros used internally to implement Flux.</li>
 <li><code>crates/flux-metadata</code>: Logic for saving Flux crate metadata that can be used to import refined signatures from external crates.</li>
@@ -193,7 +193,7 @@
 <li><code>crates/flux-syntax</code>: Definition of the surface syntax AST and parser.</li>
 <li><code>crates/flux-tests</code>: Flux regression tests.</li>
 <li><code>lib/flux-attrs</code>: Implementation of user facing procedural macros for annotating programs with Flux specs.</li>
-<li><code>lib/flux-rs</code>: This is just a re-export of the macros implemented in <code>flux-attrs</code>. The intention is to eventually put Flux &quot;standard library&quot; here, i.e., a set of definitions that are useful when working with Flux.</li>
+<li><code>lib/flux-rs</code>: This is just a re-export of the macros implemented in <code>flux-attrs</code>. The intention is to eventually put Flux "standard library" here, i.e., a set of definitions that are useful when working with Flux.</li>
 </ul>
 <h2 id="intermediate-representations"><a class="header" href="#intermediate-representations">Intermediate Representations</a></h2>
 <p>Flux has several intermediate representations (IR) for types. They represent a refined version of an equivalent type in some <code>rustc</code> IR. We have picked a distinct <em>verb</em> to refer to the process of going between these different representations to make it easier to refer to them. The following image summarizes all the IRs and the process for going between them.</p>

@@ -508,6 +508,29 @@
 <a href="#508" id="508">508</a>
 <a href="#509" id="509">509</a>
 <a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check if an [`fhir`] annotation is a valid refinement of the corresponding rust declaration.
 //!
 //! To check if an [`fhir`] is valid, we first [`lift`] the `hir` declaration into [`fhir`] and then
@@ -517,61 +540,62 @@
 //! [`fhir`]: flux_middle::fhir
 </span><span class="kw">use </span>std::iter;
 
-<span class="kw">use </span>flux_common::{bug, iter::IterExt};
-<span class="kw">use </span>flux_errors::{ErrorGuaranteed, FluxSession};
-<span class="kw">use </span>flux_middle::fhir::{
-    <span class="self">self</span>,
-    lift::{<span class="self">self</span>, LiftCtxt},
-    WfckResults,
+<span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
+<span class="kw">use </span>flux_errors::ErrorGuaranteed;
+<span class="kw">use </span>flux_middle::{
+    fhir::{
+        <span class="self">self</span>,
+        lift::{<span class="self">self</span>, LiftCtxt},
+        ExprRes, Res,
+    },
+    global_env::GlobalEnv,
+    rty::WfckResults,
 };
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_errors::IntoDiagnostic;
 <span class="kw">use </span>rustc_hir::OwnerId;
-<span class="kw">use </span>rustc_middle::ty::TyCtxt;
 
-<span class="kw">pub fn </span>check_fn_sig(
-    tcx: TyCtxt,
-    sess: <span class="kw-2">&amp;</span>FluxSession,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults,
+<span class="kw">pub fn </span>check_fn_sig&lt;<span class="lifetime">&#39;genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
     owner_id: OwnerId,
     fn_sig: <span class="kw-2">&amp;</span>fhir::FnSig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-    <span class="kw">if </span>fn_sig.lifted {
+    <span class="kw">if </span>fn_sig.decl.lifted {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
-    <span class="kw">let </span>self_ty = lift::lift_self_ty(tcx, sess, owner_id)<span class="question-mark">?</span>;
-    <span class="kw">let </span>expected_fn_sig = <span class="kw-2">&amp;</span>lift::lift_fn(tcx, sess, owner_id)<span class="question-mark">?</span>.<span class="number">1</span>.fn_sig;
-    Zipper::new(sess, wfckresults, self_ty.as_ref()).zip_fn_sig(fn_sig, expected_fn_sig)
+    <span class="kw">let </span>self_ty = lift::lift_self_ty(genv, owner_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>expected_fn_decl = <span class="kw-2">&amp;</span>lift::lift_fn_decl(genv, owner_id)<span class="question-mark">?</span>.<span class="number">0</span>;
+    Zipper::new(genv, wfckresults, self_ty).zip_fn_decl(fn_sig.decl, expected_fn_decl)
 }
 
-<span class="kw">pub fn </span>check_alias(
-    tcx: TyCtxt,
-    sess: <span class="kw-2">&amp;</span>FluxSession,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults,
+<span class="kw">pub fn </span>check_alias&lt;<span class="lifetime">&#39;genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
     ty_alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">if </span>ty_alias.lifted {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
-    <span class="kw">let </span>(.., expected_ty_alias) = lift::lift_type_alias(tcx, sess, ty_alias.owner_id)<span class="question-mark">?</span>;
-    Zipper::new(sess, wfckresults, <span class="prelude-val">None</span>).zip_ty(<span class="kw-2">&amp;</span>ty_alias.ty, <span class="kw-2">&amp;</span>expected_ty_alias.ty)
+    <span class="kw">let </span>expected_ty_alias = lift::lift_type_alias(genv, ty_alias.owner_id)<span class="question-mark">?</span>;
+    Zipper::new(genv, wfckresults, <span class="prelude-val">None</span>).zip_ty(<span class="kw-2">&amp;</span>ty_alias.ty, <span class="kw-2">&amp;</span>expected_ty_alias.ty)
 }
 
-<span class="kw">pub fn </span>check_struct_def(
-    tcx: TyCtxt,
-    sess: <span class="kw-2">&amp;</span>FluxSession,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults,
+<span class="kw">pub fn </span>check_struct_def&lt;<span class="lifetime">&#39;genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
     struct_def: <span class="kw-2">&amp;</span>fhir::StructDef,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">match </span><span class="kw-2">&amp;</span>struct_def.kind {
         fhir::StructKind::Transparent { fields } =&gt; {
-            <span class="kw">let </span><span class="kw-2">mut </span>liftcx = LiftCtxt::new(tcx, sess, struct_def.owner_id, <span class="prelude-val">None</span>);
+            <span class="kw">let </span>local_id_gen = IndexGen::new();
+            <span class="kw">let </span><span class="kw-2">mut </span>liftcx = LiftCtxt::new(genv, struct_def.owner_id, <span class="kw-2">&amp;</span>local_id_gen, <span class="prelude-val">None</span>);
             fields.iter().try_for_each_exhaust(|field| {
                 <span class="kw">if </span>field.lifted {
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                 }
-                <span class="kw">let </span>self_ty = lift::lift_self_ty(tcx, sess, struct_def.owner_id)<span class="question-mark">?</span>;
-                Zipper::new(sess, wfckresults, self_ty.as_ref())
+                <span class="kw">let </span>self_ty = lift::lift_self_ty(genv, struct_def.owner_id)<span class="question-mark">?</span>;
+                Zipper::new(genv, wfckresults, self_ty)
                     .zip_ty(<span class="kw-2">&amp;</span>field.ty, <span class="kw-2">&amp;</span>liftcx.lift_field_def_id(field.def_id)<span class="question-mark">?</span>.ty)
             })
         }
@@ -579,77 +603,81 @@
     }
 }
 
-<span class="kw">pub fn </span>check_enum_def(
-    tcx: TyCtxt,
-    sess: <span class="kw-2">&amp;</span>FluxSession,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults,
+<span class="kw">pub fn </span>check_enum_def&lt;<span class="lifetime">&#39;genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
     enum_def: <span class="kw-2">&amp;</span>fhir::EnumDef,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>liftcx = LiftCtxt::new(tcx, sess, enum_def.owner_id, <span class="prelude-val">None</span>);
+    <span class="kw">let </span>local_id_gen = IndexGen::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>liftcx = LiftCtxt::new(genv, enum_def.owner_id, <span class="kw-2">&amp;</span>local_id_gen, <span class="prelude-val">None</span>);
     enum_def.variants.iter().try_for_each_exhaust(|variant| {
         <span class="kw">if </span>variant.lifted {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
-        <span class="kw">let </span>self_ty = lift::lift_self_ty(tcx, sess, enum_def.owner_id)<span class="question-mark">?</span>;
-        Zipper::new(sess, wfckresults, self_ty.as_ref())
+        <span class="kw">let </span>self_ty = lift::lift_self_ty(genv, enum_def.owner_id)<span class="question-mark">?</span>;
+        Zipper::new(genv, wfckresults, self_ty)
             .zip_enum_variant(variant, <span class="kw-2">&amp;</span>liftcx.lift_enum_variant_id(variant.def_id)<span class="question-mark">?</span>)
     })
 }
 
-<span class="kw">struct </span>Zipper&lt;<span class="lifetime">&#39;zip</span>&gt; {
-    sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span>FluxSession,
-    wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span><span class="kw-2">mut </span>WfckResults,
-    locs: LocsMap&lt;<span class="lifetime">&#39;zip</span>&gt;,
-    self_ty: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span>fhir::Ty&gt;,
+<span class="kw">struct </span>Zipper&lt;<span class="lifetime">&#39;zip</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span><span class="kw-2">mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    locs: LocsMap&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    self_ty: <span class="prelude-ty">Option</span>&lt;fhir::Ty&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;,
 }
 
-<span class="kw">type </span>LocsMap&lt;<span class="lifetime">&#39;a</span>&gt; = UnordMap&lt;fhir::Name, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Ty&gt;;
+<span class="kw">type </span>LocsMap&lt;<span class="lifetime">&#39;genv</span>&gt; = UnordMap&lt;fhir::ParamId, fhir::Ty&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;;
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;zip</span>&gt; Zipper&lt;<span class="lifetime">&#39;zip</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;zip</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; Zipper&lt;<span class="lifetime">&#39;zip</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">fn </span>new(
-        sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span>FluxSession,
-        wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span><span class="kw-2">mut </span>WfckResults,
-        self_ty: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span>fhir::Ty&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span><span class="kw-2">mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+        self_ty: <span class="prelude-ty">Option</span>&lt;fhir::Ty&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ sess, wfckresults, locs: LocsMap::default(), self_ty }
+        <span class="self">Self </span>{ genv, wfckresults, locs: LocsMap::default(), self_ty }
     }
 
     <span class="kw">fn </span>zip_enum_variant(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         variant: <span class="kw-2">&amp;</span>fhir::VariantDef,
-        expected_variant: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span>fhir::VariantDef,
+        expected_variant: <span class="kw-2">&amp;</span>fhir::VariantDef&lt;<span class="lifetime">&#39;genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">if </span>variant.fields.len() != expected_variant.fields.len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(
                 <span class="self">self</span>.emit_err(errors::FieldCountMismatch::from_variants(variant, expected_variant))
             );
         }
-        iter::zip(<span class="kw-2">&amp;</span>variant.fields, <span class="kw-2">&amp;</span>expected_variant.fields).try_for_each_exhaust(
+        iter::zip(variant.fields, expected_variant.fields).try_for_each_exhaust(
             |(field, expected_field)| <span class="self">self</span>.zip_ty(<span class="kw-2">&amp;</span>field.ty, <span class="kw-2">&amp;</span>expected_field.ty),
         )<span class="question-mark">?</span>;
 
         <span class="self">self</span>.zip_bty(<span class="kw-2">&amp;</span>variant.ret.bty, <span class="kw-2">&amp;</span>expected_variant.ret.bty)
     }
 
-    <span class="kw">fn </span>zip_fn_sig(
+    <span class="kw">fn </span>zip_fn_decl(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        fn_sig: <span class="kw-2">&amp;</span>fhir::FnSig,
-        expected_fn_sig: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span>fhir::FnSig,
+        fn_decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
+        expected_fn_sig: <span class="kw-2">&amp;</span>fhir::FnDecl&lt;<span class="lifetime">&#39;genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">if </span>fn_sig.args.len() != expected_fn_sig.args.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::FunArgCountMismatch::new(fn_sig, expected_fn_sig)));
+        <span class="kw">if </span>fn_decl.args.len() != expected_fn_sig.args.len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::FunArgCountMismatch::new(fn_decl, expected_fn_sig)));
         }
-        <span class="self">self</span>.zip_tys(<span class="kw-2">&amp;</span>fn_sig.args, <span class="kw-2">&amp;</span>expected_fn_sig.args)<span class="question-mark">?</span>;
-        <span class="self">self</span>.zip_constraints(<span class="kw-2">&amp;</span>fn_sig.requires)<span class="question-mark">?</span>;
+        <span class="self">self</span>.zip_tys(fn_decl.args, expected_fn_sig.args)<span class="question-mark">?</span>;
+        <span class="self">self</span>.zip_constraints(fn_decl.requires)<span class="question-mark">?</span>;
 
-        <span class="self">self</span>.zip_ty(<span class="kw-2">&amp;</span>fn_sig.output.ret, <span class="kw-2">&amp;</span>expected_fn_sig.output.ret)<span class="question-mark">?</span>;
-        <span class="self">self</span>.zip_constraints(<span class="kw-2">&amp;</span>fn_sig.output.ensures)
+        <span class="self">self</span>.zip_ty(<span class="kw-2">&amp;</span>fn_decl.output.ret, <span class="kw-2">&amp;</span>expected_fn_sig.output.ret)<span class="question-mark">?</span>;
+        <span class="self">self</span>.zip_constraints(fn_decl.output.ensures)
     }
 
     <span class="kw">fn </span>zip_constraints(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constrs: <span class="kw-2">&amp;</span>[fhir::Constraint]) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         constrs.iter().try_for_each_exhaust(|constr| {
             <span class="kw">if let </span>fhir::Constraint::Type(loc, ty) = constr {
-                <span class="self">self</span>.zip_ty(ty, <span class="self">self</span>.locs[<span class="kw-2">&amp;</span>loc.name])
+                <span class="kw">let </span>ExprRes::Param(<span class="kw">_</span>, id) = loc.res <span class="kw">else </span>{
+                    <span class="macro">span_bug!</span>(loc.span, <span class="string">&quot;unexpected path in loc position&quot;</span>)
+                };
+                <span class="kw">let </span>expected_ty = <span class="self">self</span>.locs[<span class="kw-2">&amp;</span>id];
+                <span class="self">self</span>.zip_ty(ty, <span class="kw-2">&amp;</span>expected_ty)
             } <span class="kw">else </span>{
                 <span class="prelude-val">Ok</span>(())
             }
@@ -659,7 +687,7 @@
     <span class="kw">fn </span>zip_tys(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         tys: <span class="kw-2">&amp;</span>[fhir::Ty],
-        expected_tys: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span>[fhir::Ty],
+        expected_tys: <span class="kw-2">&amp;</span>[fhir::Ty&lt;<span class="lifetime">&#39;genv</span>&gt;],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         iter::zip(tys, expected_tys)
             .try_for_each_exhaust(|(ty, expected)| <span class="self">self</span>.zip_ty(ty, expected))
@@ -668,20 +696,23 @@
     <span class="kw">fn </span>zip_ty(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         ty: <span class="kw-2">&amp;</span>fhir::Ty,
-        expected_ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span>fhir::Ty,
+        expected_ty: <span class="kw-2">&amp;</span>fhir::Ty&lt;<span class="lifetime">&#39;genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">match </span>(<span class="kw-2">&amp;</span>ty.kind, <span class="kw-2">&amp;</span>expected_ty.kind) {
+        <span class="kw">match </span>(ty.kind, expected_ty.kind) {
             (fhir::TyKind::Constr(<span class="kw">_</span>, ty) | fhir::TyKind::Exists(.., ty), <span class="kw">_</span>) =&gt; {
                 <span class="self">self</span>.zip_ty(ty, expected_ty)
             }
             (
                 fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, <span class="kw">_</span>),
                 fhir::TyKind::BaseTy(expected_bty),
-            ) =&gt; <span class="self">self</span>.zip_bty(bty, expected_bty),
+            ) =&gt; <span class="self">self</span>.zip_bty(<span class="kw-2">&amp;</span>bty, <span class="kw-2">&amp;</span>expected_bty),
             (fhir::TyKind::Ptr(lft, loc), fhir::TyKind::Ref(expected_lft, expected_mut_ty)) =&gt; {
                 <span class="kw">if </span>expected_mut_ty.mutbl.is_mut() {
-                    <span class="self">self</span>.zip_lifetime(<span class="kw-2">*</span>lft, <span class="kw-2">*</span>expected_lft);
-                    <span class="self">self</span>.locs.insert(loc.name, <span class="kw-2">&amp;</span>expected_mut_ty.ty);
+                    <span class="kw">let </span>ExprRes::Param(<span class="kw">_</span>, id) = loc.res <span class="kw">else </span>{
+                        <span class="macro">span_bug!</span>(loc.span, <span class="string">&quot;unexpected path in loc position&quot;</span>)
+                    };
+                    <span class="self">self</span>.zip_lifetime(lft, expected_lft);
+                    <span class="self">self</span>.locs.insert(id, <span class="kw-2">*</span>expected_mut_ty.ty);
                     <span class="prelude-val">Ok</span>(())
                 } <span class="kw">else </span>{
                     <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(
@@ -698,8 +729,8 @@
                             .with_note(<span class="string">&quot;types differ in mutability&quot;</span>),
                     ));
                 }
-                <span class="self">self</span>.zip_lifetime(<span class="kw-2">*</span>lft, <span class="kw-2">*</span>expected_lft);
-                <span class="self">self</span>.zip_ty(<span class="kw-2">&amp;</span>mut_ty.ty, <span class="kw-2">&amp;</span>expected_mut_ty.ty)
+                <span class="self">self</span>.zip_lifetime(lft, expected_lft);
+                <span class="self">self</span>.zip_ty(mut_ty.ty, expected_mut_ty.ty)
             }
             (fhir::TyKind::Tuple(tys), fhir::TyKind::Tuple(expected_tys)) =&gt; {
                 <span class="kw">if </span>tys.len() != expected_tys.len() {
@@ -712,7 +743,7 @@
             }
             (fhir::TyKind::Array(ty, len), fhir::TyKind::Array(expected_ty, expected_len)) =&gt; {
                 <span class="kw">if </span>len.val != expected_len.val {
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArrayLenMismatch::new(len, expected_len)));
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArrayLenMismatch::new(<span class="kw-2">&amp;</span>len, <span class="kw-2">&amp;</span>expected_len)));
                 }
                 <span class="self">self</span>.zip_ty(ty, expected_ty)
             }
@@ -732,7 +763,7 @@
             (fhir::TyKind::Hole(fhir_id), <span class="kw">_</span>) =&gt; {
                 <span class="self">self</span>.wfckresults
                     .type_holes_mut()
-                    .insert(<span class="kw-2">*</span>fhir_id, expected_ty.clone());
+                    .insert(fhir_id, <span class="kw-2">*</span>expected_ty);
                 <span class="prelude-val">Ok</span>(())
             }
             (
@@ -764,7 +795,7 @@
     <span class="kw">fn </span>zip_generic_arg(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         arg1: <span class="kw-2">&amp;</span>fhir::GenericArg,
-        arg2: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span>fhir::GenericArg,
+        arg2: <span class="kw-2">&amp;</span>fhir::GenericArg&lt;<span class="lifetime">&#39;genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">match </span>(arg1, arg2) {
             (fhir::GenericArg::Type(ty1), fhir::GenericArg::Type(ty2)) =&gt; <span class="self">self</span>.zip_ty(ty1, ty2),
@@ -794,11 +825,11 @@
     <span class="kw">fn </span>zip_bty(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         bty: <span class="kw-2">&amp;</span>fhir::BaseTy,
-        expected_bty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span>fhir::BaseTy,
+        expected_bty: <span class="kw-2">&amp;</span>fhir::BaseTy&lt;<span class="lifetime">&#39;genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">match </span>(<span class="kw-2">&amp;</span>bty.kind, <span class="kw-2">&amp;</span>expected_bty.kind) {
+        <span class="kw">match </span>(bty.kind, expected_bty.kind) {
             (fhir::BaseTyKind::Path(qpath), fhir::BaseTyKind::Path(expected_qpath)) =&gt; {
-                <span class="self">self</span>.zip_qpath(qpath, expected_qpath)
+                <span class="self">self</span>.zip_qpath(<span class="kw-2">&amp;</span>qpath, <span class="kw-2">&amp;</span>expected_qpath)
             }
             (fhir::BaseTyKind::Slice(ty), fhir::BaseTyKind::Slice(expected_ty)) =&gt; {
                 <span class="self">self</span>.zip_ty(ty, expected_ty)
@@ -810,7 +841,7 @@
     <span class="kw">fn </span>zip_qpath(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         qpath: <span class="kw-2">&amp;</span>fhir::QPath,
-        expected_qpath: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span>fhir::QPath,
+        expected_qpath: <span class="kw-2">&amp;</span>fhir::QPath&lt;<span class="lifetime">&#39;genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">match </span>(qpath, expected_qpath) {
             (fhir::QPath::Resolved(<span class="prelude-val">None</span>, path), fhir::QPath::Resolved(<span class="prelude-val">None</span>, expected_path)) =&gt; {
@@ -827,32 +858,47 @@
         }
     }
 
+    <span class="kw">fn </span>is_same_res(<span class="kw-2">&amp;</span><span class="self">self</span>, res: Res, expected: Res) -&gt; bool {
+        <span class="kw">if </span>res == expected {
+            <span class="kw">return </span><span class="bool-val">true</span>;
+        };
+        <span class="kw">if let </span>Res::Def(res_kind, res_did) = res
+            &amp;&amp; <span class="kw">let </span>Res::Def(expected_kind, expected_did) = expected
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(extern_id) = <span class="self">self</span>.genv.map().get_local_id_for_extern(res_did)
+            &amp;&amp; res_kind == expected_kind
+            &amp;&amp; extern_id.to_def_id() == expected_did
+        {
+            <span class="kw">return </span><span class="bool-val">true</span>;
+        }
+        <span class="bool-val">false
+    </span>}
+
     <span class="kw">fn </span>zip_path(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         path: <span class="kw-2">&amp;</span>fhir::Path,
-        expected_path: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span>fhir::Path,
+        expected_path: <span class="kw-2">&amp;</span>fhir::Path&lt;<span class="lifetime">&#39;genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">if </span>path.res != expected_path.res {
+        <span class="kw">if </span>!<span class="self">self</span>.is_same_res(path.res, expected_path.res) {
             <span class="kw">if let </span>fhir::Res::SelfTyAlias { .. } = expected_path.res
                 &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(self_ty) = <span class="self">self</span>.self_ty
                 &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(expected_path) = self_ty.as_path()
             {
-                <span class="kw">return </span><span class="self">self</span>.zip_path(path, expected_path);
+                <span class="kw">return </span><span class="self">self</span>.zip_path(path, <span class="kw-2">&amp;</span>expected_path);
             }
-
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::InvalidRefinement::from_paths(path, expected_path)));
         }
-        <span class="kw">if </span>path.args.len() != expected_path.args.len() {
+        <span class="comment">// TODO(nilehmann) we should check all segments here
+        </span><span class="kw">if </span>path.last_segment().args.len() != expected_path.last_segment().args.len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::GenericArgCountMismatch::new(path, expected_path)));
         }
 
-        iter::zip(<span class="kw-2">&amp;</span>path.args, <span class="kw-2">&amp;</span>expected_path.args)
+        iter::zip(path.last_segment().args, expected_path.last_segment().args)
             .try_for_each_exhaust(|(arg, expected)| <span class="self">self</span>.zip_generic_arg(arg, expected))
     }
 
     <span class="attr">#[track_caller]
     </span><span class="kw">fn </span>emit_err&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, err: <span class="kw">impl </span>IntoDiagnostic&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; ErrorGuaranteed {
-        <span class="self">self</span>.sess.emit_err(err)
+        <span class="self">self</span>.genv.sess().emit_err(err)
     }
 }
 
@@ -934,12 +980,12 @@
     }
 
     <span class="kw">impl </span>FunArgCountMismatch {
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(fn_sig: <span class="kw-2">&amp;</span>fhir::FnSig, expected_fn_sig: <span class="kw-2">&amp;</span>fhir::FnSig) -&gt; <span class="self">Self </span>{
+        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(decl: <span class="kw-2">&amp;</span>fhir::FnDecl, expected_decl: <span class="kw-2">&amp;</span>fhir::FnDecl) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{
-                span: fn_sig.span,
-                args: fn_sig.args.len(),
-                expected_span: expected_fn_sig.span,
-                expected_args: expected_fn_sig.args.len(),
+                span: decl.span,
+                args: decl.args.len(),
+                expected_span: expected_decl.span,
+                expected_args: expected_decl.args.len(),
             }
         }
     }
@@ -961,8 +1007,8 @@
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(path: <span class="kw-2">&amp;</span>fhir::Path, expected_path: <span class="kw-2">&amp;</span>fhir::Path) -&gt; <span class="self">Self </span>{
             GenericArgCountMismatch {
                 span: path.span,
-                found: path.args.len(),
-                expected: expected_path.args.len(),
+                found: path.last_segment().args.len(),
+                expected: expected_path.last_segment().args.len(),
                 def_descr: path.res.descr(),
                 expected_span: expected_path.span,
             }

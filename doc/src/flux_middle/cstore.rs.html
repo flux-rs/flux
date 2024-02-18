@@ -13,20 +13,18 @@
 <a href="#13" id="13">13</a>
 <a href="#14" id="14">14</a>
 <a href="#15" id="15">15</a>
-<a href="#16" id="16">16</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::def_id::DefId;
 
-<span class="kw">use crate</span>::{fhir, rty};
+<span class="kw">use </span><span class="kw">crate</span>::rty;
 
 <span class="kw">pub trait </span>CrateStore {
     <span class="kw">fn </span>fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;;
-    <span class="kw">fn </span>refined_by(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>fhir::RefinedBy&gt;;
     <span class="kw">fn </span>adt_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>rty::AdtDef&gt;;
     <span class="kw">fn </span>variants(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         def_id: DefId,
     ) -&gt; <span class="prelude-ty">Option</span>&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;<span class="kw-2">&amp;</span>[rty::PolyVariant]&gt;&gt;&gt;;
-    <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>rty::EarlyBinder&lt;rty::PolyTy&gt;&gt;;
+    <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;;
 }
 
 <span class="kw">pub type </span>CrateStoreDyn = <span class="kw">dyn </span>CrateStore;

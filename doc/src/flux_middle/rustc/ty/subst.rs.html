@@ -91,7 +91,9 @@
 <a href="#91" id="91">91</a>
 <a href="#92" id="92">92</a>
 <a href="#93" id="93">93</a>
-</pre></div><pre class="rust"><code><span class="kw">use super</span>::{Binder, Const, FnSig, GenericArg, Region, Ty, TyKind};
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+</pre></div><pre class="rust"><code><span class="kw">use super</span>::{Binder, Const, ConstKind, FnSig, GenericArg, Region, Ty, TyKind};
 <span class="kw">use </span><span class="kw">crate</span>::intern::{Internable, List};
 
 <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">trait </span>Subst {
@@ -156,9 +158,11 @@
 
 <span class="kw">impl </span>Subst <span class="kw">for </span>Const {
     <span class="kw">fn </span>subst(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[GenericArg]) -&gt; <span class="self">Self </span>{
-        <span class="kw">match </span><span class="self">self </span>{
-            Const::Param(param_const) =&gt; args[param_const.index <span class="kw">as </span>usize].expect_const().clone(),
-            Const::Value(v) =&gt; Const::Value(v.clone()),
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
+            ConstKind::Param(param_const) =&gt; {
+                args[param_const.index <span class="kw">as </span>usize].expect_const().clone()
+            }
+            ConstKind::Value(<span class="kw">_</span>) =&gt; <span class="self">self</span>.clone(),
         }
     }
 }

@@ -140,10 +140,18 @@
 <a href="#140" id="140">140</a>
 <a href="#141" id="141">141</a>
 <a href="#142" id="142">142</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::{
-    convert::Infallible,
-    ops::{ControlFlow, FromResidual, Try},
-};
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::Try;
 
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 
@@ -155,22 +163,21 @@
         <span class="self">self</span>.collect()
     }
 
+    <span class="kw">fn </span>collect_errors&lt;T, E, C&gt;(<span class="self">self</span>, collector: C) -&gt; CollectErrors&lt;<span class="self">Self</span>, C&gt;
+    <span class="kw">where
+        </span><span class="self">Self</span>: Iterator&lt;Item = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + Sized,
+        C: ErrorCollector&lt;E&gt;,
+    {
+        CollectErrors { iter: <span class="self">self</span>, collector }
+    }
+
     <span class="kw">fn </span>try_collect_exhaust&lt;T, V&gt;(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;V, ErrorGuaranteed&gt;
     <span class="kw">where
         </span>V: FromIterator&lt;T&gt;,
         <span class="self">Self</span>: Iterator&lt;Item = <span class="prelude-ty">Result</span>&lt;T, ErrorGuaranteed&gt;&gt; + Sized,
     {
         <span class="kw">let </span><span class="kw-2">mut </span>acc: <span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt; = <span class="prelude-val">None</span>;
-        <span class="kw">let </span>v = ReportResiduals {
-            iter: <span class="self">self</span>,
-            f: |residual: <span class="prelude-ty">Result</span>&lt;Infallible, ErrorGuaranteed&gt;| {
-                <span class="kw">match </span>acc.take() {
-                    <span class="prelude-val">Some</span>(e) =&gt; acc = <span class="prelude-val">Some</span>(e),
-                    <span class="prelude-val">None </span>=&gt; acc = <span class="prelude-val">Some</span>(residual.unwrap_err()),
-                }
-            },
-        }
-        .collect();
+        <span class="kw">let </span>v = <span class="self">self</span>.collect_errors(<span class="kw-2">&amp;mut </span>acc).collect();
         <span class="kw">match </span>acc {
             <span class="prelude-val">Some</span>(e) =&gt; <span class="prelude-val">Err</span>(e),
             <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(v),
@@ -185,10 +192,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>acc: <span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt; = <span class="prelude-val">None</span>;
         <span class="kw">for </span>v <span class="kw">in </span><span class="self">self </span>{
             <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = f(v) {
-                <span class="kw">match </span>acc.take() {
-                    <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; acc = <span class="prelude-val">Some</span>(e),
-                    <span class="prelude-val">None </span>=&gt; acc = <span class="prelude-val">Some</span>(e),
-                }
+                acc = <span class="prelude-val">Some</span>(e).or(acc);
             }
         }
         <span class="kw">match </span>acc {
@@ -208,16 +212,34 @@
 
 <span class="kw">impl</span>&lt;I: <span class="question-mark">?</span>Sized&gt; IterExt <span class="kw">for </span>I <span class="kw">where </span>I: Iterator {}
 
-<span class="kw">struct </span>ReportResiduals&lt;I, F&gt; {
-    iter: I,
-    f: F,
+<span class="kw">pub trait </span>ErrorCollector&lt;E&gt; {
+    <span class="kw">fn </span>collect(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: E);
 }
 
-<span class="kw">impl</span>&lt;I, T, E, F, R&gt; Iterator <span class="kw">for </span>ReportResiduals&lt;I, F&gt;
+<span class="kw">impl</span>&lt;E, F&gt; ErrorCollector&lt;E&gt; <span class="kw">for </span>F
 <span class="kw">where
-    </span>I: Iterator&lt;Item = R&gt;,
-    R: Try&lt;Output = T, Residual = E&gt; + FromResidual&lt;E&gt;,
-    F: FnMut(E),
+    </span>F: FnMut(E),
+{
+    <span class="kw">fn </span>collect(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: E) {
+        <span class="self">self</span>(err);
+    }
+}
+
+<span class="kw">impl </span>ErrorCollector&lt;ErrorGuaranteed&gt; <span class="kw">for </span><span class="kw-2">&amp;mut </span><span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt; {
+    <span class="kw">fn </span>collect(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: ErrorGuaranteed) {
+        <span class="kw-2">**</span><span class="self">self </span>= <span class="prelude-val">Some</span>(err).or(<span class="kw-2">**</span><span class="self">self</span>);
+    }
+}
+
+<span class="kw">pub struct </span>CollectErrors&lt;I, F&gt; {
+    iter: I,
+    collector: F,
+}
+
+<span class="kw">impl</span>&lt;I, T, E, F&gt; Iterator <span class="kw">for </span>CollectErrors&lt;I, F&gt;
+<span class="kw">where
+    </span>I: Iterator&lt;Item = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt;,
+    F: ErrorCollector&lt;E&gt;,
 {
     <span class="kw">type </span>Item = T;
 
@@ -231,10 +253,10 @@
         R2: Try&lt;Output = B&gt;,
     {
         <span class="self">self</span>.iter.try_fold(init, |acc, x| {
-            <span class="kw">match </span>x.branch() {
-                ControlFlow::Continue(x) =&gt; f(acc, x),
-                ControlFlow::Break(e) =&gt; {
-                    (<span class="self">self</span>.f)(e);
+            <span class="kw">match </span>x {
+                <span class="prelude-val">Ok</span>(x) =&gt; f(acc, x),
+                <span class="prelude-val">Err</span>(e) =&gt; {
+                    <span class="self">self</span>.collector.collect(e);
                     <span class="kw">try </span>{ acc }
                 }
             }

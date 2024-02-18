@@ -683,57 +683,34 @@
 <a href="#683" id="683">683</a>
 <a href="#684" id="684">684</a>
 <a href="#685" id="685">685</a>
-<a href="#686" id="686">686</a>
-<a href="#687" id="687">687</a>
-<a href="#688" id="688">688</a>
-<a href="#689" id="689">689</a>
-<a href="#690" id="690">690</a>
-<a href="#691" id="691">691</a>
-<a href="#692" id="692">692</a>
-<a href="#693" id="693">693</a>
-<a href="#694" id="694">694</a>
-<a href="#695" id="695">695</a>
-<a href="#696" id="696">696</a>
-<a href="#697" id="697">697</a>
-<a href="#698" id="698">698</a>
-<a href="#699" id="699">699</a>
-<a href="#700" id="700">700</a>
-<a href="#701" id="701">701</a>
-<a href="#702" id="702">702</a>
-<a href="#703" id="703">703</a>
-<a href="#704" id="704">704</a>
-<a href="#705" id="705">705</a>
-<a href="#706" id="706">706</a>
-<a href="#707" id="707">707</a>
-<a href="#708" id="708">708</a>
-</pre></div><pre class="rust"><code><span class="kw">mod </span>projection;
+</pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
 
-<span class="kw">use </span>flux_common::tracked_span_bug;
+<span class="kw">use </span>flux_common::{dbg::debug_assert_eq3, tracked_span_bug};
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        box_args,
+        canonicalize::ShallowHoister,
         evars::EVarSol,
-        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
+        fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
-        BaseTy, Binder, BoundVariableKind, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path,
-        PtrKind, Region, Ty, TyKind, INNERMOST,
+        BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path,
+        PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 
-<span class="kw">use </span><span class="self">self</span>::projection::{LocKind, PlacesTree};
+<span class="kw">use </span><span class="self">self</span>::place_ty::{LocKind, PlacesTree};
 <span class="kw">use </span><span class="kw">super</span>::rty::{Loc, Sort};
 <span class="kw">use crate</span>::{
     checker::errors::CheckerErrKind,
     constraint_gen::{ConstrGen, ConstrReason},
     fixpoint_encoding::{KVarEncoding, KVarStore},
-    refine_tree::{AssumeInvariants, RefineCtxt, Scope},
+    refine_tree::{RefineCtxt, Scope},
     rty::VariantIdx,
     CheckerConfig,
 };
@@ -754,7 +731,8 @@
     scope: Scope,
 }
 
-<span class="kw">struct </span>BasicBlockEnvData {
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">struct </span>BasicBlockEnvData {
     constrs: List&lt;Expr&gt;,
     bindings: PlacesTree,
 }
@@ -764,18 +742,19 @@
         TypeEnv { bindings: PlacesTree::default(), local_decls }
     }
 
-    <span class="kw">pub fn </span>alloc_universal_loc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: Loc, ty: Ty) {
-        <span class="self">self</span>.bindings.insert(loc, LocKind::Universal, ty);
+    <span class="kw">pub fn </span>alloc_universal_loc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: Loc, place: Place, ty: Ty) {
+        <span class="self">self</span>.bindings.insert(loc, place, LocKind::Universal, ty);
     }
 
     <span class="kw">pub fn </span>alloc_with_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local: Local, ty: Ty) {
         <span class="kw">let </span>ty = RegionSubst::new(<span class="kw-2">&amp;</span>ty, <span class="kw-2">&amp;</span><span class="self">self</span>.local_decls[local].ty).apply(<span class="kw-2">&amp;</span>ty);
-        <span class="self">self</span>.bindings.insert(local.into(), LocKind::Local, ty);
+        <span class="self">self</span>.bindings
+            .insert(local.into(), Place::new(local, <span class="macro">vec!</span>[]), LocKind::Local, ty);
     }
 
     <span class="kw">pub fn </span>alloc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local: Local) {
         <span class="self">self</span>.bindings
-            .insert(local.into(), LocKind::Local, Ty::uninit());
+            .insert(local.into(), Place::new(local, <span class="macro">vec!</span>[]), LocKind::Local, Ty::uninit());
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_infer(<span class="self">self</span>, scope: Scope) -&gt; <span class="prelude-ty">Result</span>&lt;BasicBlockEnvShape, CheckerErrKind&gt; {
@@ -784,7 +763,7 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookup_place(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        genv: GlobalEnv,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         place: <span class="kw-2">&amp;</span>Place,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, CheckerErrKind&gt; {
@@ -804,7 +783,7 @@
     /// and then replaced by the region in the type of the `x` after the assignment.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>borrow(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        genv: GlobalEnv,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         re: Region,
         mutbl: Mutability,
@@ -820,19 +799,19 @@
 
     <span class="doccomment">/// Converts a pointer `ptr(mut, l)` to a borrow `&amp;mut T` for a type `T` that needs to be inferred.
     /// For example, given the environment
-    /// ```ignore
-    /// x: i32[a], p: ptr(mut, x)`
+    /// ```text
+    /// x: i32[a], p: ptr(mut, x)
     /// ```
     ///
     /// Converting the pointer to a borrow will produce
     ///
-    /// ```ignore
-    /// x: †i32{v: $k(v)}, p: &amp;mut i32{v: $k(v)}`
+    /// ```text
+    /// x: †i32{v: $k(v)}, p: &amp;mut i32{v: $k(v)}
     /// ```
     ///
     /// together with a constraint
     ///
-    /// ```ignore
+    /// ```text
     /// i32[a] &lt;: i32{v: $k(v)}
     /// ```
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>ptr_to_borrow(
@@ -891,7 +870,7 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>move_place(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        genv: GlobalEnv,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         place: <span class="kw-2">&amp;</span>Place,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, CheckerErrKind&gt; {
@@ -906,15 +885,24 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, check_overflow: bool) {
         <span class="self">self</span>.bindings
-            .fmap_mut(|ty| rcx.unpack(ty, AssumeInvariants::yes(check_overflow)));
+            .fmap_mut(|ty| rcx.unpacker().assume_invariants(check_overflow).unpack(ty));
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unblock(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, place: <span class="kw-2">&amp;</span>Place, check_overflow: bool) {
         <span class="self">self</span>.bindings.lookup(place).unblock(rcx, check_overflow);
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_with(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path, new_ty: Ty) -&gt; Ty {
-        <span class="self">self</span>.bindings.lookup(path).block_with(new_ty)
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_with(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        genv: GlobalEnv,
+        path: <span class="kw-2">&amp;</span>Path,
+        new_ty: Ty,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, CheckerErrKind&gt; {
+        <span class="kw">let </span>place = <span class="self">self</span>.bindings.path_to_place(path);
+        <span class="kw">let </span>rustc_ty = place.ty(genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
+        <span class="kw">let </span>new_ty = RegionSubst::new(<span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>rustc_ty).apply(<span class="kw-2">&amp;</span>new_ty);
+
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.bindings.lookup(path).block_with(new_ty))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_goto(
@@ -928,7 +916,7 @@
 
         <span class="kw">let </span>bb_env = bb_env
             .data
-            .replace_bound_exprs_with(|sort, mode| infcx.fresh_infer_var(sort, mode));
+            .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
 
         <span class="comment">// Check constraints
         </span><span class="kw">for </span>constr <span class="kw">in </span><span class="kw-2">&amp;</span>bb_env.constrs {
@@ -959,7 +947,7 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unfold(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        genv: GlobalEnv,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         place: <span class="kw-2">&amp;</span>Place,
         checker_conf: CheckerConfig,
@@ -969,7 +957,7 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>downcast(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: <span class="kw-2">&amp;</span>GlobalEnv,
+        genv: GlobalEnv,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         place: <span class="kw-2">&amp;</span>Place,
         variant_idx: VariantIdx,
@@ -1063,16 +1051,16 @@
             | BaseTy::Char
             | BaseTy::Never
             | BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>)
-            | BaseTy::Coroutine(<span class="kw">_</span>, <span class="kw">_</span>)
-            | BaseTy::CoroutineWitness(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; bty.clone(),
+            | BaseTy::Coroutine(..) =&gt; bty.clone(),
         }
     }
 
     <span class="kw">fn </span>pack_generic_arg(scope: <span class="kw-2">&amp;</span>Scope, arg: <span class="kw-2">&amp;</span>GenericArg) -&gt; GenericArg {
         <span class="kw">match </span>arg {
             GenericArg::Ty(ty) =&gt; GenericArg::Ty(<span class="self">Self</span>::pack_ty(scope, ty)),
-            GenericArg::BaseTy(arg) =&gt; {
-                GenericArg::BaseTy(arg.as_ref().map(|ty| <span class="self">Self</span>::pack_ty(scope, ty)))
+            GenericArg::Base(arg) =&gt; {
+                <span class="macro">assert!</span>(!scope.has_free_vars(arg));
+                GenericArg::Base(arg.clone())
             }
             GenericArg::Lifetime(re) =&gt; GenericArg::Lifetime(<span class="kw-2">*</span>re),
             GenericArg::Const(c) =&gt; GenericArg::Const(c.clone()),
@@ -1114,12 +1102,12 @@
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) =&gt; {
                 <span class="kw">let </span>bty = <span class="self">self</span>.join_bty(bty1, bty2);
                 <span class="kw">let </span><span class="kw-2">mut </span>sorts = <span class="macro">vec!</span>[];
-                <span class="kw">let </span>idx = <span class="self">self</span>.join_idx(<span class="kw-2">&amp;</span>idx1.expr, <span class="kw-2">&amp;</span>idx2.expr, <span class="kw-2">&amp;</span>bty.sort(), <span class="kw-2">&amp;mut </span>sorts);
+                <span class="kw">let </span>idx = <span class="self">self</span>.join_idx(idx1, idx2, <span class="kw-2">&amp;</span>bty.sort(), <span class="kw-2">&amp;mut </span>sorts);
                 <span class="kw">if </span>sorts.is_empty() {
                     Ty::indexed(bty, idx)
                 } <span class="kw">else </span>{
                     <span class="kw">let </span>ty = Ty::constr(Expr::hole(HoleKind::Pred), Ty::indexed(bty, idx));
-                    Ty::exists(Binder::with_sorts(ty, sorts))
+                    Ty::exists(Binder::with_sorts(ty, <span class="kw-2">&amp;</span>sorts))
                 }
             }
             (TyKind::Ptr(rk1, path1), TyKind::Ptr(rk2, path2)) =&gt; {
@@ -1156,13 +1144,27 @@
 
     <span class="kw">fn </span>join_idx(<span class="kw-2">&amp;</span><span class="self">self</span>, e1: <span class="kw-2">&amp;</span>Expr, e2: <span class="kw-2">&amp;</span>Expr, sort: <span class="kw-2">&amp;</span>Sort, bound_sorts: <span class="kw-2">&amp;mut </span>Vec&lt;Sort&gt;) -&gt; Expr {
         <span class="kw">match </span>(e1.kind(), e2.kind(), sort) {
-            (ExprKind::Tuple(es1), ExprKind::Tuple(es2), Sort::Tuple(sorts)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(es1.len(), es2.len());
-                <span class="macro">debug_assert_eq!</span>(es1.len(), sorts.len());
+            (ExprKind::Aggregate(<span class="kw">_</span>, es1), ExprKind::Aggregate(<span class="kw">_</span>, es2), Sort::Tuple(sorts)) =&gt; {
+                <span class="macro">debug_assert_eq3!</span>(es1.len(), es2.len(), sorts.len());
                 Expr::tuple(
                     <span class="macro">izip!</span>(es1, es2, sorts)
                         .map(|(e1, e2, sort)| <span class="self">self</span>.join_idx(e1, e2, sort, bound_sorts))
-                        .collect_vec(),
+                        .collect(),
+                )
+            }
+            (
+                ExprKind::Aggregate(<span class="kw">_</span>, flds1),
+                ExprKind::Aggregate(<span class="kw">_</span>, flds2),
+                Sort::App(SortCtor::Adt(sort_def), args),
+            ) =&gt; {
+                <span class="kw">let </span>sorts = sort_def.sorts(args);
+                <span class="macro">debug_assert_eq3!</span>(flds1.len(), flds2.len(), sorts.len());
+
+                Expr::adt(
+                    sort_def.did(),
+                    <span class="macro">izip!</span>(flds1, flds2, <span class="kw-2">&amp;</span>sorts)
+                        .map(|(f1, f2, sort)| <span class="self">self</span>.join_idx(f1, f2, sort, bound_sorts))
+                        .collect(),
                 )
             }
             <span class="kw">_ </span>=&gt; {
@@ -1173,7 +1175,7 @@
                     e1.clone()
                 } <span class="kw">else </span>{
                     bound_sorts.push(sort.clone());
-                    Expr::late_bvar(INNERMOST, (bound_sorts.len() - <span class="number">1</span>) <span class="kw">as </span>u32)
+                    Expr::late_bvar(INNERMOST, (bound_sorts.len() - <span class="number">1</span>) <span class="kw">as </span>u32, BoundReftKind::Annon)
                 }
             }
         }
@@ -1213,8 +1215,20 @@
     <span class="kw">fn </span>join_generic_arg(<span class="kw-2">&amp;</span><span class="self">self</span>, arg1: <span class="kw-2">&amp;</span>GenericArg, arg2: <span class="kw-2">&amp;</span>GenericArg) -&gt; GenericArg {
         <span class="kw">match </span>(arg1, arg2) {
             (GenericArg::Ty(ty1), GenericArg::Ty(ty2)) =&gt; GenericArg::Ty(<span class="self">self</span>.join_ty(ty1, ty2)),
-            (GenericArg::BaseTy(<span class="kw">_</span>), GenericArg::BaseTy(<span class="kw">_</span>)) =&gt; {
-                <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;generic argument join for base types is not implemented&quot;</span>)
+            (GenericArg::Base(ctor1), GenericArg::Base(ctor2)) =&gt; {
+                <span class="kw">let </span>sty1 = ctor1.as_ref().skip_binder();
+                <span class="kw">let </span>sty2 = ctor2.as_ref().skip_binder();
+                <span class="macro">debug_assert_eq3!</span>(<span class="kw-2">&amp;</span>sty1.idx, <span class="kw-2">&amp;</span>sty2.idx, <span class="kw-2">&amp;</span>Expr::nu());
+
+                <span class="kw">let </span>bty = <span class="self">self</span>.join_bty(<span class="kw-2">&amp;</span>sty1.bty, <span class="kw-2">&amp;</span>sty2.bty);
+                <span class="kw">let </span>pred = <span class="kw">if </span><span class="self">self</span>.scope.has_free_vars(<span class="kw-2">&amp;</span>sty2.pred) || sty1.pred != sty2.pred {
+                    Expr::hole(HoleKind::Pred)
+                } <span class="kw">else </span>{
+                    sty1.pred.clone()
+                };
+                <span class="kw">let </span>sort = bty.sort();
+                <span class="kw">let </span>ctor = Binder::with_sort(SubsetTy::new(bty, Expr::nu(), pred), sort);
+                GenericArg::Base(ctor)
             }
             (GenericArg::Lifetime(re1), GenericArg::Lifetime(re2)) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(re1, re2);
@@ -1227,9 +1241,9 @@
     <span class="kw">pub fn </span>into_bb_env(<span class="self">self</span>, kvar_store: <span class="kw-2">&amp;mut </span>KVarStore) -&gt; BasicBlockEnv {
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="self">self</span>.bindings;
 
-        <span class="kw">let </span><span class="kw-2">mut </span>generalizer = Generalizer::new();
-        bindings.fmap_mut(|ty| generalizer.generalize(ty));
-        <span class="kw">let </span>(vars, preds) = generalizer.into_parts();
+        <span class="kw">let </span><span class="kw-2">mut </span>hoister = ShallowHoister::default();
+        bindings.fmap_mut(|ty| hoister.hoist(ty));
+        <span class="kw">let </span>(vars, preds) = hoister.into_parts();
 
         <span class="comment">// Replace all holes with a single fresh kvar on all parameters
         </span><span class="kw">let </span><span class="kw-2">mut </span>constrs = preds
@@ -1258,63 +1272,6 @@
     }
 }
 
-<span class="kw">struct </span>Generalizer {
-    vars: Vec&lt;BoundVariableKind&gt;,
-    preds: Vec&lt;Expr&gt;,
-}
-
-<span class="kw">impl </span>Generalizer {
-    <span class="kw">fn </span>new() -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ vars: <span class="macro">vec!</span>[], preds: <span class="macro">vec!</span>[] }
-    }
-
-    <span class="kw">fn </span>into_parts(<span class="self">self</span>) -&gt; (List&lt;BoundVariableKind&gt;, Vec&lt;Expr&gt;) {
-        (List::from_vec(<span class="self">self</span>.vars), <span class="self">self</span>.preds)
-    }
-
-    <span class="kw">fn </span>generalize(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-        ty.fold_with(<span class="self">self</span>)
-    }
-}
-
-<span class="kw">impl </span>TypeFolder <span class="kw">for </span>Generalizer {
-    <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-        <span class="kw">match </span>ty.kind() {
-            TyKind::Exists(ty) =&gt; {
-                ty.replace_bound_exprs_with(|sort, mode| {
-                    <span class="kw">let </span>idx = <span class="self">self</span>.vars.len();
-                    <span class="self">self</span>.vars
-                        .push(BoundVariableKind::Refine(sort.clone(), mode));
-                    Expr::late_bvar(INNERMOST, idx <span class="kw">as </span>u32)
-                })
-                .fold_with(<span class="self">self</span>)
-            }
-            TyKind::Constr(pred, ty) =&gt; {
-                <span class="self">self</span>.preds.push(pred.clone());
-                ty.fold_with(<span class="self">self</span>)
-            }
-            <span class="kw">_ </span>=&gt; ty.clone(),
-        }
-    }
-
-    <span class="kw">fn </span>fold_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) -&gt; BaseTy {
-        <span class="kw">match </span>bty {
-            BaseTy::Adt(adt_def, args) <span class="kw">if </span>adt_def.is_box() =&gt; {
-                <span class="kw">let </span>(boxed, alloc) = box_args(args);
-                <span class="kw">let </span>args = List::from_arr([
-                    GenericArg::Ty(boxed.fold_with(<span class="self">self</span>)),
-                    GenericArg::Ty(alloc.clone()),
-                ]);
-                BaseTy::Adt(adt_def.clone(), args)
-            }
-            BaseTy::Ref(re, ty, Mutability::Not) =&gt; {
-                BaseTy::Ref(<span class="kw-2">*</span>re, ty.fold_with(<span class="self">self</span>), Mutability::Not)
-            }
-            <span class="kw">_ </span>=&gt; bty.clone(),
-        }
-    }
-}
-
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>BasicBlockEnvData {
     <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, _visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
         <span class="macro">unimplemented!</span>()
@@ -1338,7 +1295,7 @@
     ) -&gt; TypeEnv&lt;<span class="lifetime">&#39;a</span>&gt; {
         <span class="kw">let </span>data = <span class="self">self
             </span>.data
-            .replace_bound_exprs_with(|sort, <span class="kw">_</span>| rcx.define_vars(sort));
+            .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| rcx.define_vars(sort));
         <span class="kw">for </span>constr <span class="kw">in </span><span class="kw-2">&amp;</span>data.constrs {
             rcx.assume_pred(constr);
         }
@@ -1354,56 +1311,53 @@
     <span class="kw">use </span>std::fmt;
 
     <span class="kw">use </span>flux_middle::pretty::<span class="kw-2">*</span>;
-    <span class="kw">use </span>itertools::Itertools;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>TypeEnv&lt;<span class="lifetime">&#39;_</span>&gt; {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.bindings)
         }
 
-        <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PPrintCx {
+        <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
             PlacesTree::default_cx(tcx)
         }
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>BasicBlockEnvShape {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="macro">w!</span>(<span class="string">&quot;{:?} {:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.scope, <span class="kw-2">&amp;</span><span class="self">self</span>.bindings)
         }
 
-        <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PPrintCx {
+        <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
             PlacesTree::default_cx(tcx)
         }
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>BasicBlockEnv {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PPrintCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="macro">w!</span>(<span class="string">&quot;{:?} &quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.scope)<span class="question-mark">?</span>;
 
-            <span class="kw">if </span>!<span class="self">self</span>.data.vars().is_empty() {
-                <span class="macro">w!</span>(
-                    <span class="string">&quot;∃ {}. &quot;</span>,
-                    ^<span class="self">self</span>.data.vars()
-                        .iter()
-                        .format_with(<span class="string">&quot;, &quot;</span>, |s, f| f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">&quot;{:?}&quot;</span>, s)))
-                )<span class="question-mark">?</span>;
-            }
-            <span class="kw">let </span>data = <span class="self">self</span>.data.as_ref().skip_binder();
-            <span class="kw">if </span>!data.constrs.is_empty() {
-                <span class="macro">w!</span>(
-                    <span class="string">&quot;{:?} ⇒ &quot;</span>,
-                    <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, data.constrs.iter().filter(|pred| !pred.is_trivially_true()))
-                )<span class="question-mark">?</span>;
-            }
-            <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span>data.bindings)
+            <span class="kw">let </span>vars = <span class="self">self</span>.data.vars();
+            cx.with_bound_vars(vars, || {
+                <span class="kw">if </span>!vars.is_empty() {
+                    cx.fmt_bound_vars(<span class="string">&quot;for&lt;&quot;</span>, vars, <span class="string">&quot;&gt;&quot;</span>, f)<span class="question-mark">?</span>;
+                }
+                <span class="kw">let </span>data = <span class="self">self</span>.data.as_ref().skip_binder();
+                <span class="kw">if </span>!data.constrs.is_empty() {
+                    <span class="macro">w!</span>(
+                        <span class="string">&quot;{:?} ⇒ &quot;</span>,
+                        <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, data.constrs.iter().filter(|pred| !pred.is_trivially_true()))
+                    )<span class="question-mark">?</span>;
+                }
+                <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span>data.bindings)
+            })
         }
 
-        <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PPrintCx {
+        <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
             PlacesTree::default_cx(tcx)
         }
     }

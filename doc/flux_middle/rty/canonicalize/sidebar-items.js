@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CanonicalTy"],"mod":["pretty"],"struct":["CanonicalConstrTy","ShallowHoister"]};
