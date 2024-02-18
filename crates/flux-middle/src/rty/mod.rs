@@ -862,9 +862,9 @@ pub type RefineArgs = List<Expr>;
 
 pub type OpaqueArgsMap = FxHashMap<DefId, (GenericArgs, RefineArgs)>;
 
-/// A type constructor meant to be used as generic arguments of [kind base]. This is just an alias to
-/// [`Binder<SubsetTy>`], but we expect the binder to only have a single bound variable of the sort
-/// of the underlying [`BaseTy`].
+/// A type constructor meant to be used as generic a argument of [kind base]. This is just an alias
+/// to [`Binder<SubsetTy>`], but we expect the binder to have a single bound variable of the sort of
+/// the underlying [`BaseTy`].
 ///
 /// [kind base]: GenericParamDefKind::Base
 pub type SubsetTyCtor = Binder<SubsetTy>;
@@ -887,15 +887,15 @@ impl SubsetTyCtor {
 }
 
 /// A subset type is a simplified version of a type that has the form `{b[e] | p}` where `b` is a
-/// [`BaseTy`], `e` a refinement index and `p` a predicate. These are mainly found under a [`Binder`]
+/// [`BaseTy`], `e` a refinement index, and `p` a predicate. These are mainly found under a [`Binder`]
 /// with a single variable of the base type's sort. This can be interpreted as a type constructor or
 /// an existial type. For example, under a binder with a variable `v` of sort `int`, we can interpret
 /// `{i32[v] | v > 0}` as a lambda `λv:int. {i32[v] | v > 0}` that "constructs" types when applied to
-/// ints or as an existential type `∃v:int. {i32[v] | v > 0}`. This second interpretation is the
+/// ints, or as an existential type `∃v:int. {i32[v] | v > 0}`. This second interpretation is the
 /// reason we call this a subset type, i.e., the type `∃v. {b[v] | p}` corresponds to the subset of
 /// values of (base) type `b` whose index satisfies `p`. In other words, these are the types supported
-/// by liquid haskell, with the difference that we are explicit about separating refinements from
-/// program values via an index.
+/// by liquid haskell (with the difference that we are explicit about separating refinements from
+/// program values via an index).
 ///
 /// The main purpose for a [`SubsetTy`] is to be used as generic arguments of [kind base] when
 /// interpreted as a type contructor. The key property of a [`SubsetTy`] is that it can be eagerly
@@ -919,9 +919,9 @@ impl SubsetTyCtor {
 /// [*strengthening*]: https://arxiv.org/pdf/2010.07763.pdf
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct SubsetTy {
-    /// *NOTE*: This [`BaseTy`] is mainly going to be under a [`Binder`]. It is not yet clear whether
+    /// **NOTE:** This [`BaseTy`] is mainly going to be under a [`Binder`]. It is not yet clear whether
     /// this [`BaseTy`] should be able to mention variables in the binder. In general, in a type
-    /// `∃v. {b[e] | p}` is fine to mention `v` inside `b`, but since [`SubsetTy`] is meant to
+    /// `∃v. {b[e] | p}`, it's fine to mention `v` inside `b`, but since [`SubsetTy`] is meant to
     /// facilitate syntatic manipulation we may restrict this.
     pub bty: BaseTy,
     /// This can be an arbitrary expression which makes the syntatic manipulation easier, but since
