@@ -2223,12 +2223,19 @@ mod pretty {
                 if !vars.is_empty() {
                     cx.fmt_bound_vars("exists<", vars, "> ", f)?;
                 }
-                w!("{:?}", &self.value.ret)?;
-                if !self.value.ensures.is_empty() {
-                    w!("; [{:?}]", join!(", ", &self.value.ensures))?;
-                }
-                Ok(())
+                w!("{:?}", &self.value)
             })
+        }
+    }
+
+    impl Pretty for FnOutput {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            define_scoped!(cx, f);
+            w!("{:?}", &self.ret)?;
+            if !self.ensures.is_empty() {
+                w!("; [{:?}]", join!(", ", &self.ensures))?;
+            }
+            Ok(())
         }
     }
 
