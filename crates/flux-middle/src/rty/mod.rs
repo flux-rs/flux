@@ -862,8 +862,11 @@ pub type RefineArgs = List<Expr>;
 
 pub type OpaqueArgsMap = FxHashMap<DefId, (GenericArgs, RefineArgs)>;
 
-/// A type constructor meant to be used as generic arguments of type base. This is just an
-/// alias to [`Binder<SubsetTy>`]
+/// A type constructor meant to be used as generic arguments of [kind base]. This is just an alias to
+/// [`Binder<SubsetTy>`], but we expect the binder to only have a single bound variable of the sort
+/// of the underlying [`BaseTy`].
+///
+/// [kind base]: GenericParamDefKind::Base
 pub type SubsetTyCtor = Binder<SubsetTy>;
 
 impl SubsetTyCtor {
@@ -896,13 +899,12 @@ impl SubsetTyCtor {
 ///
 /// The main purpose for a [`SubsetTy`] is to be used as generic arguments of [kind base] when
 /// interpreted as a type contructor. The key property of a [`SubsetTy`] is that it can be eagerly
-///
-/// canonicalized via [*strengthening*] during substitution. For example, suppose we have a function
+/// canonicalized via [*strengthening*] during substitution. For example, suppose we have a function:
 /// ```text
 /// fn foo<T>(x: T[@a], y: { T[@b] | b == a }) { }
 /// ```
-/// If we instantiate `T` with `λv. { i32[v] | v > 0}`, after substituting an applying the lambda we
-/// get:
+/// If we instantiate `T` with `λv. { i32[v] | v > 0}`, after substitution and applying the lambda,
+/// we get:
 /// ```text
 /// fn foo(x: {i32[@a] | a > 0}, y: { { i32[@b] | b > 0 } | b == a }) { }
 /// ```
