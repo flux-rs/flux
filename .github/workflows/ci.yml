@@ -31,7 +31,7 @@ jobs:
         with:
           enable-stack: true
           stack-version: "latest"
-      
+
       - name: Install Z3
         uses: cda-tum/setup-z3@v1.0.9
         with:
