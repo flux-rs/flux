@@ -12,7 +12,7 @@ use flux_middle::{
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
         BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path,
-        PtrKind, Region, SimpleTy, SortCtor, Ty, TyKind, INNERMOST,
+        PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -542,7 +542,7 @@ impl BasicBlockEnvShape {
                     sty1.pred.clone()
                 };
                 let sort = bty.sort();
-                let ctor = Binder::with_sort(SimpleTy::new(bty, Expr::nu(), pred), sort);
+                let ctor = Binder::with_sort(SubsetTy::new(bty, Expr::nu(), pred), sort);
                 GenericArg::Base(ctor)
             }
             (GenericArg::Lifetime(re1), GenericArg::Lifetime(re2)) => {

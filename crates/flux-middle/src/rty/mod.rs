@@ -729,6 +729,57 @@ impl Ty {
             | TyKind::Blocked(_) => todo!(),
         }
     }
+
+    /// Whether the type is an `int` or a `uint`
+    pub fn is_integral(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_integral)
+            .unwrap_or_default()
+    }
+
+    /// Whether the type is a `bool`
+    pub fn is_bool(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_bool)
+            .unwrap_or_default()
+    }
+
+    pub fn is_uninit(&self) -> bool {
+        matches!(self.kind(), TyKind::Uninit)
+    }
+
+    pub fn is_box(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_box)
+            .unwrap_or_default()
+    }
+
+    pub fn is_struct(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_struct)
+            .unwrap_or_default()
+    }
+
+    pub fn is_array(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_array)
+            .unwrap_or_default()
+    }
+
+    pub fn is_slice(&self) -> bool {
+        self.as_bty_skipping_existentials()
+            .map(BaseTy::is_slice)
+            .unwrap_or_default()
+    }
+
+    pub fn as_bty_skipping_existentials(&self) -> Option<&BaseTy> {
+        match self.kind() {
+            TyKind::Indexed(bty, _) => Some(bty),
+            TyKind::Exists(ty) => Some(ty.as_ref().skip_binder().as_bty_skipping_existentials()?),
+            TyKind::Constr(_, ty) => ty.as_bty_skipping_existentials(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -811,9 +862,9 @@ pub type RefineArgs = List<Expr>;
 
 pub type OpaqueArgsMap = FxHashMap<DefId, (GenericArgs, RefineArgs)>;
 
-pub type SimpleTyCtor = Binder<SimpleTy>;
+pub type SubsetTyCtor = Binder<SubsetTy>;
 
-impl SimpleTyCtor {
+impl SubsetTyCtor {
     pub fn as_bty_skipping_binder(&self) -> &BaseTy {
         &self.as_ref().skip_binder().bty
     }
@@ -825,19 +876,19 @@ impl SimpleTyCtor {
         } else if let Some(def_id) = sort.is_unit_adt() {
             self.replace_bound_reft(&Expr::unit_adt(def_id)).to_ty()
         } else {
-            Ty::exists(self.as_ref().map(SimpleTy::to_ty))
+            Ty::exists(self.as_ref().map(SubsetTy::to_ty))
         }
     }
 }
 
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct SimpleTy {
+pub struct SubsetTy {
     pub bty: BaseTy,
     pub idx: Expr,
     pub pred: Expr,
 }
 
-impl SimpleTy {
+impl SubsetTy {
     pub fn new(bty: BaseTy, idx: impl Into<Expr>, pred: impl Into<Expr>) -> Self {
         Self { bty, idx: idx.into(), pred: pred.into() }
     }
@@ -868,7 +919,7 @@ impl SimpleTy {
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum GenericArg {
     Ty(Ty),
-    Base(SimpleTyCtor),
+    Base(SubsetTyCtor),
     Lifetime(Region),
     Const(Const),
 }
@@ -1622,57 +1673,6 @@ impl TyS {
             bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
         }
     }
-
-    /// Whether the type is an `int` or a `uint`
-    pub fn is_integral(&self) -> bool {
-        self.as_bty_skipping_existentials()
-            .map(BaseTy::is_integral)
-            .unwrap_or_default()
-    }
-
-    /// Whether the type is a `bool`
-    pub fn is_bool(&self) -> bool {
-        self.as_bty_skipping_existentials()
-            .map(BaseTy::is_bool)
-            .unwrap_or_default()
-    }
-
-    pub fn is_uninit(&self) -> bool {
-        matches!(self.kind(), TyKind::Uninit)
-    }
-
-    pub fn is_box(&self) -> bool {
-        self.as_bty_skipping_existentials()
-            .map(BaseTy::is_box)
-            .unwrap_or_default()
-    }
-
-    pub fn is_struct(&self) -> bool {
-        self.as_bty_skipping_existentials()
-            .map(BaseTy::is_struct)
-            .unwrap_or_default()
-    }
-
-    pub fn is_array(&self) -> bool {
-        self.as_bty_skipping_existentials()
-            .map(BaseTy::is_array)
-            .unwrap_or_default()
-    }
-
-    pub fn is_slice(&self) -> bool {
-        self.as_bty_skipping_existentials()
-            .map(BaseTy::is_slice)
-            .unwrap_or_default()
-    }
-
-    pub fn as_bty_skipping_existentials(&self) -> Option<&BaseTy> {
-        match self.kind() {
-            TyKind::Indexed(bty, _) => Some(bty),
-            TyKind::Exists(ty) => Some(ty.as_ref().skip_binder().as_bty_skipping_existentials()?),
-            TyKind::Constr(_, ty) => ty.as_bty_skipping_existentials(),
-            _ => None,
-        }
-    }
 }
 
 impl AliasTy {
@@ -2242,7 +2242,7 @@ mod pretty {
         }
     }
 
-    impl Pretty for SimpleTy {
+    impl Pretty for SubsetTy {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             if self.pred.is_trivially_true() {
@@ -2483,6 +2483,6 @@ mod pretty {
         PtrKind,
         FuncSort,
         SortCtor,
-        SimpleTy,
+        SubsetTy,
     );
 }

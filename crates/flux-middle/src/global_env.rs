@@ -215,8 +215,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         let trait_ref = lowering::lower_trait_ref(self.tcx(), poly_trait_ref.skip_binder())
             .map_err(|err| QueryErr::unsupported(self.tcx(), impl_id, err.into_err()))?;
-        let trait_generics = self.generics_of(trait_ref.def_id)?;
-        let trait_ref = Refiner::default(self, &trait_generics).refine_trait_ref(&trait_ref)?;
+        let impl_generics = self.generics_of(impl_id)?;
+        let trait_ref = Refiner::default(self, &impl_generics).refine_trait_ref(&trait_ref)?;
         Ok(Some(rty::EarlyBinder(trait_ref)))
     }
 

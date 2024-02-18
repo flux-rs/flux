@@ -1149,9 +1149,9 @@ fn instantiate_args_for_fun_call(
         let sort = bty.sort();
         let bty = bty.shift_in_escaping(1);
         let constr = if !sort.is_unit() {
-            rty::SimpleTy::new(bty, Expr::nu(), Expr::hole(rty::HoleKind::Pred))
+            rty::SubsetTy::new(bty, Expr::nu(), Expr::hole(rty::HoleKind::Pred))
         } else {
-            rty::SimpleTy::indexed(bty, Expr::nu())
+            rty::SubsetTy::indexed(bty, Expr::nu())
         };
         Binder::with_sort(constr, sort)
     });

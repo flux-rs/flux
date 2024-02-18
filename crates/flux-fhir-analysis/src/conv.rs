@@ -938,7 +938,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     let ctor = self
                         .conv_ty(env, ty)?
                         .shallow_canonicalize()
-                        .to_simple_ty_ctor()
+                        .to_subset_ty_ctor()
                         .ok_or_else(|| {
                             self.genv
                                 .sess()

@@ -253,7 +253,7 @@ pub(crate) struct GenericsSubstFolder<'a, D> {
 trait GenericsSubstDelegate {
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Sort;
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty;
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SimpleTyCtor;
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor;
     fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region;
 }
 
@@ -273,9 +273,9 @@ impl GenericsSubstDelegate for IdentitySubstDelegate {
         Ty::param(param_ty)
     }
 
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SimpleTyCtor {
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor {
         Binder::with_sort(
-            SimpleTy::indexed(BaseTy::Param(param_ty), Expr::nu()),
+            SubsetTy::indexed(BaseTy::Param(param_ty), Expr::nu()),
             Sort::Param(param_ty),
         )
     }
@@ -304,7 +304,7 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
         }
     }
 
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SimpleTyCtor {
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor {
         match self.0.get(param_ty.index as usize) {
             Some(GenericArg::Base(ctor)) => ctor.clone(),
             Some(arg) => {
@@ -353,7 +353,7 @@ where
         bug!("unexpected type param {param_ty:?}");
     }
 
-    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SimpleTyCtor {
+    fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor {
         bug!("unexpected base type param {param_ty:?}");
     }
 
@@ -398,7 +398,7 @@ impl<D: GenericsSubstDelegate> TypeFolder for GenericsSubstFolder<'_, D> {
         }
     }
 
-    fn fold_simple_ty(&mut self, constr: &SimpleTy) -> SimpleTy {
+    fn fold_subset_ty(&mut self, constr: &SubsetTy) -> SubsetTy {
         if let BaseTy::Param(param_ty) = &constr.bty {
             self.delegate
                 .ctor_for_param(*param_ty)

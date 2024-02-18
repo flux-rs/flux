@@ -3,7 +3,7 @@ use rustc_type_ir::{Mutability, INNERMOST};
 use super::{
     box_args,
     fold::{TypeFoldable, TypeFolder},
-    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, SimpleTy, SimpleTyCtor, Ty, TyKind,
+    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, SubsetTy, SubsetTyCtor, Ty, TyKind,
 };
 use crate::intern::List;
 
@@ -82,19 +82,29 @@ pub struct CanonicalConstrTy {
     pred: Expr,
 }
 
+impl CanonicalConstrTy {
+    pub fn ty(&self) -> Ty {
+        self.ty.clone()
+    }
+
+    pub fn pred(&self) -> Expr {
+        self.pred.clone()
+    }
+}
+
 pub enum CanonicalTy {
     Constr(CanonicalConstrTy),
     Exists(Binder<CanonicalConstrTy>),
 }
 
 impl CanonicalTy {
-    pub fn to_simple_ty_ctor(&self) -> Option<SimpleTyCtor> {
+    pub fn to_subset_ty_ctor(&self) -> Option<SubsetTyCtor> {
         match self {
             CanonicalTy::Constr(constr) => {
                 if let TyKind::Indexed(bty, idx) = constr.ty.kind() {
                     // given {b[e] | p} return λv. {b[v] | p ∧ v == e}
                     let sort = bty.sort();
-                    let constr = SimpleTy::new(
+                    let constr = SubsetTy::new(
                         bty.clone(),
                         Expr::nu(),
                         Expr::and([constr.pred.clone(), Expr::eq(Expr::nu(), idx)]),
@@ -111,7 +121,7 @@ impl CanonicalTy {
                 {
                     let ctor = poly_constr
                         .as_ref()
-                        .map(|constr| SimpleTy::new(bty.clone(), Expr::nu(), &constr.pred));
+                        .map(|constr| SubsetTy::new(bty.clone(), Expr::nu(), &constr.pred));
                     Some(ctor)
                 } else {
                     None
@@ -147,5 +157,5 @@ mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(CanonicalTy);
+    impl_debug_with_default_cx!(CanonicalTy, CanonicalConstrTy);
 }
