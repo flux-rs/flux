@@ -321,7 +321,7 @@ impl<'a, 'rcx> Unpacker<'a, 'rcx> {
 impl TypeFolder for Unpacker<'_, '_> {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
-            TyKind::Indexed(bty, idxs) => Ty::indexed(bty.fold_with(self), idxs.clone()),
+            TyKind::Indexed(bty, idx) => Ty::indexed(bty.fold_with(self), idx.clone()),
             TyKind::Exists(bound_ty) if self.unpack_exists => {
                 // HACK(nilehmann) In general we shouldn't unpack through mutable references because
                 // that makes referent type too specific. We only have this as a workaround to infer

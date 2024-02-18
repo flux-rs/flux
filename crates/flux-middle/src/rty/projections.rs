@@ -146,7 +146,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         &self,
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
-    ) -> QueryResult<()> {
+    ) -> QueryResult {
         if let GenericArg::Ty(ty) = &obligation.args[0]
             && let TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind()
         {
@@ -321,11 +321,14 @@ impl TVarSubst {
     fn infer_from_ty(&mut self, src: &rustc_middle::ty::Ty, dst: &Ty) {
         use rustc_middle::ty;
         match src.kind() {
-            ty::TyKind::Param(pty) => self.insert_param_ty(*pty, dst),
+            ty::TyKind::Param(pty) => {
+                if !dst.has_escaping_bvars() {
+                    self.insert_param_ty(*pty, dst);
+                }
+            }
             ty::TyKind::Adt(_, src_subst) => {
                 // NOTE: see https://github.com/flux-rs/flux/pull/478#issuecomment-1650983695
                 if let Some(dst) = dst.as_bty_skipping_existentials()
-                    && !dst.has_escaping_bvars()
                     && let BaseTy::Adt(_, dst_subst) = dst
                 {
                     debug_assert_eq!(src_subst.len(), dst_subst.len());

@@ -824,6 +824,12 @@ impl From<Name> for Expr {
     }
 }
 
+impl From<Var> for Expr {
+    fn from(var: Var) -> Self {
+        Expr::var(var, None)
+    }
+}
+
 impl From<Loc> for Path {
     fn from(loc: Loc) -> Self {
         Path::new(loc, vec![])

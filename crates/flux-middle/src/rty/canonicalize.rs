@@ -26,6 +26,7 @@ impl Hoister {
 impl TypeFolder for Hoister {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
+            TyKind::Indexed(bty, idx) => Ty::indexed(bty.fold_with(self), idx.clone()),
             TyKind::Exists(ty) => {
                 ty.replace_bound_refts_with(|sort, mode, kind| {
                     let idx = self.vars.len();
@@ -93,12 +94,10 @@ impl CanonicalTy {
                 if let TyKind::Indexed(bty, idx) = constr.ty.kind() {
                     // given {b[e] | p} return λv. {b[v] | p ∧ v == e}
                     let sort = bty.sort();
-                    let bty = bty.shift_in_escaping(1);
-                    let pred = constr.pred.shift_in_escaping(1);
                     let constr = SimpleTy::new(
-                        bty,
+                        bty.clone(),
                         Expr::nu(),
-                        Expr::and([pred, Expr::eq(Expr::nu(), idx)]),
+                        Expr::and([constr.pred.clone(), Expr::eq(Expr::nu(), idx)]),
                     );
                     Some(Binder::with_sort(constr, sort))
                 } else {
@@ -120,4 +119,33 @@ impl CanonicalTy {
             }
         }
     }
+}
+
+mod pretty {
+    use super::*;
+    use crate::pretty::*;
+
+    impl Pretty for CanonicalConstrTy {
+        fn fmt(&self, cx: &PrettyCx, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            define_scoped!(cx, f);
+            w!("{{ {:?} | {:?} }}", &self.ty, &self.pred)
+        }
+    }
+
+    impl Pretty for CanonicalTy {
+        fn fmt(&self, cx: &PrettyCx, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            define_scoped!(cx, f);
+            match self {
+                CanonicalTy::Constr(constr) => w!("{:?}", constr),
+                CanonicalTy::Exists(poly_constr) => {
+                    cx.with_bound_vars(poly_constr.vars(), || {
+                        cx.fmt_bound_vars("∃", poly_constr.vars(), ". ", f)?;
+                        w!("{:?}", poly_constr.as_ref().skip_binder())
+                    })
+                }
+            }
+        }
+    }
+
+    impl_debug_with_default_cx!(CanonicalTy);
 }
