@@ -7,7 +7,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        canonicalize::Hoister,
+        canonicalize::ShallowHoister,
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         subst::RegionSubst,
@@ -556,7 +556,7 @@ impl BasicBlockEnvShape {
     pub fn into_bb_env(self, kvar_store: &mut KVarStore) -> BasicBlockEnv {
         let mut bindings = self.bindings;
 
-        let mut hoister = Hoister::default();
+        let mut hoister = ShallowHoister::default();
         bindings.fmap_mut(|ty| hoister.hoist(ty));
         let (vars, preds) = hoister.into_parts();
 

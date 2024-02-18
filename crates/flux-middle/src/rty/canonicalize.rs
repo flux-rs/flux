@@ -1,3 +1,23 @@
+//! A canonical type is a type where all [existentials] and [constraint predicates] are *hoisted* to
+//! the top level. For example, the canonical version of `(∃a. i32[a], ∃b. { i32[b] | b > 0})` is
+//! `∃a,b. { (i32[a], i32[b]) | b > 0}`.
+//!
+//! Canonicalization can be *shallow* or *deep*, by this we mean that some type constructors
+//! introduce new "scopes" that limit the hoisting. For instance, we are not allowed (in general) to
+//! hoist an existential type out of a generic argument, for example, in `Vec<∃v. i32[v]>` the
+//! existential inside the `Vec` cannot be hoisted out. However, the type inside the generic argument
+//! can be canonizalized locally inside the scope of the generic argument. Shallow canonicalization
+//! stops when finding type constructors. In contrast, deep canonicalization also canonizalizes inside
+//! type constructors. Note that some type constructors like shared references or boxes are transparent
+//! to hoisting and do not introduce a new scope.
+//!
+//! It's also important to note that canonizalization doesn't imply any form of semantic equality
+//! and it is just a best effort to facilitate syntactic manipulation. For example, the types
+//! `∃a,b. (i32[a], i32[b])` and `∃a,b. (i32[b], i32[a])` are semantically equal but both are in
+//! canonical form (in the current implementation).
+//!
+//! [existentials]: TyKind::Exists
+//! [constraint predicates]: TyKind::Constr
 use rustc_type_ir::{Mutability, INNERMOST};
 
 use super::{
@@ -8,12 +28,12 @@ use super::{
 use crate::intern::List;
 
 #[derive(Default)]
-pub struct Hoister {
+pub struct ShallowHoister {
     vars: Vec<BoundVariableKind>,
     preds: Vec<Expr>,
 }
 
-impl Hoister {
+impl ShallowHoister {
     pub fn into_parts(self) -> (List<BoundVariableKind>, Vec<Expr>) {
         (List::from_vec(self.vars), self.preds)
     }
@@ -23,7 +43,7 @@ impl Hoister {
     }
 }
 
-impl TypeFolder for Hoister {
+impl TypeFolder for ShallowHoister {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Indexed(bty, idx) => Ty::indexed(bty.fold_with(self), idx.clone()),
@@ -65,7 +85,7 @@ impl TypeFolder for Hoister {
 
 impl Ty {
     pub fn shallow_canonicalize(&self) -> CanonicalTy {
-        let mut hoister = Hoister::default();
+        let mut hoister = ShallowHoister::default();
         let ty = hoister.hoist(self);
         let (vars, preds) = hoister.into_parts();
         let pred = Expr::and(preds);
@@ -77,7 +97,12 @@ impl Ty {
         }
     }
 }
+
 pub struct CanonicalConstrTy {
+    /// Guranteed to not have any (shallow) [existential] or [constraint] types
+    ///
+    /// [existential]: TyKind::Exists
+    /// [constraint]: TyKind::Constr
     ty: Ty,
     pred: Expr,
 }
@@ -92,8 +117,17 @@ impl CanonicalConstrTy {
     }
 }
 
+/// A (shallowly) canonicalized type. This can be either of the form `{T | p}` or `∃v0,…,vn. {T | p}`,
+/// where `T` doesnt have any (shallow) [existential] or [constraint] types.
+///
+/// When canonizalizing a type without a [constraint] type, `p` will be [`Expr::tt()`].
+///
+/// [existential]: TyKind::Exists
+/// [constraint]: TyKind::Constr
 pub enum CanonicalTy {
+    /// A type of the form `{T | p}`
     Constr(CanonicalConstrTy),
+    /// A type of the form `∃v0,…,vn. {T | p}`
     Exists(Binder<CanonicalConstrTy>),
 }
 

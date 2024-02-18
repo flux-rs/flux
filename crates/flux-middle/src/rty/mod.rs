@@ -862,6 +862,8 @@ pub type RefineArgs = List<Expr>;
 
 pub type OpaqueArgsMap = FxHashMap<DefId, (GenericArgs, RefineArgs)>;
 
+/// A type constructor meant to be used as generic arguments of type base. This is just an
+/// alias to [`Binder<SubsetTy>`]
 pub type SubsetTyCtor = Binder<SubsetTy>;
 
 impl SubsetTyCtor {
@@ -881,9 +883,47 @@ impl SubsetTyCtor {
     }
 }
 
+/// A subset type is a simplified version of a type that has the form `{b[e] | p}` where `b` is a
+/// [`BaseTy`], `e` a refinement index and `p` a predicate. These are mainly found under a [`Binder`]
+/// with a single variable of the base type's sort. This can be interpreted as a type constructor or
+/// an existial type. For example, under a binder with a variable `v` of sort `int`, we can interpret
+/// `{i32[v] | v > 0}` as a lambda `λv:int. {i32[v] | v > 0}` that "constructs" types when applied to
+/// ints or as an existential type `∃v:int. {i32[v] | v > 0}`. This second interpretation is the
+/// reason we call this a subset type, i.e., the type `∃v. {b[v] | p}` corresponds to the subset of
+/// values of (base) type `b` whose index satisfies `p`. In other words, these are the types supported
+/// by liquid haskell, with the difference that we are explicit about separating refinements from
+/// program values via an index.
+///
+/// The main purpose for a [`SubsetTy`] is to be used as generic arguments of [kind base] when
+/// interpreted as a type contructor. The key property of a [`SubsetTy`] is that it can be eagerly
+///
+/// canonicalized via [*strengthening*] during substitution. For example, suppose we have a function
+/// ```text
+/// fn foo<T>(x: T[@a], y: { T[@b] | b == a }) { }
+/// ```
+/// If we instantiate `T` with `λv. { i32[v] | v > 0}`, after substituting an applying the lambda we
+/// get:
+/// ```text
+/// fn foo(x: {i32[@a] | a > 0}, y: { { i32[@b] | b > 0 } | b == a }) { }
+/// ```
+/// By the strengthening rule we can canonicalize this to
+/// ```text
+/// fn foo(x: {i32[@a] | a > 0}, y: { i32[@b] | b == a && b > 0 }) { }
+/// ```
+/// As a result, we can guarantee a simple canonical form that makes it easier to manipulate types
+/// syntactically.
+///
+/// [kind base]: GenericParamDefKind::Base
+/// [*strengthening*]: https://arxiv.org/pdf/2010.07763.pdf
 #[derive(PartialEq, Clone, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct SubsetTy {
+    /// *NOTE*: This [`BaseTy`] is mainly going to be under a [`Binder`]. It is not yet clear whether
+    /// this [`BaseTy`] should be able to mention variables in the binder. In general, in a type
+    /// `∃v. {b[e] | p}` is fine to mention `v` inside `b`, but since [`SubsetTy`] is meant to
+    /// facilitate syntatic manipulation we may restrict this.
     pub bty: BaseTy,
+    /// This can be an arbitrary expression which makes the syntatic manipulation easier, but since
+    /// this is mostly going to be under a binder we expect it to be [`Expr::nu()`].
     pub idx: Expr,
     pub pred: Expr,
 }

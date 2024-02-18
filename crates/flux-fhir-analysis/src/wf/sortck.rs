@@ -352,9 +352,9 @@ impl<'genv> InferCtxt<'genv, '_> {
     }
 
     /// Whether a value of `sort1` can be automatically coerced to a value of `sort2`. A value of an
-    /// [`rty::Sort::Adt`] sort with a single field of sort `s` can be coerced to a value of sort `s`
-    /// and vice versa, i.e., we can automatically project the field out of the record or inject a
-    /// value into a record.
+    /// [`rty::SortCtor::Adt`] sort with a single field of sort `s` can be coerced to a value of sort
+    /// `s` and vice versa, i.e., we can automatically project the field out of the record or inject
+    /// a value into a record.
     fn is_coercible(&mut self, sort1: &rty::Sort, sort2: &rty::Sort, fhir_id: FhirId) -> bool {
         if self.try_equate(sort1, sort2).is_some() {
             return true;

@@ -1093,7 +1093,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 /// This function returns a very polymorphic sort for the UIF encoding the alias_pred;
 /// This is ok, as well-formedness in previous phases will ensure the function is always
 /// instantiated with the same sorts. However, the proper thing is to compute the *actual*
-/// mono-sort at which this alias_pred is being used see [`GlobalEnv::sort_of_alias_pred`] but
+/// mono-sort at which this alias_pred is being used see [`GlobalEnv::sort_of_alias_reft`] but
 /// that is a bit tedious as its done using the `fhir` (not `rty`). Alternatively, we might
 /// stash the computed mono-sort *in* the `rty::AliasPred` during `conv`?
 fn alias_reft_sort(arity: usize) -> rty::PolyFuncSort {
