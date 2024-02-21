@@ -1383,6 +1383,9 @@
 <a href="#1383" id="1383">1383</a>
 <a href="#1384" id="1384">1384</a>
 <a href="#1385" id="1385">1385</a>
+<a href="#1386" id="1386">1386</a>
+<a href="#1387" id="1387">1387</a>
+<a href="#1388" id="1388">1388</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -2021,6 +2024,7 @@
     PrimTy(PrimTy),
     SelfTyAlias { alias_to: DefId, is_trait_impl: bool },
     SelfTyParam { trait_: DefId },
+    <span class="prelude-val">Err</span>,
 }
 
 <span class="attr">#[derive(Debug, Clone, Copy)]
@@ -2289,6 +2293,7 @@
             Res::PrimTy(<span class="kw">_</span>) =&gt; <span class="string">&quot;builtin type&quot;</span>,
             Res::Def(kind, def_id) =&gt; kind.descr(<span class="kw-2">*</span>def_id),
             Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } =&gt; <span class="string">&quot;self type&quot;</span>,
+            Res::Err =&gt; <span class="string">&quot;unresolved item&quot;</span>,
         }
     }
 
@@ -2312,6 +2317,7 @@
                 <span class="prelude-val">Ok</span>(Res::SelfTyAlias { alias_to, is_trait_impl })
             }
             rustc_hir::def::Res::SelfTyParam { trait_ } =&gt; <span class="prelude-val">Ok</span>(Res::SelfTyParam { trait_ }),
+            rustc_hir::def::Res::Err =&gt; <span class="prelude-val">Ok</span>(Res::Err),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(()),
         }
     }

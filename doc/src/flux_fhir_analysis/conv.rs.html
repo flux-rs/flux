@@ -2405,8 +2405,8 @@
                     .try_collect_vec()<span class="question-mark">?</span>;
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self</span>.genv.type_of(<span class="kw-2">*</span>def_id)<span class="question-mark">?</span>.instantiate(<span class="kw-2">&amp;</span>generics, <span class="kw-2">&amp;</span>refine));
             }
-            fhir::Res::Def(..) =&gt; {
-                <span class="macro">span_bug!</span>(path.span, <span class="string">&quot;unexpected resolution in conv_indexed_path: {:?}&quot;</span>, path.res)
+            fhir::Res::Def(..) | fhir::Res::Err =&gt; {
+                <span class="macro">span_bug!</span>(path.span, <span class="string">&quot;unexpected resolution in conv_ty_ctor: {:?}&quot;</span>, path.res)
             }
         };
         <span class="kw">let </span>sort = bty.sort();

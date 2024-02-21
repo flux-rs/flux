@@ -173,7 +173,7 @@
             }
             fhir::Res::SelfTyParam { trait_ } =&gt; <span class="self">self</span>.sort_of_self_param(trait_),
             fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, <span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-            fhir::Res::Def(..) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;unexpected res `{:?}`&quot;</span>, path.res),
+            fhir::Res::Def(..) | fhir::Res::Err =&gt; <span class="macro">bug!</span>(<span class="string">&quot;unexpected res `{:?}`&quot;</span>, path.res),
         }
     }
 

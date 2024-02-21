@@ -605,6 +605,7 @@
 <a href="#605" id="605">605</a>
 <a href="#606" id="606">606</a>
 <a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
@@ -1070,7 +1071,8 @@
             fhir::Res::SelfTyParam { .. }
             | fhir::Res::SelfTyAlias { .. }
             | fhir::Res::Def(..)
-            | fhir::Res::PrimTy(..) =&gt; {}
+            | fhir::Res::PrimTy(..)
+            | fhir::Res::Err =&gt; {}
         }
         <span class="kw">let </span>snapshot = <span class="self">self</span>.xi.snapshot();
 
