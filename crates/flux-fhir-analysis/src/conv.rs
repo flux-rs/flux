@@ -896,8 +896,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .try_collect_vec()?;
                 return Ok(self.genv.type_of(*def_id)?.instantiate(&generics, &refine));
             }
-            fhir::Res::Def(..) => {
-                span_bug!(path.span, "unexpected resolution in conv_indexed_path: {:?}", path.res)
+            fhir::Res::Def(..) | fhir::Res::Err => {
+                span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
             }
         };
         let sort = bty.sort();

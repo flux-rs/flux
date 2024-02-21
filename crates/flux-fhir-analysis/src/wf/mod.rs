@@ -463,7 +463,8 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
             fhir::Res::SelfTyParam { .. }
             | fhir::Res::SelfTyAlias { .. }
             | fhir::Res::Def(..)
-            | fhir::Res::PrimTy(..) => {}
+            | fhir::Res::PrimTy(..)
+            | fhir::Res::Err => {}
         }
         let snapshot = self.xi.snapshot();
 

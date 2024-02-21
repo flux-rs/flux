@@ -636,6 +636,7 @@ pub enum Res {
     PrimTy(PrimTy),
     SelfTyAlias { alias_to: DefId, is_trait_impl: bool },
     SelfTyParam { trait_: DefId },
+    Err,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -904,6 +905,7 @@ impl Res {
             Res::PrimTy(_) => "builtin type",
             Res::Def(kind, def_id) => kind.descr(*def_id),
             Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => "self type",
+            Res::Err => "unresolved item",
         }
     }
 
@@ -927,6 +929,7 @@ impl<Id> TryFrom<rustc_hir::def::Res<Id>> for Res {
                 Ok(Res::SelfTyAlias { alias_to, is_trait_impl })
             }
             rustc_hir::def::Res::SelfTyParam { trait_ } => Ok(Res::SelfTyParam { trait_ }),
+            rustc_hir::def::Res::Err => Ok(Res::Err),
             _ => Err(()),
         }
     }

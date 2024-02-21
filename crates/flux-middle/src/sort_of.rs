@@ -45,7 +45,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             }
             fhir::Res::SelfTyParam { trait_ } => self.sort_of_self_param(trait_),
             fhir::Res::Def(DefKind::AssocTy | DefKind::OpaqueTy, _) => None,
-            fhir::Res::Def(..) => bug!("unexpected res `{:?}`", path.res),
+            fhir::Res::Def(..) | fhir::Res::Err => bug!("unexpected res `{:?}`", path.res),
         }
     }
 
