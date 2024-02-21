@@ -1,4 +1,4 @@
-use std::{collections::hash_map::Entry, iter};
+use std::{collections::hash_map::Entry, iter, ops::ControlFlow};
 
 use flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
 use flux_config as config;
@@ -24,15 +24,19 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
+    LangItem,
 };
 use rustc_index::bit_set::BitSet;
 use rustc_infer::infer::NllRegionVariableOrigin;
-use rustc_middle::mir::{SourceInfo, SwitchTargets};
-use rustc_span::Span;
+use rustc_middle::{
+    mir::{SourceInfo, SwitchTargets},
+    ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
+};
+use rustc_span::{sym, Span};
 
 use self::errors::{CheckerError, ResultExt};
 use crate::{
@@ -1143,7 +1147,50 @@ fn instantiate_args_for_fun_call(
     callee_id: DefId,
     args: &ty::GenericArgs,
 ) -> QueryResult<Vec<rty::GenericArg>> {
+    let tcx = genv.tcx();
     let callee_generics = genv.generics_of(callee_id)?;
+
+    struct A {
+        params: FxHashSet<usize>,
+    }
+
+    impl<'tcx> rustc_middle::ty::TypeVisitor<TyCtxt<'tcx>> for A {
+        fn visit_ty(&mut self, t: rustc_middle::ty::Ty) -> ControlFlow<!> {
+            if let rustc_middle::ty::Param(param_ty) = t.kind() {
+                self.params.insert(param_ty.index as usize);
+            }
+            t.super_visit_with(self)
+        }
+    }
+    let mut vis = A { params: Default::default() };
+
+    for (clause, _) in all_predicates_of(tcx, callee_id) {
+        if let Some(trait_pred) = clause.as_trait_clause() {
+            let trait_id = trait_pred.def_id();
+            if tcx.require_lang_item(LangItem::Sized, None) == trait_id {
+                continue;
+            }
+            if tcx.require_lang_item(LangItem::Copy, None) == trait_id {
+                continue;
+            }
+            if tcx.fn_trait_kind_from_def_id(trait_id).is_some() {
+                continue;
+            }
+            if tcx.get_diagnostic_item(sym::Hash) == Some(trait_id) {
+                continue;
+            }
+            if tcx.get_diagnostic_item(sym::Eq) == Some(trait_id) {
+                continue;
+            }
+        }
+        if let Some(proj_pred) = clause.as_projection_clause() {
+            let assoc_id = proj_pred.projection_def_id();
+            if genv.is_fn_once_output(assoc_id) {
+                continue;
+            }
+        }
+        clause.visit_with(&mut vis);
+    }
 
     let refiner = Refiner::new(genv, caller_generics, |bty| {
         let sort = bty.sort();
@@ -1160,9 +1207,28 @@ fn instantiate_args_for_fun_call(
         .enumerate()
         .map(|(idx, arg)| {
             let param = callee_generics.param_at(idx, genv)?;
-            refiner.refine_generic_arg(&param, arg)
+            if vis.params.contains(&idx) {
+                Refiner::default(genv, caller_generics).refine_generic_arg(&param, arg)
+            } else {
+                refiner.refine_generic_arg(&param, arg)
+            }
         })
         .collect()
+}
+
+pub fn all_predicates_of(
+    tcx: TyCtxt<'_>,
+    id: DefId,
+) -> impl Iterator<Item = &(rustc_middle::ty::Clause<'_>, Span)> {
+    let mut next_id = Some(id);
+    iter::from_fn(move || {
+        next_id.take().map(|id| {
+            let preds = tcx.predicates_of(id);
+            next_id = preds.parent;
+            preds.predicates.iter()
+        })
+    })
+    .flatten()
 }
 
 fn instantiate_args_for_constructor(

@@ -346,7 +346,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .map(LocalDefId::to_def_id)
     }
 
-    pub(crate) fn is_fn_once_output(&self, def_id: DefId) -> bool {
+    pub fn is_fn_once_output(&self, def_id: DefId) -> bool {
         self.tcx()
             .require_lang_item(rustc_hir::LangItem::FnOnceOutput, None)
             == def_id
