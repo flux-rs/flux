@@ -277,12 +277,29 @@ Async: surface::Async = {
 }
 
 pub Variant: surface::VariantDef = {
-    <lo:@L> <tys:Fields?> <ret:VariantRet?> <hi:@R> => {
-        let fields = match tys {
-            Some(fields) => fields,
-            None => vec![],
-        };
-        surface::VariantDef { fields, ret, node_id: cx.next_node_id(), span: cx.map_span(lo, hi) }
+    <lo:@L> <fields:Fields> "->" <ret:VariantRet> <hi:@R> => {
+        surface::VariantDef {
+            fields,
+            ret: Some(ret),
+            node_id: cx.next_node_id(),
+            span: cx.map_span(lo, hi),
+        }
+    },
+    <lo:@L> <fields:Fields> <hi:@R> => {
+        surface::VariantDef {
+            fields,
+            ret: None,
+            node_id: cx.next_node_id(),
+            span: cx.map_span(lo, hi),
+        }
+    },
+    <lo:@L> <ret:VariantRet?> <hi:@R> => {
+        surface::VariantDef {
+            fields: vec![],
+            ret,
+            node_id: cx.next_node_id(),
+            span: cx.map_span(lo, hi),
+        }
     }
 }
 
@@ -297,8 +314,8 @@ VariantRet: surface::VariantRet = {
 }
 
 Fields: Vec<surface::Ty> = {
-    "(" <Comma<Ty>> ")" "->",
-    "{" <Comma<Ty>> "}" "->",
+    "(" <Comma<Ty>> ")",
+    "{" <Comma<Ty>> "}",
 }
 
 Args    = <Comma<Arg>>;

@@ -18,6 +18,7 @@ pub struct Items(Vec<Item>);
 
 #[derive(Debug)]
 pub enum Item {
+    Const(syn::ItemConst),
     Struct(ItemStruct),
     Enum(ItemEnum),
     Use(syn::ItemUse),
@@ -152,6 +153,7 @@ impl Variant {
     }
 }
 
+#[cfg(flux_sysroot)]
 impl ToTokens for ToTokensFlux<&Variant> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let variant = &self.0;
@@ -384,10 +386,9 @@ pub struct Requires {
 }
 
 #[derive(Debug)]
-pub struct Constraint {
-    pub ident: Ident,
-    pub colon_token: Token![:],
-    pub ty: Box<Type>,
+pub enum Constraint {
+    Type { ident: Ident, colon_token: Token![:], ty: Box<Type> },
+    Expr(Expr),
 }
 
 #[derive(Debug)]
@@ -649,6 +650,8 @@ impl Parse for Item {
             Item::Type(input.parse()?)
         } else if lookahead.peek(Token![trait]) {
             Item::Trait(input.parse()?)
+        } else if lookahead.peek(Token![const]) {
+            Item::Const(input.parse()?)
         } else {
             return Err(lookahead.error());
         };
@@ -1237,24 +1240,21 @@ impl Parse for Signature {
 }
 
 fn parse_requires(input: ParseStream) -> Result<Option<Requires>> {
-    if input.peek(kw::requires) {
-        let requires_token = input.parse()?;
-        let mut constraint = TokenStream::new();
-        loop {
-            let tt: TokenTree = input.parse()?;
-            constraint.append(tt);
-            if input.is_empty()
-                || input.peek(kw::ensures)
-                || input.peek(token::Brace)
-                || input.peek(Token![,])
-            {
-                break;
-            }
-        }
-        Ok(Some(Requires { requires_token, constraint }))
-    } else {
-        Ok(None)
+    if !input.peek(kw::requires) {
+        return Ok(None);
     }
+
+    let requires_token = input.parse()?;
+    let mut constraint = TokenStream::new();
+    while !(input.is_empty()
+        || input.peek(kw::ensures)
+        || input.peek(token::Brace)
+        || input.peek(Token![,]))
+    {
+        let tt: TokenTree = input.parse()?;
+        constraint.append(tt);
+    }
+    Ok(Some(Requires { requires_token, constraint }))
 }
 
 fn parse_ensures(input: ParseStream) -> Result<Option<Ensures>> {
@@ -1270,11 +1270,25 @@ fn parse_ensures(input: ParseStream) -> Result<Option<Ensures>> {
 
 impl Parse for Constraint {
     fn parse(input: ParseStream) -> Result<Self> {
-        Ok(Constraint {
-            ident: parse_ident_or_self(input)?,
-            colon_token: input.parse()?,
-            ty: input.parse()?,
-        })
+        let mut expr = TokenStream::new();
+
+        if input.peek(Ident) || input.peek(Token![self]) {
+            let ident = parse_ident_or_self(input)?;
+            if input.peek(Token![:]) {
+                return Ok(Constraint::Type {
+                    ident,
+                    colon_token: input.parse()?,
+                    ty: input.parse()?,
+                });
+            }
+            expr.append(ident);
+        }
+
+        while !(input.is_empty() || input.peek(Token![,]) || input.peek(token::Brace)) {
+            let tt: TokenTree = input.parse()?;
+            expr.append(tt);
+        }
+        Ok(Constraint::Expr(expr))
     }
 }
 
@@ -1585,7 +1599,8 @@ impl Item {
             | Item::Struct(ItemStruct { attrs, .. })
             | Item::Use(syn::ItemUse { attrs, .. })
             | Item::Trait(syn::ItemTrait { attrs, .. })
-            | Item::Type(ItemType { attrs, .. }) => mem::replace(attrs, new),
+            | Item::Type(ItemType { attrs, .. })
+            | Item::Const(syn::ItemConst { attrs, .. }) => mem::replace(attrs, new),
         }
     }
 }
@@ -1607,6 +1622,7 @@ impl ToTokens for Item {
             Item::Type(item_type) => item_type.to_tokens(tokens),
             Item::Mod(item_mod) => item_mod.to_tokens(tokens),
             Item::Trait(item_trait) => item_trait.to_tokens(tokens),
+            Item::Const(item_const) => item_const.to_tokens(tokens),
         }
     }
 }
@@ -2002,9 +2018,14 @@ impl Ensures {
 
 impl Constraint {
     fn to_tokens_inner(&self, tokens: &mut TokenStream) {
-        self.ident.to_tokens(tokens);
-        self.colon_token.to_tokens(tokens);
-        self.ty.to_tokens_inner(tokens, Mode::Flux);
+        match self {
+            Constraint::Type { ident, colon_token, ty } => {
+                ident.to_tokens(tokens);
+                colon_token.to_tokens(tokens);
+                ty.to_tokens_inner(tokens, Mode::Flux);
+            }
+            Constraint::Expr(e) => e.to_tokens(tokens),
+        }
     }
 }
 
