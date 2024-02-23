@@ -826,7 +826,7 @@
             .map(LocalDefId::to_def_id)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>is_fn_once_output(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; bool {
+    <span class="kw">pub fn </span>is_fn_once_output(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; bool {
         <span class="self">self</span>.tcx()
             .require_lang_item(rustc_hir::LangItem::FnOnceOutput, <span class="prelude-val">None</span>)
             == def_id

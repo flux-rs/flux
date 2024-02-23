@@ -1252,35 +1252,6 @@
 <a href="#1252" id="1252">1252</a>
 <a href="#1253" id="1253">1253</a>
 <a href="#1254" id="1254">1254</a>
-<a href="#1255" id="1255">1255</a>
-<a href="#1256" id="1256">1256</a>
-<a href="#1257" id="1257">1257</a>
-<a href="#1258" id="1258">1258</a>
-<a href="#1259" id="1259">1259</a>
-<a href="#1260" id="1260">1260</a>
-<a href="#1261" id="1261">1261</a>
-<a href="#1262" id="1262">1262</a>
-<a href="#1263" id="1263">1263</a>
-<a href="#1264" id="1264">1264</a>
-<a href="#1265" id="1265">1265</a>
-<a href="#1266" id="1266">1266</a>
-<a href="#1267" id="1267">1267</a>
-<a href="#1268" id="1268">1268</a>
-<a href="#1269" id="1269">1269</a>
-<a href="#1270" id="1270">1270</a>
-<a href="#1271" id="1271">1271</a>
-<a href="#1272" id="1272">1272</a>
-<a href="#1273" id="1273">1273</a>
-<a href="#1274" id="1274">1274</a>
-<a href="#1275" id="1275">1275</a>
-<a href="#1276" id="1276">1276</a>
-<a href="#1277" id="1277">1277</a>
-<a href="#1278" id="1278">1278</a>
-<a href="#1279" id="1279">1279</a>
-<a href="#1280" id="1280">1280</a>
-<a href="#1281" id="1281">1281</a>
-<a href="#1282" id="1282">1282</a>
-<a href="#1283" id="1283">1283</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1288,7 +1259,7 @@
 
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
+<span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST};
 
@@ -1299,15 +1270,15 @@
     subst::EVarSubstFolder,
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
     CoroutineObligPredicate, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
-    GenericArg, Invariant, KVar, Lambda, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate,
-    PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, SubsetTy,
-    TraitPredicate, TraitRef, Ty, TyKind,
+    GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
+    ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, SubsetTy, TraitPredicate,
+    TraitRef, Ty, TyKind,
 };
 <span class="kw">use crate</span>::{
     global_env::GlobalEnv,
     intern::{Internable, List},
     queries::QueryResult,
-    rty::{expr::HoleKind, AliasKind, Var, VariantSig},
+    rty::{expr::HoleKind, Var, VariantSig},
 };
 
 <span class="kw">pub trait </span>TypeVisitor: Sized {
@@ -1491,35 +1462,6 @@
         }
 
         <span class="kw">let </span><span class="kw-2">mut </span>collector = CollectFreeVars(FxHashSet::default());
-        <span class="self">self</span>.visit_with(<span class="kw-2">&amp;mut </span>collector);
-        collector.<span class="number">0
-    </span>}
-
-    <span class="doccomment">/// Returns the set of all opaque type aliases def ids
-    </span><span class="kw">fn </span>opaque_refine_args(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; OpaqueArgsMap {
-        <span class="kw">struct </span>CollectOpaqueRefineArgs(OpaqueArgsMap);
-
-        <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>CollectOpaqueRefineArgs {
-            <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; ControlFlow&lt;<span class="self">Self</span>::BreakTy&gt; {
-                <span class="kw">if let </span>TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind() {
-                    <span class="kw">let </span>args = <span class="kw-2">&amp;</span>alias_ty.args;
-                    <span class="kw">let </span>refine_args = <span class="kw-2">&amp;</span>alias_ty.refine_args;
-                    <span class="kw">let </span>old = <span class="self">self
-                        </span>.<span class="number">0
-                        </span>.insert(alias_ty.def_id, (args.clone(), refine_args.clone()));
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>((old_args, old_refine_args)) = old {
-                        <span class="kw">if </span>(<span class="kw-2">&amp;</span>old_args, <span class="kw-2">&amp;</span>old_refine_args) != (args, refine_args) {
-                            <span class="macro">bug!</span>(<span class="string">&quot;duplicate opaque-refine-arg!&quot;</span>);
-                        }
-                    }
-                    alias_ty.args.visit_with(<span class="self">self</span>)
-                } <span class="kw">else </span>{
-                    ty.super_visit_with(<span class="self">self</span>)
-                }
-            }
-        }
-
-        <span class="kw">let </span><span class="kw-2">mut </span>collector = CollectOpaqueRefineArgs(FxHashMap::default());
         <span class="self">self</span>.visit_with(<span class="kw-2">&amp;mut </span>collector);
         collector.<span class="number">0
     </span>}

@@ -478,14 +478,14 @@
 <span class="kw">pub struct </span>Refiner&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     generics: rty::Generics,
-    refine: <span class="kw">fn</span>(rty::BaseTy) -&gt; rty::Binder&lt;rty::SubsetTy&gt;,
+    refine: <span class="kw">fn</span>(rty::BaseTy) -&gt; rty::SubsetTyCtor,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; Refiner&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">pub fn </span>new(
         genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         generics: <span class="kw-2">&amp;</span>rty::Generics,
-        refine: <span class="kw">fn</span>(rty::BaseTy) -&gt; rty::Binder&lt;rty::SubsetTy&gt;,
+        refine: <span class="kw">fn</span>(rty::BaseTy) -&gt; rty::SubsetTyCtor,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ genv, generics: generics.clone(), refine }
     }
@@ -714,7 +714,7 @@
     <span class="kw">pub fn </span>refine_ty_ctor(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; QueryResult&lt;rty::TyCtor&gt; {
         <span class="prelude-val">Ok</span>(<span class="self">self
             </span>.refine_ty_inner(ty)<span class="question-mark">?
-            </span>.expect_simple()
+            </span>.expect_base()
             .map(|constr| constr.to_ty()))
     }
 
@@ -842,16 +842,16 @@
     }
 
     <span class="attr">#[track_caller]
-    </span><span class="kw">fn </span>expect_simple(<span class="self">self</span>) -&gt; rty::Binder&lt;rty::SubsetTy&gt; {
-        <span class="kw">if let </span>TyOrBase::Base(poly_constr) = <span class="self">self </span>{
-            poly_constr
+    </span><span class="kw">fn </span>expect_base(<span class="self">self</span>) -&gt; rty::SubsetTyCtor {
+        <span class="kw">if let </span>TyOrBase::Base(ctor) = <span class="self">self </span>{
+            ctor
         } <span class="kw">else </span>{
             <span class="macro">bug!</span>(<span class="string">&quot;unexpected ty&quot;</span>)
         }
     }
 }
 
-<span class="kw">fn </span>refine_default(bty: rty::BaseTy) -&gt; rty::Binder&lt;rty::SubsetTy&gt; {
+<span class="kw">fn </span>refine_default(bty: rty::BaseTy) -&gt; rty::SubsetTyCtor {
     <span class="kw">let </span>sort = bty.sort();
     <span class="kw">let </span>constr = rty::SubsetTy::trivial(bty.shift_in_escaping(<span class="number">1</span>), rty::Expr::nu());
     rty::Binder::with_sort(constr, sort)

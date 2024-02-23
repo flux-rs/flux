@@ -1495,7 +1495,92 @@
 <a href="#1495" id="1495">1495</a>
 <a href="#1496" id="1496">1496</a>
 <a href="#1497" id="1497">1497</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+<a href="#1498" id="1498">1498</a>
+<a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
+<a href="#1501" id="1501">1501</a>
+<a href="#1502" id="1502">1502</a>
+<a href="#1503" id="1503">1503</a>
+<a href="#1504" id="1504">1504</a>
+<a href="#1505" id="1505">1505</a>
+<a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
+<a href="#1508" id="1508">1508</a>
+<a href="#1509" id="1509">1509</a>
+<a href="#1510" id="1510">1510</a>
+<a href="#1511" id="1511">1511</a>
+<a href="#1512" id="1512">1512</a>
+<a href="#1513" id="1513">1513</a>
+<a href="#1514" id="1514">1514</a>
+<a href="#1515" id="1515">1515</a>
+<a href="#1516" id="1516">1516</a>
+<a href="#1517" id="1517">1517</a>
+<a href="#1518" id="1518">1518</a>
+<a href="#1519" id="1519">1519</a>
+<a href="#1520" id="1520">1520</a>
+<a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
+<a href="#1523" id="1523">1523</a>
+<a href="#1524" id="1524">1524</a>
+<a href="#1525" id="1525">1525</a>
+<a href="#1526" id="1526">1526</a>
+<a href="#1527" id="1527">1527</a>
+<a href="#1528" id="1528">1528</a>
+<a href="#1529" id="1529">1529</a>
+<a href="#1530" id="1530">1530</a>
+<a href="#1531" id="1531">1531</a>
+<a href="#1532" id="1532">1532</a>
+<a href="#1533" id="1533">1533</a>
+<a href="#1534" id="1534">1534</a>
+<a href="#1535" id="1535">1535</a>
+<a href="#1536" id="1536">1536</a>
+<a href="#1537" id="1537">1537</a>
+<a href="#1538" id="1538">1538</a>
+<a href="#1539" id="1539">1539</a>
+<a href="#1540" id="1540">1540</a>
+<a href="#1541" id="1541">1541</a>
+<a href="#1542" id="1542">1542</a>
+<a href="#1543" id="1543">1543</a>
+<a href="#1544" id="1544">1544</a>
+<a href="#1545" id="1545">1545</a>
+<a href="#1546" id="1546">1546</a>
+<a href="#1547" id="1547">1547</a>
+<a href="#1548" id="1548">1548</a>
+<a href="#1549" id="1549">1549</a>
+<a href="#1550" id="1550">1550</a>
+<a href="#1551" id="1551">1551</a>
+<a href="#1552" id="1552">1552</a>
+<a href="#1553" id="1553">1553</a>
+<a href="#1554" id="1554">1554</a>
+<a href="#1555" id="1555">1555</a>
+<a href="#1556" id="1556">1556</a>
+<a href="#1557" id="1557">1557</a>
+<a href="#1558" id="1558">1558</a>
+<a href="#1559" id="1559">1559</a>
+<a href="#1560" id="1560">1560</a>
+<a href="#1561" id="1561">1561</a>
+<a href="#1562" id="1562">1562</a>
+<a href="#1563" id="1563">1563</a>
+<a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a>
+<a href="#1566" id="1566">1566</a>
+<a href="#1567" id="1567">1567</a>
+<a href="#1568" id="1568">1568</a>
+<a href="#1569" id="1569">1569</a>
+<a href="#1570" id="1570">1570</a>
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
+<a href="#1575" id="1575">1575</a>
+<a href="#1576" id="1576">1576</a>
+<a href="#1577" id="1577">1577</a>
+<a href="#1578" id="1578">1578</a>
+<a href="#1579" id="1579">1579</a>
+<a href="#1580" id="1580">1580</a>
+<a href="#1581" id="1581">1581</a>
+<a href="#1582" id="1582">1582</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -1521,15 +1606,19 @@
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
-<span class="kw">use </span>rustc_hash::FxHashMap;
+<span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
+    LangItem,
 };
 <span class="kw">use </span>rustc_index::bit_set::BitSet;
 <span class="kw">use </span>rustc_infer::infer::NllRegionVariableOrigin;
-<span class="kw">use </span>rustc_middle::mir::{SourceInfo, SwitchTargets};
-<span class="kw">use </span>rustc_span::Span;
+<span class="kw">use </span>rustc_middle::{
+    mir::{SourceInfo, SwitchTargets},
+    ty::{TyCtxt, TypeSuperVisitable <span class="kw">as _</span>, TypeVisitable <span class="kw">as _</span>},
+};
+<span class="kw">use </span>rustc_span::{sym, Span};
 
 <span class="kw">use </span><span class="self">self</span>::errors::{CheckerError, ResultExt};
 <span class="kw">use crate</span>::{
@@ -2640,9 +2729,10 @@
     callee_id: DefId,
     args: <span class="kw-2">&amp;</span>ty::GenericArgs,
 ) -&gt; QueryResult&lt;Vec&lt;rty::GenericArg&gt;&gt; {
-    <span class="kw">let </span>callee_generics = genv.generics_of(callee_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>params_in_clauses = collect_params_in_clauses(genv, callee_id);
 
-    <span class="kw">let </span>refiner = Refiner::new(genv, caller_generics, |bty| {
+    <span class="kw">let </span>callee_generics = genv.generics_of(callee_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>hole_refiner = Refiner::new(genv, caller_generics, |bty| {
         <span class="kw">let </span>sort = bty.sort();
         <span class="kw">let </span>bty = bty.shift_in_escaping(<span class="number">1</span>);
         <span class="kw">let </span>constr = <span class="kw">if </span>!sort.is_unit() {
@@ -2652,11 +2742,14 @@
         };
         Binder::with_sort(constr, sort)
     });
+    <span class="kw">let </span>default_refiner = Refiner::default(genv, caller_generics);
 
     args.iter()
         .enumerate()
         .map(|(idx, arg)| {
             <span class="kw">let </span>param = callee_generics.param_at(idx, genv)<span class="question-mark">?</span>;
+            <span class="kw">let </span>refiner =
+                <span class="kw">if </span>params_in_clauses.contains(<span class="kw-2">&amp;</span>idx) { <span class="kw-2">&amp;</span>default_refiner } <span class="kw">else </span>{ <span class="kw-2">&amp;</span>hole_refiner };
             refiner.refine_generic_arg(<span class="kw-2">&amp;</span>param, arg)
         })
         .collect()
@@ -2668,11 +2761,88 @@
     adt_id: DefId,
     args: <span class="kw-2">&amp;</span>ty::GenericArgs,
 ) -&gt; QueryResult&lt;Vec&lt;rty::GenericArg&gt;&gt; {
+    <span class="kw">let </span>params_in_clauses = collect_params_in_clauses(genv, adt_id);
+
     <span class="kw">let </span>adt_generics = genv.generics_of(adt_id)<span class="question-mark">?</span>;
-    <span class="kw">let </span>refiner = Refiner::with_holes(genv, caller_generics);
-    iter::zip(<span class="kw-2">&amp;</span>adt_generics.params, args)
-        .map(|(param, arg)| refiner.refine_generic_arg(param, arg))
+    <span class="kw">let </span>hole_refiner = Refiner::with_holes(genv, caller_generics);
+    <span class="kw">let </span>default_refiner = Refiner::default(genv, caller_generics);
+    args.iter()
+        .enumerate()
+        .map(|(idx, arg)| {
+            <span class="kw">let </span>param = adt_generics.param_at(idx, genv)<span class="question-mark">?</span>;
+            <span class="kw">let </span>refiner =
+                <span class="kw">if </span>params_in_clauses.contains(<span class="kw-2">&amp;</span>idx) { <span class="kw-2">&amp;</span>default_refiner } <span class="kw">else </span>{ <span class="kw-2">&amp;</span>hole_refiner };
+            refiner.refine_generic_arg(<span class="kw-2">&amp;</span>param, arg)
+        })
         .collect()
+}
+
+<span class="kw">fn </span>collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -&gt; FxHashSet&lt;usize&gt; {
+    <span class="kw">let </span>tcx = genv.tcx();
+    <span class="kw">struct </span>Collector {
+        params: FxHashSet&lt;usize&gt;,
+    }
+
+    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;tcx</span>&gt; rustc_middle::ty::TypeVisitor&lt;TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt; <span class="kw">for </span>Collector {
+        <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: rustc_middle::ty::Ty) -&gt; ControlFlow&lt;!&gt; {
+            <span class="kw">if let </span>rustc_middle::ty::Param(param_ty) = t.kind() {
+                <span class="self">self</span>.params.insert(param_ty.index <span class="kw">as </span>usize);
+            }
+            t.super_visit_with(<span class="self">self</span>)
+        }
+    }
+    <span class="kw">let </span><span class="kw-2">mut </span>vis = Collector { params: Default::default() };
+
+    <span class="kw">for </span>(clause, <span class="kw">_</span>) <span class="kw">in </span>all_predicates_of(tcx, def_id) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(trait_pred) = clause.as_trait_clause() {
+            <span class="kw">let </span>trait_id = trait_pred.def_id();
+            <span class="kw">if </span>tcx.require_lang_item(LangItem::Sized, <span class="prelude-val">None</span>) == trait_id {
+                <span class="kw">continue</span>;
+            }
+            <span class="kw">if </span>tcx.require_lang_item(LangItem::Copy, <span class="prelude-val">None</span>) == trait_id {
+                <span class="kw">continue</span>;
+            }
+            <span class="kw">if </span>tcx.fn_trait_kind_from_def_id(trait_id).is_some() {
+                <span class="kw">continue</span>;
+            }
+            <span class="kw">if </span>tcx.get_diagnostic_item(sym::Hash) == <span class="prelude-val">Some</span>(trait_id) {
+                <span class="kw">continue</span>;
+            }
+            <span class="kw">if </span>tcx.get_diagnostic_item(sym::Eq) == <span class="prelude-val">Some</span>(trait_id) {
+                <span class="kw">continue</span>;
+            }
+        }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(proj_pred) = clause.as_projection_clause() {
+            <span class="kw">let </span>assoc_id = proj_pred.projection_def_id();
+            <span class="kw">if </span>genv.is_fn_once_output(assoc_id) {
+                <span class="kw">continue</span>;
+            }
+        }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(outlives_pred) = clause.as_type_outlives_clause() {
+            <span class="comment">// We skip outlives bounds if they are not &#39;static. A &#39;static bound means the type
+            // implements `Any` which makes it unsound to instantiate the argument with refinements.
+            </span><span class="kw">if </span>outlives_pred.skip_binder().<span class="number">1 </span>!= tcx.lifetimes.re_static {
+                <span class="kw">continue</span>;
+            }
+        }
+        clause.visit_with(<span class="kw-2">&amp;mut </span>vis);
+    }
+    vis.params
+}
+
+<span class="kw">fn </span>all_predicates_of(
+    tcx: TyCtxt&lt;<span class="lifetime">&#39;_</span>&gt;,
+    id: DefId,
+) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>(rustc_middle::ty::Clause&lt;<span class="lifetime">&#39;_</span>&gt;, Span)&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>next_id = <span class="prelude-val">Some</span>(id);
+    iter::from_fn(<span class="kw">move </span>|| {
+        next_id.take().map(|id| {
+            <span class="kw">let </span>preds = tcx.predicates_of(id);
+            next_id = preds.parent;
+            preds.predicates.iter()
+        })
+    })
+    .flatten()
 }
 
 <span class="doccomment">/// HACK(nilehmann) This let us infer parameters under mutable references for the simple case
