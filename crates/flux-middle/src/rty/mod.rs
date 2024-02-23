@@ -611,8 +611,7 @@ impl Ty {
 
     pub fn exists_with_constr(bty: BaseTy, pred: Expr) -> Ty {
         let sort = bty.sort();
-        let ty = Ty::indexed(bty, Expr::nu());
-        Ty::exists(Binder::with_sort(Ty::constr(pred, ty), sort))
+        Binder::with_sort(Ty::constr(pred, Ty::indexed(bty, Expr::nu())), sort).to_ty()
     }
 
     pub fn discr(adt_def: AdtDef, place: Place) -> Ty {

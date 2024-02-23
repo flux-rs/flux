@@ -36,6 +36,11 @@ use rustc_middle::{
     mir::{SourceInfo, SwitchTargets},
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
 };
+use rustc_mir_dataflow::{
+    impls::MaybeUninitializedPlaces,
+    move_paths::{HasMoveData, MoveData},
+    Analysis, MoveDataParamEnv,
+};
 use rustc_span::{sym, Span};
 
 use self::errors::{CheckerError, ResultExt};
@@ -72,6 +77,7 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     /// of the terminator.
     snapshots: IndexVec<BasicBlock, Option<Snapshot>>,
     visited: BitSet<BasicBlock>,
+    uninits: rustc_mir_dataflow::Results<'tcx, MaybeUninitializedPlaces<'ck, 'tcx>>,
     queue: WorkQueue<'ck>,
 }
 
@@ -217,7 +223,8 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
-            let mut mode = RefineMode { bb_envs, kvars };
+            let mut mode = RefineMode { bb_envs: Default::default(), kvars };
+            // let mut mode = RefineMode { bb_envs, kvars };
             let mut rcx = refine_tree.refine_ctxt_at_root();
             let inherited = Inherited::new(genv, &mut rcx, def_id, &mut mode, ghost_stmts, config)?;
             Checker::run(genv, rcx.as_subtree(), def_id, inherited, fn_sig)?;
@@ -268,6 +275,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         } else {
             None
         };
+        let param_env = genv.tcx().param_env(def_id);
+        let move_data = MoveData::gather_moves(body.rustc_body(), genv.tcx(), param_env, |_| true);
+        let mdpe = MoveDataParamEnv { move_data, param_env };
+        let uninits = MaybeUninitializedPlaces::new(genv.tcx(), body.rustc_body(), &mdpe)
+            .into_engine(genv.tcx(), body.rustc_body())
+            .iterate_to_fixpoint();
         let mut ck = Checker {
             def_id,
             genv,
@@ -279,6 +292,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             output: fn_sig.output().clone(),
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),
+            uninits,
         };
         ck.check_goto(rcx, env, START_BLOCK, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -1392,8 +1406,28 @@ impl Mode for RefineMode {
         terminator_span: Span,
         target: BasicBlock,
     ) -> Result<bool> {
-        let bb_env = &ck.inherited.mode.bb_envs[&ck.def_id][&target];
-        debug_assert_eq!(&ck.snapshot_at_dominator(target).scope().unwrap(), bb_env.scope());
+        let bb_env = ck
+            .inherited
+            .mode
+            .bb_envs
+            .entry(ck.def_id)
+            .or_default()
+            .entry(target)
+            .or_insert_with(|| {
+                let uninits = ck.uninits.entry_set_for_block(target);
+                let move_data = ck.uninits.analysis.move_data();
+                env.to_basic_block_env(
+                    snapshot_at_dominator(ck.body, &ck.snapshots, target)
+                        .scope()
+                        .unwrap(),
+                    &mut ck.inherited.mode.kvars,
+                    move_data,
+                    uninits,
+                )
+            });
+
+        // let bb_env = &ck.inherited.mode.bb_envs[&ck.def_id][&target];
+        // debug_assert_eq!(&ck.snapshot_at_dominator(target).scope().unwrap(), bb_env.scope());
 
         dbg::refine_goto!(target, rcx, env, bb_env);
 

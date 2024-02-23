@@ -14,10 +14,15 @@ use flux_middle::{
         BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Mutability, Path,
         PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
-    rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
+    rustc::{
+        lowering,
+        mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
+    },
 };
 use itertools::{izip, Itertools};
+use rustc_index::bit_set::ChunkedBitSet;
 use rustc_middle::ty::TyCtxt;
+use rustc_mir_dataflow::move_paths::{MoveData, MovePathIndex};
 
 use self::place_ty::{LocKind, PlacesTree};
 use super::rty::{Loc, Sort};
@@ -74,6 +79,48 @@ impl TypeEnv<'_> {
 
     pub(crate) fn into_infer(self, scope: Scope) -> Result<BasicBlockEnvShape, CheckerErrKind> {
         BasicBlockEnvShape::new(scope, self)
+    }
+
+    pub(crate) fn to_basic_block_env(
+        &self,
+        scope: Scope,
+        kvars: &mut KVarStore,
+        move_data: &MoveData<'_>,
+        uninits: &ChunkedBitSet<MovePathIndex>,
+    ) -> BasicBlockEnv {
+        let mut bindings = self.bindings.clone();
+        for mpi in uninits.iter() {
+            let place = lowering::lower_place(&move_data.move_paths[mpi].place).unwrap();
+            bindings.lookup(&place).update(Ty::uninit());
+        }
+        let mut bindings = bindings.with_holes();
+        let mut hoister = ShallowHoister::default();
+        bindings.fmap_mut(|ty| hoister.hoist(ty));
+        let (vars, preds) = hoister.into_parts();
+
+        let outter_sorts = vars.to_sort_list();
+
+        // Replace all holes with a single fresh kvar on all parameters
+        let mut constrs = preds
+            .into_iter()
+            .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
+            .collect_vec();
+        let kvar = kvars.fresh(&[outter_sorts.clone()], &scope, KVarEncoding::Conj);
+        constrs.push(kvar);
+
+        // Replace remaning holes by fresh kvars
+        let mut kvar_gen = |sorts: &[_], kind| {
+            debug_assert_eq!(kind, HoleKind::Pred);
+            let sorts = std::iter::once(outter_sorts.clone())
+                .chain(sorts.iter().cloned())
+                .collect_vec();
+            kvars.fresh(&sorts, &scope, KVarEncoding::Conj)
+        };
+        bindings.fmap_mut(|binding| binding.replace_holes(&mut kvar_gen));
+
+        let data = BasicBlockEnvData { constrs: constrs.into(), bindings };
+
+        BasicBlockEnv { data: Binder::new(data, vars), scope }
     }
 
     pub(crate) fn lookup_place(
@@ -659,7 +706,7 @@ mod pretty {
             let vars = self.data.vars();
             cx.with_bound_vars(vars, || {
                 if !vars.is_empty() {
-                    cx.fmt_bound_vars("for<", vars, ">", f)?;
+                    cx.fmt_bound_vars("for<", vars, "> ", f)?;
                 }
                 let data = self.data.as_ref().skip_binder();
                 if !data.constrs.is_empty() {
