@@ -898,8 +898,8 @@ impl SubsetTyCtor {
 /// supported in other refinement type systems like Liquid Haskell (with the difference that we are
 /// explicit about separating refinements from program values via an index).
 ///
-/// The main purpose for a subset type is to be used as generic arguments of [kind base] when
-/// interpreted as a type contructor. A subset type has two key properties that makes them suitable
+/// The main purpose for subset types is to be used as generic arguments of [kind base] when
+/// interpreted as type contructors. A subset type has two key properties that makes them suitable
 /// for that.
 ///
 /// First, because subset types are syntactically restricted, they make it easier to relate types
