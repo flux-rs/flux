@@ -1,4 +1,4 @@
-use std::{collections::hash_map::Entry, iter};
+use std::{collections::hash_map::Entry, iter, ops::ControlFlow};
 
 use flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
 use flux_config as config;
@@ -24,15 +24,19 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
+    LangItem,
 };
 use rustc_index::bit_set::BitSet;
 use rustc_infer::infer::NllRegionVariableOrigin;
-use rustc_middle::mir::{SourceInfo, SwitchTargets};
-use rustc_span::Span;
+use rustc_middle::{
+    mir::{SourceInfo, SwitchTargets},
+    ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
+};
+use rustc_span::{sym, Span};
 
 use self::errors::{CheckerError, ResultExt};
 use crate::{
@@ -1143,9 +1147,10 @@ fn instantiate_args_for_fun_call(
     callee_id: DefId,
     args: &ty::GenericArgs,
 ) -> QueryResult<Vec<rty::GenericArg>> {
-    let callee_generics = genv.generics_of(callee_id)?;
+    let params_in_clauses = collect_params_in_clauses(genv, callee_id);
 
-    let refiner = Refiner::new(genv, caller_generics, |bty| {
+    let callee_generics = genv.generics_of(callee_id)?;
+    let hole_refiner = Refiner::new(genv, caller_generics, |bty| {
         let sort = bty.sort();
         let bty = bty.shift_in_escaping(1);
         let constr = if !sort.is_unit() {
@@ -1155,11 +1160,14 @@ fn instantiate_args_for_fun_call(
         };
         Binder::with_sort(constr, sort)
     });
+    let default_refiner = Refiner::default(genv, caller_generics);
 
     args.iter()
         .enumerate()
         .map(|(idx, arg)| {
             let param = callee_generics.param_at(idx, genv)?;
+            let refiner =
+                if params_in_clauses.contains(&idx) { &default_refiner } else { &hole_refiner };
             refiner.refine_generic_arg(&param, arg)
         })
         .collect()
@@ -1171,11 +1179,88 @@ fn instantiate_args_for_constructor(
     adt_id: DefId,
     args: &ty::GenericArgs,
 ) -> QueryResult<Vec<rty::GenericArg>> {
+    let params_in_clauses = collect_params_in_clauses(genv, adt_id);
+
     let adt_generics = genv.generics_of(adt_id)?;
-    let refiner = Refiner::with_holes(genv, caller_generics);
-    iter::zip(&adt_generics.params, args)
-        .map(|(param, arg)| refiner.refine_generic_arg(param, arg))
+    let hole_refiner = Refiner::with_holes(genv, caller_generics);
+    let default_refiner = Refiner::default(genv, caller_generics);
+    args.iter()
+        .enumerate()
+        .map(|(idx, arg)| {
+            let param = adt_generics.param_at(idx, genv)?;
+            let refiner =
+                if params_in_clauses.contains(&idx) { &default_refiner } else { &hole_refiner };
+            refiner.refine_generic_arg(&param, arg)
+        })
         .collect()
+}
+
+fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize> {
+    let tcx = genv.tcx();
+    struct Collector {
+        params: FxHashSet<usize>,
+    }
+
+    impl<'tcx> rustc_middle::ty::TypeVisitor<TyCtxt<'tcx>> for Collector {
+        fn visit_ty(&mut self, t: rustc_middle::ty::Ty) -> ControlFlow<!> {
+            if let rustc_middle::ty::Param(param_ty) = t.kind() {
+                self.params.insert(param_ty.index as usize);
+            }
+            t.super_visit_with(self)
+        }
+    }
+    let mut vis = Collector { params: Default::default() };
+
+    for (clause, _) in all_predicates_of(tcx, def_id) {
+        if let Some(trait_pred) = clause.as_trait_clause() {
+            let trait_id = trait_pred.def_id();
+            if tcx.require_lang_item(LangItem::Sized, None) == trait_id {
+                continue;
+            }
+            if tcx.require_lang_item(LangItem::Copy, None) == trait_id {
+                continue;
+            }
+            if tcx.fn_trait_kind_from_def_id(trait_id).is_some() {
+                continue;
+            }
+            if tcx.get_diagnostic_item(sym::Hash) == Some(trait_id) {
+                continue;
+            }
+            if tcx.get_diagnostic_item(sym::Eq) == Some(trait_id) {
+                continue;
+            }
+        }
+        if let Some(proj_pred) = clause.as_projection_clause() {
+            let assoc_id = proj_pred.projection_def_id();
+            if genv.is_fn_once_output(assoc_id) {
+                continue;
+            }
+        }
+        if let Some(outlives_pred) = clause.as_type_outlives_clause() {
+            // We skip outlives bounds if they are not 'static. A 'static bound means the type
+            // implements `Any` which makes it unsound to instantiate the argument with refinements.
+            if outlives_pred.skip_binder().1 != tcx.lifetimes.re_static {
+                continue;
+            }
+        }
+        clause.visit_with(&mut vis);
+    }
+    vis.params
+}
+
+fn all_predicates_of(
+    tcx: TyCtxt<'_>,
+    id: DefId,
+) -> impl Iterator<Item = &(rustc_middle::ty::Clause<'_>, Span)> {
+    let mut next_id = Some(id);
+    iter::from_fn(move || {
+        next_id.take().map(|id| {
+            let preds = tcx.predicates_of(id);
+            next_id = preds.parent;
+            preds.predicates.iter()
+        })
+    })
+    .flatten()
 }
 
 /// HACK(nilehmann) This let us infer parameters under mutable references for the simple case

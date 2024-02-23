@@ -5,7 +5,7 @@ use std::ops::ControlFlow;
 
 use flux_common::bug;
 use itertools::Itertools;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
@@ -16,15 +16,15 @@ use super::{
     subst::EVarSubstFolder,
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
     CoroutineObligPredicate, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
-    GenericArg, Invariant, KVar, Lambda, Name, OpaqueArgsMap, Opaqueness, OutlivesPredicate,
-    PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, SubsetTy,
-    TraitPredicate, TraitRef, Ty, TyKind,
+    GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
+    ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, SubsetTy, TraitPredicate,
+    TraitRef, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
     intern::{Internable, List},
     queries::QueryResult,
-    rty::{expr::HoleKind, AliasKind, Var, VariantSig},
+    rty::{expr::HoleKind, Var, VariantSig},
 };
 
 pub trait TypeVisitor: Sized {
@@ -208,35 +208,6 @@ pub trait TypeVisitable: Sized {
         }
 
         let mut collector = CollectFreeVars(FxHashSet::default());
-        self.visit_with(&mut collector);
-        collector.0
-    }
-
-    /// Returns the set of all opaque type aliases def ids
-    fn opaque_refine_args(&self) -> OpaqueArgsMap {
-        struct CollectOpaqueRefineArgs(OpaqueArgsMap);
-
-        impl TypeVisitor for CollectOpaqueRefineArgs {
-            fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<Self::BreakTy> {
-                if let TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind() {
-                    let args = &alias_ty.args;
-                    let refine_args = &alias_ty.refine_args;
-                    let old = self
-                        .0
-                        .insert(alias_ty.def_id, (args.clone(), refine_args.clone()));
-                    if let Some((old_args, old_refine_args)) = old {
-                        if (&old_args, &old_refine_args) != (args, refine_args) {
-                            bug!("duplicate opaque-refine-arg!");
-                        }
-                    }
-                    alias_ty.args.visit_with(self)
-                } else {
-                    ty.super_visit_with(self)
-                }
-            }
-        }
-
-        let mut collector = CollectOpaqueRefineArgs(FxHashMap::default());
         self.visit_with(&mut collector);
         collector.0
     }

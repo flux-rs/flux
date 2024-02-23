@@ -43,14 +43,14 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> QueryResult<rty
 pub struct Refiner<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     generics: rty::Generics,
-    refine: fn(rty::BaseTy) -> rty::Binder<rty::SubsetTy>,
+    refine: fn(rty::BaseTy) -> rty::SubsetTyCtor,
 }
 
 impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     pub fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         generics: &rty::Generics,
-        refine: fn(rty::BaseTy) -> rty::Binder<rty::SubsetTy>,
+        refine: fn(rty::BaseTy) -> rty::SubsetTyCtor,
     ) -> Self {
         Self { genv, generics: generics.clone(), refine }
     }
@@ -279,7 +279,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     pub fn refine_ty_ctor(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::TyCtor> {
         Ok(self
             .refine_ty_inner(ty)?
-            .expect_simple()
+            .expect_base()
             .map(|constr| constr.to_ty()))
     }
 
@@ -407,16 +407,16 @@ impl TyOrBase {
     }
 
     #[track_caller]
-    fn expect_simple(self) -> rty::Binder<rty::SubsetTy> {
-        if let TyOrBase::Base(poly_constr) = self {
-            poly_constr
+    fn expect_base(self) -> rty::SubsetTyCtor {
+        if let TyOrBase::Base(ctor) = self {
+            ctor
         } else {
             bug!("unexpected ty")
         }
     }
 }
 
-fn refine_default(bty: rty::BaseTy) -> rty::Binder<rty::SubsetTy> {
+fn refine_default(bty: rty::BaseTy) -> rty::SubsetTyCtor {
     let sort = bty.sort();
     let constr = rty::SubsetTy::trivial(bty.shift_in_escaping(1), rty::Expr::nu());
     rty::Binder::with_sort(constr, sort)

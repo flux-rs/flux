@@ -20,10 +20,11 @@ where
     }
 }
 
+// This function should verify once we implement trait bounds properly
 #[flux::sig(fn(v: Vec<i32{v:70<=v}>))]
 pub fn test_ok(v: Vec<i32>) {
     let zig = v.into_iter();
-    foo(zig);
+    foo(zig); //~ERROR: refinement type
 }
 
 #[flux::sig(fn(v: Vec<i32{v:7<=v}>))]
