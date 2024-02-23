@@ -1147,14 +1147,61 @@ fn instantiate_args_for_fun_call(
     callee_id: DefId,
     args: &ty::GenericArgs,
 ) -> QueryResult<Vec<rty::GenericArg>> {
-    let tcx = genv.tcx();
-    let callee_generics = genv.generics_of(callee_id)?;
+    let params_in_clauses = collect_params_in_clauses(genv, callee_id);
 
-    struct A {
+    let callee_generics = genv.generics_of(callee_id)?;
+    let hole_refiner = Refiner::new(genv, caller_generics, |bty| {
+        let sort = bty.sort();
+        let bty = bty.shift_in_escaping(1);
+        let constr = if !sort.is_unit() {
+            rty::SubsetTy::new(bty, Expr::nu(), Expr::hole(rty::HoleKind::Pred))
+        } else {
+            rty::SubsetTy::trivial(bty, Expr::nu())
+        };
+        Binder::with_sort(constr, sort)
+    });
+    let default_refiner = Refiner::default(genv, caller_generics);
+
+    args.iter()
+        .enumerate()
+        .map(|(idx, arg)| {
+            let param = callee_generics.param_at(idx, genv)?;
+            let refiner =
+                if params_in_clauses.contains(&idx) { &default_refiner } else { &hole_refiner };
+            refiner.refine_generic_arg(&param, arg)
+        })
+        .collect()
+}
+
+fn instantiate_args_for_constructor(
+    genv: GlobalEnv,
+    caller_generics: &rty::Generics,
+    adt_id: DefId,
+    args: &ty::GenericArgs,
+) -> QueryResult<Vec<rty::GenericArg>> {
+    let params_in_clauses = collect_params_in_clauses(genv, adt_id);
+
+    let adt_generics = genv.generics_of(adt_id)?;
+    let hole_refiner = Refiner::with_holes(genv, caller_generics);
+    let default_refiner = Refiner::default(genv, caller_generics);
+    args.iter()
+        .enumerate()
+        .map(|(idx, arg)| {
+            let param = adt_generics.param_at(idx, genv)?;
+            let refiner =
+                if params_in_clauses.contains(&idx) { &default_refiner } else { &hole_refiner };
+            refiner.refine_generic_arg(&param, arg)
+        })
+        .collect()
+}
+
+fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize> {
+    let tcx = genv.tcx();
+    struct Collector {
         params: FxHashSet<usize>,
     }
 
-    impl<'tcx> rustc_middle::ty::TypeVisitor<TyCtxt<'tcx>> for A {
+    impl<'tcx> rustc_middle::ty::TypeVisitor<TyCtxt<'tcx>> for Collector {
         fn visit_ty(&mut self, t: rustc_middle::ty::Ty) -> ControlFlow<!> {
             if let rustc_middle::ty::Param(param_ty) = t.kind() {
                 self.params.insert(param_ty.index as usize);
@@ -1162,9 +1209,9 @@ fn instantiate_args_for_fun_call(
             t.super_visit_with(self)
         }
     }
-    let mut vis = A { params: Default::default() };
+    let mut vis = Collector { params: Default::default() };
 
-    for (clause, _) in all_predicates_of(tcx, callee_id) {
+    for (clause, _) in all_predicates_of(tcx, def_id) {
         if let Some(trait_pred) = clause.as_trait_clause() {
             let trait_id = trait_pred.def_id();
             if tcx.require_lang_item(LangItem::Sized, None) == trait_id {
@@ -1189,34 +1236,19 @@ fn instantiate_args_for_fun_call(
                 continue;
             }
         }
+        if let Some(outlives_pred) = clause.as_type_outlives_clause() {
+            // We skip outlives bounds if they are not 'static. A 'static bound means the type
+            // implements `Any` which makes it unsound to instantiate the argument with refinements.
+            if outlives_pred.skip_binder().1 != tcx.lifetimes.re_static {
+                continue;
+            }
+        }
         clause.visit_with(&mut vis);
     }
-
-    let refiner = Refiner::new(genv, caller_generics, |bty| {
-        let sort = bty.sort();
-        let bty = bty.shift_in_escaping(1);
-        let constr = if !sort.is_unit() {
-            rty::SubsetTy::new(bty, Expr::nu(), Expr::hole(rty::HoleKind::Pred))
-        } else {
-            rty::SubsetTy::trivial(bty, Expr::nu())
-        };
-        Binder::with_sort(constr, sort)
-    });
-
-    args.iter()
-        .enumerate()
-        .map(|(idx, arg)| {
-            let param = callee_generics.param_at(idx, genv)?;
-            if vis.params.contains(&idx) {
-                Refiner::default(genv, caller_generics).refine_generic_arg(&param, arg)
-            } else {
-                refiner.refine_generic_arg(&param, arg)
-            }
-        })
-        .collect()
+    vis.params
 }
 
-pub fn all_predicates_of(
+fn all_predicates_of(
     tcx: TyCtxt<'_>,
     id: DefId,
 ) -> impl Iterator<Item = &(rustc_middle::ty::Clause<'_>, Span)> {
@@ -1229,19 +1261,6 @@ pub fn all_predicates_of(
         })
     })
     .flatten()
-}
-
-fn instantiate_args_for_constructor(
-    genv: GlobalEnv,
-    caller_generics: &rty::Generics,
-    adt_id: DefId,
-    args: &ty::GenericArgs,
-) -> QueryResult<Vec<rty::GenericArg>> {
-    let adt_generics = genv.generics_of(adt_id)?;
-    let refiner = Refiner::with_holes(genv, caller_generics);
-    iter::zip(&adt_generics.params, args)
-        .map(|(param, arg)| refiner.refine_generic_arg(param, arg))
-        .collect()
 }
 
 /// HACK(nilehmann) This let us infer parameters under mutable references for the simple case

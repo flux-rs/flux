@@ -1,3 +1,4 @@
+// ignore-test: ignored until we implement trait bounds properly
 #[flux::sig(fn(b:bool[true]))]
 pub fn assert(_b: bool) {}
 

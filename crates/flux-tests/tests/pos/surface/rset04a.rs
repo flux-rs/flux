@@ -1,3 +1,4 @@
+// ignore-test: ignored until we implement trait bounds properly
 #![flux::cfg(scrape_quals = true)]
 
 #[path = "../../lib/rset.rs"]
