@@ -30,6 +30,8 @@ use crate::{
     CheckerConfig,
 };
 
+type Result<T = ()> = std::result::Result<T, CheckerErrKind>;
+
 #[derive(Clone, Default)]
 pub struct TypeEnv<'a> {
     bindings: PlacesTree,
@@ -72,7 +74,7 @@ impl TypeEnv<'_> {
             .insert(local.into(), Place::new(local, vec![]), LocKind::Local, Ty::uninit());
     }
 
-    pub(crate) fn into_infer(self, scope: Scope) -> Result<BasicBlockEnvShape, CheckerErrKind> {
+    pub(crate) fn into_infer(self, scope: Scope) -> Result<BasicBlockEnvShape> {
         BasicBlockEnvShape::new(scope, self)
     }
 
@@ -81,7 +83,7 @@ impl TypeEnv<'_> {
         genv: GlobalEnv,
         rcx: &mut RefineCtxt,
         place: &Place,
-    ) -> Result<Ty, CheckerErrKind> {
+    ) -> Result<Ty> {
         Ok(self.bindings.lookup_unfolding(genv, rcx, place)?.ty)
     }
 
@@ -103,7 +105,7 @@ impl TypeEnv<'_> {
         re: Region,
         mutbl: Mutability,
         place: &Place,
-    ) -> Result<Ty, CheckerErrKind> {
+    ) -> Result<Ty> {
         let result = self.bindings.lookup_unfolding(genv, rcx, place)?;
         if result.is_strg && mutbl == Mutability::Mut {
             Ok(Ty::ptr(PtrKind::from_ref(re, mutbl), result.path()))
@@ -134,7 +136,7 @@ impl TypeEnv<'_> {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         place: &Place,
-    ) -> Result<(), CheckerErrKind> {
+    ) -> Result {
         // place: ptr(mut, path)
         let ptr_lookup = self.bindings.lookup(place);
         let TyKind::Ptr(PtrKind::Mut(re), path) = ptr_lookup.ty.kind() else {
@@ -170,7 +172,7 @@ impl TypeEnv<'_> {
         gen: &mut ConstrGen,
         place: &Place,
         new_ty: Ty,
-    ) -> Result<(), CheckerErrKind> {
+    ) -> Result {
         let rustc_ty = place.ty(gen.genv, self.local_decls)?.ty;
         let new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
         let result = self.bindings.lookup_unfolding(gen.genv, rcx, place)?;
@@ -188,7 +190,7 @@ impl TypeEnv<'_> {
         genv: GlobalEnv,
         rcx: &mut RefineCtxt,
         place: &Place,
-    ) -> Result<Ty, CheckerErrKind> {
+    ) -> Result<Ty> {
         let result = self.bindings.lookup_unfolding(genv, rcx, place)?;
         if result.is_strg {
             let uninit = Ty::uninit();
@@ -207,12 +209,7 @@ impl TypeEnv<'_> {
         self.bindings.lookup(place).unblock(rcx, check_overflow);
     }
 
-    pub(crate) fn block_with(
-        &mut self,
-        genv: GlobalEnv,
-        path: &Path,
-        new_ty: Ty,
-    ) -> Result<Ty, CheckerErrKind> {
+    pub(crate) fn block_with(&mut self, genv: GlobalEnv, path: &Path, new_ty: Ty) -> Result<Ty> {
         let place = self.bindings.path_to_place(path);
         let rustc_ty = place.ty(genv, self.local_decls)?.ty;
         let new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
@@ -226,7 +223,7 @@ impl TypeEnv<'_> {
         gen: &mut ConstrGen,
         bb_env: &BasicBlockEnv,
         target: BasicBlock,
-    ) -> Result<(), CheckerErrKind> {
+    ) -> Result {
         let mut infcx = gen.infcx(rcx, ConstrReason::Goto(target));
 
         let bb_env = bb_env
@@ -255,7 +252,7 @@ impl TypeEnv<'_> {
         rcx: &mut RefineCtxt,
         gen: &mut ConstrGen,
         place: &Place,
-    ) -> Result<(), CheckerErrKind> {
+    ) -> Result {
         self.bindings.lookup(place).fold(rcx, gen)?;
         Ok(())
     }
@@ -266,7 +263,7 @@ impl TypeEnv<'_> {
         rcx: &mut RefineCtxt,
         place: &Place,
         checker_conf: CheckerConfig,
-    ) -> Result<(), CheckerErrKind> {
+    ) -> Result {
         self.bindings.unfold(genv, rcx, place, checker_conf)
     }
 
@@ -277,7 +274,7 @@ impl TypeEnv<'_> {
         place: &Place,
         variant_idx: VariantIdx,
         checker_config: CheckerConfig,
-    ) -> Result<(), CheckerErrKind> {
+    ) -> Result {
         let mut down_place = place.clone();
         down_place
             .projection
@@ -298,7 +295,7 @@ impl BasicBlockEnvShape {
         TypeEnv { bindings: self.bindings.clone(), local_decls }
     }
 
-    fn new(scope: Scope, env: TypeEnv) -> Result<BasicBlockEnvShape, CheckerErrKind> {
+    fn new(scope: Scope, env: TypeEnv) -> Result<BasicBlockEnvShape> {
         let mut bindings = env.bindings;
         bindings.fmap_mut(|ty| BasicBlockEnvShape::pack_ty(&scope, ty));
         Ok(BasicBlockEnvShape { scope, bindings })
@@ -389,7 +386,7 @@ impl BasicBlockEnvShape {
     /// join(self, genv, other) consumes the bindings in other, to "update"
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
-    pub(crate) fn join(&mut self, other: TypeEnv) -> Result<bool, CheckerErrKind> {
+    pub(crate) fn join(&mut self, other: TypeEnv) -> Result<bool> {
         let paths = self.bindings.paths();
 
         // Join types
@@ -588,13 +585,16 @@ impl BasicBlockEnvShape {
 }
 
 impl TypeVisitable for BasicBlockEnvData {
-    fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy> {
         unimplemented!()
     }
 }
 
 impl TypeFoldable for BasicBlockEnvData {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+    fn try_fold_with<F: FallibleTypeFolder>(
+        &self,
+        folder: &mut F,
+    ) -> std::result::Result<Self, F::Error> {
         Ok(BasicBlockEnvData {
             constrs: self.constrs.try_fold_with(folder)?,
             bindings: self.bindings.try_fold_with(folder)?,
@@ -659,7 +659,7 @@ mod pretty {
             let vars = self.data.vars();
             cx.with_bound_vars(vars, || {
                 if !vars.is_empty() {
-                    cx.fmt_bound_vars("for<", vars, ">", f)?;
+                    cx.fmt_bound_vars("for<", vars, "> ", f)?;
                 }
                 let data = self.data.as_ref().skip_binder();
                 if !data.constrs.is_empty() {
