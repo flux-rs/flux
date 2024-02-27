@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["place_ty","pretty"],"struct":["BasicBlockEnv","BasicBlockEnvData","BasicBlockEnvShape","TypeEnv"]};
+window.SIDEBAR_ITEMS = {"mod":["place_ty","pretty"],"struct":["BasicBlockEnv","BasicBlockEnvData","BasicBlockEnvShape","TypeEnv"],"type":["Result"]};
