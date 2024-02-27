@@ -2,8 +2,9 @@ use super::{
     AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
     FnSig, FuncSort, GenericArg, Generics, Lifetime, Lit, Path, PathExpr, PathSegment,
     PolyFuncSort, QPath, RefineArg, RefineArgKind, RefineParam, Sort, SortPath, StructDef, Ty,
-    TyKind, TypeBinding, VariantDef, VariantRet,
+    TyAlias, TyKind, TypeBinding, VariantDef, VariantRet,
 };
+use crate::fhir::StructKind;
 
 #[macro_export]
 macro_rules! walk_list {
@@ -40,6 +41,10 @@ pub trait Visitor: Sized {
 
     fn visit_variant_ret(&mut self, ret: &VariantRet) {
         walk_variant_ret(self, ret);
+    }
+
+    fn visit_ty_alias(&mut self, ty_alias: &TyAlias) {
+        walk_ty_alias(self, ty_alias);
     }
 
     fn visit_fn_sig(&mut self, sig: &FnSig) {
@@ -128,6 +133,9 @@ pub trait Visitor: Sized {
 pub fn walk_struct_def<V: Visitor>(vis: &mut V, struct_def: &StructDef) {
     walk_list!(vis, visit_refine_param, struct_def.params);
     walk_list!(vis, visit_expr, struct_def.invariants);
+    if let StructKind::Transparent { fields } = struct_def.kind {
+        walk_list!(vis, visit_field_def, fields);
+    }
 }
 
 pub fn walk_enum_def<V: Visitor>(vis: &mut V, enum_def: &EnumDef) {
@@ -151,6 +159,12 @@ pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
     let VariantRet { bty, idx } = ret;
     vis.visit_bty(bty);
     vis.visit_refine_arg(idx);
+}
+
+pub fn walk_ty_alias<V: Visitor>(vis: &mut V, ty_alias: &TyAlias) {
+    vis.visit_generics(&ty_alias.generics);
+    vis.visit_ty(&ty_alias.ty);
+    walk_list!(vis, visit_refine_param, ty_alias.index_params);
 }
 
 pub fn walk_generics<V: Visitor>(vis: &mut V, generics: &Generics) {
@@ -248,6 +262,7 @@ pub fn walk_qpath<V: Visitor>(vis: &mut V, qpath: &QPath) {
             if let Some(self_ty) = self_ty {
                 vis.visit_ty(self_ty);
             }
+            vis.visit_path(path);
             walk_list!(vis, visit_refine_arg, path.refine);
         }
     }
