@@ -17,3 +17,4 @@ pub mod iter;
 pub mod mir_storage;
 
 pub mod bug;
+pub mod result;

@@ -16,9 +16,9 @@ mod wf;
 use std::rc::Rc;
 
 use conv::bug_on_infer_sort;
-use flux_common::{bug, dbg};
+use flux_common::{bug, dbg, result::ResultExt};
 use flux_config as config;
-use flux_errors::ResultExt;
+use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
     fhir::{self, FluxLocalDefId},
@@ -434,7 +434,7 @@ fn check_wf_rust_item<'genv>(
 }
 
 pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
-    let mut err: Option<ErrorGuaranteed> = None;
+    let mut errors = Errors::new(genv.sess());
 
     let qualifiers = genv.map().qualifiers().map(|q| q.name).collect();
 
@@ -447,39 +447,29 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             | DefKind::Fn
             | DefKind::AssocFn
             | DefKind::OpaqueTy => {
-                err = genv.check_wf(def_id).emit(genv.sess()).err().or(err);
+                genv.check_wf(def_id).emit(&errors).ok();
             }
             _ => {}
         }
         if matches!(def_kind, DefKind::Fn | DefKind::AssocFn) {
             let fn_quals = genv.map().fn_quals_for(def_id);
-            err = wf::check_fn_quals(genv.sess(), &qualifiers, fn_quals)
-                .err()
-                .or(err);
+            wf::check_fn_quals(genv.sess(), &qualifiers, fn_quals).collect_err(&mut errors);
         }
     }
 
     for defn in genv.map().spec_funcs() {
-        err = genv
-            .check_wf(FluxLocalDefId::Flux(defn.name))
-            .emit(genv.sess())
-            .err()
-            .or(err);
+        genv.check_wf(FluxLocalDefId::Flux(defn.name))
+            .emit(&errors)
+            .ok();
     }
 
     for qualifier in genv.map().qualifiers() {
-        err = genv
-            .check_wf(FluxLocalDefId::Flux(qualifier.name))
-            .emit(genv.sess())
-            .err()
-            .or(err);
+        genv.check_wf(FluxLocalDefId::Flux(qualifier.name))
+            .emit(&errors)
+            .ok();
     }
 
-    if let Some(err) = err {
-        Err(err)
-    } else {
-        Ok(())
-    }
+    errors.into_result()
 }
 
 fn normalize<T: TypeFoldable>(genv: GlobalEnv, t: T) -> QueryResult<T> {

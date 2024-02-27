@@ -1,4 +1,4 @@
-use flux_errors::ResultExt as _;
+use flux_common::result::ResultExt;
 use flux_middle::{global_env::GlobalEnv, pretty};
 use rustc_span::{
     def_id::{DefId, LocalDefId},

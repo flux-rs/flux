@@ -41,9 +41,8 @@ mod type_env;
 use checker::Checker;
 pub use checker::CheckerConfig;
 use constraint_gen::{ConstrReason, Tag};
-use flux_common::{cache::QueryCache, dbg};
+use flux_common::{cache::QueryCache, dbg, result::ResultExt};
 use flux_config as config;
-use flux_errors::ResultExt;
 use flux_macros::fluent_messages;
 use flux_middle::{
     global_env::GlobalEnv,

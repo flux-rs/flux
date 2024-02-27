@@ -1,6 +1,6 @@
-use flux_common::{cache::QueryCache, dbg, iter::IterExt};
+use flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
-use flux_errors::{FluxSession, ResultExt};
+use flux_errors::FluxSession;
 use flux_fhir_analysis::compare_impl_item;
 use flux_metadata::CStore;
 use flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};

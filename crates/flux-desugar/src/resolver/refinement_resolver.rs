@@ -1,7 +1,7 @@
 use std::ops::ControlFlow;
 
 use flux_common::index::IndexGen;
-use flux_errors::ErrorCollector;
+use flux_errors::Errors;
 use flux_middle::{
     fhir::{self, ExprRes},
     ResolverOutput,
@@ -384,7 +384,7 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     param_defs: FxIndexMap<NodeId, ParamDef>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
     path_res_map: FxHashMap<NodeId, ExprRes<NodeId>>,
-    errors: ErrorCollector<'genv>,
+    errors: Errors<'genv>,
 }
 
 impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
@@ -489,7 +489,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         sort_res: UnordMap<Symbol, fhir::SortRes>,
     ) -> Self {
-        let errors = ErrorCollector::new(resolver.genv.sess());
+        let errors = Errors::new(resolver.genv.sess());
         Self {
             resolver,
             sorts_res: sort_res,
@@ -795,12 +795,12 @@ pub(crate) static SORTS: std::sync::LazyLock<Sorts> = std::sync::LazyLock::new(|
 struct IllegalBinderVisitor<'a, 'genv, 'tcx> {
     scopes: Vec<ScopeKind>,
     resolver: &'a CrateResolver<'genv, 'tcx>,
-    errors: ErrorCollector<'genv>,
+    errors: Errors<'genv>,
 }
 
 impl<'a, 'genv, 'tcx> IllegalBinderVisitor<'a, 'genv, 'tcx> {
     fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Self {
-        let errors = ErrorCollector::new(resolver.genv.sess());
+        let errors = Errors::new(resolver.genv.sess());
         Self { scopes: vec![], resolver, errors }
     }
 

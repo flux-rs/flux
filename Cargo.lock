@@ -536,6 +536,9 @@ dependencies = [
 [[package]]
 name = "flux-errors"
 version = "0.1.0"
+dependencies = [
+ "flux-common",
+]
 
 [[package]]
 name = "flux-fhir-analysis"

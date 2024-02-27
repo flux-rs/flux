@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use flux_common::iter::IterExt;
+use flux_common::{iter::IterExt, result::ResultExt};
 use flux_config::{self as config, CrateConfig};
-use flux_errors::{FluxSession, ResultExt};
+use flux_errors::FluxSession;
 use flux_middle::{fhir, rustc::lowering::resolve_trait_ref_impl_id, Specs};
 use flux_syntax::{surface, ParseResult, ParseSess};
 use itertools::Itertools;

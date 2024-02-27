@@ -2,6 +2,8 @@ use std::ops::Try;
 
 use rustc_errors::ErrorGuaranteed;
 
+use crate::result::ErrorCollector;
+
 pub trait IterExt: Iterator {
     fn try_collect_vec<T, E>(self) -> Result<Vec<T>, E>
     where
@@ -10,7 +12,7 @@ pub trait IterExt: Iterator {
         self.collect()
     }
 
-    fn collect_errors<T, E, C>(self, collector: C) -> CollectErrors<Self, C>
+    fn collect_errors<T, E, C>(self, collector: &mut C) -> CollectErrors<Self, C>
     where
         Self: Iterator<Item = Result<T, E>> + Sized,
         C: ErrorCollector<E>,
@@ -59,31 +61,12 @@ pub trait IterExt: Iterator {
 
 impl<I: ?Sized> IterExt for I where I: Iterator {}
 
-pub trait ErrorCollector<E> {
-    fn collect(&mut self, err: E);
-}
-
-impl<E, F> ErrorCollector<E> for F
-where
-    F: FnMut(E),
-{
-    fn collect(&mut self, err: E) {
-        self(err);
-    }
-}
-
-impl ErrorCollector<ErrorGuaranteed> for &mut Option<ErrorGuaranteed> {
-    fn collect(&mut self, err: ErrorGuaranteed) {
-        **self = Some(err).or(**self);
-    }
-}
-
-pub struct CollectErrors<I, F> {
+pub struct CollectErrors<'a, I, C> {
     iter: I,
-    collector: F,
+    collector: &'a mut C,
 }
 
-impl<I, T, E, F> Iterator for CollectErrors<I, F>
+impl<I, T, E, F> Iterator for CollectErrors<'_, I, F>
 where
     I: Iterator<Item = Result<T, E>>,
     F: ErrorCollector<E>,
@@ -103,7 +86,7 @@ where
             match x {
                 Ok(x) => f(acc, x),
                 Err(e) => {
-                    self.collector.collect(e);
+                    self.collector.collect_err(e);
                     try { acc }
                 }
             }

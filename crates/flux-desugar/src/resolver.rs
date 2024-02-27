@@ -3,7 +3,7 @@ pub(crate) mod refinement_resolver;
 use std::collections::hash_map::Entry;
 
 use flux_common::bug;
-use flux_errors::{ErrorCollector, FluxSession};
+use flux_errors::{Errors, FluxSession};
 use flux_middle::{
     fhir::{self, Res},
     global_env::GlobalEnv,
@@ -373,7 +373,7 @@ struct ItemResolver<'a, 'genv, 'tcx> {
     table: NameResTable,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
     opaque: Option<ItemId>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
-    errors: ErrorCollector<'genv>,
+    errors: Errors<'genv>,
 }
 
 struct ResTableNode {
@@ -451,7 +451,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
             }
         };
 
-        let errors = ErrorCollector::new(resolver.genv.sess());
+        let errors = Errors::new(resolver.genv.sess());
         Ok(Self { table, resolver, opaque, errors })
     }
 
@@ -538,17 +538,12 @@ struct NameResCollector<'sess, 'tcx> {
     tcx: TyCtxt<'tcx>,
     table: NameResTable,
     opaque: Option<ItemId>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
-    errors: ErrorCollector<'sess>,
+    errors: Errors<'sess>,
 }
 
 impl<'sess, 'tcx> NameResCollector<'sess, 'tcx> {
     fn new(tcx: TyCtxt<'tcx>, sess: &'sess FluxSession) -> Self {
-        Self {
-            tcx,
-            table: NameResTable::default(),
-            opaque: None,
-            errors: ErrorCollector::new(sess),
-        }
+        Self { tcx, table: NameResTable::default(), opaque: None, errors: Errors::new(sess) }
     }
 
     fn collect_item(

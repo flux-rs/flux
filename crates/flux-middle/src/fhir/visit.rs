@@ -1,8 +1,9 @@
 use super::{
     AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
-    FnSig, FuncSort, GenericArg, Generics, Lifetime, Lit, Path, PathExpr, PathSegment,
-    PolyFuncSort, QPath, RefineArg, RefineArgKind, RefineParam, Sort, SortPath, StructDef, Ty,
-    TyAlias, TyKind, TypeBinding, VariantDef, VariantRet,
+    FnSig, FuncSort, GenericArg, GenericBound, Generics, Lifetime, Lit, OpaqueTy, Path, PathExpr,
+    PathSegment, PolyFuncSort, PolyTraitRef, QPath, RefineArg, RefineArgKind, RefineParam, Sort,
+    SortPath, StructDef, Ty, TyAlias, TyKind, TypeBinding, VariantDef, VariantRet,
+    WhereBoundPredicate,
 };
 use crate::fhir::StructKind;
 
@@ -21,6 +22,10 @@ macro_rules! walk_list {
 pub trait Visitor: Sized {
     fn visit_generics(&mut self, generics: &Generics) {
         walk_generics(self, generics);
+    }
+
+    fn visit_where_predicate(&mut self, predicate: &WhereBoundPredicate) {
+        walk_where_predicate(self, predicate);
     }
 
     fn visit_struct_def(&mut self, struct_def: &StructDef) {
@@ -45,6 +50,18 @@ pub trait Visitor: Sized {
 
     fn visit_ty_alias(&mut self, ty_alias: &TyAlias) {
         walk_ty_alias(self, ty_alias);
+    }
+
+    fn visit_opaque_ty(&mut self, opaque_ty: &OpaqueTy) {
+        walk_opaque_ty(self, opaque_ty);
+    }
+
+    fn visit_generic_bound(&mut self, bound: &GenericBound) {
+        walk_generic_bound(self, bound);
+    }
+
+    fn visit_poly_trait_ref(&mut self, trait_ref: &PolyTraitRef) {
+        walk_poly_trait_ref(self, trait_ref);
     }
 
     fn visit_fn_sig(&mut self, sig: &FnSig) {
@@ -167,8 +184,33 @@ pub fn walk_ty_alias<V: Visitor>(vis: &mut V, ty_alias: &TyAlias) {
     walk_list!(vis, visit_refine_param, ty_alias.index_params);
 }
 
+pub fn walk_opaque_ty<V: Visitor>(vis: &mut V, opaque_ty: &OpaqueTy) {
+    vis.visit_generics(&opaque_ty.generics);
+    walk_list!(vis, visit_generic_bound, opaque_ty.bounds);
+}
+
+pub fn walk_generic_bound<V: Visitor>(vis: &mut V, bound: &GenericBound) {
+    match bound {
+        GenericBound::Trait(trait_ref, _) => vis.visit_poly_trait_ref(trait_ref),
+        GenericBound::LangItemTrait(_, args, bindings) => {
+            walk_list!(vis, visit_generic_arg, *args);
+            walk_list!(vis, visit_type_binding, *bindings);
+        }
+    }
+}
+
+pub fn walk_poly_trait_ref<V: Visitor>(vis: &mut V, trait_ref: &PolyTraitRef) {
+    vis.visit_path(&trait_ref.trait_ref);
+}
+
 pub fn walk_generics<V: Visitor>(vis: &mut V, generics: &Generics) {
     walk_list!(vis, visit_refine_param, generics.refinement_params);
+    walk_list!(vis, visit_where_predicate, generics.predicates);
+}
+
+pub fn walk_where_predicate<V: Visitor>(vis: &mut V, predicate: &WhereBoundPredicate) {
+    vis.visit_ty(&predicate.bounded_ty);
+    walk_list!(vis, visit_generic_bound, predicate.bounds);
 }
 
 pub fn walk_fn_sig<V: Visitor>(vis: &mut V, sig: &FnSig) {
@@ -176,6 +218,7 @@ pub fn walk_fn_sig<V: Visitor>(vis: &mut V, sig: &FnSig) {
 }
 
 pub fn walk_fn_decl<V: Visitor>(vis: &mut V, decl: &FnDecl) {
+    vis.visit_generics(&decl.generics);
     walk_list!(vis, visit_constraint, decl.requires);
     walk_list!(vis, visit_ty, decl.args);
     vis.visit_fn_output(&decl.output);

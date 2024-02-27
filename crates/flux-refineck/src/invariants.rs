@@ -1,6 +1,6 @@
-use flux_common::{cache::QueryCache, dbg, iter::IterExt};
+use flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
-use flux_errors::{ErrorGuaranteed, ResultExt};
+use flux_errors::ErrorGuaranteed;
 use flux_middle::{fhir, global_env::GlobalEnv, rty};
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::{Span, DUMMY_SP};

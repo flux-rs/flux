@@ -5,8 +5,9 @@ extern crate rustc_errors;
 extern crate rustc_session;
 extern crate rustc_span;
 
-use std::sync::Arc;
+use std::{cell::Cell, sync::Arc};
 
+use flux_common::result::{ErrorCollector, ErrorEmitter};
 use rustc_data_structures::sync;
 pub use rustc_errors::ErrorGuaranteed;
 use rustc_errors::{
@@ -122,45 +123,54 @@ fn emitter(
     }
 }
 
-pub trait ResultExt<T, E> {
-    #[track_caller]
-    fn emit<'a>(self, sess: &'a FluxSession) -> Result<T, ErrorGuaranteed>
-    where
-        E: IntoDiagnostic<'a>;
-}
-
-impl<T, E> ResultExt<T, E> for Result<T, E> {
-    fn emit<'a>(self, sess: &'a FluxSession) -> Result<T, ErrorGuaranteed>
-    where
-        E: IntoDiagnostic<'a>,
-    {
-        match self {
-            Ok(v) => Ok(v),
-            Err(err) => Err(sess.emit_err(err)),
-        }
+impl ErrorEmitter for FluxSession {
+    fn emit<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
+        self.emit_err(err)
     }
 }
 
-pub struct ErrorCollector<'sess> {
+/// Convience struct implementing [`ErrorEmitter`] and [`ErrorCollector`]
+pub struct Errors<'sess> {
     sess: &'sess FluxSession,
-    err: Option<ErrorGuaranteed>,
+    err: Cell<Option<ErrorGuaranteed>>,
 }
 
-impl<'sess> ErrorCollector<'sess> {
+impl<'sess> Errors<'sess> {
     pub fn new(sess: &'sess FluxSession) -> Self {
-        Self { sess, err: None }
+        Self { sess, err: Cell::new(None) }
     }
 
     #[track_caller]
-    pub fn emit(&mut self, err: impl IntoDiagnostic<'sess>) {
-        self.err = self.err.or(Some(self.sess.emit_err(err)));
+    pub fn emit<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
+        let err = self.sess.emit_err(err);
+        self.err.set(Some(err));
+        err
     }
 
     pub fn into_result(self) -> Result<(), ErrorGuaranteed> {
-        if let Some(err) = self.err {
+        if let Some(err) = self.err.into_inner() {
             Err(err)
         } else {
             Ok(())
         }
+    }
+}
+
+impl ErrorEmitter for Errors<'_> {
+    #[track_caller]
+    fn emit<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
+        Errors::emit(self, err)
+    }
+}
+
+impl ErrorCollector<ErrorGuaranteed> for Errors<'_> {
+    type Result = Result<(), ErrorGuaranteed>;
+
+    fn collect_err(&mut self, err: ErrorGuaranteed) {
+        *self.err.get_mut() = Some(err);
+    }
+
+    fn into_result(self) -> Self::Result {
+        Errors::into_result(self)
     }
 }

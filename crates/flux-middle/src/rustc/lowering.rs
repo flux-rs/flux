@@ -1,4 +1,5 @@
-use flux_errors::{FluxSession, ResultExt};
+use flux_common::result::ResultExt;
+use flux_errors::FluxSession;
 use itertools::Itertools;
 use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_errors::ErrorGuaranteed;

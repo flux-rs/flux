@@ -2,7 +2,7 @@ use std::iter;
 
 use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt, span_bug};
-use flux_errors::{ErrorCollector, ErrorGuaranteed};
+use flux_errors::{ErrorGuaranteed, Errors};
 use flux_middle::{
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
@@ -83,7 +83,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             self.wfckresults
                 .node_sorts_mut()
                 .insert(arg.fhir_id, fsort.output().clone());
-            self.resolve_params_sorts(params)
+            Ok(())
         } else {
             Err(self.emit_err(errors::UnexpectedFun::new(arg.span, expected)))
         }
@@ -482,23 +482,21 @@ impl<'genv> InferCtxt<'genv, '_> {
         self.num_unification_table.new_key(None)
     }
 
-    pub(crate) fn resolve_params_sorts(&mut self, params: &[fhir::RefineParam]) -> Result {
-        params.iter().try_for_each_exhaust(|param| {
-            if let fhir::Sort::Infer = param.sort {
-                let sort = self.param_sort(param.id);
-                match self.fully_resolve(&sort) {
-                    Ok(sort) => {
-                        self.wfckresults
-                            .node_sorts_mut()
-                            .insert(param.fhir_id, sort);
-                    }
-                    Err(_) => {
-                        return Err(self.emit_err(errors::SortAnnotationNeeded::new(param)));
-                    }
+    pub(crate) fn resolve_param_sort(&mut self, param: &fhir::RefineParam) -> Result {
+        if let fhir::Sort::Infer = param.sort {
+            let sort = self.param_sort(param.id);
+            match self.fully_resolve(&sort) {
+                Ok(sort) => {
+                    self.wfckresults
+                        .node_sorts_mut()
+                        .insert(param.fhir_id, sort);
+                }
+                Err(_) => {
+                    return Err(self.emit_err(errors::SortAnnotationNeeded::new(param)));
                 }
             }
-            Ok(())
-        })
+        }
+        Ok(())
     }
 
     fn ensure_resolved_var(&mut self, path: &fhir::PathExpr) -> Result<rty::Sort> {
@@ -518,15 +516,9 @@ impl<'genv> InferCtxt<'genv, '_> {
         }
     }
 
-    pub(crate) fn infer_implicit_params_ty(&mut self, ty: &fhir::Ty) -> Result {
+    pub(crate) fn infer_implicit_params(&mut self, ty: &fhir::Ty) -> Result {
         let mut vis = ImplicitParamInferer::new(self);
         fhir::visit::Visitor::visit_ty(&mut vis, ty);
-        vis.into_result()
-    }
-
-    pub(crate) fn infer_implicit_params_constraint(&mut self, constr: &fhir::Constraint) -> Result {
-        let mut vis = ImplicitParamInferer::new(self);
-        fhir::visit::Visitor::visit_constraint(&mut vis, constr);
         vis.into_result()
     }
 
@@ -539,6 +531,7 @@ impl<'genv> InferCtxt<'genv, '_> {
         sort.infer_mode(*kind)
     }
 
+    #[track_caller]
     pub(crate) fn param_sort(&self, id: fhir::ParamId) -> rty::Sort {
         self.params[&id].0.clone()
     }
@@ -551,19 +544,19 @@ impl<'genv> InferCtxt<'genv, '_> {
         sort.fold_with(&mut OpportunisticResolver { infcx: self })
     }
 
-    fn fully_resolve(&mut self, sort: &rty::Sort) -> std::result::Result<rty::Sort, ()> {
+    pub(crate) fn fully_resolve(&mut self, sort: &rty::Sort) -> std::result::Result<rty::Sort, ()> {
         sort.try_fold_with(&mut FullResolver { infcx: self })
     }
 }
 
 struct ImplicitParamInferer<'a, 'genv, 'tcx> {
     infcx: &'a mut InferCtxt<'genv, 'tcx>,
-    errors: ErrorCollector<'genv>,
+    errors: Errors<'genv>,
 }
 
 impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
     fn new(infcx: &'a mut InferCtxt<'genv, 'tcx>) -> Self {
-        let errors = ErrorCollector::new(infcx.genv.sess());
+        let errors = Errors::new(infcx.genv.sess());
         Self { infcx, errors }
     }
 
