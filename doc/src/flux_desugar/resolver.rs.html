@@ -740,17 +740,12 @@
 <a href="#740" id="740">740</a>
 <a href="#741" id="741">741</a>
 <a href="#742" id="742">742</a>
-<a href="#743" id="743">743</a>
-<a href="#744" id="744">744</a>
-<a href="#745" id="745">745</a>
-<a href="#746" id="746">746</a>
-<a href="#747" id="747">747</a>
 </pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>std::collections::hash_map::Entry;
 
 <span class="kw">use </span>flux_common::bug;
-<span class="kw">use </span>flux_errors::{ErrorCollector, FluxSession};
+<span class="kw">use </span>flux_errors::{Errors, FluxSession};
 <span class="kw">use </span>flux_middle::{
     fhir::{<span class="self">self</span>, Res},
     global_env::GlobalEnv,
@@ -1120,7 +1115,7 @@
     table: NameResTable,
     resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     opaque: <span class="prelude-ty">Option</span>&lt;ItemId&gt;, <span class="comment">// TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
-    </span>errors: ErrorCollector&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    </span>errors: Errors&lt;<span class="lifetime">&#39;genv</span>&gt;,
 }
 
 <span class="kw">struct </span>ResTableNode {
@@ -1198,7 +1193,7 @@
             }
         };
 
-        <span class="kw">let </span>errors = ErrorCollector::new(resolver.genv.sess());
+        <span class="kw">let </span>errors = Errors::new(resolver.genv.sess());
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ table, resolver, opaque, errors })
     }
 
@@ -1285,17 +1280,12 @@
     tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
     table: NameResTable,
     opaque: <span class="prelude-ty">Option</span>&lt;ItemId&gt;, <span class="comment">// TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
-    </span>errors: ErrorCollector&lt;<span class="lifetime">&#39;sess</span>&gt;,
+    </span>errors: Errors&lt;<span class="lifetime">&#39;sess</span>&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; NameResCollector&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">fn </span>new(tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;, sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            tcx,
-            table: NameResTable::default(),
-            opaque: <span class="prelude-val">None</span>,
-            errors: ErrorCollector::new(sess),
-        }
+        <span class="self">Self </span>{ tcx, table: NameResTable::default(), opaque: <span class="prelude-val">None</span>, errors: Errors::new(sess) }
     }
 
     <span class="kw">fn </span>collect_item(

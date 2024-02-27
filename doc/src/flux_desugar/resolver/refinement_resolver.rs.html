@@ -950,7 +950,7 @@
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
-<span class="kw">use </span>flux_errors::ErrorCollector;
+<span class="kw">use </span>flux_errors::Errors;
 <span class="kw">use </span>flux_middle::{
     fhir::{<span class="self">self</span>, ExprRes},
     ResolverOutput,
@@ -1333,7 +1333,7 @@
     param_defs: FxIndexMap&lt;NodeId, ParamDef&gt;,
     resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     path_res_map: FxHashMap&lt;NodeId, ExprRes&lt;NodeId&gt;&gt;,
-    errors: ErrorCollector&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    errors: Errors&lt;<span class="lifetime">&#39;genv</span>&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; RefinementResolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
@@ -1438,7 +1438,7 @@
         resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
         sort_res: UnordMap&lt;Symbol, fhir::SortRes&gt;,
     ) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>errors = ErrorCollector::new(resolver.genv.sess());
+        <span class="kw">let </span>errors = Errors::new(resolver.genv.sess());
         <span class="self">Self </span>{
             resolver,
             sorts_res: sort_res,
@@ -1744,12 +1744,12 @@
 <span class="kw">struct </span>IllegalBinderVisitor&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     scopes: Vec&lt;ScopeKind&gt;,
     resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    errors: ErrorCollector&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    errors: Errors&lt;<span class="lifetime">&#39;genv</span>&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; IllegalBinderVisitor&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">fn </span>new(resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>errors = ErrorCollector::new(resolver.genv.sess());
+        <span class="kw">let </span>errors = Errors::new(resolver.genv.sess());
         <span class="self">Self </span>{ scopes: <span class="macro">vec!</span>[], resolver, errors }
     }
 

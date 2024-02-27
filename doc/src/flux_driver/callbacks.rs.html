@@ -258,9 +258,9 @@
 <a href="#258" id="258">258</a>
 <a href="#259" id="259">259</a>
 <a href="#260" id="260">260</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{cache::QueryCache, dbg, iter::IterExt};
+</pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
-<span class="kw">use </span>flux_errors::{FluxSession, ResultExt};
+<span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_fhir_analysis::compare_impl_item;
 <span class="kw">use </span>flux_metadata::CStore;
 <span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};

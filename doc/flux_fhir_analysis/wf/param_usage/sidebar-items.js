@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["check_enum_def","check_fn_decl","check_struct_def","check_ty_alias"],"struct":["ParamUsesChecker"],"type":["Result"]};

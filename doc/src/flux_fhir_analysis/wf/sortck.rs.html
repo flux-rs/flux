@@ -706,18 +706,11 @@
 <a href="#706" id="706">706</a>
 <a href="#707" id="707">707</a>
 <a href="#708" id="708">708</a>
-<a href="#709" id="709">709</a>
-<a href="#710" id="710">710</a>
-<a href="#711" id="711">711</a>
-<a href="#712" id="712">712</a>
-<a href="#713" id="713">713</a>
-<a href="#714" id="714">714</a>
-<a href="#715" id="715">715</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, span_bug};
-<span class="kw">use </span>flux_errors::{ErrorCollector, ErrorGuaranteed};
+<span class="kw">use </span>flux_errors::{ErrorGuaranteed, Errors};
 <span class="kw">use </span>flux_middle::{
     fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
@@ -798,7 +791,7 @@
             <span class="self">self</span>.wfckresults
                 .node_sorts_mut()
                 .insert(arg.fhir_id, fsort.output().clone());
-            <span class="self">self</span>.resolve_params_sorts(params)
+            <span class="prelude-val">Ok</span>(())
         } <span class="kw">else </span>{
             <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::UnexpectedFun::new(arg.span, expected)))
         }
@@ -1197,23 +1190,21 @@
         <span class="self">self</span>.num_unification_table.new_key(<span class="prelude-val">None</span>)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_params_sorts(<span class="kw-2">&amp;mut </span><span class="self">self</span>, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) -&gt; <span class="prelude-ty">Result </span>{
-        params.iter().try_for_each_exhaust(|param| {
-            <span class="kw">if let </span>fhir::Sort::Infer = param.sort {
-                <span class="kw">let </span>sort = <span class="self">self</span>.param_sort(param.id);
-                <span class="kw">match </span><span class="self">self</span>.fully_resolve(<span class="kw-2">&amp;</span>sort) {
-                    <span class="prelude-val">Ok</span>(sort) =&gt; {
-                        <span class="self">self</span>.wfckresults
-                            .node_sorts_mut()
-                            .insert(param.fhir_id, sort);
-                    }
-                    <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                        <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::SortAnnotationNeeded::new(param)));
-                    }
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_param_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; <span class="prelude-ty">Result </span>{
+        <span class="kw">if let </span>fhir::Sort::Infer = param.sort {
+            <span class="kw">let </span>sort = <span class="self">self</span>.param_sort(param.id);
+            <span class="kw">match </span><span class="self">self</span>.fully_resolve(<span class="kw-2">&amp;</span>sort) {
+                <span class="prelude-val">Ok</span>(sort) =&gt; {
+                    <span class="self">self</span>.wfckresults
+                        .node_sorts_mut()
+                        .insert(param.fhir_id, sort);
+                }
+                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::SortAnnotationNeeded::new(param)));
                 }
             }
-            <span class="prelude-val">Ok</span>(())
-        })
+        }
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn </span>ensure_resolved_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
@@ -1233,15 +1224,9 @@
         </span>}
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infer_implicit_params_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infer_implicit_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>vis = ImplicitParamInferer::new(<span class="self">self</span>);
         fhir::visit::Visitor::visit_ty(<span class="kw-2">&amp;mut </span>vis, ty);
-        vis.into_result()
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infer_implicit_params_constraint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constr: <span class="kw-2">&amp;</span>fhir::Constraint) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>vis = ImplicitParamInferer::new(<span class="self">self</span>);
-        fhir::visit::Visitor::visit_constraint(<span class="kw-2">&amp;mut </span>vis, constr);
         vis.into_result()
     }
 
@@ -1254,7 +1239,8 @@
         sort.infer_mode(<span class="kw-2">*</span>kind)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>param_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, id: fhir::ParamId) -&gt; rty::Sort {
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>param_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, id: fhir::ParamId) -&gt; rty::Sort {
         <span class="self">self</span>.params[<span class="kw-2">&amp;</span>id].<span class="number">0</span>.clone()
     }
 
@@ -1266,19 +1252,19 @@
         sort.fold_with(<span class="kw-2">&amp;mut </span>OpportunisticResolver { infcx: <span class="self">self </span>})
     }
 
-    <span class="kw">fn </span>fully_resolve(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; std::result::Result&lt;rty::Sort, ()&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fully_resolve(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; std::result::Result&lt;rty::Sort, ()&gt; {
         sort.try_fold_with(<span class="kw-2">&amp;mut </span>FullResolver { infcx: <span class="self">self </span>})
     }
 }
 
 <span class="kw">struct </span>ImplicitParamInferer&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    errors: ErrorCollector&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    errors: Errors&lt;<span class="lifetime">&#39;genv</span>&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; ImplicitParamInferer&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     <span class="kw">fn </span>new(infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>errors = ErrorCollector::new(infcx.genv.sess());
+        <span class="kw">let </span>errors = Errors::new(infcx.genv.sess());
         <span class="self">Self </span>{ infcx, errors }
     }
 

@@ -1,12 +1,12 @@
 var srcIndex = JSON.parse('{\
 "cargo_flux":["",[],["cargo-flux.rs"]],\
 "flux_bin":["",[],["lib.rs","utils.rs"]],\
-"flux_common":["",[],["bug.rs","cache.rs","dbg.rs","format.rs","index.rs","iter.rs","lib.rs","mir_storage.rs"]],\
+"flux_common":["",[],["bug.rs","cache.rs","dbg.rs","format.rs","index.rs","iter.rs","lib.rs","mir_storage.rs","result.rs"]],\
 "flux_config":["",[],["lib.rs"]],\
 "flux_desugar":["",[["resolver",[],["refinement_resolver.rs"]]],["desugar.rs","errors.rs","lib.rs","resolver.rs"]],\
 "flux_driver":["",[],["callbacks.rs","collector.rs","lib.rs"]],\
 "flux_errors":["",[],["lib.rs"]],\
-"flux_fhir_analysis":["",[["wf",[],["errors.rs","mod.rs","sortck.rs"]]],["annot_check.rs","compare_impl_item.rs","conv.rs","lib.rs"]],\
+"flux_fhir_analysis":["",[["wf",[],["errors.rs","mod.rs","param_usage.rs","sortck.rs"]]],["annot_check.rs","compare_impl_item.rs","conv.rs","lib.rs"]],\
 "flux_fixpoint":["",[],["big_int.rs","constraint.rs","lib.rs"]],\
 "flux_macros":["",[["diagnostics",[],["diagnostic.rs","diagnostic_builder.rs","error.rs","fluent.rs","mod.rs","subdiagnostic.rs","utils.rs"]]],["lib.rs"]],\
 "flux_metadata":["",[],["decoder.rs","encoder.rs","lib.rs"]],\

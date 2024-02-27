@@ -134,26 +134,11 @@
 <a href="#134" id="134">134</a>
 <a href="#135" id="135">135</a>
 <a href="#136" id="136">136</a>
-<a href="#137" id="137">137</a>
-<a href="#138" id="138">138</a>
-<a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a>
-<a href="#141" id="141">141</a>
-<a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a>
-<a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::Try;
 
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
+
+<span class="kw">use </span><span class="kw">crate</span>::result::ErrorCollector;
 
 <span class="kw">pub trait </span>IterExt: Iterator {
     <span class="kw">fn </span>try_collect_vec&lt;T, E&gt;(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;T&gt;, E&gt;
@@ -163,7 +148,7 @@
         <span class="self">self</span>.collect()
     }
 
-    <span class="kw">fn </span>collect_errors&lt;T, E, C&gt;(<span class="self">self</span>, collector: C) -&gt; CollectErrors&lt;<span class="self">Self</span>, C&gt;
+    <span class="kw">fn </span>collect_errors&lt;T, E, C&gt;(<span class="self">self</span>, collector: <span class="kw-2">&amp;mut </span>C) -&gt; CollectErrors&lt;<span class="self">Self</span>, C&gt;
     <span class="kw">where
         </span><span class="self">Self</span>: Iterator&lt;Item = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt; + Sized,
         C: ErrorCollector&lt;E&gt;,
@@ -212,31 +197,12 @@
 
 <span class="kw">impl</span>&lt;I: <span class="question-mark">?</span>Sized&gt; IterExt <span class="kw">for </span>I <span class="kw">where </span>I: Iterator {}
 
-<span class="kw">pub trait </span>ErrorCollector&lt;E&gt; {
-    <span class="kw">fn </span>collect(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: E);
-}
-
-<span class="kw">impl</span>&lt;E, F&gt; ErrorCollector&lt;E&gt; <span class="kw">for </span>F
-<span class="kw">where
-    </span>F: FnMut(E),
-{
-    <span class="kw">fn </span>collect(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: E) {
-        <span class="self">self</span>(err);
-    }
-}
-
-<span class="kw">impl </span>ErrorCollector&lt;ErrorGuaranteed&gt; <span class="kw">for </span><span class="kw-2">&amp;mut </span><span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt; {
-    <span class="kw">fn </span>collect(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: ErrorGuaranteed) {
-        <span class="kw-2">**</span><span class="self">self </span>= <span class="prelude-val">Some</span>(err).or(<span class="kw-2">**</span><span class="self">self</span>);
-    }
-}
-
-<span class="kw">pub struct </span>CollectErrors&lt;I, F&gt; {
+<span class="kw">pub struct </span>CollectErrors&lt;<span class="lifetime">&#39;a</span>, I, C&gt; {
     iter: I,
-    collector: F,
+    collector: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>C,
 }
 
-<span class="kw">impl</span>&lt;I, T, E, F&gt; Iterator <span class="kw">for </span>CollectErrors&lt;I, F&gt;
+<span class="kw">impl</span>&lt;I, T, E, F&gt; Iterator <span class="kw">for </span>CollectErrors&lt;<span class="lifetime">&#39;_</span>, I, F&gt;
 <span class="kw">where
     </span>I: Iterator&lt;Item = <span class="prelude-ty">Result</span>&lt;T, E&gt;&gt;,
     F: ErrorCollector&lt;E&gt;,
@@ -256,7 +222,7 @@
             <span class="kw">match </span>x {
                 <span class="prelude-val">Ok</span>(x) =&gt; f(acc, x),
                 <span class="prelude-val">Err</span>(e) =&gt; {
-                    <span class="self">self</span>.collector.collect(e);
+                    <span class="self">self</span>.collector.collect_err(e);
                     <span class="kw">try </span>{ acc }
                 }
             }

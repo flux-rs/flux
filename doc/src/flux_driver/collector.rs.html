@@ -1067,9 +1067,9 @@
 <a href="#1067" id="1067">1067</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
-<span class="kw">use </span>flux_common::iter::IterExt;
+<span class="kw">use </span>flux_common::{iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, CrateConfig};
-<span class="kw">use </span>flux_errors::{FluxSession, ResultExt};
+<span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_middle::{fhir, rustc::lowering::resolve_trait_ref_impl_id, Specs};
 <span class="kw">use </span>flux_syntax::{surface, ParseResult, ParseSess};
 <span class="kw">use </span>itertools::Itertools;

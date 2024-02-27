@@ -498,16 +498,6 @@
 <a href="#498" id="498">498</a>
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
-<a href="#501" id="501">501</a>
-<a href="#502" id="502">502</a>
-<a href="#503" id="503">503</a>
-<a href="#504" id="504">504</a>
-<a href="#505" id="505">505</a>
-<a href="#506" id="506">506</a>
-<a href="#507" id="507">507</a>
-<a href="#508" id="508">508</a>
-<a href="#509" id="509">509</a>
-<a href="#510" id="510">510</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_data_structures;
@@ -526,9 +516,9 @@
 <span class="kw">use </span>std::rc::Rc;
 
 <span class="kw">use </span>conv::bug_on_infer_sort;
-<span class="kw">use </span>flux_common::{bug, dbg};
+<span class="kw">use </span>flux_common::{bug, dbg, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
-<span class="kw">use </span>flux_errors::ResultExt;
+<span class="kw">use </span>flux_errors::Errors;
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
     fhir::{<span class="self">self</span>, FluxLocalDefId},
@@ -944,7 +934,7 @@
 }
 
 <span class="kw">pub fn </span>check_crate_wf(genv: GlobalEnv) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>err: <span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt; = <span class="prelude-val">None</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>errors = Errors::new(genv.sess());
 
     <span class="kw">let </span>qualifiers = genv.map().qualifiers().map(|q| q.name).collect();
 
@@ -957,39 +947,29 @@
             | DefKind::Fn
             | DefKind::AssocFn
             | DefKind::OpaqueTy =&gt; {
-                err = genv.check_wf(def_id).emit(genv.sess()).err().or(err);
+                genv.check_wf(def_id).emit(<span class="kw-2">&amp;</span>errors).ok();
             }
             <span class="kw">_ </span>=&gt; {}
         }
         <span class="kw">if </span><span class="macro">matches!</span>(def_kind, DefKind::Fn | DefKind::AssocFn) {
             <span class="kw">let </span>fn_quals = genv.map().fn_quals_for(def_id);
-            err = wf::check_fn_quals(genv.sess(), <span class="kw-2">&amp;</span>qualifiers, fn_quals)
-                .err()
-                .or(err);
+            wf::check_fn_quals(genv.sess(), <span class="kw-2">&amp;</span>qualifiers, fn_quals).collect_err(<span class="kw-2">&amp;mut </span>errors);
         }
     }
 
     <span class="kw">for </span>defn <span class="kw">in </span>genv.map().spec_funcs() {
-        err = genv
-            .check_wf(FluxLocalDefId::Flux(defn.name))
-            .emit(genv.sess())
-            .err()
-            .or(err);
+        genv.check_wf(FluxLocalDefId::Flux(defn.name))
+            .emit(<span class="kw-2">&amp;</span>errors)
+            .ok();
     }
 
     <span class="kw">for </span>qualifier <span class="kw">in </span>genv.map().qualifiers() {
-        err = genv
-            .check_wf(FluxLocalDefId::Flux(qualifier.name))
-            .emit(genv.sess())
-            .err()
-            .or(err);
+        genv.check_wf(FluxLocalDefId::Flux(qualifier.name))
+            .emit(<span class="kw-2">&amp;</span>errors)
+            .ok();
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(err) = err {
-        <span class="prelude-val">Err</span>(err)
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Ok</span>(())
-    }
+    errors.into_result()
 }
 
 <span class="kw">fn </span>normalize&lt;T: TypeFoldable&gt;(genv: GlobalEnv, t: T) -&gt; QueryResult&lt;T&gt; {

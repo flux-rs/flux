@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["diagnostic_id","emitter"],"struct":["ErrorCollector","ErrorGuaranteed","FluxSession"],"trait":["ResultExt"]};
+window.SIDEBAR_ITEMS = {"fn":["diagnostic_id","emitter"],"struct":["ErrorGuaranteed","Errors","FluxSession"]};
