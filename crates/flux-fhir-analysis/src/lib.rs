@@ -146,14 +146,14 @@ fn predicates_of(
     }
 }
 
-fn assoc_refinements_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocPredicates {
+fn assoc_refinements_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocRefinements {
     let predicates = match &genv.map().expect_item(local_id).kind {
         fhir::ItemKind::Trait(trait_) => {
             trait_
                 .assoc_refinements
                 .iter()
                 .map(|assoc_reft| {
-                    rty::AssocPredicate {
+                    rty::AssocRefinement {
                         container_def_id: local_id.to_def_id(),
                         name: assoc_reft.name,
                     }
@@ -165,7 +165,7 @@ fn assoc_refinements_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocPred
                 .assoc_refinements
                 .iter()
                 .map(|assoc_reft| {
-                    rty::AssocPredicate {
+                    rty::AssocRefinement {
                         container_def_id: local_id.to_def_id(),
                         name: assoc_reft.name,
                     }
@@ -176,7 +176,7 @@ fn assoc_refinements_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocPred
             bug!("expected trait or impl");
         }
     };
-    rty::AssocPredicates { predicates }
+    rty::AssocRefinements { predicates }
 }
 
 fn assoc_refinement_def(

@@ -215,24 +215,24 @@ pub struct CoroutineObligPredicate {
 }
 
 #[derive(Debug, Clone)]
-pub struct AssocPredicates {
-    pub predicates: List<AssocPredicate>,
+pub struct AssocRefinements {
+    pub predicates: List<AssocRefinement>,
 }
 
-impl Default for AssocPredicates {
+impl Default for AssocRefinements {
     fn default() -> Self {
         Self { predicates: List::empty() }
     }
 }
 
-impl AssocPredicates {
-    pub fn find(&self, name: Symbol) -> Option<&AssocPredicate> {
+impl AssocRefinements {
+    pub fn find(&self, name: Symbol) -> Option<&AssocRefinement> {
         self.predicates.iter().find(|it| it.name == name)
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct AssocPredicate {
+pub struct AssocRefinement {
     /// [`DefId`] of the container, i.e., the impl block or trait.
     pub container_def_id: DefId,
     pub name: Symbol,
@@ -1951,7 +1951,7 @@ impl_slice_internable!(
     Invariant,
     BoundVariableKind,
     RefineParam,
-    AssocPredicate,
+    AssocRefinement,
 );
 
 #[macro_export]

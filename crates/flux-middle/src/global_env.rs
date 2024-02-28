@@ -240,7 +240,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.predicates_of(self, def_id.into())
     }
 
-    pub fn assoc_refinements_of(self, def_id: impl Into<DefId>) -> rty::AssocPredicates {
+    pub fn assoc_refinements_of(self, def_id: impl Into<DefId>) -> rty::AssocRefinements {
         self.inner.queries.assoc_refinements_of(self, def_id.into())
     }
 

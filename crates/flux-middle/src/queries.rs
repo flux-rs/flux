@@ -67,7 +67,7 @@ pub struct Providers {
     pub refinement_generics_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::RefinementGenerics>,
     pub predicates_of:
         fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>>,
-    pub assoc_refinements_of: fn(GlobalEnv, LocalDefId) -> rty::AssocPredicates,
+    pub assoc_refinements_of: fn(GlobalEnv, LocalDefId) -> rty::AssocRefinements,
     pub sort_of_assoc_reft:
         fn(GlobalEnv, LocalDefId, Symbol) -> Option<rty::EarlyBinder<rty::FuncSort>>,
     pub assoc_refinement_def:
@@ -126,7 +126,7 @@ pub struct Queries<'genv, 'tcx> {
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     refinement_generics_of: Cache<DefId, QueryResult<rty::RefinementGenerics>>,
     predicates_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
-    assoc_refinements_of: Cache<DefId, rty::AssocPredicates>,
+    assoc_refinements_of: Cache<DefId, rty::AssocRefinements>,
     assoc_refinement_def: Cache<(DefId, Symbol), QueryResult<rty::EarlyBinder<rty::Lambda>>>,
     sort_of_assoc_reft: Cache<(DefId, Symbol), Option<rty::EarlyBinder<rty::FuncSort>>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
@@ -397,13 +397,13 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv,
         def_id: DefId,
-    ) -> rty::AssocPredicates {
+    ) -> rty::AssocRefinements {
         run_with_cache(&self.assoc_refinements_of, def_id, || {
             let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.assoc_refinements_of)(genv, local_id)
             } else {
-                rty::AssocPredicates::default()
+                rty::AssocRefinements::default()
             }
         })
     }
