@@ -464,20 +464,6 @@
 <a href="#464" id="464">464</a>
 <a href="#465" id="465">465</a>
 <a href="#466" id="466">466</a>
-<a href="#467" id="467">467</a>
-<a href="#468" id="468">468</a>
-<a href="#469" id="469">469</a>
-<a href="#470" id="470">470</a>
-<a href="#471" id="471">471</a>
-<a href="#472" id="472">472</a>
-<a href="#473" id="473">473</a>
-<a href="#474" id="474">474</a>
-<a href="#475" id="475">475</a>
-<a href="#476" id="476">476</a>
-<a href="#477" id="477">477</a>
-<a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_data_structures;
@@ -873,23 +859,9 @@
         <span class="kw">let </span>parent = genv.tcx().local_parent(def_id);
         <span class="kw">return </span>genv.check_wf(parent);
     }
-    <span class="kw">let </span>wfckresults = <span class="kw">match </span>genv.map().node(def_id) {
-        fhir::Node::Item(item) =&gt; {
-            <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_item(genv, item)<span class="question-mark">?</span>;
-            annot_check::check_item(genv, <span class="kw-2">&amp;mut </span>wfckresults, item)<span class="question-mark">?</span>;
-            wfckresults
-        }
-        fhir::Node::TraitItem(trait_item) =&gt; {
-            <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_trait_item(genv, trait_item)<span class="question-mark">?</span>;
-            annot_check::check_trait_item(genv, <span class="kw-2">&amp;mut </span>wfckresults, trait_item)<span class="question-mark">?</span>;
-            wfckresults
-        }
-        fhir::Node::ImplItem(impl_item) =&gt; {
-            <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_impl_item(genv, impl_item)<span class="question-mark">?</span>;
-            annot_check::check_impl_item(genv, <span class="kw-2">&amp;mut </span>wfckresults, impl_item)<span class="question-mark">?</span>;
-            wfckresults
-        }
-    };
+    <span class="kw">let </span>node = genv.map().node(def_id);
+    <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
+    annot_check::check_node(genv, <span class="kw-2">&amp;mut </span>wfckresults, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(Rc::new(wfckresults))
 }
 

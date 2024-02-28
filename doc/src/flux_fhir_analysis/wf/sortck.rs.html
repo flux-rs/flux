@@ -698,13 +698,6 @@
 <a href="#698" id="698">698</a>
 <a href="#699" id="699">699</a>
 <a href="#700" id="700">700</a>
-<a href="#701" id="701">701</a>
-<a href="#702" id="702">702</a>
-<a href="#703" id="703">703</a>
-<a href="#704" id="704">704</a>
-<a href="#705" id="705">705</a>
-<a href="#706" id="706">706</a>
-<a href="#707" id="707">707</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
@@ -1173,7 +1166,7 @@
             .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">&quot;failed to equate sorts: `{sort1:?}` `{sort2:?}`&quot;</span>))
     }
 
-    <span class="kw">fn </span>next_sort_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::Sort {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>next_sort_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::Sort {
         rty::Sort::Infer(rty::SortVar(<span class="self">self</span>.next_sort_vid()))
     }
 
@@ -1223,10 +1216,6 @@
         </span>}
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infer_implicit_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty) -&gt; <span class="prelude-ty">Result </span>{
-        ImplicitParamInferer::run(<span class="self">self</span>, |cx| cx.visit_ty(ty))
-    }
-
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_results(<span class="self">self</span>) -&gt; WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt; {
         <span class="self">self</span>.wfckresults
     }
@@ -1260,14 +1249,11 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; ImplicitParamInferer&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>run(
-        infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>ImplicitParamInferer),
-    ) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infer(infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, node: <span class="kw-2">&amp;</span>fhir::Node) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>errors = Errors::new(infcx.genv.sess());
-        <span class="kw">let </span><span class="kw-2">mut </span>cx = <span class="self">Self </span>{ infcx, errors };
-        f(<span class="kw-2">&amp;mut </span>cx);
-        cx.errors.into_result()
+        <span class="kw">let </span><span class="kw-2">mut </span>vis = <span class="self">Self </span>{ infcx, errors };
+        vis.visit_node(node);
+        vis.errors.into_result()
     }
 
     <span class="kw">fn </span>infer_implicit_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, idx: <span class="kw-2">&amp;</span>fhir::RefineArg, expected: <span class="kw-2">&amp;</span>rty::Sort) {

@@ -209,14 +209,6 @@
 <a href="#209" id="209">209</a>
 <a href="#210" id="210">210</a>
 <a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
-<a href="#215" id="215">215</a>
-<a href="#216" id="216">216</a>
-<a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Code to check whether refinement parameters are used in allowed positions.
 //!
 //! The correct usage of a parameter depends on whether its infer mode is [evar] or [kvar].
@@ -244,28 +236,20 @@
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_item(infcx: <span class="kw-2">&amp;</span>InferCtxt, item: <span class="kw-2">&amp;</span>fhir::Item) -&gt; <span class="prelude-ty">Result </span>{
-    ParamUsesChecker::new(infcx).run(|ck| ck.visit_item(item))
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_trait_item(infcx: <span class="kw-2">&amp;</span>InferCtxt, trait_item: <span class="kw-2">&amp;</span>fhir::TraitItem) -&gt; <span class="prelude-ty">Result </span>{
-    ParamUsesChecker::new(infcx).run(|ck| ck.visit_trait_item(trait_item))
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_impl_item(infcx: <span class="kw-2">&amp;</span>InferCtxt, impl_item: <span class="kw-2">&amp;</span>fhir::ImplItem) -&gt; <span class="prelude-ty">Result </span>{
-    ParamUsesChecker::new(infcx).run(|ck| ck.visit_impl_item(impl_item))
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_node(infcx: <span class="kw-2">&amp;</span>InferCtxt, node: <span class="kw-2">&amp;</span>fhir::Node) -&gt; <span class="prelude-ty">Result </span>{
+    ParamUsesChecker::new(infcx).run(|ck| ck.visit_node(node))
 }
 
 <span class="kw">struct </span>ParamUsesChecker&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     <span class="doccomment">/// Keeps track of all refinement parameters that are used as an index such that their value is fully
-    /// determined. This is called xi because in [Focusing on Liquid Refinement Typing], the well-formedness
-    /// judgment uses an uppercase Xi (Ξ) for a context that is similar in purpose.
+    /// determined. The name xi is taken from [1], where the well-formedness judgment uses an uppercase
+    /// Xi (Ξ) for a context that is similar in purpose.
     ///
     /// This is basically a set of [`fhir::ParamId`] implemented with a snapshot map such that elements
     /// can be removed in batch when there&#39;s a change in polarity.
     ///
-    /// [Focusing on Liquid Refinement Typing]: https://arxiv.org/pdf/2209.13000.pdf
+    /// [1]: https://arxiv.org/pdf/2209.13000.pdf
     </span>xi: snapshot_map::SnapshotMap&lt;fhir::ParamId, ()&gt;,
     errors: Errors&lt;<span class="lifetime">&#39;genv</span>&gt;,
 }

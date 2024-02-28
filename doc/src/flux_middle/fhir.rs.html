@@ -1389,6 +1389,14 @@
 <a href="#1389" id="1389">1389</a>
 <a href="#1390" id="1390">1390</a>
 <a href="#1391" id="1391">1391</a>
+<a href="#1392" id="1392">1392</a>
+<a href="#1393" id="1393">1393</a>
+<a href="#1394" id="1394">1394</a>
+<a href="#1395" id="1395">1395</a>
+<a href="#1396" id="1396">1396</a>
+<a href="#1397" id="1397">1397</a>
+<a href="#1398" id="1398">1398</a>
+<a href="#1399" id="1399">1399</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1494,6 +1502,14 @@
             Node::Item(item) =&gt; item.generics(),
             Node::TraitItem(trait_item) =&gt; trait_item.generics(),
             Node::ImplItem(impl_item) =&gt; impl_item.generics(),
+        }
+    }
+
+    <span class="kw">pub fn </span>owner_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; OwnerId {
+        <span class="kw">match </span><span class="self">self </span>{
+            Node::Item(item) =&gt; item.owner_id,
+            Node::TraitItem(trait_item) =&gt; trait_item.owner_id,
+            Node::ImplItem(impl_item) =&gt; impl_item.owner_id,
         }
     }
 }
