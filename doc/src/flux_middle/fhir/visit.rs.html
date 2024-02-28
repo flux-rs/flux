@@ -681,7 +681,7 @@
 <span class="kw">pub fn </span>walk_ty_alias&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, ty_alias: <span class="kw-2">&amp;</span>TyAlias) {
     vis.visit_generics(<span class="kw-2">&amp;</span>ty_alias.generics);
     vis.visit_ty(<span class="kw-2">&amp;</span>ty_alias.ty);
-    <span class="macro">walk_list!</span>(vis, visit_refine_param, ty_alias.index_params);
+    <span class="macro">walk_list!</span>(vis, visit_refine_param, ty_alias.params);
 }
 
 <span class="kw">pub fn </span>walk_opaque_ty&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, opaque_ty: <span class="kw-2">&amp;</span>OpaqueTy) {

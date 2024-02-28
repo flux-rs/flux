@@ -1121,7 +1121,6 @@
 <a href="#1121" id="1121">1121</a>
 <a href="#1122" id="1122">1122</a>
 <a href="#1123" id="1123">1123</a>
-<a href="#1124" id="1124">1124</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter, ops::ControlFlow};
@@ -1339,14 +1338,12 @@
     orig: rty::KVid,
 }
 
-<span class="kw">type </span>KVidMap = UnordMap&lt;rty::KVid, Vec&lt;fixpoint::KVid&gt;&gt;;
-
 <span class="attr">#[derive(Default)]
 </span><span class="kw">struct </span>KVarEncodingCtxt {
     <span class="doccomment">/// List of all kvars that need to be defined in fixpoint
     </span>kvars: IndexVec&lt;fixpoint::KVid, FixpointKVar&gt;,
     <span class="doccomment">/// A mapping from [`rty::KVid`] to the list of [`fixpoint::KVid`]s that encode the kvar.
-    </span>map: KVidMap,
+    </span>map: UnordMap&lt;rty::KVid, Vec&lt;fixpoint::KVid&gt;&gt;,
 }
 
 <span class="kw">impl </span>KVarEncodingCtxt {
@@ -2093,14 +2090,14 @@
             }
             rty::Sort::Tuple(sorts) =&gt; {
                 <span class="kw">let </span>arity = sorts.len();
-                <span class="self">self</span>.apply_bin_rel(sorts, rel, e1, e2, env, |field| {
+                <span class="self">self</span>.apply_bin_rel_rec(sorts, rel, e1, e2, env, |field| {
                     rty::FieldProj::Tuple { arity, field }
                 })
             }
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) =&gt; {
                 <span class="kw">let </span>def_id = sort_def.did();
                 <span class="kw">let </span>sorts = sort_def.sorts(args);
-                <span class="self">self</span>.apply_bin_rel(<span class="kw-2">&amp;</span>sorts, rel, e1, e2, env, |field| {
+                <span class="self">self</span>.apply_bin_rel_rec(<span class="kw-2">&amp;</span>sorts, rel, e1, e2, env, |field| {
                     rty::FieldProj::Adt { def_id, field }
                 })
             }
@@ -2114,7 +2111,8 @@
         }
     }
 
-    <span class="kw">fn </span>apply_bin_rel(
+    <span class="doccomment">/// Apply binary relation recursively over aggregate expessions
+    </span><span class="kw">fn </span>apply_bin_rel_rec(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         sorts: <span class="kw-2">&amp;</span>[rty::Sort],
         rel: fixpoint::BinRel,

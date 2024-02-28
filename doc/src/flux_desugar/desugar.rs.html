@@ -1381,16 +1381,6 @@
 <a href="#1381" id="1381">1381</a>
 <a href="#1382" id="1382">1382</a>
 <a href="#1383" id="1383">1383</a>
-<a href="#1384" id="1384">1384</a>
-<a href="#1385" id="1385">1385</a>
-<a href="#1386" id="1386">1386</a>
-<a href="#1387" id="1387">1387</a>
-<a href="#1388" id="1388">1388</a>
-<a href="#1389" id="1389">1389</a>
-<a href="#1390" id="1390">1390</a>
-<a href="#1391" id="1391">1391</a>
-<a href="#1392" id="1392">1392</a>
-<a href="#1393" id="1393">1393</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -1402,7 +1392,6 @@
 };
 <span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, NodeId};
 <span class="kw">use </span>hir::{def::DefKind, ItemKind};
-<span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 <span class="kw">use </span>rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 <span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
@@ -1592,7 +1581,7 @@
             })
             .collect();
 
-        <span class="comment">// 2. Desugar surface params and resolve them to its corresponding def id or self param.
+        <span class="comment">// 2. Desugar surface params and resolve them to their corresponding def id or self param.
         </span><span class="kw">let </span><span class="kw-2">mut </span>surface_params = FxHashMap::default();
         <span class="kw">let </span><span class="kw-2">mut </span>self_kind = <span class="prelude-val">None</span>;
         <span class="kw">for </span>param <span class="kw">in </span><span class="kw-2">&amp;</span>generics.params {
@@ -1683,15 +1672,15 @@
         <span class="kw">let </span>generic_id_to_var_idx =
             collect_generics_in_refined_by(generics, <span class="self">self</span>.resolver_output, refined_by);
 
-        <span class="kw">let </span>index_params = refined_by
-            .index_params
+        <span class="kw">let </span>fields = refined_by
+            .fields
             .iter()
             .map(|param| {
                 (param.name.name, <span class="self">self</span>.desugar_sort(<span class="kw-2">&amp;</span>param.sort, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>generic_id_to_var_idx)))
             })
-            .collect_vec();
+            .collect();
 
-        <span class="prelude-val">Ok</span>(fhir::RefinedBy::new(index_params, generic_id_to_var_idx, refined_by.span))
+        <span class="prelude-val">Ok</span>(fhir::RefinedBy::new(fields, generic_id_to_var_idx, refined_by.span))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_struct_def(
@@ -1737,12 +1726,8 @@
             fhir::StructKind::Transparent { fields }
         };
 
-        <span class="kw">let </span>params = <span class="self">self</span>.desugar_refine_params(
-            struct_def
-                .refined_by
-                .as_ref()
-                .map_or(<span class="kw-2">&amp;</span>[], |it| <span class="kw-2">&amp;</span>it.index_params),
-        );
+        <span class="kw">let </span>params =
+            <span class="self">self</span>.desugar_refine_params(struct_def.refined_by.as_ref().map_or(<span class="kw-2">&amp;</span>[], |it| <span class="kw-2">&amp;</span>it.fields));
         <span class="kw">let </span>struct_def = fhir::StructDef {
             generics,
             refined_by: <span class="self">self</span>.genv.alloc(refined_by),
@@ -1779,12 +1764,8 @@
             <span class="self">self</span>.desugar_expr(invariant)
         })<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>params = <span class="self">self</span>.desugar_refine_params(
-            enum_def
-                .refined_by
-                .as_ref()
-                .map_or(<span class="kw-2">&amp;</span>[], |it| <span class="kw-2">&amp;</span>it.index_params),
-        );
+        <span class="kw">let </span>params =
+            <span class="self">self</span>.desugar_refine_params(enum_def.refined_by.as_ref().map_or(<span class="kw-2">&amp;</span>[], |it| <span class="kw-2">&amp;</span>it.fields));
         <span class="kw">let </span>enum_def = fhir::EnumDef {
             generics,
             refined_by: <span class="self">self</span>.genv.alloc(refined_by),
@@ -1865,12 +1846,12 @@
             </span>.genv
             .alloc_slice(<span class="kw-2">&amp;</span><span class="self">self</span>.desugar_refinement_generics(<span class="kw-2">&amp;</span>ty_alias.generics));
 
-        <span class="kw">let </span>index_params = <span class="self">self</span>.desugar_refine_params(<span class="kw-2">&amp;</span>ty_alias.refined_by.index_params);
+        <span class="kw">let </span>params = <span class="self">self</span>.desugar_refine_params(<span class="kw-2">&amp;</span>ty_alias.refined_by.fields);
 
         <span class="kw">let </span>ty_alias = fhir::TyAlias {
             refined_by: <span class="self">self</span>.genv.alloc(refined_by),
             generics,
-            index_params,
+            params,
             ty,
             span: ty_alias.span,
             lifted: <span class="bool-val">false</span>,
@@ -1892,8 +1873,7 @@
 
             <span class="kw">let </span><span class="kw-2">mut </span>requires = <span class="macro">vec!</span>[];
 
-            <span class="comment">// Desugar generics after we have gathered the input params
-            </span><span class="kw">let </span><span class="kw-2">mut </span>generics = <span class="self">self</span>.desugar_generics(<span class="kw-2">&amp;</span>fn_sig.generics)<span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>generics = <span class="self">self</span>.desugar_generics(<span class="kw-2">&amp;</span>fn_sig.generics)<span class="question-mark">?</span>;
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(expr) = <span class="kw-2">&amp;</span>fn_sig.requires {
                 <span class="kw">let </span>pred = <span class="self">self</span>.desugar_expr(expr)<span class="question-mark">?</span>;

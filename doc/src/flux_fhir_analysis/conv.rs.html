@@ -1573,7 +1573,7 @@
         .map(|def_id| genv.def_id_to_param_ty(def_id.expect_local()))
         .collect();
     <span class="kw">let </span>fields = refined_by
-        .index_params
+        .fields
         .iter()
         .map(|(name, sort)| (<span class="kw-2">*</span>name, conv_sort(genv, sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)))
         .collect_vec();
@@ -1593,7 +1593,7 @@
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
 
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, alias.generics.refinement_params, wfckresults);
-    env.push_layer(Layer::record(<span class="kw-2">&amp;</span>cx, def_id, alias.index_params));
+    env.push_layer(Layer::record(<span class="kw-2">&amp;</span>cx, def_id, alias.params));
 
     <span class="kw">let </span>ty = cx.conv_ty(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>alias.ty)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)))

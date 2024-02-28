@@ -694,7 +694,7 @@
 }
 
 <span class="kw">pub fn </span>walk_refined_by&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, refined_by: <span class="kw-2">&amp;</span>RefinedBy) {
-    <span class="macro">walk_list!</span>(vis, visit_refine_param, <span class="kw-2">&amp;</span>refined_by.index_params);
+    <span class="macro">walk_list!</span>(vis, visit_refine_param, <span class="kw-2">&amp;</span>refined_by.fields);
 }
 
 <span class="kw">pub fn </span>walk_refine_param&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, param: <span class="kw-2">&amp;</span>RefineParam) {
