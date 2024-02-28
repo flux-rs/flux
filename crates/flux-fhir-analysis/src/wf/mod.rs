@@ -29,6 +29,28 @@ use crate::conv::{self, bug_on_infer_sort};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
+pub(crate) fn check_flux_item<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    item: &fhir::FluxItem,
+) -> Result<WfckResults<'genv>> {
+    let owner = FluxOwnerId::Flux(item.name());
+    let mut infcx = InferCtxt::new(genv, owner);
+    match item {
+        fhir::FluxItem::Qualifier(qualifier) => {
+            infcx.insert_params(qualifier.args);
+            infcx.check_expr(&qualifier.expr, &rty::Sort::Bool)?;
+        }
+        fhir::FluxItem::Func(func) => {
+            if let Some(body) = &func.body {
+                infcx.insert_params(func.args);
+                let output = conv::conv_sort(genv, &func.sort, &mut bug_on_infer_sort);
+                infcx.check_expr(body, &output)?;
+            }
+        }
+    }
+    Ok(infcx.into_results())
+}
+
 pub(crate) fn check_node<'genv>(
     genv: GlobalEnv<'genv, '_>,
     node: &fhir::Node,
@@ -39,11 +61,11 @@ pub(crate) fn check_node<'genv>(
 
     ImplicitParamInferer::infer(&mut infcx, node)?;
 
-    SortCk::check_node(&mut infcx, node)?;
+    Wf::check(&mut infcx, node)?;
 
     resolve_params(&mut infcx, node)?;
 
-    param_usage::check_node(&infcx, node)?;
+    param_usage::check(&infcx, node)?;
 
     Ok(infcx.into_results())
 }
@@ -77,32 +99,6 @@ fn resolve_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
     err.into_result()
 }
 
-pub(crate) fn check_qualifier<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    qualifier: &fhir::Qualifier,
-) -> Result<WfckResults<'genv>> {
-    let owner = FluxOwnerId::Flux(qualifier.name);
-    let mut infcx = InferCtxt::new(genv, owner);
-    infcx.insert_params(qualifier.args);
-
-    infcx.check_expr(&qualifier.expr, &rty::Sort::Bool)?;
-    Ok(infcx.into_results())
-}
-
-pub(crate) fn check_spec_func<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    func: &fhir::SpecFunc,
-) -> Result<WfckResults<'genv>> {
-    let owner = FluxOwnerId::Flux(func.name);
-    let mut infcx = InferCtxt::new(genv, owner);
-    if let Some(body) = &func.body {
-        infcx.insert_params(func.args);
-        let output = conv::conv_sort(genv, &func.sort, &mut bug_on_infer_sort);
-        infcx.check_expr(body, &output)?;
-    }
-    Ok(infcx.into_results())
-}
-
 pub(crate) fn check_fn_quals(
     sess: &FluxSession,
     qualifiers: &UnordSet<Symbol>,
@@ -117,165 +113,17 @@ pub(crate) fn check_fn_quals(
     Ok(())
 }
 
-struct SortCk<'genv, 'tcx> {
-    genv: GlobalEnv<'genv, 'tcx>,
+struct Wf<'a, 'genv, 'tcx> {
+    infcx: &'a mut InferCtxt<'genv, 'tcx>,
     errors: Errors<'genv>,
 }
 
-impl<'genv, 'tcx> SortCk<'genv, 'tcx> {
-    fn check_node(infcx: &mut InferCtxt<'genv, 'tcx>, node: &fhir::Node) -> Result {
-        let mut wf = SortCk { genv: infcx.genv, errors: Errors::new(infcx.genv.sess()) };
-        match node {
-            fhir::Node::Item(item) => wf.check_item(infcx, item),
-            fhir::Node::TraitItem(trait_item) => wf.check_trait_item(infcx, trait_item),
-            fhir::Node::ImplItem(impl_item) => wf.check_impl_item(infcx, impl_item),
-        }
-        wf.errors.into_result()
-    }
-
-    fn check_item(&mut self, infcx: &mut InferCtxt, item: &fhir::Item) {
-        match &item.kind {
-            fhir::ItemKind::Enum(enum_def) => {
-                self.check_enum_def(infcx, enum_def);
-            }
-            fhir::ItemKind::Struct(struct_def) => {
-                self.check_struct_def(infcx, struct_def);
-            }
-            fhir::ItemKind::TyAlias(ty_alias) => {
-                self.check_ty_alias(infcx, ty_alias);
-            }
-            fhir::ItemKind::Impl(impl_) => {
-                self.check_impl(infcx, impl_);
-            }
-            fhir::ItemKind::Fn(fn_sig) => {
-                self.check_fn_decl(infcx, fn_sig.decl);
-            }
-            fhir::ItemKind::OpaqueTy(opaque_ty) => {
-                self.check_opaque_ty(infcx, opaque_ty);
-            }
-            fhir::ItemKind::Trait(_) => {}
-        }
-    }
-
-    fn check_trait_item(&mut self, infcx: &mut InferCtxt, trait_item: &fhir::TraitItem) {
-        match &trait_item.kind {
-            fhir::TraitItemKind::Fn(fn_sig) => {
-                self.check_fn_decl(infcx, fn_sig.decl);
-            }
-            fhir::TraitItemKind::Type(_) => {}
-        }
-    }
-
-    fn check_impl_item(&mut self, infcx: &mut InferCtxt, impl_item: &fhir::ImplItem) {
-        match &impl_item.kind {
-            fhir::ImplItemKind::Fn(fn_sig) => {
-                self.check_fn_decl(infcx, fn_sig.decl);
-            }
-            fhir::ImplItemKind::Type(_) => {}
-        }
-    }
-
-    fn check_generic_predicates(
-        &mut self,
-        infcx: &mut InferCtxt,
-        predicates: &[fhir::WhereBoundPredicate],
-    ) {
-        for predicate in predicates {
-            self.check_generic_predicate(infcx, predicate);
-        }
-    }
-
-    fn check_generic_bound(&mut self, infcx: &mut InferCtxt, bound: &fhir::GenericBound) {
-        match bound {
-            fhir::GenericBound::Trait(trait_ref, _) => self.check_path(infcx, &trait_ref.trait_ref),
-            fhir::GenericBound::LangItemTrait(_, args, bindings) => {
-                self.check_generic_args(infcx, args);
-                self.check_type_bindings(infcx, bindings);
-            }
-        }
-    }
-
-    fn check_opaque_ty(&mut self, infcx: &mut InferCtxt, opaque_ty: &fhir::OpaqueTy) {
-        for bound in opaque_ty.bounds {
-            self.check_generic_bound(infcx, bound);
-        }
-    }
-
-    fn check_impl(&mut self, infcx: &mut InferCtxt, impl_: &fhir::Impl) {
-        for assoc_reft in impl_.assoc_refinements {
-            let output = conv::conv_sort(self.genv, &assoc_reft.output, &mut bug_on_infer_sort);
-            infcx
-                .check_expr(&assoc_reft.body, &output)
-                .collect_err(&mut self.errors);
-        }
-    }
-
-    fn check_ty_alias(&mut self, infcx: &mut InferCtxt, ty_alias: &fhir::TyAlias) {
-        self.check_type(infcx, &ty_alias.ty);
-    }
-
-    fn check_struct_def(&mut self, infcx: &mut InferCtxt, struct_def: &fhir::StructDef) {
-        for invariant in struct_def.invariants {
-            infcx
-                .check_expr(invariant, &rty::Sort::Bool)
-                .collect_err(&mut self.errors);
-        }
-
-        if let fhir::StructKind::Transparent { fields } = struct_def.kind {
-            for field_def in fields {
-                self.check_type(infcx, &field_def.ty);
-            }
-        }
-    }
-
-    fn check_enum_def(&mut self, infcx: &mut InferCtxt, enum_def: &fhir::EnumDef) {
-        for invariant in enum_def.invariants {
-            infcx
-                .check_expr(invariant, &rty::Sort::Bool)
-                .collect_err(&mut self.errors);
-        }
-
-        for variant in enum_def.variants {
-            self.check_variant(infcx, variant);
-        }
-    }
-
-    fn check_variant(&mut self, infcx: &mut InferCtxt, variant: &fhir::VariantDef) {
-        for field in variant.fields {
-            self.check_type(infcx, &field.ty);
-        }
-
-        let expected = {
-            let bty = &variant.ret.bty;
-            self.genv.sort_of_bty(bty).unwrap_or_else(|| {
-                span_bug!(variant.ret.bty.span, "unrefinable base type: `{bty:?}`")
-            })
-        };
-
-        infcx
-            .check_refine_arg(&variant.ret.idx, &expected)
-            .collect_err(&mut self.errors);
-    }
-
-    fn check_fn_decl(&mut self, infcx: &mut InferCtxt, decl: &fhir::FnDecl) {
-        for arg in decl.args {
-            self.check_type(infcx, arg);
-        }
-
-        for constr in decl.requires {
-            self.check_constraint(infcx, constr);
-        }
-
-        self.check_generic_predicates(infcx, decl.generics.predicates);
-        self.check_fn_output(infcx, &decl.output);
-        self.check_output_locs(decl);
-    }
-
-    fn check_fn_output(&mut self, infcx: &mut InferCtxt, fn_output: &fhir::FnOutput) {
-        self.check_type(infcx, &fn_output.ret);
-        for constr in fn_output.ensures {
-            self.check_constraint(infcx, constr);
-        }
+impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
+    fn check(infcx: &'a mut InferCtxt<'genv, 'tcx>, node: &fhir::Node) -> Result {
+        let errors = Errors::new(infcx.genv.sess());
+        let mut vis = Wf { infcx, errors };
+        vis.visit_node(node);
+        vis.errors.into_result()
     }
 
     fn check_output_locs(&mut self, fn_decl: &fhir::FnDecl) {
@@ -298,144 +146,118 @@ impl<'genv, 'tcx> SortCk<'genv, 'tcx> {
             }
         }
     }
+}
 
-    fn check_constraint(&mut self, infcx: &mut InferCtxt, constr: &fhir::Constraint) {
-        match constr {
+impl fhir::visit::Visitor for Wf<'_, '_, '_> {
+    fn visit_impl_assoc_reft(&mut self, assoc_reft: &fhir::ImplAssocReft) {
+        let output = conv::conv_sort(self.infcx.genv, &assoc_reft.output, &mut bug_on_infer_sort);
+        self.infcx
+            .check_expr(&assoc_reft.body, &output)
+            .collect_err(&mut self.errors);
+    }
+
+    fn visit_struct_def(&mut self, struct_def: &fhir::StructDef) {
+        for invariant in struct_def.invariants {
+            self.infcx
+                .check_expr(invariant, &rty::Sort::Bool)
+                .collect_err(&mut self.errors);
+        }
+        fhir::visit::walk_struct_def(self, struct_def);
+    }
+
+    fn visit_enum_def(&mut self, enum_def: &fhir::EnumDef) {
+        for invariant in enum_def.invariants {
+            self.infcx
+                .check_expr(invariant, &rty::Sort::Bool)
+                .collect_err(&mut self.errors);
+        }
+        fhir::visit::walk_enum_def(self, enum_def);
+    }
+
+    fn visit_variant_ret(&mut self, ret: &fhir::VariantRet) {
+        let bty = &ret.bty;
+        let expected = self
+            .infcx
+            .genv
+            .sort_of_bty(bty)
+            .unwrap_or_else(|| span_bug!(bty.span, "unrefinable base type: `{bty:?}`"));
+        self.infcx
+            .check_refine_arg(&ret.idx, &expected)
+            .collect_err(&mut self.errors);
+    }
+
+    fn visit_fn_decl(&mut self, decl: &fhir::FnDecl) {
+        fhir::visit::walk_fn_decl(self, decl);
+        self.check_output_locs(decl);
+    }
+
+    fn visit_constraint(&mut self, constraint: &fhir::Constraint) {
+        match constraint {
             fhir::Constraint::Type(loc, ty) => {
-                infcx.check_loc(loc).collect_err(&mut self.errors);
-                self.check_type(infcx, ty);
+                self.infcx.check_loc(loc).collect_err(&mut self.errors);
+                self.visit_ty(ty);
             }
             fhir::Constraint::Pred(pred) => {
-                infcx
+                self.infcx
                     .check_expr(pred, &rty::Sort::Bool)
                     .collect_err(&mut self.errors);
             }
         }
     }
 
-    fn check_type(&mut self, infcx: &mut InferCtxt, ty: &fhir::Ty) {
+    fn visit_ty(&mut self, ty: &fhir::Ty) {
         match &ty.kind {
-            fhir::TyKind::BaseTy(bty) => self.check_base_ty(infcx, bty),
             fhir::TyKind::Indexed(bty, idx) => {
-                if let Some(expected) = self.genv.sort_of_bty(bty) {
-                    infcx
+                if let Some(expected) = self.infcx.genv.sort_of_bty(bty) {
+                    self.infcx
                         .check_refine_arg(idx, &expected)
                         .collect_err(&mut self.errors);
                 } else if idx.is_colon_param().is_none() {
                     self.errors
                         .emit(errors::RefinedUnrefinableType::new(bty.span));
                 }
-                self.check_base_ty(infcx, bty);
-            }
-            fhir::TyKind::Exists(_, ty) => {
-                self.check_type(infcx, ty);
+                self.visit_bty(bty);
             }
             fhir::TyKind::Ptr(_, loc) => {
-                infcx.check_loc(loc).collect_err(&mut self.errors);
-            }
-            fhir::TyKind::Tuple(tys) => {
-                for ty in *tys {
-                    self.check_type(infcx, ty);
-                }
-            }
-            fhir::TyKind::Ref(_, fhir::MutTy { ty, .. }) | fhir::TyKind::Array(ty, _) => {
-                self.check_type(infcx, ty);
+                self.infcx.check_loc(loc).collect_err(&mut self.errors);
             }
             fhir::TyKind::Constr(pred, ty) => {
-                self.check_type(infcx, ty);
-                infcx
+                self.visit_ty(ty);
+                self.infcx
                     .check_expr(pred, &rty::Sort::Bool)
                     .collect_err(&mut self.errors);
             }
-            fhir::TyKind::OpaqueDef(_item_id, args, _refine_args, _) => {
-                // TODO sanity check the _refine_args (though they should never fail!) but we'd need their expected sorts
-                self.check_generic_args(infcx, args);
+            _ => fhir::visit::walk_ty(self, ty),
+        }
+    }
+
+    fn visit_path(&mut self, path: &fhir::Path) {
+        if let fhir::Res::Def(DefKind::TyAlias, def_id) = path.res {
+            let Some(generics) = self
+                .infcx
+                .genv
+                .refinement_generics_of(def_id)
+                .emit(&self.errors)
+                .ok()
+            else {
+                return;
+            };
+
+            if path.refine.len() != generics.params.len() {
+                self.errors.emit(errors::EarlyBoundArgCountMismatch::new(
+                    path.span,
+                    generics.params.len(),
+                    path.refine.len(),
+                ));
             }
-            fhir::TyKind::RawPtr(ty, _) => self.check_type(infcx, ty),
-            fhir::TyKind::Hole(_) | fhir::TyKind::Never => {}
-        }
-    }
 
-    fn check_generic_predicate(
-        &mut self,
-        infcx: &mut InferCtxt,
-        predicate: &fhir::WhereBoundPredicate,
-    ) {
-        self.check_type(infcx, &predicate.bounded_ty);
-        for bound in predicate.bounds {
-            self.check_generic_bound(infcx, bound);
-        }
-    }
-
-    fn check_generic_args(&mut self, infcx: &mut InferCtxt, args: &[fhir::GenericArg]) {
-        for arg in args {
-            self.check_generic_arg(infcx, arg);
-        }
-    }
-
-    fn check_generic_arg(&mut self, infcx: &mut InferCtxt, arg: &fhir::GenericArg) {
-        if let fhir::GenericArg::Type(ty) = arg {
-            self.check_type(infcx, ty);
-        }
-    }
-
-    fn check_type_bindings(&mut self, infcx: &mut InferCtxt, bindings: &[fhir::TypeBinding]) {
-        for binding in bindings {
-            self.check_type(infcx, &binding.term);
-        }
-    }
-
-    fn check_base_ty(&mut self, infcx: &mut InferCtxt, bty: &fhir::BaseTy) {
-        match &bty.kind {
-            fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) => {
-                if let Some(self_ty) = self_ty {
-                    self.check_type(infcx, self_ty);
-                }
-                self.check_path(infcx, path);
+            for (arg, param) in iter::zip(path.refine, &generics.params) {
+                self.infcx
+                    .check_refine_arg(arg, &param.sort)
+                    .collect_err(&mut self.errors);
             }
-            fhir::BaseTyKind::Slice(ty) => self.check_type(infcx, ty),
         }
-    }
-
-    fn check_path(&mut self, infcx: &mut InferCtxt, path: &fhir::Path) {
-        match path.res {
-            fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
-                let Some(generics) = self
-                    .genv
-                    .refinement_generics_of(def_id)
-                    .emit(&self.errors)
-                    .ok()
-                else {
-                    return;
-                };
-
-                if path.refine.len() != generics.params.len() {
-                    self.errors.emit(errors::EarlyBoundArgCountMismatch::new(
-                        path.span,
-                        generics.params.len(),
-                        path.refine.len(),
-                    ));
-                }
-
-                for (arg, param) in iter::zip(path.refine, &generics.params) {
-                    infcx
-                        .check_refine_arg(arg, &param.sort)
-                        .collect_err(&mut self.errors);
-                }
-            }
-            fhir::Res::SelfTyParam { .. }
-            | fhir::Res::SelfTyAlias { .. }
-            | fhir::Res::Def(..)
-            | fhir::Res::PrimTy(..)
-            | fhir::Res::Err => {}
-        }
-
-        // TODO(nilehmann) we should check all segments
-        let last_segment = path.last_segment();
-        if !last_segment.args.is_empty() {
-            self.check_generic_args(infcx, last_segment.args);
-        }
-        self.check_type_bindings(infcx, last_segment.bindings);
+        fhir::visit::walk_path(self, path);
     }
 }
 

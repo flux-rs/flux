@@ -25,7 +25,7 @@ use super::{
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) fn check_node(infcx: &InferCtxt, node: &fhir::Node) -> Result {
+pub(crate) fn check(infcx: &InferCtxt, node: &fhir::Node) -> Result {
     ParamUsesChecker::new(infcx).run(|ck| ck.visit_node(node))
 }
 

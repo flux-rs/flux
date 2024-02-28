@@ -368,34 +368,22 @@ fn check_wf<'genv>(
     genv: GlobalEnv<'genv, '_>,
     flux_id: FluxLocalDefId,
 ) -> QueryResult<Rc<WfckResults<'genv>>> {
-    match flux_id {
-        FluxLocalDefId::Flux(sym) => check_wf_flux_item(genv, sym),
-        FluxLocalDefId::Rust(def_id) => check_wf_rust_item(genv, def_id),
-    }
-}
-
-fn check_wf_flux_item<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    sym: Symbol,
-) -> QueryResult<Rc<WfckResults<'genv>>> {
-    let wfckresults = match genv.map().get_flux_item(sym).unwrap() {
-        fhir::FluxItem::Qualifier(qualifier) => wf::check_qualifier(genv, qualifier)?,
-        fhir::FluxItem::Func(defn) => wf::check_spec_func(genv, defn)?,
+    let wfckresults = match flux_id {
+        FluxLocalDefId::Flux(sym) => {
+            wf::check_flux_item(genv, genv.map().get_flux_item(sym).unwrap())?
+        }
+        FluxLocalDefId::Rust(def_id) => {
+            let def_kind = genv.def_kind(def_id);
+            if matches!(def_kind, DefKind::Closure | DefKind::Coroutine | DefKind::TyParam) {
+                let parent = genv.tcx().local_parent(def_id);
+                return genv.check_wf(parent);
+            }
+            let node = genv.map().node(def_id);
+            let mut wfckresults = wf::check_node(genv, &node)?;
+            annot_check::check_node(genv, &mut wfckresults, &node)?;
+            wfckresults
+        }
     };
-    Ok(Rc::new(wfckresults))
-}
-
-fn check_wf_rust_item<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    def_id: LocalDefId,
-) -> QueryResult<Rc<WfckResults<'genv>>> {
-    if matches!(genv.def_kind(def_id), DefKind::Closure | DefKind::Coroutine | DefKind::TyParam) {
-        let parent = genv.tcx().local_parent(def_id);
-        return genv.check_wf(parent);
-    }
-    let node = genv.map().node(def_id);
-    let mut wfckresults = wf::check_node(genv, &node)?;
-    annot_check::check_node(genv, &mut wfckresults, &node)?;
     Ok(Rc::new(wfckresults))
 }
 

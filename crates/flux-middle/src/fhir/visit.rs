@@ -1,9 +1,10 @@
 use super::{
     AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
-    FnSig, FuncSort, GenericArg, GenericBound, Generics, ImplItem, ImplItemKind, Item, ItemKind,
-    Lifetime, Lit, Node, OpaqueTy, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath,
-    RefineArg, RefineArgKind, RefineParam, Sort, SortPath, StructDef, TraitItem, TraitItemKind, Ty,
-    TyAlias, TyKind, TypeBinding, VariantDef, VariantRet, WhereBoundPredicate,
+    FnSig, FuncSort, GenericArg, GenericBound, Generics, ImplAssocReft, ImplItem, ImplItemKind,
+    Item, ItemKind, Lifetime, Lit, Node, OpaqueTy, Path, PathExpr, PathSegment, PolyFuncSort,
+    PolyTraitRef, QPath, RefineArg, RefineArgKind, RefineParam, Sort, SortPath, StructDef,
+    TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, TypeBinding, VariantDef,
+    VariantRet, WhereBoundPredicate,
 };
 use crate::fhir::StructKind;
 
@@ -42,6 +43,14 @@ pub trait Visitor: Sized {
 
     fn visit_where_predicate(&mut self, predicate: &WhereBoundPredicate) {
         walk_where_predicate(self, predicate);
+    }
+
+    fn visit_impl_assoc_reft(&mut self, assoc_reft: &ImplAssocReft) {
+        walk_impl_assoc_reft(self, assoc_reft);
+    }
+
+    fn visit_trait_assoc_reft(&mut self, assoc_reft: &TraitAssocReft) {
+        walk_trait_assoc_reft(self, assoc_reft);
     }
 
     fn visit_struct_def(&mut self, struct_def: &StructDef) {
@@ -234,18 +243,11 @@ pub fn walk_item<V: Visitor>(vis: &mut V, item: &Item) {
         ItemKind::TyAlias(ty_alias) => vis.visit_ty_alias(ty_alias),
         ItemKind::Trait(trait_) => {
             vis.visit_generics(&trait_.generics);
-            for assoc_reft in trait_.assoc_refinements {
-                walk_list!(vis, visit_refine_param, assoc_reft.params);
-                vis.visit_sort(&assoc_reft.output);
-            }
+            walk_list!(vis, visit_trait_assoc_reft, trait_.assoc_refinements);
         }
         ItemKind::Impl(impl_) => {
             vis.visit_generics(&impl_.generics);
-            for assoc_reft in impl_.assoc_refinements {
-                walk_list!(vis, visit_refine_param, assoc_reft.params);
-                vis.visit_sort(&assoc_reft.output);
-                vis.visit_expr(&assoc_reft.body);
-            }
+            walk_list!(vis, visit_impl_assoc_reft, impl_.assoc_refinements);
         }
         ItemKind::Fn(fn_sig) => {
             vis.visit_fn_sig(fn_sig);
@@ -272,6 +274,17 @@ pub fn walk_impl_item<V: Visitor>(vis: &mut V, impl_item: &ImplItem) {
             vis.visit_generics(&assoc_type.generics);
         }
     }
+}
+
+pub fn walk_trait_assoc_reft<V: Visitor>(vis: &mut V, assoc_reft: &TraitAssocReft) {
+    walk_list!(vis, visit_refine_param, assoc_reft.params);
+    vis.visit_sort(&assoc_reft.output);
+}
+
+pub fn walk_impl_assoc_reft<V: Visitor>(vis: &mut V, assoc_reft: &ImplAssocReft) {
+    walk_list!(vis, visit_refine_param, assoc_reft.params);
+    vis.visit_sort(&assoc_reft.output);
+    vis.visit_expr(&assoc_reft.body);
 }
 
 pub fn walk_generics<V: Visitor>(vis: &mut V, generics: &Generics) {
@@ -377,7 +390,6 @@ pub fn walk_qpath<V: Visitor>(vis: &mut V, qpath: &QPath) {
                 vis.visit_ty(self_ty);
             }
             vis.visit_path(path);
-            walk_list!(vis, visit_refine_arg, path.refine);
         }
     }
 }
