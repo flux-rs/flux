@@ -478,26 +478,6 @@
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a>
-<a href="#487" id="487">487</a>
-<a href="#488" id="488">488</a>
-<a href="#489" id="489">489</a>
-<a href="#490" id="490">490</a>
-<a href="#491" id="491">491</a>
-<a href="#492" id="492">492</a>
-<a href="#493" id="493">493</a>
-<a href="#494" id="494">494</a>
-<a href="#495" id="495">495</a>
-<a href="#496" id="496">496</a>
-<a href="#497" id="497">497</a>
-<a href="#498" id="498">498</a>
-<a href="#499" id="499">499</a>
-<a href="#500" id="500">500</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_data_structures;
@@ -530,7 +510,7 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
 <span class="kw">use </span>rustc_hash::FxHashMap;
-<span class="kw">use </span>rustc_hir::{def::DefKind, def_id::LocalDefId, OwnerId};
+<span class="kw">use </span>rustc_hir::{def::DefKind, def_id::LocalDefId};
 <span class="kw">use </span>rustc_span::Symbol;
 
 <span class="macro">fluent_messages! </span>{ <span class="string">&quot;../locales/en-US.ftl&quot; </span>}
@@ -771,9 +751,11 @@
     <span class="kw">let </span>parent_count =
         <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = parent { genv.refinement_generics_of(def_id)<span class="question-mark">?</span>.count() } <span class="kw">else </span>{ <span class="number">0 </span>};
     <span class="kw">match </span>genv.map().node(local_id) {
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Fn(fn_sig) })
-        | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Fn(fn_sig) })
-        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig) }) =&gt; {
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Fn(fn_sig), .. })
+        | fhir::Node::TraitItem(fhir::TraitItem {
+            kind: fhir::TraitItemKind::Fn(fn_sig), ..
+        })
+        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig), .. }) =&gt; {
             <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
             <span class="kw">let </span>params = conv::conv_refinement_generics(
                 genv,
@@ -782,7 +764,7 @@
             );
             <span class="prelude-val">Ok</span>(rty::RefinementGenerics { parent, parent_count, params })
         }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias) }) =&gt; {
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias), .. }) =&gt; {
             <span class="kw">let </span>params =
                 conv::conv_refinement_generics(genv, ty_alias.generics.refinement_params, <span class="prelude-val">None</span>);
             <span class="prelude-val">Ok</span>(rty::RefinementGenerics { parent, parent_count, params })
@@ -892,43 +874,21 @@
         <span class="kw">return </span>genv.check_wf(parent);
     }
     <span class="kw">let </span>wfckresults = <span class="kw">match </span>genv.map().node(def_id) {
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Fn(fn_sig, ..) })
-        | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Fn(fn_sig) })
-        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig) }) =&gt; {
-            <span class="kw">let </span>owner_id = OwnerId { def_id };
-            <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_fn_decl(genv, fn_sig.decl, owner_id)<span class="question-mark">?</span>;
-            annot_check::check_fn_sig(genv, <span class="kw-2">&amp;mut </span>wfckresults, owner_id, fn_sig)<span class="question-mark">?</span>;
+        fhir::Node::Item(item) =&gt; {
+            <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_item(genv, item)<span class="question-mark">?</span>;
+            annot_check::check_item(genv, <span class="kw-2">&amp;mut </span>wfckresults, item)<span class="question-mark">?</span>;
             wfckresults
         }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias) }) =&gt; {
-            <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_ty_alias(genv, ty_alias)<span class="question-mark">?</span>;
-            annot_check::check_alias(genv, <span class="kw-2">&amp;mut </span>wfckresults, ty_alias)<span class="question-mark">?</span>;
+        fhir::Node::TraitItem(trait_item) =&gt; {
+            <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_trait_item(genv, trait_item)<span class="question-mark">?</span>;
+            annot_check::check_trait_item(genv, <span class="kw-2">&amp;mut </span>wfckresults, trait_item)<span class="question-mark">?</span>;
             wfckresults
         }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Struct(struct_def) }) =&gt; {
-            <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_struct_def(genv, struct_def)<span class="question-mark">?</span>;
-            annot_check::check_struct_def(genv, <span class="kw-2">&amp;mut </span>wfckresults, struct_def)<span class="question-mark">?</span>;
+        fhir::Node::ImplItem(impl_item) =&gt; {
+            <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_impl_item(genv, impl_item)<span class="question-mark">?</span>;
+            annot_check::check_impl_item(genv, <span class="kw-2">&amp;mut </span>wfckresults, impl_item)<span class="question-mark">?</span>;
             wfckresults
         }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Enum(enum_def) }) =&gt; {
-            <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_enum_def(genv, enum_def)<span class="question-mark">?</span>;
-            annot_check::check_enum_def(genv, <span class="kw-2">&amp;mut </span>wfckresults, enum_def)<span class="question-mark">?</span>;
-            wfckresults
-        }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::OpaqueTy(opaque_ty) }) =&gt; {
-            <span class="kw">let </span>owner_id = OwnerId { def_id };
-            wf::check_opaque_ty(genv, opaque_ty, owner_id)<span class="question-mark">?
-        </span>}
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Impl(impl_) }) =&gt; {
-            <span class="kw">let </span>owner_id = OwnerId { def_id };
-            wf::check_impl(genv, impl_, owner_id)<span class="question-mark">?
-        </span>}
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Trait(..) }) =&gt; {
-            <span class="comment">// TODO(nilehmann) we should check the sorts of associated predicates are well-formed.
-            </span><span class="kw">let </span>owner_id = OwnerId { def_id };
-            WfckResults::new(owner_id)
-        }
-        <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">&quot;unexpected item `{def_id:?}`&quot;</span>),
     };
     <span class="prelude-val">Ok</span>(Rc::new(wfckresults))
 }

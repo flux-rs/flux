@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["check_enum_def","check_fn_decl","check_struct_def","check_ty_alias"],"struct":["ParamUsesChecker"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"fn":["check_impl_item","check_item","check_trait_item"],"struct":["ParamUsesChecker"],"type":["Result"]};

@@ -1386,6 +1386,9 @@
 <a href="#1386" id="1386">1386</a>
 <a href="#1387" id="1387">1387</a>
 <a href="#1388" id="1388">1388</a>
+<a href="#1389" id="1389">1389</a>
+<a href="#1390" id="1390">1390</a>
+<a href="#1391" id="1391">1391</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1479,9 +1482,9 @@
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;fhir</span>&gt; Node&lt;<span class="lifetime">&#39;fhir</span>&gt; {
     <span class="kw">pub fn </span>fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>FnSig&lt;<span class="lifetime">&#39;fhir</span>&gt;&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            Node::Item(Item { kind: ItemKind::Fn(fn_sig, ..) })
-            | Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig) })
-            | Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig) }) =&gt; <span class="prelude-val">Some</span>(fn_sig),
+            Node::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
+            | Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
+            | Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. }) =&gt; <span class="prelude-val">Some</span>(fn_sig),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
@@ -1496,6 +1499,7 @@
 }
 
 <span class="kw">pub struct </span>Item&lt;<span class="lifetime">&#39;fhir</span>&gt; {
+    <span class="kw">pub </span>owner_id: OwnerId,
     <span class="kw">pub </span>kind: ItemKind&lt;<span class="lifetime">&#39;fhir</span>&gt;,
 }
 
@@ -1564,6 +1568,7 @@
 }
 
 <span class="kw">pub struct </span>TraitItem&lt;<span class="lifetime">&#39;fhir</span>&gt; {
+    <span class="kw">pub </span>owner_id: OwnerId,
     <span class="kw">pub </span>kind: TraitItemKind&lt;<span class="lifetime">&#39;fhir</span>&gt;,
 }
 
@@ -1582,6 +1587,7 @@
 }
 
 <span class="kw">pub struct </span>ImplItem&lt;<span class="lifetime">&#39;fhir</span>&gt; {
+    <span class="kw">pub </span>owner_id: OwnerId,
     <span class="kw">pub </span>kind: ImplItemKind&lt;<span class="lifetime">&#39;fhir</span>&gt;,
 }
 

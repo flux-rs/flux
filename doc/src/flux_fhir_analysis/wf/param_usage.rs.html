@@ -217,10 +217,6 @@
 <a href="#217" id="217">217</a>
 <a href="#218" id="218">218</a>
 <a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Code to check whether refinement parameters are used in allowed positions.
 //!
 //! The correct usage of a parameter depends on whether its infer mode is [evar] or [kvar].
@@ -248,20 +244,16 @@
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_struct_def(infcx: <span class="kw-2">&amp;</span>InferCtxt, struct_def: <span class="kw-2">&amp;</span>fhir::StructDef) -&gt; <span class="prelude-ty">Result </span>{
-    ParamUsesChecker::new(infcx).run(|ck| ck.visit_struct_def(struct_def))
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_item(infcx: <span class="kw-2">&amp;</span>InferCtxt, item: <span class="kw-2">&amp;</span>fhir::Item) -&gt; <span class="prelude-ty">Result </span>{
+    ParamUsesChecker::new(infcx).run(|ck| ck.visit_item(item))
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_enum_def(infcx: <span class="kw-2">&amp;</span>InferCtxt, enum_def: <span class="kw-2">&amp;</span>fhir::EnumDef) -&gt; <span class="prelude-ty">Result </span>{
-    ParamUsesChecker::new(infcx).run(|ck| ck.visit_enum_def(enum_def))
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_trait_item(infcx: <span class="kw-2">&amp;</span>InferCtxt, trait_item: <span class="kw-2">&amp;</span>fhir::TraitItem) -&gt; <span class="prelude-ty">Result </span>{
+    ParamUsesChecker::new(infcx).run(|ck| ck.visit_trait_item(trait_item))
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_ty_alias(infcx: <span class="kw-2">&amp;</span>InferCtxt, ty_alias: <span class="kw-2">&amp;</span>fhir::TyAlias) -&gt; <span class="prelude-ty">Result </span>{
-    ParamUsesChecker::new(infcx).run(|ck| ck.visit_ty_alias(ty_alias))
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_fn_decl(infcx: <span class="kw-2">&amp;</span>InferCtxt, fn_decl: <span class="kw-2">&amp;</span>fhir::FnDecl) -&gt; <span class="prelude-ty">Result </span>{
-    ParamUsesChecker::new(infcx).run(|ck| ck.visit_fn_decl(fn_decl))
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_impl_item(infcx: <span class="kw-2">&amp;</span>InferCtxt, impl_item: <span class="kw-2">&amp;</span>fhir::ImplItem) -&gt; <span class="prelude-ty">Result </span>{
+    ParamUsesChecker::new(infcx).run(|ck| ck.visit_impl_item(impl_item))
 }
 
 <span class="kw">struct </span>ParamUsesChecker&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {

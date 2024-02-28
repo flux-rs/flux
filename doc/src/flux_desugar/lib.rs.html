@@ -392,6 +392,9 @@
 <a href="#392" id="392">392</a>
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
 </span><span class="attr">#![feature(rustc_private, min_specialization, box_patterns, lazy_cell, let_chains, never_type)]
@@ -602,7 +605,8 @@
                     <span class="kw">let </span>assoc_ty = <span class="self">self
                         </span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>)
                         .desugar_assoc_type()<span class="question-mark">?</span>;
-                    <span class="kw">let </span>trait_item = fhir::TraitItem { kind: fhir::TraitItemKind::Type(assoc_ty) };
+                    <span class="kw">let </span>trait_item =
+                        fhir::TraitItem { kind: fhir::TraitItemKind::Type(assoc_ty), owner_id };
                     <span class="self">self</span>.fhir.trait_items.insert(owner_id.def_id, trait_item);
                     <span class="prelude-val">Ok</span>(())
                 });
@@ -623,7 +627,8 @@
                     <span class="kw">let </span>assoc_ty = <span class="self">self
                         </span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>)
                         .desugar_assoc_type()<span class="question-mark">?</span>;
-                    <span class="kw">let </span>impl_item = fhir::ImplItem { kind: fhir::ImplItemKind::Type(assoc_ty) };
+                    <span class="kw">let </span>impl_item =
+                        fhir::ImplItem { kind: fhir::ImplItemKind::Type(assoc_ty), owner_id };
                     <span class="self">self</span>.fhir.impl_items.insert(owner_id.def_id, impl_item);
                     <span class="prelude-val">Ok</span>(())
                 });
@@ -647,7 +652,7 @@
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), owner_id, <span class="string">&quot;fhir&quot;</span>, struct_def).unwrap();
         }
 
-        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Struct(struct_def) };
+        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Struct(struct_def), owner_id };
         <span class="self">self</span>.fhir.items.insert(def_id, item);
 
         <span class="prelude-val">Ok</span>(())
@@ -664,7 +669,7 @@
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), owner_id, <span class="string">&quot;fhir&quot;</span>, <span class="kw-2">&amp;</span>enum_def).unwrap();
         }
 
-        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Enum(enum_def) };
+        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Enum(enum_def), owner_id };
         <span class="self">self</span>.fhir.items.insert(def_id, item);
 
         <span class="prelude-val">Ok</span>(())
@@ -685,7 +690,7 @@
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), owner_id, <span class="string">&quot;fhir&quot;</span>, <span class="kw-2">&amp;</span>ty_alias).unwrap();
         }
 
-        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias) };
+        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias), owner_id };
         <span class="self">self</span>.fhir.items.insert(def_id, item);
 
         <span class="prelude-val">Ok</span>(())
@@ -694,7 +699,7 @@
     <span class="kw">fn </span>desugar_item_fn(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, fn_spec: <span class="kw-2">&amp;</span>surface::FnSpec) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>fn_sig = <span class="self">self</span>.desugar_fn_spec(owner_id, fn_spec)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Fn(fn_sig) };
+        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Fn(fn_sig), owner_id };
         <span class="self">self</span>.fhir.items.insert(owner_id.def_id, item);
         <span class="prelude-val">Ok</span>(())
     }
@@ -702,7 +707,7 @@
     <span class="kw">fn </span>desugar_impl_fn(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, fn_spec: <span class="kw-2">&amp;</span>surface::FnSpec) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>fn_sig = <span class="self">self</span>.desugar_fn_spec(owner_id, fn_spec)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>impl_item = fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig) };
+        <span class="kw">let </span>impl_item = fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig), owner_id };
         <span class="self">self</span>.fhir.impl_items.insert(owner_id.def_id, impl_item);
 
         <span class="prelude-val">Ok</span>(())
@@ -711,7 +716,7 @@
     <span class="kw">fn </span>desugar_trait_fn(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, fn_spec: <span class="kw-2">&amp;</span>surface::FnSpec) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>fn_sig = <span class="self">self</span>.desugar_fn_spec(owner_id, fn_spec)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>trait_item = fhir::TraitItem { kind: fhir::TraitItemKind::Fn(fn_sig) };
+        <span class="kw">let </span>trait_item = fhir::TraitItem { kind: fhir::TraitItemKind::Fn(fn_sig), owner_id };
         <span class="self">self</span>.fhir.trait_items.insert(owner_id.def_id, trait_item);
 
         <span class="prelude-val">Ok</span>(())
@@ -736,7 +741,8 @@
         <span class="self">self</span>.fhir
             .items
             .extend_unord(opaque_tys.into_items().map(|(def_id, opaque_ty)| {
-                (def_id, fhir::Item { kind: fhir::ItemKind::OpaqueTy(opaque_ty) })
+                <span class="kw">let </span>owner_id = OwnerId { def_id };
+                (def_id, fhir::Item { kind: fhir::ItemKind::OpaqueTy(opaque_ty), owner_id })
             }));
 
         <span class="prelude-val">Ok</span>(fn_sig)
@@ -749,7 +755,7 @@
             </span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>)
             .desugar_trait(trait_)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Trait(trait_) };
+        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Trait(trait_), owner_id };
         <span class="self">self</span>.fhir.items.insert(def_id, item);
 
         <span class="prelude-val">Ok</span>(())
@@ -760,7 +766,7 @@
 
         <span class="kw">let </span>impl_ = <span class="self">self</span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>).desugar_impl(impl_)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Impl(impl_) };
+        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Impl(impl_), owner_id };
         <span class="self">self</span>.fhir.items.insert(def_id, item);
 
         <span class="prelude-val">Ok</span>(())

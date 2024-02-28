@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["check_enum_def","check_fn_decl","check_fn_quals","check_impl","check_opaque_ty","check_qualifier","check_spec_func","check_struct_def","check_ty_alias"],"mod":["errors","param_usage","sortck"],"struct":["ParamSortResolver","Wf"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"fn":["check_fn_quals","check_impl_item","check_item","check_qualifier","check_spec_func","check_trait_item"],"mod":["errors","param_usage","sortck"],"struct":["ParamSortResolver","Wf"],"type":["Result"]};

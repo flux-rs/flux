@@ -488,6 +488,16 @@
 <a href="#488" id="488">488</a>
 <a href="#489" id="489">489</a>
 <a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
@@ -511,7 +521,7 @@
 <span class="kw">use </span>rustc_data_structures::unord::UnordSet;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hash::FxHashSet;
-<span class="kw">use </span>rustc_hir::{def::DefKind, OwnerId};
+<span class="kw">use </span>rustc_hir::def::DefKind;
 <span class="kw">use </span>rustc_span::Symbol;
 
 <span class="kw">use </span><span class="self">self</span>::sortck::InferCtxt;
@@ -519,9 +529,91 @@
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
-<span class="kw">struct </span>Wf&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    errors: Errors&lt;<span class="lifetime">&#39;genv</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_item&lt;<span class="lifetime">&#39;genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+    item: <span class="kw-2">&amp;</span>fhir::Item,
+) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, item.owner_id.into());
+
+    Wf::run(genv, |wf| {
+        <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
+            fhir::ItemKind::Enum(enum_def) =&gt; {
+                wf.check_enum_def(<span class="kw-2">&amp;mut </span>infcx, enum_def);
+            }
+            fhir::ItemKind::Struct(struct_def) =&gt; {
+                wf.check_struct_def(<span class="kw-2">&amp;mut </span>infcx, struct_def);
+            }
+            fhir::ItemKind::TyAlias(ty_alias) =&gt; {
+                wf.check_ty_alias(<span class="kw-2">&amp;mut </span>infcx, ty_alias);
+            }
+            fhir::ItemKind::Trait(<span class="kw">_</span>) =&gt; {
+                <span class="comment">// TODO(nilehmann) we should check the sorts of associated predicates are well-formed.
+            </span>}
+            fhir::ItemKind::Impl(impl_) =&gt; {
+                wf.check_impl(<span class="kw-2">&amp;mut </span>infcx, impl_);
+            }
+            fhir::ItemKind::Fn(fn_sig) =&gt; {
+                wf.check_fn_decl(<span class="kw-2">&amp;mut </span>infcx, fn_sig.decl);
+            }
+            fhir::ItemKind::OpaqueTy(opaque_ty) =&gt; {
+                <span class="kw">let </span>parent = genv.tcx().local_parent(item.owner_id.def_id);
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = genv.map().get_generics(parent) {
+                    <span class="kw">let </span><span class="prelude-val">Some</span>(wfckresults) = genv.check_wf(parent).emit(<span class="kw-2">&amp;</span>wf.errors).ok() <span class="kw">else </span>{
+                        <span class="kw">return</span>;
+                    };
+                    <span class="kw">for </span>param <span class="kw">in </span>generics.refinement_params {
+                        <span class="kw">let </span>sort = wfckresults.node_sorts().get(param.fhir_id).unwrap().clone();
+                        infcx.insert_param(param.id, sort, param.kind);
+                    }
+                }
+                wf.check_opaque_ty(<span class="kw-2">&amp;mut </span>infcx, opaque_ty);
+            }
+        }
+    })<span class="question-mark">?</span>;
+
+    ParamSortResolver::run(<span class="kw-2">&amp;mut </span>infcx, |r| r.visit_item(item))<span class="question-mark">?</span>;
+
+    param_usage::check_item(<span class="kw-2">&amp;</span>infcx, item)<span class="question-mark">?</span>;
+
+    <span class="prelude-val">Ok</span>(infcx.into_results())
+}
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_trait_item&lt;<span class="lifetime">&#39;genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+    trait_item: <span class="kw-2">&amp;</span>fhir::TraitItem,
+) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, trait_item.owner_id.into());
+    Wf::run(genv, |wf| {
+        <span class="kw">match </span><span class="kw-2">&amp;</span>trait_item.kind {
+            fhir::TraitItemKind::Fn(fn_sig) =&gt; {
+                wf.check_fn_decl(<span class="kw-2">&amp;mut </span>infcx, fn_sig.decl);
+            }
+            fhir::TraitItemKind::Type(<span class="kw">_</span>) =&gt; {}
+        }
+    })<span class="question-mark">?</span>;
+    ParamSortResolver::run(<span class="kw-2">&amp;mut </span>infcx, |r| r.visit_trait_item(trait_item))<span class="question-mark">?</span>;
+
+    param_usage::check_trait_item(<span class="kw-2">&amp;</span>infcx, trait_item)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(infcx.into_results())
+}
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_impl_item&lt;<span class="lifetime">&#39;genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+    impl_item: <span class="kw-2">&amp;</span>fhir::ImplItem,
+) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, impl_item.owner_id.into());
+    Wf::run(genv, |wf| {
+        <span class="kw">match </span><span class="kw-2">&amp;</span>impl_item.kind {
+            fhir::ImplItemKind::Fn(fn_sig) =&gt; {
+                wf.check_fn_decl(<span class="kw-2">&amp;mut </span>infcx, fn_sig.decl);
+            }
+            fhir::ImplItemKind::Type(<span class="kw">_</span>) =&gt; {}
+        }
+    })<span class="question-mark">?</span>;
+    ParamSortResolver::run(<span class="kw-2">&amp;mut </span>infcx, |r| r.visit_impl_item(impl_item))<span class="question-mark">?</span>;
+
+    param_usage::check_impl_item(<span class="kw-2">&amp;</span>infcx, impl_item)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(infcx.into_results())
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_qualifier&lt;<span class="lifetime">&#39;genv</span>&gt;(
@@ -564,158 +656,9 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_ty_alias&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    ty_alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
-) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, ty_alias.owner_id.into());
-    Wf::run(genv, |wf| {
-        infcx.insert_params(ty_alias.generics.refinement_params);
-        infcx.insert_params(ty_alias.index_params);
-        wf.check_type(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>ty_alias.ty);
-    })<span class="question-mark">?</span>;
-
-    ParamSortResolver::run(<span class="kw-2">&amp;mut </span>infcx, |r| r.visit_ty_alias(ty_alias))<span class="question-mark">?</span>;
-
-    param_usage::check_ty_alias(<span class="kw-2">&amp;</span>infcx, ty_alias)<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(infcx.into_results())
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_struct_def&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    struct_def: <span class="kw-2">&amp;</span>fhir::StructDef,
-) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, struct_def.owner_id.into());
-    Wf::run(genv, |wf| {
-        infcx.insert_params(struct_def.params);
-        <span class="kw">for </span>invariant <span class="kw">in </span>struct_def.invariants {
-            infcx
-                .check_expr(invariant, <span class="kw-2">&amp;</span>rty::Sort::Bool)
-                .collect_err(<span class="kw-2">&amp;mut </span>wf.errors);
-        }
-
-        <span class="kw">if let </span>fhir::StructKind::Transparent { fields } = struct_def.kind {
-            <span class="kw">for </span>field_def <span class="kw">in </span>fields {
-                wf.check_type(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>field_def.ty);
-            }
-        }
-    })<span class="question-mark">?</span>;
-
-    ParamSortResolver::run(<span class="kw-2">&amp;mut </span>infcx, |r| r.visit_struct_def(struct_def))<span class="question-mark">?</span>;
-
-    param_usage::check_struct_def(<span class="kw-2">&amp;</span>infcx, struct_def)<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(infcx.into_results())
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_enum_def&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    enum_def: <span class="kw-2">&amp;</span>fhir::EnumDef,
-) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, enum_def.owner_id.into());
-    Wf::run(genv, |wf| {
-        infcx.insert_params(enum_def.params);
-        <span class="kw">for </span>invariant <span class="kw">in </span>enum_def.invariants {
-            infcx
-                .check_expr(invariant, <span class="kw-2">&amp;</span>rty::Sort::Bool)
-                .collect_err(<span class="kw-2">&amp;mut </span>wf.errors);
-        }
-
-        <span class="kw">for </span>variant <span class="kw">in </span>enum_def.variants {
-            wf.check_variant(<span class="kw-2">&amp;mut </span>infcx, variant);
-        }
-    })<span class="question-mark">?</span>;
-
-    ParamSortResolver::run(<span class="kw-2">&amp;mut </span>infcx, |r| r.visit_enum_def(enum_def))<span class="question-mark">?</span>;
-
-    param_usage::check_enum_def(<span class="kw-2">&amp;</span>infcx, enum_def)<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(infcx.into_results())
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_opaque_ty&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    opaque_ty: <span class="kw-2">&amp;</span>fhir::OpaqueTy,
-    owner_id: OwnerId,
-) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner_id.into());
-    <span class="kw">let </span>parent = genv.tcx().local_parent(owner_id.def_id);
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = genv.map().get_generics(parent) {
-        <span class="kw">let </span>wfckresults = genv.check_wf(parent).emit(genv.sess())<span class="question-mark">?</span>;
-        <span class="kw">for </span>param <span class="kw">in </span>generics.refinement_params {
-            <span class="kw">let </span>sort = wfckresults.node_sorts().get(param.fhir_id).unwrap().clone();
-            infcx.insert_param(param.id, sort, param.kind);
-        }
-    }
-    Wf::run(genv, |wf| {
-        wf.check_opaque_ty(<span class="kw-2">&amp;mut </span>infcx, opaque_ty);
-    })<span class="question-mark">?</span>;
-
-    ParamSortResolver::run(<span class="kw-2">&amp;mut </span>infcx, |r| r.visit_opaque_ty(opaque_ty))<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(infcx.into_results())
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_impl&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    impl_: <span class="kw-2">&amp;</span>fhir::Impl,
-    owner_id: OwnerId,
-) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner_id.into());
-
-    <span class="kw">for </span>assoc_reft <span class="kw">in </span>impl_.assoc_refinements {
-        infcx.insert_params(assoc_reft.params);
-        <span class="kw">let </span>output = conv::conv_sort(genv, <span class="kw-2">&amp;</span>assoc_reft.output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort);
-        infcx.check_expr(<span class="kw-2">&amp;</span>assoc_reft.body, <span class="kw-2">&amp;</span>output)<span class="question-mark">?</span>;
-    }
-
-    <span class="prelude-val">Ok</span>(infcx.into_results())
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_fn_decl&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
-    owner_id: OwnerId,
-) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner_id.into());
-    Wf::run(genv, |wf| {
-        infcx.insert_params(decl.generics.refinement_params);
-
-        <span class="kw">let </span><span class="kw-2">mut </span>err = <span class="prelude-val">None</span>;
-        <span class="kw">for </span>arg <span class="kw">in </span>decl.args {
-            infcx.infer_implicit_params(arg).collect_err(<span class="kw-2">&amp;mut </span>err);
-        }
-        <span class="kw">for </span>constr <span class="kw">in </span>decl.requires {
-            <span class="kw">if let </span>fhir::Constraint::Type(<span class="kw">_</span>, ty) = constr {
-                infcx.infer_implicit_params(ty).collect_err(<span class="kw-2">&amp;mut </span>err);
-            }
-        }
-
-        <span class="comment">// Bail out if inference of implicit parameters failed to avoid confusing errors
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(err) = err {
-            wf.errors.collect_err(err);
-            <span class="kw">return</span>;
-        }
-
-        <span class="kw">for </span>arg <span class="kw">in </span>decl.args {
-            wf.check_type(<span class="kw-2">&amp;mut </span>infcx, arg);
-        }
-
-        <span class="kw">for </span>constr <span class="kw">in </span>decl.requires {
-            wf.check_constraint(<span class="kw-2">&amp;mut </span>infcx, constr);
-        }
-
-        wf.check_generic_predicates(<span class="kw-2">&amp;mut </span>infcx, decl.generics.predicates);
-        wf.check_fn_output(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>decl.output);
-        wf.check_output_locs(decl);
-    })<span class="question-mark">?</span>;
-
-    ParamSortResolver::run(<span class="kw-2">&amp;mut </span>infcx, |r| r.visit_fn_decl(decl))<span class="question-mark">?</span>;
-
-    param_usage::check_fn_decl(<span class="kw-2">&amp;</span>infcx, decl)<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(infcx.into_results())
+<span class="kw">struct </span>Wf&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    errors: Errors&lt;<span class="lifetime">&#39;genv</span>&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; Wf&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
@@ -751,6 +694,50 @@
         }
     }
 
+    <span class="kw">fn </span>check_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, impl_: <span class="kw-2">&amp;</span>fhir::Impl) {
+        <span class="kw">for </span>assoc_reft <span class="kw">in </span>impl_.assoc_refinements {
+            infcx.insert_params(assoc_reft.params);
+            <span class="kw">let </span>output = conv::conv_sort(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>assoc_reft.output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort);
+            infcx
+                .check_expr(<span class="kw-2">&amp;</span>assoc_reft.body, <span class="kw-2">&amp;</span>output)
+                .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
+        }
+    }
+
+    <span class="kw">fn </span>check_ty_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, ty_alias: <span class="kw-2">&amp;</span>fhir::TyAlias) {
+        infcx.insert_params(ty_alias.generics.refinement_params);
+        infcx.insert_params(ty_alias.index_params);
+        <span class="self">self</span>.check_type(infcx, <span class="kw-2">&amp;</span>ty_alias.ty);
+    }
+
+    <span class="kw">fn </span>check_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, struct_def: <span class="kw-2">&amp;</span>fhir::StructDef) {
+        infcx.insert_params(struct_def.params);
+        <span class="kw">for </span>invariant <span class="kw">in </span>struct_def.invariants {
+            infcx
+                .check_expr(invariant, <span class="kw-2">&amp;</span>rty::Sort::Bool)
+                .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
+        }
+
+        <span class="kw">if let </span>fhir::StructKind::Transparent { fields } = struct_def.kind {
+            <span class="kw">for </span>field_def <span class="kw">in </span>fields {
+                <span class="self">self</span>.check_type(infcx, <span class="kw-2">&amp;</span>field_def.ty);
+            }
+        }
+    }
+
+    <span class="kw">fn </span>check_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, enum_def: <span class="kw-2">&amp;</span>fhir::EnumDef) {
+        infcx.insert_params(enum_def.params);
+        <span class="kw">for </span>invariant <span class="kw">in </span>enum_def.invariants {
+            infcx
+                .check_expr(invariant, <span class="kw-2">&amp;</span>rty::Sort::Bool)
+                .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
+        }
+
+        <span class="kw">for </span>variant <span class="kw">in </span>enum_def.variants {
+            <span class="self">self</span>.check_variant(infcx, variant);
+        }
+    }
+
     <span class="kw">fn </span>check_variant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, variant: <span class="kw-2">&amp;</span>fhir::VariantDef) {
         infcx.insert_params(variant.params);
 
@@ -778,6 +765,38 @@
         infcx
             .check_refine_arg(<span class="kw-2">&amp;</span>variant.ret.idx, <span class="kw-2">&amp;</span>expected)
             .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
+    }
+
+    <span class="kw">fn </span>check_fn_decl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, decl: <span class="kw-2">&amp;</span>fhir::FnDecl) {
+        infcx.insert_params(decl.generics.refinement_params);
+
+        <span class="kw">let </span><span class="kw-2">mut </span>err = <span class="prelude-val">None</span>;
+        <span class="kw">for </span>arg <span class="kw">in </span>decl.args {
+            infcx.infer_implicit_params(arg).collect_err(<span class="kw-2">&amp;mut </span>err);
+        }
+        <span class="kw">for </span>constr <span class="kw">in </span>decl.requires {
+            <span class="kw">if let </span>fhir::Constraint::Type(<span class="kw">_</span>, ty) = constr {
+                infcx.infer_implicit_params(ty).collect_err(<span class="kw-2">&amp;mut </span>err);
+            }
+        }
+
+        <span class="comment">// Bail out if inference of implicit parameters failed to avoid confusing errors
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(err) = err {
+            <span class="self">self</span>.errors.collect_err(err);
+            <span class="kw">return</span>;
+        }
+
+        <span class="kw">for </span>arg <span class="kw">in </span>decl.args {
+            <span class="self">self</span>.check_type(infcx, arg);
+        }
+
+        <span class="kw">for </span>constr <span class="kw">in </span>decl.requires {
+            <span class="self">self</span>.check_constraint(infcx, constr);
+        }
+
+        <span class="self">self</span>.check_generic_predicates(infcx, decl.generics.predicates);
+        <span class="self">self</span>.check_fn_output(infcx, <span class="kw-2">&amp;</span>decl.output);
+        <span class="self">self</span>.check_output_locs(decl);
     }
 
     <span class="kw">fn </span>check_fn_output(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, fn_output: <span class="kw-2">&amp;</span>fhir::FnOutput) {
@@ -954,7 +973,8 @@
     }
 }
 
-<span class="doccomment">/// Check that all params with [`fhir::Sort::Infer`] have a sort inferred and elaborate it
+<span class="doccomment">/// Check that all params with [`fhir::Sort::Infer`] have a sort inferred and save it in the
+/// [`WfckResults`]
 </span><span class="kw">struct </span>ParamSortResolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
     infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
     errors: <span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt;,
