@@ -276,6 +276,7 @@
 <a href="#276" id="276">276</a>
 <a href="#277" id="277">277</a>
 <a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
@@ -350,7 +351,8 @@
 
 <span class="doccomment">/// Initializes the inference context with all parameters required to check node
 </span><span class="kw">fn </span>insert_params(infcx: <span class="kw-2">&amp;mut </span>InferCtxt, node: <span class="kw-2">&amp;</span>fhir::Node) -&gt; <span class="prelude-ty">Result </span>{
-    <span class="kw">if let </span>fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::OpaqueTy(..), owner_id }) = node {
+    <span class="kw">if let </span>fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::OpaqueTy(..), owner_id, .. }) = node
+    {
         <span class="kw">let </span>genv = infcx.genv;
         <span class="kw">let </span>parent = genv.tcx().local_parent(owner_id.def_id);
         <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = genv.map().get_generics(parent) {

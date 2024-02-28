@@ -1399,13 +1399,6 @@
 <a href="#1399" id="1399">1399</a>
 <a href="#1400" id="1400">1400</a>
 <a href="#1401" id="1401">1401</a>
-<a href="#1402" id="1402">1402</a>
-<a href="#1403" id="1403">1403</a>
-<a href="#1404" id="1404">1404</a>
-<a href="#1405" id="1405">1405</a>
-<a href="#1406" id="1406">1406</a>
-<a href="#1407" id="1407">1407</a>
-<a href="#1408" id="1408">1408</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1526,6 +1519,8 @@
 <span class="kw">pub struct </span>Item&lt;<span class="lifetime">&#39;fhir</span>&gt; {
     <span class="kw">pub </span>owner_id: OwnerId,
     <span class="kw">pub </span>kind: ItemKind&lt;<span class="lifetime">&#39;fhir</span>&gt;,
+    <span class="doccomment">/// Whether this is a spec for an extern item
+    </span><span class="kw">pub </span>extern_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;fhir</span>&gt; Item&lt;<span class="lifetime">&#39;fhir</span>&gt; {
@@ -1709,8 +1704,6 @@
 <span class="kw">pub struct </span>Impl&lt;<span class="lifetime">&#39;fhir</span>&gt; {
     <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">&#39;fhir</span>&gt;,
     <span class="kw">pub </span>assoc_refinements: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>[ImplAssocReft&lt;<span class="lifetime">&#39;fhir</span>&gt;],
-    <span class="doccomment">/// Whether this is a wrapper for an extern impl
-    </span><span class="kw">pub </span>extern_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;fhir</span>&gt; Impl&lt;<span class="lifetime">&#39;fhir</span>&gt; {
@@ -1782,7 +1775,6 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>TyAlias&lt;<span class="lifetime">&#39;fhir</span>&gt; {
-    <span class="kw">pub </span>owner_id: OwnerId,
     <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">&#39;fhir</span>&gt;,
     <span class="kw">pub </span>refined_by: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>RefinedBy&lt;<span class="lifetime">&#39;fhir</span>&gt;,
     <span class="kw">pub </span>ty: Ty&lt;<span class="lifetime">&#39;fhir</span>&gt;,
@@ -1796,14 +1788,11 @@
 
 <span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">pub struct </span>StructDef&lt;<span class="lifetime">&#39;fhir</span>&gt; {
-    <span class="kw">pub </span>owner_id: OwnerId,
     <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">&#39;fhir</span>&gt;,
     <span class="kw">pub </span>refined_by: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>RefinedBy&lt;<span class="lifetime">&#39;fhir</span>&gt;,
     <span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>[RefineParam&lt;<span class="lifetime">&#39;fhir</span>&gt;],
     <span class="kw">pub </span>kind: StructKind&lt;<span class="lifetime">&#39;fhir</span>&gt;,
     <span class="kw">pub </span>invariants: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>[Expr&lt;<span class="lifetime">&#39;fhir</span>&gt;],
-    <span class="doccomment">/// Whether this is a spec for an extern struct
-    </span><span class="kw">pub </span>extern_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
 }
 
 <span class="attr">#[derive(Debug, Clone, Copy)]
@@ -1824,14 +1813,11 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>EnumDef&lt;<span class="lifetime">&#39;fhir</span>&gt; {
-    <span class="kw">pub </span>owner_id: OwnerId,
     <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">&#39;fhir</span>&gt;,
     <span class="kw">pub </span>refined_by: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>RefinedBy&lt;<span class="lifetime">&#39;fhir</span>&gt;,
     <span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>[RefineParam&lt;<span class="lifetime">&#39;fhir</span>&gt;],
     <span class="kw">pub </span>variants: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>[VariantDef&lt;<span class="lifetime">&#39;fhir</span>&gt;],
     <span class="kw">pub </span>invariants: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>[Expr&lt;<span class="lifetime">&#39;fhir</span>&gt;],
-    <span class="doccomment">/// Whether this is a expecr for an extern enum
-    </span><span class="kw">pub </span>extern_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
 }
 
 <span class="attr">#[derive(Debug, Clone, Copy)]

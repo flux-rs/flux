@@ -632,8 +632,6 @@
 <a href="#632" id="632">632</a>
 <a href="#633" id="633">633</a>
 <a href="#634" id="634">634</a>
-<a href="#635" id="635">635</a>
-<a href="#636" id="636">636</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! &quot;Lift&quot; HIR types into  FHIR types.
 //!
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
@@ -674,7 +672,6 @@
     <span class="kw">let </span>refined_by = cx.lift_refined_by();
     <span class="kw">let </span>ty = cx.lift_ty(ty)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(fhir::TyAlias {
-        owner_id,
         generics,
         refined_by: genv.alloc(refined_by),
         index_params: <span class="kw-2">&amp;</span>[],
@@ -928,7 +925,6 @@
         <span class="kw">let </span>refined_by = <span class="self">self</span>.lift_refined_by();
         <span class="kw">let </span>ty = <span class="self">self</span>.lift_ty(ty)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(fhir::TyAlias {
-            owner_id: <span class="self">self</span>.owner,
             generics,
             refined_by: <span class="self">self</span>.genv.alloc(refined_by),
             index_params: <span class="kw-2">&amp;</span>[],

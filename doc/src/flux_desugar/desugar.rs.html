@@ -1391,11 +1391,6 @@
 <a href="#1391" id="1391">1391</a>
 <a href="#1392" id="1392">1392</a>
 <a href="#1393" id="1393">1393</a>
-<a href="#1394" id="1394">1394</a>
-<a href="#1395" id="1395">1395</a>
-<a href="#1396" id="1396">1396</a>
-<a href="#1397" id="1397">1397</a>
-<a href="#1398" id="1398">1398</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -1563,7 +1558,7 @@
             <span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?
         </span>};
         <span class="kw">let </span>assoc_refinements = <span class="self">self</span>.desugar_impl_assoc_refts(<span class="kw-2">&amp;</span>impl_.assoc_refinements)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::Impl { generics, assoc_refinements, extern_id: impl_.extern_id })
+        <span class="prelude-val">Ok</span>(fhir::Impl { generics, assoc_refinements })
     }
 
     <span class="kw">fn </span>desugar_impl_assoc_refts(
@@ -1749,13 +1744,11 @@
                 .map_or(<span class="kw-2">&amp;</span>[], |it| <span class="kw-2">&amp;</span>it.index_params),
         );
         <span class="kw">let </span>struct_def = fhir::StructDef {
-            owner_id: <span class="self">self</span>.owner,
             generics,
             refined_by: <span class="self">self</span>.genv.alloc(refined_by),
             params,
             kind,
             invariants,
-            extern_id: struct_def.extern_id,
         };
         <span class="prelude-val">Ok</span>(struct_def)
     }
@@ -1793,13 +1786,11 @@
                 .map_or(<span class="kw-2">&amp;</span>[], |it| <span class="kw-2">&amp;</span>it.index_params),
         );
         <span class="kw">let </span>enum_def = fhir::EnumDef {
-            owner_id: <span class="self">self</span>.owner,
             generics,
             refined_by: <span class="self">self</span>.genv.alloc(refined_by),
             params,
             variants,
             invariants,
-            extern_id: enum_def.extern_id,
         };
         <span class="prelude-val">Ok</span>(enum_def)
     }
@@ -1877,7 +1868,6 @@
         <span class="kw">let </span>index_params = <span class="self">self</span>.desugar_refine_params(<span class="kw-2">&amp;</span>ty_alias.refined_by.index_params);
 
         <span class="kw">let </span>ty_alias = fhir::TyAlias {
-            owner_id: <span class="self">self</span>.owner,
             refined_by: <span class="self">self</span>.genv.alloc(refined_by),
             generics,
             index_params,

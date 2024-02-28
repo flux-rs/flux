@@ -395,6 +395,17 @@
 <a href="#395" id="395">395</a>
 <a href="#396" id="396">396</a>
 <a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
 </span><span class="attr">#![feature(rustc_private, min_specialization, box_patterns, lazy_cell, let_chains, never_type)]
@@ -643,6 +654,7 @@
         struct_def: <span class="kw-2">&amp;</span>surface::StructDef,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>def_id = owner_id.def_id;
+        <span class="kw">let </span>extern_id = struct_def.extern_id;
 
         <span class="kw">let </span>struct_def = <span class="self">self
             </span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>)
@@ -652,7 +664,7 @@
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), owner_id, <span class="string">&quot;fhir&quot;</span>, struct_def).unwrap();
         }
 
-        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Struct(struct_def), owner_id };
+        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Struct(struct_def), owner_id, extern_id };
         <span class="self">self</span>.fhir.items.insert(def_id, item);
 
         <span class="prelude-val">Ok</span>(())
@@ -660,6 +672,7 @@
 
     <span class="kw">pub fn </span>desugar_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, enum_def: <span class="kw-2">&amp;</span>surface::EnumDef) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>def_id = owner_id.def_id;
+        <span class="kw">let </span>extern_id = enum_def.extern_id;
 
         <span class="kw">let </span>enum_def = <span class="self">self
             </span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>)
@@ -669,7 +682,7 @@
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), owner_id, <span class="string">&quot;fhir&quot;</span>, <span class="kw-2">&amp;</span>enum_def).unwrap();
         }
 
-        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Enum(enum_def), owner_id };
+        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Enum(enum_def), owner_id, extern_id };
         <span class="self">self</span>.fhir.items.insert(def_id, item);
 
         <span class="prelude-val">Ok</span>(())
@@ -690,7 +703,8 @@
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), owner_id, <span class="string">&quot;fhir&quot;</span>, <span class="kw-2">&amp;</span>ty_alias).unwrap();
         }
 
-        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias), owner_id };
+        <span class="kw">let </span>item =
+            fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias), owner_id, extern_id: <span class="prelude-val">None </span>};
         <span class="self">self</span>.fhir.items.insert(def_id, item);
 
         <span class="prelude-val">Ok</span>(())
@@ -699,7 +713,7 @@
     <span class="kw">fn </span>desugar_item_fn(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, fn_spec: <span class="kw-2">&amp;</span>surface::FnSpec) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>fn_sig = <span class="self">self</span>.desugar_fn_spec(owner_id, fn_spec)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Fn(fn_sig), owner_id };
+        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Fn(fn_sig), owner_id, extern_id: <span class="prelude-val">None </span>};
         <span class="self">self</span>.fhir.items.insert(owner_id.def_id, item);
         <span class="prelude-val">Ok</span>(())
     }
@@ -742,7 +756,14 @@
             .items
             .extend_unord(opaque_tys.into_items().map(|(def_id, opaque_ty)| {
                 <span class="kw">let </span>owner_id = OwnerId { def_id };
-                (def_id, fhir::Item { kind: fhir::ItemKind::OpaqueTy(opaque_ty), owner_id })
+                (
+                    def_id,
+                    fhir::Item {
+                        kind: fhir::ItemKind::OpaqueTy(opaque_ty),
+                        owner_id,
+                        extern_id: <span class="prelude-val">None</span>,
+                    },
+                )
             }));
 
         <span class="prelude-val">Ok</span>(fn_sig)
@@ -755,7 +776,7 @@
             </span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>)
             .desugar_trait(trait_)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Trait(trait_), owner_id };
+        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Trait(trait_), owner_id, extern_id: <span class="prelude-val">None </span>};
         <span class="self">self</span>.fhir.items.insert(def_id, item);
 
         <span class="prelude-val">Ok</span>(())
@@ -763,10 +784,11 @@
 
     <span class="kw">pub fn </span>desugar_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, impl_: <span class="kw-2">&amp;</span>surface::Impl) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>def_id = owner_id.def_id;
+        <span class="kw">let </span>extern_id = impl_.extern_id;
 
         <span class="kw">let </span>impl_ = <span class="self">self</span>.as_rust_item_ctxt(owner_id, <span class="prelude-val">None</span>).desugar_impl(impl_)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Impl(impl_), owner_id };
+        <span class="kw">let </span>item = fhir::Item { kind: fhir::ItemKind::Impl(impl_), owner_id, extern_id };
         <span class="self">self</span>.fhir.items.insert(def_id, item);
 
         <span class="prelude-val">Ok</span>(())

@@ -474,10 +474,6 @@
 <a href="#474" id="474">474</a>
 <a href="#475" id="475">475</a>
 <a href="#476" id="476">476</a>
-<a href="#477" id="477">477</a>
-<a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::bug;
@@ -875,11 +871,7 @@
     }
 
     <span class="kw">pub fn </span>extern_id_of(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.expect_item(def_id).kind {
-            fhir::ItemKind::Enum(enum_def) =&gt; enum_def.extern_id,
-            fhir::ItemKind::Struct(struct_def) =&gt; struct_def.extern_id,
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-        }
+        <span class="self">self</span>.expect_item(def_id).extern_id
     }
 
     <span class="kw">pub fn </span>spec_funcs(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::SpecFunc&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {

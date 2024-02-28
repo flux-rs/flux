@@ -583,6 +583,15 @@
 <a href="#583" id="583">583</a>
 <a href="#584" id="584">584</a>
 <a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check if an [`fhir`] annotation is a valid refinement of the corresponding rust declaration.
 //!
 //! To check if an [`fhir`] is valid, we first [`lift`] the `hir` declaration into [`fhir`] and then
@@ -625,10 +634,16 @@
     item: <span class="kw-2">&amp;</span>fhir::Item,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
-        fhir::ItemKind::Enum(enum_def) =&gt; check_enum_def(genv, wfckresults, enum_def),
-        fhir::ItemKind::Struct(struct_def) =&gt; check_struct_def(genv, wfckresults, struct_def),
+        fhir::ItemKind::Enum(enum_def) =&gt; {
+            check_enum_def(genv, wfckresults, item.owner_id, enum_def)
+        }
+        fhir::ItemKind::Struct(struct_def) =&gt; {
+            check_struct_def(genv, wfckresults, item.owner_id, struct_def)
+        }
         fhir::ItemKind::Fn(fn_sig) =&gt; check_fn_sig(genv, wfckresults, item.owner_id, fn_sig),
-        fhir::ItemKind::TyAlias(ty_alias) =&gt; check_ty_alias(genv, wfckresults, ty_alias),
+        fhir::ItemKind::TyAlias(ty_alias) =&gt; {
+            check_ty_alias(genv, wfckresults, item.owner_id, ty_alias)
+        }
         fhir::ItemKind::Trait(<span class="kw">_</span>) | fhir::ItemKind::Impl(<span class="kw">_</span>) | fhir::ItemKind::OpaqueTy(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
     }
 }
@@ -676,29 +691,31 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_ty_alias&lt;<span class="lifetime">&#39;genv</span>&gt;(
     genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
     wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    owner_id: OwnerId,
     ty_alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">if </span>ty_alias.lifted {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
-    <span class="kw">let </span>expected_ty_alias = lift::lift_type_alias(genv, ty_alias.owner_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>expected_ty_alias = lift::lift_type_alias(genv, owner_id)<span class="question-mark">?</span>;
     Zipper::new(genv, wfckresults, <span class="prelude-val">None</span>).zip_ty(<span class="kw-2">&amp;</span>ty_alias.ty, <span class="kw-2">&amp;</span>expected_ty_alias.ty)
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_struct_def&lt;<span class="lifetime">&#39;genv</span>&gt;(
     genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
     wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    owner_id: OwnerId,
     struct_def: <span class="kw-2">&amp;</span>fhir::StructDef,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">match </span><span class="kw-2">&amp;</span>struct_def.kind {
         fhir::StructKind::Transparent { fields } =&gt; {
             <span class="kw">let </span>local_id_gen = IndexGen::new();
-            <span class="kw">let </span><span class="kw-2">mut </span>liftcx = LiftCtxt::new(genv, struct_def.owner_id, <span class="kw-2">&amp;</span>local_id_gen, <span class="prelude-val">None</span>);
+            <span class="kw">let </span><span class="kw-2">mut </span>liftcx = LiftCtxt::new(genv, owner_id, <span class="kw-2">&amp;</span>local_id_gen, <span class="prelude-val">None</span>);
             fields.iter().try_for_each_exhaust(|field| {
                 <span class="kw">if </span>field.lifted {
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                 }
-                <span class="kw">let </span>self_ty = lift::lift_self_ty(genv, struct_def.owner_id)<span class="question-mark">?</span>;
+                <span class="kw">let </span>self_ty = lift::lift_self_ty(genv, owner_id)<span class="question-mark">?</span>;
                 Zipper::new(genv, wfckresults, self_ty)
                     .zip_ty(<span class="kw-2">&amp;</span>field.ty, <span class="kw-2">&amp;</span>liftcx.lift_field_def_id(field.def_id)<span class="question-mark">?</span>.ty)
             })
@@ -710,15 +727,16 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_enum_def&lt;<span class="lifetime">&#39;genv</span>&gt;(
     genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
     wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    owner_id: OwnerId,
     enum_def: <span class="kw-2">&amp;</span>fhir::EnumDef,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">let </span>local_id_gen = IndexGen::new();
-    <span class="kw">let </span><span class="kw-2">mut </span>liftcx = LiftCtxt::new(genv, enum_def.owner_id, <span class="kw-2">&amp;</span>local_id_gen, <span class="prelude-val">None</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>liftcx = LiftCtxt::new(genv, owner_id, <span class="kw-2">&amp;</span>local_id_gen, <span class="prelude-val">None</span>);
     enum_def.variants.iter().try_for_each_exhaust(|variant| {
         <span class="kw">if </span>variant.lifted {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
-        <span class="kw">let </span>self_ty = lift::lift_self_ty(genv, enum_def.owner_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>self_ty = lift::lift_self_ty(genv, owner_id)<span class="question-mark">?</span>;
         Zipper::new(genv, wfckresults, self_ty)
             .zip_enum_variant(variant, <span class="kw-2">&amp;</span>liftcx.lift_enum_variant_id(variant.def_id)<span class="question-mark">?</span>)
     })

@@ -452,6 +452,24 @@
 <a href="#452" id="452">452</a>
 <a href="#453" id="453">453</a>
 <a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_data_structures;
@@ -480,6 +498,7 @@
     intern::List,
     queries::{Providers, QueryResult},
     rty::{<span class="self">self</span>, fold::TypeFoldable, refining::Refiner, WfckResults},
+    rustc::lowering,
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
@@ -571,13 +590,17 @@
 
 <span class="kw">fn </span>adt_def(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;rty::AdtDef&gt; {
     <span class="kw">let </span>invariants = invariants_of(genv, def_id)<span class="question-mark">?</span>;
-    <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().expect_item(def_id).kind {
-        fhir::ItemKind::Enum(enum_def) =&gt; <span class="prelude-val">Ok</span>(conv::adt_def_for_enum(genv, invariants, enum_def)),
-        fhir::ItemKind::Struct(struct_def) =&gt; {
-            <span class="prelude-val">Ok</span>(conv::adt_def_for_struct(genv, invariants, struct_def))
-        }
-        <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected struct or enum&quot;</span>),
-    }
+    <span class="kw">let </span>item = genv.map().expect_item(def_id);
+
+    <span class="kw">let </span>adt_def = <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_id) = item.extern_id {
+        lowering::lower_adt_def(<span class="kw-2">&amp;</span>genv.tcx().adt_def(extern_id))
+    } <span class="kw">else </span>{
+        lowering::lower_adt_def(<span class="kw-2">&amp;</span>genv.tcx().adt_def(item.owner_id))
+    };
+
+    <span class="kw">let </span>is_opaque = <span class="macro">matches!</span>(item.kind, fhir::ItemKind::Struct(def) <span class="kw">if </span>def.is_opaque());
+
+    <span class="prelude-val">Ok</span>(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id), invariants, is_opaque))
 }
 
 <span class="kw">fn </span>predicates_of(
@@ -752,7 +775,7 @@
         DefKind::TyAlias { .. } =&gt; {
             <span class="kw">let </span>alias = genv.map().expect_item(def_id).expect_type_alias();
             <span class="kw">let </span>wfckresults = genv.check_wf(def_id)<span class="question-mark">?</span>;
-            conv::expand_type_alias(genv, alias, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
+            conv::expand_type_alias(genv, def_id.to_def_id(), alias, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
         </span>}
         DefKind::TyParam =&gt; {
             <span class="kw">match </span><span class="kw-2">&amp;</span>genv.get_generic_param(def_id).kind {
@@ -779,20 +802,31 @@
     genv: GlobalEnv,
     def_id: LocalDefId,
 ) -&gt; QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt; {
-    <span class="kw">let </span>variants = <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().expect_item(def_id).kind {
+    <span class="kw">let </span>item = <span class="kw-2">&amp;</span>genv.map().expect_item(def_id);
+    <span class="kw">let </span>variants = <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
         fhir::ItemKind::Enum(enum_def) =&gt; {
             <span class="kw">let </span>wfckresults = genv.check_wf(def_id)<span class="question-mark">?</span>;
-            <span class="kw">let </span>variants = conv::ConvCtxt::conv_enum_def_variants(genv, enum_def, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
-                </span>.into_iter()
-                .map(|variant| normalize(genv, variant))
-                .try_collect()<span class="question-mark">?</span>;
+            <span class="kw">let </span>variants = conv::ConvCtxt::conv_enum_def_variants(
+                genv,
+                def_id.to_def_id(),
+                enum_def,
+                <span class="kw-2">&amp;</span>wfckresults,
+            )<span class="question-mark">?
+            </span>.into_iter()
+            .map(|variant| normalize(genv, variant))
+            .try_collect()<span class="question-mark">?</span>;
             rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
         }
         fhir::ItemKind::Struct(struct_def) =&gt; {
             <span class="kw">let </span>wfckresults = genv.check_wf(def_id)<span class="question-mark">?</span>;
-            conv::ConvCtxt::conv_struct_def_variant(genv, struct_def, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
-                </span>.normalize(genv.spec_func_defns()<span class="question-mark">?</span>)
-                .map(|variant| rty::EarlyBinder(List::singleton(variant)))
+            conv::ConvCtxt::conv_struct_def_variant(
+                genv,
+                def_id.to_def_id(),
+                struct_def,
+                <span class="kw-2">&amp;</span>wfckresults,
+            )<span class="question-mark">?
+            </span>.normalize(genv.spec_func_defns()<span class="question-mark">?</span>)
+            .map(|variant| rty::EarlyBinder(List::singleton(variant)))
         }
         <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected struct or enum&quot;</span>),
     };
@@ -855,7 +889,7 @@
             | DefKind::Fn
             | DefKind::AssocFn
             | DefKind::OpaqueTy =&gt; {
-                genv.check_wf(def_id).emit(<span class="kw-2">&amp;</span>errors).ok();
+                <span class="kw">let _ </span>= genv.check_wf(def_id).emit(<span class="kw-2">&amp;</span>errors).ok();
             }
             <span class="kw">_ </span>=&gt; {}
         }
@@ -866,13 +900,15 @@
     }
 
     <span class="kw">for </span>defn <span class="kw">in </span>genv.map().spec_funcs() {
-        genv.check_wf(FluxLocalDefId::Flux(defn.name))
+        <span class="kw">let _ </span>= genv
+            .check_wf(FluxLocalDefId::Flux(defn.name))
             .emit(<span class="kw-2">&amp;</span>errors)
             .ok();
     }
 
     <span class="kw">for </span>qualifier <span class="kw">in </span>genv.map().qualifiers() {
-        genv.check_wf(FluxLocalDefId::Flux(qualifier.name))
+        <span class="kw">let _ </span>= genv
+            .check_wf(FluxLocalDefId::Flux(qualifier.name))
             .emit(<span class="kw-2">&amp;</span>errors)
             .ok();
     }
