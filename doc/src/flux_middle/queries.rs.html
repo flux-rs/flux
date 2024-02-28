@@ -663,7 +663,7 @@
     <span class="kw">pub </span>refinement_generics_of: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::RefinementGenerics&gt;,
     <span class="kw">pub </span>predicates_of:
         <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt;,
-    <span class="kw">pub </span>assoc_refinements_of: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; rty::AssocPredicates,
+    <span class="kw">pub </span>assoc_refinements_of: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; rty::AssocRefinements,
     <span class="kw">pub </span>sort_of_assoc_reft:
         <span class="kw">fn</span>(GlobalEnv, LocalDefId, Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;,
     <span class="kw">pub </span>assoc_refinement_def:
@@ -722,7 +722,7 @@
     generics_of: Cache&lt;DefId, QueryResult&lt;rty::Generics&gt;&gt;,
     refinement_generics_of: Cache&lt;DefId, QueryResult&lt;rty::RefinementGenerics&gt;&gt;,
     predicates_of: Cache&lt;DefId, QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt;&gt;,
-    assoc_refinements_of: Cache&lt;DefId, rty::AssocPredicates&gt;,
+    assoc_refinements_of: Cache&lt;DefId, rty::AssocRefinements&gt;,
     assoc_refinement_def: Cache&lt;(DefId, Symbol), QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt;,
     sort_of_assoc_reft: Cache&lt;(DefId, Symbol), <span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;&gt;,
     item_bounds: Cache&lt;DefId, QueryResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt;&gt;,
@@ -993,13 +993,13 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         genv: GlobalEnv,
         def_id: DefId,
-    ) -&gt; rty::AssocPredicates {
+    ) -&gt; rty::AssocRefinements {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.assoc_refinements_of, def_id, || {
             <span class="kw">let </span>def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.assoc_refinements_of)(genv, local_id)
             } <span class="kw">else </span>{
-                rty::AssocPredicates::default()
+                rty::AssocRefinements::default()
             }
         })
     }

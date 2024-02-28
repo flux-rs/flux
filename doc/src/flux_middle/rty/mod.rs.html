@@ -2761,24 +2761,24 @@
 }
 
 <span class="attr">#[derive(Debug, Clone)]
-</span><span class="kw">pub struct </span>AssocPredicates {
-    <span class="kw">pub </span>predicates: List&lt;AssocPredicate&gt;,
+</span><span class="kw">pub struct </span>AssocRefinements {
+    <span class="kw">pub </span>predicates: List&lt;AssocRefinement&gt;,
 }
 
-<span class="kw">impl </span>Default <span class="kw">for </span>AssocPredicates {
+<span class="kw">impl </span>Default <span class="kw">for </span>AssocRefinements {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ predicates: List::empty() }
     }
 }
 
-<span class="kw">impl </span>AssocPredicates {
-    <span class="kw">pub fn </span>find(<span class="kw-2">&amp;</span><span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AssocPredicate&gt; {
+<span class="kw">impl </span>AssocRefinements {
+    <span class="kw">pub fn </span>find(<span class="kw-2">&amp;</span><span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AssocRefinement&gt; {
         <span class="self">self</span>.predicates.iter().find(|it| it.name == name)
     }
 }
 
 <span class="attr">#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-</span><span class="kw">pub struct </span>AssocPredicate {
+</span><span class="kw">pub struct </span>AssocRefinement {
     <span class="doccomment">/// [`DefId`] of the container, i.e., the impl block or trait.
     </span><span class="kw">pub </span>container_def_id: DefId,
     <span class="kw">pub </span>name: Symbol,
@@ -4497,7 +4497,7 @@
     Invariant,
     BoundVariableKind,
     RefineParam,
-    AssocPredicate,
+    AssocRefinement,
 );
 
 <span class="attr">#[macro_export]

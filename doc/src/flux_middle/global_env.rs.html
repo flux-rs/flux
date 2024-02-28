@@ -716,7 +716,7 @@
         <span class="self">self</span>.inner.queries.predicates_of(<span class="self">self</span>, def_id.into())
     }
 
-    <span class="kw">pub fn </span>assoc_refinements_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; rty::AssocPredicates {
+    <span class="kw">pub fn </span>assoc_refinements_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; rty::AssocRefinements {
         <span class="self">self</span>.inner.queries.assoc_refinements_of(<span class="self">self</span>, def_id.into())
     }
 

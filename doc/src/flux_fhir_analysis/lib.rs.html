@@ -618,14 +618,14 @@
     }
 }
 
-<span class="kw">fn </span>assoc_refinements_of(genv: GlobalEnv, local_id: LocalDefId) -&gt; rty::AssocPredicates {
+<span class="kw">fn </span>assoc_refinements_of(genv: GlobalEnv, local_id: LocalDefId) -&gt; rty::AssocRefinements {
     <span class="kw">let </span>predicates = <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().expect_item(local_id).kind {
         fhir::ItemKind::Trait(trait_) =&gt; {
             trait_
                 .assoc_refinements
                 .iter()
                 .map(|assoc_reft| {
-                    rty::AssocPredicate {
+                    rty::AssocRefinement {
                         container_def_id: local_id.to_def_id(),
                         name: assoc_reft.name,
                     }
@@ -637,7 +637,7 @@
                 .assoc_refinements
                 .iter()
                 .map(|assoc_reft| {
-                    rty::AssocPredicate {
+                    rty::AssocRefinement {
                         container_def_id: local_id.to_def_id(),
                         name: assoc_reft.name,
                     }
@@ -648,7 +648,7 @@
             <span class="macro">bug!</span>(<span class="string">&quot;expected trait or impl&quot;</span>);
         }
     };
-    rty::AssocPredicates { predicates }
+    rty::AssocRefinements { predicates }
 }
 
 <span class="kw">fn </span>assoc_refinement_def(
