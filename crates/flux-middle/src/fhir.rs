@@ -91,9 +91,9 @@ pub enum Node<'fhir> {
 impl<'fhir> Node<'fhir> {
     pub fn fn_sig(&self) -> Option<&'fhir FnSig<'fhir>> {
         match self {
-            Node::Item(Item { kind: ItemKind::Fn(fn_sig, ..) })
-            | Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig) })
-            | Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig) }) => Some(fn_sig),
+            Node::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
+            | Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
+            | Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. }) => Some(fn_sig),
             _ => None,
         }
     }
@@ -108,6 +108,7 @@ impl<'fhir> Node<'fhir> {
 }
 
 pub struct Item<'fhir> {
+    pub owner_id: OwnerId,
     pub kind: ItemKind<'fhir>,
 }
 
@@ -176,6 +177,7 @@ pub enum ItemKind<'fhir> {
 }
 
 pub struct TraitItem<'fhir> {
+    pub owner_id: OwnerId,
     pub kind: TraitItemKind<'fhir>,
 }
 
@@ -194,6 +196,7 @@ pub enum TraitItemKind<'fhir> {
 }
 
 pub struct ImplItem<'fhir> {
+    pub owner_id: OwnerId,
     pub kind: ImplItemKind<'fhir>,
 }
 

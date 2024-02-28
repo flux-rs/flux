@@ -25,20 +25,16 @@ use super::{
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) fn check_struct_def(infcx: &InferCtxt, struct_def: &fhir::StructDef) -> Result {
-    ParamUsesChecker::new(infcx).run(|ck| ck.visit_struct_def(struct_def))
+pub(crate) fn check_item(infcx: &InferCtxt, item: &fhir::Item) -> Result {
+    ParamUsesChecker::new(infcx).run(|ck| ck.visit_item(item))
 }
 
-pub(crate) fn check_enum_def(infcx: &InferCtxt, enum_def: &fhir::EnumDef) -> Result {
-    ParamUsesChecker::new(infcx).run(|ck| ck.visit_enum_def(enum_def))
+pub(crate) fn check_trait_item(infcx: &InferCtxt, trait_item: &fhir::TraitItem) -> Result {
+    ParamUsesChecker::new(infcx).run(|ck| ck.visit_trait_item(trait_item))
 }
 
-pub(crate) fn check_ty_alias(infcx: &InferCtxt, ty_alias: &fhir::TyAlias) -> Result {
-    ParamUsesChecker::new(infcx).run(|ck| ck.visit_ty_alias(ty_alias))
-}
-
-pub(crate) fn check_fn_decl(infcx: &InferCtxt, fn_decl: &fhir::FnDecl) -> Result {
-    ParamUsesChecker::new(infcx).run(|ck| ck.visit_fn_decl(fn_decl))
+pub(crate) fn check_impl_item(infcx: &InferCtxt, impl_item: &fhir::ImplItem) -> Result {
+    ParamUsesChecker::new(infcx).run(|ck| ck.visit_impl_item(impl_item))
 }
 
 struct ParamUsesChecker<'a, 'genv, 'tcx> {

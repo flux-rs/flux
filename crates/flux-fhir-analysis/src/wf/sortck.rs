@@ -4,7 +4,7 @@ use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt, span_bug};
 use flux_errors::{ErrorGuaranteed, Errors};
 use flux_middle::{
-    fhir::{self, ExprRes, FhirId, FluxOwnerId},
+    fhir::{self, visit::Visitor as _, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     pretty,
     rty::{
@@ -517,9 +517,7 @@ impl<'genv> InferCtxt<'genv, '_> {
     }
 
     pub(crate) fn infer_implicit_params(&mut self, ty: &fhir::Ty) -> Result {
-        let mut vis = ImplicitParamInferer::new(self);
-        fhir::visit::Visitor::visit_ty(&mut vis, ty);
-        vis.into_result()
+        ImplicitParamInferer::run(self, |cx| cx.visit_ty(ty))
     }
 
     pub(crate) fn into_results(self) -> WfckResults<'genv> {
@@ -549,19 +547,20 @@ impl<'genv> InferCtxt<'genv, '_> {
     }
 }
 
-struct ImplicitParamInferer<'a, 'genv, 'tcx> {
+pub(crate) struct ImplicitParamInferer<'a, 'genv, 'tcx> {
     infcx: &'a mut InferCtxt<'genv, 'tcx>,
     errors: Errors<'genv>,
 }
 
 impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
-    fn new(infcx: &'a mut InferCtxt<'genv, 'tcx>) -> Self {
+    pub(crate) fn run(
+        infcx: &'a mut InferCtxt<'genv, 'tcx>,
+        f: impl FnOnce(&mut ImplicitParamInferer),
+    ) -> Result {
         let errors = Errors::new(infcx.genv.sess());
-        Self { infcx, errors }
-    }
-
-    fn into_result(self) -> Result {
-        self.errors.into_result()
+        let mut cx = Self { infcx, errors };
+        f(&mut cx);
+        cx.errors.into_result()
     }
 
     fn infer_implicit_params(&mut self, idx: &fhir::RefineArg, expected: &rty::Sort) {

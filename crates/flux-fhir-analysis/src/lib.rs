@@ -30,7 +30,7 @@ use flux_middle::{
 use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
 use rustc_hash::FxHashMap;
-use rustc_hir::{def::DefKind, def_id::LocalDefId, OwnerId};
+use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_span::Symbol;
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -271,9 +271,11 @@ fn refinement_generics_of(
     let parent_count =
         if let Some(def_id) = parent { genv.refinement_generics_of(def_id)?.count() } else { 0 };
     match genv.map().node(local_id) {
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Fn(fn_sig) })
-        | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Fn(fn_sig) })
-        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig) }) => {
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Fn(fn_sig), .. })
+        | fhir::Node::TraitItem(fhir::TraitItem {
+            kind: fhir::TraitItemKind::Fn(fn_sig), ..
+        })
+        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig), .. }) => {
             let wfckresults = genv.check_wf(local_id)?;
             let params = conv::conv_refinement_generics(
                 genv,
@@ -282,7 +284,7 @@ fn refinement_generics_of(
             );
             Ok(rty::RefinementGenerics { parent, parent_count, params })
         }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias) }) => {
+        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias), .. }) => {
             let params =
                 conv::conv_refinement_generics(genv, ty_alias.generics.refinement_params, None);
             Ok(rty::RefinementGenerics { parent, parent_count, params })
@@ -392,43 +394,21 @@ fn check_wf_rust_item<'genv>(
         return genv.check_wf(parent);
     }
     let wfckresults = match genv.map().node(def_id) {
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Fn(fn_sig, ..) })
-        | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Fn(fn_sig) })
-        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig) }) => {
-            let owner_id = OwnerId { def_id };
-            let mut wfckresults = wf::check_fn_decl(genv, fn_sig.decl, owner_id)?;
-            annot_check::check_fn_sig(genv, &mut wfckresults, owner_id, fn_sig)?;
+        fhir::Node::Item(item) => {
+            let mut wfckresults = wf::check_item(genv, item)?;
+            annot_check::check_item(genv, &mut wfckresults, item)?;
             wfckresults
         }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias) }) => {
-            let mut wfckresults = wf::check_ty_alias(genv, ty_alias)?;
-            annot_check::check_alias(genv, &mut wfckresults, ty_alias)?;
+        fhir::Node::TraitItem(trait_item) => {
+            let mut wfckresults = wf::check_trait_item(genv, trait_item)?;
+            annot_check::check_trait_item(genv, &mut wfckresults, trait_item)?;
             wfckresults
         }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Struct(struct_def) }) => {
-            let mut wfckresults = wf::check_struct_def(genv, struct_def)?;
-            annot_check::check_struct_def(genv, &mut wfckresults, struct_def)?;
+        fhir::Node::ImplItem(impl_item) => {
+            let mut wfckresults = wf::check_impl_item(genv, impl_item)?;
+            annot_check::check_impl_item(genv, &mut wfckresults, impl_item)?;
             wfckresults
         }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Enum(enum_def) }) => {
-            let mut wfckresults = wf::check_enum_def(genv, enum_def)?;
-            annot_check::check_enum_def(genv, &mut wfckresults, enum_def)?;
-            wfckresults
-        }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::OpaqueTy(opaque_ty) }) => {
-            let owner_id = OwnerId { def_id };
-            wf::check_opaque_ty(genv, opaque_ty, owner_id)?
-        }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Impl(impl_) }) => {
-            let owner_id = OwnerId { def_id };
-            wf::check_impl(genv, impl_, owner_id)?
-        }
-        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Trait(..) }) => {
-            // TODO(nilehmann) we should check the sorts of associated predicates are well-formed.
-            let owner_id = OwnerId { def_id };
-            WfckResults::new(owner_id)
-        }
-        _ => panic!("unexpected item `{def_id:?}`"),
     };
     Ok(Rc::new(wfckresults))
 }

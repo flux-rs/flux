@@ -21,7 +21,7 @@ use flux_middle::{
 use rustc_data_structures::unord::UnordSet;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashSet;
-use rustc_hir::{def::DefKind, OwnerId};
+use rustc_hir::def::DefKind;
 use rustc_span::Symbol;
 
 use self::sortck::InferCtxt;
@@ -29,9 +29,91 @@ use crate::conv::{self, bug_on_infer_sort};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-struct Wf<'genv, 'tcx> {
-    genv: GlobalEnv<'genv, 'tcx>,
-    errors: Errors<'genv>,
+pub(crate) fn check_item<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    item: &fhir::Item,
+) -> Result<WfckResults<'genv>> {
+    let mut infcx = InferCtxt::new(genv, item.owner_id.into());
+
+    Wf::run(genv, |wf| {
+        match &item.kind {
+            fhir::ItemKind::Enum(enum_def) => {
+                wf.check_enum_def(&mut infcx, enum_def);
+            }
+            fhir::ItemKind::Struct(struct_def) => {
+                wf.check_struct_def(&mut infcx, struct_def);
+            }
+            fhir::ItemKind::TyAlias(ty_alias) => {
+                wf.check_ty_alias(&mut infcx, ty_alias);
+            }
+            fhir::ItemKind::Trait(_) => {
+                // TODO(nilehmann) we should check the sorts of associated predicates are well-formed.
+            }
+            fhir::ItemKind::Impl(impl_) => {
+                wf.check_impl(&mut infcx, impl_);
+            }
+            fhir::ItemKind::Fn(fn_sig) => {
+                wf.check_fn_decl(&mut infcx, fn_sig.decl);
+            }
+            fhir::ItemKind::OpaqueTy(opaque_ty) => {
+                let parent = genv.tcx().local_parent(item.owner_id.def_id);
+                if let Some(generics) = genv.map().get_generics(parent) {
+                    let Some(wfckresults) = genv.check_wf(parent).emit(&wf.errors).ok() else {
+                        return;
+                    };
+                    for param in generics.refinement_params {
+                        let sort = wfckresults.node_sorts().get(param.fhir_id).unwrap().clone();
+                        infcx.insert_param(param.id, sort, param.kind);
+                    }
+                }
+                wf.check_opaque_ty(&mut infcx, opaque_ty);
+            }
+        }
+    })?;
+
+    ParamSortResolver::run(&mut infcx, |r| r.visit_item(item))?;
+
+    param_usage::check_item(&infcx, item)?;
+
+    Ok(infcx.into_results())
+}
+
+pub(crate) fn check_trait_item<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    trait_item: &fhir::TraitItem,
+) -> Result<WfckResults<'genv>> {
+    let mut infcx = InferCtxt::new(genv, trait_item.owner_id.into());
+    Wf::run(genv, |wf| {
+        match &trait_item.kind {
+            fhir::TraitItemKind::Fn(fn_sig) => {
+                wf.check_fn_decl(&mut infcx, fn_sig.decl);
+            }
+            fhir::TraitItemKind::Type(_) => {}
+        }
+    })?;
+    ParamSortResolver::run(&mut infcx, |r| r.visit_trait_item(trait_item))?;
+
+    param_usage::check_trait_item(&infcx, trait_item)?;
+    Ok(infcx.into_results())
+}
+
+pub(crate) fn check_impl_item<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    impl_item: &fhir::ImplItem,
+) -> Result<WfckResults<'genv>> {
+    let mut infcx = InferCtxt::new(genv, impl_item.owner_id.into());
+    Wf::run(genv, |wf| {
+        match &impl_item.kind {
+            fhir::ImplItemKind::Fn(fn_sig) => {
+                wf.check_fn_decl(&mut infcx, fn_sig.decl);
+            }
+            fhir::ImplItemKind::Type(_) => {}
+        }
+    })?;
+    ParamSortResolver::run(&mut infcx, |r| r.visit_impl_item(impl_item))?;
+
+    param_usage::check_impl_item(&infcx, impl_item)?;
+    Ok(infcx.into_results())
 }
 
 pub(crate) fn check_qualifier<'genv>(
@@ -74,158 +156,9 @@ pub(crate) fn check_fn_quals(
     Ok(())
 }
 
-pub(crate) fn check_ty_alias<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    ty_alias: &fhir::TyAlias,
-) -> Result<WfckResults<'genv>> {
-    let mut infcx = InferCtxt::new(genv, ty_alias.owner_id.into());
-    Wf::run(genv, |wf| {
-        infcx.insert_params(ty_alias.generics.refinement_params);
-        infcx.insert_params(ty_alias.index_params);
-        wf.check_type(&mut infcx, &ty_alias.ty);
-    })?;
-
-    ParamSortResolver::run(&mut infcx, |r| r.visit_ty_alias(ty_alias))?;
-
-    param_usage::check_ty_alias(&infcx, ty_alias)?;
-
-    Ok(infcx.into_results())
-}
-
-pub(crate) fn check_struct_def<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    struct_def: &fhir::StructDef,
-) -> Result<WfckResults<'genv>> {
-    let mut infcx = InferCtxt::new(genv, struct_def.owner_id.into());
-    Wf::run(genv, |wf| {
-        infcx.insert_params(struct_def.params);
-        for invariant in struct_def.invariants {
-            infcx
-                .check_expr(invariant, &rty::Sort::Bool)
-                .collect_err(&mut wf.errors);
-        }
-
-        if let fhir::StructKind::Transparent { fields } = struct_def.kind {
-            for field_def in fields {
-                wf.check_type(&mut infcx, &field_def.ty);
-            }
-        }
-    })?;
-
-    ParamSortResolver::run(&mut infcx, |r| r.visit_struct_def(struct_def))?;
-
-    param_usage::check_struct_def(&infcx, struct_def)?;
-
-    Ok(infcx.into_results())
-}
-
-pub(crate) fn check_enum_def<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    enum_def: &fhir::EnumDef,
-) -> Result<WfckResults<'genv>> {
-    let mut infcx = InferCtxt::new(genv, enum_def.owner_id.into());
-    Wf::run(genv, |wf| {
-        infcx.insert_params(enum_def.params);
-        for invariant in enum_def.invariants {
-            infcx
-                .check_expr(invariant, &rty::Sort::Bool)
-                .collect_err(&mut wf.errors);
-        }
-
-        for variant in enum_def.variants {
-            wf.check_variant(&mut infcx, variant);
-        }
-    })?;
-
-    ParamSortResolver::run(&mut infcx, |r| r.visit_enum_def(enum_def))?;
-
-    param_usage::check_enum_def(&infcx, enum_def)?;
-
-    Ok(infcx.into_results())
-}
-
-pub(crate) fn check_opaque_ty<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    opaque_ty: &fhir::OpaqueTy,
-    owner_id: OwnerId,
-) -> Result<WfckResults<'genv>> {
-    let mut infcx = InferCtxt::new(genv, owner_id.into());
-    let parent = genv.tcx().local_parent(owner_id.def_id);
-    if let Some(generics) = genv.map().get_generics(parent) {
-        let wfckresults = genv.check_wf(parent).emit(genv.sess())?;
-        for param in generics.refinement_params {
-            let sort = wfckresults.node_sorts().get(param.fhir_id).unwrap().clone();
-            infcx.insert_param(param.id, sort, param.kind);
-        }
-    }
-    Wf::run(genv, |wf| {
-        wf.check_opaque_ty(&mut infcx, opaque_ty);
-    })?;
-
-    ParamSortResolver::run(&mut infcx, |r| r.visit_opaque_ty(opaque_ty))?;
-
-    Ok(infcx.into_results())
-}
-
-pub(crate) fn check_impl<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    impl_: &fhir::Impl,
-    owner_id: OwnerId,
-) -> Result<WfckResults<'genv>> {
-    let mut infcx = InferCtxt::new(genv, owner_id.into());
-
-    for assoc_reft in impl_.assoc_refinements {
-        infcx.insert_params(assoc_reft.params);
-        let output = conv::conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort);
-        infcx.check_expr(&assoc_reft.body, &output)?;
-    }
-
-    Ok(infcx.into_results())
-}
-
-pub(crate) fn check_fn_decl<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    decl: &fhir::FnDecl,
-    owner_id: OwnerId,
-) -> Result<WfckResults<'genv>> {
-    let mut infcx = InferCtxt::new(genv, owner_id.into());
-    Wf::run(genv, |wf| {
-        infcx.insert_params(decl.generics.refinement_params);
-
-        let mut err = None;
-        for arg in decl.args {
-            infcx.infer_implicit_params(arg).collect_err(&mut err);
-        }
-        for constr in decl.requires {
-            if let fhir::Constraint::Type(_, ty) = constr {
-                infcx.infer_implicit_params(ty).collect_err(&mut err);
-            }
-        }
-
-        // Bail out if inference of implicit parameters failed to avoid confusing errors
-        if let Some(err) = err {
-            wf.errors.collect_err(err);
-            return;
-        }
-
-        for arg in decl.args {
-            wf.check_type(&mut infcx, arg);
-        }
-
-        for constr in decl.requires {
-            wf.check_constraint(&mut infcx, constr);
-        }
-
-        wf.check_generic_predicates(&mut infcx, decl.generics.predicates);
-        wf.check_fn_output(&mut infcx, &decl.output);
-        wf.check_output_locs(decl);
-    })?;
-
-    ParamSortResolver::run(&mut infcx, |r| r.visit_fn_decl(decl))?;
-
-    param_usage::check_fn_decl(&infcx, decl)?;
-
-    Ok(infcx.into_results())
+struct Wf<'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
+    errors: Errors<'genv>,
 }
 
 impl<'genv, 'tcx> Wf<'genv, 'tcx> {
@@ -261,6 +194,50 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
         }
     }
 
+    fn check_impl(&mut self, infcx: &mut InferCtxt, impl_: &fhir::Impl) {
+        for assoc_reft in impl_.assoc_refinements {
+            infcx.insert_params(assoc_reft.params);
+            let output = conv::conv_sort(self.genv, &assoc_reft.output, &mut bug_on_infer_sort);
+            infcx
+                .check_expr(&assoc_reft.body, &output)
+                .collect_err(&mut self.errors);
+        }
+    }
+
+    fn check_ty_alias(&mut self, infcx: &mut InferCtxt, ty_alias: &fhir::TyAlias) {
+        infcx.insert_params(ty_alias.generics.refinement_params);
+        infcx.insert_params(ty_alias.index_params);
+        self.check_type(infcx, &ty_alias.ty);
+    }
+
+    fn check_struct_def(&mut self, infcx: &mut InferCtxt, struct_def: &fhir::StructDef) {
+        infcx.insert_params(struct_def.params);
+        for invariant in struct_def.invariants {
+            infcx
+                .check_expr(invariant, &rty::Sort::Bool)
+                .collect_err(&mut self.errors);
+        }
+
+        if let fhir::StructKind::Transparent { fields } = struct_def.kind {
+            for field_def in fields {
+                self.check_type(infcx, &field_def.ty);
+            }
+        }
+    }
+
+    fn check_enum_def(&mut self, infcx: &mut InferCtxt, enum_def: &fhir::EnumDef) {
+        infcx.insert_params(enum_def.params);
+        for invariant in enum_def.invariants {
+            infcx
+                .check_expr(invariant, &rty::Sort::Bool)
+                .collect_err(&mut self.errors);
+        }
+
+        for variant in enum_def.variants {
+            self.check_variant(infcx, variant);
+        }
+    }
+
     fn check_variant(&mut self, infcx: &mut InferCtxt, variant: &fhir::VariantDef) {
         infcx.insert_params(variant.params);
 
@@ -288,6 +265,38 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
         infcx
             .check_refine_arg(&variant.ret.idx, &expected)
             .collect_err(&mut self.errors);
+    }
+
+    fn check_fn_decl(&mut self, infcx: &mut InferCtxt, decl: &fhir::FnDecl) {
+        infcx.insert_params(decl.generics.refinement_params);
+
+        let mut err = None;
+        for arg in decl.args {
+            infcx.infer_implicit_params(arg).collect_err(&mut err);
+        }
+        for constr in decl.requires {
+            if let fhir::Constraint::Type(_, ty) = constr {
+                infcx.infer_implicit_params(ty).collect_err(&mut err);
+            }
+        }
+
+        // Bail out if inference of implicit parameters failed to avoid confusing errors
+        if let Some(err) = err {
+            self.errors.collect_err(err);
+            return;
+        }
+
+        for arg in decl.args {
+            self.check_type(infcx, arg);
+        }
+
+        for constr in decl.requires {
+            self.check_constraint(infcx, constr);
+        }
+
+        self.check_generic_predicates(infcx, decl.generics.predicates);
+        self.check_fn_output(infcx, &decl.output);
+        self.check_output_locs(decl);
     }
 
     fn check_fn_output(&mut self, infcx: &mut InferCtxt, fn_output: &fhir::FnOutput) {
@@ -464,7 +473,8 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
     }
 }
 
-/// Check that all params with [`fhir::Sort::Infer`] have a sort inferred and elaborate it
+/// Check that all params with [`fhir::Sort::Infer`] have a sort inferred and save it in the
+/// [`WfckResults`]
 struct ParamSortResolver<'a, 'genv, 'tcx> {
     infcx: &'a mut InferCtxt<'genv, 'tcx>,
     errors: Option<ErrorGuaranteed>,

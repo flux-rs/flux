@@ -208,7 +208,8 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
                     let assoc_ty = self
                         .as_rust_item_ctxt(owner_id, None)
                         .desugar_assoc_type()?;
-                    let trait_item = fhir::TraitItem { kind: fhir::TraitItemKind::Type(assoc_ty) };
+                    let trait_item =
+                        fhir::TraitItem { kind: fhir::TraitItemKind::Type(assoc_ty), owner_id };
                     self.fhir.trait_items.insert(owner_id.def_id, trait_item);
                     Ok(())
                 });
@@ -229,7 +230,8 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
                     let assoc_ty = self
                         .as_rust_item_ctxt(owner_id, None)
                         .desugar_assoc_type()?;
-                    let impl_item = fhir::ImplItem { kind: fhir::ImplItemKind::Type(assoc_ty) };
+                    let impl_item =
+                        fhir::ImplItem { kind: fhir::ImplItemKind::Type(assoc_ty), owner_id };
                     self.fhir.impl_items.insert(owner_id.def_id, impl_item);
                     Ok(())
                 });
@@ -253,7 +255,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
             dbg::dump_item_info(self.genv.tcx(), owner_id, "fhir", struct_def).unwrap();
         }
 
-        let item = fhir::Item { kind: fhir::ItemKind::Struct(struct_def) };
+        let item = fhir::Item { kind: fhir::ItemKind::Struct(struct_def), owner_id };
         self.fhir.items.insert(def_id, item);
 
         Ok(())
@@ -270,7 +272,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
             dbg::dump_item_info(self.genv.tcx(), owner_id, "fhir", &enum_def).unwrap();
         }
 
-        let item = fhir::Item { kind: fhir::ItemKind::Enum(enum_def) };
+        let item = fhir::Item { kind: fhir::ItemKind::Enum(enum_def), owner_id };
         self.fhir.items.insert(def_id, item);
 
         Ok(())
@@ -291,7 +293,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
             dbg::dump_item_info(self.genv.tcx(), owner_id, "fhir", &ty_alias).unwrap();
         }
 
-        let item = fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias) };
+        let item = fhir::Item { kind: fhir::ItemKind::TyAlias(ty_alias), owner_id };
         self.fhir.items.insert(def_id, item);
 
         Ok(())
@@ -300,7 +302,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     fn desugar_item_fn(&mut self, owner_id: OwnerId, fn_spec: &surface::FnSpec) -> Result {
         let fn_sig = self.desugar_fn_spec(owner_id, fn_spec)?;
 
-        let item = fhir::Item { kind: fhir::ItemKind::Fn(fn_sig) };
+        let item = fhir::Item { kind: fhir::ItemKind::Fn(fn_sig), owner_id };
         self.fhir.items.insert(owner_id.def_id, item);
         Ok(())
     }
@@ -308,7 +310,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     fn desugar_impl_fn(&mut self, owner_id: OwnerId, fn_spec: &surface::FnSpec) -> Result {
         let fn_sig = self.desugar_fn_spec(owner_id, fn_spec)?;
 
-        let impl_item = fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig) };
+        let impl_item = fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig), owner_id };
         self.fhir.impl_items.insert(owner_id.def_id, impl_item);
 
         Ok(())
@@ -317,7 +319,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     fn desugar_trait_fn(&mut self, owner_id: OwnerId, fn_spec: &surface::FnSpec) -> Result {
         let fn_sig = self.desugar_fn_spec(owner_id, fn_spec)?;
 
-        let trait_item = fhir::TraitItem { kind: fhir::TraitItemKind::Fn(fn_sig) };
+        let trait_item = fhir::TraitItem { kind: fhir::TraitItemKind::Fn(fn_sig), owner_id };
         self.fhir.trait_items.insert(owner_id.def_id, trait_item);
 
         Ok(())
@@ -342,7 +344,8 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
         self.fhir
             .items
             .extend_unord(opaque_tys.into_items().map(|(def_id, opaque_ty)| {
-                (def_id, fhir::Item { kind: fhir::ItemKind::OpaqueTy(opaque_ty) })
+                let owner_id = OwnerId { def_id };
+                (def_id, fhir::Item { kind: fhir::ItemKind::OpaqueTy(opaque_ty), owner_id })
             }));
 
         Ok(fn_sig)
@@ -355,7 +358,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
             .as_rust_item_ctxt(owner_id, None)
             .desugar_trait(trait_)?;
 
-        let item = fhir::Item { kind: fhir::ItemKind::Trait(trait_) };
+        let item = fhir::Item { kind: fhir::ItemKind::Trait(trait_), owner_id };
         self.fhir.items.insert(def_id, item);
 
         Ok(())
@@ -366,7 +369,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
 
         let impl_ = self.as_rust_item_ctxt(owner_id, None).desugar_impl(impl_)?;
 
-        let item = fhir::Item { kind: fhir::ItemKind::Impl(impl_) };
+        let item = fhir::Item { kind: fhir::ItemKind::Impl(impl_), owner_id };
         self.fhir.items.insert(def_id, item);
 
         Ok(())

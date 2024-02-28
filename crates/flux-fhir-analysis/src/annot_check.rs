@@ -22,7 +22,47 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
 use rustc_hir::OwnerId;
 
-pub fn check_fn_sig<'genv>(
+pub(crate) fn check_item<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    wfckresults: &mut WfckResults<'genv>,
+    item: &fhir::Item,
+) -> Result<(), ErrorGuaranteed> {
+    match &item.kind {
+        fhir::ItemKind::Enum(enum_def) => check_enum_def(genv, wfckresults, enum_def),
+        fhir::ItemKind::Struct(struct_def) => check_struct_def(genv, wfckresults, struct_def),
+        fhir::ItemKind::Fn(fn_sig) => check_fn_sig(genv, wfckresults, item.owner_id, fn_sig),
+        fhir::ItemKind::TyAlias(ty_alias) => check_ty_alias(genv, wfckresults, ty_alias),
+        fhir::ItemKind::Trait(_) | fhir::ItemKind::Impl(_) | fhir::ItemKind::OpaqueTy(_) => Ok(()),
+    }
+}
+
+pub(crate) fn check_trait_item<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    wfckresults: &mut WfckResults<'genv>,
+    trait_item: &fhir::TraitItem,
+) -> Result<(), ErrorGuaranteed> {
+    match &trait_item.kind {
+        fhir::TraitItemKind::Fn(fn_sig) => {
+            check_fn_sig(genv, wfckresults, trait_item.owner_id, fn_sig)
+        }
+        fhir::TraitItemKind::Type(_) => Ok(()),
+    }
+}
+
+pub(crate) fn check_impl_item<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    wfckresults: &mut WfckResults<'genv>,
+    impl_item: &fhir::ImplItem,
+) -> Result<(), ErrorGuaranteed> {
+    match &impl_item.kind {
+        fhir::ImplItemKind::Fn(fn_sig) => {
+            check_fn_sig(genv, wfckresults, impl_item.owner_id, fn_sig)
+        }
+        fhir::ImplItemKind::Type(_) => Ok(()),
+    }
+}
+
+pub(crate) fn check_fn_sig<'genv>(
     genv: GlobalEnv<'genv, '_>,
     wfckresults: &mut WfckResults<'genv>,
     owner_id: OwnerId,
@@ -36,7 +76,7 @@ pub fn check_fn_sig<'genv>(
     Zipper::new(genv, wfckresults, self_ty).zip_fn_decl(fn_sig.decl, expected_fn_decl)
 }
 
-pub fn check_alias<'genv>(
+pub(crate) fn check_ty_alias<'genv>(
     genv: GlobalEnv<'genv, '_>,
     wfckresults: &mut WfckResults<'genv>,
     ty_alias: &fhir::TyAlias,
@@ -48,7 +88,7 @@ pub fn check_alias<'genv>(
     Zipper::new(genv, wfckresults, None).zip_ty(&ty_alias.ty, &expected_ty_alias.ty)
 }
 
-pub fn check_struct_def<'genv>(
+pub(crate) fn check_struct_def<'genv>(
     genv: GlobalEnv<'genv, '_>,
     wfckresults: &mut WfckResults<'genv>,
     struct_def: &fhir::StructDef,
@@ -70,7 +110,7 @@ pub fn check_struct_def<'genv>(
     }
 }
 
-pub fn check_enum_def<'genv>(
+pub(crate) fn check_enum_def<'genv>(
     genv: GlobalEnv<'genv, '_>,
     wfckresults: &mut WfckResults<'genv>,
     enum_def: &fhir::EnumDef,
