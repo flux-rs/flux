@@ -1104,6 +1104,24 @@
 <a href="#1104" id="1104">1104</a>
 <a href="#1105" id="1105">1105</a>
 <a href="#1106" id="1106">1106</a>
+<a href="#1107" id="1107">1107</a>
+<a href="#1108" id="1108">1108</a>
+<a href="#1109" id="1109">1109</a>
+<a href="#1110" id="1110">1110</a>
+<a href="#1111" id="1111">1111</a>
+<a href="#1112" id="1112">1112</a>
+<a href="#1113" id="1113">1113</a>
+<a href="#1114" id="1114">1114</a>
+<a href="#1115" id="1115">1115</a>
+<a href="#1116" id="1116">1116</a>
+<a href="#1117" id="1117">1117</a>
+<a href="#1118" id="1118">1118</a>
+<a href="#1119" id="1119">1119</a>
+<a href="#1120" id="1120">1120</a>
+<a href="#1121" id="1121">1121</a>
+<a href="#1122" id="1122">1122</a>
+<a href="#1123" id="1123">1123</a>
+<a href="#1124" id="1124">1124</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter, ops::ControlFlow};
@@ -2042,7 +2060,23 @@
         )
     }
 
-    <span class="kw">fn </span>bin_rel_to_fixpoint(
+    <span class="doccomment">/// A binary relation is encoded as a structurally recursive relation between aggregate sorts.
+    /// For &quot;leaf&quot; expressions, we encode them as an interpreted relation if the sort supports it,
+    /// otherwise we use an uninterpreted function. For example, consider the following relation
+    /// between two tuples of sort `(int, int -&gt; int)`
+    /// ```text
+    /// (0, λv. v + 1) &lt;= (1, λv. v + 1)
+    /// ```
+    /// The encoding in fixpoint will be
+    ///
+    /// ```text
+    /// 0 &lt;= 1 &amp;&amp; (le (λv. v + 1) (λv. v + 1))
+    /// ```
+    /// Where `&lt;=` is the (interpreted) less than or equal relation between integers and `le` is
+    /// an uninterpreted relation between ([the encoding] of) lambdas.
+    ///
+    /// [the encoding]: Self::register_const_for_lambda
+    </span><span class="kw">fn </span>bin_rel_to_fixpoint(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         sort: <span class="kw-2">&amp;</span>rty::Sort,
         rel: fixpoint::BinRel,
@@ -2059,14 +2093,14 @@
             }
             rty::Sort::Tuple(sorts) =&gt; {
                 <span class="kw">let </span>arity = sorts.len();
-                <span class="self">self</span>.apply_bin_rel_rec(sorts, rel, e1, e2, env, |field| {
+                <span class="self">self</span>.apply_bin_rel(sorts, rel, e1, e2, env, |field| {
                     rty::FieldProj::Tuple { arity, field }
                 })
             }
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) =&gt; {
                 <span class="kw">let </span>def_id = sort_def.did();
                 <span class="kw">let </span>sorts = sort_def.sorts(args);
-                <span class="self">self</span>.apply_bin_rel_rec(<span class="kw-2">&amp;</span>sorts, rel, e1, e2, env, |field| {
+                <span class="self">self</span>.apply_bin_rel(<span class="kw-2">&amp;</span>sorts, rel, e1, e2, env, |field| {
                     rty::FieldProj::Adt { def_id, field }
                 })
             }
@@ -2080,7 +2114,7 @@
         }
     }
 
-    <span class="kw">fn </span>apply_bin_rel_rec(
+    <span class="kw">fn </span>apply_bin_rel(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         sorts: <span class="kw-2">&amp;</span>[rty::Sort],
         rel: fixpoint::BinRel,
@@ -2095,8 +2129,8 @@
                 .enumerate()
                 .map(|(idx, s)| {
                     <span class="kw">let </span>proj = mk_proj(idx <span class="kw">as </span>u32);
-                    <span class="kw">let </span>e1 = e1.proj_and_simplify(proj);
-                    <span class="kw">let </span>e2 = e2.proj_and_simplify(proj);
+                    <span class="kw">let </span>e1 = e1.proj_and_reduce(proj);
+                    <span class="kw">let </span>e2 = e2.proj_and_reduce(proj);
                     <span class="self">self</span>.bin_rel_to_fixpoint(s, rel, <span class="kw-2">&amp;</span>e1, <span class="kw-2">&amp;</span>e2, env)
                 })
                 .collect(),
@@ -2166,7 +2200,9 @@
             .name
     }
 
-    <span class="kw">fn </span>register_const_for_lambda(<span class="kw-2">&amp;mut </span><span class="self">self</span>, lam: <span class="kw-2">&amp;</span>rty::Lambda) -&gt; fixpoint::GlobalVar {
+    <span class="doccomment">/// We encode lambdas with uninterpreted constant. Two syntactically equal lambdas will be encoded
+    /// with the same constant.
+    </span><span class="kw">fn </span>register_const_for_lambda(<span class="kw-2">&amp;mut </span><span class="self">self</span>, lam: <span class="kw-2">&amp;</span>rty::Lambda) -&gt; fixpoint::GlobalVar {
         <span class="kw">let </span>key = Key::Lambda(lam.clone());
         <span class="self">self</span>.const_map
             .entry(key)
@@ -2196,12 +2232,12 @@
     }
 }
 
-<span class="doccomment">/// This function returns a very polymorphic sort for the UIF encoding the alias_pred;
+<span class="doccomment">/// This function returns a very polymorphic sort for the UIF encoding an associated refinement.
 /// This is ok, as well-formedness in previous phases will ensure the function is always
 /// instantiated with the same sorts. However, the proper thing is to compute the *actual*
-/// mono-sort at which this alias_pred is being used see [`GlobalEnv::sort_of_alias_reft`] but
-/// that is a bit tedious as its done using the `fhir` (not `rty`). Alternatively, we might
-/// stash the computed mono-sort *in* the `rty::AliasPred` during `conv`?
+/// mono-sort at which the associated refinement is being used see [`GlobalEnv::sort_of_alias_reft`]
+/// but that is a bit tedious as its done using the `fhir` (not `rty`). Alternatively, we might
+/// stash the computed mono-sort *in* the [`rty::AliasReft`] during `conv`?
 </span><span class="kw">fn </span>alias_reft_sort(arity: usize) -&gt; rty::PolyFuncSort {
     <span class="kw">let </span><span class="kw-2">mut </span>sorts = <span class="macro">vec!</span>[];
     <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..arity {

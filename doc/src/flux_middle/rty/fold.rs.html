@@ -1413,7 +1413,7 @@
 }
 
 <span class="kw">pub trait </span>TypeVisitable: Sized {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt;;
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt;;
 
     <span class="kw">fn </span>has_escaping_bvars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">struct </span>HasEscapingVars {
@@ -1468,7 +1468,7 @@
 }
 
 <span class="kw">pub trait </span>TypeSuperVisitable: TypeVisitable {
-    <span class="kw">fn </span>super_visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt;;
+    <span class="kw">fn </span>super_visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt;;
 }
 
 <span class="kw">pub trait </span>TypeFoldable: TypeVisitable {
@@ -1694,7 +1694,7 @@
 }
 
 <span class="kw">impl</span>&lt;T: TypeVisitable, U: TypeVisitable&gt; TypeVisitable <span class="kw">for </span>OutlivesPredicate&lt;T, U&gt; {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.<span class="number">0</span>.visit_with(visitor)<span class="question-mark">?</span>;
         <span class="self">self</span>.<span class="number">1</span>.visit_with(visitor)
     }
@@ -1707,7 +1707,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>TraitPredicate {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.trait_ref.visit_with(visitor)
     }
 }
@@ -1719,7 +1719,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>TraitRef {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.args.visit_with(visitor)
     }
 }
@@ -1731,7 +1731,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>CoroutineObligPredicate {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.upvar_tys.visit_with(visitor)<span class="question-mark">?</span>;
         <span class="self">self</span>.output.visit_with(visitor)
     }
@@ -1749,7 +1749,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>ProjectionPredicate {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.projection_ty.visit_with(visitor)<span class="question-mark">?</span>;
         <span class="self">self</span>.term.visit_with(visitor)
     }
@@ -1784,7 +1784,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>Sort {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         visitor.visit_sort(<span class="self">self</span>)
     }
 }
@@ -1834,7 +1834,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>PolyFuncSort {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.fsort.visit_with(visitor)
     }
 }
@@ -1846,7 +1846,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>FuncSort {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.inputs_and_output.visit_with(visitor)
     }
 }
@@ -1933,7 +1933,7 @@
 }
 
 <span class="kw">impl</span>&lt;T: TypeVisitable&gt; TypeVisitable <span class="kw">for </span>Opaqueness&lt;T&gt; {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="kw">if let </span>Opaqueness::Transparent(t) = <span class="self">self </span>{
             t.visit_with(visitor)
         } <span class="kw">else </span>{
@@ -1949,13 +1949,13 @@
 }
 
 <span class="kw">impl</span>&lt;T: TypeVisitable&gt; TypeVisitable <span class="kw">for </span>Vec&lt;T&gt; {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.iter().try_for_each(|t| t.visit_with(visitor))
     }
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>FnSig {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.requires
             .iter()
             .try_for_each(|constr| constr.visit_with(visitor))<span class="question-mark">?</span>;
@@ -1976,7 +1976,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>FnOutput {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.ret.visit_with(visitor)<span class="question-mark">?</span>;
         <span class="self">self</span>.ensures.visit_with(visitor)
     }
@@ -1989,7 +1989,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>Constraint {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             Constraint::Type(path, ty, <span class="kw">_</span>) =&gt; {
                 path.to_expr().visit_with(visitor)<span class="question-mark">?</span>;
@@ -2023,19 +2023,19 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>AliasReft {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.args.visit_with(visitor)
     }
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>Ty {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         visitor.visit_ty(<span class="self">self</span>)
     }
 }
 
 <span class="kw">impl </span>TypeSuperVisitable <span class="kw">for </span>Ty {
-    <span class="kw">fn </span>super_visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>super_visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="kw">match </span><span class="self">self</span>.kind() {
             TyKind::Indexed(bty, idxs) =&gt; {
                 bty.visit_with(visitor)<span class="question-mark">?</span>;
@@ -2107,7 +2107,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>Region {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, _visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, _visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         ControlFlow::Continue(())
     }
 }
@@ -2119,13 +2119,13 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>BaseTy {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         visitor.visit_bty(<span class="self">self</span>)
     }
 }
 
 <span class="kw">impl </span>TypeSuperVisitable <span class="kw">for </span>BaseTy {
-    <span class="kw">fn </span>super_visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>super_visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             BaseTy::Adt(<span class="kw">_</span>, args) =&gt; args.visit_with(visitor),
             BaseTy::Slice(ty) =&gt; ty.visit_with(visitor),
@@ -2189,7 +2189,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>AliasTy {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.args.visit_with(visitor)
     }
 }
@@ -2205,7 +2205,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>SubsetTy {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.bty.visit_with(visitor)<span class="question-mark">?</span>;
         <span class="self">self</span>.idx.visit_with(visitor)<span class="question-mark">?</span>;
         <span class="self">self</span>.pred.visit_with(visitor)
@@ -2229,7 +2229,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>GenericArg {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             GenericArg::Ty(ty) =&gt; ty.visit_with(visitor),
             GenericArg::Base(ty) =&gt; ty.visit_with(visitor),
@@ -2252,7 +2252,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>KVar {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.args.visit_with(visitor)
     }
 }
@@ -2268,13 +2268,13 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>Expr {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         visitor.visit_expr(<span class="self">self</span>)
     }
 }
 
 <span class="kw">impl </span>TypeSuperVisitable <span class="kw">for </span>Expr {
-    <span class="kw">fn </span>super_visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>super_visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="kw">match </span><span class="self">self</span>.kind() {
             ExprKind::Var(var) =&gt; var.visit_with(visitor),
             ExprKind::BinaryOp(<span class="kw">_</span>, e1, e2) =&gt; {
@@ -2310,7 +2310,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>Lambda {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.body.visit_with(visitor)<span class="question-mark">?</span>;
         <span class="self">self</span>.output.visit_with(visitor)
     }
@@ -2326,7 +2326,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>Var {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             Var::Free(name) =&gt; visitor.visit_fvar(<span class="kw-2">*</span>name),
             Var::LateBound(<span class="kw">_</span>, <span class="kw">_</span>) | Var::EarlyParam(<span class="kw">_</span>) | Var::EVar(<span class="kw">_</span>) =&gt; ControlFlow::Continue(()),
@@ -2397,7 +2397,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>BinOp {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             BinOp::Gt(sort) | BinOp::Ge(sort) | BinOp::Lt(sort) | BinOp::Le(sort) =&gt; {
                 sort.visit_with(visitor)
@@ -2441,7 +2441,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>HoleKind {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             HoleKind::Pred =&gt; ControlFlow::Continue(()),
             HoleKind::Expr(sort) =&gt; sort.visit_with(visitor),
@@ -2463,7 +2463,7 @@
     </span>T: TypeVisitable,
     [T]: Internable,
 {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.iter().try_for_each(|t| t.visit_with(visitor))
     }
 }
@@ -2479,7 +2479,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>Qualifier {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.body.visit_with(visitor)
     }
 }
@@ -2495,7 +2495,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>Invariant {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="self">self</span>.pred.visit_with(visitor)
     }
 }

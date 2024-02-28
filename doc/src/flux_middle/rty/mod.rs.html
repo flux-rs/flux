@@ -3005,10 +3005,10 @@
 
     <span class="kw">pub fn </span>apply(<span class="kw-2">&amp;</span><span class="self">self</span>, idx: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
         <span class="comment">// The predicate may have sort variables but we don&#39;t explicitly instantiate them. This
-        // works because sort variables can only appear within an expression inside a lambda and
+        // works because within an expression, sort variables can only appear inside a lambda and
         // invariants cannot have lambdas. It remains to instantiate variables in the sort of the
-        // binder itself but since we are removing it we can avoid the explicit instantiation.
-        // Ultimately, this works because the expression we generate in fixpoint/z3 doesn&#39;t need
+        // binder itself, but since we are removing it, we can avoid the explicit instantiation.
+        // Ultimately, this works because the expression we generate in fixpoint don&#39;t need
         // sort annotations (sorts are re-inferred).
         </span><span class="self">self</span>.pred.replace_bound_reft(idx)
     }

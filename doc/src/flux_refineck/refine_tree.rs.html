@@ -1099,7 +1099,7 @@
             overflow_checking: bool,
         }
         <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>Visitor&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
-            <span class="kw">fn </span>visit_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) -&gt; ControlFlow&lt;!, ()&gt; {
+            <span class="kw">fn </span>visit_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) -&gt; ControlFlow&lt;!&gt; {
                 <span class="kw">match </span>bty {
                     BaseTy::Adt(adt_def, substs) <span class="kw">if </span>adt_def.is_box() =&gt; substs.visit_with(<span class="self">self</span>),
                     BaseTy::Ref(<span class="kw">_</span>, ty, <span class="kw">_</span>) =&gt; ty.visit_with(<span class="self">self</span>),
@@ -1108,7 +1108,7 @@
                 }
             }
 
-            <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; ControlFlow&lt;!, ()&gt; {
+            <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; ControlFlow&lt;!&gt; {
                 <span class="kw">if let </span>TyKind::Indexed(bty, idx) = ty.kind()
                     &amp;&amp; !idx.has_escaping_bvars()
                 {

@@ -197,7 +197,7 @@
     <span class="kw">fn </span>defn_deps(<span class="kw-2">&amp;</span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Binder&lt;Expr&gt;) -&gt; FxHashSet&lt;Symbol&gt; {
         <span class="kw">struct </span>DepsVisitor(FxHashSet&lt;Symbol&gt;);
         <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>DepsVisitor {
-            <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; ControlFlow&lt;!, ()&gt; {
+            <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; ControlFlow&lt;!&gt; {
                 <span class="kw">if let </span>ExprKind::App(func, <span class="kw">_</span>) = expr.kind()
                     &amp;&amp; <span class="kw">let </span>ExprKind::GlobalFunc(sym, SpecFuncKind::Def) = func.kind()
                 {
@@ -307,7 +307,7 @@
         <span class="kw">let </span>span = expr.span();
         <span class="kw">match </span>expr.kind() {
             ExprKind::App(func, args) =&gt; <span class="self">self</span>.app(func, args, span),
-            ExprKind::FieldProj(e, proj) =&gt; e.proj_and_simplify(<span class="kw-2">*</span>proj),
+            ExprKind::FieldProj(e, proj) =&gt; e.proj_and_reduce(<span class="kw-2">*</span>proj),
             <span class="kw">_ </span>=&gt; expr,
         }
     }

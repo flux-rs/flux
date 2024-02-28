@@ -1856,7 +1856,7 @@
 }
 
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>PlacesTree {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, _visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy, ()&gt; {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, _visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="macro">unimplemented!</span>()
     }
 }
