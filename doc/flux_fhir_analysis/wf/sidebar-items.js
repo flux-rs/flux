@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["check_fn_quals","check_node","check_qualifier","check_spec_func","insert_params","resolve_params","visit_refine_params"],"mod":["errors","param_usage","sortck"],"struct":["SortCk"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"fn":["check_flux_item","check_fn_quals","check_node","insert_params","resolve_params","visit_refine_params"],"mod":["errors","param_usage","sortck"],"struct":["Wf"],"type":["Result"]};

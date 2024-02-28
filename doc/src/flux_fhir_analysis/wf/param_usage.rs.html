@@ -236,7 +236,7 @@
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_node(infcx: <span class="kw-2">&amp;</span>InferCtxt, node: <span class="kw-2">&amp;</span>fhir::Node) -&gt; <span class="prelude-ty">Result </span>{
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check(infcx: <span class="kw-2">&amp;</span>InferCtxt, node: <span class="kw-2">&amp;</span>fhir::Node) -&gt; <span class="prelude-ty">Result </span>{
     ParamUsesChecker::new(infcx).run(|ck| ck.visit_node(node))
 }
 

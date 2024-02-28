@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["check_node"],"struct":["ParamUsesChecker"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"fn":["check"],"struct":["ParamUsesChecker"],"type":["Result"]};

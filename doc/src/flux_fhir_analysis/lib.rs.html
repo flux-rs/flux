@@ -452,18 +452,6 @@
 <a href="#452" id="452">452</a>
 <a href="#453" id="453">453</a>
 <a href="#454" id="454">454</a>
-<a href="#455" id="455">455</a>
-<a href="#456" id="456">456</a>
-<a href="#457" id="457">457</a>
-<a href="#458" id="458">458</a>
-<a href="#459" id="459">459</a>
-<a href="#460" id="460">460</a>
-<a href="#461" id="461">461</a>
-<a href="#462" id="462">462</a>
-<a href="#463" id="463">463</a>
-<a href="#464" id="464">464</a>
-<a href="#465" id="465">465</a>
-<a href="#466" id="466">466</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_data_structures;
@@ -834,34 +822,22 @@
     genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
     flux_id: FluxLocalDefId,
 ) -&gt; QueryResult&lt;Rc&lt;WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;&gt; {
-    <span class="kw">match </span>flux_id {
-        FluxLocalDefId::Flux(sym) =&gt; check_wf_flux_item(genv, sym),
-        FluxLocalDefId::Rust(def_id) =&gt; check_wf_rust_item(genv, def_id),
-    }
-}
-
-<span class="kw">fn </span>check_wf_flux_item&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    sym: Symbol,
-) -&gt; QueryResult&lt;Rc&lt;WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;&gt; {
-    <span class="kw">let </span>wfckresults = <span class="kw">match </span>genv.map().get_flux_item(sym).unwrap() {
-        fhir::FluxItem::Qualifier(qualifier) =&gt; wf::check_qualifier(genv, qualifier)<span class="question-mark">?</span>,
-        fhir::FluxItem::Func(defn) =&gt; wf::check_spec_func(genv, defn)<span class="question-mark">?</span>,
+    <span class="kw">let </span>wfckresults = <span class="kw">match </span>flux_id {
+        FluxLocalDefId::Flux(sym) =&gt; {
+            wf::check_flux_item(genv, genv.map().get_flux_item(sym).unwrap())<span class="question-mark">?
+        </span>}
+        FluxLocalDefId::Rust(def_id) =&gt; {
+            <span class="kw">let </span>def_kind = genv.def_kind(def_id);
+            <span class="kw">if </span><span class="macro">matches!</span>(def_kind, DefKind::Closure | DefKind::Coroutine | DefKind::TyParam) {
+                <span class="kw">let </span>parent = genv.tcx().local_parent(def_id);
+                <span class="kw">return </span>genv.check_wf(parent);
+            }
+            <span class="kw">let </span>node = genv.map().node(def_id);
+            <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
+            annot_check::check_node(genv, <span class="kw-2">&amp;mut </span>wfckresults, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
+            wfckresults
+        }
     };
-    <span class="prelude-val">Ok</span>(Rc::new(wfckresults))
-}
-
-<span class="kw">fn </span>check_wf_rust_item&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    def_id: LocalDefId,
-) -&gt; QueryResult&lt;Rc&lt;WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;&gt; {
-    <span class="kw">if </span><span class="macro">matches!</span>(genv.def_kind(def_id), DefKind::Closure | DefKind::Coroutine | DefKind::TyParam) {
-        <span class="kw">let </span>parent = genv.tcx().local_parent(def_id);
-        <span class="kw">return </span>genv.check_wf(parent);
-    }
-    <span class="kw">let </span>node = genv.map().node(def_id);
-    <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
-    annot_check::check_node(genv, <span class="kw-2">&amp;mut </span>wfckresults, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(Rc::new(wfckresults))
 }
 

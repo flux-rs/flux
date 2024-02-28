@@ -461,12 +461,25 @@
 <a href="#461" id="461">461</a>
 <a href="#462" id="462">462</a>
 <a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
-    FnSig, FuncSort, GenericArg, GenericBound, Generics, ImplItem, ImplItemKind, Item, ItemKind,
-    Lifetime, Lit, Node, OpaqueTy, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath,
-    RefineArg, RefineArgKind, RefineParam, Sort, SortPath, StructDef, TraitItem, TraitItemKind, Ty,
-    TyAlias, TyKind, TypeBinding, VariantDef, VariantRet, WhereBoundPredicate,
+    FnSig, FuncSort, GenericArg, GenericBound, Generics, ImplAssocReft, ImplItem, ImplItemKind,
+    Item, ItemKind, Lifetime, Lit, Node, OpaqueTy, Path, PathExpr, PathSegment, PolyFuncSort,
+    PolyTraitRef, QPath, RefineArg, RefineArgKind, RefineParam, Sort, SortPath, StructDef,
+    TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, TypeBinding, VariantDef,
+    VariantRet, WhereBoundPredicate,
 };
 <span class="kw">use </span><span class="kw">crate</span>::fhir::StructKind;
 
@@ -505,6 +518,14 @@
 
     <span class="kw">fn </span>visit_where_predicate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, predicate: <span class="kw-2">&amp;</span>WhereBoundPredicate) {
         walk_where_predicate(<span class="self">self</span>, predicate);
+    }
+
+    <span class="kw">fn </span>visit_impl_assoc_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assoc_reft: <span class="kw-2">&amp;</span>ImplAssocReft) {
+        walk_impl_assoc_reft(<span class="self">self</span>, assoc_reft);
+    }
+
+    <span class="kw">fn </span>visit_trait_assoc_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assoc_reft: <span class="kw-2">&amp;</span>TraitAssocReft) {
+        walk_trait_assoc_reft(<span class="self">self</span>, assoc_reft);
     }
 
     <span class="kw">fn </span>visit_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, struct_def: <span class="kw-2">&amp;</span>StructDef) {
@@ -697,18 +718,11 @@
         ItemKind::TyAlias(ty_alias) =&gt; vis.visit_ty_alias(ty_alias),
         ItemKind::Trait(trait_) =&gt; {
             vis.visit_generics(<span class="kw-2">&amp;</span>trait_.generics);
-            <span class="kw">for </span>assoc_reft <span class="kw">in </span>trait_.assoc_refinements {
-                <span class="macro">walk_list!</span>(vis, visit_refine_param, assoc_reft.params);
-                vis.visit_sort(<span class="kw-2">&amp;</span>assoc_reft.output);
-            }
+            <span class="macro">walk_list!</span>(vis, visit_trait_assoc_reft, trait_.assoc_refinements);
         }
         ItemKind::Impl(impl_) =&gt; {
             vis.visit_generics(<span class="kw-2">&amp;</span>impl_.generics);
-            <span class="kw">for </span>assoc_reft <span class="kw">in </span>impl_.assoc_refinements {
-                <span class="macro">walk_list!</span>(vis, visit_refine_param, assoc_reft.params);
-                vis.visit_sort(<span class="kw-2">&amp;</span>assoc_reft.output);
-                vis.visit_expr(<span class="kw-2">&amp;</span>assoc_reft.body);
-            }
+            <span class="macro">walk_list!</span>(vis, visit_impl_assoc_reft, impl_.assoc_refinements);
         }
         ItemKind::Fn(fn_sig) =&gt; {
             vis.visit_fn_sig(fn_sig);
@@ -735,6 +749,17 @@
             vis.visit_generics(<span class="kw-2">&amp;</span>assoc_type.generics);
         }
     }
+}
+
+<span class="kw">pub fn </span>walk_trait_assoc_reft&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, assoc_reft: <span class="kw-2">&amp;</span>TraitAssocReft) {
+    <span class="macro">walk_list!</span>(vis, visit_refine_param, assoc_reft.params);
+    vis.visit_sort(<span class="kw-2">&amp;</span>assoc_reft.output);
+}
+
+<span class="kw">pub fn </span>walk_impl_assoc_reft&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, assoc_reft: <span class="kw-2">&amp;</span>ImplAssocReft) {
+    <span class="macro">walk_list!</span>(vis, visit_refine_param, assoc_reft.params);
+    vis.visit_sort(<span class="kw-2">&amp;</span>assoc_reft.output);
+    vis.visit_expr(<span class="kw-2">&amp;</span>assoc_reft.body);
 }
 
 <span class="kw">pub fn </span>walk_generics&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, generics: <span class="kw-2">&amp;</span>Generics) {
@@ -840,7 +865,6 @@
                 vis.visit_ty(self_ty);
             }
             vis.visit_path(path);
-            <span class="macro">walk_list!</span>(vis, visit_refine_arg, path.refine);
         }
     }
 }
