@@ -118,6 +118,8 @@ impl<'fhir> Node<'fhir> {
 pub struct Item<'fhir> {
     pub owner_id: OwnerId,
     pub kind: ItemKind<'fhir>,
+    /// Whether this is a spec for an extern item
+    pub extern_id: Option<DefId>,
 }
 
 impl<'fhir> Item<'fhir> {
@@ -301,8 +303,6 @@ pub struct TraitAssocReft<'fhir> {
 pub struct Impl<'fhir> {
     pub generics: Generics<'fhir>,
     pub assoc_refinements: &'fhir [ImplAssocReft<'fhir>],
-    /// Whether this is a wrapper for an extern impl
-    pub extern_id: Option<DefId>,
 }
 
 impl<'fhir> Impl<'fhir> {
@@ -374,7 +374,6 @@ impl<'fhir> Crate<'fhir> {
 
 #[derive(Debug)]
 pub struct TyAlias<'fhir> {
-    pub owner_id: OwnerId,
     pub generics: Generics<'fhir>,
     pub refined_by: &'fhir RefinedBy<'fhir>,
     pub ty: Ty<'fhir>,
@@ -388,14 +387,11 @@ pub struct TyAlias<'fhir> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct StructDef<'fhir> {
-    pub owner_id: OwnerId,
     pub generics: Generics<'fhir>,
     pub refined_by: &'fhir RefinedBy<'fhir>,
     pub params: &'fhir [RefineParam<'fhir>],
     pub kind: StructKind<'fhir>,
     pub invariants: &'fhir [Expr<'fhir>],
-    /// Whether this is a spec for an extern struct
-    pub extern_id: Option<DefId>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -416,14 +412,11 @@ pub struct FieldDef<'fhir> {
 
 #[derive(Debug)]
 pub struct EnumDef<'fhir> {
-    pub owner_id: OwnerId,
     pub generics: Generics<'fhir>,
     pub refined_by: &'fhir RefinedBy<'fhir>,
     pub params: &'fhir [RefineParam<'fhir>],
     pub variants: &'fhir [VariantDef<'fhir>],
     pub invariants: &'fhir [Expr<'fhir>],
-    /// Whether this is a expecr for an extern enum
-    pub extern_id: Option<DefId>,
 }
 
 #[derive(Debug, Clone, Copy)]

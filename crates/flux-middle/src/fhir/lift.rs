@@ -38,7 +38,6 @@ pub fn lift_type_alias<'genv>(
     let refined_by = cx.lift_refined_by();
     let ty = cx.lift_ty(ty)?;
     Ok(fhir::TyAlias {
-        owner_id,
         generics,
         refined_by: genv.alloc(refined_by),
         index_params: &[],
@@ -292,7 +291,6 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         let refined_by = self.lift_refined_by();
         let ty = self.lift_ty(ty)?;
         Ok(fhir::TyAlias {
-            owner_id: self.owner,
             generics,
             refined_by: self.genv.alloc(refined_by),
             index_params: &[],

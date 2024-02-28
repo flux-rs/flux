@@ -395,11 +395,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn extern_id_of(self, def_id: LocalDefId) -> Option<DefId> {
-        match &self.expect_item(def_id).kind {
-            fhir::ItemKind::Enum(enum_def) => enum_def.extern_id,
-            fhir::ItemKind::Struct(struct_def) => struct_def.extern_id,
-            _ => None,
-        }
+        self.expect_item(def_id).extern_id
     }
 
     pub fn spec_funcs(self) -> impl Iterator<Item = &'genv fhir::SpecFunc<'genv>> {

@@ -26,6 +26,7 @@ use flux_middle::{
     intern::List,
     queries::{Providers, QueryResult},
     rty::{self, fold::TypeFoldable, refining::Refiner, WfckResults},
+    rustc::lowering,
 };
 use itertools::Itertools;
 use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
@@ -117,13 +118,17 @@ fn invariants_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::In
 
 fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
     let invariants = invariants_of(genv, def_id)?;
-    match &genv.map().expect_item(def_id).kind {
-        fhir::ItemKind::Enum(enum_def) => Ok(conv::adt_def_for_enum(genv, invariants, enum_def)),
-        fhir::ItemKind::Struct(struct_def) => {
-            Ok(conv::adt_def_for_struct(genv, invariants, struct_def))
-        }
-        _ => bug!("expected struct or enum"),
-    }
+    let item = genv.map().expect_item(def_id);
+
+    let adt_def = if let Some(extern_id) = item.extern_id {
+        lowering::lower_adt_def(&genv.tcx().adt_def(extern_id))
+    } else {
+        lowering::lower_adt_def(&genv.tcx().adt_def(item.owner_id))
+    };
+
+    let is_opaque = matches!(item.kind, fhir::ItemKind::Struct(def) if def.is_opaque());
+
+    Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id), invariants, is_opaque))
 }
 
 fn predicates_of(
@@ -298,7 +303,7 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
         DefKind::TyAlias { .. } => {
             let alias = genv.map().expect_item(def_id).expect_type_alias();
             let wfckresults = genv.check_wf(def_id)?;
-            conv::expand_type_alias(genv, alias, &wfckresults)?
+            conv::expand_type_alias(genv, def_id.to_def_id(), alias, &wfckresults)?
         }
         DefKind::TyParam => {
             match &genv.get_generic_param(def_id).kind {
@@ -325,20 +330,31 @@ fn variants_of(
     genv: GlobalEnv,
     def_id: LocalDefId,
 ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
-    let variants = match &genv.map().expect_item(def_id).kind {
+    let item = &genv.map().expect_item(def_id);
+    let variants = match &item.kind {
         fhir::ItemKind::Enum(enum_def) => {
             let wfckresults = genv.check_wf(def_id)?;
-            let variants = conv::ConvCtxt::conv_enum_def_variants(genv, enum_def, &wfckresults)?
-                .into_iter()
-                .map(|variant| normalize(genv, variant))
-                .try_collect()?;
+            let variants = conv::ConvCtxt::conv_enum_def_variants(
+                genv,
+                def_id.to_def_id(),
+                enum_def,
+                &wfckresults,
+            )?
+            .into_iter()
+            .map(|variant| normalize(genv, variant))
+            .try_collect()?;
             rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
         }
         fhir::ItemKind::Struct(struct_def) => {
             let wfckresults = genv.check_wf(def_id)?;
-            conv::ConvCtxt::conv_struct_def_variant(genv, struct_def, &wfckresults)?
-                .normalize(genv.spec_func_defns()?)
-                .map(|variant| rty::EarlyBinder(List::singleton(variant)))
+            conv::ConvCtxt::conv_struct_def_variant(
+                genv,
+                def_id.to_def_id(),
+                struct_def,
+                &wfckresults,
+            )?
+            .normalize(genv.spec_func_defns()?)
+            .map(|variant| rty::EarlyBinder(List::singleton(variant)))
         }
         _ => bug!("expected struct or enum"),
     };
@@ -401,7 +417,7 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             | DefKind::Fn
             | DefKind::AssocFn
             | DefKind::OpaqueTy => {
-                genv.check_wf(def_id).emit(&errors).ok();
+                let _ = genv.check_wf(def_id).emit(&errors).ok();
             }
             _ => {}
         }
@@ -412,13 +428,15 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     }
 
     for defn in genv.map().spec_funcs() {
-        genv.check_wf(FluxLocalDefId::Flux(defn.name))
+        let _ = genv
+            .check_wf(FluxLocalDefId::Flux(defn.name))
             .emit(&errors)
             .ok();
     }
 
     for qualifier in genv.map().qualifiers() {
-        genv.check_wf(FluxLocalDefId::Flux(qualifier.name))
+        let _ = genv
+            .check_wf(FluxLocalDefId::Flux(qualifier.name))
             .emit(&errors)
             .ok();
     }

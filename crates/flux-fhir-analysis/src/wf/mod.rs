@@ -72,7 +72,8 @@ pub(crate) fn check_node<'genv>(
 
 /// Initializes the inference context with all parameters required to check node
 fn insert_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
-    if let fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::OpaqueTy(..), owner_id }) = node {
+    if let fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::OpaqueTy(..), owner_id, .. }) = node
+    {
         let genv = infcx.genv;
         let parent = genv.tcx().local_parent(owner_id.def_id);
         if let Some(generics) = genv.map().get_generics(parent) {

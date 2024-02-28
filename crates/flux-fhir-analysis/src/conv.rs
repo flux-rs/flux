@@ -16,7 +16,7 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{self, fold::TypeFoldable, refining, AdtSortDef, ESpan, WfckResults, INNERMOST},
-    rustc::{self, lowering},
+    rustc,
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -109,10 +109,10 @@ pub(crate) fn conv_adt_sort_def(
 
 pub(crate) fn expand_type_alias<'genv>(
     genv: GlobalEnv<'genv, '_>,
+    def_id: DefId,
     alias: &fhir::TyAlias,
     wfckresults: &WfckResults<'genv>,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
-    let def_id = alias.owner_id.to_def_id();
     let cx = ConvCtxt::new(genv, wfckresults);
 
     let mut env = Env::new(genv, alias.generics.refinement_params, wfckresults);
@@ -222,34 +222,6 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
         fhir::GenericParamKind::Base => rty::GenericParamDefKind::Base,
         fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
     }
-}
-
-pub(crate) fn adt_def_for_struct(
-    genv: GlobalEnv,
-    invariants: Vec<rty::Invariant>,
-    struct_def: &fhir::StructDef,
-) -> rty::AdtDef {
-    let def_id = struct_def.owner_id.def_id;
-    let adt_def = if let Some(extern_id) = struct_def.extern_id {
-        lowering::lower_adt_def(&genv.tcx().adt_def(extern_id))
-    } else {
-        lowering::lower_adt_def(&genv.tcx().adt_def(struct_def.owner_id))
-    };
-    rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id), invariants, struct_def.is_opaque())
-}
-
-pub(crate) fn adt_def_for_enum(
-    genv: GlobalEnv,
-    invariants: Vec<rty::Invariant>,
-    enum_def: &fhir::EnumDef,
-) -> rty::AdtDef {
-    let def_id = enum_def.owner_id.def_id;
-    let adt_def = if let Some(extern_id) = enum_def.extern_id {
-        lowering::lower_adt_def(&genv.tcx().adt_def(extern_id))
-    } else {
-        lowering::lower_adt_def(&genv.tcx().adt_def(enum_def.owner_id))
-    };
-    rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id), invariants, false)
 }
 
 pub(crate) fn conv_invariants<'genv>(
@@ -547,6 +519,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     pub(crate) fn conv_enum_def_variants(
         genv: GlobalEnv<'genv, '_>,
+        adt_def_id: DefId,
         enum_def: &fhir::EnumDef,
         wfckresults: &WfckResults<'genv>,
     ) -> QueryResult<Vec<rty::PolyVariant>> {
@@ -554,12 +527,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .variants
             .iter()
             .map(|variant_def| {
-                ConvCtxt::conv_enum_variant(
-                    genv,
-                    enum_def.owner_id.to_def_id(),
-                    variant_def,
-                    wfckresults,
-                )
+                ConvCtxt::conv_enum_variant(genv, adt_def_id, variant_def, wfckresults)
             })
             .try_collect()
     }
@@ -594,6 +562,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     pub(crate) fn conv_struct_def_variant(
         genv: GlobalEnv<'genv, '_>,
+        adt_def_id: DefId,
         struct_def: &fhir::StructDef,
         wfckresults: &WfckResults<'genv>,
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
@@ -601,9 +570,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let mut env = Env::new(genv, &[], wfckresults);
         env.push_layer(Layer::list(&cx, 0, struct_def.params, false));
 
-        let def_id = struct_def.owner_id.def_id;
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
-            let adt_def = genv.adt_def(def_id)?;
+            let adt_def = genv.adt_def(adt_def_id)?;
 
             let fields = fields
                 .iter()
@@ -612,7 +580,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
             let vars = env.pop_layer().into_bound_vars(genv);
             let idx = rty::Expr::adt(
-                def_id.to_def_id(),
+                adt_def_id,
                 (0..vars.len())
                     .map(|idx| {
                         rty::Expr::late_bvar(INNERMOST, idx as u32, rty::BoundReftKind::Annon)
@@ -621,7 +589,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             );
             let variant = rty::VariantSig::new(
                 adt_def,
-                rty::GenericArgs::identity_for_item(genv, def_id)?,
+                rty::GenericArgs::identity_for_item(genv, adt_def_id)?,
                 fields,
                 idx,
             );

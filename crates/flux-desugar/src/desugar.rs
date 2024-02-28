@@ -165,7 +165,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             self.as_lift_cx().lift_generics()?
         };
         let assoc_refinements = self.desugar_impl_assoc_refts(&impl_.assoc_refinements)?;
-        Ok(fhir::Impl { generics, assoc_refinements, extern_id: impl_.extern_id })
+        Ok(fhir::Impl { generics, assoc_refinements })
     }
 
     fn desugar_impl_assoc_refts(
@@ -351,13 +351,11 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 .map_or(&[], |it| &it.index_params),
         );
         let struct_def = fhir::StructDef {
-            owner_id: self.owner,
             generics,
             refined_by: self.genv.alloc(refined_by),
             params,
             kind,
             invariants,
-            extern_id: struct_def.extern_id,
         };
         Ok(struct_def)
     }
@@ -395,13 +393,11 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 .map_or(&[], |it| &it.index_params),
         );
         let enum_def = fhir::EnumDef {
-            owner_id: self.owner,
             generics,
             refined_by: self.genv.alloc(refined_by),
             params,
             variants,
             invariants,
-            extern_id: enum_def.extern_id,
         };
         Ok(enum_def)
     }
@@ -479,7 +475,6 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let index_params = self.desugar_refine_params(&ty_alias.refined_by.index_params);
 
         let ty_alias = fhir::TyAlias {
-            owner_id: self.owner,
             refined_by: self.genv.alloc(refined_by),
             generics,
             index_params,

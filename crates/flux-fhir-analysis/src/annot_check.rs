@@ -40,10 +40,16 @@ fn check_item<'genv>(
     item: &fhir::Item,
 ) -> Result<(), ErrorGuaranteed> {
     match &item.kind {
-        fhir::ItemKind::Enum(enum_def) => check_enum_def(genv, wfckresults, enum_def),
-        fhir::ItemKind::Struct(struct_def) => check_struct_def(genv, wfckresults, struct_def),
+        fhir::ItemKind::Enum(enum_def) => {
+            check_enum_def(genv, wfckresults, item.owner_id, enum_def)
+        }
+        fhir::ItemKind::Struct(struct_def) => {
+            check_struct_def(genv, wfckresults, item.owner_id, struct_def)
+        }
         fhir::ItemKind::Fn(fn_sig) => check_fn_sig(genv, wfckresults, item.owner_id, fn_sig),
-        fhir::ItemKind::TyAlias(ty_alias) => check_ty_alias(genv, wfckresults, ty_alias),
+        fhir::ItemKind::TyAlias(ty_alias) => {
+            check_ty_alias(genv, wfckresults, item.owner_id, ty_alias)
+        }
         fhir::ItemKind::Trait(_) | fhir::ItemKind::Impl(_) | fhir::ItemKind::OpaqueTy(_) => Ok(()),
     }
 }
@@ -91,29 +97,31 @@ pub(crate) fn check_fn_sig<'genv>(
 pub(crate) fn check_ty_alias<'genv>(
     genv: GlobalEnv<'genv, '_>,
     wfckresults: &mut WfckResults<'genv>,
+    owner_id: OwnerId,
     ty_alias: &fhir::TyAlias,
 ) -> Result<(), ErrorGuaranteed> {
     if ty_alias.lifted {
         return Ok(());
     }
-    let expected_ty_alias = lift::lift_type_alias(genv, ty_alias.owner_id)?;
+    let expected_ty_alias = lift::lift_type_alias(genv, owner_id)?;
     Zipper::new(genv, wfckresults, None).zip_ty(&ty_alias.ty, &expected_ty_alias.ty)
 }
 
 pub(crate) fn check_struct_def<'genv>(
     genv: GlobalEnv<'genv, '_>,
     wfckresults: &mut WfckResults<'genv>,
+    owner_id: OwnerId,
     struct_def: &fhir::StructDef,
 ) -> Result<(), ErrorGuaranteed> {
     match &struct_def.kind {
         fhir::StructKind::Transparent { fields } => {
             let local_id_gen = IndexGen::new();
-            let mut liftcx = LiftCtxt::new(genv, struct_def.owner_id, &local_id_gen, None);
+            let mut liftcx = LiftCtxt::new(genv, owner_id, &local_id_gen, None);
             fields.iter().try_for_each_exhaust(|field| {
                 if field.lifted {
                     return Ok(());
                 }
-                let self_ty = lift::lift_self_ty(genv, struct_def.owner_id)?;
+                let self_ty = lift::lift_self_ty(genv, owner_id)?;
                 Zipper::new(genv, wfckresults, self_ty)
                     .zip_ty(&field.ty, &liftcx.lift_field_def_id(field.def_id)?.ty)
             })
@@ -125,15 +133,16 @@ pub(crate) fn check_struct_def<'genv>(
 pub(crate) fn check_enum_def<'genv>(
     genv: GlobalEnv<'genv, '_>,
     wfckresults: &mut WfckResults<'genv>,
+    owner_id: OwnerId,
     enum_def: &fhir::EnumDef,
 ) -> Result<(), ErrorGuaranteed> {
     let local_id_gen = IndexGen::new();
-    let mut liftcx = LiftCtxt::new(genv, enum_def.owner_id, &local_id_gen, None);
+    let mut liftcx = LiftCtxt::new(genv, owner_id, &local_id_gen, None);
     enum_def.variants.iter().try_for_each_exhaust(|variant| {
         if variant.lifted {
             return Ok(());
         }
-        let self_ty = lift::lift_self_ty(genv, enum_def.owner_id)?;
+        let self_ty = lift::lift_self_ty(genv, owner_id)?;
         Zipper::new(genv, wfckresults, self_ty)
             .zip_enum_variant(variant, &liftcx.lift_enum_variant_id(variant.def_id)?)
     })
