@@ -921,7 +921,7 @@ mod pretty {
 }
 
 impl TypeVisitable for PlacesTree {
-    fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy> {
         unimplemented!()
     }
 }

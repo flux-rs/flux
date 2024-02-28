@@ -159,7 +159,7 @@ where
 }
 
 pub trait TypeVisitable: Sized {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()>;
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy>;
 
     fn has_escaping_bvars(&self) -> bool {
         struct HasEscapingVars {
@@ -214,7 +214,7 @@ pub trait TypeVisitable: Sized {
 }
 
 pub trait TypeSuperVisitable: TypeVisitable {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()>;
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy>;
 }
 
 pub trait TypeFoldable: TypeVisitable {
@@ -440,7 +440,7 @@ impl TypeFoldable for ClauseKind {
 }
 
 impl<T: TypeVisitable, U: TypeVisitable> TypeVisitable for OutlivesPredicate<T, U> {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.0.visit_with(visitor)?;
         self.1.visit_with(visitor)
     }
@@ -453,7 +453,7 @@ impl<T: TypeFoldable, U: TypeFoldable> TypeFoldable for OutlivesPredicate<T, U> 
 }
 
 impl TypeVisitable for TraitPredicate {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.trait_ref.visit_with(visitor)
     }
 }
@@ -465,7 +465,7 @@ impl TypeFoldable for TraitPredicate {
 }
 
 impl TypeVisitable for TraitRef {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.args.visit_with(visitor)
     }
 }
@@ -477,7 +477,7 @@ impl TypeFoldable for TraitRef {
 }
 
 impl TypeVisitable for CoroutineObligPredicate {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.upvar_tys.visit_with(visitor)?;
         self.output.visit_with(visitor)
     }
@@ -495,7 +495,7 @@ impl TypeFoldable for CoroutineObligPredicate {
 }
 
 impl TypeVisitable for ProjectionPredicate {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.projection_ty.visit_with(visitor)?;
         self.term.visit_with(visitor)
     }
@@ -530,7 +530,7 @@ impl TypeFoldable for FnTraitPredicate {
 }
 
 impl TypeVisitable for Sort {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         visitor.visit_sort(self)
     }
 }
@@ -580,7 +580,7 @@ impl TypeSuperFoldable for Sort {
 }
 
 impl TypeVisitable for PolyFuncSort {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.fsort.visit_with(visitor)
     }
 }
@@ -592,7 +592,7 @@ impl TypeFoldable for PolyFuncSort {
 }
 
 impl TypeVisitable for FuncSort {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.inputs_and_output.visit_with(visitor)
     }
 }
@@ -679,7 +679,7 @@ impl TypeFoldable for VariantSig {
 }
 
 impl<T: TypeVisitable> TypeVisitable for Opaqueness<T> {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         if let Opaqueness::Transparent(t) = self {
             t.visit_with(visitor)
         } else {
@@ -695,13 +695,13 @@ impl<T: TypeFoldable> TypeFoldable for Opaqueness<T> {
 }
 
 impl<T: TypeVisitable> TypeVisitable for Vec<T> {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.iter().try_for_each(|t| t.visit_with(visitor))
     }
 }
 
 impl TypeVisitable for FnSig {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.requires
             .iter()
             .try_for_each(|constr| constr.visit_with(visitor))?;
@@ -722,7 +722,7 @@ impl TypeFoldable for FnSig {
 }
 
 impl TypeVisitable for FnOutput {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.ret.visit_with(visitor)?;
         self.ensures.visit_with(visitor)
     }
@@ -735,7 +735,7 @@ impl TypeFoldable for FnOutput {
 }
 
 impl TypeVisitable for Constraint {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             Constraint::Type(path, ty, _) => {
                 path.to_expr().visit_with(visitor)?;
@@ -769,19 +769,19 @@ impl TypeFoldable for Constraint {
 }
 
 impl TypeVisitable for AliasReft {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.args.visit_with(visitor)
     }
 }
 
 impl TypeVisitable for Ty {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         visitor.visit_ty(self)
     }
 }
 
 impl TypeSuperVisitable for Ty {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self.kind() {
             TyKind::Indexed(bty, idxs) => {
                 bty.visit_with(visitor)?;
@@ -853,7 +853,7 @@ impl TypeSuperFoldable for Ty {
 }
 
 impl TypeVisitable for Region {
-    fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy> {
         ControlFlow::Continue(())
     }
 }
@@ -865,13 +865,13 @@ impl TypeFoldable for Region {
 }
 
 impl TypeVisitable for BaseTy {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         visitor.visit_bty(self)
     }
 }
 
 impl TypeSuperVisitable for BaseTy {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             BaseTy::Adt(_, args) => args.visit_with(visitor),
             BaseTy::Slice(ty) => ty.visit_with(visitor),
@@ -935,7 +935,7 @@ impl TypeSuperFoldable for BaseTy {
 }
 
 impl TypeVisitable for AliasTy {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.args.visit_with(visitor)
     }
 }
@@ -951,7 +951,7 @@ impl TypeFoldable for AliasTy {
 }
 
 impl TypeVisitable for SubsetTy {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.bty.visit_with(visitor)?;
         self.idx.visit_with(visitor)?;
         self.pred.visit_with(visitor)
@@ -975,7 +975,7 @@ impl TypeSuperFoldable for SubsetTy {
 }
 
 impl TypeVisitable for GenericArg {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             GenericArg::Ty(ty) => ty.visit_with(visitor),
             GenericArg::Base(ty) => ty.visit_with(visitor),
@@ -998,7 +998,7 @@ impl TypeFoldable for GenericArg {
 }
 
 impl TypeVisitable for KVar {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.args.visit_with(visitor)
     }
 }
@@ -1014,13 +1014,13 @@ impl TypeFoldable for KVar {
 }
 
 impl TypeVisitable for Expr {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         visitor.visit_expr(self)
     }
 }
 
 impl TypeSuperVisitable for Expr {
-    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self.kind() {
             ExprKind::Var(var) => var.visit_with(visitor),
             ExprKind::BinaryOp(_, e1, e2) => {
@@ -1056,7 +1056,7 @@ impl TypeSuperVisitable for Expr {
 }
 
 impl TypeVisitable for Lambda {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.body.visit_with(visitor)?;
         self.output.visit_with(visitor)
     }
@@ -1072,7 +1072,7 @@ impl TypeFoldable for Lambda {
 }
 
 impl TypeVisitable for Var {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             Var::Free(name) => visitor.visit_fvar(*name),
             Var::LateBound(_, _) | Var::EarlyParam(_) | Var::EVar(_) => ControlFlow::Continue(()),
@@ -1143,7 +1143,7 @@ impl TypeSuperFoldable for Expr {
 }
 
 impl TypeVisitable for BinOp {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             BinOp::Gt(sort) | BinOp::Ge(sort) | BinOp::Lt(sort) | BinOp::Le(sort) => {
                 sort.visit_with(visitor)
@@ -1187,7 +1187,7 @@ impl TypeFoldable for BinOp {
 }
 
 impl TypeVisitable for HoleKind {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             HoleKind::Pred => ControlFlow::Continue(()),
             HoleKind::Expr(sort) => sort.visit_with(visitor),
@@ -1209,7 +1209,7 @@ where
     T: TypeVisitable,
     [T]: Internable,
 {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.iter().try_for_each(|t| t.visit_with(visitor))
     }
 }
@@ -1225,7 +1225,7 @@ where
 }
 
 impl TypeVisitable for Qualifier {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.body.visit_with(visitor)
     }
 }
@@ -1241,7 +1241,7 @@ impl TypeFoldable for Qualifier {
 }
 
 impl TypeVisitable for Invariant {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy, ()> {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.pred.visit_with(visitor)
     }
 }

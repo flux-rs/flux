@@ -32,7 +32,7 @@ impl SpecFuncDefns {
     fn defn_deps(&self, expr: &Binder<Expr>) -> FxHashSet<Symbol> {
         struct DepsVisitor(FxHashSet<Symbol>);
         impl TypeVisitor for DepsVisitor {
-            fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!, ()> {
+            fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
                 if let ExprKind::App(func, _) = expr.kind()
                     && let ExprKind::GlobalFunc(sym, SpecFuncKind::Def) = func.kind()
                 {
@@ -142,7 +142,7 @@ impl TypeFolder for Normalizer<'_> {
         let span = expr.span();
         match expr.kind() {
             ExprKind::App(func, args) => self.app(func, args, span),
-            ExprKind::FieldProj(e, proj) => e.proj_and_simplify(*proj),
+            ExprKind::FieldProj(e, proj) => e.proj_and_reduce(*proj),
             _ => expr,
         }
     }

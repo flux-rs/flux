@@ -239,7 +239,7 @@ impl<'rcx> RefineCtxt<'rcx> {
             overflow_checking: bool,
         }
         impl TypeVisitor for Visitor<'_, '_> {
-            fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<!, ()> {
+            fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<!> {
                 match bty {
                     BaseTy::Adt(adt_def, substs) if adt_def.is_box() => substs.visit_with(self),
                     BaseTy::Ref(_, ty, _) => ty.visit_with(self),
@@ -248,7 +248,7 @@ impl<'rcx> RefineCtxt<'rcx> {
                 }
             }
 
-            fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<!, ()> {
+            fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<!> {
                 if let TyKind::Indexed(bty, idx) = ty.kind()
                     && !idx.has_escaping_bvars()
                 {

@@ -24,7 +24,7 @@ use crate::{
     },
 };
 
-/// A lambda abstraction
+/// A lambda abstraction with an elaborated output sort
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct Lambda {
     pub(super) body: Binder<Expr>,
@@ -583,7 +583,7 @@ impl Expr {
     }
 
     /// Whether the expression is *literally* the constant true.
-    pub fn is_true(&self) -> bool {
+    fn is_true(&self) -> bool {
         matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
     }
 
@@ -711,8 +711,8 @@ impl Expr {
         go(sort, &mut f)
     }
 
-    /// Applies a projection to an expression an optimistically try to beta reduce it if possible.
-    pub fn proj_and_simplify(&self, proj: FieldProj) -> Expr {
+    /// Applies a projection to an expression and optimistically try to beta reduce it if possible.
+    pub fn proj_and_reduce(&self, proj: FieldProj) -> Expr {
         match self.kind() {
             ExprKind::Aggregate(_, flds) => flds[proj.field() as usize].clone(),
             _ => Expr::field_proj(self.clone(), proj, None),

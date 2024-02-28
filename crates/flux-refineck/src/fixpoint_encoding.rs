@@ -936,6 +936,22 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         )
     }
 
+    /// A binary relation is encoded as a structurally recursive relation between aggregate sorts.
+    /// For "leaf" expressions, we encode them as an interpreted relation if the sort supports it,
+    /// otherwise we use an uninterpreted function. For example, consider the following relation
+    /// between two tuples of sort `(int, int -> int)`
+    /// ```text
+    /// (0, λv. v + 1) <= (1, λv. v + 1)
+    /// ```
+    /// The encoding in fixpoint will be
+    ///
+    /// ```text
+    /// 0 <= 1 && (le (λv. v + 1) (λv. v + 1))
+    /// ```
+    /// Where `<=` is the (interpreted) less than or equal relation between integers and `le` is
+    /// an uninterpreted relation between ([the encoding] of) lambdas.
+    ///
+    /// [the encoding]: Self::register_const_for_lambda
     fn bin_rel_to_fixpoint(
         &mut self,
         sort: &rty::Sort,
@@ -953,14 +969,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             rty::Sort::Tuple(sorts) => {
                 let arity = sorts.len();
-                self.apply_bin_rel_rec(sorts, rel, e1, e2, env, |field| {
+                self.apply_bin_rel(sorts, rel, e1, e2, env, |field| {
                     rty::FieldProj::Tuple { arity, field }
                 })
             }
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) => {
                 let def_id = sort_def.did();
                 let sorts = sort_def.sorts(args);
-                self.apply_bin_rel_rec(&sorts, rel, e1, e2, env, |field| {
+                self.apply_bin_rel(&sorts, rel, e1, e2, env, |field| {
                     rty::FieldProj::Adt { def_id, field }
                 })
             }
@@ -974,7 +990,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         }
     }
 
-    fn apply_bin_rel_rec(
+    fn apply_bin_rel(
         &mut self,
         sorts: &[rty::Sort],
         rel: fixpoint::BinRel,
@@ -989,8 +1005,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .enumerate()
                 .map(|(idx, s)| {
                     let proj = mk_proj(idx as u32);
-                    let e1 = e1.proj_and_simplify(proj);
-                    let e2 = e2.proj_and_simplify(proj);
+                    let e1 = e1.proj_and_reduce(proj);
+                    let e2 = e2.proj_and_reduce(proj);
                     self.bin_rel_to_fixpoint(s, rel, &e1, &e2, env)
                 })
                 .collect(),
@@ -1060,6 +1076,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .name
     }
 
+    /// We encode lambdas with uninterpreted constant. Two syntactically equal lambdas will be encoded
+    /// with the same constant.
     fn register_const_for_lambda(&mut self, lam: &rty::Lambda) -> fixpoint::GlobalVar {
         let key = Key::Lambda(lam.clone());
         self.const_map
@@ -1090,12 +1108,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     }
 }
 
-/// This function returns a very polymorphic sort for the UIF encoding the alias_pred;
+/// This function returns a very polymorphic sort for the UIF encoding an associated refinement.
 /// This is ok, as well-formedness in previous phases will ensure the function is always
 /// instantiated with the same sorts. However, the proper thing is to compute the *actual*
-/// mono-sort at which this alias_pred is being used see [`GlobalEnv::sort_of_alias_reft`] but
-/// that is a bit tedious as its done using the `fhir` (not `rty`). Alternatively, we might
-/// stash the computed mono-sort *in* the `rty::AliasPred` during `conv`?
+/// mono-sort at which the associated refinement is being used see [`GlobalEnv::sort_of_alias_reft`]
+/// but that is a bit tedious as its done using the `fhir` (not `rty`). Alternatively, we might
+/// stash the computed mono-sort *in* the [`rty::AliasReft`] during `conv`?
 fn alias_reft_sort(arity: usize) -> rty::PolyFuncSort {
     let mut sorts = vec![];
     for i in 0..arity {
