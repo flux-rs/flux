@@ -9,7 +9,6 @@ use flux_middle::{
 };
 use flux_syntax::surface::{self, NodeId};
 use hir::{def::DefKind, ItemKind};
-use itertools::Itertools;
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -199,7 +198,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             })
             .collect();
 
-        // 2. Desugar surface params and resolve them to its corresponding def id or self param.
+        // 2. Desugar surface params and resolve them to their corresponding def id or self param.
         let mut surface_params = FxHashMap::default();
         let mut self_kind = None;
         for param in &generics.params {
@@ -290,15 +289,15 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let generic_id_to_var_idx =
             collect_generics_in_refined_by(generics, self.resolver_output, refined_by);
 
-        let index_params = refined_by
-            .index_params
+        let fields = refined_by
+            .fields
             .iter()
             .map(|param| {
                 (param.name.name, self.desugar_sort(&param.sort, Some(&generic_id_to_var_idx)))
             })
-            .collect_vec();
+            .collect();
 
-        Ok(fhir::RefinedBy::new(index_params, generic_id_to_var_idx, refined_by.span))
+        Ok(fhir::RefinedBy::new(fields, generic_id_to_var_idx, refined_by.span))
     }
 
     pub(crate) fn desugar_struct_def(
@@ -344,12 +343,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             fhir::StructKind::Transparent { fields }
         };
 
-        let params = self.desugar_refine_params(
-            struct_def
-                .refined_by
-                .as_ref()
-                .map_or(&[], |it| &it.index_params),
-        );
+        let params =
+            self.desugar_refine_params(struct_def.refined_by.as_ref().map_or(&[], |it| &it.fields));
         let struct_def = fhir::StructDef {
             generics,
             refined_by: self.genv.alloc(refined_by),
@@ -386,12 +381,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             self.desugar_expr(invariant)
         })?;
 
-        let params = self.desugar_refine_params(
-            enum_def
-                .refined_by
-                .as_ref()
-                .map_or(&[], |it| &it.index_params),
-        );
+        let params =
+            self.desugar_refine_params(enum_def.refined_by.as_ref().map_or(&[], |it| &it.fields));
         let enum_def = fhir::EnumDef {
             generics,
             refined_by: self.genv.alloc(refined_by),
@@ -472,12 +463,12 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             .genv
             .alloc_slice(&self.desugar_refinement_generics(&ty_alias.generics));
 
-        let index_params = self.desugar_refine_params(&ty_alias.refined_by.index_params);
+        let params = self.desugar_refine_params(&ty_alias.refined_by.fields);
 
         let ty_alias = fhir::TyAlias {
             refined_by: self.genv.alloc(refined_by),
             generics,
-            index_params,
+            params,
             ty,
             span: ty_alias.span,
             lifted: false,
@@ -499,7 +490,6 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
             let mut requires = vec![];
 
-            // Desugar generics after we have gathered the input params
             let mut generics = self.desugar_generics(&fn_sig.generics)?;
 
             if let Some(expr) = &fn_sig.requires {

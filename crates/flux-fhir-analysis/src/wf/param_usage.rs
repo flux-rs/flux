@@ -117,7 +117,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
 impl fhir::visit::Visitor for ParamUsesChecker<'_, '_, '_> {
     fn visit_ty_alias(&mut self, ty_alias: &fhir::TyAlias) {
         fhir::visit::walk_ty_alias(self, ty_alias);
-        self.check_params_are_value_determined(ty_alias.index_params);
+        self.check_params_are_value_determined(ty_alias.params);
     }
 
     fn visit_struct_def(&mut self, struct_def: &fhir::StructDef) {

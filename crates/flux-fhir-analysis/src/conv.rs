@@ -96,7 +96,7 @@ pub(crate) fn conv_adt_sort_def(
         .map(|def_id| genv.def_id_to_param_ty(def_id.expect_local()))
         .collect();
     let fields = refined_by
-        .index_params
+        .fields
         .iter()
         .map(|(name, sort)| (*name, conv_sort(genv, sort, &mut bug_on_infer_sort)))
         .collect_vec();
@@ -116,7 +116,7 @@ pub(crate) fn expand_type_alias<'genv>(
     let cx = ConvCtxt::new(genv, wfckresults);
 
     let mut env = Env::new(genv, alias.generics.refinement_params, wfckresults);
-    env.push_layer(Layer::record(&cx, def_id, alias.index_params));
+    env.push_layer(Layer::record(&cx, def_id, alias.params));
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
     Ok(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)))

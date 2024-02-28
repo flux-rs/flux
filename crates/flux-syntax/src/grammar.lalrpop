@@ -61,7 +61,7 @@ pub TyAlias: surface::TyAlias = {
     <mut generics:GenericsWithAngleBrackets>
     <early_bound_params:("(" <RefineParams<"!">> ")")?>
     <refined_by_lo:@L>
-    <index_params:("[" <RefineParams<"!">> "]")?>
+    <fields:("[" <RefineParams<"!">> "]")?>
     <refined_by_hi:@R>
     "="
     <ty:Ty>
@@ -78,7 +78,7 @@ pub TyAlias: surface::TyAlias = {
             )
         );
         let refined_by = surface::RefinedBy {
-            index_params: index_params.unwrap_or_default(),
+            fields: fields.unwrap_or_default(),
             span: cx.map_span(refined_by_lo, refined_by_hi),
         };
         surface::TyAlias {
@@ -93,8 +93,8 @@ pub TyAlias: surface::TyAlias = {
 }
 
 pub RefinedBy: surface::RefinedBy = {
-    <lo:@L>  <index_params:RefineParams<"!">> <hi:@R> => surface::RefinedBy {
-        index_params,
+    <lo:@L>  <fields:RefineParams<"!">> <hi:@R> => surface::RefinedBy {
+        fields,
         span: cx.map_span(lo, hi)
     }
 }

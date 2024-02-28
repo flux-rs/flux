@@ -798,7 +798,6 @@ fn downcast_enum(
         .instantiate(args, &[])
         .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
-    // FIXME(nilehmann) flatten indices
     let (.., exprs1) = idx1.expect_adt();
     let (.., exprs2) = variant_def.idx.expect_adt();
     debug_assert_eq!(exprs1.len(), exprs2.len());

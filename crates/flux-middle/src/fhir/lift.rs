@@ -40,7 +40,7 @@ pub fn lift_type_alias<'genv>(
     Ok(fhir::TyAlias {
         generics,
         refined_by: genv.alloc(refined_by),
-        index_params: &[],
+        params: &[],
         ty,
         span: item.span,
         lifted: true,
@@ -293,7 +293,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::TyAlias {
             generics,
             refined_by: self.genv.alloc(refined_by),
-            index_params: &[],
+            params: &[],
             ty,
             span: item.span,
             lifted: true,

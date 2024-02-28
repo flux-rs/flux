@@ -215,14 +215,12 @@ struct FixpointKVar {
     orig: rty::KVid,
 }
 
-type KVidMap = UnordMap<rty::KVid, Vec<fixpoint::KVid>>;
-
 #[derive(Default)]
 struct KVarEncodingCtxt {
     /// List of all kvars that need to be defined in fixpoint
     kvars: IndexVec<fixpoint::KVid, FixpointKVar>,
     /// A mapping from [`rty::KVid`] to the list of [`fixpoint::KVid`]s that encode the kvar.
-    map: KVidMap,
+    map: UnordMap<rty::KVid, Vec<fixpoint::KVid>>,
 }
 
 impl KVarEncodingCtxt {
@@ -969,14 +967,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             rty::Sort::Tuple(sorts) => {
                 let arity = sorts.len();
-                self.apply_bin_rel(sorts, rel, e1, e2, env, |field| {
+                self.apply_bin_rel_rec(sorts, rel, e1, e2, env, |field| {
                     rty::FieldProj::Tuple { arity, field }
                 })
             }
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) => {
                 let def_id = sort_def.did();
                 let sorts = sort_def.sorts(args);
-                self.apply_bin_rel(&sorts, rel, e1, e2, env, |field| {
+                self.apply_bin_rel_rec(&sorts, rel, e1, e2, env, |field| {
                     rty::FieldProj::Adt { def_id, field }
                 })
             }
@@ -990,7 +988,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         }
     }
 
-    fn apply_bin_rel(
+    /// Apply binary relation recursively over aggregate expessions
+    fn apply_bin_rel_rec(
         &mut self,
         sorts: &[rty::Sort],
         rel: fixpoint::BinRel,

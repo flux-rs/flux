@@ -378,7 +378,7 @@ pub struct TyAlias<'fhir> {
     pub refined_by: &'fhir RefinedBy<'fhir>,
     pub ty: Ty<'fhir>,
     pub span: Span,
-    pub index_params: &'fhir [RefineParam<'fhir>],
+    pub params: &'fhir [RefineParam<'fhir>],
     /// Whether this alias was [lifted] from a `hir` alias
     ///
     /// [lifted]: lift::lift_type_alias
@@ -980,8 +980,8 @@ pub struct RefinedBy<'fhir> {
     /// then the sort associated to `RMap` is of the form `forall #0. { keys: Set<#0> }`
     /// and `sort_params` will be `vec![K]`,  i.e., it maps `Var(0)` to `K`.
     pub sort_params: FxIndexSet<DefId>,
-    /// Index parameters indexed by their name and in the same order they appear in the definition.
-    pub index_params: FxIndexMap<Symbol, Sort<'fhir>>,
+    /// Fields indexed by their name and in the same order they appear in the definition.
+    pub fields: FxIndexMap<Symbol, Sort<'fhir>>,
 }
 
 #[derive(Debug)]
@@ -1030,16 +1030,15 @@ impl<'fhir> Generics<'fhir> {
 
 impl<'fhir> RefinedBy<'fhir> {
     pub fn new(
-        index_params: impl IntoIterator<Item = (Symbol, Sort<'fhir>)>,
+        fields: FxIndexMap<Symbol, Sort<'fhir>>,
         sort_params: FxIndexSet<DefId>,
         span: Span,
     ) -> Self {
-        let index_params: FxIndexMap<_, _> = index_params.into_iter().collect();
-        RefinedBy { span, sort_params, index_params }
+        RefinedBy { span, sort_params, fields }
     }
 
     pub fn trivial(span: Span) -> Self {
-        RefinedBy { sort_params: Default::default(), span, index_params: Default::default() }
+        RefinedBy { sort_params: Default::default(), span, fields: Default::default() }
     }
 
     fn is_base_generic(&self, def_id: DefId) -> bool {

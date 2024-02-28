@@ -1559,18 +1559,15 @@ pub(crate) mod errors {
         }
     }
 
-    pub trait ResultExt {
-        type Ok;
-        fn with_span(self, span: Span) -> Result<Self::Ok, CheckerError>;
-        fn with_src_info(self, src_info: SourceInfo) -> Result<Self::Ok, CheckerError>;
+    pub trait ResultExt<T> {
+        fn with_span(self, span: Span) -> Result<T, CheckerError>;
+        fn with_src_info(self, src_info: SourceInfo) -> Result<T, CheckerError>;
     }
 
-    impl<T, E> ResultExt for Result<T, E>
+    impl<T, E> ResultExt<T> for Result<T, E>
     where
         E: Into<CheckerErrKind>,
     {
-        type Ok = T;
-
         fn with_span(self, span: Span) -> Result<T, CheckerError> {
             self.map_err(|kind| CheckerError { kind: kind.into(), span })
         }

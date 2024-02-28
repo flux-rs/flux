@@ -191,7 +191,7 @@ pub fn walk_defn<V: Visitor>(vis: &mut V, defn: &SpecFunc) {
 }
 
 pub fn walk_refined_by<V: Visitor>(vis: &mut V, refined_by: &RefinedBy) {
-    walk_list!(vis, visit_refine_param, &refined_by.index_params);
+    walk_list!(vis, visit_refine_param, &refined_by.fields);
 }
 
 pub fn walk_refine_param<V: Visitor>(vis: &mut V, param: &RefineParam) {
