@@ -24,96 +24,57 @@ use rustc_hash::FxHashSet;
 use rustc_hir::def::DefKind;
 use rustc_span::Symbol;
 
-use self::sortck::InferCtxt;
+use self::sortck::{ImplicitParamInferer, InferCtxt};
 use crate::conv::{self, bug_on_infer_sort};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) fn check_item<'genv>(
+pub(crate) fn check_node<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    item: &fhir::Item,
+    node: &fhir::Node,
 ) -> Result<WfckResults<'genv>> {
-    let mut infcx = InferCtxt::new(genv, item.owner_id.into());
+    let mut infcx = InferCtxt::new(genv, node.owner_id().into());
 
-    Wf::run(genv, |wf| {
-        match &item.kind {
-            fhir::ItemKind::Enum(enum_def) => {
-                wf.check_enum_def(&mut infcx, enum_def);
-            }
-            fhir::ItemKind::Struct(struct_def) => {
-                wf.check_struct_def(&mut infcx, struct_def);
-            }
-            fhir::ItemKind::TyAlias(ty_alias) => {
-                wf.check_ty_alias(&mut infcx, ty_alias);
-            }
-            fhir::ItemKind::Trait(_) => {
-                // TODO(nilehmann) we should check the sorts of associated predicates are well-formed.
-            }
-            fhir::ItemKind::Impl(impl_) => {
-                wf.check_impl(&mut infcx, impl_);
-            }
-            fhir::ItemKind::Fn(fn_sig) => {
-                wf.check_fn_decl(&mut infcx, fn_sig.decl);
-            }
-            fhir::ItemKind::OpaqueTy(opaque_ty) => {
-                let parent = genv.tcx().local_parent(item.owner_id.def_id);
-                if let Some(generics) = genv.map().get_generics(parent) {
-                    let Some(wfckresults) = genv.check_wf(parent).emit(&wf.errors).ok() else {
-                        return;
-                    };
-                    for param in generics.refinement_params {
-                        let sort = wfckresults.node_sorts().get(param.fhir_id).unwrap().clone();
-                        infcx.insert_param(param.id, sort, param.kind);
-                    }
-                }
-                wf.check_opaque_ty(&mut infcx, opaque_ty);
-            }
-        }
-    })?;
+    insert_params(&mut infcx, node)?;
 
-    ParamSortResolver::run(&mut infcx, |r| r.visit_item(item))?;
+    ImplicitParamInferer::infer(&mut infcx, node)?;
 
-    param_usage::check_item(&infcx, item)?;
+    SortCk::check_node(&mut infcx, node)?;
+
+    resolve_params(&mut infcx, node)?;
+
+    param_usage::check_node(&infcx, node)?;
 
     Ok(infcx.into_results())
 }
 
-pub(crate) fn check_trait_item<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    trait_item: &fhir::TraitItem,
-) -> Result<WfckResults<'genv>> {
-    let mut infcx = InferCtxt::new(genv, trait_item.owner_id.into());
-    Wf::run(genv, |wf| {
-        match &trait_item.kind {
-            fhir::TraitItemKind::Fn(fn_sig) => {
-                wf.check_fn_decl(&mut infcx, fn_sig.decl);
+/// Initializes the inference context with all parameters required to check node
+fn insert_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
+    if let fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::OpaqueTy(..), owner_id }) = node {
+        let genv = infcx.genv;
+        let parent = genv.tcx().local_parent(owner_id.def_id);
+        if let Some(generics) = genv.map().get_generics(parent) {
+            let wfckresults = genv.check_wf(parent).emit(genv.sess())?;
+            for param in generics.refinement_params {
+                let sort = wfckresults.node_sorts().get(param.fhir_id).unwrap().clone();
+                infcx.insert_param(param.id, sort, param.kind);
             }
-            fhir::TraitItemKind::Type(_) => {}
         }
-    })?;
-    ParamSortResolver::run(&mut infcx, |r| r.visit_trait_item(trait_item))?;
-
-    param_usage::check_trait_item(&infcx, trait_item)?;
-    Ok(infcx.into_results())
+    }
+    visit_refine_params(node, |param| {
+        let sort = conv::conv_sort(infcx.genv, &param.sort, &mut || infcx.next_sort_var());
+        infcx.insert_param(param.id, sort, param.kind);
+    });
+    Ok(())
 }
 
-pub(crate) fn check_impl_item<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    impl_item: &fhir::ImplItem,
-) -> Result<WfckResults<'genv>> {
-    let mut infcx = InferCtxt::new(genv, impl_item.owner_id.into());
-    Wf::run(genv, |wf| {
-        match &impl_item.kind {
-            fhir::ImplItemKind::Fn(fn_sig) => {
-                wf.check_fn_decl(&mut infcx, fn_sig.decl);
-            }
-            fhir::ImplItemKind::Type(_) => {}
-        }
-    })?;
-    ParamSortResolver::run(&mut infcx, |r| r.visit_impl_item(impl_item))?;
-
-    param_usage::check_impl_item(&infcx, impl_item)?;
-    Ok(infcx.into_results())
+/// Check that all params with [`fhir::Sort::Infer`] have a sort inferred and save it in the [`WfckResults`]
+fn resolve_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
+    let mut err = None;
+    visit_refine_params(node, |param| {
+        infcx.resolve_param_sort(param).collect_err(&mut err);
+    });
+    err.into_result()
 }
 
 pub(crate) fn check_qualifier<'genv>(
@@ -156,16 +117,62 @@ pub(crate) fn check_fn_quals(
     Ok(())
 }
 
-struct Wf<'genv, 'tcx> {
+struct SortCk<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     errors: Errors<'genv>,
 }
 
-impl<'genv, 'tcx> Wf<'genv, 'tcx> {
-    fn run(genv: GlobalEnv<'genv, 'tcx>, f: impl FnOnce(&mut Wf)) -> Result {
-        let mut wf = Wf { genv, errors: Errors::new(genv.sess()) };
-        f(&mut wf);
+impl<'genv, 'tcx> SortCk<'genv, 'tcx> {
+    fn check_node(infcx: &mut InferCtxt<'genv, 'tcx>, node: &fhir::Node) -> Result {
+        let mut wf = SortCk { genv: infcx.genv, errors: Errors::new(infcx.genv.sess()) };
+        match node {
+            fhir::Node::Item(item) => wf.check_item(infcx, item),
+            fhir::Node::TraitItem(trait_item) => wf.check_trait_item(infcx, trait_item),
+            fhir::Node::ImplItem(impl_item) => wf.check_impl_item(infcx, impl_item),
+        }
         wf.errors.into_result()
+    }
+
+    fn check_item(&mut self, infcx: &mut InferCtxt, item: &fhir::Item) {
+        match &item.kind {
+            fhir::ItemKind::Enum(enum_def) => {
+                self.check_enum_def(infcx, enum_def);
+            }
+            fhir::ItemKind::Struct(struct_def) => {
+                self.check_struct_def(infcx, struct_def);
+            }
+            fhir::ItemKind::TyAlias(ty_alias) => {
+                self.check_ty_alias(infcx, ty_alias);
+            }
+            fhir::ItemKind::Impl(impl_) => {
+                self.check_impl(infcx, impl_);
+            }
+            fhir::ItemKind::Fn(fn_sig) => {
+                self.check_fn_decl(infcx, fn_sig.decl);
+            }
+            fhir::ItemKind::OpaqueTy(opaque_ty) => {
+                self.check_opaque_ty(infcx, opaque_ty);
+            }
+            fhir::ItemKind::Trait(_) => {}
+        }
+    }
+
+    fn check_trait_item(&mut self, infcx: &mut InferCtxt, trait_item: &fhir::TraitItem) {
+        match &trait_item.kind {
+            fhir::TraitItemKind::Fn(fn_sig) => {
+                self.check_fn_decl(infcx, fn_sig.decl);
+            }
+            fhir::TraitItemKind::Type(_) => {}
+        }
+    }
+
+    fn check_impl_item(&mut self, infcx: &mut InferCtxt, impl_item: &fhir::ImplItem) {
+        match &impl_item.kind {
+            fhir::ImplItemKind::Fn(fn_sig) => {
+                self.check_fn_decl(infcx, fn_sig.decl);
+            }
+            fhir::ImplItemKind::Type(_) => {}
+        }
     }
 
     fn check_generic_predicates(
@@ -196,7 +203,6 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
 
     fn check_impl(&mut self, infcx: &mut InferCtxt, impl_: &fhir::Impl) {
         for assoc_reft in impl_.assoc_refinements {
-            infcx.insert_params(assoc_reft.params);
             let output = conv::conv_sort(self.genv, &assoc_reft.output, &mut bug_on_infer_sort);
             infcx
                 .check_expr(&assoc_reft.body, &output)
@@ -205,13 +211,10 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
     }
 
     fn check_ty_alias(&mut self, infcx: &mut InferCtxt, ty_alias: &fhir::TyAlias) {
-        infcx.insert_params(ty_alias.generics.refinement_params);
-        infcx.insert_params(ty_alias.index_params);
         self.check_type(infcx, &ty_alias.ty);
     }
 
     fn check_struct_def(&mut self, infcx: &mut InferCtxt, struct_def: &fhir::StructDef) {
-        infcx.insert_params(struct_def.params);
         for invariant in struct_def.invariants {
             infcx
                 .check_expr(invariant, &rty::Sort::Bool)
@@ -226,7 +229,6 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
     }
 
     fn check_enum_def(&mut self, infcx: &mut InferCtxt, enum_def: &fhir::EnumDef) {
-        infcx.insert_params(enum_def.params);
         for invariant in enum_def.invariants {
             infcx
                 .check_expr(invariant, &rty::Sort::Bool)
@@ -239,18 +241,6 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
     }
 
     fn check_variant(&mut self, infcx: &mut InferCtxt, variant: &fhir::VariantDef) {
-        infcx.insert_params(variant.params);
-
-        let mut err: Option<ErrorGuaranteed> = None;
-        for field in variant.fields {
-            infcx.infer_implicit_params(&field.ty).collect_err(&mut err);
-        }
-        // Bail out if inference of implicit parameters failed to avoid confusing errors
-        if let Some(err) = err {
-            self.errors.collect_err(err);
-            return;
-        }
-
         for field in variant.fields {
             self.check_type(infcx, &field.ty);
         }
@@ -268,24 +258,6 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
     }
 
     fn check_fn_decl(&mut self, infcx: &mut InferCtxt, decl: &fhir::FnDecl) {
-        infcx.insert_params(decl.generics.refinement_params);
-
-        let mut err = None;
-        for arg in decl.args {
-            infcx.infer_implicit_params(arg).collect_err(&mut err);
-        }
-        for constr in decl.requires {
-            if let fhir::Constraint::Type(_, ty) = constr {
-                infcx.infer_implicit_params(ty).collect_err(&mut err);
-            }
-        }
-
-        // Bail out if inference of implicit parameters failed to avoid confusing errors
-        if let Some(err) = err {
-            self.errors.collect_err(err);
-            return;
-        }
-
         for arg in decl.args {
             self.check_type(infcx, arg);
         }
@@ -300,11 +272,6 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
     }
 
     fn check_fn_output(&mut self, infcx: &mut InferCtxt, fn_output: &fhir::FnOutput) {
-        infcx.insert_params(fn_output.params);
-        infcx
-            .infer_implicit_params(&fn_output.ret)
-            .collect_err(&mut self.errors);
-
         self.check_type(infcx, &fn_output.ret);
         for constr in fn_output.ensures {
             self.check_constraint(infcx, constr);
@@ -360,8 +327,7 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
                 }
                 self.check_base_ty(infcx, bty);
             }
-            fhir::TyKind::Exists(params, ty) => {
-                infcx.insert_params(params);
+            fhir::TyKind::Exists(_, ty) => {
                 self.check_type(infcx, ty);
             }
             fhir::TyKind::Ptr(_, loc) => {
@@ -473,28 +439,18 @@ impl<'genv, 'tcx> Wf<'genv, 'tcx> {
     }
 }
 
-/// Check that all params with [`fhir::Sort::Infer`] have a sort inferred and save it in the
-/// [`WfckResults`]
-struct ParamSortResolver<'a, 'genv, 'tcx> {
-    infcx: &'a mut InferCtxt<'genv, 'tcx>,
-    errors: Option<ErrorGuaranteed>,
-}
-
-impl<'a, 'genv, 'tcx> ParamSortResolver<'a, 'genv, 'tcx> {
-    fn run(
-        infcx: &'a mut InferCtxt<'genv, 'tcx>,
-        f: impl FnOnce(&mut ParamSortResolver),
-    ) -> Result {
-        let mut resolver = Self { infcx, errors: None };
-        f(&mut resolver);
-        resolver.errors.into_result()
+fn visit_refine_params(node: &fhir::Node, f: impl FnMut(&fhir::RefineParam)) {
+    struct RefineParamVisitor<F> {
+        f: F,
     }
-}
 
-impl fhir::visit::Visitor for ParamSortResolver<'_, '_, '_> {
-    fn visit_refine_param(&mut self, param: &fhir::RefineParam) {
-        self.infcx
-            .resolve_param_sort(param)
-            .collect_err(&mut self.errors);
+    impl<F> fhir::visit::Visitor for RefineParamVisitor<F>
+    where
+        F: FnMut(&fhir::RefineParam),
+    {
+        fn visit_refine_param(&mut self, param: &fhir::RefineParam) {
+            (self.f)(param);
+        }
     }
+    RefineParamVisitor { f }.visit_node(node);
 }

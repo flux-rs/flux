@@ -25,28 +25,20 @@ use super::{
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) fn check_item(infcx: &InferCtxt, item: &fhir::Item) -> Result {
-    ParamUsesChecker::new(infcx).run(|ck| ck.visit_item(item))
-}
-
-pub(crate) fn check_trait_item(infcx: &InferCtxt, trait_item: &fhir::TraitItem) -> Result {
-    ParamUsesChecker::new(infcx).run(|ck| ck.visit_trait_item(trait_item))
-}
-
-pub(crate) fn check_impl_item(infcx: &InferCtxt, impl_item: &fhir::ImplItem) -> Result {
-    ParamUsesChecker::new(infcx).run(|ck| ck.visit_impl_item(impl_item))
+pub(crate) fn check_node(infcx: &InferCtxt, node: &fhir::Node) -> Result {
+    ParamUsesChecker::new(infcx).run(|ck| ck.visit_node(node))
 }
 
 struct ParamUsesChecker<'a, 'genv, 'tcx> {
     infcx: &'a InferCtxt<'genv, 'tcx>,
     /// Keeps track of all refinement parameters that are used as an index such that their value is fully
-    /// determined. This is called xi because in [Focusing on Liquid Refinement Typing], the well-formedness
-    /// judgment uses an uppercase Xi (Ξ) for a context that is similar in purpose.
+    /// determined. The name xi is taken from [1], where the well-formedness judgment uses an uppercase
+    /// Xi (Ξ) for a context that is similar in purpose.
     ///
     /// This is basically a set of [`fhir::ParamId`] implemented with a snapshot map such that elements
     /// can be removed in batch when there's a change in polarity.
     ///
-    /// [Focusing on Liquid Refinement Typing]: https://arxiv.org/pdf/2209.13000.pdf
+    /// [1]: https://arxiv.org/pdf/2209.13000.pdf
     xi: snapshot_map::SnapshotMap<fhir::ParamId, ()>,
     errors: Errors<'genv>,
 }

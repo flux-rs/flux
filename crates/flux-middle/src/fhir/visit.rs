@@ -1,7 +1,7 @@
 use super::{
     AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
     FnSig, FuncSort, GenericArg, GenericBound, Generics, ImplItem, ImplItemKind, Item, ItemKind,
-    Lifetime, Lit, OpaqueTy, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath,
+    Lifetime, Lit, Node, OpaqueTy, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath,
     RefineArg, RefineArgKind, RefineParam, Sort, SortPath, StructDef, TraitItem, TraitItemKind, Ty,
     TyAlias, TyKind, TypeBinding, VariantDef, VariantRet, WhereBoundPredicate,
 };
@@ -20,6 +20,10 @@ macro_rules! walk_list {
 }
 
 pub trait Visitor: Sized {
+    fn visit_node(&mut self, node: &Node) {
+        walk_node(self, node);
+    }
+
     fn visit_item(&mut self, item: &Item) {
         walk_item(self, item);
     }
@@ -214,6 +218,15 @@ pub fn walk_generic_bound<V: Visitor>(vis: &mut V, bound: &GenericBound) {
 pub fn walk_poly_trait_ref<V: Visitor>(vis: &mut V, trait_ref: &PolyTraitRef) {
     vis.visit_path(&trait_ref.trait_ref);
 }
+
+pub fn walk_node<V: Visitor>(vis: &mut V, node: &Node) {
+    match node {
+        Node::Item(item) => vis.visit_item(item),
+        Node::TraitItem(trait_item) => vis.visit_trait_item(trait_item),
+        Node::ImplItem(impl_item) => vis.visit_impl_item(impl_item),
+    }
+}
+
 pub fn walk_item<V: Visitor>(vis: &mut V, item: &Item) {
     match &item.kind {
         ItemKind::Enum(enum_def) => vis.visit_enum_def(enum_def),
@@ -221,11 +234,18 @@ pub fn walk_item<V: Visitor>(vis: &mut V, item: &Item) {
         ItemKind::TyAlias(ty_alias) => vis.visit_ty_alias(ty_alias),
         ItemKind::Trait(trait_) => {
             vis.visit_generics(&trait_.generics);
-            // TODO visit assoc_refinements
+            for assoc_reft in trait_.assoc_refinements {
+                walk_list!(vis, visit_refine_param, assoc_reft.params);
+                vis.visit_sort(&assoc_reft.output);
+            }
         }
         ItemKind::Impl(impl_) => {
             vis.visit_generics(&impl_.generics);
-            // TODO visit assoc_refinements
+            for assoc_reft in impl_.assoc_refinements {
+                walk_list!(vis, visit_refine_param, assoc_reft.params);
+                vis.visit_sort(&assoc_reft.output);
+                vis.visit_expr(&assoc_reft.body);
+            }
         }
         ItemKind::Fn(fn_sig) => {
             vis.visit_fn_sig(fn_sig);

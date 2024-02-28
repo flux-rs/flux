@@ -105,6 +105,14 @@ impl<'fhir> Node<'fhir> {
             Node::ImplItem(impl_item) => impl_item.generics(),
         }
     }
+
+    pub fn owner_id(&self) -> OwnerId {
+        match self {
+            Node::Item(item) => item.owner_id,
+            Node::TraitItem(trait_item) => trait_item.owner_id,
+            Node::ImplItem(impl_item) => impl_item.owner_id,
+        }
+    }
 }
 
 pub struct Item<'fhir> {

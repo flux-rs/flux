@@ -393,23 +393,9 @@ fn check_wf_rust_item<'genv>(
         let parent = genv.tcx().local_parent(def_id);
         return genv.check_wf(parent);
     }
-    let wfckresults = match genv.map().node(def_id) {
-        fhir::Node::Item(item) => {
-            let mut wfckresults = wf::check_item(genv, item)?;
-            annot_check::check_item(genv, &mut wfckresults, item)?;
-            wfckresults
-        }
-        fhir::Node::TraitItem(trait_item) => {
-            let mut wfckresults = wf::check_trait_item(genv, trait_item)?;
-            annot_check::check_trait_item(genv, &mut wfckresults, trait_item)?;
-            wfckresults
-        }
-        fhir::Node::ImplItem(impl_item) => {
-            let mut wfckresults = wf::check_impl_item(genv, impl_item)?;
-            annot_check::check_impl_item(genv, &mut wfckresults, impl_item)?;
-            wfckresults
-        }
-    };
+    let node = genv.map().node(def_id);
+    let mut wfckresults = wf::check_node(genv, &node)?;
+    annot_check::check_node(genv, &mut wfckresults, &node)?;
     Ok(Rc::new(wfckresults))
 }
 

@@ -22,7 +22,19 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_errors::IntoDiagnostic;
 use rustc_hir::OwnerId;
 
-pub(crate) fn check_item<'genv>(
+pub(crate) fn check_node<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    wfckresults: &mut WfckResults<'genv>,
+    node: &fhir::Node,
+) -> Result<(), ErrorGuaranteed> {
+    match node {
+        fhir::Node::Item(item) => check_item(genv, wfckresults, item),
+        fhir::Node::TraitItem(trait_item) => check_trait_item(genv, wfckresults, trait_item),
+        fhir::Node::ImplItem(impl_item) => check_impl_item(genv, wfckresults, impl_item),
+    }
+}
+
+fn check_item<'genv>(
     genv: GlobalEnv<'genv, '_>,
     wfckresults: &mut WfckResults<'genv>,
     item: &fhir::Item,
@@ -36,7 +48,7 @@ pub(crate) fn check_item<'genv>(
     }
 }
 
-pub(crate) fn check_trait_item<'genv>(
+fn check_trait_item<'genv>(
     genv: GlobalEnv<'genv, '_>,
     wfckresults: &mut WfckResults<'genv>,
     trait_item: &fhir::TraitItem,
@@ -49,7 +61,7 @@ pub(crate) fn check_trait_item<'genv>(
     }
 }
 
-pub(crate) fn check_impl_item<'genv>(
+fn check_impl_item<'genv>(
     genv: GlobalEnv<'genv, '_>,
     wfckresults: &mut WfckResults<'genv>,
     impl_item: &fhir::ImplItem,

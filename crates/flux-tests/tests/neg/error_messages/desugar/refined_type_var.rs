@@ -12,7 +12,9 @@ pub trait MyTrait {
     fn foo(&self) -> Self;
 }
 
-#[flux::sig(fn<refine q: T -> bool> (&T{v:q(v)}) -> T{v: q(v)})] //~ ERROR type cannot be refined
+#[flux::sig(fn<refine q: T -> bool> (&T{v:q(v)}) -> T{v: q(v)})]
+//~^ ERROR type cannot be refined
+//~^^ ERROR type cannot be refined
 pub fn baz<T: MyTrait>(x: &T) -> T {
     x.foo()
 }

@@ -466,7 +466,7 @@ impl<'genv> InferCtxt<'genv, '_> {
             .unwrap_or_else(|| bug!("failed to equate sorts: `{sort1:?}` `{sort2:?}`"))
     }
 
-    fn next_sort_var(&mut self) -> rty::Sort {
+    pub(crate) fn next_sort_var(&mut self) -> rty::Sort {
         rty::Sort::Infer(rty::SortVar(self.next_sort_vid()))
     }
 
@@ -516,10 +516,6 @@ impl<'genv> InferCtxt<'genv, '_> {
         }
     }
 
-    pub(crate) fn infer_implicit_params(&mut self, ty: &fhir::Ty) -> Result {
-        ImplicitParamInferer::run(self, |cx| cx.visit_ty(ty))
-    }
-
     pub(crate) fn into_results(self) -> WfckResults<'genv> {
         self.wfckresults
     }
@@ -553,14 +549,11 @@ pub(crate) struct ImplicitParamInferer<'a, 'genv, 'tcx> {
 }
 
 impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
-    pub(crate) fn run(
-        infcx: &'a mut InferCtxt<'genv, 'tcx>,
-        f: impl FnOnce(&mut ImplicitParamInferer),
-    ) -> Result {
+    pub(crate) fn infer(infcx: &'a mut InferCtxt<'genv, 'tcx>, node: &fhir::Node) -> Result {
         let errors = Errors::new(infcx.genv.sess());
-        let mut cx = Self { infcx, errors };
-        f(&mut cx);
-        cx.errors.into_result()
+        let mut vis = Self { infcx, errors };
+        vis.visit_node(node);
+        vis.errors.into_result()
     }
 
     fn infer_implicit_params(&mut self, idx: &fhir::RefineArg, expected: &rty::Sort) {
