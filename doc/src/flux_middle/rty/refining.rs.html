@@ -428,11 +428,6 @@
 <a href="#428" id="428">428</a>
 <a href="#429" id="429">429</a>
 <a href="#430" id="430">430</a>
-<a href="#431" id="431">431</a>
-<a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a>
-<a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
@@ -712,10 +707,7 @@
     }
 
     <span class="kw">pub fn </span>refine_ty_ctor(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; QueryResult&lt;rty::TyCtor&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self
-            </span>.refine_ty_inner(ty)<span class="question-mark">?
-            </span>.expect_base()
-            .map(|constr| constr.to_ty()))
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.refine_ty_inner(ty)<span class="question-mark">?</span>.into_ctor())
     }
 
     <span class="kw">fn </span>refine_alias_kind(kind: <span class="kw-2">&amp;</span>rustc::ty::AliasKind) -&gt; rty::AliasKind {
@@ -841,12 +833,10 @@
         }
     }
 
-    <span class="attr">#[track_caller]
-    </span><span class="kw">fn </span>expect_base(<span class="self">self</span>) -&gt; rty::SubsetTyCtor {
-        <span class="kw">if let </span>TyOrBase::Base(ctor) = <span class="self">self </span>{
-            ctor
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">&quot;unexpected ty&quot;</span>)
+    <span class="kw">fn </span>into_ctor(<span class="self">self</span>) -&gt; rty::TyCtor {
+        <span class="kw">match </span><span class="self">self </span>{
+            TyOrBase::Ty(ty) =&gt; rty::Binder::new(ty, List::empty()),
+            TyOrBase::Base(ctor) =&gt; ctor.map(|ty| ty.to_ty()),
         }
     }
 }
