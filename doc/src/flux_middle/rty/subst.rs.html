@@ -450,7 +450,6 @@
 <a href="#450" id="450">450</a>
 <a href="#451" id="451">451</a>
 <a href="#452" id="452">452</a>
-<a href="#453" id="453">453</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cmp::Ordering, collections::hash_map};
 
 <span class="kw">use </span>flux_common::bug;
@@ -744,7 +743,8 @@
 <span class="kw">impl </span>GenericsSubstDelegate <span class="kw">for </span>GenericArgsDelegate&lt;<span class="lifetime">&#39;_</span>&gt; {
     <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; Sort {
         <span class="kw">match </span><span class="self">self</span>.<span class="number">0</span>.get(param_ty.index <span class="kw">as </span>usize) {
-            <span class="prelude-val">Some</span>(generic_arg) =&gt; generic_arg.peel_out_sort().unwrap(),
+            <span class="prelude-val">Some</span>(GenericArg::Base(ctor)) =&gt; ctor.sort(),
+            <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;extected base type for generic parameter, found `{arg:?}`&quot;</span>),
             <span class="prelude-val">None </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;type parameter out of range {param_ty:?}&quot;</span>),
         }
     }
@@ -752,7 +752,7 @@
     <span class="kw">fn </span>ty_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; Ty {
         <span class="kw">match </span><span class="self">self</span>.<span class="number">0</span>.get(param_ty.index <span class="kw">as </span>usize) {
             <span class="prelude-val">Some</span>(GenericArg::Ty(ty)) =&gt; ty.clone(),
-            <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected type for generic parameter, found `{:?}`&quot;</span>, arg),
+            <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected type for generic parameter, found `{arg:?}`&quot;</span>),
             <span class="prelude-val">None </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;type parameter out of range&quot;</span>),
         }
     }
@@ -760,9 +760,7 @@
     <span class="kw">fn </span>ctor_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; SubsetTyCtor {
         <span class="kw">match </span><span class="self">self</span>.<span class="number">0</span>.get(param_ty.index <span class="kw">as </span>usize) {
             <span class="prelude-val">Some</span>(GenericArg::Base(ctor)) =&gt; ctor.clone(),
-            <span class="prelude-val">Some</span>(arg) =&gt; {
-                <span class="macro">bug!</span>(<span class="string">&quot;expected base type for generic parameter, found `{:?}`&quot;</span>, arg)
-            }
+            <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected base type for generic parameter, found `{arg:?}`&quot;</span>),
             <span class="prelude-val">None </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;type parameter out of range&quot;</span>),
         }
     }
@@ -770,7 +768,7 @@
     <span class="kw">fn </span>region_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ebr: EarlyBoundRegion) -&gt; Region {
         <span class="kw">match </span><span class="self">self</span>.<span class="number">0</span>.get(ebr.index <span class="kw">as </span>usize) {
             <span class="prelude-val">Some</span>(GenericArg::Lifetime(re)) =&gt; <span class="kw-2">*</span>re,
-            <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected region for generic parameter, found `{:?}`&quot;</span>, arg),
+            <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected region for generic parameter, found `{arg:?}`&quot;</span>),
             <span class="prelude-val">None </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;region parameter out of range&quot;</span>),
         }
     }
