@@ -104,8 +104,8 @@ impl AdtSortDef {
         self.0.sorts.fold_with(&mut SortSubst::new(args))
     }
 
-    /// Given a list of generic args, returns an iterator of arguments that should be used to
-    /// instantiate the sort parameters.
+    /// Given a list of generic args, returns an iterator of the generic arguments that should be
+    /// mapped to sorts for instantiation.
     pub fn filter_generic_args<'a, A>(&'a self, args: &'a [A]) -> impl Iterator<Item = &A> + 'a {
         self.0.params.iter().map(|p| &args[p.index as usize])
     }
@@ -980,23 +980,15 @@ impl GenericArg {
         if let GenericArg::Ty(ty) = self {
             ty
         } else {
-            bug!("expected `rty::GenericArg::Ty`, found {:?}", self)
+            bug!("expected `rty::GenericArg::Ty`, found `{self:?}`")
         }
     }
 
-    pub fn peel_out_sort(&self) -> Option<Sort> {
-        match self {
-            GenericArg::Ty(ty) => ty.as_bty_skipping_existentials().map(BaseTy::sort),
-            GenericArg::Base(ctor) => Some(ctor.sort()),
-            GenericArg::Lifetime(_) | GenericArg::Const(_) => None,
-        }
-    }
-
-    pub fn is_valid_base_arg(&self) -> bool {
-        match self {
-            GenericArg::Ty(ty) => ty.kind().is_valid_base_ty(),
-            GenericArg::Base(_) => true,
-            _ => false,
+    pub fn expect_base(&self) -> &SubsetTyCtor {
+        if let GenericArg::Base(ctor) = self {
+            ctor
+        } else {
+            bug!("expected `rty::GenericArg::Base`, found `{self:?}`")
         }
     }
 
@@ -1567,7 +1559,7 @@ impl AdtDef {
         let sorts = self
             .sort_def()
             .filter_generic_args(args)
-            .map(|arg| arg.peel_out_sort().unwrap())
+            .map(|arg| arg.expect_base().sort())
             .collect();
 
         Sort::App(SortCtor::Adt(self.sort_def().clone()), sorts)
@@ -1678,19 +1670,6 @@ impl TyKind {
     fn intern(self) -> Ty {
         Interned::new(TyS { kind: self })
     }
-
-    fn is_valid_base_ty(&self) -> bool {
-        match self {
-            TyKind::Param(_) | TyKind::Indexed(_, _) | TyKind::Exists(_) => true,
-            TyKind::Constr(_, ty) => ty.kind().is_valid_base_ty(),
-            TyKind::Uninit
-            | TyKind::Ptr(_, _)
-            | TyKind::Discr(_, _)
-            | TyKind::Downcast(_, _, _, _, _)
-            | TyKind::Blocked(_)
-            | TyKind::Alias(_, _) => false,
-        }
-    }
 }
 
 impl TyS {
@@ -1744,10 +1723,6 @@ impl AliasTy {
 impl BaseTy {
     pub fn adt(adt_def: AdtDef, args: impl Into<GenericArgs>) -> BaseTy {
         BaseTy::Adt(adt_def, args.into())
-    }
-
-    pub fn slice(ty: Ty) -> BaseTy {
-        BaseTy::Slice(ty)
     }
 
     fn is_integral(&self) -> bool {

@@ -291,7 +291,8 @@ pub(crate) struct GenericArgsDelegate<'a>(pub(crate) &'a [GenericArg]);
 impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Sort {
         match self.0.get(param_ty.index as usize) {
-            Some(generic_arg) => generic_arg.peel_out_sort().unwrap(),
+            Some(GenericArg::Base(ctor)) => ctor.sort(),
+            Some(arg) => bug!("extected base type for generic parameter, found `{arg:?}`"),
             None => bug!("type parameter out of range {param_ty:?}"),
         }
     }
@@ -299,7 +300,7 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty {
         match self.0.get(param_ty.index as usize) {
             Some(GenericArg::Ty(ty)) => ty.clone(),
-            Some(arg) => bug!("expected type for generic parameter, found `{:?}`", arg),
+            Some(arg) => bug!("expected type for generic parameter, found `{arg:?}`"),
             None => bug!("type parameter out of range"),
         }
     }
@@ -307,9 +308,7 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
     fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor {
         match self.0.get(param_ty.index as usize) {
             Some(GenericArg::Base(ctor)) => ctor.clone(),
-            Some(arg) => {
-                bug!("expected base type for generic parameter, found `{:?}`", arg)
-            }
+            Some(arg) => bug!("expected base type for generic parameter, found `{arg:?}`"),
             None => bug!("type parameter out of range"),
         }
     }
@@ -317,7 +316,7 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
     fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region {
         match self.0.get(ebr.index as usize) {
             Some(GenericArg::Lifetime(re)) => *re,
-            Some(arg) => bug!("expected region for generic parameter, found `{:?}`", arg),
+            Some(arg) => bug!("expected region for generic parameter, found `{arg:?}`"),
             None => bug!("region parameter out of range"),
         }
     }
