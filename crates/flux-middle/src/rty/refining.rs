@@ -277,10 +277,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     }
 
     pub fn refine_ty_ctor(&self, ty: &rustc::ty::Ty) -> QueryResult<rty::TyCtor> {
-        Ok(self
-            .refine_ty_inner(ty)?
-            .expect_base()
-            .map(|constr| constr.to_ty()))
+        Ok(self.refine_ty_inner(ty)?.into_ctor())
     }
 
     fn refine_alias_kind(kind: &rustc::ty::AliasKind) -> rty::AliasKind {
@@ -406,12 +403,10 @@ impl TyOrBase {
         }
     }
 
-    #[track_caller]
-    fn expect_base(self) -> rty::SubsetTyCtor {
-        if let TyOrBase::Base(ctor) = self {
-            ctor
-        } else {
-            bug!("unexpected ty")
+    fn into_ctor(self) -> rty::TyCtor {
+        match self {
+            TyOrBase::Ty(ty) => rty::Binder::new(ty, List::empty()),
+            TyOrBase::Base(ctor) => ctor.map(|ty| ty.to_ty()),
         }
     }
 }
