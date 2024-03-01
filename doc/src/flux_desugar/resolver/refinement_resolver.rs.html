@@ -938,15 +938,6 @@
 <a href="#938" id="938">938</a>
 <a href="#939" id="939">939</a>
 <a href="#940" id="940">940</a>
-<a href="#941" id="941">941</a>
-<a href="#942" id="942">942</a>
-<a href="#943" id="943">943</a>
-<a href="#944" id="944">944</a>
-<a href="#945" id="945">945</a>
-<a href="#946" id="946">946</a>
-<a href="#947" id="947">947</a>
-<a href="#948" id="948">948</a>
-<a href="#949" id="949">949</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -1132,12 +1123,8 @@
             }
             surface::Arg::Ty(bind, ty, node_id) =&gt; {
                 <span class="kw">if let </span><span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(bind) = bind {
-                    <span class="kw">let </span>param_kind = <span class="kw">if let </span>surface::TyKind::Base(bty) = <span class="kw-2">&amp;</span>ty.kind {
-                        <span class="kw">if </span>bty.is_hole() {
-                            fhir::ParamKind::Error
-                        } <span class="kw">else </span>{
-                            fhir::ParamKind::Colon
-                        }
+                    <span class="kw">let </span>param_kind = <span class="kw">if let </span>surface::TyKind::Base(<span class="kw">_</span>) = <span class="kw-2">&amp;</span>ty.kind {
+                        fhir::ParamKind::Colon
                     } <span class="kw">else </span>{
                         fhir::ParamKind::Error
                     };
@@ -1174,11 +1161,6 @@
     }
 
     <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) {
-        <span class="comment">// skip holes because they don&#39;t have a corresponding `Res`
-        </span><span class="kw">if </span>path.is_hole() {
-            <span class="kw">return</span>;
-        }
-
         <span class="kw">for </span>arg <span class="kw">in </span><span class="kw-2">&amp;</span>path.refine {
             <span class="self">self</span>.with_scope(ScopeKind::Misc, |this| this.visit_refine_arg(arg));
         }

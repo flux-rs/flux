@@ -1027,7 +1027,7 @@
 
     <span class="kw">fn </span>instantiate_func_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fsort: rty::PolyFuncSort) -&gt; rty::FuncSort {
         <span class="kw">let </span>args: Vec&lt;rty::Sort&gt; = std::iter::repeat_with(|| <span class="self">self</span>.next_sort_var())
-            .take(fsort.params)
+            .take(fsort.params())
             .collect();
         fsort.instantiate(<span class="kw-2">&amp;</span>args)
     }

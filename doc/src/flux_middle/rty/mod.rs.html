@@ -2911,11 +2911,15 @@
 
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>PolyFuncSort {
-    <span class="kw">pub </span>params: usize,
+    params: usize,
     fsort: FuncSort,
 }
 
 <span class="kw">impl </span>PolyFuncSort {
+    <span class="kw">pub fn </span>new(params: usize, fsort: FuncSort) -&gt; <span class="self">Self </span>{
+        PolyFuncSort { params, fsort }
+    }
+
     <span class="kw">pub fn </span>skip_binders(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FuncSort {
         <span class="self">self</span>.fsort.clone()
     }
@@ -2931,10 +2935,6 @@
 
     <span class="kw">pub fn </span>params(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.params
-    }
-
-    <span class="kw">pub fn </span>new(params: usize, fsort: FuncSort) -&gt; <span class="self">Self </span>{
-        PolyFuncSort { params, fsort }
     }
 
     <span class="kw">pub fn </span>instantiate(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Sort]) -&gt; FuncSort {

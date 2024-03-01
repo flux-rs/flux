@@ -501,6 +501,7 @@
 <a href="#501" id="501">501</a>
 <a href="#502" id="502">502</a>
 <a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
 
 <span class="kw">use super</span>::{
@@ -945,6 +946,7 @@
         TyKind::ImplTrait(_node_id, trait_ref) =&gt; {
             <span class="macro">walk_list!</span>(vis, visit_trait_ref, trait_ref);
         }
+        TyKind::Hole =&gt; {}
     }
 }
 

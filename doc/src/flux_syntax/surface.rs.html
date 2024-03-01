@@ -512,38 +512,6 @@
 <a href="#512" id="512">512</a>
 <a href="#513" id="513">513</a>
 <a href="#514" id="514">514</a>
-<a href="#515" id="515">515</a>
-<a href="#516" id="516">516</a>
-<a href="#517" id="517">517</a>
-<a href="#518" id="518">518</a>
-<a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
 </pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
@@ -553,7 +521,7 @@
     Mutability,
 };
 <span class="kw">pub use </span>rustc_span::symbol::Ident;
-<span class="kw">use </span>rustc_span::{def_id::DefId, symbol::kw, Span};
+<span class="kw">use </span>rustc_span::{def_id::DefId, Span};
 
 <span class="kw">use </span><span class="kw">crate</span>::surface::visit::Visitor;
 
@@ -884,22 +852,10 @@
     Array(Box&lt;Ty&gt;, ArrayLen),
     <span class="doccomment">/// The `NodeId` is used to resolve the type to a corresponding `OpaqueTy`
     </span>ImplTrait(NodeId, GenericBounds),
+    Hole,
 }
 
 <span class="kw">impl </span>Ty {
-    <span class="kw">pub fn </span>as_bty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>BaseTy&gt; {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            TyKind::Base(bty) | TyKind::Indexed { bty, .. } | TyKind::Exists { bty, .. } =&gt; {
-                <span class="prelude-val">Some</span>(bty)
-            }
-            TyKind::GeneralExists { ty, .. } | TyKind::Constr(<span class="kw">_</span>, ty) =&gt; ty.as_bty(),
-            TyKind::Ref(<span class="kw">_</span>, <span class="kw">_</span>)
-            | TyKind::Tuple(<span class="kw">_</span>)
-            | TyKind::Array(<span class="kw">_</span>, <span class="kw">_</span>)
-            | TyKind::ImplTrait(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-        }
-    }
-
     <span class="kw">pub fn </span>is_refined(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">struct </span>IsRefinedVisitor {
             is_refined: bool,
@@ -907,7 +863,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>vis = IsRefinedVisitor { is_refined: <span class="bool-val">false </span>};
         <span class="kw">impl </span>visit::Visitor <span class="kw">for </span>IsRefinedVisitor {
             <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) {
-                <span class="kw">if </span>!<span class="macro">matches!</span>(ty.kind, TyKind::Base(<span class="kw">_</span>)) {
+                <span class="kw">if </span>!<span class="macro">matches!</span>(ty.kind, TyKind::Base(<span class="kw">_</span>) | TyKind::Hole) {
                     <span class="self">self</span>.is_refined = <span class="bool-val">true</span>;
                 }
                 visit::walk_ty(<span class="self">self</span>, ty);
@@ -921,16 +877,6 @@
 </span><span class="kw">pub struct </span>BaseTy {
     <span class="kw">pub </span>kind: BaseTyKind,
     <span class="kw">pub </span>span: Span,
-}
-
-<span class="kw">impl </span>BaseTy {
-    <span class="kw">pub fn </span>is_hole(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">if let </span>BaseTyKind::Path(path) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            path.is_hole()
-        } <span class="kw">else </span>{
-            <span class="bool-val">false
-        </span>}
-    }
 }
 
 <span class="attr">#[derive(Debug)]
@@ -974,16 +920,6 @@
 }
 
 <span class="kw">impl </span>Path {
-    <span class="kw">pub fn </span>is_hole(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">if let </span>[segment] = <span class="kw-2">&amp;</span><span class="self">self</span>.segments[..] {
-            segment.ident.name == kw::Underscore
-                &amp;&amp; <span class="self">self</span>.generics.is_empty()
-                &amp;&amp; <span class="self">self</span>.refine.is_empty()
-        } <span class="kw">else </span>{
-            <span class="bool-val">false
-        </span>}
-    }
-
     <span class="kw">pub fn </span>last(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>PathSegment {
         <span class="self">self</span>.segments
             .last()

@@ -1378,9 +1378,6 @@
 <a href="#1378" id="1378">1378</a>
 <a href="#1379" id="1379">1379</a>
 <a href="#1380" id="1380">1380</a>
-<a href="#1381" id="1381">1381</a>
-<a href="#1382" id="1382">1382</a>
-<a href="#1383" id="1383">1383</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -2336,12 +2333,8 @@
         <span class="kw">let </span>span = ty.span;
         <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
             surface::TyKind::Base(bty) =&gt; {
-                <span class="kw">if </span>bty.is_hole() {
-                    fhir::TyKind::Hole(<span class="self">self</span>.next_fhir_id())
-                } <span class="kw">else </span>{
-                    <span class="kw">let </span>bty = <span class="self">self</span>.desugar_bty(bty)<span class="question-mark">?</span>;
-                    fhir::TyKind::BaseTy(bty)
-                }
+                <span class="kw">let </span>bty = <span class="self">self</span>.desugar_bty(bty)<span class="question-mark">?</span>;
+                fhir::TyKind::BaseTy(bty)
             }
             surface::TyKind::Indexed { bty, indices } =&gt; {
                 <span class="kw">let </span>bty = <span class="self">self</span>.desugar_bty(bty)<span class="question-mark">?</span>;
@@ -2420,6 +2413,7 @@
             surface::TyKind::ImplTrait(node_id, bounds) =&gt; {
                 <span class="self">self</span>.desugar_impl_trait(<span class="kw-2">*</span>node_id, bounds)<span class="question-mark">?
             </span>}
+            surface::TyKind::Hole =&gt; fhir::TyKind::Hole(<span class="self">self</span>.next_fhir_id()),
         };
         <span class="prelude-val">Ok</span>(fhir::Ty { kind, span })
     }
