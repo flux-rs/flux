@@ -623,15 +623,21 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         alias: &fhir::AliasReft,
         func_args: &[fhir::Expr],
     ) -> QueryResult<rty::Expr> {
-        let trait_id = alias.trait_id;
-        let generic_args = self
-            .conv_generic_args(env, trait_id, alias.generic_args)?
-            .into();
+        let fhir::Res::Def(DefKind::Trait, trait_id) = alias.path.res else {
+            bug!("expected trait")
+        };
+        let trait_segment = alias.path.last_segment();
+        let mut generic_args = vec![rty::GenericArg::Ty(self.conv_ty(env, alias.self_ty)?)];
+        self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut generic_args)?;
+
         let func_args = func_args
             .iter()
             .map(|arg| self.conv_expr(env, arg))
             .try_collect()?;
-        let alias_reft = rty::AliasReft { trait_id, name: alias.name, args: generic_args };
+
+        let alias_reft =
+            rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
+
         Ok(rty::Expr::alias(alias_reft, func_args))
     }
 

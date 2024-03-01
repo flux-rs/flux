@@ -1054,36 +1054,22 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
     }
 
     fn desugar_path(&mut self, path: &surface::Path) -> Result<fhir::Path<'genv>> {
-        let [prefix @ .., last] = &path.segments[..] else {
-            span_bug!(path.span, "expected at least one segment")
-        };
-        let last = self.desugar_last_segment(last, &path.generics)?;
-        let res = last.res;
-        let segments = self.genv().alloc_slice_with_capacity(
-            prefix.len() + 1,
-            prefix
-                .iter()
-                .map(|segment| self.desugar_path_segment(segment))
-                .chain([last]),
-        );
+        let segments = try_alloc_slice!(self.genv(), &path.segments, |segment| {
+            self.desugar_path_segment(segment)
+        })?;
+        let res = segments.last().unwrap().res;
         let refine =
             try_alloc_slice!(self.genv(), &path.refine, |arg| self.desugar_refine_arg(arg))?;
         Ok(fhir::Path { res, segments, refine, span: path.span })
     }
 
-    fn desugar_last_segment(
+    fn desugar_path_segment(
         &mut self,
         segment: &surface::PathSegment,
-        args: &[surface::GenericArg],
     ) -> Result<fhir::PathSegment<'genv>> {
         let res = self.resolver_output().path_res_map[&segment.node_id];
-        let (args, bindings) = self.desugar_generic_args(res, args)?;
+        let (args, bindings) = self.desugar_generic_args(res, &segment.args)?;
         Ok(fhir::PathSegment { ident: segment.ident, res, args, bindings })
-    }
-
-    fn desugar_path_segment(&self, segment: &surface::PathSegment) -> fhir::PathSegment<'genv> {
-        let res = self.resolver_output().path_res_map[&segment.node_id];
-        fhir::PathSegment { ident: segment.ident, res, args: &[], bindings: &[] }
     }
 
     fn mk_lft_hole(&self) -> fhir::Lifetime {
@@ -1158,12 +1144,17 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         &mut self,
         alias_reft: &surface::AliasReft,
     ) -> Result<fhir::AliasReft<'genv>> {
-        let path = self.desugar_path(&alias_reft.trait_id)?;
-        if let Res::Def(DefKind::Trait, trait_id) = path.res {
-            let (generic_args, _) = self.desugar_generic_args(path.res, &alias_reft.args)?;
-            Ok(fhir::AliasReft { trait_id, name: alias_reft.name.name, generic_args })
+        let self_ty = self.desugar_ty(&alias_reft.self_ty)?;
+        let path = self.desugar_path(&alias_reft.path)?;
+        if let Res::Def(DefKind::Trait, _) = path.res {
+            Ok(fhir::AliasReft {
+                self_ty: self.genv().alloc(self_ty),
+                path,
+                name: alias_reft.name.name,
+            })
         } else {
-            Err(self.emit_err(errors::InvalidAliasReft::new(&alias_reft.trait_id)))
+            // FIXME(nilehmann) we ought to report this error somewhere else
+            Err(self.emit_err(errors::InvalidAliasReft::new(&alias_reft.path)))
         }
     }
 

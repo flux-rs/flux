@@ -443,8 +443,9 @@ pub fn walk_refine_arg<V: Visitor>(vis: &mut V, arg: &RefineArg) {
     }
 }
 
-pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasReft) {
-    walk_list!(vis, visit_generic_arg, alias_pred.generic_args);
+pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias: &AliasReft) {
+    vis.visit_ty(alias.self_ty);
+    vis.visit_path(&alias.path);
 }
 
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {

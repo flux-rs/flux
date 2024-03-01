@@ -6,7 +6,6 @@ use flux_errors::{ErrorGuaranteed, Errors};
 use flux_middle::{
     fhir::{self, visit::Visitor as _, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
-    pretty,
     rty::{
         self,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -293,7 +292,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             return Err(self.emit_err(InvalidAssocReft::new(
                 span,
                 alias.name,
-                pretty::def_id_to_string(alias.trait_id),
+                format!("{:?}", alias.path),
             )));
         };
         if args.len() != fsort.inputs().len() {

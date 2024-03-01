@@ -173,4 +173,4 @@ fhir_analysis_incompatible_sort =
     .label = expected `{$expected}`, found `{$found}`
 
 fhir_analysis_invalid_assoc_reft =
-    associated refinement `{$name}` is not a member of trait `{$trait_id}`
+    associated refinement `{$name}` is not a member of trait `{$trait_}`

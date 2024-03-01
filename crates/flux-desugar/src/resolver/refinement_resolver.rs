@@ -6,7 +6,10 @@ use flux_middle::{
     fhir::{self, ExprRes},
     ResolverOutput,
 };
-use flux_syntax::surface::{self, visit::Visitor as _, Ident, NodeId};
+use flux_syntax::{
+    surface::{self, visit::Visitor as _, Ident, NodeId},
+    walk_list,
+};
 use rustc_data_structures::{
     fx::{FxIndexMap, IndexEntry},
     unord::UnordMap,
@@ -49,7 +52,7 @@ impl ParamRes {
 }
 
 pub(crate) trait ScopedVisitor: Sized {
-    fn is_box(&self, path: &surface::Path) -> bool;
+    fn is_box(&self, segment: &surface::PathSegment) -> bool;
     fn enter_scope(&mut self, kind: ScopeKind) -> ControlFlow<()>;
     fn exit_scope(&mut self) {}
 
@@ -224,9 +227,12 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         for arg in &path.refine {
             self.with_scope(ScopeKind::Misc, |this| this.visit_refine_arg(arg));
         }
+        walk_list!(self, visit_path_segment, &path.segments);
+    }
 
-        let is_box = self.is_box(path);
-        for (i, arg) in path.generics.iter().enumerate() {
+    fn visit_path_segment(&mut self, segment: &surface::PathSegment) {
+        let is_box = self.is_box(segment);
+        for (i, arg) in segment.args.iter().enumerate() {
             if is_box && i == 0 {
                 self.visit_generic_arg(arg);
             } else {
@@ -318,8 +324,8 @@ impl<'a, 'tcx> ImplicitParamCollector<'a, 'tcx> {
 }
 
 impl ScopedVisitor for ImplicitParamCollector<'_, '_> {
-    fn is_box(&self, path: &surface::Path) -> bool {
-        let res = self.path_res_map[&path.last().node_id];
+    fn is_box(&self, segment: &surface::PathSegment) -> bool {
+        let res = self.path_res_map[&segment.node_id];
         res.is_box(self.tcx)
     }
 
@@ -646,8 +652,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 }
 
 impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
-    fn is_box(&self, path: &surface::Path) -> bool {
-        let res = self.resolver_output().path_res_map[&path.last().node_id];
+    fn is_box(&self, segment: &surface::PathSegment) -> bool {
+        let res = self.resolver_output().path_res_map[&segment.node_id];
         res.is_box(self.resolver.genv.tcx())
     }
 
@@ -803,8 +809,8 @@ impl<'a, 'genv, 'tcx> IllegalBinderVisitor<'a, 'genv, 'tcx> {
 }
 
 impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
-    fn is_box(&self, path: &surface::Path) -> bool {
-        let res = self.resolver.output.path_res_map[&path.last().node_id];
+    fn is_box(&self, segment: &surface::PathSegment) -> bool {
+        let res = self.resolver.output.path_res_map[&segment.node_id];
         res.is_box(self.resolver.genv.tcx())
     }
 

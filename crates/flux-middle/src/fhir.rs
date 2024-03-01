@@ -788,11 +788,12 @@ impl<'fhir> PolyFuncSort<'fhir> {
     }
 }
 
+/// `<self_ty as path>::name`
 #[derive(Clone, Copy)]
 pub struct AliasReft<'fhir> {
-    pub trait_id: DefId,
+    pub self_ty: &'fhir Ty<'fhir>,
+    pub path: Path<'fhir>,
     pub name: Symbol,
-    pub generic_args: &'fhir [GenericArg<'fhir>],
 }
 
 #[derive(Clone, Copy)]
@@ -1286,14 +1287,7 @@ impl fmt::Debug for RefineArg<'_> {
 
 impl fmt::Debug for AliasReft<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let [self_ty, rest @ ..] = self.generic_args else {
-            bug!("expected at least one argument")
-        };
-        write!(f, "<{:?} as {}", self_ty, pretty::def_id_to_string(self.trait_id))?;
-        if !rest.is_empty() {
-            write!(f, "<{:?}>", rest.iter().format(", "))?;
-        }
-        write!(f, ">::{}", self.name)
+        write!(f, "<{:?} as {:?}>::{}", self.self_ty, self.path, self.name)
     }
 }
 

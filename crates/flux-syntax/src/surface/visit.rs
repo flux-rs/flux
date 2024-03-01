@@ -455,18 +455,18 @@ pub fn walk_bty<V: Visitor>(vis: &mut V, bty: &BaseTy) {
 
 pub fn walk_path<V: Visitor>(vis: &mut V, path: &Path) {
     walk_list!(vis, visit_path_segment, &path.segments);
-    walk_list!(vis, visit_generic_arg, &path.generics);
     walk_list!(vis, visit_refine_arg, &path.refine);
 }
 
 pub fn walk_path_segment<V: Visitor>(vis: &mut V, segment: &PathSegment) {
     vis.visit_ident(segment.ident);
+    walk_list!(vis, visit_generic_arg, &segment.args);
 }
 
-pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias_pred: &AliasReft) {
-    vis.visit_ident(alias_pred.name);
-    vis.visit_path(&alias_pred.trait_id);
-    walk_list!(vis, visit_generic_arg, &alias_pred.args);
+pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias: &AliasReft) {
+    vis.visit_ty(&alias.self_ty);
+    vis.visit_path(&alias.path);
+    vis.visit_ident(alias.name);
 }
 
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {

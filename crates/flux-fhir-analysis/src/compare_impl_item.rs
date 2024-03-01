@@ -114,13 +114,13 @@ pub(crate) mod errors {
     pub struct InvalidAssocReft {
         #[primary_span]
         span: Span,
-        trait_id: String,
+        trait_: String,
         name: Symbol,
     }
 
     impl InvalidAssocReft {
-        pub(crate) fn new(span: Span, name: Symbol, trait_id: String) -> InvalidAssocReft {
-            Self { span, trait_id, name }
+        pub(crate) fn new(span: Span, name: Symbol, trait_: String) -> InvalidAssocReft {
+            Self { span, trait_, name }
         }
     }
 }

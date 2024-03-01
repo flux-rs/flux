@@ -5,13 +5,20 @@ use rustc_span::def_id::{DefId, LocalDefId};
 use crate::{fhir, global_env::GlobalEnv, intern::List, rty};
 
 impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
-    pub fn sort_of_alias_reft(self, alias_pred: &fhir::AliasReft) -> Option<rty::FuncSort> {
-        let trait_id = alias_pred.trait_id;
-        let name = alias_pred.name;
+    pub fn sort_of_alias_reft(self, alias: &fhir::AliasReft) -> Option<rty::FuncSort> {
+        let fhir::Res::Def(DefKind::Trait, trait_id) = alias.path.res else {
+            bug!("expected trait")
+        };
+        let name = alias.name;
         let fsort = self.sort_of_assoc_reft(trait_id, name)?;
         Some(fsort.instantiate_func_sort(|param_ty| {
-            self.sort_of_generic_arg(&alias_pred.generic_args[param_ty.index as usize])
-                .unwrap()
+            if param_ty.index == 0 {
+                self.sort_of_ty(alias.self_ty)
+            } else {
+                let args = alias.path.last_segment().args;
+                self.sort_of_generic_arg(&args[(param_ty.index - 1) as usize])
+            }
+            .unwrap()
         }))
     }
 

@@ -303,11 +303,12 @@ pub struct Ty {
     pub span: Span,
 }
 
+/// `<self_ty as path>::name`
 #[derive(Debug)]
 pub struct AliasReft {
-    pub trait_id: Path,
+    pub self_ty: Box<Ty>,
+    pub path: Path,
     pub name: Ident,
-    pub args: Vec<GenericArg>,
 }
 
 #[derive(Debug)]
@@ -400,7 +401,6 @@ pub enum BindKind {
 #[derive(Debug)]
 pub struct Path {
     pub segments: Vec<PathSegment>,
-    pub generics: Vec<GenericArg>,
     pub refine: Vec<RefineArg>,
     pub span: Span,
 }
@@ -416,6 +416,7 @@ impl Path {
 #[derive(Debug)]
 pub struct PathSegment {
     pub ident: Ident,
+    pub args: Vec<GenericArg>,
     pub node_id: NodeId,
 }
 

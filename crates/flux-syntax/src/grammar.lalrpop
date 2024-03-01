@@ -425,10 +425,9 @@ RefineArgs: Vec<surface::RefineArg> = {
 }
 
 Path: surface::Path = {
-    <lo:@L> <segments:Sep1<"::", PathSegment>> <generics:GenericArgs?> <refine:RefineArgs?> <hi:@R> => {
+    <lo:@L> <segments:Sep1<"::", PathSegment>> <refine:RefineArgs?> <hi:@R> => {
         surface::Path {
             segments,
-            generics: generics.unwrap_or_default(),
             refine: refine.unwrap_or_default(),
             span: cx.map_span(lo, hi),
         }
@@ -436,8 +435,9 @@ Path: surface::Path = {
 }
 
 PathSegment: surface::PathSegment = {
-    <ident:Ident> => surface::PathSegment {
+    <ident:Ident> <args:GenericArgs?> => surface::PathSegment {
         ident,
+        args: args.unwrap_or_default(),
         node_id: cx.next_node_id(),
     }
 }
@@ -509,14 +509,8 @@ Level10: surface::Expr = {
         node_id: cx.next_node_id(),
         span: cx.map_span(lo, hi),
     },
-    <lo:@L> "<" <arg:GenericArg> "as" <trait_id:Path> ">" "::" <name:Ident> "(" <fun_args:Comma<Expr>> ")" <hi:@R> => {
-        let mut trait_id = trait_id;
-        let mut args = vec![arg];
-        let mut trait_args = std::mem::take(&mut trait_id.generics);
-        args.append(&mut trait_args);
-
-        let alias = surface::AliasReft { trait_id, name, args };
-
+    <lo:@L> "<" <self_ty:Ty> "as" <path:Path> ">" "::" <name:Ident> "(" <fun_args:Comma<Expr>> ")" <hi:@R> => {
+        let alias = surface::AliasReft { self_ty: Box::new(self_ty), path, name };
         surface::Expr {
             kind: surface::ExprKind::Alias(alias, fun_args),
             node_id: cx.next_node_id(),
