@@ -818,10 +818,10 @@
     <span class="kw">pub </span>span: Span,
 }
 
-<span class="doccomment">/// `&lt;self_ty as path&gt;::name`
+<span class="doccomment">/// `&lt;qself as path&gt;::name`
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>AliasReft {
-    <span class="kw">pub </span>self_ty: Box&lt;Ty&gt;,
+    <span class="kw">pub </span>qself: Box&lt;Ty&gt;,
     <span class="kw">pub </span>path: Path,
     <span class="kw">pub </span>name: Ident,
 }
@@ -883,7 +883,7 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>BaseTyKind {
-    Path(Path),
+    Path(<span class="prelude-ty">Option</span>&lt;Box&lt;Ty&gt;&gt;, Path),
     Slice(Box&lt;Ty&gt;),
 }
 

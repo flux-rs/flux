@@ -1108,18 +1108,18 @@
 
     <span class="kw">fn </span>lift_path_to_ty(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        self_ty: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>hir::Ty&gt;,
+        qself: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>hir::Ty&gt;,
         path: <span class="kw-2">&amp;</span>hir::Path,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
         <span class="kw">let </span>path = <span class="self">self</span>.lift_path(path)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>self_ty = self_ty
+        <span class="kw">let </span>qself = qself
             .map(|ty| {
                 <span class="kw">let </span>ty = <span class="self">self</span>.lift_ty(ty)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(<span class="self">self</span>.genv.alloc(ty))
             })
             .transpose()<span class="question-mark">?</span>;
-        <span class="kw">let </span>qpath = fhir::QPath::Resolved(self_ty, path);
+        <span class="kw">let </span>qpath = fhir::QPath::Resolved(qself, path);
         <span class="kw">let </span>bty = fhir::BaseTy::from(qpath);
         <span class="kw">let </span>span = bty.span;
         <span class="prelude-val">Ok</span>(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span })

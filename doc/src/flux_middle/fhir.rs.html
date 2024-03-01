@@ -2182,10 +2182,10 @@
     }
 }
 
-<span class="doccomment">/// `&lt;self_ty as path&gt;::name`
+<span class="doccomment">/// `&lt;qself as path&gt;::name`
 </span><span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>AliasReft&lt;<span class="lifetime">&#39;fhir</span>&gt; {
-    <span class="kw">pub </span>self_ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>Ty&lt;<span class="lifetime">&#39;fhir</span>&gt;,
+    <span class="kw">pub </span>qself: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>Ty&lt;<span class="lifetime">&#39;fhir</span>&gt;,
     <span class="kw">pub </span>path: Path&lt;<span class="lifetime">&#39;fhir</span>&gt;,
     <span class="kw">pub </span>name: Symbol,
 }
@@ -2681,7 +2681,7 @@
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>AliasReft&lt;<span class="lifetime">&#39;_</span>&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;&lt;{:?} as {:?}&gt;::{}&quot;</span>, <span class="self">self</span>.self_ty, <span class="self">self</span>.path, <span class="self">self</span>.name)
+        <span class="macro">write!</span>(f, <span class="string">&quot;&lt;{:?} as {:?}&gt;::{}&quot;</span>, <span class="self">self</span>.qself, <span class="self">self</span>.path, <span class="self">self</span>.name)
     }
 }
 

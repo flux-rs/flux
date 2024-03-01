@@ -502,6 +502,11 @@
 <a href="#502" id="502">502</a>
 <a href="#503" id="503">503</a>
 <a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
 
 <span class="kw">use super</span>::{
@@ -952,7 +957,12 @@
 
 <span class="kw">pub fn </span>walk_bty&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, bty: <span class="kw-2">&amp;</span>BaseTy) {
     <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
-        BaseTyKind::Path(path) =&gt; vis.visit_path(path),
+        BaseTyKind::Path(qself, path) =&gt; {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(qself) = qself {
+                vis.visit_ty(qself);
+            }
+            vis.visit_path(path);
+        }
         BaseTyKind::Slice(ty) =&gt; vis.visit_ty(ty),
     }
 }
@@ -968,7 +978,7 @@
 }
 
 <span class="kw">pub fn </span>walk_alias_pred&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, alias: <span class="kw-2">&amp;</span>AliasReft) {
-    vis.visit_ty(<span class="kw-2">&amp;</span>alias.self_ty);
+    vis.visit_ty(<span class="kw-2">&amp;</span>alias.qself);
     vis.visit_path(<span class="kw-2">&amp;</span>alias.path);
     vis.visit_ident(alias.name);
 }

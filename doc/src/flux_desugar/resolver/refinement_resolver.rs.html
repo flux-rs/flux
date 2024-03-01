@@ -1217,7 +1217,7 @@
                     surface::visit::walk_bty(this, bty);
                 });
             }
-            surface::BaseTyKind::Path(<span class="kw">_</span>) =&gt; {
+            surface::BaseTyKind::Path(..) =&gt; {
                 surface::visit::walk_bty(<span class="self">self</span>, bty);
             }
         }

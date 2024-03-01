@@ -154,7 +154,7 @@
     val: T,
 ) -&gt; io::Result&lt;()&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>writer = writer_for_item(tcx, def_id.into(), ext)<span class="question-mark">?</span>;
-    <span class="macro">write!</span>(writer, <span class="string">&quot;{val:#?}&quot;</span>)
+    <span class="macro">writeln!</span>(writer, <span class="string">&quot;{val:#?}&quot;</span>)
 }
 
 <span class="attr">#[macro_export]

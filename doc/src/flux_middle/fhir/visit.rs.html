@@ -920,7 +920,7 @@
 }
 
 <span class="kw">pub fn </span>walk_alias_pred&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, alias: <span class="kw-2">&amp;</span>AliasReft) {
-    vis.visit_ty(alias.self_ty);
+    vis.visit_ty(alias.qself);
     vis.visit_path(<span class="kw-2">&amp;</span>alias.path);
 }
 

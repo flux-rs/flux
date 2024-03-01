@@ -1369,6 +1369,18 @@
 <a href="#1369" id="1369">1369</a>
 <a href="#1370" id="1370">1370</a>
 <a href="#1371" id="1371">1371</a>
+<a href="#1372" id="1372">1372</a>
+<a href="#1373" id="1373">1373</a>
+<a href="#1374" id="1374">1374</a>
+<a href="#1375" id="1375">1375</a>
+<a href="#1376" id="1376">1376</a>
+<a href="#1377" id="1377">1377</a>
+<a href="#1378" id="1378">1378</a>
+<a href="#1379" id="1379">1379</a>
+<a href="#1380" id="1380">1380</a>
+<a href="#1381" id="1381">1381</a>
+<a href="#1382" id="1382">1382</a>
+<a href="#1383" id="1383">1383</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -1981,7 +1993,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
         <span class="kw">match </span>arg {
             surface::Arg::Constr(bind, path, pred, node_id) =&gt; {
-                <span class="kw">let </span>bty = <span class="self">self</span>.desugar_path_to_bty(path)<span class="question-mark">?</span>;
+                <span class="kw">let </span>bty = <span class="self">self</span>.desugar_path_to_bty(<span class="prelude-val">None</span>, path)<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>pred = <span class="self">self</span>.desugar_expr(pred)<span class="question-mark">?</span>;
 
@@ -2095,7 +2107,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         ret: <span class="kw-2">&amp;</span>surface::VariantRet,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::VariantRet&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
-        <span class="kw">let </span>bty = <span class="self">self</span>.desugar_path_to_bty(<span class="kw-2">&amp;</span>ret.path)<span class="question-mark">?</span>;
+        <span class="kw">let </span>bty = <span class="self">self</span>.desugar_path_to_bty(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>ret.path)<span class="question-mark">?</span>;
         <span class="kw">let </span>idx = <span class="self">self</span>.desugar_indices(<span class="kw-2">&amp;</span>ret.indices)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(fhir::VariantRet { bty, idx })
     }
@@ -2411,7 +2423,9 @@
 
     <span class="kw">fn </span>desugar_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>surface::BaseTy) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::BaseTy&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
-            surface::BaseTyKind::Path(path) =&gt; <span class="self">self</span>.desugar_path_to_bty(path),
+            surface::BaseTyKind::Path(qself, path) =&gt; {
+                <span class="self">self</span>.desugar_path_to_bty(qself.as_deref(), path)
+            }
             surface::BaseTyKind::Slice(ty) =&gt; {
                 <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(ty)<span class="question-mark">?</span>;
                 <span class="kw">let </span>kind = fhir::BaseTyKind::Slice(<span class="self">self</span>.genv().alloc(ty));
@@ -2420,8 +2434,18 @@
         }
     }
 
-    <span class="kw">fn </span>desugar_path_to_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::BaseTy&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
-        <span class="prelude-val">Ok</span>(fhir::BaseTy::from(fhir::QPath::Resolved(<span class="prelude-val">None</span>, <span class="self">self</span>.desugar_path(path)<span class="question-mark">?</span>)))
+    <span class="kw">fn </span>desugar_path_to_bty(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        qself: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>surface::Ty&gt;,
+        path: <span class="kw-2">&amp;</span>surface::Path,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::BaseTy&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
+        <span class="kw">let </span>qself = qself
+            .map(|ty| {
+                <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(ty)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(<span class="self">self</span>.genv().alloc(ty))
+            })
+            .transpose()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(fhir::BaseTy::from(fhir::QPath::Resolved(qself, <span class="self">self</span>.desugar_path(path)<span class="question-mark">?</span>)))
     }
 
     <span class="kw">fn </span>desugar_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Path&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
@@ -2515,11 +2539,11 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         alias_reft: <span class="kw-2">&amp;</span>surface::AliasReft,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::AliasReft&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
-        <span class="kw">let </span>self_ty = <span class="self">self</span>.desugar_ty(<span class="kw-2">&amp;</span>alias_reft.self_ty)<span class="question-mark">?</span>;
+        <span class="kw">let </span>self_ty = <span class="self">self</span>.desugar_ty(<span class="kw-2">&amp;</span>alias_reft.qself)<span class="question-mark">?</span>;
         <span class="kw">let </span>path = <span class="self">self</span>.desugar_path(<span class="kw-2">&amp;</span>alias_reft.path)<span class="question-mark">?</span>;
         <span class="kw">if let </span>Res::Def(DefKind::Trait, <span class="kw">_</span>) = path.res {
             <span class="prelude-val">Ok</span>(fhir::AliasReft {
-                self_ty: <span class="self">self</span>.genv().alloc(self_ty),
+                qself: <span class="self">self</span>.genv().alloc(self_ty),
                 path,
                 name: alias_reft.name.name,
             })
