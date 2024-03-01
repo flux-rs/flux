@@ -390,11 +390,15 @@ impl FuncSort {
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct PolyFuncSort {
-    pub params: usize,
+    params: usize,
     fsort: FuncSort,
 }
 
 impl PolyFuncSort {
+    pub fn new(params: usize, fsort: FuncSort) -> Self {
+        PolyFuncSort { params, fsort }
+    }
+
     pub fn skip_binders(&self) -> FuncSort {
         self.fsort.clone()
     }
@@ -410,10 +414,6 @@ impl PolyFuncSort {
 
     pub fn params(&self) -> usize {
         self.params
-    }
-
-    pub fn new(params: usize, fsort: FuncSort) -> Self {
-        PolyFuncSort { params, fsort }
     }
 
     pub fn instantiate(&self, args: &[Sort]) -> FuncSort {

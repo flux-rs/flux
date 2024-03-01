@@ -494,20 +494,8 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
     }
 
     fn visit_ty(&mut self, ty: &surface::Ty) {
-        match &ty.kind {
-            surface::TyKind::Base(bty) => {
-                // We don't resolve type holes because they will be desugared to `fhir::TyKind::Hole`.
-                // The path won't have an entry in `path_res_map` which we should consider during
-                // desugaring. Holes in other positions (e.g., _[10] or _{v: v > 0}) will fail
-                // resolving so they don't show up in desugaring.
-                if bty.is_hole() {
-                    return;
-                }
-            }
-            surface::TyKind::ImplTrait(node_id, _) => {
-                self.resolve_opaque_impl(*node_id, ty.span);
-            }
-            _ => {}
+        if let surface::TyKind::ImplTrait(node_id, _) = &ty.kind {
+            self.resolve_opaque_impl(*node_id, ty.span);
         }
         surface::visit::walk_ty(self, ty);
     }

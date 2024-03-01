@@ -350,7 +350,7 @@ Arg: surface::Arg = {
 }
 
 pub Ty: surface::Ty = {
-    <lo:@L> <kind:TyKind> <hi:@L> => surface::Ty {
+    <lo:@L> <kind:TyKind> <hi:@R> => surface::Ty {
         kind,
         node_id: cx.next_node_id(),
         span: cx.map_span(lo, hi)
@@ -358,6 +358,7 @@ pub Ty: surface::Ty = {
 }
 
 TyKind: surface::TyKind = {
+    "_"                                               => surface::TyKind::Hole,
     <bty:BaseTy>                                      => surface::TyKind::Base(<>),
     <bty:BaseTy> "[" <indices:Indices> "]"            => surface::TyKind::Indexed { <> },
     <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
@@ -705,5 +706,6 @@ extern {
         "if"   => Token::If,
         "else" => Token::Else,
         "::" => Token::ModSep,
+        "_" => Token::Underscore,
     }
 }

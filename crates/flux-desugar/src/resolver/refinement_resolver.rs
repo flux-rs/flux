@@ -183,12 +183,8 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
             }
             surface::Arg::Ty(bind, ty, node_id) => {
                 if let &Some(bind) = bind {
-                    let param_kind = if let surface::TyKind::Base(bty) = &ty.kind {
-                        if bty.is_hole() {
-                            fhir::ParamKind::Error
-                        } else {
-                            fhir::ParamKind::Colon
-                        }
+                    let param_kind = if let surface::TyKind::Base(_) = &ty.kind {
+                        fhir::ParamKind::Colon
                     } else {
                         fhir::ParamKind::Error
                     };
@@ -225,11 +221,6 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     }
 
     fn visit_path(&mut self, path: &surface::Path) {
-        // skip holes because they don't have a corresponding `Res`
-        if path.is_hole() {
-            return;
-        }
-
         for arg in &path.refine {
             self.with_scope(ScopeKind::Misc, |this| this.visit_refine_arg(arg));
         }

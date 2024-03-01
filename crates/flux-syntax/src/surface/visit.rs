@@ -442,6 +442,7 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
         TyKind::ImplTrait(_node_id, trait_ref) => {
             walk_list!(vis, visit_trait_ref, trait_ref);
         }
+        TyKind::Hole => {}
     }
 }
 

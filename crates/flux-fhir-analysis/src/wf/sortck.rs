@@ -327,7 +327,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn instantiate_func_sort(&mut self, fsort: rty::PolyFuncSort) -> rty::FuncSort {
         let args: Vec<rty::Sort> = std::iter::repeat_with(|| self.next_sort_var())
-            .take(fsort.params)
+            .take(fsort.params())
             .collect();
         fsort.instantiate(&args)
     }

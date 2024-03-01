@@ -953,12 +953,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         let span = ty.span;
         let kind = match &ty.kind {
             surface::TyKind::Base(bty) => {
-                if bty.is_hole() {
-                    fhir::TyKind::Hole(self.next_fhir_id())
-                } else {
-                    let bty = self.desugar_bty(bty)?;
-                    fhir::TyKind::BaseTy(bty)
-                }
+                let bty = self.desugar_bty(bty)?;
+                fhir::TyKind::BaseTy(bty)
             }
             surface::TyKind::Indexed { bty, indices } => {
                 let bty = self.desugar_bty(bty)?;
@@ -1037,6 +1033,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             surface::TyKind::ImplTrait(node_id, bounds) => {
                 self.desugar_impl_trait(*node_id, bounds)?
             }
+            surface::TyKind::Hole => fhir::TyKind::Hole(self.next_fhir_id()),
         };
         Ok(fhir::Ty { kind, span })
     }

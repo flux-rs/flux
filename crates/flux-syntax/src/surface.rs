@@ -7,7 +7,7 @@ pub use rustc_ast::{
     Mutability,
 };
 pub use rustc_span::symbol::Ident;
-use rustc_span::{def_id::DefId, symbol::kw, Span};
+use rustc_span::{def_id::DefId, Span};
 
 use crate::surface::visit::Visitor;
 
@@ -338,22 +338,10 @@ pub enum TyKind {
     Array(Box<Ty>, ArrayLen),
     /// The `NodeId` is used to resolve the type to a corresponding `OpaqueTy`
     ImplTrait(NodeId, GenericBounds),
+    Hole,
 }
 
 impl Ty {
-    pub fn as_bty(&self) -> Option<&BaseTy> {
-        match &self.kind {
-            TyKind::Base(bty) | TyKind::Indexed { bty, .. } | TyKind::Exists { bty, .. } => {
-                Some(bty)
-            }
-            TyKind::GeneralExists { ty, .. } | TyKind::Constr(_, ty) => ty.as_bty(),
-            TyKind::Ref(_, _)
-            | TyKind::Tuple(_)
-            | TyKind::Array(_, _)
-            | TyKind::ImplTrait(_, _) => None,
-        }
-    }
-
     pub fn is_refined(&self) -> bool {
         struct IsRefinedVisitor {
             is_refined: bool,
@@ -361,7 +349,7 @@ impl Ty {
         let mut vis = IsRefinedVisitor { is_refined: false };
         impl visit::Visitor for IsRefinedVisitor {
             fn visit_ty(&mut self, ty: &Ty) {
-                if !matches!(ty.kind, TyKind::Base(_)) {
+                if !matches!(ty.kind, TyKind::Base(_) | TyKind::Hole) {
                     self.is_refined = true;
                 }
                 visit::walk_ty(self, ty);
@@ -375,16 +363,6 @@ impl Ty {
 pub struct BaseTy {
     pub kind: BaseTyKind,
     pub span: Span,
-}
-
-impl BaseTy {
-    pub fn is_hole(&self) -> bool {
-        if let BaseTyKind::Path(path) = &self.kind {
-            path.is_hole()
-        } else {
-            false
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -428,16 +406,6 @@ pub struct Path {
 }
 
 impl Path {
-    pub fn is_hole(&self) -> bool {
-        if let [segment] = &self.segments[..] {
-            segment.ident.name == kw::Underscore
-                && self.generics.is_empty()
-                && self.refine.is_empty()
-        } else {
-            false
-        }
-    }
-
     pub fn last(&self) -> &PathSegment {
         self.segments
             .last()
