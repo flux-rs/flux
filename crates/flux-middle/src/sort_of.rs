@@ -13,7 +13,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let fsort = self.sort_of_assoc_reft(trait_id, name)?;
         Some(fsort.instantiate_func_sort(|param_ty| {
             if param_ty.index == 0 {
-                self.sort_of_ty(alias.self_ty)
+                self.sort_of_ty(alias.qself)
             } else {
                 let args = alias.path.last_segment().args;
                 self.sort_of_generic_arg(&args[(param_ty.index - 1) as usize])

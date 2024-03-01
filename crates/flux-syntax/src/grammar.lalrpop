@@ -386,7 +386,7 @@ TyKind: surface::TyKind = {
 
 #[inline]
 BaseTy: surface::BaseTy = {
-    <lo:@L> <kind:BaseTyKind> <hi:@L> => surface::BaseTy {
+    <lo:@L> <kind:BaseTyKind> <hi:@R> => surface::BaseTy {
         kind,
         span: cx.map_span(lo, hi)
     }
@@ -394,8 +394,18 @@ BaseTy: surface::BaseTy = {
 
 #[inline]
 BaseTyKind: surface::BaseTyKind = {
-    <path:Path> => surface::BaseTyKind::Path(path),
-    "[" <ty:Ty> "]" => surface::BaseTyKind::Slice(Box::new(ty)),
+    <path:Path>      => surface::BaseTyKind::Path(None, path),
+    "[" <ty:Ty> "]"  => surface::BaseTyKind::Slice(Box::new(ty)),
+    <lo:@L> "<" <qself:Ty> "as" <segments1:PathSegments> ">" "::" <segments2:PathSegments> <hi:@R> => {
+        let mut segments = segments1;
+        segments.extend(segments2);
+        let path  = surface::Path {
+            segments,
+            refine: vec![],
+            span: cx.map_span(lo, hi),
+        };
+        surface::BaseTyKind::Path(Some(Box::new(qself)), path)
+    }
 }
 
 GenericArgTys: Vec<surface::Ty> = {
@@ -425,13 +435,17 @@ RefineArgs: Vec<surface::RefineArg> = {
 }
 
 Path: surface::Path = {
-    <lo:@L> <segments:Sep1<"::", PathSegment>> <refine:RefineArgs?> <hi:@R> => {
+    <lo:@L> <segments:PathSegments> <refine:RefineArgs?> <hi:@R> => {
         surface::Path {
             segments,
             refine: refine.unwrap_or_default(),
             span: cx.map_span(lo, hi),
         }
     }
+}
+
+PathSegments: Vec<surface::PathSegment> = {
+    <Sep1<"::", PathSegment>>
 }
 
 PathSegment: surface::PathSegment = {
@@ -509,8 +523,8 @@ Level10: surface::Expr = {
         node_id: cx.next_node_id(),
         span: cx.map_span(lo, hi),
     },
-    <lo:@L> "<" <self_ty:Ty> "as" <path:Path> ">" "::" <name:Ident> "(" <fun_args:Comma<Expr>> ")" <hi:@R> => {
-        let alias = surface::AliasReft { self_ty: Box::new(self_ty), path, name };
+    <lo:@L> "<" <qself:Ty> "as" <path:Path> ">" "::" <name:Ident> "(" <fun_args:Comma<Expr>> ")" <hi:@R> => {
+        let alias = surface::AliasReft { qself: Box::new(qself), path, name };
         surface::Expr {
             kind: surface::ExprKind::Alias(alias, fun_args),
             node_id: cx.next_node_id(),

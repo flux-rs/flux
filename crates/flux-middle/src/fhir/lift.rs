@@ -474,18 +474,18 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
 
     fn lift_path_to_ty(
         &mut self,
-        self_ty: Option<&hir::Ty>,
+        qself: Option<&hir::Ty>,
         path: &hir::Path,
     ) -> Result<fhir::Ty<'genv>> {
         let path = self.lift_path(path)?;
 
-        let self_ty = self_ty
+        let qself = qself
             .map(|ty| {
                 let ty = self.lift_ty(ty)?;
                 Ok(self.genv.alloc(ty))
             })
             .transpose()?;
-        let qpath = fhir::QPath::Resolved(self_ty, path);
+        let qpath = fhir::QPath::Resolved(qself, path);
         let bty = fhir::BaseTy::from(qpath);
         let span = bty.span;
         Ok(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span })

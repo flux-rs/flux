@@ -788,10 +788,10 @@ impl<'fhir> PolyFuncSort<'fhir> {
     }
 }
 
-/// `<self_ty as path>::name`
+/// `<qself as path>::name`
 #[derive(Clone, Copy)]
 pub struct AliasReft<'fhir> {
-    pub self_ty: &'fhir Ty<'fhir>,
+    pub qself: &'fhir Ty<'fhir>,
     pub path: Path<'fhir>,
     pub name: Symbol,
 }
@@ -1287,7 +1287,7 @@ impl fmt::Debug for RefineArg<'_> {
 
 impl fmt::Debug for AliasReft<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "<{:?} as {:?}>::{}", self.self_ty, self.path, self.name)
+        write!(f, "<{:?} as {:?}>::{}", self.qself, self.path, self.name)
     }
 }
 

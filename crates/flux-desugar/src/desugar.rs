@@ -610,7 +610,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> Result<fhir::Ty<'genv>> {
         match arg {
             surface::Arg::Constr(bind, path, pred, node_id) => {
-                let bty = self.desugar_path_to_bty(path)?;
+                let bty = self.desugar_path_to_bty(None, path)?;
 
                 let pred = self.desugar_expr(pred)?;
 
@@ -724,7 +724,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         ret: &surface::VariantRet,
     ) -> Result<fhir::VariantRet<'genv>> {
-        let bty = self.desugar_path_to_bty(&ret.path)?;
+        let bty = self.desugar_path_to_bty(None, &ret.path)?;
         let idx = self.desugar_indices(&ret.indices)?;
         Ok(fhir::VariantRet { bty, idx })
     }
@@ -1040,7 +1040,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
 
     fn desugar_bty(&mut self, bty: &surface::BaseTy) -> Result<fhir::BaseTy<'genv>> {
         match &bty.kind {
-            surface::BaseTyKind::Path(path) => self.desugar_path_to_bty(path),
+            surface::BaseTyKind::Path(qself, path) => {
+                self.desugar_path_to_bty(qself.as_deref(), path)
+            }
             surface::BaseTyKind::Slice(ty) => {
                 let ty = self.desugar_ty(ty)?;
                 let kind = fhir::BaseTyKind::Slice(self.genv().alloc(ty));
@@ -1049,8 +1051,18 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         }
     }
 
-    fn desugar_path_to_bty(&mut self, path: &surface::Path) -> Result<fhir::BaseTy<'genv>> {
-        Ok(fhir::BaseTy::from(fhir::QPath::Resolved(None, self.desugar_path(path)?)))
+    fn desugar_path_to_bty(
+        &mut self,
+        qself: Option<&surface::Ty>,
+        path: &surface::Path,
+    ) -> Result<fhir::BaseTy<'genv>> {
+        let qself = qself
+            .map(|ty| {
+                let ty = self.desugar_ty(ty)?;
+                Ok(self.genv().alloc(ty))
+            })
+            .transpose()?;
+        Ok(fhir::BaseTy::from(fhir::QPath::Resolved(qself, self.desugar_path(path)?)))
     }
 
     fn desugar_path(&mut self, path: &surface::Path) -> Result<fhir::Path<'genv>> {
@@ -1144,11 +1156,11 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         &mut self,
         alias_reft: &surface::AliasReft,
     ) -> Result<fhir::AliasReft<'genv>> {
-        let self_ty = self.desugar_ty(&alias_reft.self_ty)?;
+        let self_ty = self.desugar_ty(&alias_reft.qself)?;
         let path = self.desugar_path(&alias_reft.path)?;
         if let Res::Def(DefKind::Trait, _) = path.res {
             Ok(fhir::AliasReft {
-                self_ty: self.genv().alloc(self_ty),
+                qself: self.genv().alloc(self_ty),
                 path,
                 name: alias_reft.name.name,
             })

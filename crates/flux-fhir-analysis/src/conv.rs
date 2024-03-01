@@ -627,7 +627,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             bug!("expected trait")
         };
         let trait_segment = alias.path.last_segment();
-        let mut generic_args = vec![rty::GenericArg::Ty(self.conv_ty(env, alias.self_ty)?)];
+        let mut generic_args = vec![rty::GenericArg::Ty(self.conv_ty(env, alias.qself)?)];
         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut generic_args)?;
 
         let func_args = func_args

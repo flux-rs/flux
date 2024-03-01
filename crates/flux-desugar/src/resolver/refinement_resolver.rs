@@ -271,7 +271,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                     surface::visit::walk_bty(this, bty);
                 });
             }
-            surface::BaseTyKind::Path(_) => {
+            surface::BaseTyKind::Path(..) => {
                 surface::visit::walk_bty(self, bty);
             }
         }

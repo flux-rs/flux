@@ -303,10 +303,10 @@ pub struct Ty {
     pub span: Span,
 }
 
-/// `<self_ty as path>::name`
+/// `<qself as path>::name`
 #[derive(Debug)]
 pub struct AliasReft {
-    pub self_ty: Box<Ty>,
+    pub qself: Box<Ty>,
     pub path: Path,
     pub name: Ident,
 }
@@ -368,7 +368,7 @@ pub struct BaseTy {
 
 #[derive(Debug)]
 pub enum BaseTyKind {
-    Path(Path),
+    Path(Option<Box<Ty>>, Path),
     Slice(Box<Ty>),
 }
 

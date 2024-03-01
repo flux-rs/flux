@@ -448,7 +448,12 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
 
 pub fn walk_bty<V: Visitor>(vis: &mut V, bty: &BaseTy) {
     match &bty.kind {
-        BaseTyKind::Path(path) => vis.visit_path(path),
+        BaseTyKind::Path(qself, path) => {
+            if let Some(qself) = qself {
+                vis.visit_ty(qself);
+            }
+            vis.visit_path(path);
+        }
         BaseTyKind::Slice(ty) => vis.visit_ty(ty),
     }
 }
@@ -464,7 +469,7 @@ pub fn walk_path_segment<V: Visitor>(vis: &mut V, segment: &PathSegment) {
 }
 
 pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias: &AliasReft) {
-    vis.visit_ty(&alias.self_ty);
+    vis.visit_ty(&alias.qself);
     vis.visit_path(&alias.path);
     vis.visit_ident(alias.name);
 }
