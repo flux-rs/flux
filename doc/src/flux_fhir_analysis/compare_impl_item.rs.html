@@ -240,13 +240,13 @@
     </span><span class="kw">pub struct </span>InvalidAssocReft {
         <span class="attr">#[primary_span]
         </span>span: Span,
-        trait_id: String,
+        trait_: String,
         name: Symbol,
     }
 
     <span class="kw">impl </span>InvalidAssocReft {
-        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(span: Span, name: Symbol, trait_id: String) -&gt; InvalidAssocReft {
-            <span class="self">Self </span>{ span, trait_id, name }
+        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(span: Span, name: Symbol, trait_: String) -&gt; InvalidAssocReft {
+            <span class="self">Self </span>{ span, trait_, name }
         }
     }
 }

@@ -959,18 +959,18 @@
 
 <span class="kw">pub fn </span>walk_path&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, path: <span class="kw-2">&amp;</span>Path) {
     <span class="macro">walk_list!</span>(vis, visit_path_segment, <span class="kw-2">&amp;</span>path.segments);
-    <span class="macro">walk_list!</span>(vis, visit_generic_arg, <span class="kw-2">&amp;</span>path.generics);
     <span class="macro">walk_list!</span>(vis, visit_refine_arg, <span class="kw-2">&amp;</span>path.refine);
 }
 
 <span class="kw">pub fn </span>walk_path_segment&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>PathSegment) {
     vis.visit_ident(segment.ident);
+    <span class="macro">walk_list!</span>(vis, visit_generic_arg, <span class="kw-2">&amp;</span>segment.args);
 }
 
-<span class="kw">pub fn </span>walk_alias_pred&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, alias_pred: <span class="kw-2">&amp;</span>AliasReft) {
-    vis.visit_ident(alias_pred.name);
-    vis.visit_path(<span class="kw-2">&amp;</span>alias_pred.trait_id);
-    <span class="macro">walk_list!</span>(vis, visit_generic_arg, <span class="kw-2">&amp;</span>alias_pred.args);
+<span class="kw">pub fn </span>walk_alias_pred&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, alias: <span class="kw-2">&amp;</span>AliasReft) {
+    vis.visit_ty(<span class="kw-2">&amp;</span>alias.self_ty);
+    vis.visit_path(<span class="kw-2">&amp;</span>alias.path);
+    vis.visit_ident(alias.name);
 }
 
 <span class="kw">pub fn </span>walk_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, expr: <span class="kw-2">&amp;</span>Expr) {

@@ -697,7 +697,6 @@
 <a href="#697" id="697">697</a>
 <a href="#698" id="698">698</a>
 <a href="#699" id="699">699</a>
-<a href="#700" id="700">700</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
@@ -706,7 +705,6 @@
 <span class="kw">use </span>flux_middle::{
     fhir::{<span class="self">self</span>, visit::Visitor <span class="kw">as _</span>, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
-    pretty,
     rty::{
         <span class="self">self</span>,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -993,7 +991,7 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(InvalidAssocReft::new(
                 span,
                 alias.name,
-                pretty::def_id_to_string(alias.trait_id),
+                <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, alias.path),
             )));
         };
         <span class="kw">if </span>args.len() != fsort.inputs().len() {

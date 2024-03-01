@@ -473,6 +473,7 @@
 <a href="#473" id="473">473</a>
 <a href="#474" id="474">474</a>
 <a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
     FnSig, FuncSort, GenericArg, GenericBound, Generics, ImplAssocReft, ImplItem, ImplItemKind,
@@ -918,8 +919,9 @@
     }
 }
 
-<span class="kw">pub fn </span>walk_alias_pred&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, alias_pred: <span class="kw-2">&amp;</span>AliasReft) {
-    <span class="macro">walk_list!</span>(vis, visit_generic_arg, alias_pred.generic_args);
+<span class="kw">pub fn </span>walk_alias_pred&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, alias: <span class="kw-2">&amp;</span>AliasReft) {
+    vis.visit_ty(alias.self_ty);
+    vis.visit_path(<span class="kw-2">&amp;</span>alias.path);
 }
 
 <span class="kw">pub fn </span>walk_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, expr: <span class="kw-2">&amp;</span>Expr) {

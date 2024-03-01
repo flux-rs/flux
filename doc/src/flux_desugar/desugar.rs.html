@@ -1369,15 +1369,6 @@
 <a href="#1369" id="1369">1369</a>
 <a href="#1370" id="1370">1370</a>
 <a href="#1371" id="1371">1371</a>
-<a href="#1372" id="1372">1372</a>
-<a href="#1373" id="1373">1373</a>
-<a href="#1374" id="1374">1374</a>
-<a href="#1375" id="1375">1375</a>
-<a href="#1376" id="1376">1376</a>
-<a href="#1377" id="1377">1377</a>
-<a href="#1378" id="1378">1378</a>
-<a href="#1379" id="1379">1379</a>
-<a href="#1380" id="1380">1380</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -2434,36 +2425,22 @@
     }
 
     <span class="kw">fn </span>desugar_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Path&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
-        <span class="kw">let </span>[prefix @ .., last] = <span class="kw-2">&amp;</span>path.segments[..] <span class="kw">else </span>{
-            <span class="macro">span_bug!</span>(path.span, <span class="string">&quot;expected at least one segment&quot;</span>)
-        };
-        <span class="kw">let </span>last = <span class="self">self</span>.desugar_last_segment(last, <span class="kw-2">&amp;</span>path.generics)<span class="question-mark">?</span>;
-        <span class="kw">let </span>res = last.res;
-        <span class="kw">let </span>segments = <span class="self">self</span>.genv().alloc_slice_with_capacity(
-            prefix.len() + <span class="number">1</span>,
-            prefix
-                .iter()
-                .map(|segment| <span class="self">self</span>.desugar_path_segment(segment))
-                .chain([last]),
-        );
+        <span class="kw">let </span>segments = <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv(), <span class="kw-2">&amp;</span>path.segments, |segment| {
+            <span class="self">self</span>.desugar_path_segment(segment)
+        })<span class="question-mark">?</span>;
+        <span class="kw">let </span>res = segments.last().unwrap().res;
         <span class="kw">let </span>refine =
             <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv(), <span class="kw-2">&amp;</span>path.refine, |arg| <span class="self">self</span>.desugar_refine_arg(arg))<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(fhir::Path { res, segments, refine, span: path.span })
     }
 
-    <span class="kw">fn </span>desugar_last_segment(
+    <span class="kw">fn </span>desugar_path_segment(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         segment: <span class="kw-2">&amp;</span>surface::PathSegment,
-        args: <span class="kw-2">&amp;</span>[surface::GenericArg],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PathSegment&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
         <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().path_res_map[<span class="kw-2">&amp;</span>segment.node_id];
-        <span class="kw">let </span>(args, bindings) = <span class="self">self</span>.desugar_generic_args(res, args)<span class="question-mark">?</span>;
+        <span class="kw">let </span>(args, bindings) = <span class="self">self</span>.desugar_generic_args(res, <span class="kw-2">&amp;</span>segment.args)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(fhir::PathSegment { ident: segment.ident, res, args, bindings })
-    }
-
-    <span class="kw">fn </span>desugar_path_segment(<span class="kw-2">&amp;</span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>surface::PathSegment) -&gt; fhir::PathSegment&lt;<span class="lifetime">&#39;genv</span>&gt; {
-        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().path_res_map[<span class="kw-2">&amp;</span>segment.node_id];
-        fhir::PathSegment { ident: segment.ident, res, args: <span class="kw-2">&amp;</span>[], bindings: <span class="kw-2">&amp;</span>[] }
     }
 
     <span class="kw">fn </span>mk_lft_hole(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; fhir::Lifetime {
@@ -2538,12 +2515,17 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         alias_reft: <span class="kw-2">&amp;</span>surface::AliasReft,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::AliasReft&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
-        <span class="kw">let </span>path = <span class="self">self</span>.desugar_path(<span class="kw-2">&amp;</span>alias_reft.trait_id)<span class="question-mark">?</span>;
-        <span class="kw">if let </span>Res::Def(DefKind::Trait, trait_id) = path.res {
-            <span class="kw">let </span>(generic_args, <span class="kw">_</span>) = <span class="self">self</span>.desugar_generic_args(path.res, <span class="kw-2">&amp;</span>alias_reft.args)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(fhir::AliasReft { trait_id, name: alias_reft.name.name, generic_args })
+        <span class="kw">let </span>self_ty = <span class="self">self</span>.desugar_ty(<span class="kw-2">&amp;</span>alias_reft.self_ty)<span class="question-mark">?</span>;
+        <span class="kw">let </span>path = <span class="self">self</span>.desugar_path(<span class="kw-2">&amp;</span>alias_reft.path)<span class="question-mark">?</span>;
+        <span class="kw">if let </span>Res::Def(DefKind::Trait, <span class="kw">_</span>) = path.res {
+            <span class="prelude-val">Ok</span>(fhir::AliasReft {
+                self_ty: <span class="self">self</span>.genv().alloc(self_ty),
+                path,
+                name: alias_reft.name.name,
+            })
         } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::InvalidAliasReft::new(<span class="kw-2">&amp;</span>alias_reft.trait_id)))
+            <span class="comment">// FIXME(nilehmann) we ought to report this error somewhere else
+            </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::InvalidAliasReft::new(<span class="kw-2">&amp;</span>alias_reft.path)))
         }
     }
 

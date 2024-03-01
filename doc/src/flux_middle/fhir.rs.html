@@ -1392,12 +1392,6 @@
 <a href="#1392" id="1392">1392</a>
 <a href="#1393" id="1393">1393</a>
 <a href="#1394" id="1394">1394</a>
-<a href="#1395" id="1395">1395</a>
-<a href="#1396" id="1396">1396</a>
-<a href="#1397" id="1397">1397</a>
-<a href="#1398" id="1398">1398</a>
-<a href="#1399" id="1399">1399</a>
-<a href="#1400" id="1400">1400</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -2188,11 +2182,12 @@
     }
 }
 
-<span class="attr">#[derive(Clone, Copy)]
+<span class="doccomment">/// `&lt;self_ty as path&gt;::name`
+</span><span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>AliasReft&lt;<span class="lifetime">&#39;fhir</span>&gt; {
-    <span class="kw">pub </span>trait_id: DefId,
+    <span class="kw">pub </span>self_ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>Ty&lt;<span class="lifetime">&#39;fhir</span>&gt;,
+    <span class="kw">pub </span>path: Path&lt;<span class="lifetime">&#39;fhir</span>&gt;,
     <span class="kw">pub </span>name: Symbol,
-    <span class="kw">pub </span>generic_args: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>[GenericArg&lt;<span class="lifetime">&#39;fhir</span>&gt;],
 }
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -2686,14 +2681,7 @@
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>AliasReft&lt;<span class="lifetime">&#39;_</span>&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">let </span>[self_ty, rest @ ..] = <span class="self">self</span>.generic_args <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">&quot;expected at least one argument&quot;</span>)
-        };
-        <span class="macro">write!</span>(f, <span class="string">&quot;&lt;{:?} as {}&quot;</span>, self_ty, pretty::def_id_to_string(<span class="self">self</span>.trait_id))<span class="question-mark">?</span>;
-        <span class="kw">if </span>!rest.is_empty() {
-            <span class="macro">write!</span>(f, <span class="string">&quot;&lt;{:?}&gt;&quot;</span>, rest.iter().format(<span class="string">&quot;, &quot;</span>))<span class="question-mark">?</span>;
-        }
-        <span class="macro">write!</span>(f, <span class="string">&quot;&gt;::{}&quot;</span>, <span class="self">self</span>.name)
+        <span class="macro">write!</span>(f, <span class="string">&quot;&lt;{:?} as {:?}&gt;::{}&quot;</span>, <span class="self">self</span>.self_ty, <span class="self">self</span>.path, <span class="self">self</span>.name)
     }
 }
 

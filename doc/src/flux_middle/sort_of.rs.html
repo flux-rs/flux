@@ -126,6 +126,13 @@
 <a href="#126" id="126">126</a>
 <a href="#127" id="127">127</a>
 <a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>rustc_hir::{def::DefKind, PrimTy};
 <span class="kw">use </span>rustc_span::def_id::{DefId, LocalDefId};
@@ -133,13 +140,20 @@
 <span class="kw">use crate</span>::{fhir, global_env::GlobalEnv, intern::List, rty};
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; GlobalEnv&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub fn </span>sort_of_alias_reft(<span class="self">self</span>, alias_pred: <span class="kw-2">&amp;</span>fhir::AliasReft) -&gt; <span class="prelude-ty">Option</span>&lt;rty::FuncSort&gt; {
-        <span class="kw">let </span>trait_id = alias_pred.trait_id;
-        <span class="kw">let </span>name = alias_pred.name;
+    <span class="kw">pub fn </span>sort_of_alias_reft(<span class="self">self</span>, alias: <span class="kw-2">&amp;</span>fhir::AliasReft) -&gt; <span class="prelude-ty">Option</span>&lt;rty::FuncSort&gt; {
+        <span class="kw">let </span>fhir::Res::Def(DefKind::Trait, trait_id) = alias.path.res <span class="kw">else </span>{
+            <span class="macro">bug!</span>(<span class="string">&quot;expected trait&quot;</span>)
+        };
+        <span class="kw">let </span>name = alias.name;
         <span class="kw">let </span>fsort = <span class="self">self</span>.sort_of_assoc_reft(trait_id, name)<span class="question-mark">?</span>;
         <span class="prelude-val">Some</span>(fsort.instantiate_func_sort(|param_ty| {
-            <span class="self">self</span>.sort_of_generic_arg(<span class="kw-2">&amp;</span>alias_pred.generic_args[param_ty.index <span class="kw">as </span>usize])
-                .unwrap()
+            <span class="kw">if </span>param_ty.index == <span class="number">0 </span>{
+                <span class="self">self</span>.sort_of_ty(alias.self_ty)
+            } <span class="kw">else </span>{
+                <span class="kw">let </span>args = alias.path.last_segment().args;
+                <span class="self">self</span>.sort_of_generic_arg(<span class="kw-2">&amp;</span>args[(param_ty.index - <span class="number">1</span>) <span class="kw">as </span>usize])
+            }
+            .unwrap()
         }))
     }
 

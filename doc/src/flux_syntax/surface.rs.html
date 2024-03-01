@@ -512,6 +512,7 @@
 <a href="#512" id="512">512</a>
 <a href="#513" id="513">513</a>
 <a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
 </pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
@@ -817,11 +818,12 @@
     <span class="kw">pub </span>span: Span,
 }
 
-<span class="attr">#[derive(Debug)]
+<span class="doccomment">/// `&lt;self_ty as path&gt;::name`
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>AliasReft {
-    <span class="kw">pub </span>trait_id: Path,
+    <span class="kw">pub </span>self_ty: Box&lt;Ty&gt;,
+    <span class="kw">pub </span>path: Path,
     <span class="kw">pub </span>name: Ident,
-    <span class="kw">pub </span>args: Vec&lt;GenericArg&gt;,
 }
 
 <span class="attr">#[derive(Debug)]
@@ -914,7 +916,6 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Path {
     <span class="kw">pub </span>segments: Vec&lt;PathSegment&gt;,
-    <span class="kw">pub </span>generics: Vec&lt;GenericArg&gt;,
     <span class="kw">pub </span>refine: Vec&lt;RefineArg&gt;,
     <span class="kw">pub </span>span: Span,
 }
@@ -930,6 +931,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>PathSegment {
     <span class="kw">pub </span>ident: Ident,
+    <span class="kw">pub </span>args: Vec&lt;GenericArg&gt;,
     <span class="kw">pub </span>node_id: NodeId,
 }
 

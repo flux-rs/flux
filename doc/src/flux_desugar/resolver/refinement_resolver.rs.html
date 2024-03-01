@@ -938,6 +938,12 @@
 <a href="#938" id="938">938</a>
 <a href="#939" id="939">939</a>
 <a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -946,7 +952,10 @@
     fhir::{<span class="self">self</span>, ExprRes},
     ResolverOutput,
 };
-<span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, visit::Visitor <span class="kw">as _</span>, Ident, NodeId};
+<span class="kw">use </span>flux_syntax::{
+    surface::{<span class="self">self</span>, visit::Visitor <span class="kw">as _</span>, Ident, NodeId},
+    walk_list,
+};
 <span class="kw">use </span>rustc_data_structures::{
     fx::{FxIndexMap, IndexEntry},
     unord::UnordMap,
@@ -989,7 +998,7 @@
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">trait </span>ScopedVisitor: Sized {
-    <span class="kw">fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; bool;
+    <span class="kw">fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>surface::PathSegment) -&gt; bool;
     <span class="kw">fn </span>enter_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>, kind: ScopeKind) -&gt; ControlFlow&lt;()&gt;;
     <span class="kw">fn </span>exit_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {}
 
@@ -1164,9 +1173,12 @@
         <span class="kw">for </span>arg <span class="kw">in </span><span class="kw-2">&amp;</span>path.refine {
             <span class="self">self</span>.with_scope(ScopeKind::Misc, |this| this.visit_refine_arg(arg));
         }
+        <span class="macro">walk_list!</span>(<span class="self">self</span>, visit_path_segment, <span class="kw-2">&amp;</span>path.segments);
+    }
 
-        <span class="kw">let </span>is_box = <span class="self">self</span>.is_box(path);
-        <span class="kw">for </span>(i, arg) <span class="kw">in </span>path.generics.iter().enumerate() {
+    <span class="kw">fn </span>visit_path_segment(<span class="kw-2">&amp;mut </span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>surface::PathSegment) {
+        <span class="kw">let </span>is_box = <span class="self">self</span>.is_box(segment);
+        <span class="kw">for </span>(i, arg) <span class="kw">in </span>segment.args.iter().enumerate() {
             <span class="kw">if </span>is_box &amp;&amp; i == <span class="number">0 </span>{
                 <span class="self">self</span>.visit_generic_arg(arg);
             } <span class="kw">else </span>{
@@ -1258,8 +1270,8 @@
 }
 
 <span class="kw">impl </span>ScopedVisitor <span class="kw">for </span>ImplicitParamCollector&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
-    <span class="kw">fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; bool {
-        <span class="kw">let </span>res = <span class="self">self</span>.path_res_map[<span class="kw-2">&amp;</span>path.last().node_id];
+    <span class="kw">fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>surface::PathSegment) -&gt; bool {
+        <span class="kw">let </span>res = <span class="self">self</span>.path_res_map[<span class="kw-2">&amp;</span>segment.node_id];
         res.is_box(<span class="self">self</span>.tcx)
     }
 
@@ -1586,8 +1598,8 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>&gt; ScopedVisitor <span class="kw">for </span>RefinementResolver&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt; {
-    <span class="kw">fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; bool {
-        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().path_res_map[<span class="kw-2">&amp;</span>path.last().node_id];
+    <span class="kw">fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>surface::PathSegment) -&gt; bool {
+        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().path_res_map[<span class="kw-2">&amp;</span>segment.node_id];
         res.is_box(<span class="self">self</span>.resolver.genv.tcx())
     }
 
@@ -1743,8 +1755,8 @@
 }
 
 <span class="kw">impl </span>ScopedVisitor <span class="kw">for </span>IllegalBinderVisitor&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
-    <span class="kw">fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; bool {
-        <span class="kw">let </span>res = <span class="self">self</span>.resolver.output.path_res_map[<span class="kw-2">&amp;</span>path.last().node_id];
+    <span class="kw">fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>surface::PathSegment) -&gt; bool {
+        <span class="kw">let </span>res = <span class="self">self</span>.resolver.output.path_res_map[<span class="kw-2">&amp;</span>segment.node_id];
         res.is_box(<span class="self">self</span>.resolver.genv.tcx())
     }
 
