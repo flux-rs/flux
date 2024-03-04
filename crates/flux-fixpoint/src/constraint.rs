@@ -7,42 +7,65 @@ use derive_where::derive_where;
 use flux_common::format::PadAdapter;
 use itertools::Itertools;
 use rustc_macros::{Decodable, Encodable};
+use serde::Serialize;
+use serde_with::{serde_as, DisplayFromStr};
 
 use crate::{big_int::BigInt, StringTypes, Types};
 
+#[serde_as]
+#[derive(Serialize)]
+#[serde(bound = "T: Types")]
 #[derive_where(Hash)]
 pub struct Bind<T: Types> {
+    #[serde_as(as = "DisplayFromStr")]
     pub name: T::Var,
     pub sort: Sort<T>,
     pub pred: Pred<T>,
 }
 
+#[serde_as]
+#[derive(Serialize)]
+#[serde(bound = "T: Types")]
 #[derive_where(Hash)]
 pub enum Constraint<T: Types> {
-    Pred(Pred<T>, #[derive_where(skip)] Option<T::Tag>),
+    Pred(Pred<T>, #[serde_as(as = "Option<DisplayFromStr>")] Option<T::Tag>),
     Conj(Vec<Self>),
     ForAll(Bind<T>, Box<Self>),
 }
 
+#[serde_as]
+#[derive(Serialize)]
+#[serde(bound = "T: Types")]
 #[derive_where(Hash)]
 pub struct DataDecl<T: Types> {
+    #[serde_as(as = "DisplayFromStr")]
     pub name: T::Sort,
     pub vars: usize,
     pub ctors: Vec<DataCtor<T>>,
 }
 
+#[serde_as]
+#[derive(Serialize)]
+#[serde(bound = "T: Types")]
 #[derive_where(Hash)]
 pub struct DataCtor<T: Types> {
+    #[serde_as(as = "DisplayFromStr")]
     pub name: T::Var,
     pub fields: Vec<DataField<T>>,
 }
 
+#[serde_as]
+#[derive(Serialize)]
+#[serde(bound = "T: Types")]
 #[derive_where(Hash)]
 pub struct DataField<T: Types> {
+    #[serde_as(as = "DisplayFromStr")]
     pub name: T::Var,
     pub sort: Sort<T>,
 }
 
+#[derive(Serialize)]
+#[serde(bound = "T:Types")]
 #[derive_where(Clone, Hash)]
 pub enum Sort<T: Types> {
     Int,
@@ -83,21 +106,29 @@ impl<T: Types> Sort<T> {
     }
 }
 
+#[serde_as]
+#[derive(Serialize)]
 #[derive_where(Clone, Hash)]
 pub enum SortCtor<T: Types> {
     Set,
     Map,
-    Data(T::Sort),
+    Data(#[serde_as(as = "DisplayFromStr")] T::Sort),
 }
 
+#[serde_as]
+#[derive(Serialize)]
+#[serde(bound = "T: Types")]
 #[derive_where(Hash)]
 pub enum Pred<T: Types> {
     And(Vec<Self>),
-    KVar(T::KVar, Vec<T::Var>),
+    KVar(
+        #[serde_as(as = "DisplayFromStr")] T::KVar,
+        #[serde_as(as = "Vec<DisplayFromStr>")] Vec<T::Var>,
+    ),
     Expr(Expr<T>),
 }
 
-#[derive(Hash, Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Serialize, Hash, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum BinRel {
     Eq,
     Ne,
@@ -111,11 +142,14 @@ impl BinRel {
     pub const INEQUALITIES: [BinRel; 4] = [BinRel::Gt, BinRel::Ge, BinRel::Lt, BinRel::Le];
 }
 
+#[serde_as]
+#[derive(Serialize)]
+#[serde(bound = "T: Types")]
 #[derive_where(Hash)]
 pub enum Expr<T: Types> {
     Constant(Constant),
-    Var(T::Var),
-    App(T::Var, Vec<Self>),
+    Var(#[serde_as(as = "DisplayFromStr")] T::Var),
+    App(#[serde_as(as = "DisplayFromStr")] T::Var, Vec<Self>),
     Neg(Box<Self>),
     BinaryOp(BinOp, Box<[Self; 2]>),
     IfThenElse(Box<[Self; 3]>),
@@ -127,20 +161,24 @@ pub enum Expr<T: Types> {
     Atom(BinRel, Box<[Self; 2]>),
 }
 
+#[serde_as]
+#[derive(Serialize)]
+#[serde(bound = "T: Types")]
 #[derive_where(Hash)]
 pub struct Qualifier<T: Types> {
     pub name: String,
+    #[serde_as(as = "Vec<(DisplayFromStr, _)>")]
     pub args: Vec<(T::Var, Sort<T>)>,
     pub body: Expr<T>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize)]
 pub struct Const<T: Types> {
     pub name: T::Var,
     pub val: i128,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BinOp {
     Add,
     Sub,
@@ -149,7 +187,7 @@ pub enum BinOp {
     Mod,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum Constant {
     Int(BigInt),
     Real(i128),

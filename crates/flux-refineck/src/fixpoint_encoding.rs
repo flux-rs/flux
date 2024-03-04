@@ -504,6 +504,10 @@ where
         };
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), self.def_id, "smt2", &task).unwrap();
+
+            let mut json_writer =
+                dbg::writer_for_item(self.genv.tcx(), self.def_id.into(), "json").unwrap();
+            serde_json::to_writer(&mut json_writer, &task).unwrap();
         }
 
         let task_key = self.genv.tcx().def_path_str(self.def_id);

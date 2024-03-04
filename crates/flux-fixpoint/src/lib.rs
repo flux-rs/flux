@@ -23,7 +23,8 @@ use derive_where::derive_where;
 use flux_common::{cache::QueryCache, format::PadAdapter};
 use flux_config as config;
 use itertools::Itertools;
-use serde::{de, Deserialize};
+use serde::{de, Deserialize, Serialize};
+use serde_with::{serde_as, DisplayFromStr};
 
 use crate::constraint::DEFAULT_QUALIFIERS;
 
@@ -68,6 +69,7 @@ macro_rules! declare_types {
     };
 }
 
+#[derive(Serialize)]
 struct StringTypes;
 
 impl Types for StringTypes {
@@ -77,6 +79,7 @@ impl Types for StringTypes {
     type Tag = String;
 }
 
+#[derive(Serialize)]
 #[derive_where(Hash)]
 pub struct ConstInfo<T: Types> {
     pub name: T::Var,
@@ -85,12 +88,18 @@ pub struct ConstInfo<T: Types> {
     pub sort: Sort<T>,
 }
 
+#[serde_as]
+#[derive(Serialize)]
+#[serde(bound = "T: Types")]
 #[derive_where(Hash)]
 pub struct Task<T: Types> {
     #[derive_where(skip)]
     pub comments: Vec<String>,
+    #[serde_as(as = "Vec<DisplayFromStr>")]
     pub constants: Vec<ConstInfo<T>>,
+    #[serde_as(as = "Vec<DisplayFromStr>")]
     pub data_decls: Vec<DataDecl<T>>,
+    #[serde_as(as = "Vec<DisplayFromStr>")]
     pub kvars: Vec<KVar<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
@@ -123,6 +132,7 @@ pub struct Stats {
 #[derive(Deserialize, Debug)]
 pub struct CrashInfo(Vec<serde_json::Value>);
 
+#[derive(Serialize)]
 #[derive_where(Hash)]
 pub struct KVar<T: Types> {
     kvid: T::KVar,

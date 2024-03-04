@@ -1,6 +1,7 @@
 use std::fmt;
 
 use rustc_macros::{Decodable, Encodable};
+use serde::Serialize;
 
 /// A signed integer in the range [-2^128, 2^128], represented by a `u128` and an explicit sign.
 ///
@@ -10,14 +11,18 @@ use rustc_macros::{Decodable, Encodable};
 /// never do arithmetic, this representation doesn't present any problems. We may choose to change
 /// the representation in the future (and use arbitrary precision integers) if this ever become a
 /// problem, e.g., if we want to do (precise) arithmetic during constant folding.
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, Encodable, Decodable, PartialOrd, Ord)]
+#[derive(
+    Serialize, Clone, Debug, Copy, PartialEq, Eq, Hash, Encodable, Decodable, PartialOrd, Ord,
+)]
 pub struct BigInt {
     sign: Sign,
     val: u128,
 }
 
 /// This are in order so negative is less than non-negative.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable, PartialOrd, Ord)]
+#[derive(
+    Serialize, Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable, PartialOrd, Ord,
+)]
 enum Sign {
     Negative,
     NonNegative,

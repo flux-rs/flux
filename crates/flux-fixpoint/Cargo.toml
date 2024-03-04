@@ -12,6 +12,7 @@ flux-common.workspace = true
 flux-config.workspace = true
 itertools.workspace = true
 serde = { version = "1.0", features = ["derive"] }
+serde_with = "3.6"
 serde_json = "1.0"
 
 [package.metadata.rust-analyzer]
