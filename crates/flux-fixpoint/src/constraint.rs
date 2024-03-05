@@ -152,22 +152,34 @@ impl BinRel {
     pub const INEQUALITIES: [BinRel; 4] = [BinRel::Gt, BinRel::Ge, BinRel::Lt, BinRel::Le];
 }
 
+// ["ESym","ECon","EVar","EApp","ENeg","EBin","EIte","ECst","ELam","ETApp","ETAbs","PAnd","POr","PNot","PImp","PIff","PAtom","PKVar","PAll","PExist","PGrad","ECoerc"]
+
 #[serde_as]
 #[derive(Serialize)]
-#[serde(bound = "T: Types")]
+#[serde(tag = "tag", content = "contents", bound = "T: Types")]
 #[derive_where(Hash)]
 pub enum Expr<T: Types> {
+    #[serde(rename(serialize = "ECon"))]
     Constant(Constant),
+    #[serde(rename(serialize = "EVar"))]
     Var(#[serde_as(as = "DisplayFromStr")] T::Var),
+    #[serde(rename(serialize = "EApp"))]
     App(#[serde_as(as = "DisplayFromStr")] T::Var, Vec<Self>),
     Neg(Box<Self>),
+    #[serde(rename(serialize = "EBin"))]
     BinaryOp(BinOp, Box<[Self; 2]>),
     IfThenElse(Box<[Self; 3]>),
+    #[serde(rename(serialize = "PAnd"))]
     And(Vec<Expr<T>>),
+    #[serde(rename(serialize = "POr"))]
     Or(Vec<Expr<T>>),
+    #[serde(rename(serialize = "PNot"))]
     Not(Box<Self>),
+    #[serde(rename(serialize = "PImp"))]
     Imp(Box<[Expr<T>; 2]>),
+    #[serde(rename(serialize = "PIff"))]
     Iff(Box<[Expr<T>; 2]>),
+    #[serde(rename(serialize = "PAtom"))]
     Atom(BinRel, Box<[Self; 2]>),
 }
 
