@@ -49,7 +49,7 @@ macro_rules! declare_types {
             pub type Constraint = $crate::Constraint<FixpointTypes>;
             pub type KVar = $crate::KVar<FixpointTypes>;
             pub type ConstInfo = $crate::ConstInfo<FixpointTypes>;
-            pub type Task = $crate::Task<FixpointTypes>;
+            pub type Task = $crate::Query<FixpointTypes>;
             pub type Qualifier = $crate::Qualifier<FixpointTypes>;
             pub type Sort = $crate::Sort<FixpointTypes>;
             pub type SortCtor = $crate::SortCtor<FixpointTypes>;
@@ -92,18 +92,28 @@ pub struct ConstInfo<T: Types> {
 #[derive(Serialize)]
 #[serde(bound = "T: Types")]
 #[derive_where(Hash)]
-pub struct Task<T: Types> {
-    #[derive_where(skip)]
+pub struct Query<T: Types> {
+    #[serde(skip)]
     pub comments: Vec<String>,
     #[serde_as(as = "Vec<DisplayFromStr>")]
+    #[serde(rename(serialize = "qCon"))]
     pub constants: Vec<ConstInfo<T>>,
     #[serde_as(as = "Vec<DisplayFromStr>")]
+    #[serde(rename(serialize = "qData"))]
     pub data_decls: Vec<DataDecl<T>>,
+    #[serde(rename(serialize = "qVars"))]
     #[serde_as(as = "Vec<DisplayFromStr>")]
     pub kvars: Vec<KVar<T>>,
+    #[serde(rename(serialize = "qCstr"))]
     pub constraint: Constraint<T>,
+    #[serde(rename(serialize = "qQuals"))]
     pub qualifiers: Vec<Qualifier<T>>,
-    pub scrape_quals: bool,
+    pub options: Vec<Options>, // scrape_quals: bool,
+}
+
+#[derive(Serialize, Hash)]
+pub enum Options {
+    ScrapeQuals,
 }
 
 #[derive(Deserialize, Debug)]
@@ -141,7 +151,7 @@ pub struct KVar<T: Types> {
     comment: String,
 }
 
-impl<T: Types> Task<T> {
+impl<T: Types> Query<T> {
     pub fn hash_with_default(&self) -> u64 {
         let mut hasher = DefaultHasher::new();
         self.hash(&mut hasher);
@@ -199,10 +209,24 @@ impl<T: Types> KVar<T> {
     }
 }
 
-impl<T: Types> fmt::Display for Task<T> {
+impl fmt::Display for Options {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.scrape_quals {
-            writeln!(f, "(fixpoint \"--scrape=both\")")?;
+        match self {
+            Options::ScrapeQuals => write!(f, "\"--scrape=both\""),
+        }
+    }
+}
+
+impl<T: Types> fmt::Display for Query<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !self.options.is_empty() {
+            writeln!(
+                f,
+                "(fixpoint {})",
+                self.options
+                    .iter()
+                    .format_with(" ", |opt, f| f(&format_args!("{opt}"))),
+            )?;
         }
         for line in &self.comments {
             writeln!(f, "// {line}")?;
@@ -260,7 +284,7 @@ impl<T: Types> fmt::Display for ConstInfo<T> {
     }
 }
 
-impl<T: Types> fmt::Debug for Task<T> {
+impl<T: Types> fmt::Debug for Query<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }

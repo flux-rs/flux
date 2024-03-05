@@ -10,7 +10,7 @@ use flux_common::{
     span_bug,
 };
 use flux_config as config;
-use flux_fixpoint::FixpointResult;
+use flux_fixpoint::{FixpointResult, Options};
 use flux_middle::{
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
@@ -493,13 +493,18 @@ where
             });
         }
 
+        let mut options = vec![];
+        if config.scrape_quals {
+            options.push(Options::ScrapeQuals)
+        };
+
         let task = fixpoint::Task {
             comments: self.comments,
             constants,
             kvars,
             constraint,
             qualifiers,
-            scrape_quals: config.scrape_quals,
+            options,
             data_decls: self.sorts.into_data_decls(),
         };
         if config::dump_constraint() {
