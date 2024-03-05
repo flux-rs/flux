@@ -17,19 +17,25 @@ use crate::{big_int::BigInt, StringTypes, Types};
 #[serde(bound = "T: Types")]
 #[derive_where(Hash)]
 pub struct Bind<T: Types> {
+    #[serde(rename(serialize = "bSym"))]
     #[serde_as(as = "DisplayFromStr")]
     pub name: T::Var,
+    #[serde(rename(serialize = "bSort"))]
     pub sort: Sort<T>,
+    #[serde(rename(serialize = "bPred"))]
     pub pred: Pred<T>,
 }
 
 #[serde_as]
 #[derive(Serialize)]
-#[serde(bound = "T: Types")]
+#[serde(tag = "tag", content = "contents", bound = "T: Types")]
 #[derive_where(Hash)]
 pub enum Constraint<T: Types> {
+    #[serde(rename(serialize = "Head"))]
     Pred(Pred<T>, #[serde_as(as = "Option<DisplayFromStr>")] Option<T::Tag>),
+    #[serde(rename(serialize = "CAnd"))]
     Conj(Vec<Self>),
+    #[serde(rename(serialize = "All"))]
     ForAll(Bind<T>, Box<Self>),
 }
 
@@ -65,9 +71,10 @@ pub struct DataField<T: Types> {
 }
 
 #[derive(Serialize)]
-#[serde(bound = "T:Types")]
+#[serde(tag = "tag", content = "contents", bound = "T: Types")]
 #[derive_where(Clone, Hash)]
 pub enum Sort<T: Types> {
+    #[serde(rename(serialize = "FInt"))]
     Int,
     Bool,
     Real,
@@ -117,14 +124,17 @@ pub enum SortCtor<T: Types> {
 
 #[serde_as]
 #[derive(Serialize)]
-#[serde(bound = "T: Types")]
+#[serde(tag = "tag", content = "contents", bound = "T: Types")]
 #[derive_where(Hash)]
 pub enum Pred<T: Types> {
+    #[serde(rename(serialize = "PAnd"))]
     And(Vec<Self>),
+    #[serde(rename(serialize = "Var"))]
     KVar(
         #[serde_as(as = "DisplayFromStr")] T::KVar,
         #[serde_as(as = "Vec<DisplayFromStr>")] Vec<T::Var>,
     ),
+    #[serde(rename(serialize = "Reft"))]
     Expr(Expr<T>),
 }
 
