@@ -481,6 +481,7 @@ pub enum Type {
     Constraint(TypeConstraint),
     Array(TypeArray),
     Tuple(TypeTuple),
+    Ptr(syn::TypePtr),
 }
 
 #[derive(Debug)]
@@ -536,6 +537,7 @@ pub struct ExistsParam {
 #[derive(Debug)]
 pub struct TypeReference {
     pub and_token: Token![&],
+    pub lifetime: Option<syn::Lifetime>,
     pub mutability: Option<Mut>,
     pub elem: Box<Type>,
 }
@@ -1410,7 +1412,9 @@ impl Parse for Type {
                 parse_rty(input, BaseType::Slice(TypeSlice { bracket_token, ty }))?
             }
         } else if input.peek(token::Paren) {
-            input.parse().map(Type::Tuple)?
+            Type::Tuple(input.parse()?)
+        } else if input.peek(Token![*]) {
+            Type::Ptr(input.parse()?)
         } else {
             parse_rty(input, input.parse()?)?
         };
@@ -1461,6 +1465,7 @@ impl Parse for TypeReference {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(TypeReference {
             and_token: input.parse()?,
+            lifetime: input.parse()?,
             mutability: input.parse()?,
             elem: input.parse()?,
         })
@@ -2114,6 +2119,7 @@ impl Type {
             Type::Constraint(ty_constraint) => ty_constraint.to_tokens_inner(tokens, mode),
             Type::Array(ty_array) => ty_array.to_tokens_inner(tokens, mode),
             Type::Tuple(tuple) => tuple.to_tokens_inner(tokens, mode),
+            Type::Ptr(ty_ptr) => ty_ptr.to_tokens(tokens),
         }
     }
 }
@@ -2121,6 +2127,9 @@ impl Type {
 impl TypeReference {
     fn to_tokens_inner(&self, tokens: &mut TokenStream, mode: Mode) {
         self.and_token.to_tokens(tokens);
+        if mode == Mode::Rust {
+            self.lifetime.to_tokens(tokens);
+        }
         self.mutability.to_tokens(tokens);
         self.elem.to_tokens_inner(tokens, mode);
     }
