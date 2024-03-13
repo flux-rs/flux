@@ -121,9 +121,9 @@ fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
     let item = genv.map().expect_item(def_id);
 
     let adt_def = if let Some(extern_id) = item.extern_id {
-        lowering::lower_adt_def(&genv.tcx().adt_def(extern_id))
+        lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(extern_id))
     } else {
-        lowering::lower_adt_def(&genv.tcx().adt_def(item.owner_id))
+        lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(item.owner_id))
     };
 
     let is_opaque = matches!(item.kind, fhir::ItemKind::Struct(def) if def.is_opaque());

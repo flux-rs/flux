@@ -107,14 +107,33 @@ pub struct Ty(Interned<TyS>);
 #[derive(Debug, Eq, PartialEq, Hash, Clone, TyEncodable, TyDecodable)]
 pub struct AdtDef(Interned<AdtDefData>);
 
-#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+#[derive(Debug, TyEncodable, TyDecodable)]
 pub struct AdtDefData {
     pub did: DefId,
     variants: IndexVec<VariantIdx, VariantDef>,
+    discrs: IndexVec<VariantIdx, u128>,
     flags: AdtFlags,
 }
 
-#[derive(Debug, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+/// There should be only one AdtDef for each `did`, therefore
+/// it is fine to implement `Hash` only based on `did`.
+impl std::hash::Hash for AdtDefData {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.did.hash(state);
+    }
+}
+
+/// There should be only one AdtDef for each `did`, therefore
+/// it is fine to implement `PartialEq` only based on `did`.
+impl PartialEq for AdtDefData {
+    fn eq(&self, other: &Self) -> bool {
+        self.did == other.did
+    }
+}
+
+impl Eq for AdtDefData {}
+
+#[derive(Debug, TyEncodable, TyDecodable)]
 pub struct VariantDef {
     pub def_id: DefId,
     pub name: Symbol,
@@ -452,6 +471,13 @@ impl AdtDef {
         &self.0.variants
     }
 
+    pub fn discriminants(&self) -> impl Iterator<Item = (VariantIdx, u128)> + '_ {
+        self.0
+            .discrs
+            .iter_enumerated()
+            .map(|(idx, discr)| (idx, *discr))
+    }
+
     pub fn non_enum_variant(&self) -> &VariantDef {
         assert!(self.is_struct() || self.is_union());
         self.variant(FIRST_VARIANT)
@@ -459,12 +485,21 @@ impl AdtDef {
 }
 
 impl AdtDefData {
-    pub(crate) fn new(
-        did: DefId,
+    pub(crate) fn new<'tcx>(
+        tcx: TyCtxt<'tcx>,
+        adt_def: rustc_middle::ty::AdtDef<'tcx>,
         variants: IndexVec<VariantIdx, VariantDef>,
-        flags: AdtFlags,
     ) -> Self {
-        Self { did, variants, flags }
+        let discrs: IndexVec<VariantIdx, u128> = if adt_def.is_enum() {
+            adt_def
+                .discriminants(tcx)
+                .map(|(_, discr)| discr.val)
+                .collect()
+        } else {
+            IndexVec::from_raw(vec![0])
+        };
+        assert_eq!(discrs.len(), variants.len());
+        Self { did: adt_def.did(), variants, flags: adt_def.flags(), discrs }
     }
 }
 

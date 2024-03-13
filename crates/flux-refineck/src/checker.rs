@@ -654,19 +654,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let (adt_def, place) = discr_ty.expect_discr();
 
         let mut successors = vec![];
-        let mut remaining = BitSet::new_filled(adt_def.variants().len());
+        let mut remaining: FxHashMap<u128, VariantIdx> = adt_def
+            .discriminants()
+            .map(|(idx, discr)| (discr, idx))
+            .collect();
         for (bits, bb) in targets.iter() {
-            let i = bits as usize;
-            remaining.remove(i);
-            successors.push((bb, Guard::Match(place.clone(), VariantIdx::from_usize(i))));
+            let variant_idx = remaining
+                .remove(&bits)
+                .expect("value doesn't correspond to any variant");
+            successors.push((bb, Guard::Match(place.clone(), variant_idx)));
         }
 
-        if remaining.count() == 1 {
-            let i = remaining.iter().next().unwrap();
-            successors.push((
-                targets.otherwise(),
-                Guard::Match(place.clone(), VariantIdx::from_usize(i)),
-            ));
+        if remaining.len() == 1 {
+            let (_, variant_idx) = remaining.into_iter().next().unwrap();
+            successors.push((targets.otherwise(), Guard::Match(place.clone(), variant_idx)));
         } else {
             successors.push((targets.otherwise(), Guard::None));
         }

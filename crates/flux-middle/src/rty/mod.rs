@@ -1589,6 +1589,10 @@ impl AdtDef {
         &self.0.invariants
     }
 
+    pub fn discriminants(&self) -> impl Iterator<Item = (VariantIdx, u128)> + '_ {
+        self.0.rustc.discriminants()
+    }
+
     pub fn is_opaque(&self) -> bool {
         self.0.opaque
     }

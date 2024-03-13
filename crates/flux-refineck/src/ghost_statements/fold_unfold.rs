@@ -17,7 +17,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefId;
 use rustc_index::{bit_set::BitSet, Idx, IndexVec};
 use rustc_middle::mir::START_BLOCK;
@@ -289,20 +289,24 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                     let discr_ty = place.ty(self.genv, &self.body.local_decls)?.ty;
                     let (adt, _) = discr_ty.expect_adt();
 
-                    let mut remaining = BitSet::new_filled(adt.variants().len());
+                    let mut remaining: FxHashMap<u128, VariantIdx> = adt
+                        .discriminants()
+                        .map(|(idx, discr)| (discr, idx))
+                        .collect();
                     for (bits, target) in targets.iter() {
-                        let i = bits as usize;
-                        remaining.remove(i);
+                        let variant_idx = remaining
+                            .remove(&bits)
+                            .expect("value doesn't correspond to any variant");
 
                         // We do not insert unfolds in match arms because they are explicit
                         // unfold points.
                         let mut env = env.clone();
-                        env.downcast(self.genv, &place, VariantIdx::new(i))?;
+                        env.downcast(self.genv, &place, variant_idx)?;
                         self.goto(bb, target, env)?;
                     }
-                    if remaining.count() == 1 {
-                        let i = remaining.iter().next().unwrap();
-                        env.downcast(self.genv, &place, VariantIdx::new(i))?;
+                    if remaining.len() == 1 {
+                        let (_, variant_idx) = remaining.into_iter().next().unwrap();
+                        env.downcast(self.genv, &place, variant_idx)?;
                     }
                     self.goto(bb, targets.otherwise(), env)?;
                 } else {

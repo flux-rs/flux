@@ -689,7 +689,7 @@ pub(crate) fn lower_ty<'tcx>(
         rustc_ty::Param(param_ty) => Ok(Ty::mk_param(*param_ty)),
         rustc_ty::Adt(adt_def, args) => {
             let args = lower_generic_args(tcx, args)?;
-            Ok(Ty::mk_adt(lower_adt_def(adt_def), args))
+            Ok(Ty::mk_adt(lower_adt_def(tcx, *adt_def), args))
         }
         rustc_ty::Never => Ok(Ty::mk_never()),
         rustc_ty::Str => Ok(Ty::mk_str()),
@@ -739,11 +739,11 @@ fn lower_alias_kind(kind: &rustc_ty::AliasKind) -> Result<AliasKind, Unsupported
     }
 }
 
-pub fn lower_adt_def(adt_def: &rustc_ty::AdtDef) -> AdtDef {
+pub fn lower_adt_def<'tcx>(tcx: TyCtxt<'tcx>, adt_def: rustc_ty::AdtDef<'tcx>) -> AdtDef {
     AdtDef::new(AdtDefData::new(
-        adt_def.did(),
+        tcx,
+        adt_def,
         adt_def.variants().iter().map(lower_variant).collect(),
-        adt_def.flags(),
     ))
 }
 

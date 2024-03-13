@@ -314,9 +314,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 Ok(adt_def.clone())
             } else {
                 let adt_def = if let Some(extern_id) = extern_id {
-                    lowering::lower_adt_def(&genv.tcx().adt_def(extern_id))
+                    lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(extern_id))
                 } else {
-                    lowering::lower_adt_def(&genv.tcx().adt_def(def_id))
+                    lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(def_id))
                 };
                 Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id), vec![], false))
             }
