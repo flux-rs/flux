@@ -1577,6 +1577,7 @@
 <a href="#1577" id="1577">1577</a>
 <a href="#1578" id="1578">1578</a>
 <a href="#1579" id="1579">1579</a>
+<a href="#1580" id="1580">1580</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -2233,19 +2234,20 @@
         <span class="kw">let </span>(adt_def, place) = discr_ty.expect_discr();
 
         <span class="kw">let </span><span class="kw-2">mut </span>successors = <span class="macro">vec!</span>[];
-        <span class="kw">let </span><span class="kw-2">mut </span>remaining = BitSet::new_filled(adt_def.variants().len());
+        <span class="kw">let </span><span class="kw-2">mut </span>remaining: FxHashMap&lt;u128, VariantIdx&gt; = adt_def
+            .discriminants()
+            .map(|(idx, discr)| (discr, idx))
+            .collect();
         <span class="kw">for </span>(bits, bb) <span class="kw">in </span>targets.iter() {
-            <span class="kw">let </span>i = bits <span class="kw">as </span>usize;
-            remaining.remove(i);
-            successors.push((bb, Guard::Match(place.clone(), VariantIdx::from_usize(i))));
+            <span class="kw">let </span>variant_idx = remaining
+                .remove(<span class="kw-2">&amp;</span>bits)
+                .expect(<span class="string">&quot;value doesn&#39;t correspond to any variant&quot;</span>);
+            successors.push((bb, Guard::Match(place.clone(), variant_idx)));
         }
 
-        <span class="kw">if </span>remaining.count() == <span class="number">1 </span>{
-            <span class="kw">let </span>i = remaining.iter().next().unwrap();
-            successors.push((
-                targets.otherwise(),
-                Guard::Match(place.clone(), VariantIdx::from_usize(i)),
-            ));
+        <span class="kw">if </span>remaining.len() == <span class="number">1 </span>{
+            <span class="kw">let </span>(<span class="kw">_</span>, variant_idx) = remaining.into_iter().next().unwrap();
+            successors.push((targets.otherwise(), Guard::Match(place.clone(), variant_idx)));
         } <span class="kw">else </span>{
             successors.push((targets.otherwise(), Guard::None));
         }

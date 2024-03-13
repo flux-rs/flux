@@ -843,6 +843,10 @@
 <a href="#843" id="843">843</a>
 <a href="#844" id="844">844</a>
 <a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, fmt, iter};
 
 <span class="kw">use </span>flux_common::tracked_span_bug;
@@ -862,7 +866,7 @@
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_hash::FxHashMap;
+<span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_index::{bit_set::BitSet, Idx, IndexVec};
 <span class="kw">use </span>rustc_middle::mir::START_BLOCK;
@@ -1134,20 +1138,24 @@
                     <span class="kw">let </span>discr_ty = place.ty(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span><span class="self">self</span>.body.local_decls)<span class="question-mark">?</span>.ty;
                     <span class="kw">let </span>(adt, <span class="kw">_</span>) = discr_ty.expect_adt();
 
-                    <span class="kw">let </span><span class="kw-2">mut </span>remaining = BitSet::new_filled(adt.variants().len());
+                    <span class="kw">let </span><span class="kw-2">mut </span>remaining: FxHashMap&lt;u128, VariantIdx&gt; = adt
+                        .discriminants()
+                        .map(|(idx, discr)| (discr, idx))
+                        .collect();
                     <span class="kw">for </span>(bits, target) <span class="kw">in </span>targets.iter() {
-                        <span class="kw">let </span>i = bits <span class="kw">as </span>usize;
-                        remaining.remove(i);
+                        <span class="kw">let </span>variant_idx = remaining
+                            .remove(<span class="kw-2">&amp;</span>bits)
+                            .expect(<span class="string">&quot;value doesn&#39;t correspond to any variant&quot;</span>);
 
                         <span class="comment">// We do not insert unfolds in match arms because they are explicit
                         // unfold points.
                         </span><span class="kw">let </span><span class="kw-2">mut </span>env = env.clone();
-                        env.downcast(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>place, VariantIdx::new(i))<span class="question-mark">?</span>;
+                        env.downcast(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>place, variant_idx)<span class="question-mark">?</span>;
                         <span class="self">self</span>.goto(bb, target, env)<span class="question-mark">?</span>;
                     }
-                    <span class="kw">if </span>remaining.count() == <span class="number">1 </span>{
-                        <span class="kw">let </span>i = remaining.iter().next().unwrap();
-                        env.downcast(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>place, VariantIdx::new(i))<span class="question-mark">?</span>;
+                    <span class="kw">if </span>remaining.len() == <span class="number">1 </span>{
+                        <span class="kw">let </span>(<span class="kw">_</span>, variant_idx) = remaining.into_iter().next().unwrap();
+                        env.downcast(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>place, variant_idx)<span class="question-mark">?</span>;
                     }
                     <span class="self">self</span>.goto(bb, targets.otherwise(), env)<span class="question-mark">?</span>;
                 } <span class="kw">else </span>{

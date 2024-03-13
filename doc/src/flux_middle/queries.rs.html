@@ -910,9 +910,9 @@
                 <span class="prelude-val">Ok</span>(adt_def.clone())
             } <span class="kw">else </span>{
                 <span class="kw">let </span>adt_def = <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_id) = extern_id {
-                    lowering::lower_adt_def(<span class="kw-2">&amp;</span>genv.tcx().adt_def(extern_id))
+                    lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(extern_id))
                 } <span class="kw">else </span>{
-                    lowering::lower_adt_def(<span class="kw-2">&amp;</span>genv.tcx().adt_def(def_id))
+                    lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(def_id))
                 };
                 <span class="prelude-val">Ok</span>(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id), <span class="macro">vec!</span>[], <span class="bool-val">false</span>))
             }

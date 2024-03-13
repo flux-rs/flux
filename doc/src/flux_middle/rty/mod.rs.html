@@ -2519,6 +2519,10 @@
 <a href="#2519" id="2519">2519</a>
 <a href="#2520" id="2520">2520</a>
 <a href="#2521" id="2521">2521</a>
+<a href="#2522" id="2522">2522</a>
+<a href="#2523" id="2523">2523</a>
+<a href="#2524" id="2524">2524</a>
+<a href="#2525" id="2525">2525</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -4108,6 +4112,10 @@
 
     <span class="kw">pub fn </span>invariants(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Invariant] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.invariants
+    }
+
+    <span class="kw">pub fn </span>discriminants(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (VariantIdx, u128)&gt; + <span class="lifetime">&#39;_ </span>{
+        <span class="self">self</span>.<span class="number">0</span>.rustc.discriminants()
     }
 
     <span class="kw">pub fn </span>is_opaque(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {

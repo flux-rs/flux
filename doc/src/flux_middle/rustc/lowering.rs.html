@@ -1670,7 +1670,7 @@
         rustc_ty::Param(param_ty) =&gt; <span class="prelude-val">Ok</span>(Ty::mk_param(<span class="kw-2">*</span>param_ty)),
         rustc_ty::Adt(adt_def, args) =&gt; {
             <span class="kw">let </span>args = lower_generic_args(tcx, args)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(Ty::mk_adt(lower_adt_def(adt_def), args))
+            <span class="prelude-val">Ok</span>(Ty::mk_adt(lower_adt_def(tcx, <span class="kw-2">*</span>adt_def), args))
         }
         rustc_ty::Never =&gt; <span class="prelude-val">Ok</span>(Ty::mk_never()),
         rustc_ty::Str =&gt; <span class="prelude-val">Ok</span>(Ty::mk_str()),
@@ -1720,11 +1720,11 @@
     }
 }
 
-<span class="kw">pub fn </span>lower_adt_def(adt_def: <span class="kw-2">&amp;</span>rustc_ty::AdtDef) -&gt; AdtDef {
+<span class="kw">pub fn </span>lower_adt_def&lt;<span class="lifetime">&#39;tcx</span>&gt;(tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;, adt_def: rustc_ty::AdtDef&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; AdtDef {
     AdtDef::new(AdtDefData::new(
-        adt_def.did(),
+        tcx,
+        adt_def,
         adt_def.variants().iter().map(lower_variant).collect(),
-        adt_def.flags(),
     ))
 }
 
