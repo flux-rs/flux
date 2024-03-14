@@ -1822,7 +1822,7 @@
             <span class="kw">let </span>is_self_arg = i &lt; self_args;
             <span class="kw">let </span>var = var.to_expr();
             sort.walk(|sort, proj| {
-                <span class="kw">if </span>!<span class="macro">matches!</span>(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
+                <span class="kw">if </span>!<span class="macro">matches!</span>(sort, rty::Sort::Loc) {
                     flattened_self_args += is_self_arg <span class="kw">as </span>usize;
                     sorts.push(sort.clone());
                     exprs.push(rty::Expr::field_projs(<span class="kw-2">&amp;</span>var, proj));

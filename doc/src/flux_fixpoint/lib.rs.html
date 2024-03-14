@@ -271,6 +271,9 @@
 <a href="#271" id="271">271</a>
 <a href="#272" id="272">272</a>
 <a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, lazy_cell, box_patterns)]
 
 </span><span class="kw">extern crate </span>rustc_macros;
@@ -437,6 +440,9 @@
             .arg(<span class="string">&quot;-q&quot;</span>)
             .arg(<span class="string">&quot;--stdin&quot;</span>)
             .arg(<span class="string">&quot;--json&quot;</span>)
+            .arg(<span class="string">&quot;--nosmthorn&quot;</span>)
+            .arg(<span class="string">&quot;--allowho&quot;</span>)
+            .arg(<span class="string">&quot;--allowhoqs&quot;</span>)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
