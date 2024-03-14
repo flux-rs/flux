@@ -699,7 +699,7 @@ impl KVarStore {
             let is_self_arg = i < self_args;
             let var = var.to_expr();
             sort.walk(|sort, proj| {
-                if !matches!(sort, rty::Sort::Loc | rty::Sort::Func(..)) {
+                if !matches!(sort, rty::Sort::Loc) {
                     flattened_self_args += is_self_arg as usize;
                     sorts.push(sort.clone());
                     exprs.push(rty::Expr::field_projs(&var, proj));

@@ -17,7 +17,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::{bit_set::BitSet, Idx, IndexVec};
 use rustc_middle::mir::START_BLOCK;

@@ -959,7 +959,7 @@ mod pretty {
                     }
                 }
                 ExprKind::App(func, args) => {
-                    w!("{:?}({})",
+                    w!("({:?})({})",
                         func,
                         ^args
                             .iter()
