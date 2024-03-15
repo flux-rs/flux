@@ -1,4 +1,4 @@
-use std::{clone::Clone, iter, ops::ControlFlow};
+use std::{clone::Clone, fmt, iter, ops::ControlFlow};
 
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_middle::{
@@ -29,7 +29,7 @@ pub(crate) struct PlacesTree {
     loc_to_place: FxHashMap<Loc, Place>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct Binding {
     pub kind: LocKind,
     pub ty: Ty,
@@ -681,6 +681,7 @@ impl Cursor {
     }
 
     fn change_root(&mut self, path: &Path) {
+        self.place = self.to_place();
         self.proj.truncate(self.pos);
         self.proj.extend(
             path.projection()
@@ -695,7 +696,9 @@ impl Cursor {
 
     fn to_place(&self) -> Place {
         let mut place = self.place.clone();
-        place.projection.extend(self.proj.iter().copied());
+        place
+            .projection
+            .extend(self.proj.iter().skip(self.pos).rev().copied());
         place
     }
 
@@ -724,6 +727,22 @@ impl Cursor {
 
     fn reset(&mut self) {
         self.pos = self.proj.len();
+    }
+}
+
+impl fmt::Debug for Cursor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{loc: {:?}, place: {:?}, proj: [", self.loc, self.place)?;
+        for (i, elem) in self.proj.iter().enumerate().rev() {
+            if i < self.proj.len() - 1 {
+                write!(f, ", ")?;
+            }
+            if i + 1 == self.pos {
+                write!(f, ">")?;
+            }
+            write!(f, "{elem:?}")?;
+        }
+        write!(f, "]}}")
     }
 }
 
