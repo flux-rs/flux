@@ -1481,6 +1481,20 @@
 <a href="#1481" id="1481">1481</a>
 <a href="#1482" id="1482">1482</a>
 <a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
+<a href="#1488" id="1488">1488</a>
+<a href="#1489" id="1489">1489</a>
+<a href="#1490" id="1490">1490</a>
+<a href="#1491" id="1491">1491</a>
+<a href="#1492" id="1492">1492</a>
+<a href="#1493" id="1493">1493</a>
+<a href="#1494" id="1494">1494</a>
+<a href="#1495" id="1495">1495</a>
+<a href="#1496" id="1496">1496</a>
+<a href="#1497" id="1497">1497</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2110,7 +2124,15 @@
             <span class="macro">bug!</span>(<span class="string">&quot;expected trait&quot;</span>)
         };
         <span class="kw">let </span>trait_segment = alias.path.last_segment();
-        <span class="kw">let </span><span class="kw-2">mut </span>generic_args = <span class="macro">vec!</span>[rty::GenericArg::Ty(<span class="self">self</span>.conv_ty(env, alias.qself)<span class="question-mark">?</span>)];
+
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(trait_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>self_ty =
+            <span class="kw">if let </span>rty::GenericParamDefKind::Type { .. } = generics.param_at(<span class="number">0</span>, <span class="self">self</span>.genv)<span class="question-mark">?</span>.kind {
+                rty::GenericArg::Ty(<span class="self">self</span>.conv_ty(env, alias.qself)<span class="question-mark">?</span>)
+            } <span class="kw">else </span>{
+                rty::GenericArg::Base(<span class="self">self</span>.conv_generic_base(env, alias.qself)<span class="question-mark">?</span>)
+            };
+        <span class="kw">let </span><span class="kw-2">mut </span>generic_args = <span class="macro">vec!</span>[self_ty];
         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment.args, <span class="kw-2">&amp;mut </span>generic_args)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>func_args = func_args
@@ -2382,8 +2404,9 @@
         into: <span class="kw-2">&amp;mut </span>Vec&lt;rty::GenericArg&gt;,
     ) -&gt; QueryResult {
         <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(def_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>len = into.len();
         <span class="kw">for </span>(idx, arg) <span class="kw">in </span>args.iter().enumerate() {
-            <span class="kw">let </span>param = generics.param_at(idx, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
+            <span class="kw">let </span>param = generics.param_at(idx + len, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
             <span class="kw">match </span>(arg, <span class="kw-2">&amp;</span>param.kind) {
                 (fhir::GenericArg::Lifetime(lft), rty::GenericParamDefKind::Lifetime) =&gt; {
                     into.push(rty::GenericArg::Lifetime(<span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft)));
@@ -2392,15 +2415,7 @@
                     into.push(rty::GenericArg::Ty(<span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>));
                 }
                 (fhir::GenericArg::Type(ty), rty::GenericParamDefKind::Base) =&gt; {
-                    <span class="kw">let </span>ctor = <span class="self">self
-                        </span>.conv_ty(env, ty)<span class="question-mark">?
-                        </span>.shallow_canonicalize()
-                        .to_subset_ty_ctor()
-                        .ok_or_else(|| {
-                            <span class="self">self</span>.genv
-                                .sess()
-                                .emit_err(errors::InvalidBaseInstance::new(ty))
-                        })<span class="question-mark">?</span>;
+                    <span class="kw">let </span>ctor = <span class="self">self</span>.conv_generic_base(env, ty)<span class="question-mark">?</span>;
                     into.push(rty::GenericArg::Base(ctor));
                 }
                 <span class="kw">_ </span>=&gt; {
@@ -2432,6 +2447,19 @@
         }
 
         <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>conv_generic_base(<span class="kw-2">&amp;</span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, ty: <span class="kw-2">&amp;</span>fhir::Ty) -&gt; QueryResult&lt;rty::SubsetTyCtor&gt; {
+        <span class="kw">let </span>ctor = <span class="self">self
+            </span>.conv_ty(env, ty)<span class="question-mark">?
+            </span>.shallow_canonicalize()
+            .to_subset_ty_ctor()
+            .ok_or_else(|| {
+                <span class="self">self</span>.genv
+                    .sess()
+                    .emit_err(errors::InvalidBaseInstance::new(ty))
+            })<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(ctor)
     }
 
     <span class="kw">fn </span>resolve_param_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; rty::Sort {

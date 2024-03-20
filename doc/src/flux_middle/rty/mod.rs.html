@@ -2523,6 +2523,11 @@
 <a href="#2523" id="2523">2523</a>
 <a href="#2524" id="2524">2524</a>
 <a href="#2525" id="2525">2525</a>
+<a href="#2526" id="2526">2526</a>
+<a href="#2527" id="2527">2527</a>
+<a href="#2528" id="2528">2528</a>
+<a href="#2529" id="2529">2529</a>
+<a href="#2530" id="2530">2530</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -3523,6 +3528,14 @@
                 <span class="kw">let </span>param_ty = ParamTy { index: param.index, name: param.name };
                 <span class="prelude-val">Ok</span>(GenericArg::Ty(Ty::param(param_ty)))
             }
+            GenericParamDefKind::Base =&gt; {
+                <span class="comment">// λv. T[v]
+                </span><span class="kw">let </span>param_ty = ParamTy { index: param.index, name: param.name };
+                <span class="prelude-val">Ok</span>(GenericArg::Base(Binder::with_sort(
+                    SubsetTy::trivial(BaseTy::Param(param_ty), Expr::nu()),
+                    Sort::Param(param_ty),
+                )))
+            }
             GenericParamDefKind::Lifetime =&gt; {
                 <span class="kw">let </span>region =
                     EarlyBoundRegion { index: param.index, name: param.name, def_id: param.def_id };
@@ -3533,9 +3546,6 @@
                 <span class="kw">let </span>kind = ConstKind::Param(param_const);
                 <span class="kw">let </span>ty = genv.lower_type_of(param.def_id)<span class="question-mark">?</span>.skip_binder();
                 <span class="prelude-val">Ok</span>(GenericArg::Const(Const { kind, ty }))
-            }
-            GenericParamDefKind::Base =&gt; {
-                <span class="macro">bug!</span>(<span class="string">&quot;&quot;</span>)
             }
         }
     }
