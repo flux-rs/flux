@@ -998,6 +998,14 @@ impl GenericArg {
                 let param_ty = ParamTy { index: param.index, name: param.name };
                 Ok(GenericArg::Ty(Ty::param(param_ty)))
             }
+            GenericParamDefKind::Base => {
+                // λv. T[v]
+                let param_ty = ParamTy { index: param.index, name: param.name };
+                Ok(GenericArg::Base(Binder::with_sort(
+                    SubsetTy::trivial(BaseTy::Param(param_ty), Expr::nu()),
+                    Sort::Param(param_ty),
+                )))
+            }
             GenericParamDefKind::Lifetime => {
                 let region =
                     EarlyBoundRegion { index: param.index, name: param.name, def_id: param.def_id };
@@ -1008,9 +1016,6 @@ impl GenericArg {
                 let kind = ConstKind::Param(param_const);
                 let ty = genv.lower_type_of(param.def_id)?.skip_binder();
                 Ok(GenericArg::Const(Const { kind, ty }))
-            }
-            GenericParamDefKind::Base => {
-                bug!("")
             }
         }
     }

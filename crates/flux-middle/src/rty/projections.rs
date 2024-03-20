@@ -11,7 +11,7 @@ use rustc_middle::{
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
-    fold::{FallibleTypeFolder, TypeSuperFoldable},
+    fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
     AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Expr, ExprKind, GenericArg,
     ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
 };
@@ -65,8 +65,8 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                 .genv
                 .assoc_refinement_def(impl_def_id, obligation.name)?
                 .instantiate(&args, &[]);
-            let expr = pred.apply(refine_args);
-            Ok(expr)
+
+            pred.apply(refine_args).try_fold_with(self)
         } else {
             Ok(Expr::alias(obligation.clone(), refine_args.clone()))
         }

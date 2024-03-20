@@ -627,7 +627,7 @@ impl Parse for Items {
     }
 }
 
-const FLUX_ATTRS: &[&str] = &["opaque", "invariant", "trusted"];
+const FLUX_ATTRS: &[&str] = &["opaque", "invariant", "trusted", "generics", "assoc"];
 
 impl Parse for Item {
     fn parse(input: ParseStream) -> Result<Self> {

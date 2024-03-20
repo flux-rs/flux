@@ -627,7 +627,15 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             bug!("expected trait")
         };
         let trait_segment = alias.path.last_segment();
-        let mut generic_args = vec![rty::GenericArg::Ty(self.conv_ty(env, alias.qself)?)];
+
+        let generics = self.genv.generics_of(trait_id)?;
+        let self_ty =
+            if let rty::GenericParamDefKind::Type { .. } = generics.param_at(0, self.genv)?.kind {
+                rty::GenericArg::Ty(self.conv_ty(env, alias.qself)?)
+            } else {
+                rty::GenericArg::Base(self.conv_generic_base(env, alias.qself)?)
+            };
+        let mut generic_args = vec![self_ty];
         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut generic_args)?;
 
         let func_args = func_args
@@ -899,8 +907,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         into: &mut Vec<rty::GenericArg>,
     ) -> QueryResult {
         let generics = self.genv.generics_of(def_id)?;
+        let len = into.len();
         for (idx, arg) in args.iter().enumerate() {
-            let param = generics.param_at(idx, self.genv)?;
+            let param = generics.param_at(idx + len, self.genv)?;
             match (arg, &param.kind) {
                 (fhir::GenericArg::Lifetime(lft), rty::GenericParamDefKind::Lifetime) => {
                     into.push(rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft)));
@@ -909,15 +918,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     into.push(rty::GenericArg::Ty(self.conv_ty(env, ty)?));
                 }
                 (fhir::GenericArg::Type(ty), rty::GenericParamDefKind::Base) => {
-                    let ctor = self
-                        .conv_ty(env, ty)?
-                        .shallow_canonicalize()
-                        .to_subset_ty_ctor()
-                        .ok_or_else(|| {
-                            self.genv
-                                .sess()
-                                .emit_err(errors::InvalidBaseInstance::new(ty))
-                        })?;
+                    let ctor = self.conv_generic_base(env, ty)?;
                     into.push(rty::GenericArg::Base(ctor));
                 }
                 _ => {
@@ -949,6 +950,19 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
 
         Ok(())
+    }
+
+    fn conv_generic_base(&self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::SubsetTyCtor> {
+        let ctor = self
+            .conv_ty(env, ty)?
+            .shallow_canonicalize()
+            .to_subset_ty_ctor()
+            .ok_or_else(|| {
+                self.genv
+                    .sess()
+                    .emit_err(errors::InvalidBaseInstance::new(ty))
+            })?;
+        Ok(ctor)
     }
 
     fn resolve_param_sort(&self, param: &fhir::RefineParam) -> rty::Sort {
