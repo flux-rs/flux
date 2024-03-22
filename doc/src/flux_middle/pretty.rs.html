@@ -519,6 +519,10 @@
 <a href="#519" id="519">519</a>
 <a href="#520" id="520">520</a>
 <a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
 
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -824,9 +828,13 @@
             }
             <span class="kw">match </span>var {
                 BoundVariableKind::Region(re) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, re)<span class="question-mark">?</span>,
-                BoundVariableKind::Refine(<span class="kw">_</span>, <span class="kw">_</span>, BoundReftKind::Named(name)) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^name)<span class="question-mark">?</span>,
-                BoundVariableKind::Refine(<span class="kw">_</span>, <span class="kw">_</span>, BoundReftKind::Annon) =&gt; {
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.borrow().lookup(INNERMOST, i <span class="kw">as </span>u32) {
+                BoundVariableKind::Refine(<span class="kw">_</span>, _mode, BoundReftKind::Named(name)) =&gt; {
+                    <span class="comment">// w!(&quot;{}&quot;, ^mode.prefix_str())?;
+                    </span><span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^name)<span class="question-mark">?</span>;
+                }
+                BoundVariableKind::Refine(<span class="kw">_</span>, _mode, BoundReftKind::Annon) =&gt; {
+                    <span class="comment">// w!(&quot;{}&quot;, ^mode.prefix_str())?;
+                    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.borrow().lookup(INNERMOST, i <span class="kw">as </span>u32) {
                         <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ^name)<span class="question-mark">?</span>;
                     } <span class="kw">else </span>{
                         <span class="macro">w!</span>(<span class="string">&quot;_&quot;</span>)<span class="question-mark">?</span>;
