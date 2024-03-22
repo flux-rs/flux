@@ -715,6 +715,15 @@ pub enum InferMode {
     KVar,
 }
 
+impl InferMode {
+    pub fn prefix_str(self) -> &'static str {
+        match self {
+            InferMode::EVar => "?",
+            InferMode::KVar => "$",
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum PrimSort {
     Int,

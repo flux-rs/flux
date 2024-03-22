@@ -125,7 +125,7 @@ impl CrateMetadata {
                     adts.insert(def_id.index, meta);
                     type_of.insert(def_id.index, genv.type_of(def_id).unwrap());
                 }
-                DefKind::TyAlias { .. } | DefKind::AssocTy => {
+                DefKind::TyAlias { .. } => {
                     type_of.insert(def_id.index, genv.type_of(def_id).unwrap());
                 }
                 _ => {}

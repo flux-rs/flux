@@ -303,8 +303,12 @@ impl PrettyCx<'_> {
             }
             match var {
                 BoundVariableKind::Region(re) => w!("{:?}", re)?,
-                BoundVariableKind::Refine(_, _, BoundReftKind::Named(name)) => w!("{}", ^name)?,
-                BoundVariableKind::Refine(_, _, BoundReftKind::Annon) => {
+                BoundVariableKind::Refine(_, _mode, BoundReftKind::Named(name)) => {
+                    // w!("{}", ^mode.prefix_str())?;
+                    w!("{}", ^name)?;
+                }
+                BoundVariableKind::Refine(_, _mode, BoundReftKind::Annon) => {
+                    // w!("{}", ^mode.prefix_str())?;
                     if let Some(name) = self.env.borrow().lookup(INNERMOST, i as u32) {
                         w!("{:?}", ^name)?;
                     } else {

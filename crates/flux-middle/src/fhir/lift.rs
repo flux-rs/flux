@@ -434,7 +434,13 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn lift_qpath(&mut self, qpath: hir::QPath) -> Result<fhir::Ty<'genv>> {
         match qpath {
             hir::QPath::Resolved(self_ty, path) => self.lift_path_to_ty(self_ty, path),
-            hir::QPath::TypeRelative(_, _) | hir::QPath::LangItem(_, _, _) => {
+            hir::QPath::TypeRelative(_, _) => {
+                self.emit_unsupported(&format!(
+                    "unsupported type relative path: `{}`",
+                    rustc_hir_pretty::qpath_to_string(&qpath)
+                ))
+            }
+            hir::QPath::LangItem(_, _, _) => {
                 self.emit_unsupported(&format!(
                     "unsupported type: `{}`",
                     rustc_hir_pretty::qpath_to_string(&qpath)
