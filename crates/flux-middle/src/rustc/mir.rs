@@ -655,7 +655,7 @@ impl fmt::Debug for Rvalue {
                 if !args.is_empty() {
                     write!(f, "<{:?}>", args.iter().format(", "),)?;
                 }
-                if !args.is_empty() {
+                if !operands.is_empty() {
                     write!(f, "({:?})", operands.iter().format(", "))?;
                 }
                 Ok(())
