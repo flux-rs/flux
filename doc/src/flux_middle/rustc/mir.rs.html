@@ -1406,7 +1406,7 @@
                 <span class="kw">if </span>!args.is_empty() {
                     <span class="macro">write!</span>(f, <span class="string">&quot;&lt;{:?}&gt;&quot;</span>, args.iter().format(<span class="string">&quot;, &quot;</span>),)<span class="question-mark">?</span>;
                 }
-                <span class="kw">if </span>!args.is_empty() {
+                <span class="kw">if </span>!operands.is_empty() {
                     <span class="macro">write!</span>(f, <span class="string">&quot;({:?})&quot;</span>, operands.iter().format(<span class="string">&quot;, &quot;</span>))<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
