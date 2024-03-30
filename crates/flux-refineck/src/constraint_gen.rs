@@ -503,7 +503,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 self.bty_subtyping(rcx, bty1, bty2)?;
-                self.idx_subtyping(rcx, idx1, idx2);
+                self.idx_eq(rcx, idx1, idx2);
                 Ok(())
             }
             (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) => {
@@ -680,7 +680,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn idx_subtyping(&mut self, rcx: &mut RefineCtxt, e1: &Expr, e2: &Expr) {
+    fn idx_eq(&mut self, rcx: &mut RefineCtxt, e1: &Expr, e2: &Expr) {
         if e1 == e2 {
             return;
         }
@@ -691,18 +691,22 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 debug_assert_eq!(flds1.len(), flds2.len());
 
                 for (e1, e2) in iter::zip(flds1, flds2) {
-                    self.idx_subtyping(rcx, e1, e2);
+                    self.idx_eq(rcx, e1, e2);
                 }
             }
             (ExprKind::Abs(p1), ExprKind::Abs(p2)) => {
-                self.pred_subtyping(rcx, p1, p2);
+                self.abs_eq(rcx, p1, p2);
             }
             (_, ExprKind::Abs(p)) => {
-                self.pred_subtyping(rcx, &e1.eta_expand_abs(&p.inputs(), p.output()), p);
+                self.abs_eq(rcx, &e1.eta_expand_abs(&p.inputs(), p.output()), p);
             }
             (ExprKind::Abs(p), _) => {
                 self.unify_exprs(e1, e2);
-                self.pred_subtyping(rcx, p, &e2.eta_expand_abs(&p.inputs(), p.output()));
+                self.abs_eq(rcx, p, &e2.eta_expand_abs(&p.inputs(), p.output()));
+            }
+            (ExprKind::KVar(_), _) | (_, ExprKind::KVar(_)) => {
+                rcx.check_impl(e1, e2, self.tag);
+                rcx.check_impl(e2, e1, self.tag);
             }
             _ => {
                 self.unify_exprs(e1, e2);
@@ -712,13 +716,12 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn pred_subtyping(&mut self, rcx: &mut RefineCtxt, p1: &Lambda, p2: &Lambda) {
-        debug_assert_eq!(p1.inputs(), p2.inputs());
-        let vars = p1.inputs().iter().map(|s| rcx.define_vars(s)).collect_vec();
-        let p1 = p1.apply(&vars);
-        let p2 = p2.apply(&vars);
-        rcx.check_impl(&p1, &p2, self.tag);
-        rcx.check_impl(&p2, &p1, self.tag);
+    fn abs_eq(&mut self, rcx: &mut RefineCtxt, f1: &Lambda, f2: &Lambda) {
+        debug_assert_eq!(f1.inputs(), f2.inputs());
+        let vars = f1.inputs().iter().map(|s| rcx.define_vars(s)).collect_vec();
+        let e1 = f1.apply(&vars);
+        let e2 = f2.apply(&vars);
+        self.idx_eq(rcx, &e1, &e2);
     }
 
     fn unify_exprs(&mut self, e1: &Expr, e2: &Expr) {
