@@ -813,6 +813,9 @@
 <a href="#813" id="813">813</a>
 <a href="#814" id="814">814</a>
 <a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
@@ -1318,7 +1321,7 @@
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) =&gt; {
                 <span class="self">self</span>.bty_subtyping(rcx, bty1, bty2)<span class="question-mark">?</span>;
-                <span class="self">self</span>.idx_subtyping(rcx, idx1, idx2);
+                <span class="self">self</span>.idx_eq(rcx, idx1, idx2);
                 <span class="prelude-val">Ok</span>(())
             }
             (TyKind::Ptr(pk1, path1), TyKind::Ptr(pk2, path2)) =&gt; {
@@ -1495,7 +1498,7 @@
         }
     }
 
-    <span class="kw">fn </span>idx_subtyping(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, e1: <span class="kw-2">&amp;</span>Expr, e2: <span class="kw-2">&amp;</span>Expr) {
+    <span class="kw">fn </span>idx_eq(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, e1: <span class="kw-2">&amp;</span>Expr, e2: <span class="kw-2">&amp;</span>Expr) {
         <span class="kw">if </span>e1 == e2 {
             <span class="kw">return</span>;
         }
@@ -1506,18 +1509,22 @@
                 <span class="macro">debug_assert_eq!</span>(flds1.len(), flds2.len());
 
                 <span class="kw">for </span>(e1, e2) <span class="kw">in </span>iter::zip(flds1, flds2) {
-                    <span class="self">self</span>.idx_subtyping(rcx, e1, e2);
+                    <span class="self">self</span>.idx_eq(rcx, e1, e2);
                 }
             }
             (ExprKind::Abs(p1), ExprKind::Abs(p2)) =&gt; {
-                <span class="self">self</span>.pred_subtyping(rcx, p1, p2);
+                <span class="self">self</span>.abs_eq(rcx, p1, p2);
             }
             (<span class="kw">_</span>, ExprKind::Abs(p)) =&gt; {
-                <span class="self">self</span>.pred_subtyping(rcx, <span class="kw-2">&amp;</span>e1.eta_expand_abs(<span class="kw-2">&amp;</span>p.inputs(), p.output()), p);
+                <span class="self">self</span>.abs_eq(rcx, <span class="kw-2">&amp;</span>e1.eta_expand_abs(<span class="kw-2">&amp;</span>p.inputs(), p.output()), p);
             }
             (ExprKind::Abs(p), <span class="kw">_</span>) =&gt; {
                 <span class="self">self</span>.unify_exprs(e1, e2);
-                <span class="self">self</span>.pred_subtyping(rcx, p, <span class="kw-2">&amp;</span>e2.eta_expand_abs(<span class="kw-2">&amp;</span>p.inputs(), p.output()));
+                <span class="self">self</span>.abs_eq(rcx, p, <span class="kw-2">&amp;</span>e2.eta_expand_abs(<span class="kw-2">&amp;</span>p.inputs(), p.output()));
+            }
+            (ExprKind::KVar(<span class="kw">_</span>), <span class="kw">_</span>) | (<span class="kw">_</span>, ExprKind::KVar(<span class="kw">_</span>)) =&gt; {
+                rcx.check_impl(e1, e2, <span class="self">self</span>.tag);
+                rcx.check_impl(e2, e1, <span class="self">self</span>.tag);
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="self">self</span>.unify_exprs(e1, e2);
@@ -1527,13 +1534,12 @@
         }
     }
 
-    <span class="kw">fn </span>pred_subtyping(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, p1: <span class="kw-2">&amp;</span>Lambda, p2: <span class="kw-2">&amp;</span>Lambda) {
-        <span class="macro">debug_assert_eq!</span>(p1.inputs(), p2.inputs());
-        <span class="kw">let </span>vars = p1.inputs().iter().map(|s| rcx.define_vars(s)).collect_vec();
-        <span class="kw">let </span>p1 = p1.apply(<span class="kw-2">&amp;</span>vars);
-        <span class="kw">let </span>p2 = p2.apply(<span class="kw-2">&amp;</span>vars);
-        rcx.check_impl(<span class="kw-2">&amp;</span>p1, <span class="kw-2">&amp;</span>p2, <span class="self">self</span>.tag);
-        rcx.check_impl(<span class="kw-2">&amp;</span>p2, <span class="kw-2">&amp;</span>p1, <span class="self">self</span>.tag);
+    <span class="kw">fn </span>abs_eq(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, f1: <span class="kw-2">&amp;</span>Lambda, f2: <span class="kw-2">&amp;</span>Lambda) {
+        <span class="macro">debug_assert_eq!</span>(f1.inputs(), f2.inputs());
+        <span class="kw">let </span>vars = f1.inputs().iter().map(|s| rcx.define_vars(s)).collect_vec();
+        <span class="kw">let </span>e1 = f1.apply(<span class="kw-2">&amp;</span>vars);
+        <span class="kw">let </span>e2 = f2.apply(<span class="kw-2">&amp;</span>vars);
+        <span class="self">self</span>.idx_eq(rcx, <span class="kw-2">&amp;</span>e1, <span class="kw-2">&amp;</span>e2);
     }
 
     <span class="kw">fn </span>unify_exprs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, e1: <span class="kw-2">&amp;</span>Expr, e2: <span class="kw-2">&amp;</span>Expr) {
