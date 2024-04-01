@@ -1495,6 +1495,14 @@
 <a href="#1495" id="1495">1495</a>
 <a href="#1496" id="1496">1496</a>
 <a href="#1497" id="1497">1497</a>
+<a href="#1498" id="1498">1498</a>
+<a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
+<a href="#1501" id="1501">1501</a>
+<a href="#1502" id="1502">1502</a>
+<a href="#1503" id="1503">1503</a>
+<a href="#1504" id="1504">1504</a>
+<a href="#1505" id="1505">1505</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2229,11 +2237,19 @@
                 <span class="kw">match </span>path.res {
                     fhir::Res::Def(DefKind::AssocTy, assoc_id) =&gt; {
                         <span class="kw">let </span>trait_id = <span class="self">self</span>.genv.tcx().trait_of_item(assoc_id).unwrap();
-                        <span class="kw">let </span>self_ty = <span class="self">self</span>.conv_ty(env, self_ty.as_deref().unwrap())<span class="question-mark">?</span>;
                         <span class="kw">let </span>[.., trait_segment, assoc_segment] = path.segments <span class="kw">else </span>{
                             <span class="macro">span_bug!</span>(bty.span, <span class="string">&quot;expected at least two segments&quot;</span>);
                         };
-                        <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[rty::GenericArg::Ty(self_ty)];
+
+                        <span class="kw">let </span>trait_generics = <span class="self">self</span>.genv.generics_of(trait_id)<span class="question-mark">?</span>;
+                        <span class="kw">let </span>self_ty = self_ty.as_deref().unwrap();
+                        <span class="kw">let </span>self_ty =
+                            <span class="kw">if let </span>rty::GenericParamDefKind::Base = trait_generics.params[<span class="number">0</span>].kind {
+                                rty::GenericArg::Base(<span class="self">self</span>.conv_generic_base(env, self_ty)<span class="question-mark">?</span>)
+                            } <span class="kw">else </span>{
+                                rty::GenericArg::Ty(<span class="self">self</span>.conv_ty(env, self_ty)<span class="question-mark">?</span>)
+                            };
+                        <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[self_ty];
                         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment.args, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
                         <span class="self">self</span>.conv_generic_args_into(env, assoc_id, assoc_segment.args, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
                         <span class="kw">let </span>args = List::from_vec(args);
