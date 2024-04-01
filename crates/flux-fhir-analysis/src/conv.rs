@@ -732,11 +732,19 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 match path.res {
                     fhir::Res::Def(DefKind::AssocTy, assoc_id) => {
                         let trait_id = self.genv.tcx().trait_of_item(assoc_id).unwrap();
-                        let self_ty = self.conv_ty(env, self_ty.as_deref().unwrap())?;
                         let [.., trait_segment, assoc_segment] = path.segments else {
                             span_bug!(bty.span, "expected at least two segments");
                         };
-                        let mut args = vec![rty::GenericArg::Ty(self_ty)];
+
+                        let trait_generics = self.genv.generics_of(trait_id)?;
+                        let self_ty = self_ty.as_deref().unwrap();
+                        let self_ty =
+                            if let rty::GenericParamDefKind::Base = trait_generics.params[0].kind {
+                                rty::GenericArg::Base(self.conv_generic_base(env, self_ty)?)
+                            } else {
+                                rty::GenericArg::Ty(self.conv_ty(env, self_ty)?)
+                            };
+                        let mut args = vec![self_ty];
                         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
                         self.conv_generic_args_into(env, assoc_id, assoc_segment.args, &mut args)?;
                         let args = List::from_vec(args);
