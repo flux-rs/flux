@@ -10,7 +10,7 @@ var srcIndex = JSON.parse('{\
 "flux_fixpoint":["",[],["big_int.rs","constraint.rs","lib.rs"]],\
 "flux_macros":["",[["diagnostics",[],["diagnostic.rs","diagnostic_builder.rs","error.rs","fluent.rs","mod.rs","subdiagnostic.rs","utils.rs"]]],["lib.rs"]],\
 "flux_metadata":["",[],["decoder.rs","encoder.rs","lib.rs"]],\
-"flux_middle":["",[["fhir",[],["lift.rs","visit.rs"]],["rty",[],["canonicalize.rs","evars.rs","expr.rs","fold.rs","mod.rs","normalize.rs","projections.rs","refining.rs","subst.rs"]],["rustc",[["ty",[],["subst.rs"]]],["lowering.rs","mir.rs","mod.rs","ty.rs"]]],["const_eval.rs","cstore.rs","fhir.rs","global_env.rs","intern.rs","lib.rs","pretty.rs","queries.rs","sort_of.rs"]],\
+"flux_middle":["",[["fhir",[],["lift.rs","visit.rs"]],["rty",[],["canonicalize.rs","evars.rs","expr.rs","fold.rs","mod.rs","normalize.rs","pretty.rs","projections.rs","refining.rs","subst.rs"]],["rustc",[["ty",[],["subst.rs"]]],["lowering.rs","mir.rs","mod.rs","ty.rs"]]],["const_eval.rs","cstore.rs","fhir.rs","global_env.rs","intern.rs","lib.rs","pretty.rs","queries.rs","sort_of.rs"]],\
 "flux_refineck":["",[["ghost_statements",[],["fold_unfold.rs","points_to.rs"]],["sigs",[],["default.rs","mod.rs","overflow.rs"]],["type_env",[],["place_ty.rs"]]],["checker.rs","constraint_gen.rs","fixpoint_encoding.rs","ghost_statements.rs","invariants.rs","lib.rs","queue.rs","refine_tree.rs","type_env.rs"]],\
 "flux_syntax":["",[["surface",[],["visit.rs"]]],["lexer.rs","lib.rs","surface.rs"]],\
 "flux_tests":["",[],["lib.rs"]],\
