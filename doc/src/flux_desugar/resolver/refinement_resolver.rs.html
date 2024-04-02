@@ -944,6 +944,7 @@
 <a href="#944" id="944">944</a>
 <a href="#945" id="945">945</a>
 <a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -1349,10 +1350,11 @@
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>tcx = resolver.genv.tcx();
         <span class="kw">let </span>generics = tcx.generics_of(owner);
-        <span class="kw">let </span><span class="kw-2">mut </span>sort_res: UnordMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt; = generics
-            .params
-            .iter()
-            .map(|p| (p.name, fhir::SortRes::TyParam(p.def_id)))
+        <span class="kw">let </span><span class="kw-2">mut </span>sort_res: UnordMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt; = (<span class="number">0</span>..generics.count())
+            .map(|idx| {
+                <span class="kw">let </span>p = generics.param_at(idx, tcx);
+                (p.name, fhir::SortRes::TyParam(p.def_id))
+            })
             .collect();
         <span class="kw">if let </span><span class="prelude-val">Some</span>(self_res) = self_res(tcx, owner) {
             sort_res.insert(kw::SelfUpper, self_res);
