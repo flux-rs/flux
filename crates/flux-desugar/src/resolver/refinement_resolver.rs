@@ -403,10 +403,11 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     ) -> Self {
         let tcx = resolver.genv.tcx();
         let generics = tcx.generics_of(owner);
-        let mut sort_res: UnordMap<_, _> = generics
-            .params
-            .iter()
-            .map(|p| (p.name, fhir::SortRes::TyParam(p.def_id)))
+        let mut sort_res: UnordMap<_, _> = (0..generics.count())
+            .map(|idx| {
+                let p = generics.param_at(idx, tcx);
+                (p.name, fhir::SortRes::TyParam(p.def_id))
+            })
             .collect();
         if let Some(self_res) = self_res(tcx, owner) {
             sort_res.insert(kw::SelfUpper, self_res);

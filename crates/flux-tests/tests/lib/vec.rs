@@ -28,14 +28,14 @@ impl<T> SliceIndex<[T]> for usize {}
 #[extern_spec]
 #[flux::generics(I as base)]
 impl<T, I: SliceIndex<[T]>, A: Allocator> Index<I> for Vec<T, A> {
-    #[flux::sig(fn (&Vec<T,A>[@len], {I[@idx] | <I as SliceIndex<[T]>>::in_bounds(idx, len)}) -> _)]
+    #[flux::sig(fn(&Vec<T, A>[@len], {I[@idx] | <I as SliceIndex<[T]>>::in_bounds(idx, len)}) -> _)]
     fn index(z: &Vec<T, A>, index: I) -> &<I as SliceIndex<[T]>>::Output;
 }
 
 #[extern_spec]
 #[flux::generics(I as base)]
 impl<T, I: SliceIndex<[T]>, A: Allocator> IndexMut<I> for Vec<T, A> {
-    #[flux::sig(fn (&mut Vec<T,A>[@len], {I[@idx] | <I as SliceIndex<[T]>>::in_bounds(idx, len)}) -> _)]
+    #[flux::sig(fn(&mut Vec<T,A>[@len], {I[@idx] | <I as SliceIndex<[T]>>::in_bounds(idx, len)}) -> _)]
     fn index_mut(z: &mut Vec<T, A>, index: I) -> &mut <I as SliceIndex<[T]>>::Output;
 }
 
