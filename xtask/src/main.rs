@@ -126,10 +126,13 @@ fn install(sh: &Shell, args: &Install) -> anyhow::Result<()> {
 }
 
 fn install_driver(sh: &Shell, args: &Install) -> anyhow::Result<()> {
-    let profile = args.profile();
     let out_dir = default_sysroot_dir();
-    cmd!(sh, "cargo build -Zunstable-options --bin flux-driver {profile} --out-dir {out_dir}")
-        .run()?;
+    if args.is_release() {
+        cmd!(sh, "cargo build -Zunstable-options --bin flux-driver --release --out-dir {out_dir}")
+            .run()?;
+    } else {
+        cmd!(sh, "cargo build -Zunstable-options --bin flux-driver --out-dir {out_dir}").run()?;
+    }
     Ok(())
 }
 
@@ -137,9 +140,13 @@ fn install_libs(sh: &Shell, args: &Install) -> anyhow::Result<()> {
     // CODESYNC(build-sysroot, 5)
     let _env = sh.push_env("FLUX_BUILD_SYSROOT", "1");
 
-    let profile = args.profile();
     let out_dir = default_sysroot_dir();
-    cmd!(sh, "cargo build -Zunstable-options {profile} -p flux-rs --out-dir {out_dir}").run()?;
+    if args.is_release() {
+        cmd!(sh, "cargo build -Zunstable-options --release -p flux-rs --out-dir {out_dir}")
+            .run()?;
+    } else {
+        cmd!(sh, "cargo build -Zunstable-options -p flux-rs --out-dir {out_dir}").run()?;
+    }
     Ok(())
 }
 
@@ -177,12 +184,8 @@ fn build_sysroot(sh: &Shell) -> anyhow::Result<()> {
 }
 
 impl Install {
-    fn profile(&self) -> &'static str {
-        if self.debug {
-            "--debug"
-        } else {
-            "--release"
-        }
+    fn is_release(&self) -> bool {
+        !self.debug
     }
 }
 
