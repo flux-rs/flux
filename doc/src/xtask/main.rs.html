@@ -192,6 +192,9 @@
 <a href="#192" id="192">192</a>
 <a href="#193" id="193">193</a>
 <a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
     path::{Path, PathBuf},
@@ -320,10 +323,14 @@
 }
 
 <span class="kw">fn </span>install_driver(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="kw">let </span>profile = args.profile();
     <span class="kw">let </span>out_dir = default_sysroot_dir();
-    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options --bin flux-driver {profile} --out-dir {out_dir}&quot;</span>)
-        .run()<span class="question-mark">?</span>;
+    <span class="kw">if </span>args.is_release() {
+        <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options --bin flux-driver --release --out-dir {out_dir}&quot;</span>)
+            .run()<span class="question-mark">?</span>;
+    } <span class="kw">else </span>{
+        <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options --bin flux-driver --out-dir {out_dir}&quot;</span>)
+            .run()<span class="question-mark">?</span>;
+    }
     <span class="prelude-val">Ok</span>(())
 }
 
@@ -331,9 +338,12 @@
     <span class="comment">// CODESYNC(build-sysroot, 5)
     </span><span class="kw">let </span>_env = sh.push_env(<span class="string">&quot;FLUX_BUILD_SYSROOT&quot;</span>, <span class="string">&quot;1&quot;</span>);
 
-    <span class="kw">let </span>profile = args.profile();
     <span class="kw">let </span>out_dir = default_sysroot_dir();
-    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options {profile} -p flux-rs --out-dir {out_dir}&quot;</span>).run()<span class="question-mark">?</span>;
+    <span class="kw">if </span>args.is_release() {
+        <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options --release -p flux-rs --out-dir {out_dir}&quot;</span>).run()<span class="question-mark">?</span>;
+    } <span class="kw">else </span>{
+        <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options -p flux-rs --out-dir {out_dir}&quot;</span>).run()<span class="question-mark">?</span>;
+    }
     <span class="prelude-val">Ok</span>(())
 }
 
@@ -371,12 +381,8 @@
 }
 
 <span class="kw">impl </span>Install {
-    <span class="kw">fn </span>profile(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="kw">if </span><span class="self">self</span>.debug {
-            <span class="string">&quot;--debug&quot;
-        </span>} <span class="kw">else </span>{
-            <span class="string">&quot;--release&quot;
-        </span>}
+    <span class="kw">fn </span>is_release(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        !<span class="self">self</span>.debug
     }
 }
 
