@@ -328,8 +328,7 @@
         <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options --bin flux-driver --release --out-dir {out_dir}&quot;</span>)
             .run()<span class="question-mark">?</span>;
     } <span class="kw">else </span>{
-        <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options --bin flux-driver --out-dir {out_dir}&quot;</span>)
-            .run()<span class="question-mark">?</span>;
+        <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options --bin flux-driver --out-dir {out_dir}&quot;</span>).run()<span class="question-mark">?</span>;
     }
     <span class="prelude-val">Ok</span>(())
 }
@@ -340,7 +339,8 @@
 
     <span class="kw">let </span>out_dir = default_sysroot_dir();
     <span class="kw">if </span>args.is_release() {
-        <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options --release -p flux-rs --out-dir {out_dir}&quot;</span>).run()<span class="question-mark">?</span>;
+        <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options --release -p flux-rs --out-dir {out_dir}&quot;</span>)
+            .run()<span class="question-mark">?</span>;
     } <span class="kw">else </span>{
         <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options -p flux-rs --out-dir {out_dir}&quot;</span>).run()<span class="question-mark">?</span>;
     }
