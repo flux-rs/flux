@@ -1,4 +1,4 @@
-use std::{collections::hash_map::Entry, iter, ops::ControlFlow};
+use std::{collections::hash_map::Entry, iter};
 
 use flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
 use flux_config as config;
@@ -26,7 +26,6 @@ use itertools::Itertools;
 use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
-    def::DefKind,
     def_id::{DefId, LocalDefId},
     LangItem,
 };

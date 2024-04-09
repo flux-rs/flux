@@ -374,7 +374,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     match &attr_item.item.path.segments[..] {
                         [first, ..] => {
                             let ident = first.ident.as_str();
-                            if ident == E0999 || ident == "flux_tool" {
+                            if ident == "flux" || ident == "flux_tool" {
                                 Some(attr_item)
                             } else {
                                 None
@@ -929,7 +929,7 @@ impl FluxAttrCFG {
                 let name = item.name_or_empty().to_ident_string();
                 let span = item.span;
                 if !name.is_empty() {
-                    if self.map.get(&name).is_some() {
+                    if self.map.contains_key(&name) {
                         return Err(errors::CFGError {
                             span,
                             message: format!("duplicated setting `{name}`"),
