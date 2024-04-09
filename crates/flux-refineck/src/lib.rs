@@ -10,7 +10,6 @@
     let_chains,
     min_specialization,
     never_type,
-    result_option_inspect,
     rustc_private,
     type_alias_impl_trait,
     unwrap_infallible
@@ -24,7 +23,6 @@ extern crate rustc_index;
 extern crate rustc_infer;
 extern crate rustc_middle;
 extern crate rustc_mir_dataflow;
-extern crate rustc_serialize;
 extern crate rustc_span;
 extern crate rustc_type_ir;
 
@@ -49,7 +47,7 @@ use flux_middle::{
     rty::{self, ESpan},
 };
 use itertools::Itertools;
-use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
+use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::Span;
 
@@ -142,19 +140,20 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
 }
 
 mod errors {
+    use flux_errors::E0999;
     use flux_macros::{Diagnostic, Subdiagnostic};
     use flux_middle::rty::ESpan;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(refineck_goto_error, code = "FLUX")]
+    #[diag(refineck_goto_error, code = E0999)]
     pub struct GotoError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_assign_error, code = "FLUX")]
+    #[diag(refineck_assign_error, code = E0999)]
     pub struct AssignError {
         #[primary_span]
         pub span: Span,
@@ -175,7 +174,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_refine_error, code = "FLUX")]
+    #[diag(refineck_refine_error, code = E0999)]
     pub struct RefineError {
         #[primary_span]
         #[label]
@@ -209,21 +208,21 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_div_error, code = "FLUX")]
+    #[diag(refineck_div_error, code = E0999)]
     pub struct DivError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_rem_error, code = "FLUX")]
+    #[diag(refineck_rem_error, code = E0999)]
     pub struct RemError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_assert_error, code = "FLUX")]
+    #[diag(refineck_assert_error, code = E0999)]
     pub struct AssertError {
         #[primary_span]
         pub span: Span,
@@ -231,21 +230,21 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_fold_error, code = "FLUX")]
+    #[diag(refineck_fold_error, code = E0999)]
     pub struct FoldError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_overflow_error, code = "FLUX")]
+    #[diag(refineck_overflow_error, code = E0999)]
     pub struct OverflowError {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(refineck_unknown_error, code = "FLUX")]
+    #[diag(refineck_unknown_error, code = E0999)]
     pub struct UnknownError {
         #[primary_span]
         pub span: Span,

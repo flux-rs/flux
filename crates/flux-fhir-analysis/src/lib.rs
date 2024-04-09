@@ -29,7 +29,7 @@ use flux_middle::{
     rustc::lowering,
 };
 use itertools::Itertools;
-use rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
+use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_span::Symbol;
@@ -257,7 +257,7 @@ fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generi
                 .unwrap_or_else(|| bug!("no generics for {:?}", def_id));
             conv::conv_generics(&rustc_generics, generics, is_trait)
         }
-        DefKind::Closure | DefKind::Coroutine => {
+        DefKind::Closure => {
             Ok(rty::Generics {
                 params: List::empty(),
                 parent: rustc_generics.parent(),
@@ -390,7 +390,7 @@ fn check_wf<'genv>(
         }
         FluxLocalDefId::Rust(def_id) => {
             let def_kind = genv.def_kind(def_id);
-            if matches!(def_kind, DefKind::Closure | DefKind::Coroutine | DefKind::TyParam) {
+            if matches!(def_kind, DefKind::Closure | DefKind::TyParam) {
                 let parent = genv.tcx().local_parent(def_id);
                 return genv.check_wf(parent);
             }
@@ -449,11 +449,12 @@ fn normalize<T: TypeFoldable>(genv: GlobalEnv, t: T) -> QueryResult<T> {
 }
 
 mod errors {
+    use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_definition_cycle, code = "FLUX")]
+    #[diag(fhir_analysis_definition_cycle, code = E0999)]
     pub struct DefinitionCycle {
         #[primary_span]
         #[label]

@@ -4,13 +4,13 @@ use flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
 use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, lift::LiftCtxt, ExprRes, FhirId, FluxOwnerId, Res},
-    global_env::{self, GlobalEnv},
+    global_env::GlobalEnv,
     try_alloc_slice, ResolverOutput, ScopeId,
 };
 use flux_syntax::surface::{self, NodeId};
 use hir::{def::DefKind, ItemKind};
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
-use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
+use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
@@ -737,7 +737,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     }
 
     #[track_caller]
-    fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
+    fn emit_err<'b>(&'b self, err: impl Diagnostic<'b>) -> ErrorGuaranteed {
         self.sess().emit_err(err)
     }
 }
@@ -764,10 +764,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
 
     fn sess(&self) -> &'genv FluxSession {
         self.genv().sess()
-    }
-
-    fn map(&self) -> global_env::Map<'genv, 'tcx> {
-        self.genv().map()
     }
 
     fn resolve_implicit_param(&self, node_id: NodeId) -> Option<(fhir::ParamId, fhir::ParamKind)> {
@@ -1267,7 +1263,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
     }
 
     #[track_caller]
-    fn emit_err(&self, err: impl IntoDiagnostic<'genv>) -> ErrorGuaranteed {
+    fn emit_err(&self, err: impl Diagnostic<'genv>) -> ErrorGuaranteed {
         self.sess().emit_err(err)
     }
 }
@@ -1304,7 +1300,7 @@ fn desugar_base_sort<'genv>(
     match bsort {
         surface::BaseSort::BitVec(width) => fhir::Sort::BitVec(*width),
         surface::BaseSort::Path(surface::SortPath { segment, args, node_id }) => {
-            let res = resolver_output.sort_path_res_map[&node_id];
+            let res = resolver_output.sort_path_res_map[node_id];
 
             // In a `RefinedBy` we resolve type parameters to a sort var
             let res = if let fhir::SortRes::TyParam(def_id) = res

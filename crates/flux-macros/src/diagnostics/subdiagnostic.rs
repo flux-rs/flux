@@ -12,18 +12,18 @@ use crate::diagnostics::{
     utils::{
         build_field_mapping, build_suggestion_code, is_doc_comment, new_code_ident,
         report_error_if_not_applied_to_applicability, report_error_if_not_applied_to_span,
-        should_generate_set_arg, AllowMultipleAlternatives, FieldInfo, FieldInnerTy, FieldMap,
+        should_generate_arg, AllowMultipleAlternatives, FieldInfo, FieldInnerTy, FieldMap,
         HasFieldMap, SetOnce, SpannedOption, SubdiagnosticKind,
     },
 };
 
-/// The central struct for constructing the `add_to_diagnostic` method from an annotated struct.
-pub(crate) struct SubdiagnosticDeriveBuilder {
+/// The central struct for constructing the `add_to_diag` method from an annotated struct.
+pub(crate) struct SubdiagnosticDerive {
     diag: syn::Ident,
     f: syn::Ident,
 }
 
-impl SubdiagnosticDeriveBuilder {
+impl SubdiagnosticDerive {
     pub(crate) fn new() -> Self {
         let diag = format_ident!("diag");
         let f = format_ident!("f");
@@ -89,15 +89,15 @@ impl SubdiagnosticDeriveBuilder {
         let diag = &self.diag;
         let f = &self.f;
         let ret = structure.gen_impl(quote! {
-            gen impl rustc_errors::AddToDiagnostic for @Self {
-                fn add_to_diagnostic_with<__F>(self, #diag: &mut rustc_errors::Diagnostic, #f: __F)
-                where
-                    __F: core::ops::Fn(
-                        &mut rustc_errors::Diagnostic,
-                        rustc_errors::SubdiagnosticMessage
-                    ) -> rustc_errors::SubdiagnosticMessage,
+            gen impl rustc_errors::Subdiagnostic for @Self {
+                fn add_to_diag_with<__G, __F>(
+                    self,
+                    #diag: &mut rustc_errors::Diag<'_, __G>,
+                    #f: __F
+                ) where
+                    __G: rustc_errors::EmissionGuarantee,
+                    __F: rustc_errors::SubdiagMessageOp<__G>,
                 {
-                    use rustc_errors::{Applicability, IntoDiagnosticArg};
                     #implementation
                 }
             }
@@ -111,8 +111,8 @@ impl SubdiagnosticDeriveBuilder {
 /// only to be able to destructure and split `self.builder` and the `self.structure` up to avoid a
 /// double mut borrow later on.
 struct SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
-    /// The identifier to use for the generated `DiagnosticBuilder` instance.
-    parent: &'parent SubdiagnosticDeriveBuilder,
+    /// The identifier to use for the generated `Diag` instance.
+    parent: &'parent SubdiagnosticDerive,
 
     /// Info for the current variant (or the type if not an enum).
     variant: &'a VariantInfo<'a>,
@@ -218,7 +218,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
     }
 
     /// Generates the code for a field with no attributes.
-    fn generate_field_set_arg(&mut self, binding_info: &BindingInfo<'_>) -> TokenStream {
+    fn generate_field_arg(&mut self, binding_info: &BindingInfo<'_>) -> TokenStream {
         let diag = &self.parent.diag;
 
         let field = binding_info.ast();
@@ -229,7 +229,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
         let ident = format_ident!("{}", ident); // strip `r#` prefix, if present
 
         quote! {
-            #diag.set_arg(
+            #diag.arg(
                 stringify!(#ident),
                 #field_binding
             );
@@ -485,7 +485,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
         }
     }
 
-    pub fn into_tokens(&mut self) -> Result<TokenStream, DiagnosticDeriveError> {
+    pub(crate) fn into_tokens(&mut self) -> Result<TokenStream, DiagnosticDeriveError> {
         let kind_slugs = self.identify_kind()?;
         if kind_slugs.is_empty() {
             if self.is_enum {
@@ -515,7 +515,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
             .variant
             .bindings()
             .iter()
-            .filter(|binding| !should_generate_set_arg(binding.ast()))
+            .filter(|binding| !should_generate_arg(binding.ast()))
             .map(|binding| self.generate_field_attr_code(binding, kind_stats))
             .collect();
 
@@ -603,8 +603,8 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
             .variant
             .bindings()
             .iter()
-            .filter(|binding| should_generate_set_arg(binding.ast()))
-            .map(|binding| self.generate_field_set_arg(binding))
+            .filter(|binding| should_generate_arg(binding.ast()))
+            .map(|binding| self.generate_field_arg(binding))
             .collect();
 
         let formatting_init = &self.formatting_init;

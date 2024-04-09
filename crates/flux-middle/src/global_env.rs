@@ -370,7 +370,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
 
     pub fn get_generics(self, def_id: LocalDefId) -> Option<&'genv fhir::Generics<'genv>> {
         // We don't have nodes for closures and coroutines
-        if matches!(self.genv.def_kind(def_id), DefKind::Closure | DefKind::Coroutine) {
+        if matches!(self.genv.def_kind(def_id), DefKind::Closure) {
             None
         } else {
             Some(self.node(def_id).generics())

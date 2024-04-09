@@ -18,7 +18,7 @@ use itertools::{izip, Itertools};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_infer::infer::{LateBoundRegionConversionTime, RegionVariableOrigin::LateBoundRegion};
+use rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin::BoundRegion};
 use rustc_middle::ty::Variance;
 use rustc_span::Span;
 
@@ -171,10 +171,10 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             .instantiate(&generic_args, &refine_args)
             .replace_bound_vars(
                 |br| {
-                    let re = infcx.region_infcx.next_region_var(LateBoundRegion(
+                    let re = infcx.region_infcx.next_region_var(BoundRegion(
                         span,
                         br.kind,
-                        LateBoundRegionConversionTime::FnCall,
+                        BoundRegionConversionTime::FnCall,
                     ));
                     rty::ReVar(re.as_var())
                 },

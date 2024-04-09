@@ -83,12 +83,13 @@ fn check_assoc_reft(genv: GlobalEnv, impl_id: LocalDefId, trait_id: DefId, name:
 }
 
 pub(crate) mod errors {
+    use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use flux_middle::rty;
     use rustc_span::{Span, Symbol};
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_incompatible_sort, code = "FLUX")]
+    #[diag(fhir_analysis_incompatible_sort, code = E0999)]
     pub(super) struct IncompatibleSort {
         #[primary_span]
         #[label]
@@ -110,7 +111,7 @@ pub(crate) mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_assoc_reft, code = "FLUX")]
+    #[diag(fhir_analysis_invalid_assoc_reft, code = E0999)]
     pub struct InvalidAssocReft {
         #[primary_span]
         span: Span,

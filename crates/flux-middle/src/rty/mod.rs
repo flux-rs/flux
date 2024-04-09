@@ -27,8 +27,8 @@ pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_index::IndexSlice;
-use rustc_macros::{newtype_index, Decodable, Encodable, TyDecodable, TyEncodable};
+use rustc_index::{newtype_index, IndexSlice};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
     ty::{ParamConst, TyCtxt},
@@ -49,7 +49,7 @@ use self::{
 pub use crate::{
     fhir::InferMode,
     rustc::ty::{
-        BoundRegion, BoundRegionKind, BoundVar, Const, EarlyBoundRegion, FreeRegion,
+        BoundRegion, BoundRegionKind, BoundVar, Const, EarlyParamRegion, FreeRegion,
         Region::{self, *},
     },
 };
@@ -264,6 +264,7 @@ impl From<usize> for ParamSort {
 newtype_index! {
     /// A *sort* *v*variable *id*
     #[debug_format = "?{}s"]
+    #[encodable]
     pub struct SortVid {}
 }
 
@@ -290,6 +291,7 @@ impl ena::unify::EqUnifyValue for Sort {}
 newtype_index! {
     /// A *num*eric *v*variable *id*
     #[debug_format = "?{}n"]
+    #[encodable]
     pub struct NumVid {}
 }
 
@@ -353,15 +355,15 @@ pub enum Sort {
     Err,
 }
 
-impl rustc_errors::IntoDiagnosticArg for Sort {
-    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+impl rustc_errors::IntoDiagArg for Sort {
+    fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+        rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 
-impl rustc_errors::IntoDiagnosticArg for FuncSort {
-    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+impl rustc_errors::IntoDiagArg for FuncSort {
+    fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+        rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 
@@ -1009,7 +1011,7 @@ impl GenericArg {
             }
             GenericParamDefKind::Lifetime => {
                 let region =
-                    EarlyBoundRegion { index: param.index, name: param.name, def_id: param.def_id };
+                    EarlyParamRegion { index: param.index, name: param.name, def_id: param.def_id };
                 Ok(GenericArg::Lifetime(Region::ReEarlyBound(region)))
             }
             GenericParamDefKind::Const { .. } => {
@@ -1817,15 +1819,9 @@ impl BaseTy {
                 ty::Ty::new_adt(tcx, adt_def, args)
             }
             BaseTy::Float(f) => ty::Ty::new_float(tcx, *f),
-            BaseTy::RawPtr(ty, mutbl) => {
-                ty::Ty::new_ptr(tcx, ty::TypeAndMut { ty: ty.to_rustc(tcx), mutbl: *mutbl })
-            }
+            BaseTy::RawPtr(ty, mutbl) => ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), *mutbl),
             BaseTy::Ref(re, ty, mutbl) => {
-                ty::Ty::new_ref(
-                    tcx,
-                    re.to_rustc(tcx),
-                    ty::TypeAndMut { ty: ty.to_rustc(tcx), mutbl: *mutbl },
-                )
+                ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), *mutbl)
             }
             BaseTy::Tuple(tys) => {
                 let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();

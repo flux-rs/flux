@@ -5,7 +5,7 @@ use flux_errors::ErrorGuaranteed;
 use hir::{def::DefKind, OwnerId};
 use rustc_ast::LitKind;
 use rustc_data_structures::unord::UnordMap;
-use rustc_errors::IntoDiagnostic;
+use rustc_errors::Diagnostic;
 use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::middle::resolve_bound_vars::ResolvedArg;
@@ -212,13 +212,6 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     fhir::TraitBoundModifier::Maybe,
                 ))
             }
-            hir::GenericBound::LangItemTrait(lang_item, .., args) => {
-                Ok(fhir::GenericBound::LangItemTrait(
-                    *lang_item,
-                    self.lift_generic_args(args.args)?,
-                    self.lift_type_bindings(args.bindings)?,
-                ))
-            }
             _ => self.emit_unsupported(&format!("unsupported generic bound: `{bound:?}`")),
         }
     }
@@ -252,7 +245,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
 
     pub fn lift_fn_decl(&mut self) -> Result<fhir::FnDecl<'genv>> {
         let def_id = self.owner.def_id;
-        let hir_id = self.genv.hir().local_def_id_to_hir_id(def_id);
+        let hir_id = self.genv.tcx().local_def_id_to_hir_id(def_id);
         let fn_sig = self
             .genv
             .hir()
@@ -301,9 +294,9 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     }
 
     pub fn lift_field_def_id(&mut self, def_id: LocalDefId) -> Result<fhir::FieldDef<'genv>> {
-        let hir = self.genv.hir();
-        let hir_id = hir.local_def_id_to_hir_id(def_id);
-        let hir::Node::Field(field_def) = hir.get(hir_id) else { bug!("expected a field") };
+        let hir::Node::Field(field_def) = self.genv.tcx().hir_node_by_def_id(def_id) else {
+            bug!("expected a field")
+        };
         Ok(fhir::FieldDef { def_id, ty: self.lift_ty(field_def.ty)?, lifted: true })
     }
 
@@ -313,8 +306,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     }
 
     pub fn lift_enum_variant_id(&mut self, def_id: LocalDefId) -> Result<fhir::VariantDef<'genv>> {
-        let hir_id = self.genv.hir().local_def_id_to_hir_id(def_id);
-        let node = self.genv.hir().get(hir_id);
+        let node = self.genv.tcx().hir_node_by_def_id(def_id);
         let hir::Node::Variant(variant) = node else { bug!("expected a variant") };
         self.lift_enum_variant(variant)
     }
@@ -440,7 +432,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     rustc_hir_pretty::qpath_to_string(&qpath)
                 ))
             }
-            hir::QPath::LangItem(_, _, _) => {
+            hir::QPath::LangItem(_, _) => {
                 self.emit_unsupported(&format!(
                     "unsupported type: `{}`",
                     rustc_hir_pretty::qpath_to_string(&qpath)
@@ -540,12 +532,13 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     fn lift_array_len(&self, len: hir::ArrayLen) -> Result<fhir::ArrayLen> {
         let body = match len {
             hir::ArrayLen::Body(anon_const) => self.genv.hir().body(anon_const.body),
-            hir::ArrayLen::Infer(_, _) => bug!("unexpected `ArrayLen::Infer`"),
+            hir::ArrayLen::Infer(_) => bug!("unexpected `ArrayLen::Infer`"),
         };
         if let hir::ExprKind::Lit(lit) = &body.value.kind
             && let LitKind::Int(array_len, _) = lit.node
         {
-            Ok(fhir::ArrayLen { val: array_len as usize, span: lit.span })
+            // FIXME(nilehmann) we shouldn't panic here
+            Ok(fhir::ArrayLen { val: array_len.get().try_into().unwrap(), span: lit.span })
         } else {
             self.emit_unsupported("only interger literals are supported for array lengths")
         }
@@ -601,7 +594,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     }
 
     #[track_caller]
-    fn emit_err<'b, T>(&'b self, err: impl IntoDiagnostic<'b>) -> Result<T> {
+    fn emit_err<'b, T>(&'b self, err: impl Diagnostic<'b>) -> Result<T> {
         Err(self.genv.sess().emit_err(err))
     }
 
@@ -611,13 +604,14 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
 }
 
 pub mod errors {
+    use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_middle::ty::TyCtxt;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(middle_unsupported_hir, code = "FLUX")]
+    #[diag(middle_unsupported_hir, code = E0999)]
     #[note]
     pub struct UnsupportedHir<'a> {
         #[primary_span]

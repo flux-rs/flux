@@ -304,7 +304,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                     args: args
                         .iter()
                         .map(|arg| {
-                            self.lower_operand(arg).map_err(|reason| {
+                            self.lower_operand(&arg.node).map_err(|reason| {
                                 errors::UnsupportedMir::new(span, "terminator args", reason)
                             })
                         })
@@ -453,7 +453,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         match bk {
             rustc_mir::BorrowKind::Shared => Ok(BorrowKind::Shared),
             rustc_mir::BorrowKind::Mut { kind } => Ok(BorrowKind::Mut { kind }),
-            rustc_mir::BorrowKind::Shallow => {
+            rustc_mir::BorrowKind::Fake => {
                 Err(UnsupportedReason::new(format!("unsupported borrow kind `{bk:?}`")))
             }
         }
@@ -502,11 +502,11 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 let args = lower_generic_args(self.tcx, args)?;
                 Ok(AggregateKind::Closure(*did, args))
             }
-            rustc_mir::AggregateKind::Coroutine(did, args, _mov) => {
+            rustc_mir::AggregateKind::Coroutine(did, args) => {
                 let args = lower_generic_args(self.tcx, args)?;
                 Ok(AggregateKind::Coroutine(*did, args))
             }
-            rustc_mir::AggregateKind::Adt(..) => {
+            rustc_mir::AggregateKind::Adt(..) | rustc_mir::AggregateKind::CoroutineClosure(..) => {
                 Err(UnsupportedReason::new(format!(
                     "unsupported aggregate kind `{aggregate_kind:?}`"
                 )))
@@ -537,6 +537,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             | rustc_mir::BinOp::ShlUnchecked
             | rustc_mir::BinOp::ShrUnchecked
             | rustc_mir::BinOp::BitXor
+            | rustc_mir::BinOp::Cmp
             | rustc_mir::BinOp::Offset => {
                 Err(UnsupportedReason::new(format!("unsupported binary op `{bin_op:?}`")))
             }
@@ -700,10 +701,9 @@ pub(crate) fn lower_ty<'tcx>(
         }
         rustc_ty::Array(ty, len) => Ok(Ty::mk_array(lower_ty(tcx, *ty)?, lower_const(tcx, *len)?)),
         rustc_ty::Slice(ty) => Ok(Ty::mk_slice(lower_ty(tcx, *ty)?)),
-        rustc_ty::RawPtr(t) => {
-            let mutbl = t.mutbl;
-            let ty = lower_ty(tcx, t.ty)?;
-            Ok(Ty::mk_raw_ptr(ty, mutbl))
+        rustc_ty::RawPtr(ty, mutbl) => {
+            let ty = lower_ty(tcx, *ty)?;
+            Ok(Ty::mk_raw_ptr(ty, *mutbl))
         }
         rustc_ty::FnPtr(fn_sig) => {
             let fn_sig = lower_fn_sig(tcx, *fn_sig)?;
@@ -719,7 +719,7 @@ pub(crate) fn lower_ty<'tcx>(
             let args = lower_generic_args(tcx, alias_ty.args)?;
             Ok(Ty::mk_alias(kind, alias_ty.def_id, args))
         }
-        rustc_ty::Coroutine(did, args, _) => {
+        rustc_ty::Coroutine(did, args) => {
             let args = lower_generic_args(tcx, args)?;
             Ok(Ty::mk_coroutine(*did, args))
         }
@@ -785,12 +785,12 @@ fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, Unsupported
     use rustc_middle::ty::RegionKind;
     match region.kind() {
         RegionKind::ReVar(rvid) => Ok(Region::ReVar(rvid)),
-        RegionKind::ReLateBound(debruijn, bregion) => {
+        RegionKind::ReBound(debruijn, bregion) => {
             Ok(Region::ReLateBound(debruijn, lower_bound_region(bregion)?))
         }
-        RegionKind::ReEarlyBound(bregion) => Ok(Region::ReEarlyBound(bregion)),
+        RegionKind::ReEarlyParam(bregion) => Ok(Region::ReEarlyBound(bregion)),
         RegionKind::ReStatic => Ok(Region::ReStatic),
-        RegionKind::ReFree(_)
+        RegionKind::ReLateParam(_)
         | RegionKind::RePlaceholder(_)
         | RegionKind::ReError(_)
         | RegionKind::ReErased => {
@@ -907,6 +907,7 @@ fn lower_type_outlives<'tcx>(
 }
 
 mod errors {
+    use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use rustc_middle::mir as rustc_mir;
     use rustc_span::Span;
@@ -914,7 +915,7 @@ mod errors {
     use super::UnsupportedReason;
 
     #[derive(Diagnostic)]
-    #[diag(middle_unsupported_local_decl, code = "FLUX")]
+    #[diag(middle_unsupported_local_decl, code = E0999)]
     pub(super) struct UnsupportedLocalDecl<'tcx> {
         #[primary_span]
         #[label]
@@ -932,7 +933,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(middle_unsupported_mir, code = "FLUX")]
+    #[diag(middle_unsupported_mir, code = E0999)]
     #[note]
     pub(super) struct UnsupportedMir {
         #[primary_span]
@@ -941,9 +942,9 @@ mod errors {
         reason: UnsupportedReason,
     }
 
-    impl rustc_errors::IntoDiagnosticArg for UnsupportedReason {
-        fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-            rustc_errors::DiagnosticArgValue::Str(std::borrow::Cow::Owned(self.descr))
+    impl rustc_errors::IntoDiagArg for UnsupportedReason {
+        fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+            rustc_errors::DiagArgValue::Str(std::borrow::Cow::Owned(self.descr))
         }
     }
 

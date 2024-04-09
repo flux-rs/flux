@@ -285,13 +285,7 @@ impl<'a> CollectPointerToBorrows<'a> {
 impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPointerToBorrows<'_> {
     type FlowState = State;
 
-    fn visit_block_start(
-        &mut self,
-        _results: &mut Results<'a, 'tcx>,
-        state: &Self::FlowState,
-        _block_data: &'mir mir::BasicBlockData<'tcx>,
-        _block: BasicBlock,
-    ) {
+    fn visit_block_start(&mut self, state: &Self::FlowState) {
         self.before_state.clear();
         for place_idx in self.tracked_places.keys() {
             let value = state.get_idx(*place_idx, self.map);
@@ -318,14 +312,15 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
         }
     }
 
-    fn visit_block_end(
+    fn visit_terminator_after_primary_effect(
         &mut self,
         results: &mut Results<'a, 'tcx>,
-        _state: &State,
-        block_data: &'mir mir::BasicBlockData<'tcx>,
-        block: BasicBlock,
+        _state: &Self::FlowState,
+        terminator: &'mir mir::Terminator<'tcx>,
+        location: mir::Location,
     ) {
-        for target in block_data.terminator().successors() {
+        let block = location.block;
+        for target in terminator.successors() {
             let point = Point::Edge(block, target);
             let target_state = results.entry_set_for_block(target);
 

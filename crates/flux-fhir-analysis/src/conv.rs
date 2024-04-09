@@ -420,7 +420,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .genv
                     .tcx()
                     .hir()
-                    .name(self.genv.hir().local_def_id_to_hir_id(def_id));
+                    .name(self.genv.tcx().local_def_id_to_hir_id(def_id));
                 let kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
                 Ok(rty::BoundVariableKind::Region(kind))
             }
@@ -797,13 +797,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::Lifetime::Resolved(res) => res,
         };
         let tcx = self.genv.tcx();
-        let lifetime_name = |def_id| tcx.hir().name(tcx.hir().local_def_id_to_hir_id(def_id));
+        let lifetime_name = |def_id| tcx.hir().name(tcx.local_def_id_to_hir_id(def_id));
         match res {
             ResolvedArg::StaticLifetime => rty::ReStatic,
             ResolvedArg::EarlyBound(def_id) => {
                 let index = self.genv.def_id_to_param_index(def_id.expect_local());
                 let name = lifetime_name(def_id.expect_local());
-                rty::ReEarlyBound(rty::EarlyBoundRegion { def_id, index, name })
+                rty::ReEarlyBound(rty::EarlyParamRegion { def_id, index, name })
             }
             ResolvedArg::LateBound(_, index, def_id) => {
                 let depth = env.depth().checked_sub(1).unwrap();
@@ -1470,12 +1470,13 @@ fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
 }
 
 mod errors {
+    use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use flux_middle::fhir::{self, SurfaceIdent};
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_assoc_type_not_found, code = "FLUX")]
+    #[diag(fhir_analysis_assoc_type_not_found, code = E0999)]
     #[note]
     pub(super) struct AssocTypeNotFound {
         #[primary_span]
@@ -1490,7 +1491,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_base_instance, code = "FLUX")]
+    #[diag(fhir_analysis_invalid_base_instance, code = E0999)]
     pub(super) struct InvalidBaseInstance<'fhir> {
         #[primary_span]
         span: Span,

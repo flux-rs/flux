@@ -19,7 +19,7 @@ use flux_middle::{
     rty::WfckResults,
 };
 use rustc_data_structures::unord::UnordMap;
-use rustc_errors::IntoDiagnostic;
+use rustc_errors::Diagnostic;
 use rustc_hir::OwnerId;
 
 pub(crate) fn check_node<'genv>(
@@ -425,18 +425,19 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
     }
 
     #[track_caller]
-    fn emit_err<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
+    fn emit_err<'a>(&'a self, err: impl Diagnostic<'a>) -> ErrorGuaranteed {
         self.genv.sess().emit_err(err)
     }
 }
 
 mod errors {
+    use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use flux_middle::fhir;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_refinement, code = "FLUX")]
+    #[diag(fhir_analysis_invalid_refinement, code = E0999)]
     pub(super) struct InvalidRefinement {
         #[primary_span]
         #[label]
@@ -496,7 +497,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_fun_arg_count_mismatch, code = "FLUX")]
+    #[diag(fhir_analysis_fun_arg_count_mismatch, code = E0999)]
     pub(super) struct FunArgCountMismatch {
         #[primary_span]
         #[label]
@@ -519,7 +520,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generic_argument_count_mismatch, code = "FLUX")]
+    #[diag(fhir_analysis_generic_argument_count_mismatch, code = E0999)]
     pub(super) struct GenericArgCountMismatch {
         #[primary_span]
         #[label]
@@ -544,7 +545,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_array_len_mismatch, code = "FLUX")]
+    #[diag(fhir_analysis_array_len_mismatch, code = E0999)]
     pub(super) struct ArrayLenMismatch {
         #[primary_span]
         #[label]
@@ -567,7 +568,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_field_count_mismatch, code = "FLUX")]
+    #[diag(fhir_analysis_field_count_mismatch, code = E0999)]
     pub(super) struct FieldCountMismatch {
         #[primary_span]
         #[label]

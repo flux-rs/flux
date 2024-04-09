@@ -5,17 +5,17 @@ extern crate rustc_errors;
 extern crate rustc_session;
 extern crate rustc_span;
 
-use std::{cell::Cell, sync::Arc};
+use std::{cell::Cell, io, sync::Arc};
 
 use flux_common::result::{ErrorCollector, ErrorEmitter};
 use rustc_data_structures::sync;
 pub use rustc_errors::ErrorGuaranteed;
 use rustc_errors::{
-    annotate_snippet_emitter_writer::AnnotateSnippetEmitterWriter,
-    emitter::{Emitter, EmitterWriter, HumanReadableErrorType},
+    annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
+    emitter::{stderr_destination, Emitter, HumanEmitter, HumanReadableErrorType},
     json::JsonEmitter,
     registry::Registry,
-    DiagnosticId, FatalError, IntoDiagnostic, LazyFallbackBundle,
+    Diagnostic, ErrCode, FatalAbort, FatalError, LazyFallbackBundle,
 };
 use rustc_session::{
     config::{self, ErrorOutputType},
@@ -27,9 +27,8 @@ pub struct FluxSession {
     pub parse_sess: ParseSess,
 }
 
-pub fn diagnostic_id() -> DiagnosticId {
-    DiagnosticId::Error("FLUX".to_string())
-}
+// FIXME(nilehmann) We probably need to move out of this error reporting
+pub const E0999: ErrCode = ErrCode::from_u32(999);
 
 impl FluxSession {
     pub fn new(
@@ -38,42 +37,40 @@ impl FluxSession {
         fallback_bundle: LazyFallbackBundle,
     ) -> Self {
         let emitter = emitter(opts, source_map.clone(), fallback_bundle);
-        let handler = rustc_errors::Handler::with_emitter(emitter);
-        Self { parse_sess: ParseSess::with_span_handler(handler, source_map) }
+        let dcx = rustc_errors::DiagCtxt::new(emitter);
+        Self { parse_sess: ParseSess::with_dcx(dcx, source_map) }
     }
 
     pub fn err_count(&self) -> usize {
-        self.parse_sess.span_diagnostic.err_count()
+        self.parse_sess.dcx.err_count()
     }
 
     #[track_caller]
-    pub fn emit_err<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
-        self.parse_sess.emit_err(err)
+    pub fn emit_err<'a>(&'a self, err: impl Diagnostic<'a>) -> ErrorGuaranteed {
+        self.parse_sess.dcx.emit_err(err)
     }
 
     #[track_caller]
-    pub fn emit_fatal<'a>(&'a self, fatal: impl IntoDiagnostic<'a, !>) -> ! {
-        self.parse_sess.emit_fatal(fatal)
+    pub fn emit_fatal<'a>(&'a self, fatal: impl Diagnostic<'a, FatalAbort>) -> ! {
+        self.parse_sess.dcx.emit_fatal(fatal)
     }
 
     pub fn abort(&self, _: ErrorGuaranteed) -> ! {
-        self.parse_sess.span_diagnostic.abort_if_errors();
+        self.parse_sess.dcx.abort_if_errors();
         FatalError.raise()
     }
 
     pub fn abort_if_errors(&self) {
-        self.parse_sess.span_diagnostic.abort_if_errors();
+        self.parse_sess.dcx.abort_if_errors();
     }
 
     pub fn finish_diagnostics(&self) {
-        self.parse_sess
-            .span_diagnostic
-            .print_error_count(&Registry::new(&[]));
+        self.parse_sess.dcx.print_error_count(&Registry::new(&[]));
         self.abort_if_errors();
     }
 
-    pub fn diagnostic(&self) -> &rustc_errors::Handler {
-        &self.parse_sess.span_diagnostic
+    pub fn dcx(&self) -> &rustc_errors::DiagCtxt {
+        &self.parse_sess.dcx
     }
 }
 
@@ -89,7 +86,7 @@ fn emitter(
         ErrorOutputType::HumanReadable(kind) => {
             let (short, color_config) = kind.unzip();
             if let HumanReadableErrorType::AnnotateSnippet(_) = kind {
-                let emitter = AnnotateSnippetEmitterWriter::new(
+                let emitter = AnnotateSnippetEmitter::new(
                     Some(source_map),
                     None,
                     fallback_bundle,
@@ -98,7 +95,8 @@ fn emitter(
                 );
                 Box::new(emitter)
             } else {
-                let emitter = EmitterWriter::stderr(color_config, fallback_bundle)
+                let dst = stderr_destination(color_config);
+                let emitter = HumanEmitter::new(dst, fallback_bundle)
                     .sm(Some(source_map))
                     .short_message(short)
                     .track_diagnostics(track_diagnostics)
@@ -107,24 +105,24 @@ fn emitter(
             }
         }
         ErrorOutputType::Json { pretty, json_rendered } => {
-            Box::new(JsonEmitter::stderr(
-                Some(Registry::new(&[])),
-                source_map,
-                bundle,
-                fallback_bundle,
-                pretty,
-                json_rendered,
-                None,
-                false,
-                track_diagnostics,
-                opts.unstable_opts.terminal_urls,
-            ))
+            Box::new(
+                JsonEmitter::new(
+                    Box::new(io::BufWriter::new(io::stderr())),
+                    source_map,
+                    fallback_bundle,
+                    pretty,
+                    json_rendered,
+                )
+                .fluent_bundle(bundle)
+                .track_diagnostics(track_diagnostics)
+                .terminal_url(opts.unstable_opts.terminal_urls),
+            )
         }
     }
 }
 
 impl ErrorEmitter for FluxSession {
-    fn emit<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
+    fn emit<'a>(&'a self, err: impl Diagnostic<'a>) -> ErrorGuaranteed {
         self.emit_err(err)
     }
 }
@@ -141,7 +139,7 @@ impl<'sess> Errors<'sess> {
     }
 
     #[track_caller]
-    pub fn emit<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
+    pub fn emit<'a>(&'a self, err: impl Diagnostic<'a>) -> ErrorGuaranteed {
         let err = self.sess.emit_err(err);
         self.err.set(Some(err));
         err
@@ -158,7 +156,7 @@ impl<'sess> Errors<'sess> {
 
 impl ErrorEmitter for Errors<'_> {
     #[track_caller]
-    fn emit<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
+    fn emit<'a>(&'a self, err: impl Diagnostic<'a>) -> ErrorGuaranteed {
         Errors::emit(self, err)
     }
 }

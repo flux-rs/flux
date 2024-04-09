@@ -4,7 +4,7 @@ use flux_common::index::IndexGen;
 use flux_config as config;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_macros::newtype_index;
+use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Pos, Span};
 use rustc_target::abi::FieldIdx;

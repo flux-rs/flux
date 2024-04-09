@@ -895,10 +895,8 @@ fn fold(
 }
 
 mod pretty {
-    use std::fmt;
 
     use flux_middle::pretty::*;
-    use itertools::Itertools;
     use rustc_middle::ty::TyCtxt;
 
     use super::*;

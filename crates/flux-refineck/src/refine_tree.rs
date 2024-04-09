@@ -657,7 +657,6 @@ mod pretty {
 
     use flux_common::format::PadAdapter;
     use flux_middle::pretty::*;
-    use itertools::Itertools;
 
     use super::*;
 

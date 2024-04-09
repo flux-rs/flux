@@ -14,7 +14,6 @@ use flux_common::dbg;
 use flux_config as config;
 use flux_macros::fluent_messages;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
-use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 
 fluent_messages! { "../locales/en-US.ftl" }
 
@@ -148,7 +147,7 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     fn desugar_rust_items(&mut self, specs: &Specs) {
         let crate_items = self.genv.tcx().hir_crate_items(());
         for owner_id in crate_items.owners() {
-            match self.genv.hir().owner(owner_id) {
+            match self.genv.tcx().hir_owner_node(owner_id) {
                 rustc_hir::OwnerNode::Item(item) => {
                     self.desugar_rust_item(item, specs);
                 }
@@ -158,7 +157,9 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
                 rustc_hir::OwnerNode::ImplItem(impl_item) => {
                     self.desugar_impl_item(impl_item, specs);
                 }
-                rustc_hir::OwnerNode::ForeignItem(_) | rustc_hir::OwnerNode::Crate(_) => {}
+                rustc_hir::OwnerNode::Synthetic
+                | rustc_hir::OwnerNode::ForeignItem(_)
+                | rustc_hir::OwnerNode::Crate(_) => {}
             }
         }
     }

@@ -1072,15 +1072,15 @@ impl<'fhir> FuncSort<'fhir> {
     }
 }
 
-impl rustc_errors::IntoDiagnosticArg for Ty<'_> {
-    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+impl rustc_errors::IntoDiagArg for Ty<'_> {
+    fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+        rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 
-impl rustc_errors::IntoDiagnosticArg for Path<'_> {
-    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+impl rustc_errors::IntoDiagArg for Path<'_> {
+    fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+        rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 

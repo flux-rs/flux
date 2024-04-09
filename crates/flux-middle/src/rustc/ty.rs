@@ -13,7 +13,7 @@ use rustc_middle::ty::{AdtFlags, ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundRegionKind, BoundVar, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy,
+        BoundRegionKind, BoundVar, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy,
         OutlivesPredicate, ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
@@ -254,7 +254,7 @@ pub struct CoroutineArgsParts<'a> {
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Region {
     ReLateBound(DebruijnIndex, BoundRegion),
-    ReEarlyBound(EarlyBoundRegion),
+    ReEarlyBound(EarlyParamRegion),
     ReStatic,
     ReVar(RegionVid),
     ReFree(FreeRegion),
@@ -264,13 +264,13 @@ impl Region {
     pub fn to_rustc(self, tcx: TyCtxt) -> rustc_middle::ty::Region {
         match self {
             Region::ReLateBound(debruijn, bound_region) => {
-                rustc_middle::ty::Region::new_late_bound(tcx, debruijn, bound_region.to_rustc())
+                rustc_middle::ty::Region::new_bound(tcx, debruijn, bound_region.to_rustc())
             }
-            Region::ReEarlyBound(ebr) => rustc_middle::ty::Region::new_early_bound(tcx, ebr),
+            Region::ReEarlyBound(epr) => rustc_middle::ty::Region::new_early_param(tcx, epr),
             Region::ReStatic => tcx.lifetimes.re_static,
             Region::ReVar(rvid) => rustc_middle::ty::Region::new_var(tcx, rvid),
             Region::ReFree(FreeRegion { scope, bound_region }) => {
-                rustc_middle::ty::Region::new_free(tcx, scope, bound_region)
+                rustc_middle::ty::Region::new_late_param(tcx, scope, bound_region)
             }
         }
     }

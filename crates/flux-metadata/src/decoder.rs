@@ -12,8 +12,11 @@ use rustc_middle::{
     implement_ty_decoder,
     ty::{self, TyCtxt},
 };
-use rustc_serialize::{opaque::MemDecoder, Decodable, Decoder};
-use rustc_span::def_id::{CrateNum, DefIndex, StableCrateId};
+use rustc_serialize::{opaque::MemDecoder, Decodable};
+use rustc_span::{
+    def_id::{CrateNum, DefIndex},
+    SpanDecoder,
+};
 use rustc_type_ir::TyDecoder;
 
 use crate::{CrateMetadata, METADATA_HEADER};
@@ -45,20 +48,41 @@ pub(super) fn decode_crate_metadata(
     Some(CrateMetadata::decode(&mut decoder))
 }
 
-impl<'a, 'tcx> Decodable<DecodeContext<'a, 'tcx>> for CrateNum {
-    fn decode(d: &mut DecodeContext<'a, 'tcx>) -> Self {
-        let stable_id = StableCrateId::decode(d);
-        d.tcx.stable_crate_id_to_crate_num(stable_id)
-    }
-}
-
-impl<'a, 'tcx> Decodable<DecodeContext<'a, 'tcx>> for DefIndex {
-    fn decode(d: &mut DecodeContext<'a, 'tcx>) -> Self {
-        DefIndex::from_u32(d.read_u32())
-    }
-}
-
 implement_ty_decoder!(DecodeContext<'a, 'tcx>);
+
+impl<'a, 'tcx> SpanDecoder for DecodeContext<'a, 'tcx> {
+    fn decode_span(&mut self) -> rustc_span::Span {
+        self.opaque.decode_span()
+    }
+
+    fn decode_symbol(&mut self) -> rustc_span::Symbol {
+        self.opaque.decode_symbol()
+    }
+
+    fn decode_expn_id(&mut self) -> rustc_span::ExpnId {
+        self.opaque.decode_expn_id()
+    }
+
+    fn decode_syntax_context(&mut self) -> rustc_span::SyntaxContext {
+        self.opaque.decode_syntax_context()
+    }
+
+    fn decode_crate_num(&mut self) -> CrateNum {
+        self.opaque.decode_crate_num()
+    }
+
+    fn decode_def_index(&mut self) -> DefIndex {
+        self.opaque.decode_def_index()
+    }
+
+    fn decode_def_id(&mut self) -> rustc_hir::def_id::DefId {
+        self.opaque.decode_def_id()
+    }
+
+    fn decode_attr_id(&mut self) -> rustc_ast::AttrId {
+        self.opaque.decode_attr_id()
+    }
+}
 
 impl<'a, 'tcx> TyDecoder for DecodeContext<'a, 'tcx> {
     type I = TyCtxt<'tcx>;
@@ -108,10 +132,11 @@ impl<'a, 'tcx> TyDecoder for DecodeContext<'a, 'tcx> {
 mod errors {
     use std::{io, path::Path};
 
+    use flux_errors::E0999;
     use flux_macros::Diagnostic;
 
     #[derive(Diagnostic)]
-    #[diag(metadata_decode_file_error, code = "FLUX")]
+    #[diag(metadata_decode_file_error, code = E0999)]
     pub(super) struct DecodeFileError<'a> {
         path: &'a Path,
         err: io::Error,

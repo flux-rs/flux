@@ -9,7 +9,7 @@ use itertools::Itertools;
 use rustc_ast::{
     tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, Attribute, MetaItemKind, NestedMetaItem,
 };
-use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
+use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
@@ -50,7 +50,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let crate_items = tcx.hir_crate_items(());
 
-        for item_id in crate_items.items() {
+        for item_id in crate_items.free_items() {
             let item = tcx.hir().item(item_id);
             let hir_id = item.hir_id();
             let attrs = tcx.hir().attrs(hir_id);
@@ -374,7 +374,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     match &attr_item.item.path.segments[..] {
                         [first, ..] => {
                             let ident = first.ident.as_str();
-                            if ident == "flux" || ident == "flux_tool" {
+                            if ident == E0999 || ident == "flux_tool" {
                                 Some(attr_item)
                             } else {
                                 None
@@ -471,9 +471,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     fn extract_extern_def_id_from_extern_spec_fn(&mut self, def_id: LocalDefId) -> Result<DefId> {
         use rustc_hir::{def, ExprKind, Node};
         // Regular functions
-        if let Node::Item(i) = self.tcx.hir().find_by_def_id(def_id).unwrap()
+        if let Node::Item(i) = self.tcx.hir_node_by_def_id(def_id)
             && let ItemKind::Fn(_, _, body_id) = &i.kind
-            && let Node::Expr(e) = self.tcx.hir().find(body_id.hir_id).unwrap()
+            && let Node::Expr(e) = self.tcx.hir_node(body_id.hir_id)
             && let ExprKind::Block(b, _) = e.kind
             && let Some(e) = b.expr
             && let ExprKind::Call(callee, _) = &e.kind
@@ -485,9 +485,9 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             }
         }
         // impl functions
-        if let Node::ImplItem(i) = self.tcx.hir().find_by_def_id(def_id).unwrap()
+        if let Node::ImplItem(i) = self.tcx.hir_node_by_def_id(def_id)
             && let ImplItemKind::Fn(_, body_id) = &i.kind
-            && let Node::Expr(e) = self.tcx.hir().find(body_id.hir_id).unwrap()
+            && let Node::Expr(e) = self.tcx.hir_node(body_id.hir_id)
             && let ExprKind::Block(b, _) = e.kind
             && let Some(e) = b.expr
             && let ExprKind::Call(callee, _) = &e.kind
@@ -687,7 +687,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn emit_err(&mut self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed {
+    fn emit_err(&mut self, err: impl Diagnostic<'a>) -> ErrorGuaranteed {
         let e = self.sess.emit_err(err);
         self.error_guaranteed = Some(e);
         e
@@ -973,11 +973,12 @@ impl FluxAttrCFG {
 }
 
 mod errors {
+    use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(driver_duplicated_attr, code = "FLUX")]
+    #[diag(driver_duplicated_attr, code = E0999)]
     pub(super) struct DuplicatedAttr {
         #[primary_span]
         pub span: Span,
@@ -985,14 +986,14 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_invalid_attr, code = "FLUX")]
+    #[diag(driver_invalid_attr, code = E0999)]
     pub(super) struct InvalidAttr {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_cfg_error, code = "FLUX")]
+    #[diag(driver_cfg_error, code = E0999)]
     pub(super) struct CFGError {
         #[primary_span]
         pub span: Span,
@@ -1000,7 +1001,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_syntax_err, code = "FLUX")]
+    #[diag(driver_syntax_err, code = E0999)]
     pub(super) struct SyntaxErr {
         #[primary_span]
         pub span: Span,
@@ -1008,21 +1009,21 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_malformed_extern_spec, code = "FLUX")]
+    #[diag(driver_malformed_extern_spec, code = E0999)]
     pub(super) struct MalformedExternSpec {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_missing_fn_sig_for_extern_spec, code = "FLUX")]
+    #[diag(driver_missing_fn_sig_for_extern_spec, code = E0999)]
     pub(super) struct MissingFnSigForExternSpec {
         #[primary_span]
         pub span: Span,
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_attr_on_opaque, code = "FLUX")]
+    #[diag(driver_attr_on_opaque, code = E0999)]
     pub(super) struct AttrOnOpaque {
         #[primary_span]
         span: Span,
@@ -1038,7 +1039,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_missing_variant, code = "FLUX")]
+    #[diag(driver_missing_variant, code = E0999)]
     #[note]
     pub(super) struct MissingVariant {
         #[primary_span]

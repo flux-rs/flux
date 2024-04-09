@@ -2,6 +2,7 @@
 
 extern crate rustc_macros;
 extern crate rustc_serialize;
+extern crate rustc_span;
 
 pub mod big_int;
 mod constraint;

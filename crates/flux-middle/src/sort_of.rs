@@ -124,7 +124,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             ty::TyKind::Float(_)
             | ty::TyKind::Str
             | ty::TyKind::Char
-            | ty::TyKind::RawPtr(_)
+            | ty::TyKind::RawPtr(..)
             | ty::TyKind::Ref(..)
             | ty::TyKind::Tuple(_)
             | ty::TyKind::Array(..)

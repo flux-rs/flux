@@ -11,14 +11,13 @@ mod utils;
 use diagnostic::DiagnosticDerive;
 pub(crate) use fluent::fluent_messages;
 use proc_macro2::TokenStream;
-use quote::format_ident;
-use subdiagnostic::SubdiagnosticDeriveBuilder;
+use subdiagnostic::SubdiagnosticDerive;
 use synstructure::Structure;
 
 pub fn diagnostic_derive(s: Structure<'_>) -> TokenStream {
-    DiagnosticDerive::new(format_ident!("diag"), format_ident!("sess"), s).into_tokens()
+    DiagnosticDerive::new(s).into_tokens()
 }
 
 pub fn subdiagnostic_derive(s: Structure<'_>) -> TokenStream {
-    SubdiagnosticDeriveBuilder::new().into_tokens(s)
+    SubdiagnosticDerive::new().into_tokens(s)
 }

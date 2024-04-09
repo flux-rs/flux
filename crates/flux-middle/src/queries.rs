@@ -4,10 +4,10 @@ use std::{
 };
 
 use flux_common::iter::IterExt;
-use flux_errors::ErrorGuaranteed;
+use flux_errors::{ErrorGuaranteed, E0999};
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
-use rustc_errors::IntoDiagnostic;
+use rustc_errors::Diagnostic;
 use rustc_hash::FxHashMap;
 use rustc_hir::{
     def::DefKind,
@@ -527,7 +527,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: LocalDefId,
     ) -> QueryResult<List<rustc::ty::BoundVariableKind>> {
         run_with_cache(&self.lower_late_bound_vars, def_id, || {
-            let hir_id = genv.hir().local_def_id_to_hir_id(def_id);
+            let hir_id = genv.tcx().local_def_id_to_hir_id(def_id);
             let bound_vars = genv.tcx().late_bound_vars(hir_id);
             lowering::lower_bound_vars(bound_vars)
                 .map_err(UnsupportedReason::into_err)
@@ -555,35 +555,31 @@ impl QueryErr {
     }
 }
 
-impl<'a> IntoDiagnostic<'a> for QueryErr {
-    fn into_diagnostic(
+impl<'a> Diagnostic<'a> for QueryErr {
+    fn into_diag(
         self,
-        handler: &'a rustc_errors::Handler,
-    ) -> rustc_errors::DiagnosticBuilder<'a, ErrorGuaranteed> {
+        dcx: &'a rustc_errors::DiagCtxt,
+        _level: rustc_errors::Level,
+    ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
         use crate::fluent_generated as fluent;
         match self {
             QueryErr::Unsupported { err, def_span, .. } => {
                 let span = err.span.unwrap_or(def_span);
-                let mut builder = handler.struct_span_err_with_code(
-                    span,
-                    fluent::middle_query_unsupported,
-                    flux_errors::diagnostic_id(),
-                );
-                builder.note(err.descr);
-                builder
+                let mut diag = dcx.struct_span_err(span, fluent::middle_query_unsupported);
+                diag.code(E0999);
+                diag.note(err.descr);
+                diag
             }
             QueryErr::Emitted(_) => {
-                let mut builder = handler.struct_err("QueryErr::Emitted should be emitted");
-                builder.downgrade_to_delayed_bug();
-                builder
+                let mut diag = dcx.struct_err("QueryErr::Emitted should be emitted");
+                diag.downgrade_to_delayed_bug();
+                diag
             }
             QueryErr::InvalidGenericArg { def_span, .. } => {
-                let builder = handler.struct_span_err_with_code(
-                    def_span,
-                    fluent::middle_query_invalid_generic_arg,
-                    flux_errors::diagnostic_id(),
-                );
-                builder
+                let mut diag =
+                    dcx.struct_span_err(def_span, fluent::middle_query_invalid_generic_arg);
+                diag.code(E0999);
+                diag
             }
         }
     }
