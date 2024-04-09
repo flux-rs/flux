@@ -139,6 +139,7 @@ fn install_driver(sh: &Shell, args: &Install) -> anyhow::Result<()> {
 fn install_libs(sh: &Shell, args: &Install) -> anyhow::Result<()> {
     // CODESYNC(build-sysroot, 5)
     let _env = sh.push_env("FLUX_BUILD_SYSROOT", "1");
+    println!("$ export FLUX_BUILD_SYSROOT=1");
 
     let out_dir = default_sysroot_dir();
     if args.is_release() {

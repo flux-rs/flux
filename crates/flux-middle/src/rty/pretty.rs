@@ -1,6 +1,5 @@
 use std::fmt;
 
-use rustc_middle::ty::TyCtxt;
 use rustc_type_ir::DebruijnIndex;
 
 use super::*;

@@ -14,7 +14,7 @@ fluent-syntax = "0.11"
 proc-macro2 = "1"
 quote = "1"
 syn = { version = "2", features = ["full"] }
-synstructure = "0.13.0"
+synstructure = "0.13.1"
 unic-langid = { version = "0.9.4", features = ["macros"] }
 
 [lints]

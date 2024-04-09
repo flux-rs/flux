@@ -676,32 +676,6 @@ impl PlaceOrValue {
     const TOP: Self = PlaceOrValue::Value(FlatSet::TOP);
 }
 
-/// See [`State`].
-#[derive(PartialEq, Eq, Debug)]
-enum StateData {
-    Reachable(IndexVec<ValueIndex, FlatSet<Loc>>),
-    Unreachable,
-}
-
-impl Clone for StateData {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Reachable(x) => Self::Reachable(x.clone()),
-            Self::Unreachable => Self::Unreachable,
-        }
-    }
-
-    fn clone_from(&mut self, source: &Self) {
-        match (&mut *self, source) {
-            (Self::Reachable(x), Self::Reachable(y)) => {
-                // We go through `raw` here, because `IndexVec` currently has a naive `clone_from`.
-                x.raw.clone_from(&y.raw);
-            }
-            _ => *self = source.clone(),
-        }
-    }
-}
-
 /// The dataflow state for the [`PointsToAnalysis`].
 ///
 /// Every instance specifies a lattice that represents the possible values of a single tracked

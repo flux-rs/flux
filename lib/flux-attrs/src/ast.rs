@@ -110,6 +110,7 @@ pub struct ItemStruct {
     pub struct_token: Token![struct],
     pub ident: Ident,
     pub generics: Generics,
+    #[cfg_attr(not(flux_sysroot), allow(dead_code))]
     pub refined_by: Option<RefinedBy>,
     pub fields: Fields,
     pub semi_token: Option<Token![;]>,
@@ -122,6 +123,7 @@ pub struct ItemEnum {
     pub enum_token: Token![enum],
     pub ident: Ident,
     pub generics: Generics,
+    #[cfg_attr(not(flux_sysroot), allow(dead_code))]
     pub refined_by: Option<RefinedBy>,
     pub brace_token: token::Brace,
     pub variants: Punctuated<Variant, Token![,]>,
@@ -140,6 +142,7 @@ pub struct Variant {
     /// Explicit discriminant: `Variant = 1`
     pub discriminant: Option<(Token![=], syn::Expr)>,
 
+    #[cfg_attr(not(flux_sysroot), allow(dead_code))]
     pub ret: Option<VariantRet>,
 }
 
@@ -172,6 +175,7 @@ impl ToTokens for ToTokensFlux<&Variant> {
     }
 }
 
+#[cfg_attr(not(flux_sysroot), allow(dead_code))]
 #[derive(Debug)]
 pub struct VariantRet {
     pub arrow_token: Option<Token![->]>,
@@ -180,6 +184,7 @@ pub struct VariantRet {
     pub indices: TokenStream,
 }
 
+#[cfg_attr(not(flux_sysroot), allow(dead_code))]
 #[derive(Debug)]
 pub struct RefinedBy {
     pub refined_by: Option<(kw::refined, kw::by)>,
@@ -258,7 +263,7 @@ pub struct Field {
 
     pub vis: Visibility,
 
-    pub mutability: syn::FieldMutability,
+    pub _mutability: syn::FieldMutability,
 
     /// Name of the field, if any.
     ///
@@ -275,7 +280,7 @@ impl Field {
         Ok(Field {
             attrs: input.call(Attribute::parse_outer)?,
             vis: input.parse()?,
-            mutability: syn::FieldMutability::None,
+            _mutability: syn::FieldMutability::None,
             ident: None,
             colon_token: None,
             ty: input.parse()?,
@@ -292,7 +297,7 @@ impl Field {
         Ok(Field {
             attrs,
             vis,
-            mutability: syn::FieldMutability::None,
+            _mutability: syn::FieldMutability::None,
             ident: Some(ident),
             colon_token: Some(colon_token),
             ty,
@@ -557,9 +562,6 @@ pub struct TypeArray {
     pub semi_token: Token![;],
     pub len: TokenStream,
 }
-
-#[derive(Debug)]
-pub struct TypeHole {}
 
 #[derive(Debug)]
 pub enum BaseType {
@@ -1805,12 +1807,14 @@ impl ToTokens for ItemType {
     }
 }
 
+#[cfg(flux_sysroot)]
 impl ToTokens for ToTokensFlux<&ItemType> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.0.to_tokens_inner(tokens, Mode::Flux);
     }
 }
 
+#[cfg(flux_sysroot)]
 impl ToTokens for ToTokensFlux<&Type> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.0.to_tokens_inner(tokens, Mode::Flux);
@@ -1958,8 +1962,10 @@ impl ToTokens for ImplItemFn {
     }
 }
 
+#[cfg(flux_sysroot)]
 struct ToTokensFlux<T>(T);
 
+#[cfg(flux_sysroot)]
 impl ToTokens for ToTokensFlux<&Signature> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.0.to_tokens_inner(tokens, Mode::Flux);

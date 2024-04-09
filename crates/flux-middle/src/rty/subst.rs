@@ -1,16 +1,14 @@
 use std::{cmp::Ordering, collections::hash_map};
 
 use flux_common::bug;
-use rustc_data_structures::unord::UnordMap;
 use rustc_middle::ty::RegionVid;
-use rustc_type_ir::{DebruijnIndex, INNERMOST};
+use rustc_type_ir::DebruijnIndex;
 
-use self::expr::BoundReft;
 use super::{
     evars::EVarSol,
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+    fold::{TypeFolder, TypeSuperFoldable},
 };
-use crate::{rty::*, rustc};
+use crate::rty::*;
 
 #[derive(Debug)]
 pub struct RegionSubst {
