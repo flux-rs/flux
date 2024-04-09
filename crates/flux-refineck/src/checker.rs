@@ -587,7 +587,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
                 rty::ClauseKind::Projection(_)
                 | rty::ClauseKind::Trait(_)
-                | rty::ClauseKind::TypeOutlives(_) => {}
+                | rty::ClauseKind::TypeOutlives(_)
+                | rty::ClauseKind::ConstArgHasType(_, _) => {}
             }
         }
         Ok(())

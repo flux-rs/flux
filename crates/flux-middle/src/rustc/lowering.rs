@@ -885,6 +885,9 @@ fn lower_clause<'tcx>(
         rustc_ty::ClauseKind::TypeOutlives(outlives_pred) => {
             ClauseKind::TypeOutlives(lower_type_outlives(tcx, outlives_pred)?)
         }
+        rustc_ty::ClauseKind::ConstArgHasType(const_, ty) => {
+            ClauseKind::ConstArgHasType(lower_const(tcx, const_)?, lower_ty(tcx, ty)?)
+        }
         _ => {
             return Err(UnsupportedReason::new(format!("unsupported clause kind `{kind:?}`")));
         }

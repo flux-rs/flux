@@ -74,6 +74,7 @@ pub enum ClauseKind {
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
     TypeOutlives(TypeOutlivesPredicate),
+    ConstArgHasType(Const, Ty),
 }
 
 pub type TypeOutlivesPredicate = OutlivesPredicate<Ty, Region>;

@@ -129,6 +129,9 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 let pred = rty::OutlivesPredicate(self.refine_ty(&pred.0)?, pred.1);
                 rty::ClauseKind::TypeOutlives(pred)
             }
+            rustc::ty::ClauseKind::ConstArgHasType(const_, ty) => {
+                rty::ClauseKind::ConstArgHasType(const_.clone(), self.as_default().refine_ty(ty)?)
+            }
         };
         let kind = rty::Binder::new(kind, List::empty());
         Ok(Some(rty::Clause { kind }))

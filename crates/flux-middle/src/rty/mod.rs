@@ -177,6 +177,7 @@ pub enum ClauseKind {
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
     TypeOutlives(TypeOutlivesPredicate),
+    ConstArgHasType(Const, Ty),
     CoroutineOblig(CoroutineObligPredicate),
 }
 
