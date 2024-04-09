@@ -184,11 +184,10 @@ pub struct VariantRet {
     pub indices: TokenStream,
 }
 
-#[cfg_attr(not(flux_sysroot), allow(dead_code))]
 #[derive(Debug)]
 pub struct RefinedBy {
-    pub refined_by: Option<(kw::refined, kw::by)>,
-    pub bracket_token: token::Bracket,
+    pub _refined_by: Option<(kw::refined, kw::by)>,
+    pub _bracket_token: token::Bracket,
     pub params: Punctuated<RefinedByParam, Token![,]>,
 }
 
@@ -902,8 +901,8 @@ impl Parse for RefinedBy {
             if input.peek(kw::refined) { Some((input.parse()?, input.parse()?)) } else { None };
         let content;
         Ok(RefinedBy {
-            refined_by,
-            bracket_token: bracketed!(content in input),
+            _refined_by: refined_by,
+            _bracket_token: bracketed!(content in input),
             params: Punctuated::parse_terminated(&content)?,
         })
     }

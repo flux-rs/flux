@@ -180,6 +180,7 @@ fn project_root() -> PathBuf {
 fn build_sysroot(sh: &Shell) -> anyhow::Result<()> {
     // CODESYNC(build-sysroot, 5)
     let _env = sh.push_env("FLUX_BUILD_SYSROOT", "1");
+    println!("$ export FLUX_BUILD_SYSROOT=1");
     cmd!(sh, "cargo build -p flux-rs").run()?;
     Ok(())
 }
