@@ -536,8 +536,8 @@ For example:</p>
      Running `target/debug/xtask test impl_trait`
 $ cargo build
     Finished dev [unoptimized + debuginfo] target(s) in 0.05s
-$ cargo test -p flux-tests -- --test-args impl_trait
-   Compiling flux-tests v0.1.0 (/path/to/flux/flux-tests)
+$ cargo test -p tests -- --test-args impl_trait
+   Compiling fluxtests v0.1.0 (/path/to/flux/tests)
     Finished test [unoptimized + debuginfo] target(s) in 0.62s
      Running tests/compiletest.rs (target/debug/deps/compiletest-1241128f1f51caa4)
 
@@ -681,7 +681,7 @@ struct HashSet&lt;T, S = RandomState&gt;;
 <li><code>crates/flux-middle</code>: This crate contains common type definitions that are used by the rest of Flux like the <code>rty</code> and <code>fhir</code> intermediate representations. Akin to <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/index.html"><code>rustc_middle</code></a>.</li>
 <li><code>crates/flux-refineck</code>: Implementation of refinement type checking.</li>
 <li><code>crates/flux-syntax</code>: Definition of the surface syntax AST and parser.</li>
-<li><code>crates/flux-tests</code>: Flux regression tests.</li>
+<li><code>tests</code>: Flux regression tests.</li>
 <li><code>lib/flux-attrs</code>: Implementation of user facing procedural macros for annotating programs with Flux specs.</li>
 <li><code>lib/flux-rs</code>: This is just a re-export of the macros implemented in <code>flux-attrs</code>. The intention is to eventually put Flux "standard library" here, i.e., a set of definitions that are useful when working with Flux.</li>
 </ul>

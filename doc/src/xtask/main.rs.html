@@ -204,7 +204,7 @@
     path::{Path, PathBuf},
 };
 
-<span class="kw">use </span>flux_tests::{find_flux_path, FLUX_SYSROOT};
+<span class="kw">use </span>tests::{find_flux_path, FLUX_SYSROOT};
 <span class="kw">use </span>xshell::{cmd, Shell};
 
 <span class="macro">xflags::xflags!</span> {
@@ -280,9 +280,9 @@
     <span class="kw">let </span>Test { filter } = args;
     prepare(<span class="kw-2">&amp;</span>sh)<span class="question-mark">?</span>;
     <span class="kw">if let </span><span class="prelude-val">Some</span>(filter) = filter {
-        <span class="macro">cmd!</span>(sh, <span class="string">"cargo test -p flux-tests -- --test-args {filter}"</span>).run()<span class="question-mark">?</span>;
+        <span class="macro">cmd!</span>(sh, <span class="string">"cargo test -p tests -- --test-args {filter}"</span>).run()<span class="question-mark">?</span>;
     } <span class="kw">else </span>{
-        <span class="macro">cmd!</span>(sh, <span class="string">"cargo test -p flux-tests"</span>).run()<span class="question-mark">?</span>;
+        <span class="macro">cmd!</span>(sh, <span class="string">"cargo test -p tests"</span>).run()<span class="question-mark">?</span>;
     }
     <span class="prelude-val">Ok</span>(())
 }
@@ -311,7 +311,7 @@
     prepare(sh)<span class="question-mark">?</span>;
     <span class="kw">let </span>flux_path = find_flux_path();
     <span class="kw">let </span>_env = sh.push_env(FLUX_SYSROOT, flux_path.parent().unwrap());
-    <span class="kw">let </span><span class="kw-2">mut </span>rustc_flags = flux_tests::rustc_flags();
+    <span class="kw">let </span><span class="kw-2">mut </span>rustc_flags = tests::rustc_flags();
     rustc_flags.extend(flags);
 
     <span class="macro">cmd!</span>(sh, <span class="string">"{flux_path} {rustc_flags...} {input}"</span>).run()<span class="question-mark">?</span>;
