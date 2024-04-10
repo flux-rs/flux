@@ -4,8 +4,8 @@
 use std::{env, path::PathBuf};
 
 use compiletest_rs::{common::Mode, Config};
-use tests::{find_flux_path, rustc_flags, FLUX_SYSROOT};
 use itertools::Itertools;
+use tests::{find_flux_path, rustc_flags, FLUX_SYSROOT};
 
 fn config() -> Config {
     let bless = env::args().any(|arg| arg == "--bless");
