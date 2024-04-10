@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/fold.rs`."><title>fold.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/fold.rs`."><title>fold.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_middle/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1252,6 +1254,10 @@
 <a href="#1252" id="1252">1252</a>
 <a href="#1253" id="1253">1253</a>
 <a href="#1254" id="1254">1254</a>
+<a href="#1255" id="1255">1255</a>
+<a href="#1256" id="1256">1256</a>
+<a href="#1257" id="1257">1257</a>
+<a href="#1258" id="1258">1258</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1417,7 +1423,7 @@
 
     <span class="kw">fn </span>has_escaping_bvars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">struct </span>HasEscapingVars {
-            <span class="doccomment">/// Anything bound by `outer_index` or &quot;above&quot; is escaping.
+            <span class="doccomment">/// Anything bound by `outer_index` or "above" is escaping.
             </span>outer_index: DebruijnIndex,
         }
 
@@ -1478,10 +1484,10 @@
         <span class="self">self</span>.try_fold_with(folder).into_ok()
     }
 
-    <span class="kw">fn </span>normalize_projections&lt;<span class="lifetime">&#39;tcx</span>&gt;(
+    <span class="kw">fn </span>normalize_projections&lt;<span class="lifetime">'tcx</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        infcx: <span class="kw-2">&amp;</span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
+        infcx: <span class="kw-2">&amp;</span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
         callsite_def_id: DefId,
         refine_params: <span class="kw-2">&amp;</span>[Expr],
     ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
@@ -1673,6 +1679,7 @@
             ClauseKind::Projection(pred) =&gt; pred.visit_with(visitor),
             ClauseKind::CoroutineOblig(pred) =&gt; pred.visit_with(visitor),
             ClauseKind::TypeOutlives(pred) =&gt; pred.visit_with(visitor),
+            ClauseKind::ConstArgHasType(_const, ty) =&gt; ty.visit_with(visitor),
         }
     }
 }
@@ -1688,6 +1695,9 @@
             }
             ClauseKind::TypeOutlives(pred) =&gt; {
                 <span class="prelude-val">Ok</span>(ClauseKind::TypeOutlives(pred.try_fold_with(folder)<span class="question-mark">?</span>))
+            }
+            ClauseKind::ConstArgHasType(const_, ty) =&gt; {
+                <span class="prelude-val">Ok</span>(ClauseKind::ConstArgHasType(const_.clone(), ty.try_fold_with(folder)<span class="question-mark">?</span>))
             }
         }
     }
@@ -2010,7 +2020,7 @@
                     </span>.normalize(<span class="kw-2">&amp;</span>Default::default());
                 Constraint::Type(
                     path_expr.to_path().unwrap_or_else(|| {
-                        <span class="macro">bug!</span>(<span class="string">&quot;invalid path `{path_expr:?}` produced when folding `{self:?}`&quot;</span>,)
+                        <span class="macro">bug!</span>(<span class="string">"invalid path `{path_expr:?}` produced when folding `{self:?}`"</span>,)
                     }),
                     ty.try_fold_with(folder)<span class="question-mark">?</span>,
                     <span class="kw-2">*</span>local,
@@ -2083,7 +2093,7 @@
                         .try_fold_with(folder)<span class="question-mark">?
                         </span>.normalize(<span class="kw-2">&amp;</span>Default::default())
                         .to_path()
-                        .expect(<span class="string">&quot;type folding produced an invalid path&quot;</span>),
+                        .expect(<span class="string">"type folding produced an invalid path"</span>),
                 )
             }
             TyKind::Constr(pred, ty) =&gt; {

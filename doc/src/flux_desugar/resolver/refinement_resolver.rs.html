@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/resolver/refinement_resolver.rs`."><title>refinement_resolver.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/resolver/refinement_resolver.rs`."><title>refinement_resolver.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_desugar/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -945,6 +947,7 @@
 <a href="#945" id="945">945</a>
 <a href="#946" id="946">946</a>
 <a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -1244,17 +1247,17 @@
     }
 }
 
-<span class="kw">struct </span>ImplicitParamCollector&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    path_res_map: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>UnordMap&lt;surface::NodeId, fhir::Res&gt;,
+<span class="kw">struct </span>ImplicitParamCollector&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; {
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    path_res_map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>UnordMap&lt;surface::NodeId, fhir::Res&gt;,
     kind: ScopeKind,
     params: Vec&lt;(Ident, fhir::ParamKind, NodeId)&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; ImplicitParamCollector&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; ImplicitParamCollector&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">fn </span>new(
-        tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-        path_res_map: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>UnordMap&lt;surface::NodeId, fhir::Res&gt;,
+        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+        path_res_map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>UnordMap&lt;surface::NodeId, fhir::Res&gt;,
         kind: ScopeKind,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ tcx, path_res_map, kind, params: <span class="macro">vec!</span>[] }
@@ -1270,7 +1273,7 @@
     }
 }
 
-<span class="kw">impl </span>ScopedVisitor <span class="kw">for </span>ImplicitParamCollector&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>ScopedVisitor <span class="kw">for </span>ImplicitParamCollector&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>surface::PathSegment) -&gt; bool {
         <span class="kw">let </span>res = <span class="self">self</span>.path_res_map[<span class="kw-2">&amp;</span>segment.node_id];
         res.is_box(<span class="self">self</span>.tcx)
@@ -1322,18 +1325,18 @@
     <span class="prelude-val">None
 </span>}
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>RefinementResolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>RefinementResolver&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     scopes: Vec&lt;Scope&gt;,
     sorts_res: UnordMap&lt;Symbol, fhir::SortRes&gt;,
     param_defs: FxIndexMap&lt;NodeId, ParamDef&gt;,
-    resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     path_res_map: FxHashMap&lt;NodeId, ExprRes&lt;NodeId&gt;&gt;,
-    errors: Errors&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    errors: Errors&lt;<span class="lifetime">'genv</span>&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; RefinementResolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; RefinementResolver&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>for_flux_item(
-        resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         sort_params: <span class="kw-2">&amp;</span>[Ident],
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>sort_res = sort_params
@@ -1345,7 +1348,7 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>for_rust_item(
-        resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         owner: OwnerId,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>tcx = resolver.genv.tcx();
@@ -1363,21 +1366,21 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_qualifier(
-        resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         qualifier: <span class="kw-2">&amp;</span>surface::Qualifier,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="self">Self</span>::for_flux_item(resolver, <span class="kw-2">&amp;</span>[]).run(|r| r.visit_qualifier(qualifier))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_defn(
-        resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         defn: <span class="kw-2">&amp;</span>surface::SpecFunc,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="self">Self</span>::for_flux_item(resolver, <span class="kw-2">&amp;</span>defn.sort_vars).run(|r| r.visit_defn(defn))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_fn_sig(
-        resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         owner_id: OwnerId,
         fn_sig: <span class="kw-2">&amp;</span>surface::FnSig,
     ) -&gt; <span class="prelude-ty">Result </span>{
@@ -1386,7 +1389,7 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_struct_def(
-        resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         owner_id: OwnerId,
         struct_def: <span class="kw-2">&amp;</span>surface::StructDef,
     ) -&gt; <span class="prelude-ty">Result </span>{
@@ -1395,7 +1398,7 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_enum_def(
-        resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         owner_id: OwnerId,
         enum_def: <span class="kw-2">&amp;</span>surface::EnumDef,
     ) -&gt; <span class="prelude-ty">Result </span>{
@@ -1404,7 +1407,7 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_ty_alias(
-        resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         owner_id: OwnerId,
         ty_alias: <span class="kw-2">&amp;</span>surface::TyAlias,
     ) -&gt; <span class="prelude-ty">Result </span>{
@@ -1413,7 +1416,7 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_impl(
-        resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         owner_id: OwnerId,
         impl_: <span class="kw-2">&amp;</span>surface::Impl,
     ) -&gt; <span class="prelude-ty">Result </span>{
@@ -1422,7 +1425,7 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_trait(
-        resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         owner_id: OwnerId,
         trait_: <span class="kw-2">&amp;</span>surface::Trait,
     ) -&gt; <span class="prelude-ty">Result </span>{
@@ -1431,7 +1434,7 @@
     }
 
     <span class="kw">fn </span>new(
-        resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         sort_res: UnordMap&lt;Symbol, fhir::SortRes&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>errors = Errors::new(resolver.genv.sess());
@@ -1508,7 +1511,7 @@
             <span class="kw">return</span>;
         }
         <span class="self">self</span>.errors
-            .emit(errors::UnresolvedVar::from_ident(ident, <span class="string">&quot;name&quot;</span>));
+            .emit(errors::UnresolvedVar::from_ident(ident, <span class="string">"name"</span>));
     }
 
     <span class="kw">fn </span>resolve_sort_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::SortPath) {
@@ -1599,7 +1602,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>&gt; ScopedVisitor <span class="kw">for </span>RefinementResolver&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>&gt; ScopedVisitor <span class="kw">for </span>RefinementResolver&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>surface::PathSegment) -&gt; bool {
         <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().path_res_map[<span class="kw-2">&amp;</span>segment.node_id];
         res.is_box(<span class="self">self</span>.resolver.genv.tcx())
@@ -1680,12 +1683,12 @@
                         .insert(path.node_id, res);
                 } <span class="kw">else </span>{
                     <span class="self">self</span>.errors
-                        .emit(errors::UnresolvedVar::from_path(path, <span class="string">&quot;path&quot;</span>));
+                        .emit(errors::UnresolvedVar::from_path(path, <span class="string">"path"</span>));
                 }
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="self">self</span>.errors
-                    .emit(errors::UnresolvedVar::from_path(path, <span class="string">&quot;path&quot;</span>));
+                    .emit(errors::UnresolvedVar::from_path(path, <span class="string">"path"</span>));
             }
         }
     }
@@ -1700,15 +1703,15 @@
     }
 }
 
-<span class="macro">macro_rules! </span>define_resolve_num_const {
+<span class="macro">macro_rules!</span> define_resolve_num_const {
     ($(<span class="macro-nonterminal">$typ</span>:ident),<span class="kw-2">*</span>) =&gt; {
         <span class="kw">fn </span>resolve_num_const(typ: surface::Ident, name: surface::Ident) -&gt; <span class="prelude-ty">Option</span>&lt;ExprRes&gt; {
             <span class="kw">match </span>typ.name.as_str() {
                 $(
                     <span class="macro">stringify!</span>(<span class="macro-nonterminal">$typ</span>) =&gt; {
                         <span class="kw">match </span>name.name.as_str() {
-                            <span class="string">&quot;MAX&quot; </span>=&gt; <span class="prelude-val">Some</span>(ExprRes::NumConst(<span class="macro-nonterminal">$typ::MAX</span>.try_into().unwrap())),
-                            <span class="string">&quot;MIN&quot; </span>=&gt; <span class="prelude-val">Some</span>(ExprRes::NumConst(<span class="macro-nonterminal">$typ::MIN</span>.try_into().unwrap())),
+                            <span class="string">"MAX" </span>=&gt; <span class="prelude-val">Some</span>(ExprRes::NumConst(<span class="macro-nonterminal">$typ::MAX</span>.try_into().unwrap())),
+                            <span class="string">"MIN" </span>=&gt; <span class="prelude-val">Some</span>(ExprRes::NumConst(<span class="macro-nonterminal">$typ::MIN</span>.try_into().unwrap())),
                             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
                         }
                     },
@@ -1730,21 +1733,21 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">static </span>SORTS: std::sync::LazyLock&lt;Sorts&gt; = std::sync::LazyLock::new(|| {
     Sorts {
-        int: Symbol::intern(<span class="string">&quot;int&quot;</span>),
-        real: Symbol::intern(<span class="string">&quot;real&quot;</span>),
-        set: Symbol::intern(<span class="string">&quot;Set&quot;</span>),
-        map: Symbol::intern(<span class="string">&quot;Map&quot;</span>),
+        int: Symbol::intern(<span class="string">"int"</span>),
+        real: Symbol::intern(<span class="string">"real"</span>),
+        set: Symbol::intern(<span class="string">"Set"</span>),
+        map: Symbol::intern(<span class="string">"Map"</span>),
     }
 });
 
-<span class="kw">struct </span>IllegalBinderVisitor&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">struct </span>IllegalBinderVisitor&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     scopes: Vec&lt;ScopeKind&gt;,
-    resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    errors: Errors&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+    errors: Errors&lt;<span class="lifetime">'genv</span>&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; IllegalBinderVisitor&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">fn </span>new(resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; IllegalBinderVisitor&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">fn </span>new(resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>errors = Errors::new(resolver.genv.sess());
         <span class="self">Self </span>{ scopes: <span class="macro">vec!</span>[], resolver, errors }
     }
@@ -1756,7 +1759,7 @@
     }
 }
 
-<span class="kw">impl </span>ScopedVisitor <span class="kw">for </span>IllegalBinderVisitor&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>ScopedVisitor <span class="kw">for </span>IllegalBinderVisitor&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>surface::PathSegment) -&gt; bool {
         <span class="kw">let </span>res = <span class="self">self</span>.resolver.output.path_res_map[<span class="kw-2">&amp;</span>segment.node_id];
         res.is_box(<span class="self">self</span>.resolver.genv.tcx())
@@ -1796,13 +1799,14 @@
 }
 
 <span class="kw">mod </span>errors {
+    <span class="kw">use </span>flux_errors::E0999;
     <span class="kw">use </span>flux_macros::Diagnostic;
     <span class="kw">use </span>flux_syntax::surface;
     <span class="kw">use </span>itertools::Itertools;
     <span class="kw">use </span>rustc_span::{symbol::Ident, Span, Symbol};
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(desugar_duplicate_param, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(desugar_duplicate_param, code = E0999)]
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>DuplicateParam {
         <span class="attr">#[primary_span]
         #[label]
@@ -1820,7 +1824,7 @@
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(desugar_unresolved_sort, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(desugar_unresolved_sort, code = E0999)]
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnresolvedSort {
         <span class="attr">#[primary_span]
         #[label]
@@ -1835,7 +1839,7 @@
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(desugar_unresolved_var, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(desugar_unresolved_var, code = E0999)]
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnresolvedVar {
         <span class="attr">#[primary_span]
         #[label]
@@ -1850,20 +1854,20 @@
         }
 
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>from_ident(ident: Ident, kind: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
-            <span class="self">Self </span>{ span: ident.span, kind: kind.to_string(), var: <span class="macro">format!</span>(<span class="string">&quot;{ident}&quot;</span>) }
+            <span class="self">Self </span>{ span: ident.span, kind: kind.to_string(), var: <span class="macro">format!</span>(<span class="string">"{ident}"</span>) }
         }
 
         <span class="kw">fn </span>from_segments(segments: <span class="kw-2">&amp;</span>[Ident], kind: <span class="kw-2">&amp;</span>str, span: Span) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{
                 span,
                 kind: kind.to_string(),
-                var: <span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, segments.iter().format_with(<span class="string">&quot;::&quot;</span>, |s, f| f(<span class="kw-2">&amp;</span>s.name))),
+                var: <span class="macro">format!</span>(<span class="string">"{}"</span>, segments.iter().format_with(<span class="string">"::"</span>, |s, f| f(<span class="kw-2">&amp;</span>s.name))),
             }
         }
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(desugar_invalid_unrefined_param, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(desugar_invalid_unrefined_param, code = E0999)]
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InvalidUnrefinedParam {
         <span class="attr">#[primary_span]
         #[label]
@@ -1878,12 +1882,12 @@
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(desugar_illegal_binder, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(desugar_illegal_binder, code = E0999)]
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IllegalBinder {
         <span class="attr">#[primary_span]
         #[label]
         </span>span: Span,
-        kind: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+        kind: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
     }
 
     <span class="kw">impl </span>IllegalBinder {

@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/checker.rs`."><title>checker.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/checker.rs`."><title>checker.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../flux_refineck/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1572,13 +1574,7 @@
 <a href="#1572" id="1572">1572</a>
 <a href="#1573" id="1573">1573</a>
 <a href="#1574" id="1574">1574</a>
-<a href="#1575" id="1575">1575</a>
-<a href="#1576" id="1576">1576</a>
-<a href="#1577" id="1577">1577</a>
-<a href="#1578" id="1578">1578</a>
-<a href="#1579" id="1579">1579</a>
-<a href="#1580" id="1580">1580</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter, ops::ControlFlow};
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -1606,7 +1602,6 @@
 <span class="kw">use </span>rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 <span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
 <span class="kw">use </span>rustc_hir::{
-    def::DefKind,
     def_id::{DefId, LocalDefId},
     LangItem,
 };
@@ -1637,14 +1632,14 @@
     <span class="kw">pub </span>scrape_quals: bool,
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Checker&lt;<span class="lifetime">&#39;ck</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, M&gt; {
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Checker&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, M&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     <span class="doccomment">/// [`LocalDefId`] of the function-like item being checked.
     </span>def_id: LocalDefId,
     <span class="doccomment">/// [`Generics`] of the function being checked.
     </span>generics: Generics,
-    inherited: Inherited&lt;<span class="lifetime">&#39;ck</span>, M&gt;,
-    body: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span>Body&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    inherited: Inherited&lt;<span class="lifetime">'ck</span>, M&gt;,
+    body: <span class="kw-2">&amp;</span><span class="lifetime">'ck </span>Body&lt;<span class="lifetime">'tcx</span>&gt;,
     <span class="doccomment">/// The type used for the `resume` argument if we are checking a generator.
     </span>resume_ty: <span class="prelude-ty">Option</span>&lt;Ty&gt;,
     output: Binder&lt;FnOutput&gt;,
@@ -1652,26 +1647,26 @@
     /// of the terminator.
     </span>snapshots: IndexVec&lt;BasicBlock, <span class="prelude-ty">Option</span>&lt;Snapshot&gt;&gt;,
     visited: BitSet&lt;BasicBlock&gt;,
-    queue: WorkQueue&lt;<span class="lifetime">&#39;ck</span>&gt;,
+    queue: WorkQueue&lt;<span class="lifetime">'ck</span>&gt;,
 }
 
 <span class="doccomment">/// Fields shared by the top-level function and its nested closure/generators
-</span><span class="kw">struct </span>Inherited&lt;<span class="lifetime">&#39;ck</span>, M&gt; {
+</span><span class="kw">struct </span>Inherited&lt;<span class="lifetime">'ck</span>, M&gt; {
     <span class="doccomment">/// [`Expr`]s used to instantiate the early bound refinement parameters of the top-level function
     /// signature
     </span>refine_params: List&lt;Expr&gt;,
-    ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span>UnordMap&lt;LocalDefId, GhostStatements&gt;,
-    mode: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span><span class="kw-2">mut </span>M,
+    ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">'ck </span>UnordMap&lt;LocalDefId, GhostStatements&gt;,
+    mode: <span class="kw-2">&amp;</span><span class="lifetime">'ck </span><span class="kw-2">mut </span>M,
     config: CheckerConfig,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;ck</span>, M: Mode&gt; Inherited&lt;<span class="lifetime">&#39;ck</span>, M&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'ck</span>, M: Mode&gt; Inherited&lt;<span class="lifetime">'ck</span>, M&gt; {
     <span class="kw">fn </span>new(
         genv: GlobalEnv,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         def_id: LocalDefId,
-        mode: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span><span class="kw-2">mut </span>M,
-        ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span>UnordMap&lt;LocalDefId, GhostStatements&gt;,
+        mode: <span class="kw-2">&amp;</span><span class="lifetime">'ck </span><span class="kw-2">mut </span>M,
+        ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">'ck </span>UnordMap&lt;LocalDefId, GhostStatements&gt;,
         config: CheckerConfig,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>span = genv.tcx().def_span(def_id);
@@ -1685,14 +1680,14 @@
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ refine_params, ghost_stmts, mode, config })
     }
 
-    <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
         def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
         rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         span: Span,
-    ) -&gt; ConstrGen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    ) -&gt; ConstrGen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
         <span class="self">self</span>.mode
             .constr_gen(genv, infcx, def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.refine_params, rcx, span)
     }
@@ -1708,21 +1703,21 @@
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">trait </span>Mode: Sized {
-    <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
         def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
-        refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
+        refparams: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Expr],
         rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         span: Span,
-    ) -&gt; ConstrGen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;;
+    ) -&gt; ConstrGen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;;
 
-    <span class="kw">fn </span>enter_basic_block&lt;<span class="lifetime">&#39;ck</span>&gt;(
-        ck: <span class="kw-2">&amp;mut </span>Checker&lt;<span class="lifetime">&#39;ck</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="self">Self</span>&gt;,
+    <span class="kw">fn </span>enter_basic_block&lt;<span class="lifetime">'ck</span>&gt;(
+        ck: <span class="kw-2">&amp;mut </span>Checker&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="self">Self</span>&gt;,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         bb: BasicBlock,
-    ) -&gt; TypeEnv&lt;<span class="lifetime">&#39;ck</span>&gt;;
+    ) -&gt; TypeEnv&lt;<span class="lifetime">'ck</span>&gt;;
 
     <span class="kw">fn </span>check_goto_join_point(
         ck: <span class="kw-2">&amp;mut </span>Checker&lt;<span class="self">Self</span>&gt;,
@@ -1747,7 +1742,7 @@
 <span class="doccomment">/// The result of running the shape phase.
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>ShapeResult(FxHashMap&lt;LocalDefId, FxHashMap&lt;BasicBlock, BasicBlockEnvShape&gt;&gt;);
 
-<span class="doccomment">/// A `Guard` describes extra &quot;control&quot; information that holds at the start of a successor basic block
+<span class="doccomment">/// A `Guard` describes extra "control" information that holds at the start of a successor basic block
 </span><span class="kw">enum </span>Guard {
     <span class="doccomment">/// No extra information holds, e.g., for a plain goto.
     </span><span class="prelude-val">None</span>,
@@ -1757,11 +1752,11 @@
     </span>Match(Place, VariantIdx),
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;ck</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; Checker&lt;<span class="lifetime">&#39;ck</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, ShapeMode&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Checker&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, ShapeMode&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>run_in_shape_mode(
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         def_id: LocalDefId,
-        ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span>UnordMap&lt;LocalDefId, GhostStatements&gt;,
+        ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">'ck </span>UnordMap&lt;LocalDefId, GhostStatements&gt;,
         config: CheckerConfig,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;ShapeResult&gt; {
         <span class="macro">dbg::shape_mode_span!</span>(genv.tcx(), def_id).in_scope(|| {
@@ -1782,11 +1777,11 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;ck</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; Checker&lt;<span class="lifetime">&#39;ck</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, RefineMode&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Checker&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, RefineMode&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>run_in_refine_mode(
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         def_id: LocalDefId,
-        ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span>UnordMap&lt;LocalDefId, GhostStatements&gt;,
+        ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">'ck </span>UnordMap&lt;LocalDefId, GhostStatements&gt;,
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(RefineTree, KVarStore)&gt; {
@@ -1808,12 +1803,12 @@
 }
 
 <span class="attr">#[allow(clippy::too_many_arguments)]
-</span><span class="kw">impl</span>&lt;<span class="lifetime">&#39;ck</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, M: Mode&gt; Checker&lt;<span class="lifetime">&#39;ck</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, M&gt; {
+</span><span class="kw">impl</span>&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, M: Mode&gt; Checker&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, M&gt; {
     <span class="kw">fn </span>run(
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         <span class="kw-2">mut </span>refine_tree: RefineSubtree,
         def_id: LocalDefId,
-        inherited: Inherited&lt;<span class="lifetime">&#39;ck</span>, M&gt;,
+        inherited: Inherited&lt;<span class="lifetime">'ck</span>, M&gt;,
         poly_sig: EarlyBinder&lt;PolyFnSig&gt;,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>span = genv.tcx().def_span(def_id);
@@ -1841,9 +1836,9 @@
         <span class="kw">let </span>env = init_env(<span class="kw-2">&amp;mut </span>rcx, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>fn_sig, inherited.config);
 
         <span class="comment">// (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
-        //   &quot;execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
-        //    to the `resume_arg` place...&quot;
-        </span><span class="kw">let </span>resume_ty = <span class="kw">if </span>genv.def_kind(def_id) == DefKind::Coroutine {
+        //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
+        //    to the `resume_arg` place..."
+        </span><span class="kw">let </span>resume_ty = <span class="kw">if </span>genv.tcx().is_coroutine(def_id.to_def_id()) {
             <span class="prelude-val">Some</span>(fn_sig.args()[<span class="number">1</span>].clone())
         } <span class="kw">else </span>{
             <span class="prelude-val">None
@@ -1894,9 +1889,9 @@
             <span class="kw">let </span>span = stmt.source_info.span;
             <span class="self">self</span>.check_ghost_statements_at(<span class="kw-2">&amp;mut </span>rcx, <span class="kw-2">&amp;mut </span>env, Point::Location(location), span)<span class="question-mark">?</span>;
             bug::track_span(span, || {
-                <span class="macro">dbg::statement!</span>(<span class="string">&quot;start&quot;</span>, stmt, rcx, env);
+                <span class="macro">dbg::statement!</span>(<span class="string">"start"</span>, stmt, rcx, env);
                 <span class="self">self</span>.check_statement(<span class="kw-2">&amp;mut </span>rcx, <span class="kw-2">&amp;mut </span>env, stmt)<span class="question-mark">?</span>;
-                <span class="macro">dbg::statement!</span>(<span class="string">&quot;end&quot;</span>, stmt, rcx, env);
+                <span class="macro">dbg::statement!</span>(<span class="string">"end"</span>, stmt, rcx, env);
                 <span class="prelude-val">Ok</span>(())
             })<span class="question-mark">?</span>;
             <span class="kw">if </span>!stmt.is_nop() {
@@ -1909,10 +1904,10 @@
             <span class="kw">let </span>span = terminator.source_info.span;
             <span class="self">self</span>.check_ghost_statements_at(<span class="kw-2">&amp;mut </span>rcx, <span class="kw-2">&amp;mut </span>env, Point::Location(location), span)<span class="question-mark">?</span>;
             bug::track_span(span, || {
-                <span class="macro">dbg::terminator!</span>(<span class="string">&quot;start&quot;</span>, terminator, rcx, env);
+                <span class="macro">dbg::terminator!</span>(<span class="string">"start"</span>, terminator, rcx, env);
                 <span class="kw">let </span>successors =
                     <span class="self">self</span>.check_terminator(<span class="kw-2">&amp;mut </span>rcx, <span class="kw-2">&amp;mut </span>env, terminator, last_stmt_span)<span class="question-mark">?</span>;
-                <span class="macro">dbg::terminator!</span>(<span class="string">&quot;end&quot;</span>, terminator, rcx, env);
+                <span class="macro">dbg::terminator!</span>(<span class="string">"end"</span>, terminator, rcx, env);
 
                 <span class="self">self</span>.snapshots[bb] = <span class="prelude-val">Some</span>(rcx.snapshot());
                 <span class="kw">let </span>term_span = last_stmt_span.unwrap_or(span);
@@ -1981,14 +1976,14 @@
     }
 
     <span class="doccomment">/// For `check_terminator`, the output `Vec&lt;BasicBlock, Guard&gt;` denotes,
-    /// - `BasicBlock` &quot;successors&quot; of the current terminator, and
+    /// - `BasicBlock` "successors" of the current terminator, and
     /// - `Guard` are extra control information from, e.g. the `SwitchInt` (or `Assert`)
     ///    you can assume when checking the corresponding successor.
     </span><span class="kw">fn </span>check_terminator(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
-        terminator: <span class="kw-2">&amp;</span>Terminator&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        terminator: <span class="kw-2">&amp;</span>Terminator&lt;<span class="lifetime">'tcx</span>&gt;,
         last_stmt_span: <span class="prelude-ty">Option</span>&lt;Span&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;(BasicBlock, Guard)&gt;&gt; {
         <span class="kw">let </span>source_info = terminator.source_info;
@@ -2011,7 +2006,7 @@
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(resume_ty) = <span class="self">self</span>.resume_ty.clone() {
                     <span class="self">self</span>.check_assign_ty(rcx, env, resume_arg, resume_ty, source_info)<span class="question-mark">?</span>;
                 } <span class="kw">else </span>{
-                    <span class="macro">bug!</span>(<span class="string">&quot;yield in non-generator function&quot;</span>);
+                    <span class="macro">bug!</span>(<span class="string">"yield in non-generator function"</span>);
                 }
                 <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[(<span class="kw-2">*</span>resume, Guard::None)])
             }
@@ -2076,7 +2071,7 @@
             TerminatorKind::FalseUnwind { real_target, .. } =&gt; {
                 <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[(<span class="kw-2">*</span>real_target, Guard::None)])
             }
-            TerminatorKind::UnwindResume =&gt; <span class="macro">todo!</span>(<span class="string">&quot;implement checking of cleanup code&quot;</span>),
+            TerminatorKind::UnwindResume =&gt; <span class="macro">todo!</span>(<span class="string">"implement checking of cleanup code"</span>),
         }
     }
 
@@ -2151,7 +2146,7 @@
                 EarlyBinder(poly_sig),
             )<span class="question-mark">?</span>;
         } <span class="kw">else </span>{
-            <span class="macro">panic!</span>(<span class="string">&quot;check_oblig_fn_trait_pred: unexpected self_ty {:?}&quot;</span>, fn_trait_pred.self_ty);
+            <span class="macro">panic!</span>(<span class="string">"check_oblig_fn_trait_pred: unexpected self_ty {:?}"</span>, fn_trait_pred.self_ty);
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -2168,7 +2163,8 @@
                 }
                 rty::ClauseKind::Projection(<span class="kw">_</span>)
                 | rty::ClauseKind::Trait(<span class="kw">_</span>)
-                | rty::ClauseKind::TypeOutlives(<span class="kw">_</span>) =&gt; {}
+                | rty::ClauseKind::TypeOutlives(<span class="kw">_</span>)
+                | rty::ClauseKind::ConstArgHasType(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {}
             }
         }
         <span class="prelude-val">Ok</span>(())
@@ -2185,16 +2181,16 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Guard&gt; {
         <span class="kw">let </span>ty = <span class="self">self</span>.check_operand(rcx, env, terminator_span, cond)<span class="question-mark">?</span>;
         <span class="kw">let </span>TyKind::Indexed(BaseTy::Bool, idx) = ty.kind() <span class="kw">else </span>{
-            <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;unexpected ty `{ty:?}`&quot;</span>);
+            <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected ty `{ty:?}`"</span>);
         };
         <span class="kw">let </span>pred = <span class="kw">if </span>expected { idx.clone() } <span class="kw">else </span>{ idx.not() };
 
         <span class="kw">let </span>msg = <span class="kw">match </span>msg {
-            AssertKind::DivisionByZero =&gt; <span class="string">&quot;possible division by zero&quot;</span>,
-            AssertKind::BoundsCheck =&gt; <span class="string">&quot;possible out-of-bounds access&quot;</span>,
-            AssertKind::RemainderByZero =&gt; <span class="string">&quot;possible remainder with a divisor of zero&quot;</span>,
-            AssertKind::Overflow(mir::BinOp::Div) =&gt; <span class="string">&quot;possible division with overflow&quot;</span>,
-            AssertKind::Overflow(mir::BinOp::Rem) =&gt; <span class="string">&quot;possible reminder with overflow&quot;</span>,
+            AssertKind::DivisionByZero =&gt; <span class="string">"possible division by zero"</span>,
+            AssertKind::BoundsCheck =&gt; <span class="string">"possible out-of-bounds access"</span>,
+            AssertKind::RemainderByZero =&gt; <span class="string">"possible remainder with a divisor of zero"</span>,
+            AssertKind::Overflow(mir::BinOp::Div) =&gt; <span class="string">"possible division with overflow"</span>,
+            AssertKind::Overflow(mir::BinOp::Rem) =&gt; <span class="string">"possible reminder with overflow"</span>,
             AssertKind::Overflow(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Guard::Pred(pred)),
         };
         <span class="self">self</span>.constr_gen(rcx, terminator_span)
@@ -2215,7 +2211,7 @@
                 TyKind::Indexed(bty @ (BaseTy::Int(<span class="kw">_</span>) | BaseTy::Uint(<span class="kw">_</span>)), idx) =&gt; {
                     Expr::binary_op(BinOp::Eq, idx.clone(), Expr::from_bits(bty, bits), <span class="prelude-val">None</span>)
                 }
-                <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;unexpected discr_ty {:?}&quot;</span>, discr_ty),
+                <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected discr_ty {:?}"</span>, discr_ty),
             }
         };
 
@@ -2241,7 +2237,7 @@
         <span class="kw">for </span>(bits, bb) <span class="kw">in </span>targets.iter() {
             <span class="kw">let </span>variant_idx = remaining
                 .remove(<span class="kw-2">&amp;</span>bits)
-                .expect(<span class="string">&quot;value doesn&#39;t correspond to any variant&quot;</span>);
+                .expect(<span class="string">"value doesn't correspond to any variant"</span>);
             successors.push((bb, Guard::Match(place.clone(), variant_idx)));
         }
 
@@ -2394,8 +2390,8 @@
 
     <span class="kw">fn </span>check_aggregate_operands(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        rcx: <span class="kw-2">&amp;mut </span>RefineCtxt&lt;<span class="lifetime">&#39;_</span>&gt;,
-        env: <span class="kw-2">&amp;mut </span>TypeEnv&lt;<span class="lifetime">&#39;_</span>&gt;,
+        rcx: <span class="kw-2">&amp;mut </span>RefineCtxt&lt;<span class="lifetime">'_</span>&gt;,
+        env: <span class="kw-2">&amp;mut </span>TypeEnv&lt;<span class="lifetime">'_</span>&gt;,
         stmt_span: Span,
         args: <span class="kw-2">&amp;</span>[Operand],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;List&lt;flux_middle::intern::Interned&lt;rty::TyS&gt;&gt;&gt; {
@@ -2422,11 +2418,11 @@
                     <span class="kw">let </span>value = value.try_to_target_usize(<span class="self">self</span>.genv.tcx()).unwrap() <span class="kw">as </span>u128;
                     Expr::constant(rty::Constant::from(value))
                 } <span class="kw">else </span>{
-                    <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;unexpected array length&quot;</span>)
+                    <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected array length"</span>)
                 }
             }
             TyKind::Indexed(BaseTy::Slice(<span class="kw">_</span>), idx) =&gt; idx.clone(),
-            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;expected array or slice type&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"expected array or slice type"</span>),
         };
 
         <span class="prelude-val">Ok</span>(Ty::indexed(BaseTy::Uint(UintTy::Usize), idx))
@@ -2478,7 +2474,7 @@
 
                 <span class="prelude-val">Ok</span>(sig.out.to_ty([e1, e2]))
             }
-            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;incompatible types: `{ty1:?}` `{ty2:?}`&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"incompatible types: `{ty1:?}` `{ty2:?}`"</span>),
         }
     }
 
@@ -2505,7 +2501,7 @@
                 }
                 <span class="prelude-val">Ok</span>(sig.out.to_ty([e]))
             }
-            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;invalid type for unary operator `{un_op:?}` `{ty:?}`&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid type for unary operator `{un_op:?}` `{ty:?}`"</span>),
         }
     }
 
@@ -2527,7 +2523,7 @@
                     }
                     (<span class="macro">Int!</span>(<span class="kw">_</span>, <span class="kw">_</span>), RustTy::Uint(uint_ty)) =&gt; Ty::uint(<span class="kw-2">*</span>uint_ty),
                     <span class="kw">_ </span>=&gt; {
-                        <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;invalid int to int cast&quot;</span>)
+                        <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid int to int cast"</span>)
                     }
                 }
             }
@@ -2545,7 +2541,7 @@
                     <span class="kw">let </span>dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), expr);
                     Ty::mk_ref(<span class="kw-2">*</span>dst_re, dst_slice, <span class="kw-2">*</span>dst_mut)
                 } <span class="kw">else </span>{
-                    <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;unsupported Unsize cast&quot;</span>)
+                    <span class="macro">tracked_span_bug!</span>(<span class="string">"unsupported Unsize cast"</span>)
                 }
             }
             CastKind::FloatToInt
@@ -2639,7 +2635,7 @@
         stmt: <span class="kw-2">&amp;</span>GhostStatement,
         span: Span,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="macro">dbg::statement!</span>(<span class="string">&quot;start&quot;</span>, stmt, rcx, env);
+        <span class="macro">dbg::statement!</span>(<span class="string">"start"</span>, stmt, rcx, env);
         <span class="kw">match </span>stmt {
             GhostStatement::Fold(place) =&gt; {
                 <span class="kw">let </span>gen = <span class="kw-2">&amp;mut </span><span class="self">self</span>.constr_gen(rcx, span);
@@ -2655,11 +2651,11 @@
                 env.ptr_to_borrow(rcx, gen, place).with_span(span)<span class="question-mark">?</span>;
             }
         }
-        <span class="macro">dbg::statement!</span>(<span class="string">&quot;end&quot;</span>, stmt, rcx, env);
+        <span class="macro">dbg::statement!</span>(<span class="string">"end"</span>, stmt, rcx, env);
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>constr_gen(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;</span>RefineCtxt, span: Span) -&gt; ConstrGen&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">fn </span>constr_gen(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;</span>RefineCtxt, span: Span) -&gt; ConstrGen&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
         <span class="self">self</span>.inherited
             .constr_gen(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span><span class="self">self</span>.body.infcx, <span class="self">self</span>.def_id, rcx, span)
     }
@@ -2669,11 +2665,11 @@
         snapshot_at_dominator(<span class="self">self</span>.body, <span class="kw-2">&amp;</span><span class="self">self</span>.snapshots, bb)
     }
 
-    <span class="kw">fn </span>dominators(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span>Dominators&lt;BasicBlock&gt; {
+    <span class="kw">fn </span>dominators(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'ck </span>Dominators&lt;BasicBlock&gt; {
         <span class="self">self</span>.body.dominators()
     }
 
-    <span class="kw">fn </span>ghost_stmts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;ck </span>GhostStatements {
+    <span class="kw">fn </span>ghost_stmts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'ck </span>GhostStatements {
         <span class="kw-2">&amp;</span><span class="self">self</span>.inherited.ghost_stmts[<span class="kw-2">&amp;</span><span class="self">self</span>.def_id]
     }
 
@@ -2686,12 +2682,12 @@
     }
 }
 
-<span class="kw">fn </span>init_env&lt;<span class="lifetime">&#39;a</span>&gt;(
+<span class="kw">fn </span>init_env&lt;<span class="lifetime">'a</span>&gt;(
     rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
-    body: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Body,
+    body: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Body,
     fn_sig: <span class="kw-2">&amp;</span>FnSig,
     config: CheckerConfig,
-) -&gt; TypeEnv&lt;<span class="lifetime">&#39;a</span>&gt; {
+) -&gt; TypeEnv&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>env = TypeEnv::new(<span class="kw-2">&amp;</span>body.local_decls);
 
     <span class="kw">for </span>constr <span class="kw">in </span>fn_sig.requires() {
@@ -2782,12 +2778,12 @@
         params: FxHashSet&lt;usize&gt;,
     }
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;tcx</span>&gt; rustc_middle::ty::TypeVisitor&lt;TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt; <span class="kw">for </span>Collector {
-        <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: rustc_middle::ty::Ty) -&gt; ControlFlow&lt;!&gt; {
+    <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; rustc_middle::ty::TypeVisitor&lt;TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;&gt; <span class="kw">for </span>Collector {
+        <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: rustc_middle::ty::Ty) {
             <span class="kw">if let </span>rustc_middle::ty::Param(param_ty) = t.kind() {
                 <span class="self">self</span>.params.insert(param_ty.index <span class="kw">as </span>usize);
             }
-            t.super_visit_with(<span class="self">self</span>)
+            t.super_visit_with(<span class="self">self</span>);
         }
     }
     <span class="kw">let </span><span class="kw-2">mut </span>vis = Collector { params: Default::default() };
@@ -2818,7 +2814,7 @@
             }
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(outlives_pred) = clause.as_type_outlives_clause() {
-            <span class="comment">// We skip outlives bounds if they are not &#39;static. A &#39;static bound means the type
+            <span class="comment">// We skip outlives bounds if they are not 'static. A 'static bound means the type
             // implements `Any` which makes it unsound to instantiate the argument with refinements.
             </span><span class="kw">if </span>outlives_pred.skip_binder().<span class="number">1 </span>!= tcx.lifetimes.re_static {
                 <span class="kw">continue</span>;
@@ -2830,9 +2826,9 @@
 }
 
 <span class="kw">fn </span>all_predicates_of(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;_</span>&gt;,
+    tcx: TyCtxt&lt;<span class="lifetime">'_</span>&gt;,
     id: DefId,
-) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>(rustc_middle::ty::Clause&lt;<span class="lifetime">&#39;_</span>&gt;, Span)&gt; {
+) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>(rustc_middle::ty::Clause&lt;<span class="lifetime">'_</span>&gt;, Span)&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>next_id = <span class="prelude-val">Some</span>(id);
     iter::from_fn(<span class="kw">move </span>|| {
         next_id.take().map(|id| {
@@ -2868,15 +2864,15 @@
 }
 
 <span class="kw">impl </span>Mode <span class="kw">for </span>ShapeMode {
-    <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
         def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
-        refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
+        refparams: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Expr],
         _rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         span: Span,
-    ) -&gt; ConstrGen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    ) -&gt; ConstrGen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
         ConstrGen::new(
             genv,
             infcx,
@@ -2887,11 +2883,11 @@
         )
     }
 
-    <span class="kw">fn </span>enter_basic_block&lt;<span class="lifetime">&#39;a</span>&gt;(
-        ck: <span class="kw-2">&amp;mut </span>Checker&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, ShapeMode&gt;,
+    <span class="kw">fn </span>enter_basic_block&lt;<span class="lifetime">'a</span>&gt;(
+        ck: <span class="kw-2">&amp;mut </span>Checker&lt;<span class="lifetime">'a</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, ShapeMode&gt;,
         _rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         bb: BasicBlock,
-    ) -&gt; TypeEnv&lt;<span class="lifetime">&#39;a</span>&gt; {
+    ) -&gt; TypeEnv&lt;<span class="lifetime">'a</span>&gt; {
         ck.inherited.mode.bb_envs[<span class="kw-2">&amp;</span>ck.def_id][<span class="kw-2">&amp;</span>bb].enter(<span class="kw-2">&amp;</span>ck.body.local_decls)
     }
 
@@ -2938,15 +2934,15 @@
 }
 
 <span class="kw">impl </span>Mode <span class="kw">for </span>RefineMode {
-    <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
         def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
-        refparams: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[Expr],
+        refparams: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Expr],
         rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         span: Span,
-    ) -&gt; ConstrGen&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    ) -&gt; ConstrGen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
         <span class="kw">let </span>scope = rcx.scope();
         ConstrGen::new(
             genv,
@@ -2958,11 +2954,11 @@
         )
     }
 
-    <span class="kw">fn </span>enter_basic_block&lt;<span class="lifetime">&#39;ck</span>&gt;(
-        ck: <span class="kw-2">&amp;mut </span>Checker&lt;<span class="lifetime">&#39;ck</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, RefineMode&gt;,
+    <span class="kw">fn </span>enter_basic_block&lt;<span class="lifetime">'ck</span>&gt;(
+        ck: <span class="kw-2">&amp;mut </span>Checker&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, RefineMode&gt;,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         bb: BasicBlock,
-    ) -&gt; TypeEnv&lt;<span class="lifetime">&#39;ck</span>&gt; {
+    ) -&gt; TypeEnv&lt;<span class="lifetime">'ck</span>&gt; {
         ck.inherited.mode.bb_envs[<span class="kw-2">&amp;</span>ck.def_id][<span class="kw-2">&amp;</span>bb].enter(rcx, <span class="kw-2">&amp;</span>ck.body.local_decls)
     }
 
@@ -3064,19 +3060,19 @@
     }
 }
 
-<span class="kw">fn </span>snapshot_at_dominator&lt;<span class="lifetime">&#39;a</span>&gt;(
+<span class="kw">fn </span>snapshot_at_dominator&lt;<span class="lifetime">'a</span>&gt;(
     body: <span class="kw-2">&amp;</span>Body,
-    snapshots: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>IndexVec&lt;BasicBlock, <span class="prelude-ty">Option</span>&lt;Snapshot&gt;&gt;,
+    snapshots: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>IndexVec&lt;BasicBlock, <span class="prelude-ty">Option</span>&lt;Snapshot&gt;&gt;,
     bb: BasicBlock,
-) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Snapshot {
+) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Snapshot {
     <span class="kw">let </span>dominator = body.dominators().immediate_dominator(bb).unwrap();
     snapshots[dominator].as_ref().unwrap()
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>errors {
-    <span class="kw">use </span>flux_errors::ErrorGuaranteed;
+    <span class="kw">use </span>flux_errors::{ErrorGuaranteed, E0999};
     <span class="kw">use </span>flux_middle::{pretty, queries::QueryErr, rty::evars::UnsolvedEvar};
-    <span class="kw">use </span>rustc_errors::IntoDiagnostic;
+    <span class="kw">use </span>rustc_errors::Diagnostic;
     <span class="kw">use </span>rustc_hir::def_id::DefId;
     <span class="kw">use </span>rustc_middle::mir::SourceInfo;
     <span class="kw">use </span>rustc_span::Span;
@@ -3099,32 +3095,26 @@
         }
     }
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; IntoDiagnostic&lt;<span class="lifetime">&#39;a</span>&gt; <span class="kw">for </span>CheckerError {
-        <span class="kw">fn </span>into_diagnostic(
+    <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Diagnostic&lt;<span class="lifetime">'a</span>&gt; <span class="kw">for </span>CheckerError {
+        <span class="kw">fn </span>into_diag(
             <span class="self">self</span>,
-            handler: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_errors::Handler,
-        ) -&gt; rustc_errors::DiagnosticBuilder&lt;<span class="lifetime">&#39;a</span>, ErrorGuaranteed&gt; {
+            dcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_errors::DiagCtxt,
+            level: rustc_errors::Level,
+        ) -&gt; rustc_errors::Diag&lt;<span class="lifetime">'a</span>, ErrorGuaranteed&gt; {
             <span class="kw">use </span><span class="kw">crate</span>::fluent_generated <span class="kw">as </span>fluent;
-            <span class="kw">let </span><span class="kw-2">mut </span>builder = <span class="kw">match </span><span class="self">self</span>.kind {
-                CheckerErrKind::Inference =&gt; {
-                    handler.struct_err_with_code(
-                        fluent::refineck_param_inference_error,
-                        flux_errors::diagnostic_id(),
-                    )
-                }
+            <span class="kw">let </span><span class="kw-2">mut </span>diag = <span class="kw">match </span><span class="self">self</span>.kind {
+                CheckerErrKind::Inference =&gt; dcx.struct_err(fluent::refineck_param_inference_error),
                 CheckerErrKind::OpaqueStruct(def_id) =&gt; {
-                    <span class="kw">let </span><span class="kw-2">mut </span>builder = handler.struct_err_with_code(
-                        fluent::refineck_opaque_struct_error,
-                        flux_errors::diagnostic_id(),
-                    );
-                    builder.set_arg(<span class="string">&quot;struct&quot;</span>, pretty::def_id_to_string(def_id));
-                    builder
+                    <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_err(fluent::refineck_opaque_struct_error);
+                    diag.arg(<span class="string">"struct"</span>, pretty::def_id_to_string(def_id));
+                    diag
                 }
-                CheckerErrKind::Query(err) =&gt; err.into_diagnostic(handler),
+                CheckerErrKind::Query(err) =&gt; err.into_diag(dcx, level),
             };
-            builder.set_span(<span class="self">self</span>.span);
+            diag.code(E0999);
+            diag.span(<span class="self">self</span>.span);
 
-            builder
+            diag
         }
     }
 

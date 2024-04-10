@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/pretty.rs`."><title>pretty.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/pretty.rs`."><title>pretty.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_middle/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -459,32 +461,32 @@
 <a href="#459" id="459">459</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
-<span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
 
 <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <span class="kw">use crate</span>::{pretty::<span class="kw-2">*</span>, rustc::ty::region_to_string};
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>ClauseKind {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(_cx, f);
         <span class="kw">match </span><span class="self">self </span>{
-            ClauseKind::FnTrait(pred) =&gt; <span class="macro">w!</span>(<span class="string">&quot;FnTrait ({pred:?})&quot;</span>),
-            ClauseKind::Trait(pred) =&gt; <span class="macro">w!</span>(<span class="string">&quot;Trait ({pred:?})&quot;</span>),
-            ClauseKind::Projection(pred) =&gt; <span class="macro">w!</span>(<span class="string">&quot;Projection ({pred:?})&quot;</span>),
-            ClauseKind::CoroutineOblig(pred) =&gt; <span class="macro">w!</span>(<span class="string">&quot;Projection ({pred:?})&quot;</span>),
-            ClauseKind::TypeOutlives(pred) =&gt; <span class="macro">w!</span>(<span class="string">&quot;Outlives ({:?}, {:?})&quot;</span>, <span class="kw-2">&amp;</span>pred.<span class="number">0</span>, <span class="kw-2">&amp;</span>pred.<span class="number">1</span>),
+            ClauseKind::FnTrait(pred) =&gt; <span class="macro">w!</span>(<span class="string">"FnTrait ({pred:?})"</span>),
+            ClauseKind::Trait(pred) =&gt; <span class="macro">w!</span>(<span class="string">"Trait ({pred:?})"</span>),
+            ClauseKind::Projection(pred) =&gt; <span class="macro">w!</span>(<span class="string">"Projection ({pred:?})"</span>),
+            ClauseKind::CoroutineOblig(pred) =&gt; <span class="macro">w!</span>(<span class="string">"Projection ({pred:?})"</span>),
+            ClauseKind::TypeOutlives(pred) =&gt; <span class="macro">w!</span>(<span class="string">"Outlives ({:?}, {:?})"</span>, <span class="kw-2">&amp;</span>pred.<span class="number">0</span>, <span class="kw-2">&amp;</span>pred.<span class="number">1</span>),
+            ClauseKind::ConstArgHasType(c, ty) =&gt; <span class="macro">w!</span>(<span class="string">"ConstArgHasType ({:?}, {:?})"</span>, c, ty),
         }
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>BoundRegionKind {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span><span class="self">self </span>{
-            BoundRegionKind::BrAnon =&gt; <span class="macro">w!</span>(<span class="string">&quot;&#39;&lt;annon&gt;&quot;</span>),
-            BoundRegionKind::BrNamed(<span class="kw">_</span>, sym) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{sym}&quot;</span>),
-            BoundRegionKind::BrEnv =&gt; <span class="macro">w!</span>(<span class="string">&quot;&#39;&lt;env&gt;&quot;</span>),
+            BoundRegionKind::BrAnon =&gt; <span class="macro">w!</span>(<span class="string">"'&lt;annon&gt;"</span>),
+            BoundRegionKind::BrNamed(<span class="kw">_</span>, sym) =&gt; <span class="macro">w!</span>(<span class="string">"{sym}"</span>),
+            BoundRegionKind::BrEnv =&gt; <span class="macro">w!</span>(<span class="string">"'&lt;env&gt;"</span>),
         }
     }
 }
@@ -493,103 +495,103 @@
 <span class="kw">where
     </span>T: Pretty,
 {
-    default <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    default <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         cx.with_bound_vars(<span class="kw-2">&amp;</span><span class="self">self</span>.vars, || {
-            cx.fmt_bound_vars(<span class="string">&quot;for&lt;&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.vars, <span class="string">&quot;&gt; &quot;</span>, f)<span class="question-mark">?</span>;
-            <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.value)
+            cx.fmt_bound_vars(<span class="string">"for&lt;"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.vars, <span class="string">"&gt; "</span>, f)<span class="question-mark">?</span>;
+            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.value)
         })
     }
 }
 
 <span class="kw">impl</span>&lt;T: Pretty&gt; std::fmt::Debug <span class="kw">for </span>Binder&lt;T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         pprint_with_default_cx(f, <span class="self">self</span>, <span class="prelude-val">None</span>)
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>PolyFnSig {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">let </span>vars = <span class="kw-2">&amp;</span><span class="self">self</span>.vars;
         cx.with_bound_vars(vars, || {
             <span class="kw">if </span>!vars.is_empty() {
-                cx.fmt_bound_vars(<span class="string">&quot;for&lt;&quot;</span>, vars, <span class="string">&quot;&gt; &quot;</span>, f)<span class="question-mark">?</span>;
+                cx.fmt_bound_vars(<span class="string">"for&lt;"</span>, vars, <span class="string">"&gt; "</span>, f)<span class="question-mark">?</span>;
             }
-            <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.value)
+            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.value)
         })
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>SortCtor {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(_cx, f);
         <span class="kw">match </span><span class="self">self </span>{
-            SortCtor::Set =&gt; <span class="macro">w!</span>(<span class="string">&quot;Set&quot;</span>),
-            SortCtor::Map =&gt; <span class="macro">w!</span>(<span class="string">&quot;Map&quot;</span>),
-            SortCtor::User { name, .. } =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^name),
+            SortCtor::Set =&gt; <span class="macro">w!</span>(<span class="string">"Set"</span>),
+            SortCtor::Map =&gt; <span class="macro">w!</span>(<span class="string">"Map"</span>),
+            SortCtor::User { name, .. } =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^name),
             SortCtor::Adt(adt_sort_def) =&gt; {
-                <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, adt_sort_def.did())
+                <span class="macro">w!</span>(<span class="string">"{:?}"</span>, adt_sort_def.did())
             }
         }
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>SortInfer {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span><span class="self">self </span>{
-            SortInfer::SortVar(svid) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ^svid),
-            SortInfer::NumVar(nvid) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ^nvid),
+            SortInfer::SortVar(svid) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^svid),
+            SortInfer::NumVar(nvid) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^nvid),
         }
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>Sort {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span><span class="self">self </span>{
-            Sort::Bool =&gt; <span class="macro">w!</span>(<span class="string">&quot;bool&quot;</span>),
-            Sort::Int =&gt; <span class="macro">w!</span>(<span class="string">&quot;int&quot;</span>),
-            Sort::Real =&gt; <span class="macro">w!</span>(<span class="string">&quot;real&quot;</span>),
-            Sort::BitVec(w) =&gt; <span class="macro">w!</span>(<span class="string">&quot;bitvec({})&quot;</span>, ^w),
-            Sort::Loc =&gt; <span class="macro">w!</span>(<span class="string">&quot;loc&quot;</span>),
-            Sort::Var(n) =&gt; <span class="macro">w!</span>(<span class="string">&quot;@{}&quot;</span>, ^n.index),
-            Sort::Func(sort) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, sort),
+            Sort::Bool =&gt; <span class="macro">w!</span>(<span class="string">"bool"</span>),
+            Sort::Int =&gt; <span class="macro">w!</span>(<span class="string">"int"</span>),
+            Sort::Real =&gt; <span class="macro">w!</span>(<span class="string">"real"</span>),
+            Sort::BitVec(w) =&gt; <span class="macro">w!</span>(<span class="string">"bitvec({})"</span>, ^w),
+            Sort::Loc =&gt; <span class="macro">w!</span>(<span class="string">"loc"</span>),
+            Sort::Var(n) =&gt; <span class="macro">w!</span>(<span class="string">"@{}"</span>, ^n.index),
+            Sort::Func(sort) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, sort),
             Sort::Tuple(sorts) =&gt; {
                 <span class="kw">if let </span>[sort] = <span class="kw-2">&amp;</span>sorts[..] {
-                    <span class="macro">w!</span>(<span class="string">&quot;({:?},)&quot;</span>, sort)
+                    <span class="macro">w!</span>(<span class="string">"({:?},)"</span>, sort)
                 } <span class="kw">else </span>{
-                    <span class="macro">w!</span>(<span class="string">&quot;({:?})&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, sorts))
+                    <span class="macro">w!</span>(<span class="string">"({:?})"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, sorts))
                 }
             }
             Sort::App(ctor, sorts) =&gt; {
                 <span class="kw">if </span>sorts.is_empty() {
-                    <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ctor)
+                    <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ctor)
                 } <span class="kw">else </span>{
-                    <span class="macro">w!</span>(<span class="string">&quot;{:?}&lt;{:?}&gt;&quot;</span>, ctor, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, sorts))
+                    <span class="macro">w!</span>(<span class="string">"{:?}&lt;{:?}&gt;"</span>, ctor, <span class="macro">join!</span>(<span class="string">", "</span>, sorts))
                 }
             }
-            Sort::Param(param_ty) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}::sort&quot;</span>, ^param_ty),
-            Sort::Infer(svar) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, svar),
-            Sort::Err =&gt; <span class="macro">w!</span>(<span class="string">&quot;err&quot;</span>),
+            Sort::Param(param_ty) =&gt; <span class="macro">w!</span>(<span class="string">"{}::sort"</span>, ^param_ty),
+            Sort::Infer(svar) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, svar),
+            Sort::Err =&gt; <span class="macro">w!</span>(<span class="string">"err"</span>),
         }
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>FuncSort {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span><span class="self">self</span>.inputs() {
             [input] =&gt; {
-                <span class="macro">w!</span>(f, <span class="string">&quot;{:?} -&gt; {:?}&quot;</span>, input, <span class="self">self</span>.output())
+                <span class="macro">w!</span>(f, <span class="string">"{:?} -&gt; {:?}"</span>, input, <span class="self">self</span>.output())
             }
             inputs =&gt; {
                 <span class="macro">w!</span>(f,
-                   <span class="string">&quot;({}) -&gt; {:?}&quot;</span>,
+                   <span class="string">"({}) -&gt; {:?}"</span>,
                    ^inputs
                        .iter()
-                       .format_with(<span class="string">&quot;, &quot;</span>, |s, f| f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">&quot;{:?}&quot;</span>, s))),
+                       .format_with(<span class="string">", "</span>, |s, f| f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}"</span>, s))),
                    <span class="self">self</span>.output()
                 )
             }
@@ -598,24 +600,24 @@
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>PolyFuncSort {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">if </span><span class="self">self</span>.params == <span class="number">0 </span>{
-            <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.fsort)
+            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.fsort)
         } <span class="kw">else </span>{
-            <span class="macro">w!</span>(<span class="string">&quot;for&lt;{}&gt; {:?}&quot;</span>, ^<span class="self">self</span>.params, <span class="kw-2">&amp;</span><span class="self">self</span>.fsort)
+            <span class="macro">w!</span>(<span class="string">"for&lt;{}&gt; {:?}"</span>, ^<span class="self">self</span>.params, <span class="kw-2">&amp;</span><span class="self">self</span>.fsort)
         }
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>FnSig {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
-        <span class="macro">w!</span>(<span class="string">&quot;fn(&quot;</span>)<span class="question-mark">?</span>;
+        <span class="macro">w!</span>(<span class="string">"fn("</span>)<span class="question-mark">?</span>;
         <span class="kw">if </span>!<span class="self">self</span>.requires.is_empty() {
-            <span class="macro">w!</span>(<span class="string">&quot;[{:?}] &quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.requires))<span class="question-mark">?</span>;
+            <span class="macro">w!</span>(<span class="string">"[{:?}] "</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.requires))<span class="question-mark">?</span>;
         }
-        <span class="macro">w!</span>(<span class="string">&quot;{:?}) -&gt; {:?}&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.args), <span class="kw-2">&amp;</span><span class="self">self</span>.output)<span class="question-mark">?</span>;
+        <span class="macro">w!</span>(<span class="string">"{:?}) -&gt; {:?}"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.args), <span class="kw-2">&amp;</span><span class="self">self</span>.output)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -626,126 +628,126 @@
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>Binder&lt;FnOutput&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">let </span>vars = <span class="kw-2">&amp;</span><span class="self">self</span>.vars;
         cx.with_bound_vars(vars, || {
             <span class="kw">if </span>!vars.is_empty() {
-                cx.fmt_bound_vars(<span class="string">&quot;exists&lt;&quot;</span>, vars, <span class="string">&quot;&gt; &quot;</span>, f)<span class="question-mark">?</span>;
+                cx.fmt_bound_vars(<span class="string">"exists&lt;"</span>, vars, <span class="string">"&gt; "</span>, f)<span class="question-mark">?</span>;
             }
-            <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.value)
+            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.value)
         })
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>FnOutput {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
-        <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.ret)<span class="question-mark">?</span>;
+        <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.ret)<span class="question-mark">?</span>;
         <span class="kw">if </span>!<span class="self">self</span>.ensures.is_empty() {
-            <span class="macro">w!</span>(<span class="string">&quot;; [{:?}]&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.ensures))<span class="question-mark">?</span>;
+            <span class="macro">w!</span>(<span class="string">"; [{:?}]"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.ensures))<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>Constraint {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span><span class="self">self </span>{
-            Constraint::Type(loc, ty, <span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}: {:?}&quot;</span>, ^loc, ty),
-            Constraint::Pred(e) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, e),
+            Constraint::Type(loc, ty, <span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}: {:?}"</span>, ^loc, ty),
+            Constraint::Pred(e) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, e),
         }
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>SubsetTy {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">if </span><span class="self">self</span>.pred.is_trivially_true() {
-            <span class="macro">w!</span>(<span class="string">&quot;{:?}[{:?}]&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.bty, <span class="kw-2">&amp;</span><span class="self">self</span>.idx)
+            <span class="macro">w!</span>(<span class="string">"{:?}[{:?}]"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.bty, <span class="kw-2">&amp;</span><span class="self">self</span>.idx)
         } <span class="kw">else </span>{
-            <span class="macro">w!</span>(<span class="string">&quot;{{ {:?}[{:?}] | {:?} }}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.bty, <span class="kw-2">&amp;</span><span class="self">self</span>.idx, <span class="kw-2">&amp;</span><span class="self">self</span>.pred)
+            <span class="macro">w!</span>(<span class="string">"{{ {:?}[{:?}] | {:?} }}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.bty, <span class="kw-2">&amp;</span><span class="self">self</span>.idx, <span class="kw-2">&amp;</span><span class="self">self</span>.pred)
         }
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>TyS {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span><span class="self">self</span>.kind() {
             TyKind::Indexed(bty, idx) =&gt; {
-                <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, bty)<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">"{:?}"</span>, bty)<span class="question-mark">?</span>;
                 <span class="kw">if </span>cx.hide_refinements {
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                 }
                 <span class="kw">if </span>idx.is_unit() {
                     <span class="kw">if </span>bty.is_adt() {
-                        <span class="macro">w!</span>(<span class="string">&quot;[]&quot;</span>)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="string">"[]"</span>)<span class="question-mark">?</span>;
                     }
                 } <span class="kw">else </span>{
-                    <span class="macro">w!</span>(<span class="string">&quot;[{:?}]&quot;</span>, idx)<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">"[{:?}]"</span>, idx)<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
             TyKind::Exists(Binder { vars, value: ty }) =&gt; {
                 cx.with_bound_vars(vars, || {
                     <span class="kw">if </span>cx.hide_refinements {
-                        <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ty)
+                        <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ty)
                     } <span class="kw">else </span>{
-                        cx.fmt_bound_vars(<span class="string">&quot;∃&quot;</span>, vars, <span class="string">&quot;. &quot;</span>, f)<span class="question-mark">?</span>;
-                        <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ty)
+                        cx.fmt_bound_vars(<span class="string">"∃"</span>, vars, <span class="string">". "</span>, f)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ty)
                     }
                 })
             }
-            TyKind::Uninit =&gt; <span class="macro">w!</span>(<span class="string">&quot;uninit&quot;</span>),
-            TyKind::Ptr(pk, loc) =&gt; <span class="macro">w!</span>(<span class="string">&quot;ptr({:?}, {:?})&quot;</span>, pk, loc),
-            TyKind::Discr(adt_def, place) =&gt; <span class="macro">w!</span>(<span class="string">&quot;discr({:?}, {:?})&quot;</span>, adt_def.did(), ^place),
+            TyKind::Uninit =&gt; <span class="macro">w!</span>(<span class="string">"uninit"</span>),
+            TyKind::Ptr(pk, loc) =&gt; <span class="macro">w!</span>(<span class="string">"ptr({:?}, {:?})"</span>, pk, loc),
+            TyKind::Discr(adt_def, place) =&gt; <span class="macro">w!</span>(<span class="string">"discr({:?}, {:?})"</span>, adt_def.did(), ^place),
             TyKind::Constr(pred, ty) =&gt; {
                 <span class="kw">if </span>cx.hide_refinements {
-                    <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ty)
+                    <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ty)
                 } <span class="kw">else </span>{
-                    <span class="macro">w!</span>(<span class="string">&quot;{{ {:?} | {:?} }}&quot;</span>, ty, pred)
+                    <span class="macro">w!</span>(<span class="string">"{{ {:?} | {:?} }}"</span>, ty, pred)
                 }
             }
-            TyKind::Param(param_ty) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^param_ty),
+            TyKind::Param(param_ty) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^param_ty),
             TyKind::Downcast(adt, .., variant_idx, fields) =&gt; {
-                <span class="macro">w!</span>(<span class="string">&quot;{:?}::{}&quot;</span>, adt.did(), ^adt.variant(<span class="kw-2">*</span>variant_idx).name)<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">"{:?}::{}"</span>, adt.did(), ^adt.variant(<span class="kw-2">*</span>variant_idx).name)<span class="question-mark">?</span>;
                 <span class="kw">if </span>!fields.is_empty() {
-                    <span class="macro">w!</span>(<span class="string">&quot;({:?})&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, fields))<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">"({:?})"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, fields))<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
-            TyKind::Blocked(ty) =&gt; <span class="macro">w!</span>(<span class="string">&quot;†{:?}&quot;</span>, ty),
+            TyKind::Blocked(ty) =&gt; <span class="macro">w!</span>(<span class="string">"†{:?}"</span>, ty),
             TyKind::Alias(AliasKind::Projection, alias_ty) =&gt; {
                 <span class="kw">let </span>assoc_name = cx.tcx.item_name(alias_ty.def_id);
                 <span class="kw">let </span>trait_ref = cx.tcx.parent(alias_ty.def_id);
                 <span class="kw">let </span>trait_generic_count = cx.tcx.generics_of(trait_ref).count() - <span class="number">1</span>;
 
                 <span class="kw">let </span>[self_ty, args @ ..] = <span class="kw-2">&amp;</span>alias_ty.args[..] <span class="kw">else </span>{
-                    <span class="kw">return </span><span class="macro">w!</span>(<span class="string">&quot;&lt;alias_ty&gt;&quot;</span>);
+                    <span class="kw">return </span><span class="macro">w!</span>(<span class="string">"&lt;alias_ty&gt;"</span>);
                 };
 
-                <span class="macro">w!</span>(<span class="string">&quot;&lt;{:?} as {:?}&quot;</span>, self_ty, trait_ref)<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">"&lt;{:?} as {:?}"</span>, self_ty, trait_ref)<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>trait_generics = <span class="kw-2">&amp;</span>args[..trait_generic_count];
                 <span class="kw">if </span>!trait_generics.is_empty() {
-                    <span class="macro">w!</span>(<span class="string">&quot;&lt;{:?}&gt;&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, trait_generics))<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, trait_generics))<span class="question-mark">?</span>;
                 }
-                <span class="macro">w!</span>(<span class="string">&quot;&gt;::{}&quot;</span>, ^assoc_name)<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">"&gt;::{}"</span>, ^assoc_name)<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>assoc_generics = <span class="kw-2">&amp;</span>args[trait_generic_count..];
                 <span class="kw">if </span>!assoc_generics.is_empty() {
-                    <span class="macro">w!</span>(<span class="string">&quot;&lt;{:?}&gt;&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, assoc_generics))<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, assoc_generics))<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
             TyKind::Alias(AliasKind::Opaque, alias_ty) =&gt; {
                 <span class="macro">w!</span>(
-                    <span class="string">&quot;Alias(Opaque, {:?}, [{:?}], [{:?}])&quot;</span>,
+                    <span class="string">"Alias(Opaque, {:?}, [{:?}], [{:?}])"</span>,
                     alias_ty.def_id,
-                    <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="kw-2">&amp;</span>alias_ty.args),
-                    <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="kw-2">&amp;</span>alias_ty.refine_args)
+                    <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span>alias_ty.args),
+                    <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span>alias_ty.refine_args)
                 )
             }
         }
@@ -757,97 +759,97 @@
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>PtrKind {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span><span class="self">self </span>{
             PtrKind::Shr(re) =&gt; {
-                <span class="macro">w!</span>(<span class="string">&quot;shr&quot;</span>)<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">"shr"</span>)<span class="question-mark">?</span>;
                 <span class="kw">if </span>!cx.hide_regions {
-                    <span class="macro">w!</span>(<span class="string">&quot;[{:?}]&quot;</span>, re)<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">"[{:?}]"</span>, re)<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
             PtrKind::Mut(re) =&gt; {
-                <span class="macro">w!</span>(<span class="string">&quot;mut&quot;</span>)<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">"mut"</span>)<span class="question-mark">?</span>;
                 <span class="kw">if </span>!cx.hide_regions {
-                    <span class="macro">w!</span>(<span class="string">&quot;[{:?}]&quot;</span>, re)<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">"[{:?}]"</span>, re)<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
-            PtrKind::Box =&gt; <span class="macro">w!</span>(<span class="string">&quot;box&quot;</span>),
+            PtrKind::Box =&gt; <span class="macro">w!</span>(<span class="string">"box"</span>),
         }
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>AliasKind {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(_cx, f);
         <span class="kw">match </span><span class="self">self </span>{
-            AliasKind::Projection =&gt; <span class="macro">w!</span>(<span class="string">&quot;Projection&quot;</span>),
-            AliasKind::Opaque =&gt; <span class="macro">w!</span>(<span class="string">&quot;Opaque&quot;</span>),
+            AliasKind::Projection =&gt; <span class="macro">w!</span>(<span class="string">"Projection"</span>),
+            AliasKind::Opaque =&gt; <span class="macro">w!</span>(<span class="string">"Opaque"</span>),
         }
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>List&lt;Ty&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">if let </span>[ty] = <span class="kw-2">&amp;</span><span class="self">self</span>[..] {
-            <span class="macro">w!</span>(<span class="string">&quot;({:?},)&quot;</span>, ty)
+            <span class="macro">w!</span>(<span class="string">"({:?},)"</span>, ty)
         } <span class="kw">else </span>{
-            <span class="macro">w!</span>(<span class="string">&quot;({:?})&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="self">self</span>))
+            <span class="macro">w!</span>(<span class="string">"({:?})"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="self">self</span>))
         }
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>BaseTy {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span><span class="self">self </span>{
-            BaseTy::Int(int_ty) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^int_ty.name_str()),
-            BaseTy::Uint(uint_ty) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^uint_ty.name_str()),
-            BaseTy::Bool =&gt; <span class="macro">w!</span>(<span class="string">&quot;bool&quot;</span>),
-            BaseTy::Str =&gt; <span class="macro">w!</span>(<span class="string">&quot;str&quot;</span>),
-            BaseTy::Char =&gt; <span class="macro">w!</span>(<span class="string">&quot;char&quot;</span>),
+            BaseTy::Int(int_ty) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^int_ty.name_str()),
+            BaseTy::Uint(uint_ty) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^uint_ty.name_str()),
+            BaseTy::Bool =&gt; <span class="macro">w!</span>(<span class="string">"bool"</span>),
+            BaseTy::Str =&gt; <span class="macro">w!</span>(<span class="string">"str"</span>),
+            BaseTy::Char =&gt; <span class="macro">w!</span>(<span class="string">"char"</span>),
             BaseTy::Adt(adt_def, args) =&gt; {
-                <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, adt_def.did())<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">"{:?}"</span>, adt_def.did())<span class="question-mark">?</span>;
                 <span class="kw">let </span>args = args
                     .iter()
                     .filter(|arg| !cx.hide_regions || !<span class="macro">matches!</span>(arg, GenericArg::Lifetime(<span class="kw">_</span>)))
                     .collect_vec();
                 <span class="kw">if </span>!args.is_empty() {
-                    <span class="macro">w!</span>(<span class="string">&quot;&lt;{:?}&gt;&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, args))<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, args))<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
-            BaseTy::Param(param) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^param),
-            BaseTy::Float(float_ty) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^float_ty.name_str()),
-            BaseTy::Slice(ty) =&gt; <span class="macro">w!</span>(<span class="string">&quot;[{:?}]&quot;</span>, ty),
-            BaseTy::RawPtr(ty, Mutability::Mut) =&gt; <span class="macro">w!</span>(<span class="string">&quot;*mut {:?}&quot;</span>, ty),
-            BaseTy::RawPtr(ty, Mutability::Not) =&gt; <span class="macro">w!</span>(<span class="string">&quot;*const {:?}&quot;</span>, ty),
+            BaseTy::Param(param) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^param),
+            BaseTy::Float(float_ty) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^float_ty.name_str()),
+            BaseTy::Slice(ty) =&gt; <span class="macro">w!</span>(<span class="string">"[{:?}]"</span>, ty),
+            BaseTy::RawPtr(ty, Mutability::Mut) =&gt; <span class="macro">w!</span>(<span class="string">"*mut {:?}"</span>, ty),
+            BaseTy::RawPtr(ty, Mutability::Not) =&gt; <span class="macro">w!</span>(<span class="string">"*const {:?}"</span>, ty),
             BaseTy::Ref(re, ty, mutbl) =&gt; {
-                <span class="macro">w!</span>(<span class="string">&quot;&amp;&quot;</span>)<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">"&amp;"</span>)<span class="question-mark">?</span>;
                 <span class="kw">if </span>!cx.hide_regions {
-                    <span class="macro">w!</span>(<span class="string">&quot;{:?} &quot;</span>, re)<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">"{:?} "</span>, re)<span class="question-mark">?</span>;
                 }
-                <span class="macro">w!</span>(<span class="string">&quot;{}{:?}&quot;</span>,  ^mutbl.prefix_str(), ty)
+                <span class="macro">w!</span>(<span class="string">"{}{:?}"</span>,  ^mutbl.prefix_str(), ty)
             }
             BaseTy::Tuple(tys) =&gt; {
                 <span class="kw">if let </span>[ty] = <span class="kw-2">&amp;</span>tys[..] {
-                    <span class="macro">w!</span>(<span class="string">&quot;({:?},)&quot;</span>, ty)
+                    <span class="macro">w!</span>(<span class="string">"({:?},)"</span>, ty)
                 } <span class="kw">else </span>{
-                    <span class="macro">w!</span>(<span class="string">&quot;({:?})&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, tys))
+                    <span class="macro">w!</span>(<span class="string">"({:?})"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, tys))
                 }
             }
-            BaseTy::Array(ty, c) =&gt; <span class="macro">w!</span>(<span class="string">&quot;[{:?}; {:?}]&quot;</span>, ty, ^c),
-            BaseTy::Never =&gt; <span class="macro">w!</span>(<span class="string">&quot;!&quot;</span>),
+            BaseTy::Array(ty, c) =&gt; <span class="macro">w!</span>(<span class="string">"[{:?}; {:?}]"</span>, ty, ^c),
+            BaseTy::Never =&gt; <span class="macro">w!</span>(<span class="string">"!"</span>),
             BaseTy::Closure(did, args) =&gt; {
-                <span class="macro">w!</span>(<span class="string">&quot;Closure {:?}&lt;{:?}&gt;&quot;</span>, did, args)
+                <span class="macro">w!</span>(<span class="string">"Closure {:?}&lt;{:?}&gt;"</span>, did, args)
             }
             BaseTy::Coroutine(did, resume_ty, upvars) =&gt; {
-                <span class="macro">w!</span>(<span class="string">&quot;Coroutine({:?}, {:?})&quot;</span>, did, resume_ty)<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">"Coroutine({:?}, {:?})"</span>, did, resume_ty)<span class="question-mark">?</span>;
                 <span class="kw">if </span>!upvars.is_empty() {
-                    <span class="macro">w!</span>(<span class="string">&quot;&lt;{:?}&gt;&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, upvars))<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, upvars))<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
@@ -856,60 +858,60 @@
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>Const {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            ConstKind::Param(p) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^p.name.as_str()),
-            ConstKind::Value(v) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^v),
+            ConstKind::Param(p) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^p.name.as_str()),
+            ConstKind::Value(v) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^v),
         }
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>GenericArg {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span><span class="self">self </span>{
-            GenericArg::Ty(ty) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ty),
+            GenericArg::Ty(ty) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ty),
             GenericArg::Base(ctor) =&gt; {
                 cx.with_bound_vars(ctor.vars(), || {
-                    cx.fmt_bound_vars(<span class="string">&quot;λ&quot;</span>, ctor.vars(), <span class="string">&quot;. &quot;</span>, f)<span class="question-mark">?</span>;
-                    <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span>ctor.value)
+                    cx.fmt_bound_vars(<span class="string">"λ"</span>, ctor.vars(), <span class="string">". "</span>, f)<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span>ctor.value)
                 })
             }
-            GenericArg::Lifetime(re) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, re),
-            GenericArg::Const(c) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, c),
+            GenericArg::Lifetime(re) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, re),
+            GenericArg::Const(c) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, c),
         }
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>VariantSig {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
-        <span class="macro">w!</span>(<span class="string">&quot;({:?}) -&gt; {:?}&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="self">self</span>.fields()), <span class="kw-2">&amp;</span><span class="self">self</span>.idx)
+        <span class="macro">w!</span>(<span class="string">"({:?}) -&gt; {:?}"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="self">self</span>.fields()), <span class="kw-2">&amp;</span><span class="self">self</span>.idx)
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>Region {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
-        <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^region_to_string(<span class="kw-2">*</span><span class="self">self</span>))
+        <span class="macro">w!</span>(<span class="string">"{}"</span>, ^region_to_string(<span class="kw-2">*</span><span class="self">self</span>))
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>DebruijnIndex {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
-        <span class="macro">w!</span>(<span class="string">&quot;^{}&quot;</span>, ^<span class="self">self</span>.as_usize())
+        <span class="macro">w!</span>(<span class="string">"^{}"</span>, ^<span class="self">self</span>.as_usize())
     }
 }
 
 <span class="macro">impl_debug_with_default_cx!</span>(
     Constraint,
     Sort,
-    TyS =&gt; <span class="string">&quot;ty&quot;</span>,
+    TyS =&gt; <span class="string">"ty"</span>,
     BaseTy,
     FnSig,
-    GenericArg =&gt; <span class="string">&quot;generic_arg&quot;</span>,
+    GenericArg =&gt; <span class="string">"generic_arg"</span>,
     VariantSig,
     PtrKind,
     FuncSort,

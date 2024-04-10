@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rustc/lowering.rs`."><title>lowering.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rustc/lowering.rs`."><title>lowering.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_middle/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -979,6 +981,10 @@
 <a href="#979" id="979">979</a>
 <a href="#980" id="980">980</a>
 <a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1016,12 +1022,12 @@
     rustc::ty::{AliasTy, ProjectionPredicate, Region},
 };
 
-<span class="kw">pub struct </span>LoweringCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    param_env: ParamEnv&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    selcx: SelectionContext&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession,
-    rustc_mir: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_mir::Body&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">pub struct </span>LoweringCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; {
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    param_env: ParamEnv&lt;<span class="lifetime">'tcx</span>&gt;,
+    selcx: SelectionContext&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt;,
+    sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession,
+    rustc_mir: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_mir::Body&lt;<span class="lifetime">'tcx</span>&gt;,
 }
 
 <span class="attr">#[derive(Debug, Clone)]
@@ -1056,12 +1062,12 @@
     </span>}
 }
 
-<span class="kw">fn </span>trait_ref_impl_id&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    selcx: <span class="kw-2">&amp;mut </span>SelectionContext&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    param_env: ParamEnv&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    trait_ref: rustc_ty::TraitRef&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">&#39;tcx</span>&gt;)&gt; {
+<span class="kw">fn </span>trait_ref_impl_id&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    selcx: <span class="kw-2">&amp;mut </span>SelectionContext&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
+    param_env: ParamEnv&lt;<span class="lifetime">'tcx</span>&gt;,
+    trait_ref: rustc_ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;,
+) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;)&gt; {
     <span class="kw">let </span>obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     <span class="kw">let </span>impl_source = selcx.select(<span class="kw-2">&amp;</span>obligation).ok()<span class="question-mark">??</span>;
     <span class="kw">let </span>impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
@@ -1071,23 +1077,23 @@
     <span class="prelude-val">Some</span>((impl_data.impl_def_id, impl_data.args))
 }
 
-<span class="kw">pub fn </span>resolve_trait_ref_impl_id&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">pub fn </span>resolve_trait_ref_impl_id&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     def_id: LocalDefId,
-    trait_ref: rustc_ty::TraitRef&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">&#39;tcx</span>&gt;)&gt; {
+    trait_ref: rustc_ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;,
+) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;)&gt; {
     <span class="kw">let </span>param_env = tcx.param_env(def_id.to_def_id());
     <span class="kw">let </span>infcx = tcx.infer_ctxt().build();
     trait_ref_impl_id(tcx, <span class="kw-2">&amp;mut </span>SelectionContext::new(<span class="kw-2">&amp;</span>infcx), param_env, trait_ref)
 }
 
-<span class="kw">fn </span>resolve_call_query&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    selcx: <span class="kw-2">&amp;mut </span>SelectionContext&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    param_env: ParamEnv&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">fn </span>resolve_call_query&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    selcx: <span class="kw-2">&amp;mut </span>SelectionContext&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
+    param_env: ParamEnv&lt;<span class="lifetime">'tcx</span>&gt;,
     callee_id: DefId,
-    args: rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">&#39;tcx</span>&gt;)&gt; {
+    args: rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;,
+) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;)&gt; {
     <span class="kw">let </span>trait_id = tcx.trait_of_item(callee_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>trait_ref = rustc_ty::TraitRef::from_method(tcx, trait_id, args);
     <span class="kw">let </span>(impl_def_id, impl_args) = trait_ref_impl_id(tcx, selcx, param_env, trait_ref)<span class="question-mark">?</span>;
@@ -1096,23 +1102,23 @@
     <span class="prelude-val">Some</span>((assoc_item.def_id, impl_args))
 }
 
-<span class="kw">pub fn </span>resolve_call_from&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">pub fn </span>resolve_call_from&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     caller_id: LocalDefId,
     callee_id: DefId,
-    args: rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">&#39;tcx</span>&gt;)&gt; {
+    args: rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;,
+) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;)&gt; {
     <span class="kw">let </span>param_env = tcx.param_env(caller_id.to_def_id());
     <span class="kw">let </span>infcx = tcx.infer_ctxt().build();
     resolve_call_query(tcx, <span class="kw-2">&amp;mut </span>SelectionContext::new(<span class="kw-2">&amp;</span>infcx), param_env, callee_id, args)
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; LoweringCtxt&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; LoweringCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub fn </span>lower_mir_body(
-        tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-        sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession,
-        body_with_facts: BodyWithBorrowckFacts&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Body&lt;<span class="lifetime">&#39;tcx</span>&gt;, ErrorGuaranteed&gt; {
+        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+        sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession,
+        body_with_facts: BodyWithBorrowckFacts&lt;<span class="lifetime">'tcx</span>&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Body&lt;<span class="lifetime">'tcx</span>&gt;, ErrorGuaranteed&gt; {
         <span class="kw">let </span>infcx = replicate_infer_ctxt(tcx, <span class="kw-2">&amp;</span>body_with_facts);
         <span class="kw">let </span>param_env = tcx.param_env(body_with_facts.body.source.def_id());
         <span class="kw">let </span>selcx = SelectionContext::new(<span class="kw-2">&amp;</span>infcx);
@@ -1139,8 +1145,8 @@
 
     <span class="kw">fn </span>lower_basic_block_data(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        data: <span class="kw-2">&amp;</span>rustc_mir::BasicBlockData&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;BasicBlockData&lt;<span class="lifetime">&#39;tcx</span>&gt;, ErrorGuaranteed&gt; {
+        data: <span class="kw-2">&amp;</span>rustc_mir::BasicBlockData&lt;<span class="lifetime">'tcx</span>&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;BasicBlockData&lt;<span class="lifetime">'tcx</span>&gt;, ErrorGuaranteed&gt; {
         <span class="kw">let </span>data = BasicBlockData {
             statements: data
                 .statements
@@ -1159,7 +1165,7 @@
 
     <span class="kw">fn </span>lower_local_decl(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        local_decl: <span class="kw-2">&amp;</span>rustc_mir::LocalDecl&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        local_decl: <span class="kw-2">&amp;</span>rustc_mir::LocalDecl&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;LocalDecl, ErrorGuaranteed&gt; {
         <span class="prelude-val">Ok</span>(LocalDecl {
             ty: lower_ty(<span class="self">self</span>.tcx, local_decl.ty)
@@ -1171,7 +1177,7 @@
 
     <span class="kw">fn </span>lower_statement(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        stmt: <span class="kw-2">&amp;</span>rustc_mir::Statement&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        stmt: <span class="kw-2">&amp;</span>rustc_mir::Statement&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Statement, ErrorGuaranteed&gt; {
         <span class="kw">let </span>span = stmt.source_info.span;
         <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>stmt.kind {
@@ -1250,8 +1256,8 @@
 
     <span class="kw">fn </span>lower_terminator(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        terminator: <span class="kw-2">&amp;</span>rustc_mir::Terminator&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Terminator&lt;<span class="lifetime">&#39;tcx</span>&gt;, ErrorGuaranteed&gt; {
+        terminator: <span class="kw-2">&amp;</span>rustc_mir::Terminator&lt;<span class="lifetime">'tcx</span>&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Terminator&lt;<span class="lifetime">'tcx</span>&gt;, ErrorGuaranteed&gt; {
         <span class="kw">let </span>span = terminator.source_info.span;
         <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>terminator.kind {
             rustc_mir::TerminatorKind::Return =&gt; TerminatorKind::Return,
@@ -1268,13 +1274,13 @@
 
                 <span class="kw">let </span>destination = lower_place(destination)
                     .map_err(|reason| {
-                        errors::UnsupportedMir::new(span, <span class="string">&quot;terminator destination&quot;</span>, reason)
+                        errors::UnsupportedMir::new(span, <span class="string">"terminator destination"</span>, reason)
                     })
                     .emit(<span class="self">self</span>.sess)<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>resolved_call = <span class="self">self
                     </span>.resolve_call(func, generic_args.orig)
-                    .map_err(|reason| errors::UnsupportedMir::new(span, <span class="string">&quot;terminator call&quot;</span>, reason))
+                    .map_err(|reason| errors::UnsupportedMir::new(span, <span class="string">"terminator call"</span>, reason))
                     .emit(<span class="self">self</span>.sess)<span class="question-mark">?</span>;
 
                 TerminatorKind::Call {
@@ -1285,8 +1291,8 @@
                     args: args
                         .iter()
                         .map(|arg| {
-                            <span class="self">self</span>.lower_operand(arg).map_err(|reason| {
-                                errors::UnsupportedMir::new(span, <span class="string">&quot;terminator args&quot;</span>, reason)
+                            <span class="self">self</span>.lower_operand(<span class="kw-2">&amp;</span>arg.node).map_err(|reason| {
+                                errors::UnsupportedMir::new(span, <span class="string">"terminator args"</span>, reason)
                             })
                         })
                         .try_collect()
@@ -1364,8 +1370,8 @@
     <span class="kw">fn </span>resolve_call(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         callee_id: DefId,
-        args: rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(DefId, CallArgs&lt;<span class="lifetime">&#39;tcx</span>&gt;), UnsupportedReason&gt; {
+        args: rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(DefId, CallArgs&lt;<span class="lifetime">'tcx</span>&gt;), UnsupportedReason&gt; {
         <span class="kw">let </span>(resolved_id, resolved_args) =
             resolve_call_query(<span class="self">self</span>.tcx, <span class="kw-2">&amp;mut </span><span class="self">self</span>.selcx, <span class="self">self</span>.param_env, callee_id, args)
                 .unwrap_or((callee_id, args));
@@ -1374,7 +1380,7 @@
         <span class="prelude-val">Ok</span>((resolved_id, call_args))
     }
 
-    <span class="kw">fn </span>lower_rvalue(<span class="kw-2">&amp;</span><span class="self">self</span>, rvalue: <span class="kw-2">&amp;</span>rustc_mir::Rvalue&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Rvalue, UnsupportedReason&gt; {
+    <span class="kw">fn </span>lower_rvalue(<span class="kw-2">&amp;</span><span class="self">self</span>, rvalue: <span class="kw-2">&amp;</span>rustc_mir::Rvalue&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Rvalue, UnsupportedReason&gt; {
         <span class="kw">match </span>rvalue {
             rustc_mir::Rvalue::Use(op) =&gt; <span class="prelude-val">Ok</span>(Rvalue::Use(<span class="self">self</span>.lower_operand(op)<span class="question-mark">?</span>)),
             rustc_mir::Rvalue::BinaryOp(bin_op, <span class="kw">box </span>(op1, op2)) =&gt; {
@@ -1410,7 +1416,7 @@
             rustc_mir::Rvalue::Len(place) =&gt; <span class="prelude-val">Ok</span>(Rvalue::Len(lower_place(place)<span class="question-mark">?</span>)),
             rustc_mir::Rvalue::Cast(kind, op, ty) =&gt; {
                 <span class="kw">let </span>kind = <span class="self">self</span>.lower_cast_kind(<span class="kw-2">*</span>kind).ok_or_else(|| {
-                    UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported cast `{kind:?}`&quot;</span>))
+                    UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported cast `{kind:?}`"</span>))
                 })<span class="question-mark">?</span>;
                 <span class="kw">let </span>op = <span class="self">self</span>.lower_operand(op)<span class="question-mark">?</span>;
                 <span class="kw">let </span>ty = lower_ty(<span class="self">self</span>.tcx, <span class="kw-2">*</span>ty)<span class="question-mark">?</span>;
@@ -1422,7 +1428,7 @@
             | rustc_mir::Rvalue::NullaryOp(<span class="kw">_</span>, <span class="kw">_</span>)
             | rustc_mir::Rvalue::CopyForDeref(<span class="kw">_</span>)
             | rustc_mir::Rvalue::ShallowInitBox(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
-                <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported rvalue `{rvalue:?}`&quot;</span>)))
+                <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported rvalue `{rvalue:?}`"</span>)))
             }
         }
     }
@@ -1434,8 +1440,8 @@
         <span class="kw">match </span>bk {
             rustc_mir::BorrowKind::Shared =&gt; <span class="prelude-val">Ok</span>(BorrowKind::Shared),
             rustc_mir::BorrowKind::Mut { kind } =&gt; <span class="prelude-val">Ok</span>(BorrowKind::Mut { kind }),
-            rustc_mir::BorrowKind::Shallow =&gt; {
-                <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported borrow kind `{bk:?}`&quot;</span>)))
+            rustc_mir::BorrowKind::Fake =&gt; {
+                <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported borrow kind `{bk:?}`"</span>)))
             }
         }
     }
@@ -1469,7 +1475,7 @@
 
     <span class="kw">fn </span>lower_aggregate_kind(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        aggregate_kind: <span class="kw-2">&amp;</span>rustc_mir::AggregateKind&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        aggregate_kind: <span class="kw-2">&amp;</span>rustc_mir::AggregateKind&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;AggregateKind, UnsupportedReason&gt; {
         <span class="kw">match </span>aggregate_kind {
             rustc_mir::AggregateKind::Adt(def_id, variant_idx, args, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>) =&gt; {
@@ -1483,13 +1489,13 @@
                 <span class="kw">let </span>args = lower_generic_args(<span class="self">self</span>.tcx, args)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(AggregateKind::Closure(<span class="kw-2">*</span>did, args))
             }
-            rustc_mir::AggregateKind::Coroutine(did, args, _mov) =&gt; {
+            rustc_mir::AggregateKind::Coroutine(did, args) =&gt; {
                 <span class="kw">let </span>args = lower_generic_args(<span class="self">self</span>.tcx, args)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(AggregateKind::Coroutine(<span class="kw-2">*</span>did, args))
             }
-            rustc_mir::AggregateKind::Adt(..) =&gt; {
+            rustc_mir::AggregateKind::Adt(..) | rustc_mir::AggregateKind::CoroutineClosure(..) =&gt; {
                 <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(
-                    <span class="string">&quot;unsupported aggregate kind `{aggregate_kind:?}`&quot;
+                    <span class="string">"unsupported aggregate kind `{aggregate_kind:?}`"
                 </span>)))
             }
         }
@@ -1518,13 +1524,14 @@
             | rustc_mir::BinOp::ShlUnchecked
             | rustc_mir::BinOp::ShrUnchecked
             | rustc_mir::BinOp::BitXor
+            | rustc_mir::BinOp::Cmp
             | rustc_mir::BinOp::Offset =&gt; {
-                <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported binary op `{bin_op:?}`&quot;</span>)))
+                <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported binary op `{bin_op:?}`"</span>)))
             }
         }
     }
 
-    <span class="kw">fn </span>lower_operand(<span class="kw-2">&amp;</span><span class="self">self</span>, op: <span class="kw-2">&amp;</span>rustc_mir::Operand&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Operand, UnsupportedReason&gt; {
+    <span class="kw">fn </span>lower_operand(<span class="kw-2">&amp;</span><span class="self">self</span>, op: <span class="kw-2">&amp;</span>rustc_mir::Operand&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Operand, UnsupportedReason&gt; {
         <span class="kw">match </span>op {
             rustc_mir::Operand::Copy(place) =&gt; <span class="prelude-val">Ok</span>(Operand::Copy(lower_place(place)<span class="question-mark">?</span>)),
             rustc_mir::Operand::Move(place) =&gt; <span class="prelude-val">Ok</span>(Operand::Move(lower_place(place)<span class="question-mark">?</span>)),
@@ -1534,7 +1541,7 @@
 
     <span class="kw">fn </span>lower_constant(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        constant: <span class="kw-2">&amp;</span>rustc_mir::ConstOperand&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        constant: <span class="kw-2">&amp;</span>rustc_mir::ConstOperand&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Constant, UnsupportedReason&gt; {
         <span class="kw">use </span>rustc_middle::ty::TyKind;
         <span class="comment">// use rustc_ty::ScalarInt;
@@ -1565,7 +1572,7 @@
             (<span class="kw">_</span>, TyKind::Tuple(tys)) <span class="kw">if </span>tys.is_empty() =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Constant::Unit),
             (<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Constant::Opaque(lower_ty(tcx, ty)<span class="question-mark">?</span>)),
         }
-        .ok_or_else(|| UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported constant `{constant:?}`&quot;</span>)))
+        .ok_or_else(|| UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported constant `{constant:?}`"</span>)))
     }
 
     <span class="kw">fn </span>lower_assert_msg(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>rustc_mir::AssertMessage) -&gt; <span class="prelude-ty">Option</span>&lt;AssertKind&gt; {
@@ -1591,16 +1598,16 @@
             }
             rustc_mir::PlaceElem::Index(v) =&gt; projection.push(PlaceElem::Index(v)),
             <span class="kw">_ </span>=&gt; {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported place `{place:?}`&quot;</span>)));
+                <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported place `{place:?}`"</span>)));
             }
         }
     }
     <span class="prelude-val">Ok</span>(Place { local: place.local, projection })
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_fn_sig&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    fn_sig: rustc_ty::PolyFnSig&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_fn_sig&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    fn_sig: rustc_ty::PolyFnSig&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;PolyFnSig, UnsupportedReason&gt; {
     lower_binder(fn_sig, |fn_sig| {
         <span class="kw">let </span>inputs_and_output = List::from_vec(
@@ -1633,7 +1640,7 @@
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason {
-                    descr: <span class="macro">format!</span>(<span class="string">&quot;unsupported bound variable {var:?}&quot;</span>),
+                    descr: <span class="macro">format!</span>(<span class="string">"unsupported bound variable {var:?}"</span>),
                 });
             }
         }
@@ -1641,23 +1648,23 @@
     <span class="prelude-val">Ok</span>(List::from_vec(vars))
 }
 
-<span class="kw">fn </span>lower_const&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    c: rustc_ty::Const&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">fn </span>lower_const&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    c: rustc_ty::Const&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Const, UnsupportedReason&gt; {
     <span class="kw">let </span>kind = <span class="kw">match </span>c.kind() {
         rustc_type_ir::ConstKind::Param(param_const) =&gt; {
             ConstKind::Param(ParamConst { name: param_const.name, index: param_const.index })
         }
         rustc_type_ir::ConstKind::Value(ValTree::Leaf(scalar_int)) =&gt; ConstKind::Value(scalar_int),
-        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported const {c:?}&quot;</span>))),
+        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported const {c:?}"</span>))),
     };
     <span class="prelude-val">Ok</span>(Const { kind, ty: lower_ty(tcx, c.ty())<span class="question-mark">? </span>})
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_ty&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    ty: rustc_ty::Ty&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_ty&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    ty: rustc_ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, UnsupportedReason&gt; {
     <span class="kw">match </span>ty.kind() {
         rustc_ty::Ref(region, ty, mutability) =&gt; {
@@ -1681,10 +1688,9 @@
         }
         rustc_ty::Array(ty, len) =&gt; <span class="prelude-val">Ok</span>(Ty::mk_array(lower_ty(tcx, <span class="kw-2">*</span>ty)<span class="question-mark">?</span>, lower_const(tcx, <span class="kw-2">*</span>len)<span class="question-mark">?</span>)),
         rustc_ty::Slice(ty) =&gt; <span class="prelude-val">Ok</span>(Ty::mk_slice(lower_ty(tcx, <span class="kw-2">*</span>ty)<span class="question-mark">?</span>)),
-        rustc_ty::RawPtr(t) =&gt; {
-            <span class="kw">let </span>mutbl = t.mutbl;
-            <span class="kw">let </span>ty = lower_ty(tcx, t.ty)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(Ty::mk_raw_ptr(ty, mutbl))
+        rustc_ty::RawPtr(ty, mutbl) =&gt; {
+            <span class="kw">let </span>ty = lower_ty(tcx, <span class="kw-2">*</span>ty)<span class="question-mark">?</span>;
+            <span class="prelude-val">Ok</span>(Ty::mk_raw_ptr(ty, <span class="kw-2">*</span>mutbl))
         }
         rustc_ty::FnPtr(fn_sig) =&gt; {
             <span class="kw">let </span>fn_sig = lower_fn_sig(tcx, <span class="kw-2">*</span>fn_sig)<span class="question-mark">?</span>;
@@ -1700,7 +1706,7 @@
             <span class="kw">let </span>args = lower_generic_args(tcx, alias_ty.args)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(Ty::mk_alias(kind, alias_ty.def_id, args))
         }
-        rustc_ty::Coroutine(did, args, <span class="kw">_</span>) =&gt; {
+        rustc_ty::Coroutine(did, args) =&gt; {
             <span class="kw">let </span>args = lower_generic_args(tcx, args)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(Ty::mk_coroutine(<span class="kw-2">*</span>did, args))
         }
@@ -1708,7 +1714,7 @@
             <span class="kw">let </span>args = lower_generic_args(tcx, args)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(Ty::mk_generator_witness(<span class="kw-2">*</span>did, args))
         }
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported type `{ty:?}`&quot;</span>))),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported type `{ty:?}`"</span>))),
     }
 }
 
@@ -1716,11 +1722,11 @@
     <span class="kw">match </span>kind {
         rustc_type_ir::AliasKind::Projection =&gt; <span class="prelude-val">Ok</span>(AliasKind::Projection),
         rustc_type_ir::AliasKind::Opaque =&gt; <span class="prelude-val">Ok</span>(AliasKind::Opaque),
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported alias kind `{kind:?}`&quot;</span>))),
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported alias kind `{kind:?}`"</span>))),
     }
 }
 
-<span class="kw">pub fn </span>lower_adt_def&lt;<span class="lifetime">&#39;tcx</span>&gt;(tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;, adt_def: rustc_ty::AdtDef&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; AdtDef {
+<span class="kw">pub fn </span>lower_adt_def&lt;<span class="lifetime">'tcx</span>&gt;(tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;, adt_def: rustc_ty::AdtDef&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; AdtDef {
     AdtDef::new(AdtDefData::new(
         tcx,
         adt_def,
@@ -1740,9 +1746,9 @@
     FieldDef { did: f.did, name: f.name }
 }
 
-<span class="kw">pub fn </span>lower_generic_args&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    args: rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">pub fn </span>lower_generic_args&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    args: rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;List&lt;GenericArg&gt;, UnsupportedReason&gt; {
     <span class="prelude-val">Ok</span>(List::from_vec(
         args.iter()
@@ -1751,9 +1757,9 @@
     ))
 }
 
-<span class="kw">fn </span>lower_generic_arg&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    arg: rustc_middle::ty::GenericArg&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">fn </span>lower_generic_arg&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    arg: rustc_middle::ty::GenericArg&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;GenericArg, UnsupportedReason&gt; {
     <span class="kw">match </span>arg.unpack() {
         GenericArgKind::Type(ty) =&gt; <span class="prelude-val">Ok</span>(GenericArg::Ty(lower_ty(tcx, ty)<span class="question-mark">?</span>)),
@@ -1766,16 +1772,16 @@
     <span class="kw">use </span>rustc_middle::ty::RegionKind;
     <span class="kw">match </span>region.kind() {
         RegionKind::ReVar(rvid) =&gt; <span class="prelude-val">Ok</span>(Region::ReVar(rvid)),
-        RegionKind::ReLateBound(debruijn, bregion) =&gt; {
+        RegionKind::ReBound(debruijn, bregion) =&gt; {
             <span class="prelude-val">Ok</span>(Region::ReLateBound(debruijn, lower_bound_region(bregion)<span class="question-mark">?</span>))
         }
-        RegionKind::ReEarlyBound(bregion) =&gt; <span class="prelude-val">Ok</span>(Region::ReEarlyBound(bregion)),
+        RegionKind::ReEarlyParam(bregion) =&gt; <span class="prelude-val">Ok</span>(Region::ReEarlyBound(bregion)),
         RegionKind::ReStatic =&gt; <span class="prelude-val">Ok</span>(Region::ReStatic),
-        RegionKind::ReFree(<span class="kw">_</span>)
+        RegionKind::ReLateParam(<span class="kw">_</span>)
         | RegionKind::RePlaceholder(<span class="kw">_</span>)
         | RegionKind::ReError(<span class="kw">_</span>)
         | RegionKind::ReErased =&gt; {
-            <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported region `{region:?}`&quot;</span>)))
+            <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported region `{region:?}`"</span>)))
         }
     }
 }
@@ -1805,17 +1811,17 @@
             GenericParamDefKind::Type { has_default }
         }
         rustc_ty::GenericParamDefKind::Lifetime =&gt; GenericParamDefKind::Lifetime,
-        rustc_ty::GenericParamDefKind::Const { has_default, .. } =&gt; {
-            GenericParamDefKind::Const { has_default }
+        rustc_ty::GenericParamDefKind::Const { has_default, is_host_effect } =&gt; {
+            GenericParamDefKind::Const { has_default, is_host_effect }
         }
-        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="string">&quot;unsupported generic param&quot;</span>)),
+        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="string">"unsupported generic param"</span>)),
     };
     <span class="prelude-val">Ok</span>(GenericParamDef { def_id: generic.def_id, index: generic.index, name: generic.name, kind })
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_generic_predicates&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    generics: rustc_ty::GenericPredicates&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_generic_predicates&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    generics: rustc_ty::GenericPredicates&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;GenericPredicates, UnsupportedErr&gt; {
     <span class="kw">let </span>predicates = generics
         .predicates
@@ -1827,9 +1833,9 @@
     <span class="prelude-val">Ok</span>(GenericPredicates { parent: generics.parent, predicates })
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_item_bounds&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    bounds: <span class="kw-2">&amp;</span>[rustc_ty::Clause&lt;<span class="lifetime">&#39;tcx</span>&gt;],
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_item_bounds&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    bounds: <span class="kw-2">&amp;</span>[rustc_ty::Clause&lt;<span class="lifetime">'tcx</span>&gt;],
 ) -&gt; <span class="prelude-ty">Result</span>&lt;List&lt;Clause&gt;, UnsupportedErr&gt; {
     bounds
         .iter()
@@ -1837,12 +1843,12 @@
         .try_collect()
 }
 
-<span class="kw">fn </span>lower_clause&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    clause: <span class="kw-2">&amp;</span>rustc_ty::Clause&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">fn </span>lower_clause&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    clause: <span class="kw-2">&amp;</span>rustc_ty::Clause&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Clause, UnsupportedReason&gt; {
     <span class="kw">let </span><span class="prelude-val">Some</span>(kind) = clause.kind().no_bound_vars() <span class="kw">else </span>{
-        <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="string">&quot;higher-rank trait bounds are not supported&quot;</span>));
+        <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="string">"higher-rank trait bounds are not supported"</span>));
     };
     <span class="kw">let </span>kind = <span class="kw">match </span>kind {
         rustc_ty::ClauseKind::Trait(trait_pred) =&gt; {
@@ -1853,7 +1859,7 @@
         rustc_ty::ClauseKind::Projection(proj_pred) =&gt; {
             <span class="kw">let </span><span class="prelude-val">Some</span>(term) = proj_pred.term.ty() <span class="kw">else </span>{
                 <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(
-                    <span class="string">&quot;unsupported projection predicate `{proj_pred:?}`&quot;
+                    <span class="string">"unsupported projection predicate `{proj_pred:?}`"
                 </span>)));
             };
             <span class="kw">let </span>proj_ty = proj_pred.projection_ty;
@@ -1866,28 +1872,32 @@
         rustc_ty::ClauseKind::TypeOutlives(outlives_pred) =&gt; {
             ClauseKind::TypeOutlives(lower_type_outlives(tcx, outlives_pred)<span class="question-mark">?</span>)
         }
+        rustc_ty::ClauseKind::ConstArgHasType(const_, ty) =&gt; {
+            ClauseKind::ConstArgHasType(lower_const(tcx, const_)<span class="question-mark">?</span>, lower_ty(tcx, ty)<span class="question-mark">?</span>)
+        }
         <span class="kw">_ </span>=&gt; {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;unsupported clause kind `{kind:?}`&quot;</span>)));
+            <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported clause kind `{kind:?}`"</span>)));
         }
     };
     <span class="prelude-val">Ok</span>(Clause::new(kind))
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_trait_ref&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    trait_ref: rustc_ty::TraitRef&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_trait_ref&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    trait_ref: rustc_ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;TraitRef, UnsupportedReason&gt; {
     <span class="prelude-val">Ok</span>(TraitRef { def_id: trait_ref.def_id, args: lower_generic_args(tcx, trait_ref.args)<span class="question-mark">? </span>})
 }
 
-<span class="kw">fn </span>lower_type_outlives&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    pred: rustc_ty::TypeOutlivesPredicate&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">fn </span>lower_type_outlives&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    pred: rustc_ty::TypeOutlivesPredicate&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;TypeOutlivesPredicate, UnsupportedReason&gt; {
     <span class="prelude-val">Ok</span>(rustc_ty::OutlivesPredicate(lower_ty(tcx, pred.<span class="number">0</span>)<span class="question-mark">?</span>, lower_region(<span class="kw-2">&amp;</span>pred.<span class="number">1</span>)<span class="question-mark">?</span>))
 }
 
 <span class="kw">mod </span>errors {
+    <span class="kw">use </span>flux_errors::E0999;
     <span class="kw">use </span>flux_macros::Diagnostic;
     <span class="kw">use </span>rustc_middle::mir <span class="kw">as </span>rustc_mir;
     <span class="kw">use </span>rustc_span::Span;
@@ -1895,17 +1905,17 @@
     <span class="kw">use </span><span class="kw">super</span>::UnsupportedReason;
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(middle_unsupported_local_decl, code = <span class="string">&quot;FLUX&quot;</span>)]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnsupportedLocalDecl&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    #[diag(middle_unsupported_local_decl, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnsupportedLocalDecl&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="attr">#[primary_span]
         #[label]
         </span>span: Span,
-        ty: rustc_middle::ty::Ty&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        ty: rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;,
     }
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;tcx</span>&gt; UnsupportedLocalDecl&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; UnsupportedLocalDecl&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(
-            local_decl: <span class="kw-2">&amp;</span>rustc_mir::LocalDecl&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+            local_decl: <span class="kw-2">&amp;</span>rustc_mir::LocalDecl&lt;<span class="lifetime">'tcx</span>&gt;,
             _err: UnsupportedReason,
         ) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{ span: local_decl.source_info.span, ty: local_decl.ty }
@@ -1913,49 +1923,49 @@
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(middle_unsupported_mir, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(middle_unsupported_mir, code = E0999)]
     #[note]
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnsupportedMir {
         <span class="attr">#[primary_span]
         </span>span: Span,
-        kind: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+        kind: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
         reason: UnsupportedReason,
     }
 
-    <span class="kw">impl </span>rustc_errors::IntoDiagnosticArg <span class="kw">for </span>UnsupportedReason {
-        <span class="kw">fn </span>into_diagnostic_arg(<span class="self">self</span>) -&gt; rustc_errors::DiagnosticArgValue&lt;<span class="lifetime">&#39;static</span>&gt; {
-            rustc_errors::DiagnosticArgValue::Str(std::borrow::Cow::Owned(<span class="self">self</span>.descr))
+    <span class="kw">impl </span>rustc_errors::IntoDiagArg <span class="kw">for </span>UnsupportedReason {
+        <span class="kw">fn </span>into_diag_arg(<span class="self">self</span>) -&gt; rustc_errors::DiagArgValue {
+            rustc_errors::DiagArgValue::Str(std::borrow::Cow::Owned(<span class="self">self</span>.descr))
         }
     }
 
     <span class="kw">impl </span>UnsupportedMir {
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, kind: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str, reason: UnsupportedReason) -&gt; <span class="self">Self </span>{
+        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, kind: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, reason: UnsupportedReason) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{ span, kind, reason }
         }
 
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>terminator(span: Span, reason: UnsupportedReason) -&gt; <span class="self">Self </span>{
-            <span class="self">Self </span>{ span, kind: <span class="string">&quot;terminator&quot;</span>, reason }
+            <span class="self">Self </span>{ span, kind: <span class="string">"terminator"</span>, reason }
         }
 
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>statement(span: Span, reason: UnsupportedReason) -&gt; <span class="self">Self </span>{
-            <span class="self">Self </span>{ span, kind: <span class="string">&quot;statement&quot;</span>, reason }
+            <span class="self">Self </span>{ span, kind: <span class="string">"statement"</span>, reason }
         }
     }
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_mir::Terminator&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt; <span class="kw">for </span>UnsupportedMir {
-        <span class="kw">fn </span>from(terminator: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_mir::Terminator&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_mir::Terminator&lt;<span class="lifetime">'tcx</span>&gt;&gt; <span class="kw">for </span>UnsupportedMir {
+        <span class="kw">fn </span>from(terminator: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_mir::Terminator&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self </span>{
             <span class="self">Self</span>::terminator(
                 terminator.source_info.span,
-                UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;{terminator:?}&quot;</span>,)),
+                UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"{terminator:?}"</span>,)),
             )
         }
     }
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_mir::Statement&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt; <span class="kw">for </span>UnsupportedMir {
-        <span class="kw">fn </span>from(statement: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_mir::Statement&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_mir::Statement&lt;<span class="lifetime">'tcx</span>&gt;&gt; <span class="kw">for </span>UnsupportedMir {
+        <span class="kw">fn </span>from(statement: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_mir::Statement&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self </span>{
             <span class="self">Self</span>::statement(
                 statement.source_info.span,
-                UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">&quot;{statement:?}&quot;</span>)),
+                UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"{statement:?}"</span>)),
             )
         }
     }

@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/queries.rs`."><title>queries.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/queries.rs`."><title>queries.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../flux_middle/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -590,20 +592,16 @@
 <a href="#590" id="590">590</a>
 <a href="#591" id="591">591</a>
 <a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
 };
 
 <span class="kw">use </span>flux_common::iter::IterExt;
-<span class="kw">use </span>flux_errors::ErrorGuaranteed;
+<span class="kw">use </span>flux_errors::{ErrorGuaranteed, E0999};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_errors::IntoDiagnostic;
+<span class="kw">use </span>rustc_errors::Diagnostic;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
@@ -643,15 +641,15 @@
 <span class="kw">pub struct </span>Providers {
     <span class="kw">pub </span>collect_specs: <span class="kw">fn</span>(GlobalEnv) -&gt; <span class="kw">crate</span>::Specs,
     <span class="kw">pub </span>resolve_crate: <span class="kw">fn</span>(GlobalEnv) -&gt; <span class="kw">crate</span>::ResolverOutput,
-    <span class="kw">pub </span>fhir_crate: <span class="kw">for</span>&lt;<span class="lifetime">&#39;genv</span>&gt; <span class="kw">fn</span>(GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;) -&gt; fhir::Crate&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    <span class="kw">pub </span>fhir_crate: <span class="kw">for</span>&lt;<span class="lifetime">'genv</span>&gt; <span class="kw">fn</span>(GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;) -&gt; fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;,
     <span class="kw">pub </span>qualifiers: <span class="kw">fn</span>(GlobalEnv) -&gt; QueryResult&lt;Vec&lt;rty::Qualifier&gt;&gt;,
     <span class="kw">pub </span>spec_func_defns: <span class="kw">fn</span>(GlobalEnv) -&gt; QueryResult&lt;rty::SpecFuncDefns&gt;,
     <span class="kw">pub </span>spec_func_decls: <span class="kw">fn</span>(GlobalEnv) -&gt; FxHashMap&lt;Symbol, rty::SpecFuncDecl&gt;,
     <span class="kw">pub </span>adt_sort_def_of: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; rty::AdtSortDef,
-    <span class="kw">pub </span>check_wf: <span class="kw">for</span>&lt;<span class="lifetime">&#39;genv</span>&gt; <span class="kw">fn</span>(
-        GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+    <span class="kw">pub </span>check_wf: <span class="kw">for</span>&lt;<span class="lifetime">'genv</span>&gt; <span class="kw">fn</span>(
+        GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
         FluxLocalDefId,
-    ) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;&gt;,
+    ) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
     <span class="kw">pub </span>adt_def: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::AdtDef&gt;,
     <span class="kw">pub </span>type_of: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;,
     <span class="kw">pub </span>variants_of: <span class="kw">fn</span>(
@@ -671,9 +669,9 @@
     <span class="kw">pub </span>item_bounds: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt;,
 }
 
-<span class="macro">macro_rules! </span>empty_query {
+<span class="macro">macro_rules!</span> empty_query {
     () =&gt; {
-        <span class="macro">flux_common::bug!</span>(<span class="string">&quot;query not provided&quot;</span>)
+        <span class="macro">flux_common::bug!</span>(<span class="string">"query not provided"</span>)
     };
 }
 
@@ -703,13 +701,13 @@
     }
 }
 
-<span class="kw">pub struct </span>Queries&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">pub struct </span>Queries&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) providers: Providers,
-    mir: Cache&lt;LocalDefId, QueryResult&lt;Rc&lt;rustc::mir::Body&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt;&gt;&gt;,
+    mir: Cache&lt;LocalDefId, QueryResult&lt;Rc&lt;rustc::mir::Body&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt;&gt;,
     collect_specs: OnceCell&lt;<span class="kw">crate</span>::Specs&gt;,
     resolve_crate: OnceCell&lt;<span class="kw">crate</span>::ResolverOutput&gt;,
-    fhir_crate: OnceCell&lt;fhir::Crate&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;,
-    lower_generics_of: Cache&lt;DefId, QueryResult&lt;ty::Generics&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt;&gt;,
+    fhir_crate: OnceCell&lt;fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;&gt;,
+    lower_generics_of: Cache&lt;DefId, QueryResult&lt;ty::Generics&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt;,
     lower_predicates_of: Cache&lt;DefId, QueryResult&lt;ty::GenericPredicates&gt;&gt;,
     lower_type_of: Cache&lt;DefId, QueryResult&lt;ty::EarlyBinder&lt;ty::Ty&gt;&gt;&gt;,
     lower_fn_sig: Cache&lt;DefId, QueryResult&lt;ty::EarlyBinder&lt;ty::PolyFnSig&gt;&gt;&gt;,
@@ -717,7 +715,7 @@
     func_decls: OnceCell&lt;FxHashMap&lt;Symbol, rty::SpecFuncDecl&gt;&gt;,
     qualifiers: OnceCell&lt;QueryResult&lt;Vec&lt;rty::Qualifier&gt;&gt;&gt;,
     adt_sort_def_of: Cache&lt;DefId, rty::AdtSortDef&gt;,
-    check_wf: Cache&lt;FluxLocalDefId, QueryResult&lt;Rc&lt;rty::WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;&gt;&gt;,
+    check_wf: Cache&lt;FluxLocalDefId, QueryResult&lt;Rc&lt;rty::WfckResults&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;&gt;,
     adt_def: Cache&lt;DefId, QueryResult&lt;rty::AdtDef&gt;&gt;,
     generics_of: Cache&lt;DefId, QueryResult&lt;rty::Generics&gt;&gt;,
     refinement_generics_of: Cache&lt;DefId, QueryResult&lt;rty::RefinementGenerics&gt;&gt;,
@@ -732,7 +730,7 @@
     lower_late_bound_vars: Cache&lt;LocalDefId, QueryResult&lt;List&lt;rustc::ty::BoundVariableKind&gt;&gt;&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; Queries&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Queries&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(providers: Providers) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             providers,
@@ -766,9 +764,9 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>mir(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         def_id: LocalDefId,
-    ) -&gt; QueryResult&lt;Rc&lt;rustc::mir::Body&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt;&gt; {
+    ) -&gt; QueryResult&lt;Rc&lt;rustc::mir::Body&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.mir, def_id, || {
             <span class="kw">let </span>mir = <span class="kw">unsafe </span>{ flux_common::mir_storage::retrieve_mir_body(genv.tcx(), def_id) };
             <span class="kw">let </span>mir = rustc::lowering::LoweringCtxt::lower_mir_body(genv.tcx(), genv.sess(), mir)<span class="question-mark">?</span>;
@@ -776,32 +774,32 @@
         })
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>collect_specs(<span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span><span class="self">self</span>, genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span><span class="kw">crate</span>::Specs {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>collect_specs(<span class="kw-2">&amp;</span><span class="lifetime">'genv </span><span class="self">self</span>, genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span><span class="kw">crate</span>::Specs {
         <span class="self">self</span>.collect_specs
             .get_or_init(|| (<span class="self">self</span>.providers.collect_specs)(genv))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_crate(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span><span class="kw">crate</span>::ResolverOutput {
+        <span class="kw-2">&amp;</span><span class="lifetime">'genv </span><span class="self">self</span>,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+    ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span><span class="kw">crate</span>::ResolverOutput {
         <span class="self">self</span>.resolve_crate
             .get_or_init(|| (<span class="self">self</span>.providers.resolve_crate)(genv))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fhir_crate(
-        <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Crate&lt;<span class="lifetime">&#39;genv</span>&gt; {
+        <span class="kw-2">&amp;</span><span class="lifetime">'genv </span><span class="self">self</span>,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+    ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Crate&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="self">self</span>.fhir_crate
             .get_or_init(|| (<span class="self">self</span>.providers.fhir_crate)(genv))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_generics_of(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         def_id: DefId,
-    ) -&gt; QueryResult&lt;ty::Generics&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt; {
+    ) -&gt; QueryResult&lt;ty::Generics&lt;<span class="lifetime">'tcx</span>&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.lower_generics_of, def_id, || {
             <span class="kw">let </span>generics = genv.tcx().generics_of(def_id);
             lowering::lower_generics(generics)
@@ -894,9 +892,9 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_wf(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
         flux_id: FluxLocalDefId,
-    ) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;&gt; {
+    ) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.check_wf, flux_id, || (<span class="self">self</span>.providers.check_wf)(genv, flux_id))
     }
 
@@ -949,7 +947,7 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>item_bounds(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         def_id: DefId,
     ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.item_bounds, def_id, || {
@@ -1015,7 +1013,7 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = impl_id.as_local() {
                 (<span class="self">self</span>.providers.assoc_refinement_def)(genv, local_id, name)
             } <span class="kw">else </span>{
-                <span class="macro">todo!</span>(<span class="string">&quot;implement for external crates&quot;</span>)
+                <span class="macro">todo!</span>(<span class="string">"implement for external crates"</span>)
             }
         })
     }
@@ -1031,7 +1029,7 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = impl_id.as_local() {
                 (<span class="self">self</span>.providers.sort_of_assoc_reft)(genv, local_id, name)
             } <span class="kw">else </span>{
-                <span class="macro">todo!</span>(<span class="string">&quot;implement for external crates&quot;</span>)
+                <span class="macro">todo!</span>(<span class="string">"implement for external crates"</span>)
             }
         })
     }
@@ -1047,7 +1045,7 @@
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(ty) = genv.cstore().type_of(def_id) {
                 <span class="prelude-val">Ok</span>(ty.clone())
             } <span class="kw">else </span>{
-                <span class="comment">// If we&#39;re given a type parameter, provide the generics of the parent container.
+                <span class="comment">// If we're given a type parameter, provide the generics of the parent container.
                 </span><span class="kw">let </span>generics_def_id = <span class="kw">match </span>genv.def_kind(def_id) {
                     DefKind::TyParam =&gt; genv.tcx().parent(def_id),
                     <span class="kw">_ </span>=&gt; def_id,
@@ -1101,8 +1099,8 @@
         def_id: DefId,
     ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.fn_sig, def_id, || {
-            <span class="comment">// If it&#39;s an extern_fn, resolve it to its local fn_sig&#39;s def_id,
-            // otherwise don&#39;t change it.
+            <span class="comment">// If it's an extern_fn, resolve it to its local fn_sig's def_id,
+            // otherwise don't change it.
             </span><span class="kw">let </span>def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.fn_sig)(genv, local_id)
@@ -1123,7 +1121,7 @@
         def_id: LocalDefId,
     ) -&gt; QueryResult&lt;List&lt;rustc::ty::BoundVariableKind&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.lower_late_bound_vars, def_id, || {
-            <span class="kw">let </span>hir_id = genv.hir().local_def_id_to_hir_id(def_id);
+            <span class="kw">let </span>hir_id = genv.tcx().local_def_id_to_hir_id(def_id);
             <span class="kw">let </span>bound_vars = genv.tcx().late_bound_vars(hir_id);
             lowering::lower_bound_vars(bound_vars)
                 .map_err(UnsupportedReason::into_err)
@@ -1151,35 +1149,31 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; IntoDiagnostic&lt;<span class="lifetime">&#39;a</span>&gt; <span class="kw">for </span>QueryErr {
-    <span class="kw">fn </span>into_diagnostic(
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Diagnostic&lt;<span class="lifetime">'a</span>&gt; <span class="kw">for </span>QueryErr {
+    <span class="kw">fn </span>into_diag(
         <span class="self">self</span>,
-        handler: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>rustc_errors::Handler,
-    ) -&gt; rustc_errors::DiagnosticBuilder&lt;<span class="lifetime">&#39;a</span>, ErrorGuaranteed&gt; {
+        dcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_errors::DiagCtxt,
+        _level: rustc_errors::Level,
+    ) -&gt; rustc_errors::Diag&lt;<span class="lifetime">'a</span>, ErrorGuaranteed&gt; {
         <span class="kw">use </span><span class="kw">crate</span>::fluent_generated <span class="kw">as </span>fluent;
         <span class="kw">match </span><span class="self">self </span>{
             QueryErr::Unsupported { err, def_span, .. } =&gt; {
                 <span class="kw">let </span>span = err.span.unwrap_or(def_span);
-                <span class="kw">let </span><span class="kw-2">mut </span>builder = handler.struct_span_err_with_code(
-                    span,
-                    fluent::middle_query_unsupported,
-                    flux_errors::diagnostic_id(),
-                );
-                builder.note(err.descr);
-                builder
+                <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_span_err(span, fluent::middle_query_unsupported);
+                diag.code(E0999);
+                diag.note(err.descr);
+                diag
             }
             QueryErr::Emitted(<span class="kw">_</span>) =&gt; {
-                <span class="kw">let </span><span class="kw-2">mut </span>builder = handler.struct_err(<span class="string">&quot;QueryErr::Emitted should be emitted&quot;</span>);
-                builder.downgrade_to_delayed_bug();
-                builder
+                <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_err(<span class="string">"QueryErr::Emitted should be emitted"</span>);
+                diag.downgrade_to_delayed_bug();
+                diag
             }
             QueryErr::InvalidGenericArg { def_span, .. } =&gt; {
-                <span class="kw">let </span>builder = handler.struct_span_err_with_code(
-                    def_span,
-                    fluent::middle_query_invalid_generic_arg,
-                    flux_errors::diagnostic_id(),
-                );
-                builder
+                <span class="kw">let </span><span class="kw-2">mut </span>diag =
+                    dcx.struct_span_err(def_span, fluent::middle_query_invalid_generic_arg);
+                diag.code(E0999);
+                diag
             }
         }
     }

@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/type_env/place_ty.rs`."><title>place_ty.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/type_env/place_ty.rs`."><title>place_ty.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_refineck/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -949,8 +951,6 @@
 <a href="#949" id="949">949</a>
 <a href="#950" id="950">950</a>
 <a href="#951" id="951">951</a>
-<a href="#952" id="952">952</a>
-<a href="#953" id="953">953</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, iter, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -996,44 +996,44 @@
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">trait </span>LookupKey {
-    <span class="kw">type </span>Iter&lt;<span class="lifetime">&#39;a</span>&gt;: DoubleEndedIterator&lt;Item = PlaceElem&gt; + <span class="lifetime">&#39;a
+    <span class="kw">type </span>Iter&lt;<span class="lifetime">'a</span>&gt;: DoubleEndedIterator&lt;Item = PlaceElem&gt; + <span class="lifetime">'a
     </span><span class="kw">where
-        </span><span class="self">Self</span>: <span class="lifetime">&#39;a</span>;
+        </span><span class="self">Self</span>: <span class="lifetime">'a</span>;
 
     <span class="kw">fn </span>loc(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Loc;
 
-    <span class="kw">fn </span>proj(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::Iter&lt;<span class="lifetime">&#39;_</span>&gt;;
+    <span class="kw">fn </span>proj(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::Iter&lt;<span class="lifetime">'_</span>&gt;;
 }
 
 <span class="kw">impl </span>LookupKey <span class="kw">for </span>Place {
-    <span class="kw">type </span>Iter&lt;<span class="lifetime">&#39;a</span>&gt; = <span class="kw">impl </span>DoubleEndedIterator&lt;Item = PlaceElem&gt; + <span class="lifetime">&#39;a</span>;
+    <span class="kw">type </span>Iter&lt;<span class="lifetime">'a</span>&gt; = <span class="kw">impl </span>DoubleEndedIterator&lt;Item = PlaceElem&gt; + <span class="lifetime">'a</span>;
 
     <span class="kw">fn </span>loc(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Loc {
         Loc::Local(<span class="self">self</span>.local)
     }
 
-    <span class="kw">fn </span>proj(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::Iter&lt;<span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">fn </span>proj(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::Iter&lt;<span class="lifetime">'_</span>&gt; {
         <span class="self">self</span>.projection.iter().copied()
     }
 }
 
 <span class="kw">impl </span>LookupKey <span class="kw">for </span>Path {
-    <span class="kw">type </span>Iter&lt;<span class="lifetime">&#39;a</span>&gt; = <span class="kw">impl </span>DoubleEndedIterator&lt;Item = PlaceElem&gt; + <span class="lifetime">&#39;a</span>;
+    <span class="kw">type </span>Iter&lt;<span class="lifetime">'a</span>&gt; = <span class="kw">impl </span>DoubleEndedIterator&lt;Item = PlaceElem&gt; + <span class="lifetime">'a</span>;
 
     <span class="kw">fn </span>loc(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Loc {
         <span class="self">self</span>.loc
     }
 
-    <span class="kw">fn </span>proj(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::Iter&lt;<span class="lifetime">&#39;_</span>&gt; {
+    <span class="kw">fn </span>proj(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::Iter&lt;<span class="lifetime">'_</span>&gt; {
         <span class="self">self</span>.projection().iter().map(|f| PlaceElem::Field(<span class="kw-2">*</span>f))
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>LookupResult&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>LookupResult&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">pub </span>ty: Ty,
     <span class="kw">pub </span>is_strg: bool,
     cursor: Cursor,
-    bindings: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>PlacesTree,
+    bindings: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>PlacesTree,
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">trait </span>LookupMode {
@@ -1049,9 +1049,9 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Ty&gt;, <span class="self">Self</span>::Error&gt;;
 }
 
-<span class="kw">struct </span>Unfold&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;rcx</span>, <span class="lifetime">&#39;tcx</span>&gt;(GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">&#39;rcx</span>&gt;);
+<span class="kw">struct </span>Unfold&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'tcx</span>&gt;(GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;);
 
-<span class="kw">impl </span>LookupMode <span class="kw">for </span>Unfold&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>LookupMode <span class="kw">for </span>Unfold&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">type </span>Error = CheckerErrKind;
 
     <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
@@ -1072,7 +1072,7 @@
 
 <span class="kw">impl </span>LookupMode <span class="kw">for </span>NoUnfold {
     <span class="kw">fn </span>downcast_struct(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span>AdtDef, <span class="kw">_</span>: <span class="kw-2">&amp;</span>[GenericArg], <span class="kw">_</span>: <span class="kw-2">&amp;</span>Expr) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Ty&gt;, !&gt; {
-        <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;cannot unfold in `NoUnfold` mode&quot;</span>)
+        <span class="macro">tracked_span_bug!</span>(<span class="string">"cannot unfold in `NoUnfold` mode"</span>)
     }
 
     <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
@@ -1124,7 +1124,7 @@
                             ty = Ty::uninit();
                             <span class="kw">break</span>;
                         }
-                        <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;invalid deref `{ty:?}`&quot;</span>),
+                        <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid deref `{ty:?}`"</span>),
                     }
                 }
                 PlaceElem::Field(f) =&gt; {
@@ -1138,7 +1138,7 @@
                         TyKind::Indexed(BaseTy::Adt(adt, args), idx) =&gt; {
                             ty = mode.downcast_struct(adt, args, idx)<span class="question-mark">?</span>[f.as_usize()].clone();
                         }
-                        <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;invalid field access `Field({f:?})` and `{ty:?}`&quot;</span>),
+                        <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid field access `Field({f:?})` and `{ty:?}`"</span>),
                     };
                 }
                 PlaceElem::Index(<span class="kw">_</span>) =&gt; {
@@ -1150,7 +1150,7 @@
                         TyKind::Indexed(BaseTy::Slice(slice_ty), <span class="kw">_</span>) =&gt; {
                             ty = slice_ty.clone();
                         }
-                        <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;invalid index access `{ty:?}`&quot;</span>),
+                        <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid index access `{ty:?}`"</span>),
                     }
                 }
                 PlaceElem::Downcast(..) =&gt; {}
@@ -1190,7 +1190,7 @@
                     ty = <span class="kw-2">&amp;</span>fields[f.as_usize()];
                 }
                 TyKind::Uninit =&gt; <span class="kw">return </span>Ty::uninit(),
-                <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;{ty:?}&quot;</span>),
+                <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"{ty:?}"</span>),
             }
         }
         ty.clone()
@@ -1256,13 +1256,13 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_loc(<span class="kw-2">&amp;</span><span class="self">self</span>, loc: <span class="kw-2">&amp;</span>Loc) -&gt; <span class="kw-2">&amp;</span>Binding {
         <span class="self">self</span>.map
             .get(loc)
-            .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;loc not found {loc:?}&quot;</span>))
+            .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>(<span class="string">"loc not found {loc:?}"</span>))
     }
 
     <span class="kw">fn </span>get_loc_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: <span class="kw-2">&amp;</span>Loc) -&gt; <span class="kw-2">&amp;mut </span>Binding {
         <span class="self">self</span>.map
             .get_mut(loc)
-            .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;loc not found {loc:?}&quot;</span>))
+            .unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>(<span class="string">"loc not found {loc:?}"</span>))
     }
 
     <span class="kw">fn </span>cursor_for(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span><span class="kw">impl </span>LookupKey) -&gt; Cursor {
@@ -1277,7 +1277,7 @@
     }
 }
 
-<span class="kw">impl </span>LookupResult&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>LookupResult&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>update(<span class="self">self</span>, new: Ty) -&gt; Ty {
         <span class="kw">let </span>old = <span class="self">self</span>.ty.clone();
         Updater::update(<span class="self">self</span>.bindings, <span class="self">self</span>.cursor, new);
@@ -1313,9 +1313,9 @@
     }
 }
 
-<span class="kw">struct </span>Unfolder&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;rcx</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    rcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">&#39;rcx</span>&gt;,
+<span class="kw">struct </span>Unfolder&lt;<span class="lifetime">'a</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+    rcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;,
     insertions: Vec&lt;(Loc, Place, Binding)&gt;,
     cursor: Cursor,
     in_ref: <span class="prelude-ty">Option</span>&lt;Mutability&gt;,
@@ -1323,7 +1323,7 @@
     has_work: bool,
 }
 
-<span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>Unfolder&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>Unfolder&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">type </span>Error = CheckerErrKind;
 
     <span class="kw">fn </span>try_fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; CheckerResult&lt;Ty&gt; {
@@ -1343,10 +1343,10 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;rcx</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; Unfolder&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;rcx</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Unfolder&lt;<span class="lifetime">'a</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">fn </span>new(
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        rcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">&#39;rcx</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+        rcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;,
         cursor: Cursor,
         checker_conf: CheckerConfig,
     ) -&gt; <span class="self">Self </span>{
@@ -1419,7 +1419,7 @@
                 <span class="self">self</span>.in_ref = <span class="self">self</span>.in_ref.max(<span class="prelude-val">Some</span>(<span class="kw-2">*</span>mutbl));
                 Ty::mk_ref(<span class="kw-2">*</span>re, ty.try_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>, <span class="kw-2">*</span>mutbl)
             }
-            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;invalid deref of `{ty:?}`&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid deref of `{ty:?}`"</span>),
         };
         <span class="prelude-val">Ok</span>(ty)
     }
@@ -1470,7 +1470,7 @@
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>;
                 Ty::downcast(adt.clone(), args.clone(), ty.clone(), <span class="kw-2">*</span>variant, fields.into())
             }
-            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;invalid field access for `{ty:?}`&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid field access for `{ty:?}`"</span>),
         };
         <span class="prelude-val">Ok</span>(ty)
     }
@@ -1488,7 +1488,7 @@
                 <span class="macro">debug_assert_eq!</span>(variant, <span class="kw-2">*</span>variant2);
                 ty.clone()
             }
-            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;invalid downcast `{ty:?}`&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid downcast `{ty:?}`"</span>),
         };
         <span class="prelude-val">Ok</span>(ty)
     }
@@ -1501,7 +1501,7 @@
             TyKind::Indexed(BaseTy::Slice(slice_ty), <span class="kw">_</span>) =&gt; {
                 slice_ty.try_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>;
             }
-            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;invalid index on `{ty:?}`&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid index on `{ty:?}`"</span>),
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -1540,12 +1540,12 @@
     }
 }
 
-<span class="kw">struct </span>Updater&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">struct </span>Updater&lt;<span class="lifetime">'a</span>&gt; {
     new_ty: Ty,
-    cursor: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>Cursor,
+    cursor: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Cursor,
 }
 
-<span class="kw">impl </span>TypeFolder <span class="kw">for </span>Updater&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>TypeFolder <span class="kw">for </span>Updater&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
         <span class="kw">let </span><span class="prelude-val">Some</span>(elem) = <span class="self">self</span>.cursor.next() <span class="kw">else </span>{
             <span class="kw">return </span><span class="self">self</span>.new_ty.clone();
@@ -1555,14 +1555,14 @@
             PlaceElem::Field(f) =&gt; <span class="self">self</span>.field(ty, f),
             PlaceElem::Downcast(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; ty.fold_with(<span class="self">self</span>),
             PlaceElem::Index(<span class="kw">_</span>) =&gt; {
-                <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;cannot update inside array or slice&quot;</span>)
+                <span class="macro">tracked_span_bug!</span>(<span class="string">"cannot update inside array or slice"</span>)
             }
         }
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Updater&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>new(cursor: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>Cursor, new_ty: Ty) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Updater&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>new(cursor: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Cursor, new_ty: Ty) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ new_ty, cursor }
     }
 
@@ -1583,10 +1583,10 @@
                 Ty::indexed(BaseTy::Adt(adt.clone(), args), idx.clone())
             }
             TyKind::Ptr(..) =&gt; {
-                <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;cannot update through pointer&quot;</span>);
+                <span class="macro">tracked_span_bug!</span>(<span class="string">"cannot update through pointer"</span>);
             }
             <span class="macro">Ref!</span>(re, deref_ty, mutbl) =&gt; Ty::mk_ref(<span class="kw-2">*</span>re, deref_ty.fold_with(<span class="self">self</span>), <span class="kw-2">*</span>mutbl),
-            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;invalid deref on `{ty:?}`&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid deref on `{ty:?}`"</span>),
         }
     }
 
@@ -1608,7 +1608,7 @@
                 <span class="kw">let </span>fields = <span class="self">self</span>.fold_field_at(fields, f);
                 Ty::downcast(adt.clone(), args.clone(), ty.clone(), <span class="kw-2">*</span>variant, fields)
             }
-            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;invalid field projection on `{ty:?}`&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid field projection on `{ty:?}`"</span>),
         }
     }
 
@@ -1684,18 +1684,18 @@
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Cursor {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{{loc: {:?}, place: {:?}, proj: [&quot;</span>, <span class="self">self</span>.loc, <span class="self">self</span>.place)<span class="question-mark">?</span>;
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"{{loc: {:?}, place: {:?}, proj: ["</span>, <span class="self">self</span>.loc, <span class="self">self</span>.place)<span class="question-mark">?</span>;
         <span class="kw">for </span>(i, elem) <span class="kw">in </span><span class="self">self</span>.proj.iter().enumerate().rev() {
             <span class="kw">if </span>i &lt; <span class="self">self</span>.proj.len() - <span class="number">1 </span>{
-                <span class="macro">write!</span>(f, <span class="string">&quot;, &quot;</span>)<span class="question-mark">?</span>;
+                <span class="macro">write!</span>(f, <span class="string">", "</span>)<span class="question-mark">?</span>;
             }
             <span class="kw">if </span>i + <span class="number">1 </span>== <span class="self">self</span>.pos {
-                <span class="macro">write!</span>(f, <span class="string">&quot;&gt;&quot;</span>)<span class="question-mark">?</span>;
+                <span class="macro">write!</span>(f, <span class="string">"&gt;"</span>)<span class="question-mark">?</span>;
             }
-            <span class="macro">write!</span>(f, <span class="string">&quot;{elem:?}&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(f, <span class="string">"{elem:?}"</span>)<span class="question-mark">?</span>;
         }
-        <span class="macro">write!</span>(f, <span class="string">&quot;]}}&quot;</span>)
+        <span class="macro">write!</span>(f, <span class="string">"]}}"</span>)
     }
 }
 
@@ -1713,7 +1713,7 @@
     } <span class="kw">else if </span>adt.is_enum() {
         downcast_enum(genv, rcx, adt, variant_idx, args, idx)
     } <span class="kw">else </span>{
-        <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;Downcast without struct or enum!&quot;</span>)
+        <span class="macro">tracked_span_bug!</span>(<span class="string">"Downcast without struct or enum!"</span>)
     }
 }
 
@@ -1721,7 +1721,7 @@
 /// Given a struct definition
 ///     struct S&lt;A..&gt;[(i...)] { fld : T, ...}
 /// and a
-///     * &quot;place&quot; `x: S&lt;t..&gt;[e..]`
+///     * "place" `x: S&lt;t..&gt;[e..]`
 /// the `downcast` returns a vector of `ty` for each `fld` of `x` where
 ///     * `x.fld : T[A := t ..][i := e...]`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
@@ -1750,12 +1750,12 @@
 
 <span class="doccomment">/// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
 /// Given
-///     * a &quot;place&quot; `x : T[i..]`
-///     * a &quot;variant&quot; of type `forall z..,(y:t...) =&gt; E[j...]`
+///     * a "place" `x : T[i..]`
+///     * a "variant" of type `forall z..,(y:t...) =&gt; E[j...]`
 /// We want `downcast` to return a vector of types _and an assertion_ by
-///     1. *Instantiate* the type to fresh names `z&#39;...` to get `(y:t&#39;...) =&gt; T[j&#39;...]`
-///     2. *Unpack* the fields using `y:t&#39;...`
-///     3. *Assert* the constraint `i == j&#39;...`
+///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) =&gt; T[j'...]`
+///     2. *Unpack* the fields using `y:t'...`
+///     3. *Assert* the constraint `i == j'...`
 </span><span class="kw">fn </span>downcast_enum(
     genv: GlobalEnv,
     rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
@@ -1766,7 +1766,7 @@
 ) -&gt; CheckerResult&lt;Vec&lt;Ty&gt;&gt; {
     <span class="kw">let </span>variant_def = genv
         .variant_sig(adt.did(), variant_idx)<span class="question-mark">?
-        </span>.expect(<span class="string">&quot;enums cannot be opaque&quot;</span>)
+        </span>.expect(<span class="string">"enums cannot be opaque"</span>)
         .instantiate(args, <span class="kw-2">&amp;</span>[])
         .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| rcx.define_vars(sort));
 
@@ -1797,7 +1797,7 @@
             <span class="kw">let </span>loc = path.to_loc().unwrap();
             <span class="kw">let </span>binding = bindings.remove(<span class="kw-2">&amp;</span>loc);
             <span class="kw">let </span>LocKind::Box(alloc) = binding.kind <span class="kw">else </span>{
-                <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;box pointer to non-box loc&quot;</span>);
+                <span class="macro">tracked_span_bug!</span>(<span class="string">"box pointer to non-box loc"</span>);
             };
             <span class="kw">let </span>deref_ty = fold(bindings, rcx, gen, <span class="kw-2">&amp;</span>binding.ty, is_strg)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(gen.genv.mk_box(deref_ty, alloc))
@@ -1811,7 +1811,7 @@
                 <span class="kw">let </span>variant_sig = gen
                     .genv
                     .variant_sig(adt.did(), <span class="kw-2">*</span>variant_idx)<span class="question-mark">?
-                    </span>.expect(<span class="string">&quot;unexpected opaque struct&quot;</span>);
+                    </span>.expect(<span class="string">"unexpected opaque struct"</span>);
 
                 <span class="kw">let </span>fields = fields
                     .iter()
@@ -1823,7 +1823,7 @@
                     Ty::uninit()
                 } <span class="kw">else </span>{
                     gen.check_constructor(rcx, variant_sig, args, <span class="kw-2">&amp;</span>fields)
-                        .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">&quot;{err:?}&quot;</span>))
+                        .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"{err:?}"</span>))
                 };
 
                 <span class="prelude-val">Ok</span>(ty)
@@ -1848,25 +1848,23 @@
 }
 
 <span class="kw">mod </span>pretty {
-    <span class="kw">use </span>std::fmt;
 
     <span class="kw">use </span>flux_middle::pretty::<span class="kw-2">*</span>;
-    <span class="kw">use </span>itertools::Itertools;
     <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>PlacesTree {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="macro">w!</span>(
-                <span class="string">&quot;{{{}}}&quot;</span>,
+                <span class="string">"{{{}}}"</span>,
                 ^<span class="self">self
                     </span>.iter()
                     .filter(|(<span class="kw">_</span>, binding)| !cx.hide_uninit || !binding.ty.is_uninit())
                     .sorted_by(|(loc1, <span class="kw">_</span>), (loc2, <span class="kw">_</span>)| loc1.cmp(loc2))
-                    .format_with(<span class="string">&quot;, &quot;</span>, |(loc, binding), f| {
-                        f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">&quot;{:?}:{:?} {:?}&quot;</span>, loc, <span class="kw-2">&amp;</span>binding.kind, <span class="kw-2">&amp;</span>binding.ty))
+                    .format_with(<span class="string">", "</span>, |(loc, binding), f| {
+                        f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}:{:?} {:?}"</span>, loc, <span class="kw-2">&amp;</span>binding.kind, <span class="kw-2">&amp;</span>binding.ty))
                     })
             )
         }
@@ -1879,11 +1877,11 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>LocKind {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">match </span><span class="self">self </span>{
                 LocKind::Local | LocKind::Universal =&gt; <span class="prelude-val">Ok</span>(()),
-                LocKind::Box(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">&quot;[box]&quot;</span>),
+                LocKind::Box(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">"[box]"</span>),
             }
         }
     }

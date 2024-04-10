@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `xtask/src/main.rs`."><title>main.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="xtask" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `xtask/src/main.rs`."><title>main.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="xtask" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../xtask/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -195,6 +197,8 @@
 <a href="#195" id="195">195</a>
 <a href="#196" id="196">196</a>
 <a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
     path::{Path, PathBuf},
@@ -203,7 +207,7 @@
 <span class="kw">use </span>flux_tests::{find_flux_path, FLUX_SYSROOT};
 <span class="kw">use </span>xshell::{cmd, Shell};
 
-<span class="macro">xflags::xflags! </span>{
+<span class="macro">xflags::xflags!</span> {
     cmd xtask {
         <span class="doccomment">/// Run regression tests
         </span>cmd test {
@@ -225,7 +229,7 @@
         }
         <span class="doccomment">/// Install flux binaries to ~/.cargo/bin and precompiled libraries and driver to ~/.flux
         </span>cmd install {
-            <span class="doccomment">/// Build the flux-driver binary in debug mode (with the &#39;dev&#39; profile) instead of release mode
+            <span class="doccomment">/// Build the flux-driver binary in debug mode (with the 'dev' profile) instead of release mode
             </span>optional --debug
         }
         <span class="doccomment">/// Uninstall flux binaries and libraries
@@ -246,8 +250,8 @@
             <span class="kw">if </span>err.is_help() {
                 std::process::exit(<span class="number">0</span>);
             } <span class="kw">else </span>{
-                <span class="macro">eprintln!</span>(<span class="string">&quot;error: {err}\n&quot;</span>);
-                <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, Xtask::HELP_);
+                <span class="macro">eprintln!</span>(<span class="string">"error: {err}\n"</span>);
+                <span class="macro">println!</span>(<span class="string">"{}"</span>, Xtask::HELP_);
                 std::process::exit(<span class="number">2</span>);
             }
         }
@@ -268,7 +272,7 @@
 
 <span class="kw">fn </span>prepare(sh: <span class="kw-2">&amp;</span>Shell) -&gt; <span class="prelude-ty">Result</span>&lt;(), anyhow::Error&gt; {
     build_sysroot(sh)<span class="question-mark">?</span>;
-    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build&quot;</span>).run()<span class="question-mark">?</span>;
+    <span class="macro">cmd!</span>(sh, <span class="string">"cargo build"</span>).run()<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 
@@ -276,9 +280,9 @@
     <span class="kw">let </span>Test { filter } = args;
     prepare(<span class="kw-2">&amp;</span>sh)<span class="question-mark">?</span>;
     <span class="kw">if let </span><span class="prelude-val">Some</span>(filter) = filter {
-        <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo test -p flux-tests -- --test-args {filter}&quot;</span>).run()<span class="question-mark">?</span>;
+        <span class="macro">cmd!</span>(sh, <span class="string">"cargo test -p flux-tests -- --test-args {filter}"</span>).run()<span class="question-mark">?</span>;
     } <span class="kw">else </span>{
-        <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo test -p flux-tests&quot;</span>).run()<span class="question-mark">?</span>;
+        <span class="macro">cmd!</span>(sh, <span class="string">"cargo test -p flux-tests"</span>).run()<span class="question-mark">?</span>;
     }
     <span class="prelude-val">Ok</span>(())
 }
@@ -287,7 +291,7 @@
     run_inner(
         <span class="kw-2">&amp;</span>sh,
         args.input,
-        [<span class="string">&quot;-Ztrack-diagnostics=y&quot;</span>.to_string()]
+        [<span class="string">"-Ztrack-diagnostics=y"</span>.to_string()]
             .into_iter()
             .chain(args.opts),
     )<span class="question-mark">?</span>;
@@ -295,7 +299,7 @@
 }
 
 <span class="kw">fn </span>expand(sh: <span class="kw-2">&amp;</span>Shell, args: Expand) -&gt; <span class="prelude-ty">Result</span>&lt;(), anyhow::Error&gt; {
-    run_inner(sh, args.input, [<span class="string">&quot;-Zunpretty=expanded&quot;</span>.to_string()])<span class="question-mark">?</span>;
+    run_inner(sh, args.input, [<span class="string">"-Zunpretty=expanded"</span>.to_string()])<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 
@@ -310,12 +314,12 @@
     <span class="kw">let </span><span class="kw-2">mut </span>rustc_flags = flux_tests::rustc_flags();
     rustc_flags.extend(flags);
 
-    <span class="macro">cmd!</span>(sh, <span class="string">&quot;{flux_path} {rustc_flags...} {input}&quot;</span>).run()<span class="question-mark">?</span>;
+    <span class="macro">cmd!</span>(sh, <span class="string">"{flux_path} {rustc_flags...} {input}"</span>).run()<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">fn </span>install(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo install --path crates/flux-bin --force&quot;</span>).run()<span class="question-mark">?</span>;
+    <span class="macro">cmd!</span>(sh, <span class="string">"cargo install --path crates/flux-bin --force"</span>).run()<span class="question-mark">?</span>;
     install_driver(sh, args)<span class="question-mark">?</span>;
     install_libs(sh, args)<span class="question-mark">?</span>;
 
@@ -325,47 +329,48 @@
 <span class="kw">fn </span>install_driver(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install) -&gt; anyhow::Result&lt;()&gt; {
     <span class="kw">let </span>out_dir = default_sysroot_dir();
     <span class="kw">if </span>args.is_release() {
-        <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options --bin flux-driver --release --out-dir {out_dir}&quot;</span>)
+        <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -Zunstable-options --bin flux-driver --release --out-dir {out_dir}"</span>)
             .run()<span class="question-mark">?</span>;
     } <span class="kw">else </span>{
-        <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options --bin flux-driver --out-dir {out_dir}&quot;</span>).run()<span class="question-mark">?</span>;
+        <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -Zunstable-options --bin flux-driver --out-dir {out_dir}"</span>).run()<span class="question-mark">?</span>;
     }
     <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">fn </span>install_libs(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install) -&gt; anyhow::Result&lt;()&gt; {
     <span class="comment">// CODESYNC(build-sysroot, 5)
-    </span><span class="kw">let </span>_env = sh.push_env(<span class="string">&quot;FLUX_BUILD_SYSROOT&quot;</span>, <span class="string">&quot;1&quot;</span>);
+    </span><span class="kw">let </span>_env = sh.push_env(<span class="string">"FLUX_BUILD_SYSROOT"</span>, <span class="string">"1"</span>);
+    <span class="macro">println!</span>(<span class="string">"$ export FLUX_BUILD_SYSROOT=1"</span>);
 
     <span class="kw">let </span>out_dir = default_sysroot_dir();
     <span class="kw">if </span>args.is_release() {
-        <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options --release -p flux-rs --out-dir {out_dir}&quot;</span>)
+        <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -Zunstable-options --release -p flux-rs --out-dir {out_dir}"</span>)
             .run()<span class="question-mark">?</span>;
     } <span class="kw">else </span>{
-        <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -Zunstable-options -p flux-rs --out-dir {out_dir}&quot;</span>).run()<span class="question-mark">?</span>;
+        <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -Zunstable-options -p flux-rs --out-dir {out_dir}"</span>).run()<span class="question-mark">?</span>;
     }
     <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">fn </span>uninstall(sh: <span class="kw-2">&amp;</span>Shell) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo uninstall -p flux-bin&quot;</span>).run()<span class="question-mark">?</span>;
-    <span class="macro">println!</span>(<span class="string">&quot;$ rm -rf ~/.flux&quot;</span>);
+    <span class="macro">cmd!</span>(sh, <span class="string">"cargo uninstall -p flux-bin"</span>).run()<span class="question-mark">?</span>;
+    <span class="macro">println!</span>(<span class="string">"$ rm -rf ~/.flux"</span>);
     std::fs::remove_dir_all(default_sysroot_dir())<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">fn </span>doc(sh: Shell, args: Doc) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="kw">let </span>_env = sh.push_env(<span class="string">&quot;RUSTDOCFLAGS&quot;</span>, <span class="string">&quot;-Zunstable-options --enable-index-page&quot;</span>);
-    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo doc --document-private-items --no-deps&quot;</span>).run()<span class="question-mark">?</span>;
+    <span class="kw">let </span>_env = sh.push_env(<span class="string">"RUSTDOCFLAGS"</span>, <span class="string">"-Zunstable-options --enable-index-page"</span>);
+    <span class="macro">cmd!</span>(sh, <span class="string">"cargo doc --document-private-items --no-deps"</span>).run()<span class="question-mark">?</span>;
     <span class="kw">if </span>args.open {
-        opener::open(<span class="string">&quot;target/doc/index.html&quot;</span>)<span class="question-mark">?</span>;
+        opener::open(<span class="string">"target/doc/index.html"</span>)<span class="question-mark">?</span>;
     }
     <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">fn </span>project_root() -&gt; PathBuf {
     Path::new(
-        <span class="kw-2">&amp;</span>env::var(<span class="string">&quot;CARGO_MANIFEST_DIR&quot;</span>).unwrap_or_else(|<span class="kw">_</span>| <span class="macro">env!</span>(<span class="string">&quot;CARGO_MANIFEST_DIR&quot;</span>).to_owned()),
+        <span class="kw-2">&amp;</span>env::var(<span class="string">"CARGO_MANIFEST_DIR"</span>).unwrap_or_else(|<span class="kw">_</span>| <span class="macro">env!</span>(<span class="string">"CARGO_MANIFEST_DIR"</span>).to_owned()),
     )
     .ancestors()
     .nth(<span class="number">1</span>)
@@ -375,8 +380,9 @@
 
 <span class="kw">fn </span>build_sysroot(sh: <span class="kw-2">&amp;</span>Shell) -&gt; anyhow::Result&lt;()&gt; {
     <span class="comment">// CODESYNC(build-sysroot, 5)
-    </span><span class="kw">let </span>_env = sh.push_env(<span class="string">&quot;FLUX_BUILD_SYSROOT&quot;</span>, <span class="string">&quot;1&quot;</span>);
-    <span class="macro">cmd!</span>(sh, <span class="string">&quot;cargo build -p flux-rs&quot;</span>).run()<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>_env = sh.push_env(<span class="string">"FLUX_BUILD_SYSROOT"</span>, <span class="string">"1"</span>);
+    <span class="macro">println!</span>(<span class="string">"$ export FLUX_BUILD_SYSROOT=1"</span>);
+    <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -p flux-rs"</span>).run()<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 
@@ -389,7 +395,7 @@
 <span class="comment">// CODESYNC(default-sysroot) we must use the same default sysroot used in flux-bin
 </span><span class="kw">fn </span>default_sysroot_dir() -&gt; PathBuf {
     home::home_dir()
-        .expect(<span class="string">&quot;Couldn&#39;t find home directory&quot;</span>)
-        .join(<span class="string">&quot;.flux&quot;</span>)
+        .expect(<span class="string">"Couldn't find home directory"</span>)
+        .join(<span class="string">".flux"</span>)
 }
 </code></pre></div></section></main></body></html>

@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-common/src/bug.rs`."><title>bug.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_common" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-common/src/bug.rs`."><title>bug.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_common" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../flux_common/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -83,8 +85,8 @@
 <span class="kw">use </span>rustc_middle::ty::tls;
 <span class="kw">use </span>rustc_span::Span;
 
-<span class="macro">thread_local! </span>{
-    <span class="kw">static </span>TRACKED_SPAN: Cell&lt;<span class="prelude-ty">Option</span>&lt;Span&gt;&gt; = Cell::new(<span class="prelude-val">None</span>);
+<span class="macro">thread_local!</span> {
+    <span class="kw">static </span>TRACKED_SPAN: Cell&lt;<span class="prelude-ty">Option</span>&lt;Span&gt;&gt; = <span class="kw">const </span>{ Cell::new(<span class="prelude-val">None</span>) };
 }
 
 <span class="kw">pub fn </span>track_span&lt;R&gt;(span: Span, f: <span class="kw">impl </span>FnOnce() -&gt; R) -&gt; R {
@@ -97,8 +99,8 @@
 }
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>tracked_span_bug {
-    () =&gt; ( <span class="macro-nonterminal">$</span><span class="macro">crate::tracked_span_bug!</span>(<span class="string">&quot;impossible case reached&quot;</span>) );
+</span><span class="macro">macro_rules!</span> tracked_span_bug {
+    () =&gt; ( <span class="macro-nonterminal">$</span><span class="macro">crate::tracked_span_bug!</span>(<span class="string">"impossible case reached"</span>) );
     (<span class="macro-nonterminal">$msg</span>:expr) =&gt; ({ <span class="macro-nonterminal">$crate::bug::tracked_span_bug_fmt</span>(<span class="macro">::std::format_args!</span>(<span class="macro-nonterminal">$msg</span>)) });
     (<span class="macro-nonterminal">$msg</span>:expr,) =&gt; ({ <span class="macro-nonterminal">$</span><span class="macro">crate::tracked_span_bug!</span>(<span class="macro-nonterminal">$msg</span>) });
     (<span class="macro-nonterminal">$fmt</span>:expr, $(<span class="macro-nonterminal">$arg</span>:tt)+) =&gt; ({
@@ -107,8 +109,8 @@
 }
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>bug {
-    () =&gt; ( <span class="macro-nonterminal">$</span><span class="macro">crate::bug!</span>(<span class="string">&quot;impossible case reached&quot;</span>) );
+</span><span class="macro">macro_rules!</span> bug {
+    () =&gt; ( <span class="macro-nonterminal">$</span><span class="macro">crate::bug!</span>(<span class="string">"impossible case reached"</span>) );
     (<span class="macro-nonterminal">$msg</span>:expr) =&gt; ({ <span class="macro-nonterminal">$crate::bug::bug_fmt</span>(<span class="macro">::std::format_args!</span>(<span class="macro-nonterminal">$msg</span>)) });
     (<span class="macro-nonterminal">$msg</span>:expr,) =&gt; ({ <span class="macro-nonterminal">$</span><span class="macro">crate::bug!</span>(<span class="macro-nonterminal">$msg</span>) });
     (<span class="macro-nonterminal">$fmt</span>:expr, $(<span class="macro-nonterminal">$arg</span>:tt)+) =&gt; ({
@@ -117,7 +119,7 @@
 }
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>span_bug {
+</span><span class="macro">macro_rules!</span> span_bug {
     (<span class="macro-nonterminal">$span</span>:expr, <span class="macro-nonterminal">$msg</span>:expr) =&gt; ({ <span class="macro-nonterminal">$crate::bug::span_bug_fmt</span>(<span class="macro-nonterminal">$span</span>, <span class="macro">::std::format_args!</span>(<span class="macro-nonterminal">$msg</span>)) });
     (<span class="macro-nonterminal">$span</span>:expr, <span class="macro-nonterminal">$msg</span>:expr,) =&gt; ({ <span class="macro-nonterminal">$</span><span class="macro">crate::span_bug!</span>(<span class="macro-nonterminal">$span</span>, <span class="macro-nonterminal">$msg</span>) });
     (<span class="macro-nonterminal">$span</span>:expr, <span class="macro-nonterminal">$fmt</span>:expr, $(<span class="macro-nonterminal">$arg</span>:tt)+) =&gt; ({
@@ -126,17 +128,17 @@
 }
 
 <span class="attr">#[track_caller]
-</span><span class="kw">pub fn </span>bug_fmt(args: fmt::Arguments&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; ! {
+</span><span class="kw">pub fn </span>bug_fmt(args: fmt::Arguments&lt;<span class="lifetime">'_</span>&gt;) -&gt; ! {
     opt_span_bug_fmt(<span class="prelude-val">None</span>::&lt;Span&gt;, args, Location::caller());
 }
 
 <span class="attr">#[track_caller]
-</span><span class="kw">pub fn </span>span_bug_fmt&lt;S: Into&lt;MultiSpan&gt;&gt;(span: S, args: fmt::Arguments&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; ! {
+</span><span class="kw">pub fn </span>span_bug_fmt&lt;S: Into&lt;MultiSpan&gt;&gt;(span: S, args: fmt::Arguments&lt;<span class="lifetime">'_</span>&gt;) -&gt; ! {
     opt_span_bug_fmt(<span class="prelude-val">Some</span>(span), args, Location::caller());
 }
 
 <span class="attr">#[track_caller]
-</span><span class="kw">pub fn </span>tracked_span_bug_fmt(args: fmt::Arguments&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; ! {
+</span><span class="kw">pub fn </span>tracked_span_bug_fmt(args: fmt::Arguments&lt;<span class="lifetime">'_</span>&gt;) -&gt; ! {
     <span class="kw">let </span>location = Location::caller();
     TRACKED_SPAN.with(|span| opt_span_bug_fmt(span.get(), args, location))
 }
@@ -144,14 +146,14 @@
 <span class="attr">#[track_caller]
 </span><span class="kw">fn </span>opt_span_bug_fmt&lt;S: Into&lt;MultiSpan&gt;&gt;(
     span: <span class="prelude-ty">Option</span>&lt;S&gt;,
-    args: fmt::Arguments&lt;<span class="lifetime">&#39;_</span>&gt;,
-    location: <span class="kw-2">&amp;</span>Location&lt;<span class="lifetime">&#39;_</span>&gt;,
+    args: fmt::Arguments&lt;<span class="lifetime">'_</span>&gt;,
+    location: <span class="kw-2">&amp;</span>Location&lt;<span class="lifetime">'_</span>&gt;,
 ) -&gt; ! {
     tls::with_opt(<span class="kw">move </span>|tcx| {
-        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">&quot;{location}: {args}&quot;</span>);
+        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{location}: {args}"</span>);
         <span class="kw">match </span>(tcx, span) {
-            (<span class="prelude-val">Some</span>(tcx), <span class="prelude-val">Some</span>(span)) =&gt; tcx.sess.diagnostic().span_bug(span, msg),
-            (<span class="prelude-val">Some</span>(tcx), <span class="prelude-val">None</span>) =&gt; tcx.sess.diagnostic().bug(msg),
+            (<span class="prelude-val">Some</span>(tcx), <span class="prelude-val">Some</span>(span)) =&gt; tcx.sess.dcx().span_bug(span, msg),
+            (<span class="prelude-val">Some</span>(tcx), <span class="prelude-val">None</span>) =&gt; tcx.sess.dcx().bug(msg),
             (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; std::panic::panic_any(msg),
         }
     })

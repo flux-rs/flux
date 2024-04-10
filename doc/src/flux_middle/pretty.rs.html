@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/pretty.rs`."><title>pretty.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/pretty.rs`."><title>pretty.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../flux_middle/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -529,7 +531,7 @@
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
-<span class="kw">use </span>rustc_macros::newtype_index;
+<span class="kw">use </span>rustc_index::newtype_index;
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">use </span>rustc_span::{Pos, Span};
 <span class="kw">use </span>rustc_target::abi::FieldIdx;
@@ -538,17 +540,17 @@
 <span class="kw">use </span><span class="kw">crate</span>::intern::{Internable, Interned};
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>_define_scoped {
+</span><span class="macro">macro_rules!</span> _define_scoped {
     (<span class="macro-nonterminal">$cx</span>:ident, <span class="macro-nonterminal">$fmt</span>:expr) =&gt; {
         <span class="attr">#[allow(unused_macros)]
-        </span><span class="macro">macro_rules! </span>scoped_cx {
+        </span><span class="macro">macro_rules!</span> scoped_cx {
             () =&gt; {
                 <span class="macro-nonterminal">$cx
             </span>};
         }
 
         <span class="attr">#[allow(unused_macros)]
-        </span><span class="macro">macro_rules! </span>scoped_fmt {
+        </span><span class="macro">macro_rules!</span> scoped_fmt {
             () =&gt; {
                 <span class="macro-nonterminal">$fmt
             </span>};
@@ -558,7 +560,7 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::_define_scoped <span class="kw">as </span>define_scoped;
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>_with_cx {
+</span><span class="macro">macro_rules!</span> _with_cx {
     (<span class="macro-nonterminal">$e</span>:expr) =&gt; {
         <span class="macro-nonterminal">$crate::pretty::WithCx::new</span>(<span class="macro">scoped_cx!</span>(), <span class="macro-nonterminal">$e</span>)
     };
@@ -566,7 +568,7 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::_with_cx <span class="kw">as </span>with_cx;
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>_format_args_cx {
+</span><span class="macro">macro_rules!</span> _format_args_cx {
     (<span class="macro-nonterminal">$fmt</span>:literal, $(<span class="macro-nonterminal">$args</span>:tt)<span class="kw-2">*</span>) =&gt; {
         <span class="macro">format_args_cx!</span>(@go (<span class="macro-nonterminal">$fmt</span>; $(<span class="macro-nonterminal">$args</span>)<span class="kw-2">*</span>) -&gt; ())
     };
@@ -590,7 +592,7 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::_format_args_cx <span class="kw">as </span>format_args_cx;
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>_w {
+</span><span class="macro">macro_rules!</span> _w {
     (<span class="macro-nonterminal">$fmt</span>:literal, $(<span class="macro-nonterminal">$args</span>:tt)<span class="kw-2">*</span>) =&gt; {
         <span class="macro">scoped_fmt!</span>().write_fmt(<span class="macro">format_args_cx!</span>(<span class="macro-nonterminal">$fmt</span>, $(<span class="macro-nonterminal">$args</span>)<span class="kw-2">*</span>))
     };
@@ -607,7 +609,7 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::_w <span class="kw">as </span>w;
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>_join {
+</span><span class="macro">macro_rules!</span> _join {
     (<span class="macro-nonterminal">$sep</span>:expr, <span class="macro-nonterminal">$iter</span>:expr) =&gt; {
         <span class="macro-nonterminal">$crate::pretty::Join::new</span>(<span class="macro-nonterminal">$sep</span>, <span class="macro-nonterminal">$iter</span>)
     };
@@ -615,7 +617,7 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::_join <span class="kw">as </span>join;
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>_parens {
+</span><span class="macro">macro_rules!</span> _parens {
     (<span class="macro-nonterminal">$val</span>:expr, <span class="macro-nonterminal">$parenthesize</span>:expr) =&gt; {
         <span class="macro-nonterminal">$crate::pretty::Parens::new</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$val</span>, <span class="macro-nonterminal">$parenthesize</span>)
     };
@@ -623,10 +625,10 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::_parens <span class="kw">as </span>parens;
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>_impl_debug_with_default_cx {
+</span><span class="macro">macro_rules!</span> _impl_debug_with_default_cx {
     ($(<span class="macro-nonterminal">$ty</span>:ty $(=&gt; <span class="macro-nonterminal">$key</span>:literal)<span class="question-mark">?</span>),* $(,)<span class="question-mark">?</span>) =&gt; {$(
         <span class="kw">impl </span>std::fmt::Debug <span class="kw">for </span><span class="macro-nonterminal">$ty  </span>{
-            <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::fmt::Result {
+            <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
                 <span class="attr">#[allow(unused_mut, unused_assignments)]
                 </span><span class="kw">let </span><span class="kw-2">mut </span>key = <span class="prelude-val">None</span>;
                 $(
@@ -639,17 +641,17 @@
 }
 
 <span class="kw">pub fn </span>pprint_with_default_cx&lt;T: Pretty&gt;(
-    f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;,
+    f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
     t: <span class="kw-2">&amp;</span>T,
-    cfg_key: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str&gt;,
+    cfg_key: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt;,
 ) -&gt; std::fmt::Result {
     rustc_middle::ty::tls::with(|tcx| {
         <span class="attr">#[allow(unused_mut)]
         </span><span class="kw">let </span><span class="kw-2">mut </span>cx = &lt;T&gt;::default_cx(tcx);
         <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = cfg_key
             &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(opts) = flux_config::CONFIG_FILE
-                .get(<span class="string">&quot;dev&quot;</span>)
-                .and_then(|dev| dev.get(<span class="string">&quot;pprint&quot;</span>))
+                .get(<span class="string">"dev"</span>)
+                .and_then(|dev| dev.get(<span class="string">"pprint"</span>))
                 .and_then(|pprint| pprint.get(key))
         {
             cx.merge(opts);
@@ -668,8 +670,8 @@
     Hide,
 }
 
-<span class="kw">pub struct </span>PrettyCx&lt;<span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub </span>tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">pub struct </span>PrettyCx&lt;<span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub </span>tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     <span class="kw">pub </span>kvar_args: KVarArgs,
     <span class="kw">pub </span>fully_qualified_paths: bool,
     <span class="kw">pub </span>simplify_exprs: bool,
@@ -685,9 +687,9 @@
     env: RefCell&lt;Env&gt;,
 }
 
-<span class="macro">newtype_index! </span>{
+<span class="macro">newtype_index!</span> {
     <span class="doccomment">/// Name used during pretty printing to format annonymous bound variables
-    </span><span class="attr">#[debug_format = <span class="string">&quot;b{}&quot;</span>]
+    </span><span class="attr">#[debug_format = <span class="string">"b{}"</span>]
     </span><span class="kw">struct </span>BoundVarName {}
 }
 
@@ -720,42 +722,42 @@
     }
 }
 
-<span class="kw">pub struct </span>WithCx&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, T&gt; {
+<span class="kw">pub struct </span>WithCx&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>, T&gt; {
     data: T,
-    cx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>PrettyCx&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    cx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>PrettyCx&lt;<span class="lifetime">'tcx</span>&gt;,
 }
 
-<span class="kw">pub struct </span>Join&lt;<span class="lifetime">&#39;a</span>, I&gt; {
-    sep: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+<span class="kw">pub struct </span>Join&lt;<span class="lifetime">'a</span>, I&gt; {
+    sep: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
     iter: RefCell&lt;<span class="prelude-ty">Option</span>&lt;I&gt;&gt;,
 }
 
-<span class="kw">pub struct </span>Parens&lt;<span class="lifetime">&#39;a</span>, T&gt; {
-    val: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T,
+<span class="kw">pub struct </span>Parens&lt;<span class="lifetime">'a</span>, T&gt; {
+    val: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>T,
     parenthesize: bool,
 }
 
 <span class="kw">pub trait </span>Pretty {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result;
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result;
 
     <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
         PrettyCx::default(tcx)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, I&gt; Join&lt;<span class="lifetime">&#39;a</span>, I&gt; {
-    <span class="kw">pub fn </span>new&lt;T: IntoIterator&lt;IntoIter = I&gt;&gt;(sep: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str, iter: T) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, I&gt; Join&lt;<span class="lifetime">'a</span>, I&gt; {
+    <span class="kw">pub fn </span>new&lt;T: IntoIterator&lt;IntoIter = I&gt;&gt;(sep: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, iter: T) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ sep, iter: RefCell::new(<span class="prelude-val">Some</span>(iter.into_iter())) }
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T&gt; Parens&lt;<span class="lifetime">&#39;a</span>, T&gt; {
-    <span class="kw">pub fn </span>new(val: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T, parenthesize: bool) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; Parens&lt;<span class="lifetime">'a</span>, T&gt; {
+    <span class="kw">pub fn </span>new(val: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>T, parenthesize: bool) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ val, parenthesize }
     }
 }
 
-<span class="macro">macro_rules! </span>set_opts {
+<span class="macro">macro_rules!</span> set_opts {
     (<span class="macro-nonterminal">$cx</span>:expr, <span class="macro-nonterminal">$opts</span>:expr, [$(<span class="macro-nonterminal">$opt</span>:ident),+ $(,)<span class="question-mark">?</span>]) =&gt; {
         $(
         <span class="kw">if let </span><span class="prelude-val">Some</span>(val) = <span class="macro-nonterminal">$opts</span>.get(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$opt</span>)).and_then(|v| FromOpt::from_opt(v)) {
@@ -765,7 +767,7 @@
     };
 }
 
-<span class="kw">impl </span>PrettyCx&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>PrettyCx&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">pub fn </span>default(tcx: TyCtxt) -&gt; PrettyCx {
         PrettyCx {
             tcx,
@@ -818,49 +820,49 @@
         left: <span class="kw-2">&amp;</span>str,
         vars: <span class="kw-2">&amp;</span>[BoundVariableKind],
         right: <span class="kw-2">&amp;</span>str,
-        f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;,
+        f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(<span class="self">self</span>, f);
-        <span class="macro">w!</span>(<span class="string">&quot;{left}&quot;</span>)<span class="question-mark">?</span>;
+        <span class="macro">w!</span>(<span class="string">"{left}"</span>)<span class="question-mark">?</span>;
         <span class="kw">for </span>(i, var) <span class="kw">in </span>vars.iter().enumerate() {
             <span class="kw">if </span>i &gt; <span class="number">0 </span>{
-                <span class="macro">w!</span>(<span class="string">&quot;, &quot;</span>)<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">", "</span>)<span class="question-mark">?</span>;
             }
             <span class="kw">match </span>var {
-                BoundVariableKind::Region(re) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, re)<span class="question-mark">?</span>,
+                BoundVariableKind::Region(re) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, re)<span class="question-mark">?</span>,
                 BoundVariableKind::Refine(<span class="kw">_</span>, _mode, BoundReftKind::Named(name)) =&gt; {
-                    <span class="comment">// w!(&quot;{}&quot;, ^mode.prefix_str())?;
-                    </span><span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^name)<span class="question-mark">?</span>;
+                    <span class="comment">// w!("{}", ^mode.prefix_str())?;
+                    </span><span class="macro">w!</span>(<span class="string">"{}"</span>, ^name)<span class="question-mark">?</span>;
                 }
                 BoundVariableKind::Refine(<span class="kw">_</span>, _mode, BoundReftKind::Annon) =&gt; {
-                    <span class="comment">// w!(&quot;{}&quot;, ^mode.prefix_str())?;
+                    <span class="comment">// w!("{}", ^mode.prefix_str())?;
                     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.borrow().lookup(INNERMOST, i <span class="kw">as </span>u32) {
-                        <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ^name)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^name)<span class="question-mark">?</span>;
                     } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(<span class="string">&quot;_&quot;</span>)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="string">"_"</span>)<span class="question-mark">?</span>;
                     }
                 }
             }
         }
-        <span class="macro">w!</span>(<span class="string">&quot;{right}&quot;</span>)
+        <span class="macro">w!</span>(<span class="string">"{right}"</span>)
     }
 
     <span class="kw">pub fn </span>fmt_bound_reft(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         debruijn: DebruijnIndex,
         var: BoundReft,
-        f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;,
+        f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(<span class="self">self</span>, f);
         <span class="kw">match </span>var.kind {
             BoundReftKind::Annon =&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.borrow().lookup(debruijn, var.index) {
-                    <span class="macro">w!</span>(<span class="string">&quot;{name:?}&quot;</span>)
+                    <span class="macro">w!</span>(<span class="string">"{name:?}"</span>)
                 } <span class="kw">else </span>{
-                    <span class="macro">w!</span>(<span class="string">&quot;⭡{}/#{}&quot;</span>, ^debruijn.as_usize(), ^var.index)
+                    <span class="macro">w!</span>(<span class="string">"⭡{}/#{}"</span>, ^debruijn.as_usize(), ^var.index)
                 }
             }
-            BoundReftKind::Named(name) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{name}&quot;</span>),
+            BoundReftKind::Named(name) =&gt; <span class="macro">w!</span>(<span class="string">"{name}"</span>),
         }
     }
 
@@ -885,36 +887,36 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, T&gt; WithCx&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>, T&gt; {
-    <span class="kw">pub fn </span>new(cx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>PrettyCx&lt;<span class="lifetime">&#39;tcx</span>&gt;, data: T) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>, T&gt; WithCx&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>, T&gt; {
+    <span class="kw">pub fn </span>new(cx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>PrettyCx&lt;<span class="lifetime">'tcx</span>&gt;, data: T) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ data, cx }
     }
 }
 
-<span class="kw">impl</span>&lt;T: Pretty + <span class="question-mark">?</span>Sized&gt; Pretty <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span>T {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+<span class="kw">impl</span>&lt;T: Pretty + <span class="question-mark">?</span>Sized&gt; Pretty <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'_ </span>T {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         &lt;T <span class="kw">as </span>Pretty&gt;::fmt(<span class="self">self</span>, cx, f)
     }
 }
 
 <span class="kw">impl</span>&lt;T: Pretty + Internable&gt; Pretty <span class="kw">for </span>Interned&lt;T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         &lt;T <span class="kw">as </span>Pretty&gt;::fmt(<span class="self">self</span>, cx, f)
     }
 }
 
-<span class="kw">impl</span>&lt;T, I&gt; fmt::Debug <span class="kw">for </span>Join&lt;<span class="lifetime">&#39;_</span>, I&gt;
+<span class="kw">impl</span>&lt;T, I&gt; fmt::Debug <span class="kw">for </span>Join&lt;<span class="lifetime">'_</span>, I&gt;
 <span class="kw">where
     </span>T: fmt::Debug,
     I: Iterator&lt;Item = T&gt;,
 {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">let </span><span class="prelude-val">Some</span>(iter) = <span class="self">self</span>.iter.borrow_mut().take() <span class="kw">else </span>{
-            <span class="macro">panic!</span>(<span class="string">&quot;Join: was already formatted once&quot;</span>)
+            <span class="macro">panic!</span>(<span class="string">"Join: was already formatted once"</span>)
         };
         <span class="kw">for </span>(i, item) <span class="kw">in </span>iter.enumerate() {
             <span class="kw">if </span>i &gt; <span class="number">0 </span>{
-                <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.sep)<span class="question-mark">?</span>;
+                <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.sep)<span class="question-mark">?</span>;
             }
             &lt;T <span class="kw">as </span>fmt::Debug&gt;::fmt(<span class="kw-2">&amp;</span>item, f)<span class="question-mark">?</span>;
         }
@@ -922,74 +924,74 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T, I&gt; Pretty <span class="kw">for </span>Join&lt;<span class="lifetime">&#39;_</span>, I&gt;
+<span class="kw">impl</span>&lt;T, I&gt; Pretty <span class="kw">for </span>Join&lt;<span class="lifetime">'_</span>, I&gt;
 <span class="kw">where
     </span>T: Pretty,
     I: Iterator&lt;Item = T&gt;,
 {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">let </span><span class="prelude-val">Some</span>(iter) = <span class="self">self</span>.iter.borrow_mut().take() <span class="kw">else </span>{
-            <span class="macro">panic!</span>(<span class="string">&quot;Join: was already formatted once&quot;</span>)
+            <span class="macro">panic!</span>(<span class="string">"Join: was already formatted once"</span>)
         };
         <span class="kw">for </span>(i, item) <span class="kw">in </span>iter.enumerate() {
             <span class="kw">if </span>i &gt; <span class="number">0 </span>{
-                <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.sep)<span class="question-mark">?</span>;
+                <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.sep)<span class="question-mark">?</span>;
             }
             &lt;T <span class="kw">as </span>Pretty&gt;::fmt(<span class="kw-2">&amp;</span>item, cx, f)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
 }
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T&gt; Pretty <span class="kw">for </span>Parens&lt;<span class="lifetime">&#39;a</span>, T&gt;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; Pretty <span class="kw">for </span>Parens&lt;<span class="lifetime">'a</span>, T&gt;
 <span class="kw">where
     </span>T: Pretty,
 {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">if </span><span class="self">self</span>.parenthesize {
-            <span class="macro">write!</span>(f, <span class="string">&quot;(&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(f, <span class="string">"("</span>)<span class="question-mark">?</span>;
         }
         &lt;T <span class="kw">as </span>Pretty&gt;::fmt(<span class="self">self</span>.val, cx, f)<span class="question-mark">?</span>;
         <span class="kw">if </span><span class="self">self</span>.parenthesize {
-            <span class="macro">write!</span>(f, <span class="string">&quot;)&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(f, <span class="string">")"</span>)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
 }
 
-<span class="kw">impl</span>&lt;T: Pretty&gt; fmt::Debug <span class="kw">for </span>WithCx&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+<span class="kw">impl</span>&lt;T: Pretty&gt; fmt::Debug <span class="kw">for </span>WithCx&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, T&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         &lt;T <span class="kw">as </span>Pretty&gt;::fmt(<span class="kw-2">&amp;</span><span class="self">self</span>.data, <span class="self">self</span>.cx, f)
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>DefId {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
 
         <span class="kw">let </span>path = cx.tcx.def_path(<span class="kw-2">*</span><span class="self">self</span>);
         <span class="kw">if </span>cx.fully_qualified_paths {
             <span class="kw">let </span>krate = cx.tcx.crate_name(<span class="self">self</span>.krate);
-            <span class="macro">w!</span>(<span class="string">&quot;{}{}&quot;</span>, ^krate, ^path.to_string_no_crate_verbose())
+            <span class="macro">w!</span>(<span class="string">"{}{}"</span>, ^krate, ^path.to_string_no_crate_verbose())
         } <span class="kw">else </span>{
-            <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^path.data.last().unwrap())
+            <span class="macro">w!</span>(<span class="string">"{}"</span>, ^path.data.last().unwrap())
         }
     }
 }
 
 <span class="kw">pub fn </span>def_id_to_string(def_id: DefId) -&gt; String {
-    rustc_middle::ty::tls::with(|tcx| <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, WithCx::new(<span class="kw-2">&amp;</span>PrettyCx::default(tcx), def_id)))
+    rustc_middle::ty::tls::with(|tcx| <span class="macro">format!</span>(<span class="string">"{:?}"</span>, WithCx::new(<span class="kw-2">&amp;</span>PrettyCx::default(tcx), def_id)))
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>FieldIdx {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.as_u32())
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.as_u32())
     }
 }
 
 <span class="kw">impl </span>Pretty <span class="kw">for </span>Span {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">if </span>cx.full_spans {
-            <span class="macro">write!</span>(f, <span class="string">&quot;{self:?}&quot;</span>)
+            <span class="macro">write!</span>(f, <span class="string">"{self:?}"</span>)
         } <span class="kw">else </span>{
             <span class="kw">let </span>src_map = cx.tcx.sess.source_map();
             <span class="kw">let </span>lo = src_map.lookup_char_pos(<span class="self">self</span>.lo());
@@ -999,26 +1001,26 @@
             //     FileName::Real(ref name) =&gt; {
             //         write!(
             //             f,
-            //             &quot;{}&quot;,
+            //             "{}",
             //             name.local_path_if_available()
             //                 .file_name()
             //                 .unwrap()
             //                 .to_string_lossy()
             //         )
             //     }
-            //     FileName::QuoteExpansion(_) =&gt; write!(f, &quot;&lt;quote expansion&gt;&quot;),
-            //     FileName::MacroExpansion(_) =&gt; write!(f, &quot;&lt;macro expansion&gt;&quot;),
-            //     FileName::Anon(_) =&gt; write!(f, &quot;&lt;anon&gt;&quot;),
-            //     FileName::ProcMacroSourceCode(_) =&gt; write!(f, &quot;&lt;proc-macro source code&gt;&quot;),
-            //     FileName::CfgSpec(_) =&gt; write!(f, &quot;&lt;cfgspec&gt;&quot;),
-            //     FileName::CliCrateAttr(_) =&gt; write!(f, &quot;&lt;crate attribute&gt;&quot;),
-            //     FileName::Custom(ref s) =&gt; write!(f, &quot;&lt;{}&gt;&quot;, s),
-            //     FileName::DocTest(ref path, _) =&gt; write!(f, &quot;{}&quot;, path.display()),
-            //     FileName::InlineAsm(_) =&gt; write!(f, &quot;&lt;inline asm&gt;&quot;),
+            //     FileName::QuoteExpansion(_) =&gt; write!(f, "&lt;quote expansion&gt;"),
+            //     FileName::MacroExpansion(_) =&gt; write!(f, "&lt;macro expansion&gt;"),
+            //     FileName::Anon(_) =&gt; write!(f, "&lt;anon&gt;"),
+            //     FileName::ProcMacroSourceCode(_) =&gt; write!(f, "&lt;proc-macro source code&gt;"),
+            //     FileName::CfgSpec(_) =&gt; write!(f, "&lt;cfgspec&gt;"),
+            //     FileName::CliCrateAttr(_) =&gt; write!(f, "&lt;crate attribute&gt;"),
+            //     FileName::Custom(ref s) =&gt; write!(f, "&lt;{}&gt;", s),
+            //     FileName::DocTest(ref path, _) =&gt; write!(f, "{}", path.display()),
+            //     FileName::InlineAsm(_) =&gt; write!(f, "&lt;inline asm&gt;"),
             // }?;
             </span><span class="macro">write!</span>(
                 f,
-                <span class="string">&quot;{}:{}: {}:{}&quot;</span>,
+                <span class="string">"{}:{}: {}:{}"</span>,
                 lo.line,
                 lo.col.to_usize() + <span class="number">1</span>,
                 hi.line,
@@ -1041,9 +1043,9 @@
 <span class="kw">impl </span>FromOpt <span class="kw">for </span>KVarArgs {
     <span class="kw">fn </span>from_opt(opt: <span class="kw-2">&amp;</span>config::Value) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">match </span>opt.as_str() {
-            <span class="prelude-val">Some</span>(<span class="string">&quot;self&quot;</span>) =&gt; <span class="prelude-val">Some</span>(KVarArgs::SelfOnly),
-            <span class="prelude-val">Some</span>(<span class="string">&quot;hide&quot;</span>) =&gt; <span class="prelude-val">Some</span>(KVarArgs::Hide),
-            <span class="prelude-val">Some</span>(<span class="string">&quot;all&quot;</span>) =&gt; <span class="prelude-val">Some</span>(KVarArgs::All),
+            <span class="prelude-val">Some</span>(<span class="string">"self"</span>) =&gt; <span class="prelude-val">Some</span>(KVarArgs::SelfOnly),
+            <span class="prelude-val">Some</span>(<span class="string">"hide"</span>) =&gt; <span class="prelude-val">Some</span>(KVarArgs::Hide),
+            <span class="prelude-val">Some</span>(<span class="string">"all"</span>) =&gt; <span class="prelude-val">Some</span>(KVarArgs::All),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }

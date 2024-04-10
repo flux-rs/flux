@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/refining.rs`."><title>refining.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/refining.rs`."><title>refining.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_middle/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -428,6 +430,14 @@
 <a href="#428" id="428">428</a>
 <a href="#429" id="429">429</a>
 <a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
@@ -449,17 +459,8 @@
         .params
         .iter()
         .map(|param| {
-            <span class="kw">let </span>kind = <span class="kw">match </span>param.kind {
-                rustc::ty::GenericParamDefKind::Lifetime =&gt; rty::GenericParamDefKind::Lifetime,
-                rustc::ty::GenericParamDefKind::Type { has_default } =&gt; {
-                    rty::GenericParamDefKind::Type { has_default }
-                }
-                rustc::ty::GenericParamDefKind::Const { has_default } =&gt; {
-                    rty::GenericParamDefKind::Const { has_default }
-                }
-            };
             rty::GenericParamDef {
-                kind,
+                kind: refine_generic_param_def_kind(param.kind),
                 index: param.index,
                 name: param.name,
                 def_id: param.def_id,
@@ -470,26 +471,40 @@
     <span class="prelude-val">Ok</span>(rty::Generics { params, parent: generics.parent(), parent_count: generics.parent_count() })
 }
 
-<span class="kw">pub struct </span>Refiner&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">pub fn </span>refine_generic_param_def_kind(
+    kind: rustc::ty::GenericParamDefKind,
+) -&gt; rty::GenericParamDefKind {
+    <span class="kw">match </span>kind {
+        rustc::ty::GenericParamDefKind::Lifetime =&gt; rty::GenericParamDefKind::Lifetime,
+        rustc::ty::GenericParamDefKind::Type { has_default } =&gt; {
+            rty::GenericParamDefKind::Type { has_default }
+        }
+        rustc::ty::GenericParamDefKind::Const { has_default, .. } =&gt; {
+            rty::GenericParamDefKind::Const { has_default }
+        }
+    }
+}
+
+<span class="kw">pub struct </span>Refiner&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     generics: rty::Generics,
     refine: <span class="kw">fn</span>(rty::BaseTy) -&gt; rty::SubsetTyCtor,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; Refiner&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Refiner&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub fn </span>new(
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         generics: <span class="kw-2">&amp;</span>rty::Generics,
         refine: <span class="kw">fn</span>(rty::BaseTy) -&gt; rty::SubsetTyCtor,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ genv, generics: generics.clone(), refine }
     }
 
-    <span class="kw">pub fn </span>default(genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, generics: <span class="kw-2">&amp;</span>rty::Generics) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>default(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, generics: <span class="kw-2">&amp;</span>rty::Generics) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ genv, generics: generics.clone(), refine: refine_default }
     }
 
-    <span class="kw">pub fn </span>with_holes(genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, generics: <span class="kw-2">&amp;</span>rty::Generics) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>with_holes(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, generics: <span class="kw-2">&amp;</span>rty::Generics) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             genv,
             generics: generics.clone(),
@@ -558,6 +573,9 @@
             rustc::ty::ClauseKind::TypeOutlives(pred) =&gt; {
                 <span class="kw">let </span>pred = rty::OutlivesPredicate(<span class="self">self</span>.refine_ty(<span class="kw-2">&amp;</span>pred.<span class="number">0</span>)<span class="question-mark">?</span>, pred.<span class="number">1</span>);
                 rty::ClauseKind::TypeOutlives(pred)
+            }
+            rustc::ty::ClauseKind::ConstArgHasType(const_, ty) =&gt; {
+                rty::ClauseKind::ConstArgHasType(const_.clone(), <span class="self">self</span>.as_default().refine_ty(ty)<span class="question-mark">?</span>)
             }
         };
         <span class="kw">let </span>kind = rty::Binder::new(kind, List::empty());
@@ -684,7 +702,7 @@
             (rty::GenericParamDefKind::Const { .. }, rustc::ty::GenericArg::Const(ct)) =&gt; {
                 <span class="prelude-val">Ok</span>(rty::GenericArg::Const(ct.clone()))
             }
-            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;mismatched generic arg `{arg:?}` `{param:?}`&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"mismatched generic arg `{arg:?}` `{param:?}`"</span>),
         }
     }
 
@@ -738,7 +756,7 @@
                 rty::BaseTy::Coroutine(<span class="kw-2">*</span>did, resume_ty, upvar_tys)
             }
             rustc::ty::TyKind::CoroutineWitness(..) =&gt; {
-                <span class="macro">bug!</span>(<span class="string">&quot;implement when we know what this is&quot;</span>);
+                <span class="macro">bug!</span>(<span class="string">"implement when we know what this is"</span>);
             }
             rustc::ty::TyKind::Never =&gt; rty::BaseTy::Never,
             rustc::ty::TyKind::Ref(r, ty, mutbl) =&gt; {
@@ -779,7 +797,7 @@
             rustc::ty::TyKind::Str =&gt; rty::BaseTy::Str,
             rustc::ty::TyKind::Slice(ty) =&gt; rty::BaseTy::Slice(<span class="self">self</span>.refine_ty(ty)<span class="question-mark">?</span>),
             rustc::ty::TyKind::Char =&gt; rty::BaseTy::Char,
-            rustc::ty::TyKind::FnPtr(<span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(<span class="string">&quot;refine_ty: FnSig&quot;</span>),
+            rustc::ty::TyKind::FnPtr(<span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(<span class="string">"refine_ty: FnSig"</span>),
             rustc::ty::TyKind::RawPtr(ty, mu) =&gt; {
                 rty::BaseTy::RawPtr(<span class="self">self</span>.as_default().refine_ty(ty)<span class="question-mark">?</span>, <span class="kw-2">*</span>mu)
             }

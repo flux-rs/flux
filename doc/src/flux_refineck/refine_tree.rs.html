@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/refine_tree.rs`."><title>refine_tree.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/refine_tree.rs`."><title>refine_tree.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../flux_refineck/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -857,7 +859,6 @@
 <a href="#857" id="857">857</a>
 <a href="#858" id="858">858</a>
 <a href="#859" id="859">859</a>
-<a href="#860" id="860">860</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
@@ -880,14 +881,14 @@
     fixpoint_encoding::{fixpoint, sort_to_fixpoint, stitch, FixpointCtxt},
 };
 
-<span class="doccomment">/// A *refine*ment *tree* tracks the &quot;tree-like structure&quot; of refinement variables and predicates
+<span class="doccomment">/// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
 /// generated during type-checking. After type-checking, the tree can be converted into a fixpoint
 /// constraint which implies the safety of a function.
 ///
 /// We try to hide the representation of the tree as much as possible and only a couple of operations
 /// can be used to manipulate the structure of the tree explicitly. Instead, the tree is mostly constructed
 /// implicitly via a restricted api provided by [`RefineCtxt`]. Some methods operate on *nodes* of
-/// the tree which we try to keep abstract, but it is important to remember that there&#39;s an underlying
+/// the tree which we try to keep abstract, but it is important to remember that there's an underlying
 /// tree.
 ///
 /// The current implementation uses [`Rc`] and [`RefCell`] to represent the tree, but we ensure
@@ -904,10 +905,10 @@
 <span class="doccomment">/// A reference to a subtree rooted at a particular node in a [refinement tree].
 ///
 /// [refinement tree]: RefineTree
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>RefineSubtree&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="doccomment">/// We keep a reference to the underlying [`RefineTree`] to prove statically there&#39;s a single
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>RefineSubtree&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="doccomment">/// We keep a reference to the underlying [`RefineTree`] to prove statically there's a single
     /// writer.
-    </span>tree: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>RefineTree,
+    </span>tree: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineTree,
     root: NodePtr,
 }
 
@@ -929,8 +930,8 @@
 /// [refinement tree].
 ///
 /// [refinement tree]: RefineTree
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>RefineCtxt&lt;<span class="lifetime">&#39;a</span>&gt; {
-    tree: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>RefineTree,
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>RefineCtxt&lt;<span class="lifetime">'a</span>&gt; {
+    tree: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineTree,
     ptr: NodePtr,
 }
 
@@ -952,7 +953,7 @@
 
 <span class="kw">struct </span>Node {
     kind: NodeKind,
-    <span class="doccomment">/// Number of bindings between the root and this node&#39;s parent, i.e., we have
+    <span class="doccomment">/// Number of bindings between the root and this node's parent, i.e., we have
     /// as an invariant that `nbindings` equals the number of [`NodeKind::ForAll`]
     /// nodes from the parent of this node to the root.
     </span>nbindings: usize,
@@ -996,7 +997,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; RefineSubtree&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; RefineSubtree&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_ctxt_at_root(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; RefineCtxt {
         RefineCtxt { ptr: NodePtr(Rc::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.root)), tree: <span class="self">self</span>.tree }
     }
@@ -1006,7 +1007,7 @@
     }
 
     <span class="attr">#[allow(clippy::unused_self)]
-    </span><span class="comment">// We take a mutable reference to the subtree to prove statically that there&#39;s only one writer.
+    </span><span class="comment">// We take a mutable reference to the subtree to prove statically that there's only one writer.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>clear_children(<span class="kw-2">&amp;mut </span><span class="self">self</span>, snapshot: <span class="kw-2">&amp;</span>Snapshot) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(ptr) = snapshot.ptr.upgrade() {
             ptr.borrow_mut().children.clear();
@@ -1014,7 +1015,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;rcx</span>&gt; RefineCtxt&lt;<span class="lifetime">&#39;rcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'rcx</span>&gt; RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt; {
     <span class="attr">#[allow(unused)]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>as_subtree(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; RefineSubtree {
         RefineSubtree { root: NodePtr(Rc::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.ptr)), tree: <span class="self">self</span>.tree }
@@ -1054,7 +1055,7 @@
     }
 
     <span class="doccomment">/// Given a [`sort`] that may contain aggregate sorts ([tuple] or [adt]), it destructs the sort
-    /// recursively, generating multiple fresh variables and returning an &quot;eta-expanded&quot; expression
+    /// recursively, generating multiple fresh variables and returning an "eta-expanded" expression
     /// of fresh variables. This is in contrast to generating a single fresh variable of aggregate
     /// sort.
     ///
@@ -1089,16 +1090,16 @@
         <span class="self">self</span>.unpacker().unpack(ty)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpacker(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Unpacker&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;rcx</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unpacker(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'rcx</span>&gt; {
         Unpacker::new(<span class="self">self</span>)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, overflow_checking: bool) {
-        <span class="kw">struct </span>Visitor&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;rcx</span>&gt; {
-            rcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">&#39;rcx</span>&gt;,
+        <span class="kw">struct </span>Visitor&lt;<span class="lifetime">'a</span>, <span class="lifetime">'rcx</span>&gt; {
+            rcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;,
             overflow_checking: bool,
         }
-        <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>Visitor&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+        <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>Visitor&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
             <span class="kw">fn </span>visit_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) -&gt; ControlFlow&lt;!&gt; {
                 <span class="kw">match </span>bty {
                     BaseTy::Adt(adt_def, substs) <span class="kw">if </span>adt_def.is_box() =&gt; substs.visit_with(<span class="self">self</span>),
@@ -1133,8 +1134,8 @@
     No,
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Unpacker&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;rcx</span>&gt; {
-    rcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">&#39;rcx</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Unpacker&lt;<span class="lifetime">'a</span>, <span class="lifetime">'rcx</span>&gt; {
+    rcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;,
     in_mut_ref: bool,
     unpack_inside_mut_ref: bool,
     shallow: bool,
@@ -1142,8 +1143,8 @@
     assume_invariants: AssumeInvariants,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;rcx</span>&gt; Unpacker&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;rcx</span>&gt; {
-    <span class="kw">fn </span>new(rcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">&#39;rcx</span>&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'rcx</span>&gt; Unpacker&lt;<span class="lifetime">'a</span>, <span class="lifetime">'rcx</span>&gt; {
+    <span class="kw">fn </span>new(rcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             rcx,
             in_mut_ref: <span class="bool-val">false</span>,
@@ -1179,12 +1180,12 @@
     }
 }
 
-<span class="kw">impl </span>TypeFolder <span class="kw">for </span>Unpacker&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>TypeFolder <span class="kw">for </span>Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
         <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(bty, idx) =&gt; Ty::indexed(bty.fold_with(<span class="self">self</span>), idx.clone()),
             TyKind::Exists(bound_ty) <span class="kw">if </span><span class="self">self</span>.unpack_exists =&gt; {
-                <span class="comment">// HACK(nilehmann) In general we shouldn&#39;t unpack through mutable references because
+                <span class="comment">// HACK(nilehmann) In general we shouldn't unpack through mutable references because
                 // that makes referent type too specific. We only have this as a workaround to infer
                 // parameters under mutable references and it should be removed once we implement
                 // opening of mutable references. See also `ConstrGen::check_fn_call`.
@@ -1259,7 +1260,7 @@
 }
 
 <span class="kw">impl </span>Scope {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (Name, Sort)&gt; + <span class="lifetime">&#39;_ </span>{
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (Name, Sort)&gt; + <span class="lifetime">'_ </span>{
         <span class="self">self</span>.bindings
             .iter_enumerated()
             .map(|(name, sort)| (name, sort.clone()))
@@ -1517,7 +1518,6 @@
 
     <span class="kw">use </span>flux_common::format::PadAdapter;
     <span class="kw">use </span>flux_middle::pretty::<span class="kw-2">*</span>;
-    <span class="kw">use </span>itertools::Itertools;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -1574,31 +1574,31 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>RefineTree {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
-            <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.root)
+            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.root)
         }
     }
 
-    <span class="kw">impl </span>Pretty <span class="kw">for </span>RefineSubtree&lt;<span class="lifetime">&#39;_</span>&gt; {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">impl </span>Pretty <span class="kw">for </span>RefineSubtree&lt;<span class="lifetime">'_</span>&gt; {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
-            <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.root)
+            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.root)
         }
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>NodePtr {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">let </span>node = <span class="self">self</span>.borrow();
             <span class="kw">match </span><span class="kw-2">&amp;</span>node.kind {
                 NodeKind::Comment(comment) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">&quot;@ {}&quot;</span>, ^comment)<span class="question-mark">?</span>;
-                    <span class="macro">w!</span>(PadAdapter::wrap_fmt(f, <span class="number">2</span>), <span class="string">&quot;\n{:?}&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;\n&quot;</span>, <span class="kw-2">&amp;</span>node.children))
+                    <span class="macro">w!</span>(<span class="string">"@ {}"</span>, ^comment)<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(PadAdapter::wrap_fmt(f, <span class="number">2</span>), <span class="string">"\n{:?}"</span>, <span class="macro">join!</span>(<span class="string">"\n"</span>, <span class="kw-2">&amp;</span>node.children))
                 }
                 NodeKind::Conj =&gt; {
                     <span class="kw">let </span>nodes = flatten_conjs(slice::from_ref(<span class="self">self</span>));
-                    <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;\n&quot;</span>, nodes))
+                    <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="macro">join!</span>(<span class="string">"\n"</span>, nodes))
                 }
                 NodeKind::ForAll(name, sort) =&gt; {
                     <span class="kw">let </span>(bindings, children) = <span class="kw">if </span>cx.bindings_chain {
@@ -1608,11 +1608,11 @@
                     };
 
                     <span class="macro">w!</span>(
-                        <span class="string">&quot;∀ {}.&quot;</span>,
+                        <span class="string">"∀ {}."</span>,
                         ^bindings
                             .into_iter()
-                            .format_with(<span class="string">&quot;, &quot;</span>, |(name, sort), f| {
-                                f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">&quot;{:?}: {:?}&quot;</span>, ^name, sort))
+                            .format_with(<span class="string">", "</span>, |(name, sort), f| {
+                                f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort))
                             })
                     )<span class="question-mark">?</span>;
                     fmt_children(<span class="kw-2">&amp;</span>children, cx, f)
@@ -1624,19 +1624,19 @@
                         (<span class="macro">vec!</span>[pred.clone()], node.children.clone())
                     };
                     <span class="kw">let </span>guard = Expr::and(preds).simplify();
-                    <span class="macro">w!</span>(<span class="string">&quot;{:?} =&gt;&quot;</span>, <span class="macro">parens!</span>(guard, !guard.is_atom()))<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">"{:?} =&gt;"</span>, <span class="macro">parens!</span>(guard, !guard.is_atom()))<span class="question-mark">?</span>;
                     fmt_children(<span class="kw-2">&amp;</span>children, cx, f)
                 }
                 NodeKind::Head(pred, tag) =&gt; {
                     <span class="kw">let </span>pred = <span class="kw">if </span>cx.simplify_exprs { pred.simplify() } <span class="kw">else </span>{ pred.clone() };
-                    <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="macro">parens!</span>(pred, !pred.is_atom()))<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="macro">parens!</span>(pred, !pred.is_atom()))<span class="question-mark">?</span>;
                     <span class="kw">if </span>cx.tags {
-                        <span class="macro">w!</span>(<span class="string">&quot; ~ {:?}&quot;</span>, tag)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="string">" ~ {:?}"</span>, tag)<span class="question-mark">?</span>;
                     }
                     <span class="prelude-val">Ok</span>(())
                 }
                 NodeKind::True =&gt; {
-                    <span class="macro">w!</span>(<span class="string">&quot;true&quot;</span>)
+                    <span class="macro">w!</span>(<span class="string">"true"</span>)
                 }
             }
         }
@@ -1645,32 +1645,32 @@
     <span class="kw">fn </span>fmt_children(
         children: <span class="kw-2">&amp;</span>[NodePtr],
         cx: <span class="kw-2">&amp;</span>PrettyCx,
-        f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;,
+        f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; fmt::Result {
         <span class="kw">let </span><span class="kw-2">mut </span>f = PadAdapter::wrap_fmt(f, <span class="number">2</span>);
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">let </span>children = flatten_conjs(children);
         <span class="kw">match </span><span class="kw-2">&amp;</span>children[..] {
-            [] =&gt; <span class="macro">w!</span>(<span class="string">&quot; true&quot;</span>),
+            [] =&gt; <span class="macro">w!</span>(<span class="string">" true"</span>),
             [n] =&gt; {
                 <span class="kw">if </span>n.borrow().is_head() {
-                    <span class="macro">w!</span>(<span class="string">&quot; &quot;</span>)<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">" "</span>)<span class="question-mark">?</span>;
                 } <span class="kw">else </span>{
-                    <span class="macro">w!</span>(<span class="string">&quot;\n&quot;</span>)<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">"\n"</span>)<span class="question-mark">?</span>;
                 }
-                <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, NodePtr::clone(n))
+                <span class="macro">w!</span>(<span class="string">"{:?}"</span>, NodePtr::clone(n))
             }
-            <span class="kw">_ </span>=&gt; <span class="macro">w!</span>(<span class="string">&quot;\n{:?}&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;\n&quot;</span>, children)),
+            <span class="kw">_ </span>=&gt; <span class="macro">w!</span>(<span class="string">"\n{:?}"</span>, <span class="macro">join!</span>(<span class="string">"\n"</span>, children)),
         }
     }
 
-    <span class="kw">impl </span>Pretty <span class="kw">for </span>RefineCtxt&lt;<span class="lifetime">&#39;_</span>&gt; {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">impl </span>Pretty <span class="kw">for </span>RefineCtxt&lt;<span class="lifetime">'_</span>&gt; {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">let </span>parents = ParentsIter::new(NodePtr::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.ptr)).collect_vec();
             <span class="macro">write!</span>(
                 f,
-                <span class="string">&quot;{{{}}}&quot;</span>,
+                <span class="string">"{{{}}}"</span>,
                 parents
                     .into_iter()
                     .rev()
@@ -1682,13 +1682,13 @@
                             <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
                         }
                     })
-                    .format_with(<span class="string">&quot;, &quot;</span>, |n, f| {
+                    .format_with(<span class="string">", "</span>, |n, f| {
                         <span class="kw">let </span>n = n.borrow();
                         <span class="kw">match </span><span class="kw-2">&amp;</span>n.kind {
                             NodeKind::ForAll(name, sort) =&gt; {
-                                f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">&quot;{:?}: {:?}&quot;</span>, ^name, sort))
+                                f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort))
                             }
-                            NodeKind::Guard(pred) =&gt; f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">&quot;{:?}&quot;</span>, pred)),
+                            NodeKind::Guard(pred) =&gt; f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}"</span>, pred)),
                             <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(),
                         }
                     })
@@ -1697,24 +1697,24 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Scope {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="macro">write!</span>(
                 f,
-                <span class="string">&quot;[{}]&quot;</span>,
+                <span class="string">"[{}]"</span>,
                 <span class="self">self</span>.bindings
                     .iter_enumerated()
-                    .format_with(<span class="string">&quot;, &quot;</span>, |(name, sort), f| {
-                        f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">&quot;{:?}: {:?}&quot;</span>, ^name, sort))
+                    .format_with(<span class="string">", "</span>, |(name, sort), f| {
+                        f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort))
                     })
             )
         }
     }
 
     <span class="macro">impl_debug_with_default_cx!</span>(
-        RefineTree =&gt; <span class="string">&quot;refine_tree&quot;</span>,
-        RefineSubtree&lt;<span class="lifetime">&#39;_</span>&gt; =&gt; <span class="string">&quot;refine_subtree&quot;</span>,
-        RefineCtxt&lt;<span class="lifetime">&#39;_</span>&gt; =&gt; <span class="string">&quot;refine_ctxt&quot;</span>,
+        RefineTree =&gt; <span class="string">"refine_tree"</span>,
+        RefineSubtree&lt;<span class="lifetime">'_</span>&gt; =&gt; <span class="string">"refine_subtree"</span>,
+        RefineCtxt&lt;<span class="lifetime">'_</span>&gt; =&gt; <span class="string">"refine_ctxt"</span>,
         Scope,
     );
 }

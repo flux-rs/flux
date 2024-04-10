@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["_DERIVE_rustc_errors_IntoDiagnostic_diagnostic_handler_sess_G_FOR_UnsupportedLocalDecl","_DERIVE_rustc_errors_IntoDiagnostic_diagnostic_handler_sess_G_FOR_UnsupportedMir"],"struct":["UnsupportedLocalDecl","UnsupportedMir"]};
+window.SIDEBAR_ITEMS = {"struct":["UnsupportedLocalDecl","UnsupportedMir"]};

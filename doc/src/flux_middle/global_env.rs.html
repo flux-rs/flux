@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/global_env.rs`."><title>global_env.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/global_env.rs`."><title>global_env.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../flux_middle/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -474,6 +476,9 @@
 <a href="#474" id="474">474</a>
 <a href="#475" id="475">475</a>
 <a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::bug;
@@ -497,70 +502,70 @@
 };
 
 <span class="attr">#[derive(Clone, Copy)]
-</span><span class="kw">pub struct </span>GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    inner: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>GlobalEnvInner&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+</span><span class="kw">pub struct </span>GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    inner: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>GlobalEnvInner&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
 }
 
-<span class="kw">struct </span>GlobalEnvInner&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>FluxSession,
-    arena: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Arena,
+<span class="kw">struct </span>GlobalEnvInner&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    sess: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>FluxSession,
+    arena: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Arena,
     cstore: Box&lt;CrateStoreDyn&gt;,
-    queries: Queries&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    queries: Queries&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;tcx</span>&gt; GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub fn </span>enter&lt;<span class="lifetime">&#39;a</span>, R&gt;(
-        tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-        sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>FluxSession,
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub fn </span>enter&lt;<span class="lifetime">'a</span>, R&gt;(
+        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+        sess: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>FluxSession,
         cstore: Box&lt;CrateStoreDyn&gt;,
-        arena: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>fhir::Arena,
+        arena: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>fhir::Arena,
         providers: Providers,
-        f: <span class="kw">impl for</span>&lt;<span class="lifetime">&#39;genv</span>&gt; FnOnce(GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;) -&gt; R,
+        f: <span class="kw">impl for</span>&lt;<span class="lifetime">'genv</span>&gt; FnOnce(GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;) -&gt; R,
     ) -&gt; R {
         <span class="kw">let </span>inner = GlobalEnvInner { tcx, sess, cstore, arena, queries: Queries::new(providers) };
         f(GlobalEnv { inner: <span class="kw-2">&amp;</span>inner })
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub fn </span>tcx(<span class="self">self</span>) -&gt; TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub fn </span>tcx(<span class="self">self</span>) -&gt; TyCtxt&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="self">self</span>.inner.tcx
     }
 
-    <span class="kw">pub fn </span>hir(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; rustc_middle::hir::map::Map&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub fn </span>hir(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; rustc_middle::hir::map::Map&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="self">self</span>.tcx().hir()
     }
 
-    <span class="kw">pub fn </span>sess(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>FluxSession {
+    <span class="kw">pub fn </span>sess(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>FluxSession {
         <span class="self">self</span>.inner.sess
     }
 
-    <span class="kw">pub fn </span>collect_specs(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span><span class="kw">crate</span>::Specs {
+    <span class="kw">pub fn </span>collect_specs(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span><span class="kw">crate</span>::Specs {
         <span class="self">self</span>.inner.queries.collect_specs(<span class="self">self</span>)
     }
 
-    <span class="kw">pub fn </span>resolve_crate(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span><span class="kw">crate</span>::ResolverOutput {
+    <span class="kw">pub fn </span>resolve_crate(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span><span class="kw">crate</span>::ResolverOutput {
         <span class="self">self</span>.inner.queries.resolve_crate(<span class="self">self</span>)
     }
 
-    <span class="kw">pub fn </span>fhir_crate(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Crate&lt;<span class="lifetime">&#39;genv</span>&gt; {
+    <span class="kw">pub fn </span>fhir_crate(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Crate&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="self">self</span>.inner.queries.fhir_crate(<span class="self">self</span>)
     }
 
-    <span class="kw">pub fn </span>map(<span class="self">self</span>) -&gt; Map&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub fn </span>map(<span class="self">self</span>) -&gt; Map&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
         Map::new(<span class="self">self</span>, <span class="self">self</span>.fhir_crate())
     }
 
-    <span class="kw">pub fn </span>alloc&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, val: T) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>T {
+    <span class="kw">pub fn </span>alloc&lt;T&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, val: T) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>T {
         <span class="self">self</span>.inner.arena.alloc(val)
     }
 
-    <span class="kw">pub fn </span>alloc_slice&lt;T: Copy&gt;(<span class="self">self</span>, slice: <span class="kw-2">&amp;</span>[T]) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>[T] {
+    <span class="kw">pub fn </span>alloc_slice&lt;T: Copy&gt;(<span class="self">self</span>, slice: <span class="kw-2">&amp;</span>[T]) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[T] {
         <span class="self">self</span>.inner.arena.alloc_slice_copy(slice)
     }
 
-    <span class="kw">pub fn </span>alloc_slice_fill_iter&lt;T, I&gt;(<span class="self">self</span>, it: I) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>[T]
+    <span class="kw">pub fn </span>alloc_slice_fill_iter&lt;T, I&gt;(<span class="self">self</span>, it: I) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[T]
     <span class="kw">where
         </span>I: IntoIterator&lt;Item = T&gt;,
         I::IntoIter: ExactSizeIterator,
@@ -581,11 +586,11 @@
     /// ## Panics
     ///
     /// Panics if reserving space for the slice fails.
-    </span><span class="kw">pub fn </span>alloc_slice_with_capacity&lt;T, I&gt;(<span class="self">self</span>, cap: usize, it: I) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>[T]
+    </span><span class="kw">pub fn </span>alloc_slice_with_capacity&lt;T, I&gt;(<span class="self">self</span>, cap: usize, it: I) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[T]
     <span class="kw">where
         </span>I: IntoIterator&lt;Item = T&gt;,
     {
-        <span class="kw">let </span>layout = alloc::Layout::array::&lt;T&gt;(cap).unwrap_or_else(|<span class="kw">_</span>| <span class="macro">panic!</span>(<span class="string">&quot;out of memory&quot;</span>));
+        <span class="kw">let </span>layout = alloc::Layout::array::&lt;T&gt;(cap).unwrap_or_else(|<span class="kw">_</span>| <span class="macro">panic!</span>(<span class="string">"out of memory"</span>));
         <span class="kw">let </span>dst = <span class="self">self</span>.inner.arena.alloc_layout(layout).cast::&lt;T&gt;();
         <span class="kw">unsafe </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>len = <span class="number">0</span>;
@@ -606,7 +611,7 @@
     </span><span class="kw">pub fn </span>qualifiers_for(
         <span class="self">self</span>,
         did: LocalDefId,
-    ) -&gt; QueryResult&lt;<span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>rty::Qualifier&gt;&gt; {
+    ) -&gt; QueryResult&lt;<span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>rty::Qualifier&gt;&gt; {
         <span class="kw">let </span>names: FxHashSet&lt;Symbol&gt; = <span class="self">self
             </span>.map()
             .fn_quals_for(did)
@@ -621,7 +626,7 @@
             .filter(<span class="kw">move </span>|qualifier| qualifier.global || names.contains(<span class="kw-2">&amp;</span>qualifier.name)))
     }
 
-    <span class="kw">pub fn </span>func_decls(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>rty::SpecFuncDecl&gt; {
+    <span class="kw">pub fn </span>func_decls(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>rty::SpecFuncDecl&gt; {
         <span class="self">self</span>.inner.queries.func_decls(<span class="self">self</span>).values()
     }
 
@@ -629,7 +634,7 @@
         <span class="self">self</span>.inner.queries.func_decls(<span class="self">self</span>)[<span class="kw-2">&amp;</span>name].clone()
     }
 
-    <span class="kw">pub fn </span>variances_of(<span class="self">self</span>, did: DefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>[Variance] {
+    <span class="kw">pub fn </span>variances_of(<span class="self">self</span>, did: DefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>[Variance] {
         <span class="self">self</span>.tcx().variances_of(did)
     }
 
@@ -643,11 +648,11 @@
         rty::Ty::indexed(bty, rty::Expr::unit_adt(def_id))
     }
 
-    <span class="kw">pub fn </span>mir(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;Rc&lt;rustc::mir::Body&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt;&gt; {
+    <span class="kw">pub fn </span>mir(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;Rc&lt;rustc::mir::Body&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt; {
         <span class="self">self</span>.inner.queries.mir(<span class="self">self</span>, def_id)
     }
 
-    <span class="kw">pub fn </span>lower_generics_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;ty::Generics&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt; {
+    <span class="kw">pub fn </span>lower_generics_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;ty::Generics&lt;<span class="lifetime">'tcx</span>&gt;&gt; {
         <span class="self">self</span>.inner.queries.lower_generics_of(<span class="self">self</span>, def_id.into())
     }
 
@@ -677,7 +682,7 @@
     <span class="kw">pub fn </span>check_wf(
         <span class="self">self</span>,
         flux_id: <span class="kw">impl </span>Into&lt;FluxLocalDefId&gt;,
-    ) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;&gt; {
+    ) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt; {
         <span class="self">self</span>.inner.queries.check_wf(<span class="self">self</span>, flux_id.into())
     }
 
@@ -812,7 +817,7 @@
         Refiner::with_holes(<span class="self">self</span>, generics).refine_ty(rustc_ty)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>cstore(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>CrateStoreDyn {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>cstore(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>CrateStoreDyn {
         <span class="kw-2">&amp;*</span><span class="self">self</span>.inner.cstore
     }
 
@@ -834,19 +839,19 @@
 }
 
 <span class="attr">#[derive(Clone, Copy)]
-</span><span class="kw">pub struct </span>Map&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    fhir: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Crate&lt;<span class="lifetime">&#39;genv</span>&gt;,
+</span><span class="kw">pub struct </span>Map&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+    fhir: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; Map&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, fhir: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Crate&lt;<span class="lifetime">&#39;genv</span>&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Map&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, fhir: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ genv, fhir }
     }
 
-    <span class="kw">pub fn </span>get_generics(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Generics&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
-        <span class="comment">// We don&#39;t have nodes for closures and coroutines
-        </span><span class="kw">if </span><span class="macro">matches!</span>(<span class="self">self</span>.genv.def_kind(def_id), DefKind::Closure | DefKind::Coroutine) {
+    <span class="kw">pub fn </span>get_generics(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Generics&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+        <span class="comment">// We don't have nodes for closures and coroutines
+        </span><span class="kw">if </span><span class="macro">matches!</span>(<span class="self">self</span>.genv.def_kind(def_id), DefKind::Closure) {
             <span class="prelude-val">None
         </span>} <span class="kw">else </span>{
             <span class="prelude-val">Some</span>(<span class="self">self</span>.node(def_id).generics())
@@ -857,24 +862,24 @@
         <span class="self">self</span>.fhir.externs.get(<span class="kw-2">&amp;</span>extern_def_id).copied()
     }
 
-    <span class="kw">pub fn </span>get_flux_item(<span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::FluxItem&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
+    <span class="kw">pub fn </span>get_flux_item(<span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="self">self</span>.fhir.flux_items.get(<span class="kw-2">&amp;</span>name).as_ref().copied()
     }
 
-    <span class="kw">pub fn </span>refined_by(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::RefinedBy&lt;<span class="lifetime">&#39;genv</span>&gt; {
+    <span class="kw">pub fn </span>refined_by(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::RefinedBy&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.expect_item(def_id).kind {
             fhir::ItemKind::Enum(enum_def) =&gt; enum_def.refined_by,
             fhir::ItemKind::Struct(struct_def) =&gt; struct_def.refined_by,
             fhir::ItemKind::TyAlias(ty_alias) =&gt; ty_alias.refined_by,
-            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected struct, enum or type alias&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected struct, enum or type alias"</span>),
         }
     }
 
     <span class="kw">pub fn </span>extern_id_of(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
-        <span class="self">self</span>.expect_item(def_id).extern_id
+        <span class="self">self</span>.node(def_id).extern_id()
     }
 
-    <span class="kw">pub fn </span>spec_funcs(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::SpecFunc&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
+    <span class="kw">pub fn </span>spec_funcs(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="self">self</span>.fhir.flux_items.values().filter_map(|item| {
             <span class="kw">if let </span>fhir::FluxItem::Func(defn) = item {
                 <span class="prelude-val">Some</span>(defn)
@@ -884,7 +889,7 @@
         })
     }
 
-    <span class="kw">pub fn </span>spec_func(<span class="kw-2">&amp;</span><span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::SpecFunc&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
+    <span class="kw">pub fn </span>spec_func(<span class="kw-2">&amp;</span><span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="self">self</span>.fhir.flux_items.get(<span class="kw-2">&amp;</span>name).and_then(|item| {
             <span class="kw">if let </span>fhir::FluxItem::Func(defn) = item {
                 <span class="prelude-val">Some</span>(defn)
@@ -894,7 +899,7 @@
         })
     }
 
-    <span class="kw">pub fn </span>qualifiers(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Qualifier&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
+    <span class="kw">pub fn </span>qualifiers(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Qualifier&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="self">self</span>.fhir.flux_items.values().filter_map(|item| {
             <span class="kw">if let </span>fhir::FluxItem::Qualifier(qual) = item {
                 <span class="prelude-val">Some</span>(qual)
@@ -904,7 +909,7 @@
         })
     }
 
-    <span class="kw">pub fn </span>consts(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = fhir::ConstInfo&gt; + <span class="lifetime">&#39;genv </span>{
+    <span class="kw">pub fn </span>consts(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = fhir::ConstInfo&gt; + <span class="lifetime">'genv </span>{
         <span class="self">self</span>.fhir.consts.values().copied()
     }
 
@@ -912,7 +917,7 @@
         <span class="self">self</span>.node(def_id).fn_sig().unwrap().trusted
     }
 
-    <span class="kw">pub fn </span>fn_quals_for(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>[fhir::SurfaceIdent] {
+    <span class="kw">pub fn </span>fn_quals_for(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::SurfaceIdent] {
         <span class="comment">// This is called on adts when checking invariants
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="self">self</span>.node(def_id).fn_sig() {
             fn_sig.qualifiers
@@ -921,11 +926,14 @@
         }
     }
 
-    <span class="kw">pub fn </span>expect_item(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Item&lt;<span class="lifetime">&#39;genv</span>&gt; {
-        <span class="self">self</span>.fhir.items.get(<span class="kw-2">&amp;</span>def_id).unwrap()
+    <span class="kw">pub fn </span>expect_item(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Item&lt;<span class="lifetime">'genv</span>&gt; {
+        <span class="self">self</span>.fhir
+            .items
+            .get(<span class="kw-2">&amp;</span>def_id)
+            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"no item found for {def_id:?}"</span>))
     }
 
-    <span class="kw">pub fn </span>node(<span class="self">self</span>, def_id: LocalDefId) -&gt; fhir::Node&lt;<span class="lifetime">&#39;genv</span>&gt; {
+    <span class="kw">pub fn </span>node(<span class="self">self</span>, def_id: LocalDefId) -&gt; fhir::Node&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = <span class="self">self</span>.fhir.items.get(<span class="kw-2">&amp;</span>def_id) {
             fhir::Node::Item(item)
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(trait_item) = <span class="self">self</span>.fhir.trait_items.get(<span class="kw-2">&amp;</span>def_id) {
@@ -933,13 +941,13 @@
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(impl_item) = <span class="self">self</span>.fhir.impl_items.get(<span class="kw-2">&amp;</span>def_id) {
             fhir::Node::ImplItem(impl_item)
         } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">&quot;node not found {def_id:?}&quot;</span>);
+            <span class="macro">bug!</span>(<span class="string">"node not found {def_id:?}"</span>);
         }
     }
 }
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>try_alloc_slice {
+</span><span class="macro">macro_rules!</span> try_alloc_slice {
     (<span class="macro-nonterminal">$genv</span>:expr, <span class="macro-nonterminal">$slice</span>:expr, <span class="macro-nonterminal">$map</span>:expr $(,)<span class="question-mark">?</span>) =&gt; {{
         <span class="kw">let </span>slice = <span class="macro-nonterminal">$slice</span>;
         <span class="macro-nonterminal">$</span><span class="macro">crate::try_alloc_slice!</span>(<span class="macro-nonterminal">$genv</span>, cap: slice.len(), slice.into_iter().map(<span class="macro-nonterminal">$map</span>))

@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/wf/sortck.rs`."><title>sortck.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/wf/sortck.rs`."><title>sortck.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_fhir_analysis/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -713,7 +715,7 @@
 };
 <span class="kw">use </span>itertools::izip;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_errors::IntoDiagnostic;
+<span class="kw">use </span>rustc_errors::Diagnostic;
 <span class="kw">use </span>rustc_span::{def_id::DefId, Span};
 
 <span class="kw">use </span><span class="kw">super</span>::errors;
@@ -721,16 +723,16 @@
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
-<span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub </span>genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub </span>genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     params: UnordMap&lt;fhir::ParamId, (rty::Sort, fhir::ParamKind)&gt;,
     <span class="kw">pub</span>(<span class="kw">super</span>) sort_unification_table: InPlaceUnificationTable&lt;rty::SortVid&gt;,
     num_unification_table: InPlaceUnificationTable&lt;rty::NumVid&gt;,
-    <span class="kw">pub </span>wfckresults: WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    <span class="kw">pub </span>wfckresults: WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, owner: FluxOwnerId) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, owner: FluxOwnerId) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             genv,
             wfckresults: WfckResults::new(owner),
@@ -798,7 +800,7 @@
             <span class="kw">if </span>flds.len() != sorts.len() {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArgCountMismatch::new(
                     <span class="prelude-val">Some</span>(arg.span),
-                    String::from(<span class="string">&quot;type&quot;</span>),
+                    String::from(<span class="string">"type"</span>),
                     sorts.len(),
                     flds.len(),
                 )));
@@ -813,7 +815,7 @@
         } <span class="kw">else </span>{
             <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArgCountMismatch::new(
                 <span class="prelude-val">Some</span>(arg.span),
-                String::from(<span class="string">&quot;type&quot;</span>),
+                String::from(<span class="string">"type"</span>),
                 <span class="number">1</span>,
                 flds.len(),
             )))
@@ -893,7 +895,7 @@
             ExprRes::Const(<span class="kw">_</span>) =&gt; rty::Sort::Int, <span class="comment">// TODO: generalize const sorts
             </span>ExprRes::NumConst(<span class="kw">_</span>) =&gt; rty::Sort::Int,
             ExprRes::GlobalFunc(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
-                <span class="macro">span_bug!</span>(path.span, <span class="string">&quot;unexpected func in var position&quot;</span>)
+                <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected func in var position"</span>)
             }
         }
     }
@@ -969,7 +971,7 @@
         <span class="kw">if </span>args.len() != fsort.inputs().len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArgCountMismatch::new(
                 <span class="prelude-val">Some</span>(span),
-                String::from(<span class="string">&quot;function&quot;</span>),
+                String::from(<span class="string">"function"</span>),
                 fsort.inputs().len(),
                 args.len(),
             )));
@@ -991,13 +993,13 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(InvalidAssocReft::new(
                 span,
                 alias.name,
-                <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, alias.path),
+                <span class="macro">format!</span>(<span class="string">"{:?}"</span>, alias.path),
             )));
         };
         <span class="kw">if </span>args.len() != fsort.inputs().len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArgCountMismatch::new(
                 <span class="prelude-val">Some</span>(span),
-                String::from(<span class="string">&quot;function&quot;</span>),
+                String::from(<span class="string">"function"</span>),
                 fsort.inputs().len(),
                 args.len(),
             )));
@@ -1018,7 +1020,7 @@
                 fsort
             }
             ExprRes::GlobalFunc(.., sym) =&gt; <span class="self">self</span>.genv.func_decl(sym).sort.clone(),
-            <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(func.span, <span class="string">&quot;unexpected path in function position&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(func.span, <span class="string">"unexpected path in function position"</span>),
         };
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.instantiate_func_sort(poly_fsort))
     }
@@ -1031,8 +1033,8 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>&gt; InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt; {
-    <span class="doccomment">/// Push a layer of binders. We assume all names are fresh so we don&#39;t care about shadowing
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>&gt; InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt; {
+    <span class="doccomment">/// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>insert_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) {
         <span class="kw">for </span>param <span class="kw">in </span>params {
             <span class="kw">let </span>sort = conv::conv_sort(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>param.sort, <span class="kw-2">&amp;mut </span>|| <span class="self">self</span>.next_sort_var());
@@ -1161,7 +1163,7 @@
 
     <span class="kw">fn </span>equate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort1: <span class="kw-2">&amp;</span>rty::Sort, sort2: <span class="kw-2">&amp;</span>rty::Sort) -&gt; rty::Sort {
         <span class="self">self</span>.try_equate(sort1, sort2)
-            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">&quot;failed to equate sorts: `{sort1:?}` `{sort2:?}`&quot;</span>))
+            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"failed to equate sorts: `{sort1:?}` `{sort2:?}`"</span>))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>next_sort_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rty::Sort {
@@ -1198,7 +1200,7 @@
     }
 
     <span class="kw">fn </span>ensure_resolved_var(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
-        <span class="kw">let </span>ExprRes::Param(<span class="kw">_</span>, id) = path.res <span class="kw">else </span>{ <span class="macro">span_bug!</span>(path.span, <span class="string">&quot;unexpected path&quot;</span>) };
+        <span class="kw">let </span>ExprRes::Param(<span class="kw">_</span>, id) = path.res <span class="kw">else </span>{ <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected path"</span>) };
         <span class="kw">let </span>sort = <span class="self">self</span>.param_sort(id);
         <span class="self">self</span>.fully_resolve(<span class="kw-2">&amp;</span>sort)
             .map_err(|<span class="kw">_</span>| <span class="self">self</span>.emit_err(errors::CannotInferSort::new(path.span)))
@@ -1214,7 +1216,7 @@
         </span>}
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_results(<span class="self">self</span>) -&gt; WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_results(<span class="self">self</span>) -&gt; WfckResults&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="self">self</span>.wfckresults
     }
 
@@ -1241,13 +1243,13 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>ImplicitParamInferer&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    errors: Errors&lt;<span class="lifetime">&#39;genv</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>ImplicitParamInferer&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+    errors: Errors&lt;<span class="lifetime">'genv</span>&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; ImplicitParamInferer&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infer(infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, node: <span class="kw-2">&amp;</span>fhir::Node) -&gt; <span class="prelude-ty">Result </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; ImplicitParamInferer&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infer(infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, node: <span class="kw-2">&amp;</span>fhir::Node) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>errors = Errors::new(infcx.genv.sess());
         <span class="kw">let </span><span class="kw-2">mut </span>vis = <span class="self">Self </span>{ infcx, errors };
         vis.visit_node(node);
@@ -1270,7 +1272,7 @@
                     <span class="kw">if </span>flds.len() != sorts.len() {
                         <span class="self">self</span>.errors.emit(errors::ArgCountMismatch::new(
                             <span class="prelude-val">Some</span>(idx.span),
-                            String::from(<span class="string">&quot;type&quot;</span>),
+                            String::from(<span class="string">"type"</span>),
                             sorts.len(),
                             flds.len(),
                         ));
@@ -1282,7 +1284,7 @@
                 } <span class="kw">else </span>{
                     <span class="self">self</span>.errors.emit(errors::ArgCountMismatch::new(
                         <span class="prelude-val">Some</span>(idx.span),
-                        String::from(<span class="string">&quot;type&quot;</span>),
+                        String::from(<span class="string">"type"</span>),
                         <span class="number">1</span>,
                         flds.len(),
                     ));
@@ -1292,7 +1294,7 @@
     }
 }
 
-<span class="kw">impl </span>fhir::visit::Visitor <span class="kw">for </span>ImplicitParamInferer&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>fhir::visit::Visitor <span class="kw">for </span>ImplicitParamInferer&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty) {
         <span class="kw">if let </span>fhir::TyKind::Indexed(bty, idx) = <span class="kw-2">&amp;</span>ty.kind {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(expected) = <span class="self">self</span>.infcx.genv.sort_of_bty(bty) {
@@ -1309,7 +1311,7 @@
     }
 }
 
-<span class="kw">impl </span>InferCtxt&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="attr">#[track_caller]
     </span><span class="kw">fn </span>emit_sort_mismatch(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
@@ -1331,7 +1333,7 @@
     }
 
     <span class="attr">#[track_caller]
-    </span><span class="kw">fn </span>emit_err&lt;<span class="lifetime">&#39;b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;b </span><span class="self">self</span>, err: <span class="kw">impl </span>IntoDiagnostic&lt;<span class="lifetime">&#39;b</span>&gt;) -&gt; ErrorGuaranteed {
+    </span><span class="kw">fn </span>emit_err&lt;<span class="lifetime">'b</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'b </span><span class="self">self</span>, err: <span class="kw">impl </span>Diagnostic&lt;<span class="lifetime">'b</span>&gt;) -&gt; ErrorGuaranteed {
         <span class="self">self</span>.genv.sess().emit_err(err)
     }
 }
@@ -1344,11 +1346,11 @@
     }
 }
 
-<span class="kw">struct </span>ShallowResolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">struct </span>ShallowResolver&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
 }
 
-<span class="kw">impl </span>TypeFolder <span class="kw">for </span>ShallowResolver&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>TypeFolder <span class="kw">for </span>ShallowResolver&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; rty::Sort {
         <span class="kw">match </span>sort {
             rty::Sort::Infer(rty::SortVar(vid)) =&gt; {
@@ -1370,22 +1372,22 @@
     }
 }
 
-<span class="kw">struct </span>OpportunisticResolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">struct </span>OpportunisticResolver&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
 }
 
-<span class="kw">impl </span>TypeFolder <span class="kw">for </span>OpportunisticResolver&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>TypeFolder <span class="kw">for </span>OpportunisticResolver&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; rty::Sort {
         <span class="kw">let </span>s = <span class="self">self</span>.infcx.shallow_resolve(sort);
         s.super_fold_with(<span class="self">self</span>)
     }
 }
 
-<span class="kw">struct </span>FullResolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    infcx: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">struct </span>FullResolver&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
 }
 
-<span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>FullResolver&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>FullResolver&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">type </span>Error = ();
 
     <span class="kw">fn </span>try_fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; std::result::Result&lt;rty::Sort, <span class="self">Self</span>::Error&gt; {

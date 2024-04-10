@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/expr.rs`."><title>expr.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/expr.rs`."><title>expr.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_middle/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1092,6 +1094,9 @@
 <a href="#1092" id="1092">1092</a>
 <a href="#1093" id="1093">1093</a>
 <a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1159,7 +1164,7 @@
 }
 
 <span class="kw">impl </span>AliasReft {
-    <span class="kw">pub fn </span>to_rustc_trait_ref&lt;<span class="lifetime">&#39;tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; rustc_middle::ty::TraitRef&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub fn </span>to_rustc_trait_ref&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="kw">let </span>trait_def_id = <span class="self">self</span>.trait_id;
         <span class="kw">let </span>args = <span class="self">self
             </span>.args
@@ -1203,7 +1208,7 @@
     }
 }
 
-<span class="comment">// NOTE: we make our own &quot;version&quot; of `rustc`&#39;s SpanData as we cannot `TyEncode/Decode`
+<span class="comment">// NOTE: we make our own "version" of `rustc`'s SpanData as we cannot `TyEncode/Decode`
 // the original one...
 </span><span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 </span><span class="kw">pub struct </span>SpanData {
@@ -1263,12 +1268,12 @@
     KVar(KVar),
     Alias(AliasReft, List&lt;Expr&gt;),
     <span class="doccomment">/// Function application. The syntax allows arbitrary expressions in function position, but in
-    /// practice we are restricted by what&#39;s possible to encode in fixpoint. In a nutshell, we need
-    /// to make sure that expressions that can&#39;t be encoded are eliminated before we generate the
+    /// practice we are restricted by what's possible to encode in fixpoint. In a nutshell, we need
+    /// to make sure that expressions that can't be encoded are eliminated before we generate the
     /// fixpoint constraint. Most notably, lambda abstractions have to be fully applied before
     /// encoding into fixpoint (except when they appear as an index at the top-level).
     </span>App(Expr, List&lt;Expr&gt;),
-    <span class="doccomment">/// Lambda abstractions. They are purely syntactic and we don&#39;t encode them in the logic. As such,
+    <span class="doccomment">/// Lambda abstractions. They are purely syntactic and we don't encode them in the logic. As such,
     /// they have some syntactic restrictions that we must carefully maintain:
     ///
     /// 1. They can appear as an index at the top level.
@@ -1288,7 +1293,7 @@
     /// Holes are implicitly defined in a scope, i.e., their solution could mention free and bound
     /// variables in this scope. This must be considered when generating an inference variables for
     /// them (either evar or kvar). In fact, the main reason we have holes is that we want to
-    /// decouple the places where we generate holes (where we don&#39;t want to worry about the scope),
+    /// decouple the places where we generate holes (where we don't want to worry about the scope),
     /// and the places where we generate inference variable for them (where we do need to worry
     /// about the scope).
     </span>Hole(HoleKind),
@@ -1332,7 +1337,7 @@
 
 <span class="doccomment">/// In theory a kvar is just an unknown predicate that can use some variables in scope. In practice,
 /// fixpoint makes a diference between the first and the rest of the arguments, the first one being
-/// the kvar&#39;s *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
+/// the kvar's *self argument*. Fixpoint will only instantiate qualifiers that use the self argument.
 /// Flux generalizes the self argument to be a list. We call the rest of the arguments the *scope*.
 </span><span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>KVar {
@@ -1376,13 +1381,16 @@
     Var(Var),
 }
 
-<span class="macro">newtype_index! </span>{
-    <span class="attr">#[debug_format = <span class="string">&quot;$k{}&quot;</span>]
+<span class="macro">newtype_index!</span> {
+    <span class="attr">#[debug_format = <span class="string">"$k{}"</span>]
+    #[encodable]
     </span><span class="kw">pub struct </span>KVid {}
 }
 
-<span class="macro">newtype_index! </span>{
-    <span class="attr">#[debug_format = <span class="string">&quot;a{}&quot;</span>]
+<span class="macro">newtype_index!</span> {
+    <span class="attr">#[debug_format = <span class="string">"a{}"</span>]
+    #[orderable]
+    #[encodable]
     </span><span class="kw">pub struct </span>Name {}
 }
 
@@ -1485,7 +1493,7 @@
         <span class="kw">if let </span>ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) = <span class="self">self</span>.kind() {
             (<span class="kw-2">*</span>def_id, flds.clone())
         } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">&quot;expected record, found {self:?}&quot;</span>)
+            <span class="macro">bug!</span>(<span class="string">"expected record, found {self:?}"</span>)
         }
     }
 
@@ -1663,7 +1671,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.kind
     }
 
-    <span class="doccomment">/// An expression is an *atom* if it is &quot;self-delimiting&quot;, i.e., it has a clear boundary
+    <span class="doccomment">/// An expression is an *atom* if it is "self-delimiting", i.e., it has a clear boundary
     /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
     </span><span class="kw">pub fn </span>is_atom(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         !<span class="macro">matches!</span>(<span class="self">self</span>.kind, ExprKind::Abs(..) | ExprKind::BinaryOp(..))
@@ -1867,7 +1875,7 @@
     }
 }
 
-<span class="macro">macro_rules! </span>impl_ops {
+<span class="macro">macro_rules!</span> impl_ops {
     ($(<span class="macro-nonterminal">$op</span>:ident: <span class="macro-nonterminal">$method</span>:ident),<span class="kw-2">*</span>) =&gt; {$(
         <span class="kw">impl</span>&lt;Rhs&gt; std::ops::<span class="macro-nonterminal">$op</span>&lt;Rhs&gt; <span class="kw">for </span>Expr
         <span class="kw">where
@@ -1986,7 +1994,7 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Expr {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">fn </span>should_parenthesize(op: <span class="kw-2">&amp;</span>BinOp, child: <span class="kw-2">&amp;</span>Expr) -&gt; bool {
                 <span class="kw">if let </span>ExprKind::BinaryOp(child_op, ..) = child.kind() {
@@ -1999,131 +2007,131 @@
             }
             <span class="kw">let </span>e = <span class="kw">if </span>cx.simplify_exprs { <span class="self">self</span>.simplify() } <span class="kw">else </span>{ <span class="self">self</span>.clone() };
             <span class="kw">match </span>e.kind() {
-                ExprKind::Var(var) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, var),
-                ExprKind::Local(local) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ^local),
-                ExprKind::ConstDefId(did) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^pretty::def_id_to_string(<span class="kw-2">*</span>did)),
-                ExprKind::Constant(c) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^c),
+                ExprKind::Var(var) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, var),
+                ExprKind::Local(local) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^local),
+                ExprKind::ConstDefId(did) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^pretty::def_id_to_string(<span class="kw-2">*</span>did)),
+                ExprKind::Constant(c) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^c),
                 ExprKind::BinaryOp(op, e1, e2) =&gt; {
                     <span class="kw">if </span>should_parenthesize(op, e1) {
-                        <span class="macro">w!</span>(<span class="string">&quot;({:?})&quot;</span>, e1)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="string">"({:?})"</span>, e1)<span class="question-mark">?</span>;
                     } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, e1)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="string">"{:?}"</span>, e1)<span class="question-mark">?</span>;
                     }
                     <span class="kw">if </span><span class="macro">matches!</span>(op, BinOp::Div) {
-                        <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, op)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="string">"{:?}"</span>, op)<span class="question-mark">?</span>;
                     } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(<span class="string">&quot; {:?} &quot;</span>, op)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="string">" {:?} "</span>, op)<span class="question-mark">?</span>;
                     }
                     <span class="kw">if </span>should_parenthesize(op, e2) {
-                        <span class="macro">w!</span>(<span class="string">&quot;({:?})&quot;</span>, e2)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="string">"({:?})"</span>, e2)<span class="question-mark">?</span>;
                     } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, e2)<span class="question-mark">?</span>;
+                        <span class="macro">w!</span>(<span class="string">"{:?}"</span>, e2)<span class="question-mark">?</span>;
                     }
                     <span class="prelude-val">Ok</span>(())
                 }
                 ExprKind::UnaryOp(op, e) =&gt; {
                     <span class="kw">if </span>e.is_atom() {
-                        <span class="macro">w!</span>(<span class="string">&quot;{:?}{:?}&quot;</span>, op, e)
+                        <span class="macro">w!</span>(<span class="string">"{:?}{:?}"</span>, op, e)
                     } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(<span class="string">&quot;{:?}({:?})&quot;</span>, op, e)
+                        <span class="macro">w!</span>(<span class="string">"{:?}({:?})"</span>, op, e)
                     }
                 }
                 ExprKind::FieldProj(e, proj) =&gt; {
                     <span class="kw">if </span>e.is_atom() {
-                        <span class="macro">w!</span>(<span class="string">&quot;{:?}.{:?}&quot;</span>, e, ^proj.field())
+                        <span class="macro">w!</span>(<span class="string">"{:?}.{:?}"</span>, e, ^proj.field())
                     } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(<span class="string">&quot;({:?}).{:?}&quot;</span>, e, ^proj.field())
+                        <span class="macro">w!</span>(<span class="string">"({:?}).{:?}"</span>, e, ^proj.field())
                     }
                 }
                 ExprKind::Aggregate(AggregateKind::Tuple, flds) =&gt; {
                     <span class="kw">if let </span>[e] = <span class="kw-2">&amp;</span>flds[..] {
-                        <span class="macro">w!</span>(<span class="string">&quot;({:?},)&quot;</span>, e)
+                        <span class="macro">w!</span>(<span class="string">"({:?},)"</span>, e)
                     } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(<span class="string">&quot;({:?})&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, flds))
+                        <span class="macro">w!</span>(<span class="string">"({:?})"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, flds))
                     }
                 }
                 ExprKind::Aggregate(AggregateKind::Adt(def_id), flds) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">&quot;{:?} {{ {:?} }}&quot;</span>, def_id, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, flds))
+                    <span class="macro">w!</span>(<span class="string">"{:?} {{ {:?} }}"</span>, def_id, <span class="macro">join!</span>(<span class="string">", "</span>, flds))
                 }
                 ExprKind::PathProj(e, field) =&gt; {
                     <span class="kw">if </span>e.is_atom() {
-                        <span class="macro">w!</span>(<span class="string">&quot;{:?}.{:?}&quot;</span>, e, field)
+                        <span class="macro">w!</span>(<span class="string">"{:?}.{:?}"</span>, e, field)
                     } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(<span class="string">&quot;({:?}).{:?}&quot;</span>, e, field)
+                        <span class="macro">w!</span>(<span class="string">"({:?}).{:?}"</span>, e, field)
                     }
                 }
                 ExprKind::App(func, args) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">&quot;({:?})({})&quot;</span>,
+                    <span class="macro">w!</span>(<span class="string">"({:?})({})"</span>,
                         func,
                         ^args
                             .iter()
-                            .format_with(<span class="string">&quot;, &quot;</span>, |arg, f| f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">&quot;{:?}&quot;</span>, arg)))
+                            .format_with(<span class="string">", "</span>, |arg, f| f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}"</span>, arg)))
                     )
                 }
                 ExprKind::IfThenElse(p, e1, e2) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">&quot;if {:?} {{ {:?} }} else {{ {:?} }}&quot;</span>, p, e1, e2)
+                    <span class="macro">w!</span>(<span class="string">"if {:?} {{ {:?} }} else {{ {:?} }}"</span>, p, e1, e2)
                 }
                 ExprKind::Hole(<span class="kw">_</span>) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">&quot;*&quot;</span>)
+                    <span class="macro">w!</span>(<span class="string">"*"</span>)
                 }
                 ExprKind::KVar(kvar) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, kvar)
+                    <span class="macro">w!</span>(<span class="string">"{:?}"</span>, kvar)
                 }
                 ExprKind::Alias(alias, args) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">&quot;{:?}({:?})&quot;</span>, alias, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, args))
+                    <span class="macro">w!</span>(<span class="string">"{:?}({:?})"</span>, alias, <span class="macro">join!</span>(<span class="string">", "</span>, args))
                 }
                 ExprKind::Abs(lam) =&gt; {
-                    <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, lam)
+                    <span class="macro">w!</span>(<span class="string">"{:?}"</span>, lam)
                 }
-                ExprKind::GlobalFunc(func, <span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^func),
+                ExprKind::GlobalFunc(func, <span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^func),
             }
         }
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>AliasReft {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
-            <span class="macro">w!</span>(<span class="string">&quot;&lt;({:?}) as {:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.args[<span class="number">0</span>], <span class="self">self</span>.trait_id)<span class="question-mark">?</span>;
+            <span class="macro">w!</span>(<span class="string">"&lt;({:?}) as {:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.args[<span class="number">0</span>], <span class="self">self</span>.trait_id)<span class="question-mark">?</span>;
             <span class="kw">let </span>args = <span class="kw-2">&amp;</span><span class="self">self</span>.args[<span class="number">1</span>..];
             <span class="kw">if </span>!args.is_empty() {
-                <span class="macro">w!</span>(<span class="string">&quot;&lt;{:?}&gt;&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, args))<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, args))<span class="question-mark">?</span>;
             }
-            <span class="macro">w!</span>(<span class="string">&quot;&gt;::{}&quot;</span>, ^<span class="self">self</span>.name)
+            <span class="macro">w!</span>(<span class="string">"&gt;::{}"</span>, ^<span class="self">self</span>.name)
         }
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Lambda {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">let </span>vars = <span class="self">self</span>.body.vars();
             cx.with_bound_vars(vars, || {
-                cx.fmt_bound_vars(<span class="string">&quot;λ&quot;</span>, vars, <span class="string">&quot;. &quot;</span>, f)<span class="question-mark">?</span>;
-                <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="self">self</span>.body.as_ref().skip_binder())
+                cx.fmt_bound_vars(<span class="string">"λ"</span>, vars, <span class="string">". "</span>, f)<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="self">self</span>.body.as_ref().skip_binder())
             })
         }
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Var {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">match </span><span class="self">self </span>{
                 Var::LateBound(debruijn, var) =&gt; cx.fmt_bound_reft(<span class="kw-2">*</span>debruijn, <span class="kw-2">*</span>var, f),
-                Var::EarlyParam(var) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{}&quot;</span>, ^var.name),
-                Var::Free(name) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ^name),
-                Var::EVar(evar) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, evar),
+                Var::EarlyParam(var) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^var.name),
+                Var::Free(name) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^name),
+                Var::EVar(evar) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, evar),
             }
         }
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>KVar {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
-            <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ^<span class="self">self</span>.kvid)<span class="question-mark">?</span>;
+            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^<span class="self">self</span>.kvid)<span class="question-mark">?</span>;
             <span class="kw">match </span>cx.kvar_args {
                 KVarArgs::All =&gt; {
-                    <span class="macro">w!</span>(<span class="string">&quot;({:?})[{:?}]&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="self">self</span>.self_args()), <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="self">self</span>.scope()))<span class="question-mark">?</span>;
+                    <span class="macro">w!</span>(<span class="string">"({:?})[{:?}]"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="self">self</span>.self_args()), <span class="macro">join!</span>(<span class="string">", "</span>, <span class="self">self</span>.scope()))<span class="question-mark">?</span>;
                 }
-                KVarArgs::SelfOnly =&gt; <span class="macro">w!</span>(<span class="string">&quot;({:?})&quot;</span>, <span class="macro">join!</span>(<span class="string">&quot;, &quot;</span>, <span class="self">self</span>.self_args()))<span class="question-mark">?</span>,
+                KVarArgs::SelfOnly =&gt; <span class="macro">w!</span>(<span class="string">"({:?})"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="self">self</span>.self_args()))<span class="question-mark">?</span>,
                 KVarArgs::Hide =&gt; {}
             }
             <span class="prelude-val">Ok</span>(())
@@ -2131,55 +2139,55 @@
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Path {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
-            <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.loc)<span class="question-mark">?</span>;
+            <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.loc)<span class="question-mark">?</span>;
             <span class="kw">for </span>field <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.projection {
-                <span class="macro">w!</span>(<span class="string">&quot;.{}&quot;</span>, ^u32::from(<span class="kw-2">*</span>field))<span class="question-mark">?</span>;
+                <span class="macro">w!</span>(<span class="string">".{}"</span>, ^u32::from(<span class="kw-2">*</span>field))<span class="question-mark">?</span>;
             }
             <span class="prelude-val">Ok</span>(())
         }
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>Loc {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">match </span><span class="self">self </span>{
-                Loc::Local(local) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, ^local),
-                Loc::Var(var) =&gt; <span class="macro">w!</span>(<span class="string">&quot;{:?}&quot;</span>, var),
+                Loc::Local(local) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^local),
+                Loc::Var(var) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, var),
             }
         }
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>BinOp {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">match </span><span class="self">self </span>{
-                BinOp::Iff =&gt; <span class="macro">w!</span>(<span class="string">&quot;⇔&quot;</span>),
-                BinOp::Imp =&gt; <span class="macro">w!</span>(<span class="string">&quot;⇒&quot;</span>),
-                BinOp::Or =&gt; <span class="macro">w!</span>(<span class="string">&quot;∨&quot;</span>),
-                BinOp::And =&gt; <span class="macro">w!</span>(<span class="string">&quot;∧&quot;</span>),
-                BinOp::Eq =&gt; <span class="macro">w!</span>(<span class="string">&quot;=&quot;</span>),
-                BinOp::Ne =&gt; <span class="macro">w!</span>(<span class="string">&quot;≠&quot;</span>),
-                BinOp::Gt(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">&quot;&gt;&quot;</span>),
-                BinOp::Ge(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">&quot;≥&quot;</span>),
-                BinOp::Lt(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">&quot;&lt;&quot;</span>),
-                BinOp::Le(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">&quot;≤&quot;</span>),
-                BinOp::Add =&gt; <span class="macro">w!</span>(<span class="string">&quot;+&quot;</span>),
-                BinOp::Sub =&gt; <span class="macro">w!</span>(<span class="string">&quot;-&quot;</span>),
-                BinOp::Mul =&gt; <span class="macro">w!</span>(<span class="string">&quot;*&quot;</span>),
-                BinOp::Div =&gt; <span class="macro">w!</span>(<span class="string">&quot;/&quot;</span>),
-                BinOp::Mod =&gt; <span class="macro">w!</span>(<span class="string">&quot;mod&quot;</span>),
+                BinOp::Iff =&gt; <span class="macro">w!</span>(<span class="string">"⇔"</span>),
+                BinOp::Imp =&gt; <span class="macro">w!</span>(<span class="string">"⇒"</span>),
+                BinOp::Or =&gt; <span class="macro">w!</span>(<span class="string">"∨"</span>),
+                BinOp::And =&gt; <span class="macro">w!</span>(<span class="string">"∧"</span>),
+                BinOp::Eq =&gt; <span class="macro">w!</span>(<span class="string">"="</span>),
+                BinOp::Ne =&gt; <span class="macro">w!</span>(<span class="string">"≠"</span>),
+                BinOp::Gt(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">"&gt;"</span>),
+                BinOp::Ge(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">"≥"</span>),
+                BinOp::Lt(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">"&lt;"</span>),
+                BinOp::Le(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">"≤"</span>),
+                BinOp::Add =&gt; <span class="macro">w!</span>(<span class="string">"+"</span>),
+                BinOp::Sub =&gt; <span class="macro">w!</span>(<span class="string">"-"</span>),
+                BinOp::Mul =&gt; <span class="macro">w!</span>(<span class="string">"*"</span>),
+                BinOp::Div =&gt; <span class="macro">w!</span>(<span class="string">"/"</span>),
+                BinOp::Mod =&gt; <span class="macro">w!</span>(<span class="string">"mod"</span>),
             }
         }
     }
 
     <span class="kw">impl </span>Pretty <span class="kw">for </span>UnOp {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">match </span><span class="self">self </span>{
-                UnOp::Not =&gt; <span class="macro">w!</span>(<span class="string">&quot;¬&quot;</span>),
-                UnOp::Neg =&gt; <span class="macro">w!</span>(<span class="string">&quot;-&quot;</span>),
+                UnOp::Not =&gt; <span class="macro">w!</span>(<span class="string">"¬"</span>),
+                UnOp::Neg =&gt; <span class="macro">w!</span>(<span class="string">"-"</span>),
             }
         }
     }

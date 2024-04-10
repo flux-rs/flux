@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/ghost_statements/points_to.rs`."><title>points_to.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/ghost_statements/points_to.rs`."><title>points_to.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_refineck/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -847,37 +849,6 @@
 <a href="#847" id="847">847</a>
 <a href="#848" id="848">848</a>
 <a href="#849" id="849">849</a>
-<a href="#850" id="850">850</a>
-<a href="#851" id="851">851</a>
-<a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a>
-<a href="#855" id="855">855</a>
-<a href="#856" id="856">856</a>
-<a href="#857" id="857">857</a>
-<a href="#858" id="858">858</a>
-<a href="#859" id="859">859</a>
-<a href="#860" id="860">860</a>
-<a href="#861" id="861">861</a>
-<a href="#862" id="862">862</a>
-<a href="#863" id="863">863</a>
-<a href="#864" id="864">864</a>
-<a href="#865" id="865">865</a>
-<a href="#866" id="866">866</a>
-<a href="#867" id="867">867</a>
-<a href="#868" id="868">868</a>
-<a href="#869" id="869">869</a>
-<a href="#870" id="870">870</a>
-<a href="#871" id="871">871</a>
-<a href="#872" id="872">872</a>
-<a href="#873" id="873">873</a>
-<a href="#874" id="874">874</a>
-<a href="#875" id="875">875</a>
-<a href="#876" id="876">876</a>
-<a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a>
-<a href="#879" id="879">879</a>
-<a href="#880" id="880">880</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements a points-to analysis for mutable references.
 //!
 //! We use the result of the analysis to insert ghost statements at the points where pointers (`ptr(l)`)
@@ -922,10 +893,10 @@
 <span class="kw">use </span><span class="kw">super</span>::GhostStatements;
 <span class="kw">use </span><span class="kw">crate</span>::ghost_statements::{GhostStatement, Point};
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>add_ghost_statements&lt;<span class="lifetime">&#39;tcx</span>&gt;(
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>add_ghost_statements&lt;<span class="lifetime">'tcx</span>&gt;(
     stmts: <span class="kw-2">&amp;mut </span>GhostStatements,
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    body: <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
+    body: <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">'tcx</span>&gt;,
     def_id: LocalDefId,
 ) -&gt; QueryResult {
     <span class="kw">let </span>map = Map::new(body);
@@ -944,19 +915,19 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">type </span>Results&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; = rustc_mir_dataflow::Results&lt;<span class="lifetime">&#39;tcx</span>, PointsToAnalysis&lt;<span class="lifetime">&#39;a</span>&gt;&gt;;
+<span class="kw">type </span>Results&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; = rustc_mir_dataflow::Results&lt;<span class="lifetime">'tcx</span>, PointsToAnalysis&lt;<span class="lifetime">'a</span>&gt;&gt;;
 
 <span class="doccomment">/// This implement a points to analysis for mutable references over a [`FlatSet`]. The analysis is
 /// a may analysis. If you want to know if a reference definitiely points to a location you have to
 /// combine it with the result of a definitely initialized analysis. See module level documentation
 /// for more details.
-</span><span class="kw">struct </span>PointsToAnalysis&lt;<span class="lifetime">&#39;a</span>&gt; {
+</span><span class="kw">struct </span>PointsToAnalysis&lt;<span class="lifetime">'a</span>&gt; {
     fn_sig: <span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;,
-    map: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Map,
+    map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Map,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; PointsToAnalysis&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>new(map: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Map, fn_sig: <span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; PointsToAnalysis&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>new(map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Map, fn_sig: <span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ fn_sig, map }
     }
 
@@ -1033,11 +1004,11 @@
 
     <span class="doccomment">/// The effect of a successful function call return should not be
     /// applied here, see [`Analysis::apply_terminator_effect`].
-    </span><span class="kw">fn </span>handle_terminator&lt;<span class="lifetime">&#39;mir</span>, <span class="lifetime">&#39;tcx</span>&gt;(
+    </span><span class="kw">fn </span>handle_terminator&lt;<span class="lifetime">'mir</span>, <span class="lifetime">'tcx</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        terminator: <span class="kw-2">&amp;</span><span class="lifetime">&#39;mir </span>mir::Terminator&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        terminator: <span class="kw-2">&amp;</span><span class="lifetime">'mir </span>mir::Terminator&lt;<span class="lifetime">'tcx</span>&gt;,
         state: <span class="kw-2">&amp;mut </span>State,
-    ) -&gt; TerminatorEdges&lt;<span class="lifetime">&#39;mir</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    ) -&gt; TerminatorEdges&lt;<span class="lifetime">'mir</span>, <span class="lifetime">'tcx</span>&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span>terminator.kind {
             mir::TerminatorKind::Call { .. } | mir::TerminatorKind::InlineAsm { .. } =&gt; {
                 <span class="comment">// Effect is applied by `handle_call_return`.
@@ -1069,18 +1040,18 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt; rustc_mir_dataflow::AnalysisDomain&lt;<span class="lifetime">&#39;tcx</span>&gt; <span class="kw">for </span>PointsToAnalysis&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; rustc_mir_dataflow::AnalysisDomain&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>PointsToAnalysis&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">type </span>Domain = State;
 
     <span class="kw">type </span>Direction = rustc_mir_dataflow::Forward;
 
-    <span class="kw">const </span>NAME: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str = <span class="string">&quot;PointsToAnalysis&quot;</span>;
+    <span class="kw">const </span>NAME: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str = <span class="string">"PointsToAnalysis"</span>;
 
-    <span class="kw">fn </span>bottom_value(<span class="kw-2">&amp;</span><span class="self">self</span>, _body: <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; <span class="self">Self</span>::Domain {
+    <span class="kw">fn </span>bottom_value(<span class="kw-2">&amp;</span><span class="self">self</span>, _body: <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::Domain {
         State { values: IndexVec::from_elem_n(FlatSet::BOTTOM, <span class="self">self</span>.map.value_count) }
     }
 
-    <span class="kw">fn </span>initialize_start_block(<span class="kw-2">&amp;</span><span class="self">self</span>, body: <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">&#39;tcx</span>&gt;, state: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Domain) {
+    <span class="kw">fn </span>initialize_start_block(<span class="kw-2">&amp;</span><span class="self">self</span>, body: <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">'tcx</span>&gt;, state: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Domain) {
         <span class="comment">// Since we are skipping the early binder, we are using the early bound variables as locs instead
         // of fresh names. This is fine because the loc is just used as a unique value for the analysis.
         // We never have late bounds locs.
@@ -1102,22 +1073,22 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;tcx</span>&gt; rustc_mir_dataflow::Analysis&lt;<span class="lifetime">&#39;tcx</span>&gt; <span class="kw">for </span>PointsToAnalysis&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; rustc_mir_dataflow::Analysis&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>PointsToAnalysis&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>apply_statement_effect(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Domain,
-        statement: <span class="kw-2">&amp;</span>mir::Statement&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        statement: <span class="kw-2">&amp;</span>mir::Statement&lt;<span class="lifetime">'tcx</span>&gt;,
         _location: mir::Location,
     ) {
         <span class="self">self</span>.handle_statement(statement, state);
     }
 
-    <span class="kw">fn </span>apply_terminator_effect&lt;<span class="lifetime">&#39;mir</span>&gt;(
+    <span class="kw">fn </span>apply_terminator_effect&lt;<span class="lifetime">'mir</span>&gt;(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Domain,
-        terminator: <span class="kw-2">&amp;</span><span class="lifetime">&#39;mir </span>mir::Terminator&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        terminator: <span class="kw-2">&amp;</span><span class="lifetime">'mir </span>mir::Terminator&lt;<span class="lifetime">'tcx</span>&gt;,
         _location: mir::Location,
-    ) -&gt; mir::TerminatorEdges&lt;<span class="lifetime">&#39;mir</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+    ) -&gt; mir::TerminatorEdges&lt;<span class="lifetime">'mir</span>, <span class="lifetime">'tcx</span>&gt; {
         <span class="self">self</span>.handle_terminator(terminator, state)
     }
 
@@ -1125,7 +1096,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Domain,
         _block: BasicBlock,
-        return_places: mir::CallReturnPlaces&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        return_places: mir::CallReturnPlaces&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
     ) {
         <span class="self">self</span>.handle_call_return(return_places, state);
     }
@@ -1133,21 +1104,21 @@
     <span class="kw">fn </span>apply_switch_int_edge_effects(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         _block: BasicBlock,
-        _discr: <span class="kw-2">&amp;</span>mir::Operand&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        _discr: <span class="kw-2">&amp;</span>mir::Operand&lt;<span class="lifetime">'tcx</span>&gt;,
         _apply_edge_effects: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>rustc_mir_dataflow::SwitchIntEdgeEffects&lt;<span class="self">Self</span>::Domain&gt;,
     ) {
     }
 }
 
-<span class="kw">struct </span>CollectPointerToBorrows&lt;<span class="lifetime">&#39;a</span>&gt; {
-    map: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Map,
+<span class="kw">struct </span>CollectPointerToBorrows&lt;<span class="lifetime">'a</span>&gt; {
+    map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Map,
     tracked_places: FxHashMap&lt;PlaceIndex, flux_middle::rustc::mir::Place&gt;,
-    stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>GhostStatements,
+    stmts: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>GhostStatements,
     before_state: Vec&lt;(PlaceIndex, FlatSet&lt;Loc&gt;)&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; CollectPointerToBorrows&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>new(map: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Map, stmts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>GhostStatements) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; CollectPointerToBorrows&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>new(map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Map, stmts: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>GhostStatements) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>tracked_places = FxHashMap::default();
         map.for_each_tracked_place(|place_idx, local, projection| {
             <span class="kw">let </span>projection = projection
@@ -1162,16 +1133,10 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;mir</span>, <span class="lifetime">&#39;tcx</span>&gt; ResultsVisitor&lt;<span class="lifetime">&#39;mir</span>, <span class="lifetime">&#39;tcx</span>, Results&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;&gt; <span class="kw">for </span>CollectPointerToBorrows&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'mir</span>, <span class="lifetime">'tcx</span>&gt; ResultsVisitor&lt;<span class="lifetime">'mir</span>, <span class="lifetime">'tcx</span>, Results&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt;&gt; <span class="kw">for </span>CollectPointerToBorrows&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">type </span>FlowState = State;
 
-    <span class="kw">fn </span>visit_block_start(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        _results: <span class="kw-2">&amp;mut </span>Results&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        state: <span class="kw-2">&amp;</span><span class="self">Self</span>::FlowState,
-        _block_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;mir </span>mir::BasicBlockData&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-        _block: BasicBlock,
-    ) {
+    <span class="kw">fn </span>visit_block_start(<span class="kw-2">&amp;mut </span><span class="self">self</span>, state: <span class="kw-2">&amp;</span><span class="self">Self</span>::FlowState) {
         <span class="self">self</span>.before_state.clear();
         <span class="kw">for </span>place_idx <span class="kw">in </span><span class="self">self</span>.tracked_places.keys() {
             <span class="kw">let </span>value = state.get_idx(<span class="kw-2">*</span>place_idx, <span class="self">self</span>.map);
@@ -1181,9 +1146,9 @@
 
     <span class="kw">fn </span>visit_statement_after_primary_effect(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        _results: <span class="kw-2">&amp;mut </span>Results&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        _results: <span class="kw-2">&amp;mut </span>Results&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt;,
         state: <span class="kw-2">&amp;</span><span class="self">Self</span>::FlowState,
-        _statement: <span class="kw-2">&amp;</span><span class="lifetime">&#39;mir </span>mir::Statement&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        _statement: <span class="kw-2">&amp;</span><span class="lifetime">'mir </span>mir::Statement&lt;<span class="lifetime">'tcx</span>&gt;,
         location: mir::Location,
     ) {
         <span class="kw">let </span>point = Point::Location(location);
@@ -1198,14 +1163,15 @@
         }
     }
 
-    <span class="kw">fn </span>visit_block_end(
+    <span class="kw">fn </span>visit_terminator_after_primary_effect(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        results: <span class="kw-2">&amp;mut </span>Results&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        _state: <span class="kw-2">&amp;</span>State,
-        block_data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;mir </span>mir::BasicBlockData&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-        block: BasicBlock,
+        results: <span class="kw-2">&amp;mut </span>Results&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt;,
+        _state: <span class="kw-2">&amp;</span><span class="self">Self</span>::FlowState,
+        terminator: <span class="kw-2">&amp;</span><span class="lifetime">'mir </span>mir::Terminator&lt;<span class="lifetime">'tcx</span>&gt;,
+        location: mir::Location,
     ) {
-        <span class="kw">for </span>target <span class="kw">in </span>block_data.terminator().successors() {
+        <span class="kw">let </span>block = location.block;
+        <span class="kw">for </span>target <span class="kw">in </span>terminator.successors() {
             <span class="kw">let </span>point = Point::Edge(block, target);
             <span class="kw">let </span>target_state = results.entry_set_for_block(target);
 
@@ -1319,13 +1285,13 @@
     <span class="doccomment">/// Potentially register the (local, projection) place and its fields, recursively.
     ///
     /// Invariant: The projection must only contain trackable elements.
-    </span><span class="kw">fn </span>register_children&lt;<span class="lifetime">&#39;tcx</span>&gt;(
+    </span><span class="kw">fn </span>register_children&lt;<span class="lifetime">'tcx</span>&gt;(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         place: PlaceIndex,
-        ty: ty::Ty&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-        worklist: <span class="kw-2">&amp;mut </span>VecDeque&lt;(PlaceIndex, FieldIdx, ty::Ty&lt;<span class="lifetime">&#39;tcx</span>&gt;)&gt;,
+        ty: ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;,
+        worklist: <span class="kw-2">&amp;mut </span>VecDeque&lt;(PlaceIndex, FieldIdx, ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;)&gt;,
     ) {
-        <span class="comment">// Allocate a value slot if it doesn&#39;t have one, and the user requested one.
+        <span class="comment">// Allocate a value slot if it doesn't have one, and the user requested one.
         </span><span class="macro">assert!</span>(<span class="self">self</span>.places[place].value_index.is_none());
         <span class="kw">if let </span>ty::TyKind::Ref(.., mir::Mutability::Mut) = ty.kind() {
             <span class="self">self</span>.places[place].value_index = <span class="prelude-val">Some</span>(<span class="self">self</span>.value_count.into());
@@ -1360,7 +1326,7 @@
     }
 
     <span class="doccomment">/// Locates the given place, if it exists in the tree.
-    </span><span class="kw">fn </span>find(<span class="kw-2">&amp;</span><span class="self">self</span>, place: mir::PlaceRef&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;PlaceIndex&gt; {
+    </span><span class="kw">fn </span>find(<span class="kw-2">&amp;</span><span class="self">self</span>, place: mir::PlaceRef&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;PlaceIndex&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>index = <span class="kw-2">*</span><span class="self">self</span>.locals[place.local].as_ref()<span class="question-mark">?</span>;
 
         <span class="kw">for </span><span class="kw-2">&amp;</span>elem <span class="kw">in </span>place.projection {
@@ -1372,7 +1338,7 @@
     }
 
     <span class="doccomment">/// Iterate over all direct children.
-    </span><span class="kw">fn </span>children(<span class="kw-2">&amp;</span><span class="self">self</span>, parent: PlaceIndex) -&gt; <span class="kw">impl </span>Iterator&lt;Item = PlaceIndex&gt; + <span class="lifetime">&#39;_ </span>{
+    </span><span class="kw">fn </span>children(<span class="kw-2">&amp;</span><span class="self">self</span>, parent: PlaceIndex) -&gt; <span class="kw">impl </span>Iterator&lt;Item = PlaceIndex&gt; + <span class="lifetime">'_ </span>{
         Children::new(<span class="self">self</span>, parent)
     }
 
@@ -1382,7 +1348,7 @@
     }
 
     <span class="doccomment">/// Invoke a function on the given place and all places that may alias it.
-    </span><span class="kw">fn </span>for_each_aliasing_place(<span class="kw-2">&amp;</span><span class="self">self</span>, place: mir::PlaceRef&lt;<span class="lifetime">&#39;_</span>&gt;, f: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut(ValueIndex)) {
+    </span><span class="kw">fn </span>for_each_aliasing_place(<span class="kw-2">&amp;</span><span class="self">self</span>, place: mir::PlaceRef&lt;<span class="lifetime">'_</span>&gt;, f: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut(ValueIndex)) {
         <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>index) = <span class="self">self</span>.locals[place.local] <span class="kw">else </span>{
             <span class="comment">// The local is not tracked at all, so it does not alias anything.
             </span><span class="kw">return</span>;
@@ -1477,18 +1443,18 @@
     }
 }
 
-<span class="kw">struct </span>Children&lt;<span class="lifetime">&#39;a</span>&gt; {
-    map: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Map,
+<span class="kw">struct </span>Children&lt;<span class="lifetime">'a</span>&gt; {
+    map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Map,
     next: <span class="prelude-ty">Option</span>&lt;PlaceIndex&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Children&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">fn </span>new(map: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Map, parent: PlaceIndex) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Children&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">fn </span>new(map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Map, parent: PlaceIndex) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ map, next: map.places[parent].first_child }
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; Iterator <span class="kw">for </span>Children&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Iterator <span class="kw">for </span>Children&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">type </span>Item = PlaceIndex;
 
     <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
@@ -1503,15 +1469,15 @@
 }
 
 <span class="doccomment">/// Returns all locals with projections that have their reference or address taken.
-</span><span class="kw">fn </span>excluded_locals(body: <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; BitSet&lt;mir::Local&gt; {
+</span><span class="kw">fn </span>excluded_locals(body: <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">'_</span>&gt;) -&gt; BitSet&lt;mir::Local&gt; {
     <span class="kw">struct </span>Collector {
         result: BitSet&lt;mir::Local&gt;,
     }
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;tcx</span>&gt; mir::visit::Visitor&lt;<span class="lifetime">&#39;tcx</span>&gt; <span class="kw">for </span>Collector {
+    <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; mir::visit::Visitor&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>Collector {
         <span class="kw">fn </span>visit_place(
             <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-            place: <span class="kw-2">&amp;</span>mir::Place&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+            place: <span class="kw-2">&amp;</span>mir::Place&lt;<span class="lifetime">'tcx</span>&gt;,
             context: mir::visit::PlaceContext,
             _location: mir::Location,
         ) {
@@ -1561,32 +1527,6 @@
     <span class="kw">const </span>TOP: <span class="self">Self </span>= PlaceOrValue::Value(FlatSet::TOP);
 }
 
-<span class="doccomment">/// See [`State`].
-</span><span class="attr">#[derive(PartialEq, Eq, Debug)]
-</span><span class="kw">enum </span>StateData {
-    Reachable(IndexVec&lt;ValueIndex, FlatSet&lt;Loc&gt;&gt;),
-    Unreachable,
-}
-
-<span class="kw">impl </span>Clone <span class="kw">for </span>StateData {
-    <span class="kw">fn </span>clone(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Reachable(x) =&gt; <span class="self">Self</span>::Reachable(x.clone()),
-            <span class="self">Self</span>::Unreachable =&gt; <span class="self">Self</span>::Unreachable,
-        }
-    }
-
-    <span class="kw">fn </span>clone_from(<span class="kw-2">&amp;mut </span><span class="self">self</span>, source: <span class="kw-2">&amp;</span><span class="self">Self</span>) {
-        <span class="kw">match </span>(<span class="kw-2">&amp;mut *</span><span class="self">self</span>, source) {
-            (<span class="self">Self</span>::Reachable(x), <span class="self">Self</span>::Reachable(y)) =&gt; {
-                <span class="comment">// We go through `raw` here, because `IndexVec` currently has a naive `clone_from`.
-                </span>x.raw.clone_from(<span class="kw-2">&amp;</span>y.raw);
-            }
-            <span class="kw">_ </span>=&gt; <span class="kw-2">*</span><span class="self">self </span>= source.clone(),
-        }
-    }
-}
-
 <span class="doccomment">/// The dataflow state for the [`PointsToAnalysis`].
 ///
 /// Every instance specifies a lattice that represents the possible values of a single tracked
@@ -1619,18 +1559,18 @@
 }
 
 <span class="kw">impl </span>State {
-    <span class="kw">fn </span>flood(<span class="kw-2">&amp;mut </span><span class="self">self</span>, place: mir::PlaceRef&lt;<span class="lifetime">&#39;_</span>&gt;, map: <span class="kw-2">&amp;</span>Map) {
+    <span class="kw">fn </span>flood(<span class="kw-2">&amp;mut </span><span class="self">self</span>, place: mir::PlaceRef&lt;<span class="lifetime">'_</span>&gt;, map: <span class="kw-2">&amp;</span>Map) {
         <span class="self">self</span>.flood_with(place, map, FlatSet::TOP);
     }
 
-    <span class="kw">fn </span>flood_with(<span class="kw-2">&amp;mut </span><span class="self">self</span>, place: mir::PlaceRef&lt;<span class="lifetime">&#39;_</span>&gt;, map: <span class="kw-2">&amp;</span>Map, value: FlatSet&lt;Loc&gt;) {
+    <span class="kw">fn </span>flood_with(<span class="kw-2">&amp;mut </span><span class="self">self</span>, place: mir::PlaceRef&lt;<span class="lifetime">'_</span>&gt;, map: <span class="kw-2">&amp;</span>Map, value: FlatSet&lt;Loc&gt;) {
         map.for_each_aliasing_place(place, <span class="kw-2">&amp;mut </span>|vi| {
             <span class="self">self</span>.values[vi] = value;
         });
     }
 
     <span class="doccomment">/// Helper method to interpret `target = result`.
-    </span><span class="kw">fn </span>assign(<span class="kw-2">&amp;mut </span><span class="self">self</span>, target: mir::PlaceRef&lt;<span class="lifetime">&#39;_</span>&gt;, result: PlaceOrValue, map: <span class="kw-2">&amp;</span>Map) {
+    </span><span class="kw">fn </span>assign(<span class="kw-2">&amp;mut </span><span class="self">self</span>, target: mir::PlaceRef&lt;<span class="lifetime">'_</span>&gt;, result: PlaceOrValue, map: <span class="kw-2">&amp;</span>Map) {
         <span class="self">self</span>.flood(target, map);
         <span class="kw">if let </span><span class="prelude-val">Some</span>(target) = map.find(target) {
             <span class="self">self</span>.insert_idx(target, result, map);
@@ -1684,7 +1624,7 @@
     }
 
     <span class="doccomment">/// Retrieve the value stored for a place, or ⊤ if it is not tracked.
-    </span><span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, place: mir::PlaceRef&lt;<span class="lifetime">&#39;_</span>&gt;, map: <span class="kw-2">&amp;</span>Map) -&gt; FlatSet&lt;Loc&gt; {
+    </span><span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, place: mir::PlaceRef&lt;<span class="lifetime">'_</span>&gt;, map: <span class="kw-2">&amp;</span>Map) -&gt; FlatSet&lt;Loc&gt; {
         map.find(place)
             .map_or(FlatSet::TOP, |place| <span class="self">self</span>.get_idx(place, map))
     }
@@ -1701,8 +1641,8 @@
 }
 
 <span class="doccomment">/// This is used to visualize the dataflow analysis.
-</span><span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; DebugWithContext&lt;PointsToAnalysis&lt;<span class="lifetime">&#39;a</span>&gt;&gt; <span class="kw">for </span>State {
-    <span class="kw">fn </span>fmt_with(<span class="kw-2">&amp;</span><span class="self">self</span>, ctxt: <span class="kw-2">&amp;</span>PointsToAnalysis, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::fmt::Result {
+</span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; DebugWithContext&lt;PointsToAnalysis&lt;<span class="lifetime">'a</span>&gt;&gt; <span class="kw">for </span>State {
+    <span class="kw">fn </span>fmt_with(<span class="kw-2">&amp;</span><span class="self">self</span>, ctxt: <span class="kw-2">&amp;</span>PointsToAnalysis, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
         debug_with_context(<span class="kw-2">&amp;</span><span class="self">self</span>.values, <span class="prelude-val">None</span>, ctxt.map, f)
     }
 
@@ -1710,7 +1650,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         old: <span class="kw-2">&amp;</span><span class="self">Self</span>,
         ctxt: <span class="kw-2">&amp;</span>PointsToAnalysis,
-        f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;,
+        f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; std::fmt::Result {
         debug_with_context(<span class="kw-2">&amp;</span><span class="self">self</span>.values, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>old.values), ctxt.map, f)
     }
@@ -1722,15 +1662,15 @@
     new: <span class="kw-2">&amp;</span>IndexSlice&lt;ValueIndex, V&gt;,
     old: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>IndexSlice&lt;ValueIndex, V&gt;&gt;,
     map: <span class="kw-2">&amp;</span>Map,
-    f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;,
+    f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
 ) -&gt; std::fmt::Result {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = map.places[place].value_index {
         <span class="kw">match </span>old {
-            <span class="prelude-val">None </span>=&gt; <span class="macro">writeln!</span>(f, <span class="string">&quot;{}: {:?}&quot;</span>, place_str, new[value])<span class="question-mark">?</span>,
+            <span class="prelude-val">None </span>=&gt; <span class="macro">writeln!</span>(f, <span class="string">"{}: {:?}"</span>, place_str, new[value])<span class="question-mark">?</span>,
             <span class="prelude-val">Some</span>(old) =&gt; {
                 <span class="kw">if </span>new[value] != old[value] {
-                    <span class="macro">writeln!</span>(f, <span class="string">&quot;\u{001f}-{}: {:?}&quot;</span>, place_str, old[value])<span class="question-mark">?</span>;
-                    <span class="macro">writeln!</span>(f, <span class="string">&quot;\u{001f}+{}: {:?}&quot;</span>, place_str, new[value])<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(f, <span class="string">"\u{001f}-{}: {:?}"</span>, place_str, old[value])<span class="question-mark">?</span>;
+                    <span class="macro">writeln!</span>(f, <span class="string">"\u{001f}+{}: {:?}"</span>, place_str, new[value])<span class="question-mark">?</span>;
                 }
             }
         }
@@ -1738,7 +1678,7 @@
 
     <span class="kw">for </span>child <span class="kw">in </span>map.children(place) {
         <span class="kw">let </span>info_elem = map.places[child].proj_elem.unwrap();
-        <span class="kw">let </span>child_place_str = <span class="macro">format!</span>(<span class="string">&quot;{}.{}&quot;</span>, place_str, info_elem.index());
+        <span class="kw">let </span>child_place_str = <span class="macro">format!</span>(<span class="string">"{}.{}"</span>, place_str, info_elem.index());
         debug_with_context_rec(child, <span class="kw-2">&amp;</span>child_place_str, new, old, map, f)<span class="question-mark">?</span>;
     }
 
@@ -1749,11 +1689,11 @@
     new: <span class="kw-2">&amp;</span>IndexSlice&lt;ValueIndex, V&gt;,
     old: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>IndexSlice&lt;ValueIndex, V&gt;&gt;,
     map: <span class="kw-2">&amp;</span>Map,
-    f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;,
+    f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
 ) -&gt; std::fmt::Result {
     <span class="kw">for </span>(local, place) <span class="kw">in </span>map.locals.iter_enumerated() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(place) = place {
-            debug_with_context_rec(<span class="kw-2">*</span>place, <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{local:?}&quot;</span>), new, old, map, f)<span class="question-mark">?</span>;
+            debug_with_context_rec(<span class="kw-2">*</span>place, <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{local:?}"</span>), new, old, map, f)<span class="question-mark">?</span>;
         }
     }
     <span class="prelude-val">Ok</span>(())

@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-macros/src/diagnostics/fluent.rs`."><title>fluent.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_macros" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-macros/src/diagnostics/fluent.rs`."><title>fluent.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_macros" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_macros/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -351,22 +353,14 @@
 <a href="#351" id="351">351</a>
 <a href="#352" id="352">352</a>
 <a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-</pre></div><pre class="rust"><code><span class="attr">#![allow(clippy::all, clippy::pedantic)]
+</pre></div><pre class="rust"><code><span class="attr">#![allow(clippy::pedantic)]
 </span><span class="kw">use </span>std::{
     collections::{HashMap, HashSet},
     fs::read_to_string,
     path::{Path, PathBuf},
 };
 
-<span class="kw">use </span>annotate_snippets::{
-    display_list::DisplayList,
-    snippet::{Annotation, AnnotationType, Slice, Snippet, SourceAnnotation},
-};
+<span class="kw">use </span>annotate_snippets::{Annotation, AnnotationType, Renderer, Slice, Snippet, SourceAnnotation};
 <span class="kw">use </span>fluent_bundle::{FluentBundle, FluentError, FluentResource};
 <span class="kw">use </span>fluent_syntax::{
     ast::{
@@ -402,10 +396,10 @@
 
 <span class="doccomment">/// Final tokens.
 </span><span class="kw">fn </span>finish(body: TokenStream, resource: TokenStream) -&gt; proc_macro::TokenStream {
-    <span class="macro">quote! </span>{
+    <span class="macro">quote!</span> {
         <span class="doccomment">/// Raw content of Fluent resource for this crate, generated by `fluent_messages` macro,
-        /// imported by `rustc_driver` to include all crates&#39; resources in one bundle.
-        </span><span class="kw">pub static </span>DEFAULT_LOCALE_RESOURCE: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str = #resource;
+        /// imported by `rustc_driver` to include all crates' resources in one bundle.
+        </span><span class="kw">pub static </span>DEFAULT_LOCALE_RESOURCE: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str = #resource;
 
         <span class="attr">#[allow(non_upper_case_globals)]
         #[doc(hidden)]
@@ -417,20 +411,20 @@
             /// identifiers for different subdiagnostic kinds.
             </span><span class="kw">pub mod </span>_subdiag {
                 <span class="doccomment">/// Default for `#[help]`
-                </span><span class="kw">pub const </span>help: <span class="kw">crate</span>::SubdiagnosticMessage =
-                    <span class="kw">crate</span>::SubdiagnosticMessage::FluentAttr(std::borrow::Cow::Borrowed(<span class="string">&quot;help&quot;</span>));
+                </span><span class="kw">pub const </span>help: rustc_errors::SubdiagMessage =
+                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed(<span class="string">"help"</span>));
                 <span class="doccomment">/// Default for `#[note]`
-                </span><span class="kw">pub const </span>note: <span class="kw">crate</span>::SubdiagnosticMessage =
-                    <span class="kw">crate</span>::SubdiagnosticMessage::FluentAttr(std::borrow::Cow::Borrowed(<span class="string">&quot;note&quot;</span>));
+                </span><span class="kw">pub const </span>note: rustc_errors::SubdiagMessage =
+                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed(<span class="string">"note"</span>));
                 <span class="doccomment">/// Default for `#[warn]`
-                </span><span class="kw">pub const </span>warn: <span class="kw">crate</span>::SubdiagnosticMessage =
-                    <span class="kw">crate</span>::SubdiagnosticMessage::FluentAttr(std::borrow::Cow::Borrowed(<span class="string">&quot;warn&quot;</span>));
+                </span><span class="kw">pub const </span>warn: rustc_errors::SubdiagMessage =
+                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed(<span class="string">"warn"</span>));
                 <span class="doccomment">/// Default for `#[label]`
-                </span><span class="kw">pub const </span>label: <span class="kw">crate</span>::SubdiagnosticMessage =
-                    <span class="kw">crate</span>::SubdiagnosticMessage::FluentAttr(std::borrow::Cow::Borrowed(<span class="string">&quot;label&quot;</span>));
+                </span><span class="kw">pub const </span>label: rustc_errors::SubdiagMessage =
+                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed(<span class="string">"label"</span>));
                 <span class="doccomment">/// Default for `#[suggestion]`
-                </span><span class="kw">pub const </span>suggestion: <span class="kw">crate</span>::SubdiagnosticMessage =
-                    <span class="kw">crate</span>::SubdiagnosticMessage::FluentAttr(std::borrow::Cow::Borrowed(<span class="string">&quot;suggestion&quot;</span>));
+                </span><span class="kw">pub const </span>suggestion: rustc_errors::SubdiagMessage =
+                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed(<span class="string">"suggestion"</span>));
             }
         }
     }
@@ -439,21 +433,22 @@
 
 <span class="doccomment">/// Tokens to be returned when the macro cannot proceed.
 </span><span class="kw">fn </span>failed(crate_name: <span class="kw-2">&amp;</span>Ident) -&gt; proc_macro::TokenStream {
-    finish(<span class="macro">quote! </span>{ <span class="kw">pub mod </span>#crate_name {} }, <span class="macro">quote! </span>{ <span class="string">&quot;&quot; </span>})
+    finish(<span class="macro">quote!</span> { <span class="kw">pub mod </span>#crate_name {} }, <span class="macro">quote!</span> { <span class="string">"" </span>})
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fluent_messages(input: proc_macro::TokenStream) -&gt; proc_macro::TokenStream {
-    <span class="kw">let </span>crate_name = std::env::var(<span class="string">&quot;CARGO_PKG_NAME&quot;</span>)
-        <span class="comment">// If `CARGO_PKG_NAME` is missing, then we&#39;re probably running in a test, so use
+<span class="doccomment">/// See [rustc_fluent_macro::fluent_messages].
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fluent_messages(input: proc_macro::TokenStream) -&gt; proc_macro::TokenStream {
+    <span class="kw">let </span>crate_name = std::env::var(<span class="string">"CARGO_PKG_NAME"</span>)
+        <span class="comment">// If `CARGO_PKG_NAME` is missing, then we're probably running in a test, so use
         // `no_crate`.
-        </span>.unwrap_or_else(|<span class="kw">_</span>| <span class="string">&quot;no_crate&quot;</span>.to_string())
-        .replace(<span class="string">&quot;-&quot;</span>, <span class="string">&quot;_&quot;</span>)
-        .replace(<span class="string">&quot;flux_&quot;</span>, <span class="string">&quot;&quot;</span>);
+        </span>.unwrap_or_else(|<span class="kw">_</span>| <span class="string">"no_crate"</span>.to_string())
+        .replace(<span class="string">"-"</span>, <span class="string">"_"</span>)
+        .replace(<span class="string">"flux_"</span>, <span class="string">""</span>);
 
     <span class="comment">// Cannot iterate over individual messages in a bundle, so do that using the
     // `FluentResource` instead. Construct a bundle anyway to find out if there are conflicting
     // messages in the resources.
-    </span><span class="kw">let </span><span class="kw-2">mut </span>bundle = FluentBundle::new(<span class="macro">vec!</span>[<span class="macro">langid!</span>(<span class="string">&quot;en-US&quot;</span>)]);
+    </span><span class="kw">let </span><span class="kw-2">mut </span>bundle = FluentBundle::new(<span class="macro">vec!</span>[<span class="macro">langid!</span>(<span class="string">"en-US"</span>)]);
 
     <span class="comment">// Set of Fluent attribute names already output, to avoid duplicate type errors - any given
     // constant created for a given attribute is the same.
@@ -474,18 +469,18 @@
             Diagnostic::spanned(
                 resource_span,
                 Level::Error,
-                <span class="macro">format!</span>(<span class="string">&quot;could not open Fluent resource: {e}&quot;</span>),
+                <span class="macro">format!</span>(<span class="string">"could not open Fluent resource: {e}"</span>),
             )
             .emit();
             <span class="kw">return </span>failed(<span class="kw-2">&amp;</span>crate_name);
         }
     };
     <span class="kw">let </span><span class="kw-2">mut </span>bad = <span class="bool-val">false</span>;
-    <span class="kw">for </span>esc <span class="kw">in </span>[<span class="string">&quot;\\n&quot;</span>, <span class="string">&quot;\\\&quot;&quot;</span>, <span class="string">&quot;\\&#39;&quot;</span>] {
+    <span class="kw">for </span>esc <span class="kw">in </span>[<span class="string">"\\n"</span>, <span class="string">"\\\""</span>, <span class="string">"\\'"</span>] {
         <span class="kw">for _ in </span>resource_contents.matches(esc) {
             bad = <span class="bool-val">true</span>;
-            Diagnostic::spanned(resource_span, Level::Error, <span class="macro">format!</span>(<span class="string">&quot;invalid escape `{esc}` in Fluent resource&quot;</span>))
-                .note(<span class="string">&quot;Fluent does not interpret these escape sequences (&lt;https://projectfluent.org/fluent/guide/special.html&gt;)&quot;</span>)
+            Diagnostic::spanned(resource_span, Level::Error, <span class="macro">format!</span>(<span class="string">"invalid escape `{esc}` in Fluent resource"</span>))
+                .note(<span class="string">"Fluent does not interpret these escape sequences (&lt;https://projectfluent.org/fluent/guide/special.html&gt;)"</span>)
                 .emit();
         }
     }
@@ -496,8 +491,8 @@
     <span class="kw">let </span>resource = <span class="kw">match </span>FluentResource::try_new(resource_contents) {
         <span class="prelude-val">Ok</span>(resource) =&gt; resource,
         <span class="prelude-val">Err</span>((this, errs)) =&gt; {
-            Diagnostic::spanned(resource_span, Level::Error, <span class="string">&quot;could not parse Fluent resource&quot;</span>)
-                .help(<span class="string">&quot;see additional errors emitted&quot;</span>)
+            Diagnostic::spanned(resource_span, Level::Error, <span class="string">"could not parse Fluent resource"</span>)
+                .help(<span class="string">"see additional errors emitted"</span>)
                 .emit();
             <span class="kw">for </span>ParserError { pos, slice: <span class="kw">_</span>, kind } <span class="kw">in </span>errs {
                 <span class="kw">let </span><span class="kw-2">mut </span>err = kind.to_string();
@@ -509,7 +504,7 @@
                     .chain(
                         this.source()
                             .char_indices()
-                            .filter_map(|(i, c)| <span class="prelude-val">Some</span>(i + <span class="number">1</span>).filter(|<span class="kw">_</span>| c == <span class="string">&#39;\n&#39;</span>)),
+                            .filter_map(|(i, c)| <span class="prelude-val">Some</span>(i + <span class="number">1</span>).filter(|<span class="kw">_</span>| c == <span class="string">'\n'</span>)),
                     )
                     .collect();
                 <span class="kw">let </span>line_start = line_starts
@@ -534,15 +529,14 @@
                         origin: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>relative_ftl_path),
                         fold: <span class="bool-val">true</span>,
                         annotations: <span class="macro">vec!</span>[SourceAnnotation {
-                            label: <span class="string">&quot;&quot;</span>,
+                            label: <span class="string">""</span>,
                             annotation_type: AnnotationType::Error,
                             range: (pos.start, pos.end - <span class="number">1</span>),
                         }],
                     }],
-                    opt: Default::default(),
                 };
-                <span class="kw">let </span>dl = DisplayList::from(snippet);
-                <span class="macro">eprintln!</span>(<span class="string">&quot;{dl}\n&quot;</span>);
+                <span class="kw">let </span>renderer = Renderer::plain();
+                <span class="macro">eprintln!</span>(<span class="string">"{}\n"</span>, renderer.render(snippet));
             }
 
             <span class="kw">return </span>failed(<span class="kw-2">&amp;</span>crate_name);
@@ -556,15 +550,15 @@
         <span class="kw">if let </span>Entry::Message(msg) = entry {
             <span class="kw">let </span>Message { id: Identifier { name }, attributes, value, .. } = msg;
             <span class="kw">let _ </span>= previous_defns
-                .entry(name.to_string())
+                .entry((<span class="kw-2">*</span>name).to_string())
                 .or_insert(resource_span);
-            <span class="kw">if </span>name.contains(<span class="string">&#39;-&#39;</span>) {
+            <span class="kw">if </span>name.contains(<span class="string">'-'</span>) {
                 Diagnostic::spanned(
                     resource_span,
                     Level::Error,
-                    <span class="macro">format!</span>(<span class="string">&quot;name `{name}` contains a &#39;-&#39; character&quot;</span>),
+                    <span class="macro">format!</span>(<span class="string">"name `{name}` contains a '-' character"</span>),
                 )
-                .help(<span class="string">&quot;replace any &#39;-&#39;s with &#39;_&#39;s&quot;</span>)
+                .help(<span class="string">"replace any '-'s with '_'s"</span>)
                 .emit();
             }
 
@@ -586,17 +580,17 @@
             // The last case we error about above, but we want to fall back gracefully
             // so that only the error is being emitted and not also one about the macro
             // failing.
-            </span><span class="kw">let </span>crate_prefix = <span class="macro">format!</span>(<span class="string">&quot;{crate_name}_&quot;</span>);
+            </span><span class="kw">let </span>crate_prefix = <span class="macro">format!</span>(<span class="string">"{crate_name}_"</span>);
 
-            <span class="kw">let </span>snake_name = name.replace(<span class="string">&#39;-&#39;</span>, <span class="string">&quot;_&quot;</span>);
+            <span class="kw">let </span>snake_name = name.replace(<span class="string">'-'</span>, <span class="string">"_"</span>);
             <span class="kw">if </span>!snake_name.starts_with(<span class="kw-2">&amp;</span>crate_prefix) {
                 Diagnostic::spanned(
                     resource_span,
                     Level::Error,
-                    <span class="macro">format!</span>(<span class="string">&quot;name `{name}` does not start with the crate name&quot;</span>),
+                    <span class="macro">format!</span>(<span class="string">"name `{name}` does not start with the crate name"</span>),
                 )
                 .help(<span class="macro">format!</span>(
-                    <span class="string">&quot;prepend `{crate_prefix}` to the slug name: `{crate_prefix}{snake_name}`&quot;
+                    <span class="string">"prepend `{crate_prefix}` to the slug name: `{crate_prefix}{snake_name}`"
                 </span>))
                 .emit();
             };
@@ -607,11 +601,11 @@
             }
 
             <span class="kw">let </span>docstr =
-                <span class="macro">format!</span>(<span class="string">&quot;Constant referring to Fluent message `{name}` from `{crate_name}`&quot;</span>);
-            constants.extend(<span class="macro">quote! </span>{
+                <span class="macro">format!</span>(<span class="string">"Constant referring to Fluent message `{name}` from `{crate_name}`"</span>);
+            constants.extend(<span class="macro">quote!</span> {
                 <span class="attr">#[doc = #docstr]
-                </span><span class="kw">pub const </span>#snake_name: <span class="kw">crate</span>::DiagnosticMessage =
-                    <span class="kw">crate</span>::DiagnosticMessage::FluentIdentifier(
+                </span><span class="kw">pub const </span>#snake_name: rustc_errors::DiagMessage =
+                    rustc_errors::DiagMessage::FluentIdentifier(
                         std::borrow::Cow::Borrowed(#name),
                         <span class="prelude-val">None
                     </span>);
@@ -619,40 +613,38 @@
 
             <span class="kw">for </span>Attribute { id: Identifier { name: attr_name }, .. } <span class="kw">in </span>attributes {
                 <span class="kw">let </span>snake_name = Ident::new(
-                    <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;{}{}&quot;</span>, <span class="kw-2">&amp;</span>crate_prefix, <span class="kw-2">&amp;</span>attr_name.replace(<span class="string">&#39;-&#39;</span>, <span class="string">&quot;_&quot;</span>)),
+                    <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{}{}"</span>, <span class="kw-2">&amp;</span>crate_prefix, <span class="kw-2">&amp;</span>attr_name.replace(<span class="string">'-'</span>, <span class="string">"_"</span>)),
                     resource_str.span(),
                 );
                 <span class="kw">if </span>!previous_attrs.insert(snake_name.clone()) {
                     <span class="kw">continue</span>;
                 }
 
-                <span class="kw">if </span>attr_name.contains(<span class="string">&#39;-&#39;</span>) {
+                <span class="kw">if </span>attr_name.contains(<span class="string">'-'</span>) {
                     Diagnostic::spanned(
                         resource_span,
                         Level::Error,
-                        <span class="macro">format!</span>(<span class="string">&quot;attribute `{attr_name}` contains a &#39;-&#39; character&quot;</span>),
+                        <span class="macro">format!</span>(<span class="string">"attribute `{attr_name}` contains a '-' character"</span>),
                     )
-                    .help(<span class="string">&quot;replace any &#39;-&#39;s with &#39;_&#39;s&quot;</span>)
+                    .help(<span class="string">"replace any '-'s with '_'s"</span>)
                     .emit();
                 }
 
                 <span class="kw">let </span>msg = <span class="macro">format!</span>(
-                    <span class="string">&quot;Constant referring to Fluent message `{name}.{attr_name}` from `{crate_name}`&quot;
+                    <span class="string">"Constant referring to Fluent message `{name}.{attr_name}` from `{crate_name}`"
                 </span>);
-                constants.extend(<span class="macro">quote! </span>{
+                constants.extend(<span class="macro">quote!</span> {
                     <span class="attr">#[doc = #msg]
-                    </span><span class="kw">pub const </span>#snake_name: <span class="kw">crate</span>::SubdiagnosticMessage =
-                        <span class="kw">crate</span>::SubdiagnosticMessage::FluentAttr(
-                            std::borrow::Cow::Borrowed(#attr_name)
-                        );
+                    </span><span class="kw">pub const </span>#snake_name: rustc_errors::SubdiagMessage =
+                        rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed(#attr_name));
                 });
             }
 
             <span class="comment">// Record variables referenced by these messages so we can produce
             // tests in the derive diagnostics to validate them.
-            </span><span class="kw">let </span>ident = <span class="macro">quote::format_ident!</span>(<span class="string">&quot;{snake_name}_refs&quot;</span>);
+            </span><span class="kw">let </span>ident = <span class="macro">quote::format_ident!</span>(<span class="string">"{snake_name}_refs"</span>);
             <span class="kw">let </span>vrefs = variable_references(msg);
-            constants.extend(<span class="macro">quote! </span>{
+            constants.extend(<span class="macro">quote!</span> {
                 <span class="attr">#[cfg(test)]
                 </span><span class="kw">pub const </span>#ident: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[#(#vrefs),<span class="kw-2">*</span>];
             })
@@ -664,9 +656,9 @@
             Diagnostic::spanned(
                 resource_span,
                 Level::Error,
-                <span class="macro">format!</span>(<span class="string">&quot;referenced message `{mref}` does not exist (in message `{name}`)&quot;</span>),
+                <span class="macro">format!</span>(<span class="string">"referenced message `{mref}` does not exist (in message `{name}`)"</span>),
             )
-            .help(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;you may have meant to use a variable reference (`{{${mref}}}`)&quot;</span>))
+            .help(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"you may have meant to use a variable reference (`{{${mref}}}`)"</span>))
             .emit();
         }
     }
@@ -678,7 +670,7 @@
                     Diagnostic::spanned(
                         resource_span,
                         Level::Error,
-                        <span class="macro">format!</span>(<span class="string">&quot;overrides existing {kind}: `{id}`&quot;</span>),
+                        <span class="macro">format!</span>(<span class="string">"overrides existing {kind}: `{id}`"</span>),
                     )
                     .emit();
                 }
@@ -687,10 +679,10 @@
         }
     }
 
-    finish(constants, <span class="macro">quote! </span>{ <span class="macro">include_str!</span>(#relative_ftl_path) })
+    finish(constants, <span class="macro">quote!</span> { <span class="macro">include_str!</span>(#relative_ftl_path) })
 }
 
-<span class="kw">fn </span>variable_references&lt;<span class="lifetime">&#39;a</span>&gt;(msg: <span class="kw-2">&amp;</span>Message&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt;) -&gt; Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str&gt; {
+<span class="kw">fn </span>variable_references&lt;<span class="lifetime">'a</span>&gt;(msg: <span class="kw-2">&amp;</span>Message&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;) -&gt; Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>refs = <span class="macro">vec!</span>[];
     <span class="kw">if let </span><span class="prelude-val">Some</span>(Pattern { elements }) = <span class="kw-2">&amp;</span>msg.value {
         <span class="kw">for </span>elt <span class="kw">in </span>elements {

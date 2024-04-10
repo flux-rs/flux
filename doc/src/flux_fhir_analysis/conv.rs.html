@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/conv.rs`."><title>conv.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/conv.rs`."><title>conv.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../flux_fhir_analysis/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1503,6 +1505,34 @@
 <a href="#1503" id="1503">1503</a>
 <a href="#1504" id="1504">1504</a>
 <a href="#1505" id="1505">1505</a>
+<a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
+<a href="#1508" id="1508">1508</a>
+<a href="#1509" id="1509">1509</a>
+<a href="#1510" id="1510">1510</a>
+<a href="#1511" id="1511">1511</a>
+<a href="#1512" id="1512">1512</a>
+<a href="#1513" id="1513">1513</a>
+<a href="#1514" id="1514">1514</a>
+<a href="#1515" id="1515">1515</a>
+<a href="#1516" id="1516">1516</a>
+<a href="#1517" id="1517">1517</a>
+<a href="#1518" id="1518">1518</a>
+<a href="#1519" id="1519">1519</a>
+<a href="#1520" id="1520">1520</a>
+<a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
+<a href="#1523" id="1523">1523</a>
+<a href="#1524" id="1524">1524</a>
+<a href="#1525" id="1525">1525</a>
+<a href="#1526" id="1526">1526</a>
+<a href="#1527" id="1527">1527</a>
+<a href="#1528" id="1528">1528</a>
+<a href="#1529" id="1529">1529</a>
+<a href="#1530" id="1530">1530</a>
+<a href="#1531" id="1531">1531</a>
+<a href="#1532" id="1532">1532</a>
+<a href="#1533" id="1533">1533</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -1538,9 +1568,9 @@
 <span class="kw">use </span>rustc_span::{symbol::kw, Span, Symbol};
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
 
-<span class="kw">pub struct </span>ConvCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+<span class="kw">pub struct </span>ConvCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Env {
@@ -1578,15 +1608,15 @@
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>LookupResult&lt;<span class="lifetime">&#39;a</span>&gt; {
-    kind: LookupResultKind&lt;<span class="lifetime">&#39;a</span>&gt;,
+</span><span class="kw">struct </span>LookupResult&lt;<span class="lifetime">'a</span>&gt; {
+    kind: LookupResultKind&lt;<span class="lifetime">'a</span>&gt;,
     <span class="doccomment">/// The span of the variable that originated the lookup. Used to report bugs.
     </span>span: Span,
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">enum </span>LookupResultKind&lt;<span class="lifetime">&#39;a</span>&gt; {
-    LateBound { level: u32, entry: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Entry, kind: LayerKind },
+</span><span class="kw">enum </span>LookupResultKind&lt;<span class="lifetime">'a</span>&gt; {
+    LateBound { level: u32, entry: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Entry, kind: LayerKind },
     EarlyParam { idx: u32, name: Symbol, sort: rty::Sort },
 }
 
@@ -1612,11 +1642,11 @@
     rty::AdtSortDef::new(def_id, params, fields)
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>expand_type_alias&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>expand_type_alias&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     def_id: DefId,
     alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
-    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; QueryResult&lt;rty::Binder&lt;rty::Ty&gt;&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
 
@@ -1627,11 +1657,11 @@
     <span class="prelude-val">Ok</span>(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)))
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_generic_predicates&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_generic_predicates&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     def_id: LocalDefId,
     predicates: <span class="kw-2">&amp;</span>[fhir::WhereBoundPredicate],
-    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
 
@@ -1650,11 +1680,11 @@
     <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::GenericPredicates { parent, predicates: List::from_vec(clauses) }))
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_opaque_ty&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_opaque_ty&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     def_id: LocalDefId,
     opaque_ty: <span class="kw-2">&amp;</span>fhir::OpaqueTy,
-    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; QueryResult&lt;List&lt;rty::Clause&gt;&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
     <span class="kw">let </span>parent = genv.tcx().local_parent(def_id);
@@ -1672,8 +1702,10 @@
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_generics(
+    genv: GlobalEnv,
     rust_generics: <span class="kw-2">&amp;</span>rustc::ty::Generics,
     generics: <span class="kw-2">&amp;</span>fhir::Generics,
+    extern_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
     is_trait: <span class="prelude-ty">Option</span>&lt;LocalDefId&gt;,
 ) -&gt; QueryResult&lt;rty::Generics&gt; {
     <span class="kw">let </span>opt_self = is_trait.map(|def_id| {
@@ -1683,7 +1715,7 @@
             .map_or(rty::GenericParamDefKind::Type { has_default: <span class="bool-val">false </span>}, conv_generic_param_kind);
         rty::GenericParamDef { index: <span class="number">0</span>, name: kw::SelfUpper, def_id: def_id.to_def_id(), kind }
     });
-    <span class="kw">let </span>params = opt_self
+    <span class="kw">let </span><span class="kw-2">mut </span>params = opt_self
         .into_iter()
         .chain(rust_generics.params.iter().flat_map(|rust_param| {
             <span class="comment">// We have to filter out late bound parameters
@@ -1699,19 +1731,39 @@
                 name: rust_param.name,
             })
         }))
-        .collect();
+        .collect_vec();
+
+    <span class="comment">// HACK(nilehmann) add host param for effect to std/core external specs
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(extern_id) = extern_id {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>((pos, param)) = genv
+            .lower_generics_of(extern_id)<span class="question-mark">?
+            </span>.params
+            .iter()
+            .find_position(|p| p.is_host_effect())
+        {
+            params.insert(
+                pos,
+                rty::GenericParamDef {
+                    kind: refining::refine_generic_param_def_kind(param.kind),
+                    def_id: param.def_id,
+                    index: param.index,
+                    name: param.name,
+                },
+            );
+        }
+    }
 
     <span class="prelude-val">Ok</span>(rty::Generics {
-        params,
+        params: List::from_vec(params),
         parent: rust_generics.parent(),
         parent_count: rust_generics.parent_count(),
     })
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_refinement_generics&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_refinement_generics&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
-    wfckresults: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;,
+    wfckresults: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;&gt;,
 ) -&gt; List&lt;rty::RefineParam&gt; {
     params
         .iter()
@@ -1726,15 +1778,18 @@
         }
         fhir::GenericParamKind::Base =&gt; rty::GenericParamDefKind::Base,
         fhir::GenericParamKind::Lifetime =&gt; rty::GenericParamDefKind::Lifetime,
+        fhir::GenericParamKind::Const { is_host_effect: <span class="kw">_ </span>} =&gt; {
+            rty::GenericParamDefKind::Const { has_default: <span class="bool-val">false </span>}
+        }
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_invariants&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_invariants&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     def_id: LocalDefId,
     params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
     invariants: <span class="kw-2">&amp;</span>[fhir::Expr],
-    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; QueryResult&lt;Vec&lt;rty::Invariant&gt;&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults);
@@ -1742,10 +1797,10 @@
     cx.conv_invariants(<span class="kw-2">&amp;mut </span>env, invariants)
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_defn&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_defn&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     func: <span class="kw-2">&amp;</span>fhir::SpecFunc,
-    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::SpecFunc&gt;&gt; {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = <span class="kw-2">&amp;</span>func.body {
         <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
@@ -1759,10 +1814,10 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_qualifier&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_qualifier&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     qualifier: <span class="kw-2">&amp;</span>fhir::Qualifier,
-    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; QueryResult&lt;rty::Qualifier&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults);
@@ -1772,11 +1827,11 @@
     <span class="prelude-val">Ok</span>(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_fn_decl&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_fn_decl&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     def_id: LocalDefId,
     decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
-    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
 
@@ -1807,10 +1862,10 @@
     <span class="prelude-val">Ok</span>(rty::EarlyBinder(res))
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_assoc_reft_def&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_assoc_reft_def&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     assoc_reft: <span class="kw-2">&amp;</span>fhir::ImplAssocReft,
-    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; QueryResult&lt;rty::Lambda&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults);
@@ -1821,18 +1876,18 @@
     <span class="prelude-val">Ok</span>(rty::Lambda::with_vars(expr, inputs, output))
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_ty&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_ty&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     ty: <span class="kw-2">&amp;</span>fhir::Ty,
-    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; QueryResult&lt;rty::Binder&lt;rty::Ty&gt;&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults);
     <span class="kw">let </span>ty = ConvCtxt::new(genv, wfckresults).conv_ty(<span class="kw-2">&amp;mut </span>env, ty)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(rty::Binder::new(ty, List::empty()))
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; ConvCtxt&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; ConvCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ genv, wfckresults }
     }
 
@@ -1925,12 +1980,14 @@
                     </span>.genv
                     .tcx()
                     .hir()
-                    .name(<span class="self">self</span>.genv.hir().local_def_id_to_hir_id(def_id));
+                    .name(<span class="self">self</span>.genv.tcx().local_def_id_to_hir_id(def_id));
                 <span class="kw">let </span>kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
                 <span class="prelude-val">Ok</span>(rty::BoundVariableKind::Region(kind))
             }
-            fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Base =&gt; {
-                <span class="macro">bug!</span>(<span class="string">&quot;unexpected!&quot;</span>)
+            fhir::GenericParamKind::Const { .. }
+            | fhir::GenericParamKind::Type { .. }
+            | fhir::GenericParamKind::Base =&gt; {
+                <span class="macro">bug!</span>(<span class="string">"unexpected!"</span>)
             }
         }
     }
@@ -2023,10 +2080,10 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_enum_def_variants(
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
         adt_def_id: DefId,
         enum_def: <span class="kw-2">&amp;</span>fhir::EnumDef,
-        wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+        wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
     ) -&gt; QueryResult&lt;Vec&lt;rty::PolyVariant&gt;&gt; {
         enum_def
             .variants
@@ -2038,10 +2095,10 @@
     }
 
     <span class="kw">fn </span>conv_enum_variant(
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
         adt_def_id: DefId,
         variant: <span class="kw-2">&amp;</span>fhir::VariantDef,
-        wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+        wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
     ) -&gt; QueryResult&lt;rty::PolyVariant&gt; {
         <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
 
@@ -2066,10 +2123,10 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_struct_def_variant(
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
         adt_def_id: DefId,
         struct_def: <span class="kw-2">&amp;</span>fhir::StructDef,
-        wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+        wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
     ) -&gt; QueryResult&lt;rty::Opaqueness&lt;rty::PolyVariant&gt;&gt; {
         <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
         <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults);
@@ -2129,7 +2186,7 @@
         func_args: <span class="kw-2">&amp;</span>[fhir::Expr],
     ) -&gt; QueryResult&lt;rty::Expr&gt; {
         <span class="kw">let </span>fhir::Res::Def(DefKind::Trait, trait_id) = alias.path.res <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">&quot;expected trait&quot;</span>)
+            <span class="macro">bug!</span>(<span class="string">"expected trait"</span>)
         };
         <span class="kw">let </span>trait_segment = alias.path.last_segment();
 
@@ -2215,7 +2272,7 @@
                     </span>.wfckresults
                     .type_holes()
                     .get(<span class="kw-2">*</span>fhir_id)
-                    .unwrap_or_else(|| <span class="macro">span_bug!</span>(ty.span, <span class="string">&quot;unfilled type hole&quot;</span>));
+                    .unwrap_or_else(|| <span class="macro">span_bug!</span>(ty.span, <span class="string">"unfilled type hole"</span>));
                 <span class="self">self</span>.conv_ty(env, ty)
             }
             fhir::TyKind::OpaqueDef(item_id, args0, refine_args, _in_trait) =&gt; {
@@ -2238,7 +2295,7 @@
                     fhir::Res::Def(DefKind::AssocTy, assoc_id) =&gt; {
                         <span class="kw">let </span>trait_id = <span class="self">self</span>.genv.tcx().trait_of_item(assoc_id).unwrap();
                         <span class="kw">let </span>[.., trait_segment, assoc_segment] = path.segments <span class="kw">else </span>{
-                            <span class="macro">span_bug!</span>(bty.span, <span class="string">&quot;expected at least two segments&quot;</span>);
+                            <span class="macro">span_bug!</span>(bty.span, <span class="string">"expected at least two segments"</span>);
                         };
 
                         <span class="kw">let </span>trait_generics = <span class="self">self</span>.genv.generics_of(trait_id)<span class="question-mark">?</span>;
@@ -2297,18 +2354,18 @@
                     </span>.wfckresults
                     .lifetime_holes()
                     .get(fhir_id)
-                    .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">&quot;unresolved lifetime hole&quot;</span>))
+                    .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unresolved lifetime hole"</span>))
             }
             fhir::Lifetime::Resolved(res) =&gt; res,
         };
         <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
-        <span class="kw">let </span>lifetime_name = |def_id| tcx.hir().name(tcx.hir().local_def_id_to_hir_id(def_id));
+        <span class="kw">let </span>lifetime_name = |def_id| tcx.hir().name(tcx.local_def_id_to_hir_id(def_id));
         <span class="kw">match </span>res {
             ResolvedArg::StaticLifetime =&gt; rty::ReStatic,
             ResolvedArg::EarlyBound(def_id) =&gt; {
                 <span class="kw">let </span>index = <span class="self">self</span>.genv.def_id_to_param_index(def_id.expect_local());
                 <span class="kw">let </span>name = lifetime_name(def_id.expect_local());
-                rty::ReEarlyBound(rty::EarlyBoundRegion { def_id, index, name })
+                rty::ReEarlyBound(rty::EarlyParamRegion { def_id, index, name })
             }
             ResolvedArg::LateBound(<span class="kw">_</span>, index, def_id) =&gt; {
                 <span class="kw">let </span>depth = env.depth().checked_sub(<span class="number">1</span>).unwrap();
@@ -2323,7 +2380,7 @@
                 <span class="kw">let </span>bound_region = rty::BoundRegionKind::BrNamed(id, name);
                 rty::ReFree(rty::FreeRegion { scope, bound_region })
             }
-            ResolvedArg::Error(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">&quot;lifetime resolved to an error&quot;</span>),
+            ResolvedArg::Error(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"lifetime resolved to an error"</span>),
         }
     }
 
@@ -2340,7 +2397,7 @@
                     </span>.wfckresults
                     .node_sorts()
                     .get(arg.fhir_id)
-                    .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">&quot;lambda without elaborated sort&quot;</span>))
+                    .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"lambda without elaborated sort"</span>))
                     .clone();
                 <span class="kw">let </span>lam = rty::Lambda::with_vars(pred, inputs, output);
                 <span class="prelude-val">Ok</span>(<span class="self">self</span>.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
@@ -2392,7 +2449,7 @@
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self</span>.genv.type_of(<span class="kw-2">*</span>def_id)<span class="question-mark">?</span>.instantiate(<span class="kw-2">&amp;</span>generics, <span class="kw-2">&amp;</span>refine));
             }
             fhir::Res::Def(..) | fhir::Res::Err =&gt; {
-                <span class="macro">span_bug!</span>(path.span, <span class="string">&quot;unexpected resolution in conv_ty_ctor: {:?}&quot;</span>, path.res)
+                <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected resolution in conv_ty_ctor: {:?}"</span>, path.res)
             }
         };
         <span class="kw">let </span>sort = bty.sort();
@@ -2435,7 +2492,7 @@
                     into.push(rty::GenericArg::Base(ctor));
                 }
                 <span class="kw">_ </span>=&gt; {
-                    <span class="macro">bug!</span>(<span class="string">&quot;unexpected param `{:?}` for arg `{arg:?}`&quot;</span>, param.kind);
+                    <span class="macro">bug!</span>(<span class="string">"unexpected param `{:?}` for arg `{arg:?}`"</span>, param.kind);
                 }
             }
         }
@@ -2458,7 +2515,7 @@
                     .to_ty();
                 into.push(rty::GenericArg::Ty(ty));
             } <span class="kw">else </span>{
-                <span class="macro">bug!</span>(<span class="string">&quot;unexpected generic param: {param:?}&quot;</span>);
+                <span class="macro">bug!</span>(<span class="string">"unexpected generic param: {param:?}"</span>);
             }
         }
 
@@ -2508,11 +2565,11 @@
     }
 
     <span class="kw">fn </span>pop_layer(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Layer {
-        <span class="self">self</span>.layers.pop().expect(<span class="string">&quot;bottom of layer stack&quot;</span>)
+        <span class="self">self</span>.layers.pop().expect(<span class="string">"bottom of layer stack"</span>)
     }
 
     <span class="kw">fn </span>top_layer(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Layer {
-        <span class="self">self</span>.layers.last().expect(<span class="string">&quot;bottom of layer stack&quot;</span>)
+        <span class="self">self</span>.layers.last().expect(<span class="string">"bottom of layer stack"</span>)
     }
 
     <span class="kw">fn </span>lookup(<span class="kw-2">&amp;</span><span class="self">self</span>, var: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; LookupResult {
@@ -2532,7 +2589,7 @@
                 },
             }
         } <span class="kw">else </span>{
-            <span class="macro">span_bug!</span>(var.span, <span class="string">&quot;no entry found for key: `{:?}`&quot;</span>, id);
+            <span class="macro">span_bug!</span>(var.span, <span class="string">"no entry found for key: `{:?}`"</span>, id);
         }
     }
 
@@ -2545,7 +2602,7 @@
     }
 }
 
-<span class="kw">impl </span>ConvCtxt&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>ConvCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>conv_expr(<span class="kw-2">&amp;</span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, expr: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; QueryResult&lt;rty::Expr&gt; {
         <span class="kw">let </span>fhir_id = expr.fhir_id;
         <span class="kw">let </span>espan = <span class="prelude-val">Some</span>(ESpan::new(expr.span));
@@ -2558,7 +2615,7 @@
                         rty::Expr::constant_at(rty::Constant::from(num), espan)
                     }
                     ExprRes::GlobalFunc(..) =&gt; {
-                        <span class="macro">span_bug!</span>(var.span, <span class="string">&quot;unexpected func in var position&quot;</span>)
+                        <span class="macro">span_bug!</span>(var.span, <span class="string">"unexpected func in var position"</span>)
                     }
                 }
             }
@@ -2625,7 +2682,7 @@
         <span class="kw">let </span>expr = <span class="kw">match </span>func.res {
             ExprRes::Param(..) =&gt; env.lookup(func).to_expr(),
             ExprRes::GlobalFunc(kind, sym) =&gt; rty::Expr::global_func(sym, kind),
-            <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(func.span, <span class="string">&quot;unexpected path in function position&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(func.span, <span class="string">"unexpected path in function position"</span>),
         };
         <span class="self">self</span>.add_coercions(expr, func.fhir_id)
     }
@@ -2767,7 +2824,7 @@
     }
 }
 
-<span class="kw">impl </span>LookupResult&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>LookupResult&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>to_expr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; rty::Expr {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
             LookupResultKind::LateBound { level, entry: Entry::Sort { idx, name, .. }, kind } =&gt; {
@@ -2814,7 +2871,7 @@
     <span class="kw">fn </span>to_path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; rty::Path {
         <span class="self">self</span>.to_expr()
             .to_path()
-            .unwrap_or_else(|| <span class="macro">span_bug!</span>(<span class="self">self</span>.span, <span class="string">&quot;expected path, found `{:?}`&quot;</span>, <span class="self">self</span>.to_expr()))
+            .unwrap_or_else(|| <span class="macro">span_bug!</span>(<span class="self">self</span>.span, <span class="string">"expected path, found `{:?}`"</span>, <span class="self">self</span>.to_expr()))
     }
 
     <span class="kw">fn </span>get_field(<span class="kw-2">&amp;</span><span class="self">self</span>, fld: SurfaceIdent) -&gt; rty::Expr {
@@ -2822,14 +2879,14 @@
             <span class="kw">let </span>def_id = sort_def.did();
             <span class="kw">let </span>i = sort_def
                 .field_index(fld.name)
-                .unwrap_or_else(|| <span class="macro">span_bug!</span>(fld.span, <span class="string">&quot;field `{fld:?}` not found in {def_id:?}&quot;</span>));
+                .unwrap_or_else(|| <span class="macro">span_bug!</span>(fld.span, <span class="string">"field `{fld:?}` not found in {def_id:?}"</span>));
             rty::Expr::field_proj(
                 <span class="self">self</span>.to_expr(),
                 rty::FieldProj::Adt { def_id, field: i <span class="kw">as </span>u32 },
                 <span class="prelude-val">None</span>,
             )
         } <span class="kw">else </span>{
-            <span class="macro">span_bug!</span>(fld.span, <span class="string">&quot;expected adt sort&quot;</span>)
+            <span class="macro">span_bug!</span>(fld.span, <span class="string">"expected adt sort"</span>)
         }
     }
 }
@@ -2875,10 +2932,10 @@
 ) -&gt; rty::Sort {
     <span class="kw">if let </span>fhir::Sort::Infer = <span class="kw-2">&amp;</span>param.sort {
         wfckresults
-            .expect(<span class="string">&quot;`Sort::Infer` without wfckresults&quot;</span>)
+            .expect(<span class="string">"`Sort::Infer` without wfckresults"</span>)
             .node_sorts()
             .get(param.fhir_id)
-            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">&quot;unresolved sort for param: `{param:?}`&quot;</span>))
+            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unresolved sort for param: `{param:?}`"</span>))
             .clone()
     } <span class="kw">else </span>{
         conv_sort(genv, <span class="kw-2">&amp;</span>param.sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)
@@ -2964,7 +3021,7 @@
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>bug_on_infer_sort() -&gt; rty::Sort {
-    <span class="macro">bug!</span>(<span class="string">&quot;unexpected infer sort&quot;</span>)
+    <span class="macro">bug!</span>(<span class="string">"unexpected infer sort"</span>)
 }
 
 <span class="kw">fn </span>conv_un_op(op: fhir::UnOp) -&gt; rty::UnOp {
@@ -2975,12 +3032,13 @@
 }
 
 <span class="kw">mod </span>errors {
+    <span class="kw">use </span>flux_errors::E0999;
     <span class="kw">use </span>flux_macros::Diagnostic;
     <span class="kw">use </span>flux_middle::fhir::{<span class="self">self</span>, SurfaceIdent};
     <span class="kw">use </span>rustc_span::Span;
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(fhir_analysis_assoc_type_not_found, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(fhir_analysis_assoc_type_not_found, code = E0999)]
     #[note]
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>AssocTypeNotFound {
         <span class="attr">#[primary_span]
@@ -2995,15 +3053,15 @@
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_base_instance, code = <span class="string">&quot;FLUX&quot;</span>)]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InvalidBaseInstance&lt;<span class="lifetime">&#39;fhir</span>&gt; {
+    #[diag(fhir_analysis_invalid_base_instance, code = E0999)]
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InvalidBaseInstance&lt;<span class="lifetime">'fhir</span>&gt; {
         <span class="attr">#[primary_span]
         </span>span: Span,
-        ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>fhir::Ty&lt;<span class="lifetime">&#39;fhir</span>&gt;,
+        ty: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>fhir::Ty&lt;<span class="lifetime">'fhir</span>&gt;,
     }
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;fhir</span>&gt; InvalidBaseInstance&lt;<span class="lifetime">&#39;fhir</span>&gt; {
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;fhir </span>fhir::Ty&lt;<span class="lifetime">&#39;fhir</span>&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; InvalidBaseInstance&lt;<span class="lifetime">'fhir</span>&gt; {
+        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(ty: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>fhir::Ty&lt;<span class="lifetime">'fhir</span>&gt;) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{ ty, span: ty.span }
         }
     }

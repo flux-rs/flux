@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-macros/src/diagnostics/subdiagnostic.rs`."><title>subdiagnostic.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_macros" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-macros/src/diagnostics/subdiagnostic.rs`."><title>subdiagnostic.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_macros" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_macros/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -631,25 +633,25 @@
     utils::{
         build_field_mapping, build_suggestion_code, is_doc_comment, new_code_ident,
         report_error_if_not_applied_to_applicability, report_error_if_not_applied_to_span,
-        should_generate_set_arg, AllowMultipleAlternatives, FieldInfo, FieldInnerTy, FieldMap,
+        should_generate_arg, AllowMultipleAlternatives, FieldInfo, FieldInnerTy, FieldMap,
         HasFieldMap, SetOnce, SpannedOption, SubdiagnosticKind,
     },
 };
 
-<span class="doccomment">/// The central struct for constructing the `add_to_diagnostic` method from an annotated struct.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>SubdiagnosticDeriveBuilder {
+<span class="doccomment">/// The central struct for constructing the `add_to_diag` method from an annotated struct.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>SubdiagnosticDerive {
     diag: syn::Ident,
     f: syn::Ident,
 }
 
-<span class="kw">impl </span>SubdiagnosticDeriveBuilder {
+<span class="kw">impl </span>SubdiagnosticDerive {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new() -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>diag = <span class="macro">format_ident!</span>(<span class="string">&quot;diag&quot;</span>);
-        <span class="kw">let </span>f = <span class="macro">format_ident!</span>(<span class="string">&quot;f&quot;</span>);
+        <span class="kw">let </span>diag = <span class="macro">format_ident!</span>(<span class="string">"diag"</span>);
+        <span class="kw">let </span>f = <span class="macro">format_ident!</span>(<span class="string">"f"</span>);
         <span class="self">Self </span>{ diag, f }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_tokens(<span class="self">self</span>, <span class="kw-2">mut </span>structure: Structure&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_tokens(<span class="self">self</span>, <span class="kw-2">mut </span>structure: Structure&lt;<span class="lifetime">'_</span>&gt;) -&gt; TokenStream {
         <span class="kw">let </span>implementation = {
             <span class="kw">let </span>ast = structure.ast();
             <span class="kw">let </span>span = ast.span().unwrap();
@@ -658,7 +660,7 @@
                 syn::Data::Union(..) =&gt; {
                     span_err(
                         span,
-                        <span class="string">&quot;`#[derive(Subdiagnostic)]` can only be used on structs and enums&quot;</span>,
+                        <span class="string">"`#[derive(Subdiagnostic)]` can only be used on structs and enums"</span>,
                     )
                     .emit();
                 }
@@ -674,7 +676,7 @@
 
                     span_err(
                         attr.span().unwrap(),
-                        <span class="string">&quot;unsupported type attribute for subdiagnostic enum&quot;</span>,
+                        <span class="string">"unsupported type attribute for subdiagnostic enum"</span>,
                     )
                     .emit();
                 }
@@ -698,7 +700,7 @@
                     .unwrap_or_else(|v| v.to_compile_error())
             });
 
-            <span class="macro">quote! </span>{
+            <span class="macro">quote!</span> {
                 <span class="kw">match </span><span class="self">self </span>{
                     #variants_
                 }
@@ -707,16 +709,16 @@
 
         <span class="kw">let </span>diag = <span class="kw-2">&amp;</span><span class="self">self</span>.diag;
         <span class="kw">let </span>f = <span class="kw-2">&amp;</span><span class="self">self</span>.f;
-        <span class="kw">let </span>ret = structure.gen_impl(<span class="macro">quote! </span>{
-            gen <span class="kw">impl </span>rustc_errors::AddToDiagnostic <span class="kw">for </span>@<span class="self">Self </span>{
-                <span class="kw">fn </span>add_to_diagnostic_with&lt;__F&gt;(<span class="self">self</span>, #diag: <span class="kw-2">&amp;mut </span>rustc_errors::Diagnostic, #f: __F)
-                <span class="kw">where
-                    </span>__F: core::ops::Fn(
-                        <span class="kw-2">&amp;mut </span>rustc_errors::Diagnostic,
-                        rustc_errors::SubdiagnosticMessage
-                    ) -&gt; rustc_errors::SubdiagnosticMessage,
+        <span class="kw">let </span>ret = structure.gen_impl(<span class="macro">quote!</span> {
+            gen <span class="kw">impl </span>rustc_errors::Subdiagnostic <span class="kw">for </span>@<span class="self">Self </span>{
+                <span class="kw">fn </span>add_to_diag_with&lt;__G, __F&gt;(
+                    <span class="self">self</span>,
+                    #diag: <span class="kw-2">&amp;mut </span>rustc_errors::Diag&lt;<span class="lifetime">'_</span>, __G&gt;,
+                    #f: __F
+                ) <span class="kw">where
+                    </span>__G: rustc_errors::EmissionGuarantee,
+                    __F: rustc_errors::SubdiagMessageOp&lt;__G&gt;,
                 {
-                    <span class="kw">use </span>rustc_errors::{Applicability, IntoDiagnosticArg};
                     #implementation
                 }
             }
@@ -729,12 +731,12 @@
 /// for the final generated method. This is a separate struct to `SubdiagnosticDerive`
 /// only to be able to destructure and split `self.builder` and the `self.structure` up to avoid a
 /// double mut borrow later on.
-</span><span class="kw">struct </span>SubdiagnosticDeriveVariantBuilder&lt;<span class="lifetime">&#39;parent</span>, <span class="lifetime">&#39;a</span>&gt; {
-    <span class="doccomment">/// The identifier to use for the generated `DiagnosticBuilder` instance.
-    </span>parent: <span class="kw-2">&amp;</span><span class="lifetime">&#39;parent </span>SubdiagnosticDeriveBuilder,
+</span><span class="kw">struct </span>SubdiagnosticDeriveVariantBuilder&lt;<span class="lifetime">'parent</span>, <span class="lifetime">'a</span>&gt; {
+    <span class="doccomment">/// The identifier to use for the generated `Diag` instance.
+    </span>parent: <span class="kw-2">&amp;</span><span class="lifetime">'parent </span>SubdiagnosticDerive,
 
     <span class="doccomment">/// Info for the current variant (or the type if not an enum).
-    </span>variant: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>VariantInfo&lt;<span class="lifetime">&#39;a</span>&gt;,
+    </span>variant: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>VariantInfo&lt;<span class="lifetime">'a</span>&gt;,
     <span class="doccomment">/// Span for the entire type.
     </span>span: proc_macro::Span,
 
@@ -759,7 +761,7 @@
     </span>is_enum: bool,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;parent</span>, <span class="lifetime">&#39;a</span>&gt; HasFieldMap <span class="kw">for </span>SubdiagnosticDeriveVariantBuilder&lt;<span class="lifetime">&#39;parent</span>, <span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'parent</span>, <span class="lifetime">'a</span>&gt; HasFieldMap <span class="kw">for </span>SubdiagnosticDeriveVariantBuilder&lt;<span class="lifetime">'parent</span>, <span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>get_field_binding(<span class="kw-2">&amp;</span><span class="self">self</span>, field: <span class="kw-2">&amp;</span>String) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>TokenStream&gt; {
         <span class="self">self</span>.fields.get(field)
     }
@@ -774,8 +776,8 @@
     all_applicabilities_static: bool,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; FromIterator&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SubdiagnosticKind&gt; <span class="kw">for </span>KindsStatistics {
-    <span class="kw">fn </span>from_iter&lt;T: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>SubdiagnosticKind&gt;&gt;(kinds: T) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; FromIterator&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>SubdiagnosticKind&gt; <span class="kw">for </span>KindsStatistics {
+    <span class="kw">fn </span>from_iter&lt;T: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>SubdiagnosticKind&gt;&gt;(kinds: T) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>ret = <span class="self">Self </span>{
             has_multipart_suggestion: <span class="bool-val">false</span>,
             all_multipart_suggestions: <span class="bool-val">true</span>,
@@ -803,7 +805,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;parent</span>, <span class="lifetime">&#39;a</span>&gt; SubdiagnosticDeriveVariantBuilder&lt;<span class="lifetime">&#39;parent</span>, <span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'parent</span>, <span class="lifetime">'a</span>&gt; SubdiagnosticDeriveVariantBuilder&lt;<span class="lifetime">'parent</span>, <span class="lifetime">'a</span>&gt; {
     <span class="kw">fn </span>identify_kind(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;(SubdiagnosticKind, Path, bool)&gt;, DiagnosticDeriveError&gt; {
@@ -813,7 +815,7 @@
             <span class="kw">let </span><span class="prelude-val">Some</span>(SubdiagnosticVariant { kind, slug, no_span }) =
                 SubdiagnosticVariant::from_attr(attr, <span class="self">self</span>)<span class="question-mark">?
             </span><span class="kw">else </span>{
-                <span class="comment">// Some attributes aren&#39;t errors - like documentation comments - but also aren&#39;t
+                <span class="comment">// Some attributes aren't errors - like documentation comments - but also aren't
                 // subdiagnostics.
                 </span><span class="kw">continue</span>;
             };
@@ -825,7 +827,7 @@
                 <span class="macro">throw_span_err!</span>(
                     attr.span().unwrap(),
                     <span class="macro">format!</span>(
-                        <span class="string">&quot;diagnostic slug must be first argument of a `#[{name}(...)]` attribute&quot;
+                        <span class="string">"diagnostic slug must be first argument of a `#[{name}(...)]` attribute"
                     </span>)
                 );
             };
@@ -837,7 +839,7 @@
     }
 
     <span class="doccomment">/// Generates the code for a field with no attributes.
-    </span><span class="kw">fn </span>generate_field_set_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binding_info: <span class="kw-2">&amp;</span>BindingInfo&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
+    </span><span class="kw">fn </span>generate_field_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binding_info: <span class="kw-2">&amp;</span>BindingInfo&lt;<span class="lifetime">'_</span>&gt;) -&gt; TokenStream {
         <span class="kw">let </span>diag = <span class="kw-2">&amp;</span><span class="self">self</span>.parent.diag;
 
         <span class="kw">let </span>field = binding_info.ast();
@@ -845,10 +847,10 @@
         field_binding.set_span(field.ty.span());
 
         <span class="kw">let </span>ident = field.ident.as_ref().unwrap();
-        <span class="kw">let </span>ident = <span class="macro">format_ident!</span>(<span class="string">&quot;{}&quot;</span>, ident); <span class="comment">// strip `r#` prefix, if present
+        <span class="kw">let </span>ident = <span class="macro">format_ident!</span>(<span class="string">"{}"</span>, ident); <span class="comment">// strip `r#` prefix, if present
 
-        </span><span class="macro">quote! </span>{
-            #diag.set_arg(
+        </span><span class="macro">quote!</span> {
+            #diag.arg(
                 <span class="macro">stringify!</span>(#ident),
                 #field_binding
             );
@@ -858,11 +860,11 @@
     <span class="doccomment">/// Generates the necessary code for all attributes on a field.
     </span><span class="kw">fn </span>generate_field_attr_code(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        binding: <span class="kw-2">&amp;</span>BindingInfo&lt;<span class="lifetime">&#39;_</span>&gt;,
+        binding: <span class="kw-2">&amp;</span>BindingInfo&lt;<span class="lifetime">'_</span>&gt;,
         kind_stats: KindsStatistics,
     ) -&gt; TokenStream {
         <span class="kw">let </span>ast = binding.ast();
-        <span class="macro">assert!</span>(ast.attrs.len() &gt; <span class="number">0</span>, <span class="string">&quot;field without attributes generating attr code&quot;</span>);
+        <span class="macro">assert!</span>(ast.attrs.len() &gt; <span class="number">0</span>, <span class="string">"field without attributes generating attr code"</span>);
 
         <span class="comment">// Abstract over `Vec&lt;T&gt;` and `Option&lt;T&gt;` fields using `FieldInnerTy`, which will
         // apply the generated code on each element in the `Vec` or `Option`.
@@ -872,7 +874,7 @@
             .map(|attr| {
                 <span class="comment">// Always allow documentation comments.
                 </span><span class="kw">if </span>is_doc_comment(attr) {
-                    <span class="kw">return </span><span class="macro">quote! </span>{};
+                    <span class="kw">return </span><span class="macro">quote!</span> {};
                 }
 
                 <span class="kw">let </span>info = FieldInfo { binding, ty: inner_ty, span: <span class="kw-2">&amp;</span>ast.span() };
@@ -890,7 +892,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         kind_stats: KindsStatistics,
         attr: <span class="kw-2">&amp;</span>Attribute,
-        info: FieldInfo&lt;<span class="lifetime">&#39;_</span>&gt;,
+        info: FieldInfo&lt;<span class="lifetime">'_</span>&gt;,
         clone_suggestion_code: bool,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TokenStream, DiagnosticDeriveError&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span>attr.meta {
@@ -915,7 +917,7 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         kind_stats: KindsStatistics,
         attr: <span class="kw-2">&amp;</span>Attribute,
-        info: FieldInfo&lt;<span class="lifetime">&#39;_</span>&gt;,
+        info: FieldInfo&lt;<span class="lifetime">'_</span>&gt;,
         path: Path,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TokenStream, DiagnosticDeriveError&gt; {
         <span class="kw">let </span>span = attr.span().unwrap();
@@ -924,13 +926,13 @@
         <span class="kw">let </span>name = name.as_str();
 
         <span class="kw">match </span>name {
-            <span class="string">&quot;skip_arg&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{}),
-            <span class="string">&quot;primary_span&quot; </span>=&gt; {
+            <span class="string">"skip_arg" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {}),
+            <span class="string">"primary_span" </span>=&gt; {
                 <span class="kw">if </span>kind_stats.has_multipart_suggestion {
                     invalid_attr(attr)
                         .help(
-                            <span class="string">&quot;multipart suggestions use one or more `#[suggestion_part]`s rather \
-                            than one `#[primary_span]`&quot;</span>,
+                            <span class="string">"multipart suggestions use one or more `#[suggestion_part]`s rather \
+                            than one `#[primary_span]`"</span>,
                         )
                         .emit();
                 } <span class="kw">else </span>{
@@ -941,12 +943,12 @@
                     // diagnostic derive
                     </span><span class="kw">if </span>!<span class="macro">matches!</span>(info.ty, FieldInnerTy::Plain(<span class="kw">_</span>)) {
                         <span class="macro">throw_invalid_attr!</span>(attr, |diag| {
-                            <span class="kw">let </span>diag = diag.note(<span class="string">&quot;there must be exactly one primary span&quot;</span>);
+                            <span class="kw">let </span>diag = diag.note(<span class="string">"there must be exactly one primary span"</span>);
 
                             <span class="kw">if </span>kind_stats.has_normal_suggestion {
                                 diag.help(
-                                    <span class="string">&quot;to create a suggestion with multiple spans, \
-                                     use `#[multipart_suggestion]` instead&quot;</span>,
+                                    <span class="string">"to create a suggestion with multiple spans, \
+                                     use `#[multipart_suggestion]` instead"</span>,
                                 )
                             } <span class="kw">else </span>{
                                 diag
@@ -957,74 +959,74 @@
                     <span class="self">self</span>.span_field.set_once(binding, span);
                 }
 
-                <span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{})
+                <span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {})
             }
-            <span class="string">&quot;suggestion_part&quot; </span>=&gt; {
+            <span class="string">"suggestion_part" </span>=&gt; {
                 <span class="self">self</span>.has_suggestion_parts = <span class="bool-val">true</span>;
 
                 <span class="kw">if </span>kind_stats.has_multipart_suggestion {
-                    span_err(span, <span class="string">&quot;`#[suggestion_part(...)]` attribute without `code = \&quot;...\&quot;`&quot;</span>)
+                    span_err(span, <span class="string">"`#[suggestion_part(...)]` attribute without `code = \"...\"`"</span>)
                         .emit();
                 } <span class="kw">else </span>{
                     invalid_attr(attr)
                         .help(
-                            <span class="string">&quot;`#[suggestion_part(...)]` is only valid in multipart suggestions, \
-                             use `#[primary_span]` instead&quot;</span>,
+                            <span class="string">"`#[suggestion_part(...)]` is only valid in multipart suggestions, \
+                             use `#[primary_span]` instead"</span>,
                         )
                         .emit();
                 }
 
-                <span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{})
+                <span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {})
             }
-            <span class="string">&quot;applicability&quot; </span>=&gt; {
+            <span class="string">"applicability" </span>=&gt; {
                 <span class="kw">if </span>kind_stats.has_multipart_suggestion || kind_stats.has_normal_suggestion {
                     report_error_if_not_applied_to_applicability(attr, <span class="kw-2">&amp;</span>info)<span class="question-mark">?</span>;
 
                     <span class="kw">if </span>kind_stats.all_applicabilities_static {
                         span_err(
                             span,
-                            <span class="string">&quot;`#[applicability]` has no effect if all `#[suggestion]`/\
+                            <span class="string">"`#[applicability]` has no effect if all `#[suggestion]`/\
                              `#[multipart_suggestion]` attributes have a static \
-                             `applicability = \&quot;...\&quot;`&quot;</span>,
+                             `applicability = \"...\"`"</span>,
                         )
                         .emit();
                     }
                     <span class="kw">let </span>binding = info.binding.binding.clone();
-                    <span class="self">self</span>.applicability.set_once(<span class="macro">quote! </span>{ #binding }, span);
+                    <span class="self">self</span>.applicability.set_once(<span class="macro">quote!</span> { #binding }, span);
                 } <span class="kw">else </span>{
-                    span_err(span, <span class="string">&quot;`#[applicability]` is only valid on suggestions&quot;</span>).emit();
+                    span_err(span, <span class="string">"`#[applicability]` is only valid on suggestions"</span>).emit();
                 }
 
-                <span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{})
+                <span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {})
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">let </span><span class="kw-2">mut </span>span_attrs = <span class="macro">vec!</span>[];
                 <span class="kw">if </span>kind_stats.has_multipart_suggestion {
-                    span_attrs.push(<span class="string">&quot;suggestion_part&quot;</span>);
+                    span_attrs.push(<span class="string">"suggestion_part"</span>);
                 }
                 <span class="kw">if </span>!kind_stats.all_multipart_suggestions {
-                    span_attrs.push(<span class="string">&quot;primary_span&quot;</span>)
+                    span_attrs.push(<span class="string">"primary_span"</span>)
                 }
 
                 invalid_attr(attr)
                     .help(<span class="macro">format!</span>(
-                        <span class="string">&quot;only `{}`, `applicability` and `skip_arg` are valid field attributes&quot;</span>,
-                        span_attrs.join(<span class="string">&quot;, &quot;</span>)
+                        <span class="string">"only `{}`, `applicability` and `skip_arg` are valid field attributes"</span>,
+                        span_attrs.join(<span class="string">", "</span>)
                     ))
                     .emit();
 
-                <span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{})
+                <span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {})
             }
         }
     }
 
     <span class="doccomment">/// Generates the code for a `[Meta::List]`-like attribute on a field (e.g.
-    /// `#[suggestion_part(code = &quot;...&quot;)]`).
+    /// `#[suggestion_part(code = "...")]`).
     </span><span class="kw">fn </span>generate_field_code_inner_list(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         kind_stats: KindsStatistics,
         attr: <span class="kw-2">&amp;</span>Attribute,
-        info: FieldInfo&lt;<span class="lifetime">&#39;_</span>&gt;,
+        info: FieldInfo&lt;<span class="lifetime">'_</span>&gt;,
         list: <span class="kw-2">&amp;</span>MetaList,
         clone_suggestion_code: bool,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TokenStream, DiagnosticDeriveError&gt; {
@@ -1035,11 +1037,11 @@
         <span class="kw">let </span>name = name.as_str();
 
         <span class="kw">match </span>name {
-            <span class="string">&quot;suggestion_part&quot; </span>=&gt; {
+            <span class="string">"suggestion_part" </span>=&gt; {
                 <span class="kw">if </span>!kind_stats.has_multipart_suggestion {
                     <span class="macro">throw_invalid_attr!</span>(attr, |diag| {
                         diag.help(
-                            <span class="string">&quot;`#[suggestion_part(...)]` is only valid in multipart suggestions&quot;</span>,
+                            <span class="string">"`#[suggestion_part(...)]` is only valid in multipart suggestions"</span>,
                         )
                     })
                 }
@@ -1051,7 +1053,7 @@
                 <span class="kw">let </span><span class="kw-2">mut </span>code = <span class="prelude-val">None</span>;
 
                 list.parse_nested_meta(|nested| {
-                    <span class="kw">if </span>nested.path.is_ident(<span class="string">&quot;code&quot;</span>) {
+                    <span class="kw">if </span>nested.path.is_ident(<span class="string">"code"</span>) {
                         <span class="kw">let </span>code_field = new_code_ident();
                         <span class="kw">let </span>span = nested.path.span().unwrap();
                         <span class="kw">let </span>formatting_init = build_suggestion_code(
@@ -1064,7 +1066,7 @@
                     } <span class="kw">else </span>{
                         span_err(
                             nested.path.span().unwrap(),
-                            <span class="string">&quot;`code` is the only valid nested attribute&quot;</span>,
+                            <span class="string">"`code` is the only valid nested attribute"</span>,
                         )
                         .emit();
                     }
@@ -1072,49 +1074,49 @@
                 })<span class="question-mark">?</span>;
 
                 <span class="kw">let </span><span class="prelude-val">Some</span>((code_field, formatting_init)) = code.value() <span class="kw">else </span>{
-                    span_err(span, <span class="string">&quot;`#[suggestion_part(...)]` attribute without `code = \&quot;...\&quot;`&quot;</span>)
+                    span_err(span, <span class="string">"`#[suggestion_part(...)]` attribute without `code = \"...\"`"</span>)
                         .emit();
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{});
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {});
                 };
                 <span class="kw">let </span>binding = info.binding;
 
                 <span class="self">self</span>.formatting_init.extend(formatting_init);
                 <span class="kw">let </span>code_field = <span class="kw">if </span>clone_suggestion_code {
-                    <span class="macro">quote! </span>{ #code_field.clone() }
+                    <span class="macro">quote!</span> { #code_field.clone() }
                 } <span class="kw">else </span>{
-                    <span class="macro">quote! </span>{ #code_field }
+                    <span class="macro">quote!</span> { #code_field }
                 };
-                <span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{ suggestions.push((#binding, #code_field)); })
+                <span class="prelude-val">Ok</span>(<span class="macro">quote!</span> { suggestions.push((#binding, #code_field)); })
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="macro">throw_invalid_attr!</span>(attr, |diag| {
                     <span class="kw">let </span><span class="kw-2">mut </span>span_attrs = <span class="macro">vec!</span>[];
                     <span class="kw">if </span>kind_stats.has_multipart_suggestion {
-                        span_attrs.push(<span class="string">&quot;suggestion_part&quot;</span>);
+                        span_attrs.push(<span class="string">"suggestion_part"</span>);
                     }
                     <span class="kw">if </span>!kind_stats.all_multipart_suggestions {
-                        span_attrs.push(<span class="string">&quot;primary_span&quot;</span>)
+                        span_attrs.push(<span class="string">"primary_span"</span>)
                     }
                     diag.help(<span class="macro">format!</span>(
-                        <span class="string">&quot;only `{}`, `applicability` and `skip_arg` are valid field attributes&quot;</span>,
-                        span_attrs.join(<span class="string">&quot;, &quot;</span>)
+                        <span class="string">"only `{}`, `applicability` and `skip_arg` are valid field attributes"</span>,
+                        span_attrs.join(<span class="string">", "</span>)
                     ))
                 })
             }
         }
     }
 
-    <span class="kw">pub fn </span>into_tokens(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;TokenStream, DiagnosticDeriveError&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_tokens(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;TokenStream, DiagnosticDeriveError&gt; {
         <span class="kw">let </span>kind_slugs = <span class="self">self</span>.identify_kind()<span class="question-mark">?</span>;
         <span class="kw">if </span>kind_slugs.is_empty() {
             <span class="kw">if </span><span class="self">self</span>.is_enum {
-                <span class="comment">// It&#39;s okay for a variant to not be a subdiagnostic at all..
-                </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{});
+                <span class="comment">// It's okay for a variant to not be a subdiagnostic at all..
+                </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {});
             } <span class="kw">else </span>{
                 <span class="comment">// ..but structs should always be _something_.
                 </span><span class="macro">throw_span_err!</span>(
                     <span class="self">self</span>.variant.ast().ident.span().unwrap(),
-                    <span class="string">&quot;subdiagnostic kind not specified&quot;
+                    <span class="string">"subdiagnostic kind not specified"
                 </span>);
             }
         };
@@ -1125,16 +1127,16 @@
             .collect();
 
         <span class="kw">let </span>init = <span class="kw">if </span>kind_stats.has_multipart_suggestion {
-            <span class="macro">quote! </span>{ <span class="kw">let </span><span class="kw-2">mut </span>suggestions = Vec::new(); }
+            <span class="macro">quote!</span> { <span class="kw">let </span><span class="kw-2">mut </span>suggestions = Vec::new(); }
         } <span class="kw">else </span>{
-            <span class="macro">quote! </span>{}
+            <span class="macro">quote!</span> {}
         };
 
         <span class="kw">let </span>attr_args: TokenStream = <span class="self">self
             </span>.variant
             .bindings()
             .iter()
-            .filter(|binding| !should_generate_set_arg(binding.ast()))
+            .filter(|binding| !should_generate_arg(binding.ast()))
             .map(|binding| <span class="self">self</span>.generate_field_attr_code(binding, kind_stats))
             .collect();
 
@@ -1144,14 +1146,14 @@
         <span class="kw">let </span>f = <span class="kw-2">&amp;</span><span class="self">self</span>.parent.f;
         <span class="kw">let </span><span class="kw-2">mut </span>calls = TokenStream::new();
         <span class="kw">for </span>(kind, slug, no_span) <span class="kw">in </span>kind_slugs {
-            <span class="kw">let </span>message = <span class="macro">format_ident!</span>(<span class="string">&quot;__message&quot;</span>);
+            <span class="kw">let </span>message = <span class="macro">format_ident!</span>(<span class="string">"__message"</span>);
             calls.extend(
-                <span class="macro">quote! </span>{ <span class="kw">let </span>#message = #f(#diag, <span class="kw">crate</span>::fluent_generated::#slug.into()); },
+                <span class="macro">quote!</span> { <span class="kw">let </span>#message = #f(#diag, <span class="kw">crate</span>::fluent_generated::#slug.into()); },
             );
 
             <span class="kw">let </span>name = <span class="macro">format_ident!</span>(
-                <span class="string">&quot;{}{}&quot;</span>,
-                <span class="kw">if </span>span_field.is_some() &amp;&amp; !no_span { <span class="string">&quot;span_&quot; </span>} <span class="kw">else </span>{ <span class="string">&quot;&quot; </span>},
+                <span class="string">"{}{}"</span>,
+                <span class="kw">if </span>span_field.is_some() &amp;&amp; !no_span { <span class="string">"span_" </span>} <span class="kw">else </span>{ <span class="string">"" </span>},
                 kind
             );
             <span class="kw">let </span>call = <span class="kw">match </span>kind {
@@ -1165,52 +1167,52 @@
 
                     <span class="kw">let </span>applicability = applicability
                         .value()
-                        .map(|a| <span class="macro">quote! </span>{ #a })
+                        .map(|a| <span class="macro">quote!</span> { #a })
                         .or_else(|| <span class="self">self</span>.applicability.take().value())
-                        .unwrap_or_else(|| <span class="macro">quote! </span>{ rustc_errors::Applicability::Unspecified });
+                        .unwrap_or_else(|| <span class="macro">quote!</span> { rustc_errors::Applicability::Unspecified });
 
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span_field {
                         <span class="kw">let </span>style = suggestion_kind.to_suggestion_style();
-                        <span class="macro">quote! </span>{ #diag.#name(#span, #message, #code_field, #applicability, #style); }
+                        <span class="macro">quote!</span> { #diag.#name(#span, #message, #code_field, #applicability, #style); }
                     } <span class="kw">else </span>{
-                        span_err(<span class="self">self</span>.span, <span class="string">&quot;suggestion without `#[primary_span]` field&quot;</span>).emit();
-                        <span class="macro">quote! </span>{ <span class="macro">unreachable!</span>(); }
+                        span_err(<span class="self">self</span>.span, <span class="string">"suggestion without `#[primary_span]` field"</span>).emit();
+                        <span class="macro">quote!</span> { <span class="macro">unreachable!</span>(); }
                     }
                 }
                 SubdiagnosticKind::MultipartSuggestion { suggestion_kind, applicability } =&gt; {
                     <span class="kw">let </span>applicability = applicability
                         .value()
-                        .map(|a| <span class="macro">quote! </span>{ #a })
+                        .map(|a| <span class="macro">quote!</span> { #a })
                         .or_else(|| <span class="self">self</span>.applicability.take().value())
-                        .unwrap_or_else(|| <span class="macro">quote! </span>{ rustc_errors::Applicability::Unspecified });
+                        .unwrap_or_else(|| <span class="macro">quote!</span> { rustc_errors::Applicability::Unspecified });
 
                     <span class="kw">if </span>!<span class="self">self</span>.has_suggestion_parts {
                         span_err(
                             <span class="self">self</span>.span,
-                            <span class="string">&quot;multipart suggestion without any `#[suggestion_part(...)]` fields&quot;</span>,
+                            <span class="string">"multipart suggestion without any `#[suggestion_part(...)]` fields"</span>,
                         )
                         .emit();
                     }
 
                     <span class="kw">let </span>style = suggestion_kind.to_suggestion_style();
 
-                    <span class="macro">quote! </span>{ #diag.#name(#message, suggestions, #applicability, #style); }
+                    <span class="macro">quote!</span> { #diag.#name(#message, suggestions, #applicability, #style); }
                 }
                 SubdiagnosticKind::Label =&gt; {
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span_field {
-                        <span class="macro">quote! </span>{ #diag.#name(#span, #message); }
+                        <span class="macro">quote!</span> { #diag.#name(#span, #message); }
                     } <span class="kw">else </span>{
-                        span_err(<span class="self">self</span>.span, <span class="string">&quot;label without `#[primary_span]` field&quot;</span>).emit();
-                        <span class="macro">quote! </span>{ <span class="macro">unreachable!</span>(); }
+                        span_err(<span class="self">self</span>.span, <span class="string">"label without `#[primary_span]` field"</span>).emit();
+                        <span class="macro">quote!</span> { <span class="macro">unreachable!</span>(); }
                     }
                 }
                 <span class="kw">_ </span>=&gt; {
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = span_field
                         &amp;&amp; !no_span
                     {
-                        <span class="macro">quote! </span>{ #diag.#name(#span, #message); }
+                        <span class="macro">quote!</span> { #diag.#name(#span, #message); }
                     } <span class="kw">else </span>{
-                        <span class="macro">quote! </span>{ #diag.#name(#message); }
+                        <span class="macro">quote!</span> { #diag.#name(#message); }
                     }
                 }
             };
@@ -1222,12 +1224,12 @@
             </span>.variant
             .bindings()
             .iter()
-            .filter(|binding| should_generate_set_arg(binding.ast()))
-            .map(|binding| <span class="self">self</span>.generate_field_set_arg(binding))
+            .filter(|binding| should_generate_arg(binding.ast()))
+            .map(|binding| <span class="self">self</span>.generate_field_arg(binding))
             .collect();
 
         <span class="kw">let </span>formatting_init = <span class="kw-2">&amp;</span><span class="self">self</span>.formatting_init;
-        <span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{
+        <span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {
             #init
             #formatting_init
             #attr_args

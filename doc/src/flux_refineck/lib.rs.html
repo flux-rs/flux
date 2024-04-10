@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/lib.rs`."><title>lib.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../flux_refineck/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -250,7 +252,6 @@
 <a href="#250" id="250">250</a>
 <a href="#251" id="251">251</a>
 <a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
 
 </span><span class="attr">#![feature(
@@ -263,7 +264,6 @@
     let_chains,
     min_specialization,
     never_type,
-    result_option_inspect,
     rustc_private,
     type_alias_impl_trait,
     unwrap_infallible
@@ -277,7 +277,6 @@
 <span class="kw">extern crate </span>rustc_infer;
 <span class="kw">extern crate </span>rustc_middle;
 <span class="kw">extern crate </span>rustc_mir_dataflow;
-<span class="kw">extern crate </span>rustc_serialize;
 <span class="kw">extern crate </span>rustc_span;
 <span class="kw">extern crate </span>rustc_type_ir;
 
@@ -302,13 +301,13 @@
     rty::{<span class="self">self</span>, ESpan},
 };
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>rustc_errors::{DiagnosticMessage, ErrorGuaranteed, SubdiagnosticMessage};
+<span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hir::def_id::LocalDefId;
 <span class="kw">use </span>rustc_span::Span;
 
 <span class="kw">use </span><span class="kw">crate</span>::ghost_statements::compute_ghost_statements;
 
-<span class="macro">fluent_messages! </span>{ <span class="string">&quot;../locales/en-US.ftl&quot; </span>}
+<span class="macro">fluent_messages!</span> { <span class="string">"../locales/en-US.ftl" </span>}
 
 <span class="kw">pub fn </span>check_fn(
     genv: GlobalEnv,
@@ -332,25 +331,25 @@
         <span class="comment">// PHASE 1: infer shape of `TypeEnv` at the entry of join points
         </span><span class="kw">let </span>shape_result =
             Checker::run_in_shape_mode(genv, def_id, <span class="kw-2">&amp;</span>ghost_stmts, config).emit(genv.sess())<span class="question-mark">?</span>;
-        <span class="macro">tracing::info!</span>(<span class="string">&quot;check_fn::shape&quot;</span>);
+        <span class="macro">tracing::info!</span>(<span class="string">"check_fn::shape"</span>);
 
         <span class="comment">// PHASE 2: generate refinement tree constraint
         </span><span class="kw">let </span>(<span class="kw-2">mut </span>refine_tree, kvars) =
             Checker::run_in_refine_mode(genv, def_id, <span class="kw-2">&amp;</span>ghost_stmts, shape_result, config)
                 .emit(genv.sess())<span class="question-mark">?</span>;
-        <span class="macro">tracing::info!</span>(<span class="string">&quot;check_fn::refine&quot;</span>);
+        <span class="macro">tracing::info!</span>(<span class="string">"check_fn::refine"</span>);
 
         <span class="comment">// PHASE 3: invoke fixpoint on the constraint
         </span>refine_tree.simplify();
         <span class="kw">if </span>config::dump_constraint() {
-            dbg::dump_item_info(genv.tcx(), def_id, <span class="string">&quot;fluxc&quot;</span>, <span class="kw-2">&amp;</span>refine_tree).unwrap();
+            dbg::dump_item_info(genv.tcx(), def_id, <span class="string">"fluxc"</span>, <span class="kw-2">&amp;</span>refine_tree).unwrap();
         }
         <span class="kw">let </span><span class="kw-2">mut </span>fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars);
         fcx.collect_sorts(<span class="kw-2">&amp;</span>refine_tree);
         <span class="kw">let </span>constraint = refine_tree.into_fixpoint(<span class="kw-2">&amp;mut </span>fcx);
         <span class="kw">let </span>errors = fcx.check(cache, constraint, <span class="kw-2">&amp;</span>config).emit(genv.sess())<span class="question-mark">?</span>;
 
-        <span class="macro">tracing::info!</span>(<span class="string">&quot;check_fn::fixpoint&quot;</span>);
+        <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint"</span>);
         <span class="kw">if </span>errors.is_empty() {
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else </span>{
@@ -395,19 +394,20 @@
 }
 
 <span class="kw">mod </span>errors {
+    <span class="kw">use </span>flux_errors::E0999;
     <span class="kw">use </span>flux_macros::{Diagnostic, Subdiagnostic};
     <span class="kw">use </span>flux_middle::rty::ESpan;
     <span class="kw">use </span>rustc_span::Span;
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(refineck_goto_error, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(refineck_goto_error, code = E0999)]
     </span><span class="kw">pub struct </span>GotoError {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(refineck_assign_error, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(refineck_assign_error, code = E0999)]
     </span><span class="kw">pub struct </span>AssignError {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,
@@ -428,12 +428,12 @@
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(refineck_refine_error, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(refineck_refine_error, code = E0999)]
     </span><span class="kw">pub struct </span>RefineError {
         <span class="attr">#[primary_span]
         #[label]
         </span><span class="kw">pub </span>span: Span,
-        cond: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+        cond: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
         <span class="attr">#[subdiagnostic]
         </span>span_note: <span class="prelude-ty">Option</span>&lt;ConditionSpanNote&gt;,
         <span class="attr">#[subdiagnostic]
@@ -442,14 +442,14 @@
 
     <span class="kw">impl </span>RefineError {
         <span class="kw">pub fn </span>call(span: Span, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; <span class="self">Self </span>{
-            RefineError::new(<span class="string">&quot;precondition&quot;</span>, span, espan)
+            RefineError::new(<span class="string">"precondition"</span>, span, espan)
         }
 
         <span class="kw">pub fn </span>ret(span: Span, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; <span class="self">Self </span>{
-            RefineError::new(<span class="string">&quot;postcondition&quot;</span>, span, espan)
+            RefineError::new(<span class="string">"postcondition"</span>, span, espan)
         }
 
-        <span class="kw">fn </span>new(cond: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str, span: Span, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; RefineError {
+        <span class="kw">fn </span>new(cond: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, span: Span, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; RefineError {
             <span class="kw">match </span>espan {
                 <span class="prelude-val">Some</span>(dst_span) =&gt; {
                     <span class="kw">let </span>span_note = <span class="prelude-val">Some</span>(ConditionSpanNote { span: dst_span.span() });
@@ -462,43 +462,43 @@
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(refineck_div_error, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(refineck_div_error, code = E0999)]
     </span><span class="kw">pub struct </span>DivError {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(refineck_rem_error, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(refineck_rem_error, code = E0999)]
     </span><span class="kw">pub struct </span>RemError {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(refineck_assert_error, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(refineck_assert_error, code = E0999)]
     </span><span class="kw">pub struct </span>AssertError {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,
-        <span class="kw">pub </span>msg: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+        <span class="kw">pub </span>msg: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(refineck_fold_error, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(refineck_fold_error, code = E0999)]
     </span><span class="kw">pub struct </span>FoldError {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(refineck_overflow_error, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(refineck_overflow_error, code = E0999)]
     </span><span class="kw">pub struct </span>OverflowError {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(refineck_unknown_error, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(refineck_unknown_error, code = E0999)]
     </span><span class="kw">pub struct </span>UnknownError {
         <span class="attr">#[primary_span]
         </span><span class="kw">pub </span>span: Span,

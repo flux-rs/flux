@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["KindsStatistics","SubdiagnosticDeriveBuilder","SubdiagnosticDeriveVariantBuilder"]};
+window.SIDEBAR_ITEMS = {"struct":["KindsStatistics","SubdiagnosticDerive","SubdiagnosticDeriveVariantBuilder"]};

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["DiagnosticDeriveKind"],"struct":["DiagnosticDeriveBuilder","DiagnosticDeriveVariantBuilder"]};
+window.SIDEBAR_ITEMS = {"enum":["DiagnosticDeriveKind"],"struct":["DiagnosticDeriveVariantBuilder"]};

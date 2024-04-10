@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rustc/mir.rs`."><title>mir.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rustc/mir.rs`."><title>mir.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_middle/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -785,23 +787,23 @@
     rustc::ty::region_to_string,
 };
 
-<span class="kw">pub struct </span>Body&lt;<span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub </span>basic_blocks: IndexVec&lt;BasicBlock, BasicBlockData&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt;,
+<span class="kw">pub struct </span>Body&lt;<span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub </span>basic_blocks: IndexVec&lt;BasicBlock, BasicBlockData&lt;<span class="lifetime">'tcx</span>&gt;&gt;,
     <span class="kw">pub </span>local_decls: IndexVec&lt;Local, LocalDecl&gt;,
     <span class="doccomment">/// During borrow checking, `rustc` generates fresh [region variable ids] for each structurally
     /// different position in a type. For example, given a function
     ///
-    /// `fn foo&lt;&#39;a, &#39;b&gt;(x: &amp;&#39;a S&lt;&#39;a&gt;, y: &amp;&#39;b u32)`
+    /// `fn foo&lt;'a, 'b&gt;(x: &amp;'a S&lt;'a&gt;, y: &amp;'b u32)`
     ///
-    /// `rustc` will generate variables `?2` and `?3` for the universal regions `&#39;a` and `&#39;b` (the variable
-    /// `?0` correspond to `&#39;static` and `?1` to the implicit lifetime of the function body). Additionally,
-    /// it will assign `x` type &amp;&#39;?4 S&lt;&#39;?5&gt;` and `y` type `&amp;&#39;?6 u32` (together with some constraints relating
+    /// `rustc` will generate variables `?2` and `?3` for the universal regions `'a` and `'b` (the variable
+    /// `?0` correspond to `'static` and `?1` to the implicit lifetime of the function body). Additionally,
+    /// it will assign `x` type &amp;'?4 S&lt;'?5&gt;` and `y` type `&amp;'?6 u32` (together with some constraints relating
     /// region variables). Unfortunately, we cannot recover the exact region variables rustc used.
     ///
-    /// The exact ids picked for `&#39;a` and `&#39;b` are not too relevant to us, the important part is the regions
+    /// The exact ids picked for `'a` and `'b` are not too relevant to us, the important part is the regions
     /// used in the types of `x` and `y`. To work around this, we generate fresh regions variables for
     /// the function signature, different from the ones sued by rustc. To recover the correct regions, whenever
-    /// there&#39;s an assignment of a refinement type `T` to a variable with (unrefined) Rust type `S`, we _match_
+    /// there's an assignment of a refinement type `T` to a variable with (unrefined) Rust type `S`, we _match_
     /// both types to infer a region substition. For this to work, we need to give a different variable id to every
     /// position in `T`. To avoid clashes, we need to use fresh ids, so we start enumerating from the last id
     /// generated by borrow checking.
@@ -812,23 +814,23 @@
     /// The ids generated during refinement type checking are purely instrumental and temporary, they should never
     /// appear in a type bound in the environment.
     ///
-    /// Besides generating ids when checking a function&#39;s body, we also need to generate fresh ids at
+    /// Besides generating ids when checking a function's body, we also need to generate fresh ids at
     /// function calls.
     ///
     /// Additionally, the [`InferCtxt`] is used during type projection normalization.
     ///
     /// [region variable ids]: super::ty::RegionVid
     /// [`InferCtxt`]: rustc_infer::infer::InferCtxt
-    </span><span class="kw">pub </span>infcx: rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    </span><span class="kw">pub </span>infcx: rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     <span class="doccomment">/// See [`mk_fake_predecessors`]
     </span>fake_predecessors: IndexVec&lt;BasicBlock, usize&gt;,
-    body_with_facts: BodyWithBorrowckFacts&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    body_with_facts: BodyWithBorrowckFacts&lt;<span class="lifetime">'tcx</span>&gt;,
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>BasicBlockData&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+</span><span class="kw">pub struct </span>BasicBlockData&lt;<span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub </span>statements: Vec&lt;Statement&gt;,
-    <span class="kw">pub </span>terminator: <span class="prelude-ty">Option</span>&lt;Terminator&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt;,
+    <span class="kw">pub </span>terminator: <span class="prelude-ty">Option</span>&lt;Terminator&lt;<span class="lifetime">'tcx</span>&gt;&gt;,
     <span class="kw">pub </span>is_cleanup: bool,
 }
 
@@ -840,14 +842,14 @@
     <span class="kw">pub </span>source_info: SourceInfo,
 }
 
-<span class="kw">pub struct </span>Terminator&lt;<span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub </span>kind: TerminatorKind&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">pub struct </span>Terminator&lt;<span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub </span>kind: TerminatorKind&lt;<span class="lifetime">'tcx</span>&gt;,
     <span class="kw">pub </span>source_info: SourceInfo,
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>CallArgs&lt;<span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub </span>orig: rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+</span><span class="kw">pub struct </span>CallArgs&lt;<span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub </span>orig: rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;,
     <span class="kw">pub </span>lowered: List&lt;GenericArg&gt;,
 }
 
@@ -859,16 +861,16 @@
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub enum </span>TerminatorKind&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+</span><span class="kw">pub enum </span>TerminatorKind&lt;<span class="lifetime">'tcx</span>&gt; {
     Return,
     Call {
         func: DefId,
-        generic_args: CallArgs&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        generic_args: CallArgs&lt;<span class="lifetime">'tcx</span>&gt;,
         args: Vec&lt;Operand&gt;,
         destination: Place,
         target: <span class="prelude-ty">Option</span>&lt;BasicBlock&gt;,
         unwind: UnwindAction,
-        resolved_call: (DefId, CallArgs&lt;<span class="lifetime">&#39;tcx</span>&gt;),
+        resolved_call: (DefId, CallArgs&lt;<span class="lifetime">'tcx</span>&gt;),
     },
     SwitchInt {
         discr: Operand,
@@ -1001,9 +1003,9 @@
 
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 </span><span class="kw">pub struct </span>Place {
-    <span class="doccomment">/// the &quot;root&quot; of the place, e.g. `_1` in `*_1.f.g.h`
+    <span class="doccomment">/// the "root" of the place, e.g. `_1` in `*_1.f.g.h`
     </span><span class="kw">pub </span>local: Local,
-    <span class="doccomment">/// path taken to &quot;get&quot; the place e.g. `*.f.g.h` in `*_1.f.g.h` (except also have derefs)
+    <span class="doccomment">/// path taken to "get" the place e.g. `*.f.g.h` in `*_1.f.g.h` (except also have derefs)
     </span><span class="kw">pub </span>projection: Vec&lt;PlaceElem&gt;,
 }
 
@@ -1041,7 +1043,7 @@
     ForMatchedPlace(<span class="prelude-ty">Option</span>&lt;LocalDefId&gt;),
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;tcx</span>&gt; Terminator&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; Terminator&lt;<span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub fn </span>is_return(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">matches!</span>(<span class="self">self</span>.kind, TerminatorKind::Return)
     }
@@ -1053,12 +1055,12 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;tcx</span>&gt; Body&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; Body&lt;<span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub fn </span>new(
-        basic_blocks: IndexVec&lt;BasicBlock, BasicBlockData&lt;<span class="lifetime">&#39;tcx</span>&gt;&gt;,
+        basic_blocks: IndexVec&lt;BasicBlock, BasicBlockData&lt;<span class="lifetime">'tcx</span>&gt;&gt;,
         local_decls: IndexVec&lt;Local, LocalDecl&gt;,
-        body_with_facts: BodyWithBorrowckFacts&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-        infcx: rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        body_with_facts: BodyWithBorrowckFacts&lt;<span class="lifetime">'tcx</span>&gt;,
+        infcx: rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>fake_predecessors = mk_fake_predecessors(<span class="kw-2">&amp;</span>basic_blocks);
         <span class="self">Self </span>{ basic_blocks, local_decls, infcx, fake_predecessors, body_with_facts }
@@ -1068,7 +1070,7 @@
         <span class="self">self</span>.body_with_facts.body.span
     }
 
-    <span class="kw">pub fn </span>inner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub fn </span>inner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="kw-2">&amp;</span><span class="self">self</span>.body_with_facts.body
     }
 
@@ -1086,7 +1088,7 @@
     </span><span class="kw">pub fn </span>is_join_point(<span class="kw-2">&amp;</span><span class="self">self</span>, bb: BasicBlock) -&gt; bool {
         <span class="kw">let </span>total_preds = <span class="self">self</span>.body_with_facts.body.basic_blocks.predecessors()[bb].len();
         <span class="kw">let </span>real_preds = total_preds - <span class="self">self</span>.fake_predecessors[bb];
-        <span class="comment">// The entry block is a joint point if it has at least one predecessor because there&#39;s
+        <span class="comment">// The entry block is a joint point if it has at least one predecessor because there's
         // an implicit goto from the environment at the beginning of the function.
         </span>real_preds &gt; usize::from(bb != START_BLOCK)
     }
@@ -1110,7 +1112,7 @@
         )
     }
 
-    <span class="kw">pub fn </span>borrow_data(<span class="kw-2">&amp;</span><span class="self">self</span>, idx: BorrowIndex) -&gt; <span class="kw-2">&amp;</span>BorrowData&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub fn </span>borrow_data(<span class="kw-2">&amp;</span><span class="self">self</span>, idx: BorrowIndex) -&gt; <span class="kw-2">&amp;</span>BorrowData&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="self">self</span>.body_with_facts
             .borrow_set
             .location_map
@@ -1119,7 +1121,7 @@
             .<span class="number">1
     </span>}
 
-    <span class="kw">pub fn </span>rustc_body(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub fn </span>rustc_body(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="kw-2">&amp;</span><span class="self">self</span>.body_with_facts.body
     }
 
@@ -1129,7 +1131,7 @@
 }
 
 <span class="kw">impl </span>Place {
-    <span class="kw">pub const </span>RETURN: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>Place = <span class="kw-2">&amp;</span>Place { local: RETURN_PLACE, projection: <span class="macro">vec!</span>[] };
+    <span class="kw">pub const </span>RETURN: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>Place = <span class="kw-2">&amp;</span>Place { local: RETURN_PLACE, projection: <span class="macro">vec!</span>[] };
 
     <span class="kw">pub fn </span>new(local: Local, projection: Vec&lt;PlaceElem&gt;) -&gt; Place {
         Place { local, projection }
@@ -1162,7 +1164,7 @@
 
     <span class="kw">fn </span>projection_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv, elem: PlaceElem) -&gt; QueryResult&lt;PlaceTy&gt; {
         <span class="kw">if </span><span class="self">self</span>.variant_index.is_some() &amp;&amp; !<span class="macro">matches!</span>(elem, PlaceElem::Field(..)) {
-            <span class="macro">bug!</span>(<span class="string">&quot;cannot use non field projection on downcasted place&quot;</span>);
+            <span class="macro">bug!</span>(<span class="string">"cannot use non field projection on downcasted place"</span>);
         }
         <span class="kw">let </span>place_ty = <span class="kw">match </span>elem {
             PlaceElem::Deref =&gt; PlaceTy::from_ty(<span class="self">self</span>.ty.deref()),
@@ -1174,7 +1176,7 @@
                 <span class="kw">if let </span>TyKind::Array(ty, <span class="kw">_</span>) | TyKind::Slice(ty) = <span class="self">self</span>.ty.kind() {
                     PlaceTy::from_ty(ty.clone())
                 } <span class="kw">else </span>{
-                    <span class="macro">bug!</span>(<span class="string">&quot;index of no-array non-slice {self:?}&quot;</span>)
+                    <span class="macro">bug!</span>(<span class="string">"index of no-array non-slice {self:?}"</span>)
                 }
             }
         };
@@ -1196,7 +1198,7 @@
                 <span class="prelude-val">Ok</span>(ty.subst(args))
             }
             TyKind::Tuple(tys) =&gt; <span class="prelude-val">Ok</span>(tys[f.index()].clone()),
-            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;extracting field of non-tuple non-adt: {self:?}&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"extracting field of non-tuple non-adt: {self:?}"</span>),
         }
     }
 }
@@ -1205,10 +1207,10 @@
 /// the `RegionInferenceContext`
 ///
 /// [`InferCtxt`]: rustc_infer::infer::InferCtxt
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>replicate_infer_ctxt&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-    body_with_facts: <span class="kw-2">&amp;</span>BodyWithBorrowckFacts&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-) -&gt; rustc_infer::infer::InferCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>replicate_infer_ctxt&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    body_with_facts: <span class="kw-2">&amp;</span>BodyWithBorrowckFacts&lt;<span class="lifetime">'tcx</span>&gt;,
+) -&gt; rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt; {
     <span class="kw">let </span>infcx = tcx.infer_ctxt().build();
     <span class="kw">for </span>info <span class="kw">in </span><span class="kw-2">&amp;</span>body_with_facts.region_inference_context.var_infos {
         infcx.next_region_var(info.origin);
@@ -1217,10 +1219,10 @@
 }
 
 <span class="doccomment">/// The `FalseEdge/imaginary_target` edges mess up the `is_join_point` computation which creates spurious
-/// join points that lose information e.g. in match arms, the k+1-th arm has the k-th arm as a &quot;fake&quot;
+/// join points that lose information e.g. in match arms, the k+1-th arm has the k-th arm as a "fake"
 /// predecessor so we lose the assumptions specific to the k+1-th arm due to a spurious join. This code
-/// corrects for this problem by computing the number of &quot;fake&quot; predecessors and decreasing them from
-/// the total number of &quot;predecessors&quot; returned by `rustc`.  The option is to recompute &quot;predecessors&quot;
+/// corrects for this problem by computing the number of "fake" predecessors and decreasing them from
+/// the total number of "predecessors" returned by `rustc`.  The option is to recompute "predecessors"
 /// from scratch but we may miss some cases there. (see also [`is_join_point`])
 ///
 /// [`is_join_point`]: crate::rustc::mir::Body::is_join_point
@@ -1239,105 +1241,105 @@
     res
 }
 
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Body&lt;<span class="lifetime">&#39;_</span>&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Body&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">for </span>(bb, data) <span class="kw">in </span><span class="self">self</span>.basic_blocks.iter_enumerated() {
             <span class="macro">writeln!</span>(
                 f,
-                <span class="string">&quot;{bb:?}: {{{}&quot;</span>,
+                <span class="string">"{bb:?}: {{{}"</span>,
                 data.statements
                     .iter()
                     .filter(|stmt| !<span class="macro">matches!</span>(stmt.kind, StatementKind::Nop))
-                    .format_with(<span class="string">&quot;&quot;</span>, |stmt, f| f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">&quot;\n    {stmt:?};&quot;</span>)))
+                    .format_with(<span class="string">""</span>, |stmt, f| f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"\n    {stmt:?};"</span>)))
             )<span class="question-mark">?</span>;
             <span class="kw">if let </span><span class="prelude-val">Some</span>(terminator) = <span class="kw-2">&amp;</span>data.terminator {
-                <span class="macro">writeln!</span>(f, <span class="string">&quot;    {terminator:?}&quot;</span>)<span class="question-mark">?</span>;
+                <span class="macro">writeln!</span>(f, <span class="string">"    {terminator:?}"</span>)<span class="question-mark">?</span>;
             }
-            <span class="macro">writeln!</span>(f, <span class="string">&quot;}}\n&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(f, <span class="string">"}}\n"</span>)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Statement {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            StatementKind::Assign(place, rvalue) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{place:?} = {rvalue:?}&quot;</span>),
-            StatementKind::Nop =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;nop&quot;</span>),
+            StatementKind::Assign(place, rvalue) =&gt; <span class="macro">write!</span>(f, <span class="string">"{place:?} = {rvalue:?}"</span>),
+            StatementKind::Nop =&gt; <span class="macro">write!</span>(f, <span class="string">"nop"</span>),
             StatementKind::PlaceMention(place) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;PlaceMention({place:?})&quot;</span>)
+                <span class="macro">write!</span>(f, <span class="string">"PlaceMention({place:?})"</span>)
             }
             StatementKind::SetDiscriminant(place, variant_idx) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;discriminant({place:?}) = {variant_idx:?}&quot;</span>)
+                <span class="macro">write!</span>(f, <span class="string">"discriminant({place:?}) = {variant_idx:?}"</span>)
             }
             StatementKind::FakeRead(<span class="kw">box </span>(cause, place)) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;FakeRead({cause:?}, {place:?})&quot;</span>)
+                <span class="macro">write!</span>(f, <span class="string">"FakeRead({cause:?}, {place:?})"</span>)
             }
             StatementKind::AscribeUserType(place, variance) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;AscribeUserType({place:?}, {variance:?})&quot;</span>)
+                <span class="macro">write!</span>(f, <span class="string">"AscribeUserType({place:?}, {variance:?})"</span>)
             }
         }
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;tcx</span>&gt; fmt::Debug <span class="kw">for </span>Terminator&lt;<span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; fmt::Debug <span class="kw">for </span>Terminator&lt;<span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            TerminatorKind::Return =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;return&quot;</span>),
-            TerminatorKind::Unreachable =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;unreachable&quot;</span>),
+            TerminatorKind::Return =&gt; <span class="macro">write!</span>(f, <span class="string">"return"</span>),
+            TerminatorKind::Unreachable =&gt; <span class="macro">write!</span>(f, <span class="string">"unreachable"</span>),
             TerminatorKind::Call { args, destination, target, unwind, resolved_call, .. } =&gt; {
                 <span class="kw">let </span>(func, generic_args) = resolved_call;
                 <span class="kw">let </span>fname = rustc_middle::ty::tls::with(|tcx| {
                     <span class="kw">let </span>path = tcx.def_path(<span class="kw-2">*</span>func);
-                    path.data.iter().join(<span class="string">&quot;::&quot;</span>)
+                    path.data.iter().join(<span class="string">"::"</span>)
                 });
-                <span class="macro">write!</span>(f, <span class="string">&quot;{destination:?} = call {fname}&quot;</span>)<span class="question-mark">?</span>;
+                <span class="macro">write!</span>(f, <span class="string">"{destination:?} = call {fname}"</span>)<span class="question-mark">?</span>;
 
                 <span class="kw">if </span>!generic_args.lowered.is_empty() {
-                    <span class="macro">write!</span>(f, <span class="string">&quot;::&lt;{:?}&gt;&quot;</span>, generic_args.lowered.iter().format(<span class="string">&quot;, &quot;</span>))<span class="question-mark">?</span>;
+                    <span class="macro">write!</span>(f, <span class="string">"::&lt;{:?}&gt;"</span>, generic_args.lowered.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
                 }
 
                 <span class="macro">write!</span>(
                     f,
-                    <span class="string">&quot;({args:?}) -&gt; [return: {target}, unwind: {unwind:?}]&quot;</span>,
-                    args = args.iter().format(<span class="string">&quot;, &quot;</span>),
+                    <span class="string">"({args:?}) -&gt; [return: {target}, unwind: {unwind:?}]"</span>,
+                    args = args.iter().format(<span class="string">", "</span>),
                     target = opt_bb_to_str(<span class="kw-2">*</span>target),
                 )
             }
             TerminatorKind::SwitchInt { discr, targets } =&gt; {
                 <span class="macro">write!</span>(
                     f,
-                    <span class="string">&quot;switchInt({discr:?}) -&gt; [{}, otherwise: {:?}]&quot;</span>,
+                    <span class="string">"switchInt({discr:?}) -&gt; [{}, otherwise: {:?}]"</span>,
                     targets
                         .iter()
-                        .format_with(<span class="string">&quot;, &quot;</span>, |(val, bb), f| f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">&quot;{val:?}: {bb:?}&quot;</span>))),
+                        .format_with(<span class="string">", "</span>, |(val, bb), f| f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"{val:?}: {bb:?}"</span>))),
                     targets.otherwise()
                 )
             }
             TerminatorKind::Goto { target } =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;goto -&gt; {target:?}&quot;</span>)
+                <span class="macro">write!</span>(f, <span class="string">"goto -&gt; {target:?}"</span>)
             }
             TerminatorKind::Drop { place, target, unwind } =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;drop({place:?}) -&gt; [{target:?}, unwind: {unwind:?}]&quot;</span>,)
+                <span class="macro">write!</span>(f, <span class="string">"drop({place:?}) -&gt; [{target:?}, unwind: {unwind:?}]"</span>,)
             }
             TerminatorKind::Assert { cond, target, expected, msg } =&gt; {
                 <span class="macro">write!</span>(
                     f,
-                    <span class="string">&quot;assert({cond:?} is expected to be {expected:?}, \&quot;{msg:?}\&quot;) -&gt; {target:?}&quot;
+                    <span class="string">"assert({cond:?} is expected to be {expected:?}, \"{msg:?}\") -&gt; {target:?}"
                 </span>)
             }
             TerminatorKind::FalseEdge { real_target, imaginary_target } =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;falseEdge -&gt; [real: {real_target:?}, imaginary: {imaginary_target:?}]&quot;</span>)
+                <span class="macro">write!</span>(f, <span class="string">"falseEdge -&gt; [real: {real_target:?}, imaginary: {imaginary_target:?}]"</span>)
             }
             TerminatorKind::FalseUnwind { real_target, unwind } =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;falseUnwind -&gt; [real: {real_target:?}, cleanup: {unwind:?}]&quot;</span>)
+                <span class="macro">write!</span>(f, <span class="string">"falseUnwind -&gt; [real: {real_target:?}, cleanup: {unwind:?}]"</span>)
             }
-            TerminatorKind::UnwindResume =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;resume&quot;</span>),
-            TerminatorKind::CoroutineDrop =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;generator_drop&quot;</span>),
+            TerminatorKind::UnwindResume =&gt; <span class="macro">write!</span>(f, <span class="string">"resume"</span>),
+            TerminatorKind::CoroutineDrop =&gt; <span class="macro">write!</span>(f, <span class="string">"generator_drop"</span>),
             TerminatorKind::Yield { value, resume, drop, resume_arg } =&gt; {
                 <span class="macro">write!</span>(
                     f,
-                    <span class="string">&quot;{resume_arg:?} = yield({value:?}) -&gt; [resume: {resume:?}, drop: {drop:?}]&quot;
+                    <span class="string">"{resume_arg:?} = yield({value:?}) -&gt; [resume: {resume:?}, drop: {drop:?}]"
                 </span>)
             }
         }
@@ -1345,159 +1347,159 @@
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Place {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">let </span><span class="kw-2">mut </span>p = <span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="self">self</span>.local);
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">let </span><span class="kw-2">mut </span>p = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, <span class="self">self</span>.local);
         <span class="kw">let </span><span class="kw-2">mut </span>need_parens = <span class="bool-val">false</span>;
         <span class="kw">for </span>elem <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.projection {
             <span class="kw">match </span>elem {
                 PlaceElem::Field(f) =&gt; {
                     <span class="kw">if </span>need_parens {
-                        p = <span class="macro">format!</span>(<span class="string">&quot;({p}).{}&quot;</span>, u32::from(<span class="kw-2">*</span>f));
+                        p = <span class="macro">format!</span>(<span class="string">"({p}).{}"</span>, u32::from(<span class="kw-2">*</span>f));
                         need_parens = <span class="bool-val">false</span>;
                     } <span class="kw">else </span>{
-                        p = <span class="macro">format!</span>(<span class="string">&quot;{p}.{}&quot;</span>, u32::from(<span class="kw-2">*</span>f));
+                        p = <span class="macro">format!</span>(<span class="string">"{p}.{}"</span>, u32::from(<span class="kw-2">*</span>f));
                     }
                 }
                 PlaceElem::Deref =&gt; {
-                    p = <span class="macro">format!</span>(<span class="string">&quot;*{p}&quot;</span>);
+                    p = <span class="macro">format!</span>(<span class="string">"*{p}"</span>);
                     need_parens = <span class="bool-val">true</span>;
                 }
                 PlaceElem::Downcast(variant_name, variant_idx) =&gt; {
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(variant_name) = variant_name {
-                        p = <span class="macro">format!</span>(<span class="string">&quot;{p} as {variant_name}&quot;</span>);
+                        p = <span class="macro">format!</span>(<span class="string">"{p} as {variant_name}"</span>);
                     } <span class="kw">else </span>{
-                        p = <span class="macro">format!</span>(<span class="string">&quot;{p} as {variant_idx:?}&quot;</span>);
+                        p = <span class="macro">format!</span>(<span class="string">"{p} as {variant_idx:?}"</span>);
                     }
                     need_parens = <span class="bool-val">true</span>;
                 }
                 PlaceElem::Index(v) =&gt; {
-                    p = <span class="macro">format!</span>(<span class="string">&quot;{p}[{v:?}]&quot;</span>);
+                    p = <span class="macro">format!</span>(<span class="string">"{p}[{v:?}]"</span>);
                     need_parens = <span class="bool-val">false</span>;
                 }
             }
         }
-        <span class="macro">write!</span>(f, <span class="string">&quot;{p}&quot;</span>)
+        <span class="macro">write!</span>(f, <span class="string">"{p}"</span>)
     }
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Rvalue {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            Rvalue::Use(op) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{op:?}&quot;</span>),
+            Rvalue::Use(op) =&gt; <span class="macro">write!</span>(f, <span class="string">"{op:?}"</span>),
             Rvalue::Ref(r, BorrowKind::Mut { .. }, place) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;&amp;{} mut {place:?}&quot;</span>, region_to_string(<span class="kw-2">*</span>r))
+                <span class="macro">write!</span>(f, <span class="string">"&amp;{} mut {place:?}"</span>, region_to_string(<span class="kw-2">*</span>r))
             }
             Rvalue::Ref(r, BorrowKind::Shared, place) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;&amp;{} {place:?}&quot;</span>, region_to_string(<span class="kw-2">*</span>r))
+                <span class="macro">write!</span>(f, <span class="string">"&amp;{} {place:?}"</span>, region_to_string(<span class="kw-2">*</span>r))
             }
-            Rvalue::Discriminant(place) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;discriminant({place:?})&quot;</span>),
-            Rvalue::BinaryOp(bin_op, op1, op2) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{bin_op:?}({op1:?}, {op2:?})&quot;</span>),
+            Rvalue::Discriminant(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"discriminant({place:?})"</span>),
+            Rvalue::BinaryOp(bin_op, op1, op2) =&gt; <span class="macro">write!</span>(f, <span class="string">"{bin_op:?}({op1:?}, {op2:?})"</span>),
             Rvalue::CheckedBinaryOp(bin_op, op1, op2) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;Checked{bin_op:?}({op1:?}, {op2:?})&quot;</span>)
+                <span class="macro">write!</span>(f, <span class="string">"Checked{bin_op:?}({op1:?}, {op2:?})"</span>)
             }
-            Rvalue::UnaryOp(un_op, op) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{un_op:?}({op:?})&quot;</span>),
+            Rvalue::UnaryOp(un_op, op) =&gt; <span class="macro">write!</span>(f, <span class="string">"{un_op:?}({op:?})"</span>),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args), operands) =&gt; {
                 <span class="kw">let </span>(fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {
                     <span class="kw">let </span>variant_name = tcx.adt_def(<span class="kw-2">*</span>def_id).variant(<span class="kw-2">*</span>variant_idx).name;
-                    <span class="kw">let </span>fname = tcx.def_path(<span class="kw-2">*</span>def_id).data.iter().join(<span class="string">&quot;::&quot;</span>);
+                    <span class="kw">let </span>fname = tcx.def_path(<span class="kw-2">*</span>def_id).data.iter().join(<span class="string">"::"</span>);
                     (fname, variant_name)
                 });
-                <span class="macro">write!</span>(f, <span class="string">&quot;{fname}::{variant_name}&quot;</span>)<span class="question-mark">?</span>;
+                <span class="macro">write!</span>(f, <span class="string">"{fname}::{variant_name}"</span>)<span class="question-mark">?</span>;
                 <span class="kw">if </span>!args.is_empty() {
-                    <span class="macro">write!</span>(f, <span class="string">&quot;&lt;{:?}&gt;&quot;</span>, args.iter().format(<span class="string">&quot;, &quot;</span>),)<span class="question-mark">?</span>;
+                    <span class="macro">write!</span>(f, <span class="string">"&lt;{:?}&gt;"</span>, args.iter().format(<span class="string">", "</span>),)<span class="question-mark">?</span>;
                 }
                 <span class="kw">if </span>!operands.is_empty() {
-                    <span class="macro">write!</span>(f, <span class="string">&quot;({:?})&quot;</span>, operands.iter().format(<span class="string">&quot;, &quot;</span>))<span class="question-mark">?</span>;
+                    <span class="macro">write!</span>(f, <span class="string">"({:?})"</span>, operands.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
                 }
                 <span class="prelude-val">Ok</span>(())
             }
             Rvalue::Aggregate(AggregateKind::Closure(def_id, args), operands) =&gt; {
                 <span class="macro">write!</span>(
                     f,
-                    <span class="string">&quot;closure({}, {args:?}, {:?})&quot;</span>,
+                    <span class="string">"closure({}, {args:?}, {:?})"</span>,
                     def_id_to_string(<span class="kw-2">*</span>def_id),
-                    operands.iter().format(<span class="string">&quot;, &quot;</span>)
+                    operands.iter().format(<span class="string">", "</span>)
                 )
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(def_id, args), operands) =&gt; {
                 <span class="macro">write!</span>(
                     f,
-                    <span class="string">&quot;generator({}, {args:?}, {:?})&quot;</span>,
+                    <span class="string">"generator({}, {args:?}, {:?})"</span>,
                     def_id_to_string(<span class="kw-2">*</span>def_id),
-                    operands.iter().format(<span class="string">&quot;, &quot;</span>)
+                    operands.iter().format(<span class="string">", "</span>)
                 )
             }
             Rvalue::Aggregate(AggregateKind::Array(<span class="kw">_</span>), args) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;[{:?}]&quot;</span>, args.iter().format(<span class="string">&quot;, &quot;</span>))
+                <span class="macro">write!</span>(f, <span class="string">"[{:?}]"</span>, args.iter().format(<span class="string">", "</span>))
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">&quot;({:?})&quot;</span>, args.iter().format(<span class="string">&quot;, &quot;</span>))
+                <span class="macro">write!</span>(f, <span class="string">"({:?})"</span>, args.iter().format(<span class="string">", "</span>))
             }
-            Rvalue::Len(place) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;Len({place:?})&quot;</span>),
-            Rvalue::Cast(kind, op, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{op:?} as {ty:?} [{kind:?}]&quot;</span>),
+            Rvalue::Len(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"Len({place:?})"</span>),
+            Rvalue::Cast(kind, op, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{op:?} as {ty:?} [{kind:?}]"</span>),
         }
     }
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>PointerCast {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            PointerCast::MutToConstPointer =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;MutToConstPointer&quot;</span>),
-            PointerCast::Unsize =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;Unsize&quot;</span>),
+            PointerCast::MutToConstPointer =&gt; <span class="macro">write!</span>(f, <span class="string">"MutToConstPointer"</span>),
+            PointerCast::Unsize =&gt; <span class="macro">write!</span>(f, <span class="string">"Unsize"</span>),
         }
     }
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>CastKind {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            CastKind::IntToInt =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;IntToInt&quot;</span>),
-            CastKind::FloatToInt =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;FloatToInt&quot;</span>),
-            CastKind::IntToFloat =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;IntToFloat&quot;</span>),
-            CastKind::PtrToPtr =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;PtrToPtr&quot;</span>),
-            CastKind::Pointer(c) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;Pointer({c:?})&quot;</span>),
+            CastKind::IntToInt =&gt; <span class="macro">write!</span>(f, <span class="string">"IntToInt"</span>),
+            CastKind::FloatToInt =&gt; <span class="macro">write!</span>(f, <span class="string">"FloatToInt"</span>),
+            CastKind::IntToFloat =&gt; <span class="macro">write!</span>(f, <span class="string">"IntToFloat"</span>),
+            CastKind::PtrToPtr =&gt; <span class="macro">write!</span>(f, <span class="string">"PtrToPtr"</span>),
+            CastKind::Pointer(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"Pointer({c:?})"</span>),
         }
     }
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Operand {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Copy(place) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;copy {place:?}&quot;</span>),
-            <span class="self">Self</span>::Move(place) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;move {place:?}&quot;</span>),
-            <span class="self">Self</span>::Constant(c) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{c:?}&quot;</span>),
+            <span class="self">Self</span>::Copy(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"copy {place:?}"</span>),
+            <span class="self">Self</span>::Move(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"move {place:?}"</span>),
+            <span class="self">Self</span>::Constant(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"{c:?}"</span>),
         }
     }
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Constant {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            Constant::Int(n, int_ty) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{n}{}&quot;</span>, int_ty.name_str()),
-            Constant::Uint(n, uint_ty) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{n}{}&quot;</span>, uint_ty.name_str()),
-            Constant::Float(bits, float_ty) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{bits}{}&quot;</span>, float_ty.name_str()),
-            Constant::Bool(b) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{b}&quot;</span>),
-            Constant::Unit =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;()&quot;</span>),
-            Constant::Str =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;\&quot;&lt;opaque str&gt;\&quot;&quot;</span>),
-            Constant::Char =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;\&quot;&lt;opaque char&gt;\&quot;&quot;</span>),
-            Constant::Opaque(ty) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;&lt;opaque {:?}&gt;&quot;</span>, ty),
+            Constant::Int(n, int_ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{n}{}"</span>, int_ty.name_str()),
+            Constant::Uint(n, uint_ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{n}{}"</span>, uint_ty.name_str()),
+            Constant::Float(bits, float_ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{bits}{}"</span>, float_ty.name_str()),
+            Constant::Bool(b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{b}"</span>),
+            Constant::Unit =&gt; <span class="macro">write!</span>(f, <span class="string">"()"</span>),
+            Constant::Str =&gt; <span class="macro">write!</span>(f, <span class="string">"\"&lt;opaque str&gt;\""</span>),
+            Constant::Char =&gt; <span class="macro">write!</span>(f, <span class="string">"\"&lt;opaque char&gt;\""</span>),
+            Constant::Opaque(ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;opaque {:?}&gt;"</span>, ty),
         }
     }
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>FakeReadCause {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            FakeReadCause::ForLet(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;ForLet({def_id:?})&quot;</span>),
-            FakeReadCause::ForMatchedPlace(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;ForMatchedPlace({def_id:?})&quot;</span>),
+            FakeReadCause::ForLet(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"ForLet({def_id:?})"</span>),
+            FakeReadCause::ForMatchedPlace(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"ForMatchedPlace({def_id:?})"</span>),
         }
     }
 }
 
 <span class="kw">fn </span>opt_bb_to_str(bb: <span class="prelude-ty">Option</span>&lt;BasicBlock&gt;) -&gt; String {
     <span class="kw">match </span>bb {
-        <span class="prelude-val">Some</span>(bb) =&gt; <span class="macro">format!</span>(<span class="string">&quot;{bb:?}&quot;</span>),
-        <span class="prelude-val">None </span>=&gt; <span class="string">&quot;None&quot;</span>.to_string(),
+        <span class="prelude-val">Some</span>(bb) =&gt; <span class="macro">format!</span>(<span class="string">"{bb:?}"</span>),
+        <span class="prelude-val">None </span>=&gt; <span class="string">"None"</span>.to_string(),
     }
 }
 </code></pre></div></section></main></body></html>

@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-macros/src/diagnostics/diagnostic_builder.rs`."><title>diagnostic_builder.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_macros" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-macros/src/diagnostics/diagnostic_builder.rs`."><title>diagnostic_builder.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_macros" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_macros/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -499,60 +501,6 @@
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
 <a href="#501" id="501">501</a>
-<a href="#502" id="502">502</a>
-<a href="#503" id="503">503</a>
-<a href="#504" id="504">504</a>
-<a href="#505" id="505">505</a>
-<a href="#506" id="506">506</a>
-<a href="#507" id="507">507</a>
-<a href="#508" id="508">508</a>
-<a href="#509" id="509">509</a>
-<a href="#510" id="510">510</a>
-<a href="#511" id="511">511</a>
-<a href="#512" id="512">512</a>
-<a href="#513" id="513">513</a>
-<a href="#514" id="514">514</a>
-<a href="#515" id="515">515</a>
-<a href="#516" id="516">516</a>
-<a href="#517" id="517">517</a>
-<a href="#518" id="518">518</a>
-<a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
-<a href="#547" id="547">547</a>
-<a href="#548" id="548">548</a>
-<a href="#549" id="549">549</a>
-<a href="#550" id="550">550</a>
-<a href="#551" id="551">551</a>
-<a href="#552" id="552">552</a>
-<a href="#553" id="553">553</a>
-<a href="#554" id="554">554</a>
-<a href="#555" id="555">555</a>
 </pre></div><pre class="rust"><code><span class="attr">#![allow(clippy::pedantic)]
 #![deny(unused_must_use)]
 
@@ -566,34 +514,24 @@
     error::{span_err, throw_invalid_attr, throw_span_err, DiagnosticDeriveError},
     utils::{
         build_field_mapping, is_doc_comment, report_error_if_not_applied_to_span,
-        report_type_error, should_generate_set_arg, type_is_bool, type_is_unit, type_matches_path,
+        report_type_error, should_generate_arg, type_is_bool, type_is_unit, type_matches_path,
         FieldInfo, FieldInnerTy, FieldMap, HasFieldMap, SetOnce, SpannedOption, SubdiagnosticKind,
     },
 };
 
 <span class="doccomment">/// What kind of diagnostic is being derived - a fatal/error/warning or a lint?
-</span><span class="attr">#[derive(Clone, PartialEq, Eq)]
+</span><span class="attr">#[derive(Clone, Copy, PartialEq, Eq)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>DiagnosticDeriveKind {
-    Diagnostic { handler: syn::Ident },
+    Diagnostic,
     LintDiagnostic,
-}
-
-<span class="doccomment">/// Tracks persistent information required for the entire type when building up individual calls to
-/// diagnostic methods for generated diagnostic derives - both `Diagnostic` for
-/// fatal/errors/warnings and `LintDiagnostic` for lints.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>DiagnosticDeriveBuilder {
-    <span class="doccomment">/// The identifier to use for the generated `DiagnosticBuilder` instance.
-    </span><span class="kw">pub </span>diag: syn::Ident,
-    <span class="doccomment">/// Kind of diagnostic that should be derived.
-    </span><span class="kw">pub </span>kind: DiagnosticDeriveKind,
 }
 
 <span class="doccomment">/// Tracks persistent information required for a specific variant when building up individual calls
 /// to diagnostic methods for generated diagnostic derives - both `Diagnostic` for
 /// fatal/errors/warnings and `LintDiagnostic` for lints.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>DiagnosticDeriveVariantBuilder&lt;<span class="lifetime">&#39;parent</span>&gt; {
-    <span class="doccomment">/// The parent builder for the entire type.
-    </span><span class="kw">pub </span>parent: <span class="kw-2">&amp;</span><span class="lifetime">&#39;parent </span>DiagnosticDeriveBuilder,
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>DiagnosticDeriveVariantBuilder {
+    <span class="doccomment">/// The kind for the entire type.
+    </span><span class="kw">pub </span>kind: DiagnosticDeriveKind,
 
     <span class="doccomment">/// Initialization of format strings for code suggestions.
     </span><span class="kw">pub </span>formatting_init: TokenStream,
@@ -608,31 +546,32 @@
     <span class="doccomment">/// Slug is a mandatory part of the struct attribute as corresponds to the Fluent message that
     /// has the actual diagnostic message.
     </span><span class="kw">pub </span>slug: SpannedOption&lt;Path&gt;,
+
     <span class="doccomment">/// Error codes are a optional part of the struct attribute - this is only set to detect
     /// multiple specifications.
     </span><span class="kw">pub </span>code: SpannedOption&lt;()&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; HasFieldMap <span class="kw">for </span>DiagnosticDeriveVariantBuilder&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl </span>HasFieldMap <span class="kw">for </span>DiagnosticDeriveVariantBuilder {
     <span class="kw">fn </span>get_field_binding(<span class="kw-2">&amp;</span><span class="self">self</span>, field: <span class="kw-2">&amp;</span>String) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>TokenStream&gt; {
         <span class="self">self</span>.field_map.get(field)
     }
 }
 
-<span class="kw">impl </span>DiagnosticDeriveBuilder {
+<span class="kw">impl </span>DiagnosticDeriveKind {
     <span class="doccomment">/// Call `f` for the struct or for each variant of the enum, returning a `TokenStream` with the
     /// tokens from `f` wrapped in an `match` expression. Emits errors for use of derive on unions
     /// or attributes on the type itself when input is an enum.
-    </span><span class="kw">pub fn </span>each_variant&lt;<span class="lifetime">&#39;s</span>, F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, structure: <span class="kw-2">&amp;mut </span>Structure&lt;<span class="lifetime">&#39;s</span>&gt;, f: F) -&gt; TokenStream
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>each_variant&lt;<span class="lifetime">'s</span>, F&gt;(<span class="self">self</span>, structure: <span class="kw-2">&amp;mut </span>Structure&lt;<span class="lifetime">'s</span>&gt;, f: F) -&gt; TokenStream
     <span class="kw">where
-        </span>F: <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;v</span>&gt; Fn(DiagnosticDeriveVariantBuilder&lt;<span class="lifetime">&#39;a</span>&gt;, <span class="kw-2">&amp;</span>VariantInfo&lt;<span class="lifetime">&#39;v</span>&gt;) -&gt; TokenStream,
+        </span>F: <span class="kw">for</span>&lt;<span class="lifetime">'v</span>&gt; Fn(DiagnosticDeriveVariantBuilder, <span class="kw-2">&amp;</span>VariantInfo&lt;<span class="lifetime">'v</span>&gt;) -&gt; TokenStream,
     {
         <span class="kw">let </span>ast = structure.ast();
         <span class="kw">let </span>span = ast.span().unwrap();
         <span class="kw">match </span>ast.data {
             syn::Data::Struct(..) | syn::Data::Enum(..) =&gt; (),
             syn::Data::Union(..) =&gt; {
-                span_err(span, <span class="string">&quot;diagnostic derives can only be used on structs and enums&quot;</span>).emit();
+                span_err(span, <span class="string">"diagnostic derives can only be used on structs and enums"</span>).emit();
             }
         }
 
@@ -640,7 +579,7 @@
             <span class="kw">for </span>attr <span class="kw">in </span><span class="kw-2">&amp;</span>ast.attrs {
                 span_err(
                     attr.span().unwrap(),
-                    <span class="string">&quot;unsupported type attribute for diagnostic derive enum&quot;</span>,
+                    <span class="string">"unsupported type attribute for diagnostic derive enum"</span>,
                 )
                 .emit();
             }
@@ -650,12 +589,12 @@
         <span class="kw">let </span>variants = structure.each_variant(|variant| {
             <span class="kw">let </span>span = <span class="kw">match </span>structure.ast().data {
                 syn::Data::Struct(..) =&gt; span,
-                <span class="comment">// There isn&#39;t a good way to get the span of the variant, so the variant&#39;s
+                <span class="comment">// There isn't a good way to get the span of the variant, so the variant's
                 // name will need to do.
                 </span><span class="kw">_ </span>=&gt; variant.ast().ident.span().unwrap(),
             };
             <span class="kw">let </span>builder = DiagnosticDeriveVariantBuilder {
-                parent: <span class="self">self</span>,
+                kind: <span class="self">self</span>,
                 span,
                 field_map: build_field_mapping(variant),
                 formatting_init: TokenStream::new(),
@@ -665,7 +604,7 @@
             f(builder, variant)
         });
 
-        <span class="macro">quote! </span>{
+        <span class="macro">quote!</span> {
             <span class="kw">match </span><span class="self">self </span>{
                 #variants
             }
@@ -673,10 +612,10 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; DiagnosticDeriveVariantBuilder&lt;<span class="lifetime">&#39;a</span>&gt; {
+<span class="kw">impl </span>DiagnosticDeriveVariantBuilder {
     <span class="doccomment">/// Generates calls to `code` and similar functions based on the attributes on the type or
     /// variant.
-    </span><span class="kw">pub fn </span>preamble(<span class="kw-2">&amp;mut </span><span class="self">self</span>, variant: <span class="kw-2">&amp;</span>VariantInfo&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>preamble(<span class="kw-2">&amp;mut </span><span class="self">self</span>, variant: <span class="kw-2">&amp;</span>VariantInfo&lt;<span class="lifetime">'_</span>&gt;) -&gt; TokenStream {
         <span class="kw">let </span>ast = variant.ast();
         <span class="kw">let </span>attrs = <span class="kw-2">&amp;</span>ast.attrs;
         <span class="kw">let </span>preamble = attrs.iter().map(|attr| {
@@ -684,20 +623,20 @@
                 .unwrap_or_else(|v| v.to_compile_error())
         });
 
-        <span class="macro">quote! </span>{
+        <span class="macro">quote!</span> {
             #(#preamble)<span class="kw-2">*</span>;
         }
     }
 
     <span class="doccomment">/// Generates calls to `span_label` and similar functions based on the attributes on fields or
-    /// calls to `set_arg` when no attributes are present.
-    </span><span class="kw">pub fn </span>body(<span class="kw-2">&amp;mut </span><span class="self">self</span>, variant: <span class="kw-2">&amp;</span>VariantInfo&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
-        <span class="kw">let </span><span class="kw-2">mut </span>body = <span class="macro">quote! </span>{};
-        <span class="comment">// Generate `set_arg` calls first..
+    /// calls to `arg` when no attributes are present.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>body(<span class="kw-2">&amp;mut </span><span class="self">self</span>, variant: <span class="kw-2">&amp;</span>VariantInfo&lt;<span class="lifetime">'_</span>&gt;) -&gt; TokenStream {
+        <span class="kw">let </span><span class="kw-2">mut </span>body = <span class="macro">quote!</span> {};
+        <span class="comment">// Generate `arg` calls first..
         </span><span class="kw">for </span>binding <span class="kw">in </span>variant
             .bindings()
             .iter()
-            .filter(|bi| should_generate_set_arg(bi.ast()))
+            .filter(|bi| should_generate_arg(bi.ast()))
         {
             body.extend(<span class="self">self</span>.generate_field_code(binding));
         }
@@ -705,7 +644,7 @@
         </span><span class="kw">for </span>binding <span class="kw">in </span>variant
             .bindings()
             .iter()
-            .filter(|bi| !should_generate_set_arg(bi.ast()))
+            .filter(|bi| !should_generate_arg(bi.ast()))
         {
             body.extend(<span class="self">self</span>.generate_field_attrs_code(binding));
         }
@@ -718,24 +657,24 @@
         attr: <span class="kw-2">&amp;</span>Attribute,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;(SubdiagnosticKind, Path, bool)&gt;, DiagnosticDeriveError&gt; {
         <span class="kw">let </span><span class="prelude-val">Some</span>(subdiag) = SubdiagnosticVariant::from_attr(attr, <span class="self">self</span>)<span class="question-mark">? </span><span class="kw">else </span>{
-            <span class="comment">// Some attributes aren&#39;t errors - like documentation comments - but also aren&#39;t
+            <span class="comment">// Some attributes aren't errors - like documentation comments - but also aren't
             // subdiagnostics.
             </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
         };
 
         <span class="kw">if let </span>SubdiagnosticKind::MultipartSuggestion { .. } = subdiag.kind {
             <span class="macro">throw_invalid_attr!</span>(attr, |diag| {
-                diag.help(<span class="string">&quot;consider creating a `Subdiagnostic` instead&quot;</span>)
+                diag.help(<span class="string">"consider creating a `Subdiagnostic` instead"</span>)
             });
         }
 
         <span class="kw">let </span>slug = subdiag.slug.unwrap_or_else(|| {
             <span class="kw">match </span>subdiag.kind {
-                SubdiagnosticKind::Label =&gt; <span class="macro">parse_quote! </span>{ _subdiag::label },
-                SubdiagnosticKind::Note =&gt; <span class="macro">parse_quote! </span>{ _subdiag::note },
-                SubdiagnosticKind::Help =&gt; <span class="macro">parse_quote! </span>{ _subdiag::help },
-                SubdiagnosticKind::Warn =&gt; <span class="macro">parse_quote! </span>{ _subdiag::warn },
-                SubdiagnosticKind::Suggestion { .. } =&gt; <span class="macro">parse_quote! </span>{ _subdiag::suggestion },
+                SubdiagnosticKind::Label =&gt; <span class="macro">parse_quote!</span> { _subdiag::label },
+                SubdiagnosticKind::Note =&gt; <span class="macro">parse_quote!</span> { _subdiag::note },
+                SubdiagnosticKind::Help =&gt; <span class="macro">parse_quote!</span> { _subdiag::help },
+                SubdiagnosticKind::Warn =&gt; <span class="macro">parse_quote!</span> { _subdiag::warn },
+                SubdiagnosticKind::Suggestion { .. } =&gt; <span class="macro">parse_quote!</span> { _subdiag::suggestion },
                 SubdiagnosticKind::MultipartSuggestion { .. } =&gt; <span class="macro">unreachable!</span>(),
             }
         });
@@ -750,11 +689,9 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         attr: <span class="kw-2">&amp;</span>Attribute,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TokenStream, DiagnosticDeriveError&gt; {
-        <span class="kw">let </span>diag = <span class="kw-2">&amp;</span><span class="self">self</span>.parent.diag;
-
         <span class="comment">// Always allow documentation comments.
         </span><span class="kw">if </span>is_doc_comment(attr) {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{});
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {});
         }
 
         <span class="kw">let </span>name = attr.path().segments.last().unwrap().ident.to_string();
@@ -762,7 +699,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>first = <span class="bool-val">true</span>;
 
-        <span class="kw">if </span>name == <span class="string">&quot;diag&quot; </span>{
+        <span class="kw">if </span>name == <span class="string">"diag" </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>tokens = TokenStream::new();
             attr.parse_nested_meta(|nested| {
                 <span class="kw">let </span>path = <span class="kw-2">&amp;</span>nested.path;
@@ -778,25 +715,25 @@
                 <span class="kw">let </span><span class="prelude-val">Ok</span>(nested) = nested.value() <span class="kw">else </span>{
                     span_err(
                         nested.input.span().unwrap(),
-                        <span class="string">&quot;diagnostic slug must be the first argument&quot;</span>,
+                        <span class="string">"diagnostic slug must be the first argument"</span>,
                     )
                     .emit();
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                 };
 
-                <span class="kw">if </span>path.is_ident(<span class="string">&quot;code&quot;</span>) {
+                <span class="kw">if </span>path.is_ident(<span class="string">"code"</span>) {
                     <span class="self">self</span>.code.set_once((), path.span().unwrap());
 
-                    <span class="kw">let </span>code = nested.parse::&lt;syn::LitStr&gt;()<span class="question-mark">?</span>;
-                    tokens.extend(<span class="macro">quote! </span>{
-                        #diag.code(rustc_errors::DiagnosticId::Error(#code.to_string()));
+                    <span class="kw">let </span>code = nested.parse::&lt;syn::Expr&gt;()<span class="question-mark">?</span>;
+                    tokens.extend(<span class="macro">quote!</span> {
+                        diag.code(#code);
                     });
                 } <span class="kw">else </span>{
-                    span_err(path.span().unwrap(), <span class="string">&quot;unknown argument&quot;</span>)
-                        .note(<span class="string">&quot;only the `code` parameter is valid after the slug&quot;</span>)
+                    span_err(path.span().unwrap(), <span class="string">"unknown argument"</span>)
+                        .note(<span class="string">"only the `code` parameter is valid after the slug"</span>)
                         .emit();
 
-                    <span class="comment">// consume the buffer so we don&#39;t have syntax errors from syn
+                    <span class="comment">// consume the buffer so we don't have syntax errors from syn
                     </span><span class="kw">let _ </span>= nested.parse::&lt;TokenStream&gt;();
                 }
                 <span class="prelude-val">Ok</span>(())
@@ -805,43 +742,41 @@
         }
 
         <span class="kw">let </span><span class="prelude-val">Some</span>((subdiag, slug, _no_span)) = <span class="self">self</span>.parse_subdiag_attribute(attr)<span class="question-mark">? </span><span class="kw">else </span>{
-            <span class="comment">// Some attributes aren&#39;t errors - like documentation comments - but also aren&#39;t
+            <span class="comment">// Some attributes aren't errors - like documentation comments - but also aren't
             // subdiagnostics.
-            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{});
+            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {});
         };
-        <span class="kw">let </span>fn_ident = <span class="macro">format_ident!</span>(<span class="string">&quot;{}&quot;</span>, subdiag);
+        <span class="kw">let </span>fn_ident = <span class="macro">format_ident!</span>(<span class="string">"{}"</span>, subdiag);
         <span class="kw">match </span>subdiag {
             SubdiagnosticKind::Note | SubdiagnosticKind::Help | SubdiagnosticKind::Warn =&gt; {
                 <span class="prelude-val">Ok</span>(<span class="self">self</span>.add_subdiagnostic(<span class="kw-2">&amp;</span>fn_ident, slug))
             }
             SubdiagnosticKind::Label | SubdiagnosticKind::Suggestion { .. } =&gt; {
                 <span class="macro">throw_invalid_attr!</span>(attr, |diag| {
-                    diag.help(<span class="string">&quot;`#[label]` and `#[suggestion]` can only be applied to fields&quot;</span>)
+                    diag.help(<span class="string">"`#[label]` and `#[suggestion]` can only be applied to fields"</span>)
                 });
             }
             SubdiagnosticKind::MultipartSuggestion { .. } =&gt; <span class="macro">unreachable!</span>(),
         }
     }
 
-    <span class="kw">fn </span>generate_field_code(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binding_info: <span class="kw-2">&amp;</span>BindingInfo&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
-        <span class="kw">let </span>diag = <span class="kw-2">&amp;</span><span class="self">self</span>.parent.diag;
-
+    <span class="kw">fn </span>generate_field_code(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binding_info: <span class="kw-2">&amp;</span>BindingInfo&lt;<span class="lifetime">'_</span>&gt;) -&gt; TokenStream {
         <span class="kw">let </span>field = binding_info.ast();
         <span class="kw">let </span><span class="kw-2">mut </span>field_binding = binding_info.binding.clone();
         field_binding.set_span(field.ty.span());
 
         <span class="kw">let </span>ident = field.ident.as_ref().unwrap();
-        <span class="kw">let </span>ident = <span class="macro">format_ident!</span>(<span class="string">&quot;{}&quot;</span>, ident); <span class="comment">// strip `r#` prefix, if present
+        <span class="kw">let </span>ident = <span class="macro">format_ident!</span>(<span class="string">"{}"</span>, ident); <span class="comment">// strip `r#` prefix, if present
 
-        </span><span class="macro">quote! </span>{
-            #diag.set_arg(
+        </span><span class="macro">quote!</span> {
+            diag.arg(
                 <span class="macro">stringify!</span>(#ident),
                 #field_binding
             );
         }
     }
 
-    <span class="kw">fn </span>generate_field_attrs_code(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binding_info: <span class="kw-2">&amp;</span>BindingInfo&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
+    <span class="kw">fn </span>generate_field_attrs_code(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binding_info: <span class="kw-2">&amp;</span>BindingInfo&lt;<span class="lifetime">'_</span>&gt;) -&gt; TokenStream {
         <span class="kw">let </span>field = binding_info.ast();
         <span class="kw">let </span>field_binding = <span class="kw-2">&amp;</span>binding_info.binding;
 
@@ -853,17 +788,17 @@
             .map(<span class="kw">move </span>|attr| {
                 <span class="comment">// Always allow documentation comments.
                 </span><span class="kw">if </span>is_doc_comment(attr) {
-                    <span class="kw">return </span><span class="macro">quote! </span>{};
+                    <span class="kw">return </span><span class="macro">quote!</span> {};
                 }
 
                 <span class="kw">let </span>name = attr.path().segments.last().unwrap().ident.to_string();
                 <span class="kw">let </span>needs_clone =
-                    name == <span class="string">&quot;primary_span&quot; </span>&amp;&amp; <span class="macro">matches!</span>(inner_ty, FieldInnerTy::Vec(<span class="kw">_</span>));
+                    name == <span class="string">"primary_span" </span>&amp;&amp; <span class="macro">matches!</span>(inner_ty, FieldInnerTy::Vec(<span class="kw">_</span>));
                 <span class="kw">let </span>(binding, needs_destructure) = <span class="kw">if </span>needs_clone {
-                    <span class="comment">// `primary_span` can accept a `Vec&lt;Span&gt;` so don&#39;t destructure that.
-                    </span>(<span class="macro">quote_spanned! </span>{inner_ty.span()=&gt; #field_binding.clone() }, <span class="bool-val">false</span>)
+                    <span class="comment">// `primary_span` can accept a `Vec&lt;Span&gt;` so don't destructure that.
+                    </span>(<span class="macro">quote_spanned!</span> {inner_ty.span()=&gt; #field_binding.clone() }, <span class="bool-val">false</span>)
                 } <span class="kw">else </span>{
-                    (<span class="macro">quote_spanned! </span>{inner_ty.span()=&gt; #field_binding }, <span class="bool-val">true</span>)
+                    (<span class="macro">quote_spanned!</span> {inner_ty.span()=&gt; #field_binding }, <span class="bool-val">true</span>)
                 };
 
                 <span class="kw">let </span>generated_code = <span class="self">self
@@ -886,82 +821,43 @@
     <span class="kw">fn </span>generate_inner_field_code(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         attr: <span class="kw-2">&amp;</span>Attribute,
-        info: FieldInfo&lt;<span class="lifetime">&#39;_</span>&gt;,
+        info: FieldInfo&lt;<span class="lifetime">'_</span>&gt;,
         binding: TokenStream,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;TokenStream, DiagnosticDeriveError&gt; {
-        <span class="kw">let </span>diag = <span class="kw-2">&amp;</span><span class="self">self</span>.parent.diag;
-
         <span class="kw">let </span>ident = <span class="kw-2">&amp;</span>attr.path().segments.last().unwrap().ident;
         <span class="kw">let </span>name = ident.to_string();
         <span class="kw">match </span>(<span class="kw-2">&amp;</span>attr.meta, name.as_str()) {
-            <span class="comment">// Don&#39;t need to do anything - by virtue of the attribute existing, the
-            // `set_arg` call will not be generated.
-            </span>(Meta::Path(<span class="kw">_</span>), <span class="string">&quot;skip_arg&quot;</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{}),
-            (Meta::Path(<span class="kw">_</span>), <span class="string">&quot;primary_span&quot;</span>) =&gt; {
-                <span class="kw">match </span><span class="self">self</span>.parent.kind {
-                    DiagnosticDeriveKind::Diagnostic { .. } =&gt; {
+            <span class="comment">// Don't need to do anything - by virtue of the attribute existing, the
+            // `arg` call will not be generated.
+            </span>(Meta::Path(<span class="kw">_</span>), <span class="string">"skip_arg"</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {}),
+            (Meta::Path(<span class="kw">_</span>), <span class="string">"primary_span"</span>) =&gt; {
+                <span class="kw">match </span><span class="self">self</span>.kind {
+                    DiagnosticDeriveKind::Diagnostic =&gt; {
                         report_error_if_not_applied_to_span(attr, <span class="kw-2">&amp;</span>info)<span class="question-mark">?</span>;
 
-                        <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{
-                            #diag.set_span(#binding);
+                        <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {
+                            diag.span(#binding);
                         });
                     }
                     DiagnosticDeriveKind::LintDiagnostic =&gt; {
                         <span class="macro">throw_invalid_attr!</span>(attr, |diag| {
-                            diag.help(<span class="string">&quot;the `primary_span` field attribute is not valid for lint diagnostics&quot;</span>)
+                            diag.help(<span class="string">"the `primary_span` field attribute is not valid for lint diagnostics"</span>)
                         })
                     }
                 }
             }
-            (Meta::Path(<span class="kw">_</span>), <span class="string">&quot;subdiagnostic&quot;</span>) =&gt; {
-                <span class="kw">if </span>FieldInnerTy::from_type(<span class="kw-2">&amp;</span>info.binding.ast().ty).will_iterate() {
-                    <span class="kw">let </span>DiagnosticDeriveKind::Diagnostic { handler } = <span class="kw-2">&amp;</span><span class="self">self</span>.parent.kind <span class="kw">else </span>{
-                        <span class="comment">// No eager translation for lints.
-                        </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{ #diag.subdiagnostic(#binding); });
-                    };
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{ #diag.eager_subdiagnostic(#handler, #binding); });
-                } <span class="kw">else </span>{
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{ #diag.subdiagnostic(#binding); });
-                }
-            }
-            (Meta::List(meta_list), <span class="string">&quot;subdiagnostic&quot;</span>) =&gt; {
-                <span class="kw">let </span>err = || {
-                    span_err(
-                        meta_list.span().unwrap(),
-                        <span class="string">&quot;`eager` is the only supported nested attribute for `subdiagnostic`&quot;</span>,
-                    )
-                    .emit();
-                };
-
-                <span class="kw">let </span><span class="prelude-val">Ok</span>(p): <span class="prelude-ty">Result</span>&lt;Path, <span class="kw">_</span>&gt; = meta_list.parse_args() <span class="kw">else </span>{
-                    err();
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{});
-                };
-
-                <span class="kw">if </span>!p.is_ident(<span class="string">&quot;eager&quot;</span>) {
-                    err();
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{});
-                }
-
-                <span class="kw">let </span>handler = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.parent.kind {
-                    DiagnosticDeriveKind::Diagnostic { handler } =&gt; handler,
-                    DiagnosticDeriveKind::LintDiagnostic =&gt; {
-                        <span class="macro">throw_invalid_attr!</span>(attr, |diag| {
-                            diag.help(<span class="string">&quot;eager subdiagnostics are not supported on lints&quot;</span>)
-                        })
-                    }
-                };
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{ #diag.eager_subdiagnostic(#handler, #binding); });
+            (Meta::Path(<span class="kw">_</span>), <span class="string">"subdiagnostic"</span>) =&gt; {
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote!</span> { diag.subdiagnostic(diag.dcx, #binding); });
             }
             <span class="kw">_ </span>=&gt; (),
         }
 
         <span class="kw">let </span><span class="prelude-val">Some</span>((subdiag, slug, _no_span)) = <span class="self">self</span>.parse_subdiag_attribute(attr)<span class="question-mark">? </span><span class="kw">else </span>{
-            <span class="comment">// Some attributes aren&#39;t errors - like documentation comments - but also aren&#39;t
+            <span class="comment">// Some attributes aren't errors - like documentation comments - but also aren't
             // subdiagnostics.
-            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{});
+            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {});
         };
-        <span class="kw">let </span>fn_ident = <span class="macro">format_ident!</span>(<span class="string">&quot;{}&quot;</span>, subdiag);
+        <span class="kw">let </span>fn_ident = <span class="macro">format_ident!</span>(<span class="string">"{}"</span>, subdiag);
         <span class="kw">match </span>subdiag {
             SubdiagnosticKind::Label =&gt; {
                 report_error_if_not_applied_to_span(attr, <span class="kw-2">&amp;</span>info)<span class="question-mark">?</span>;
@@ -969,8 +865,8 @@
             }
             SubdiagnosticKind::Note | SubdiagnosticKind::Help | SubdiagnosticKind::Warn =&gt; {
                 <span class="kw">let </span>inner = info.ty.inner_type();
-                <span class="kw">if </span>type_matches_path(inner, <span class="kw-2">&amp;</span>[<span class="string">&quot;rustc_span&quot;</span>, <span class="string">&quot;Span&quot;</span>])
-                    || type_matches_path(inner, <span class="kw-2">&amp;</span>[<span class="string">&quot;rustc_span&quot;</span>, <span class="string">&quot;MultiSpan&quot;</span>])
+                <span class="kw">if </span>type_matches_path(inner, <span class="kw-2">&amp;</span>[<span class="string">"rustc_span"</span>, <span class="string">"Span"</span>])
+                    || type_matches_path(inner, <span class="kw-2">&amp;</span>[<span class="string">"rustc_span"</span>, <span class="string">"MultiSpan"</span>])
                 {
                     <span class="prelude-val">Ok</span>(<span class="self">self</span>.add_spanned_subdiagnostic(binding, <span class="kw-2">&amp;</span>fn_ident, slug))
                 } <span class="kw">else if </span>type_is_unit(inner)
@@ -978,7 +874,7 @@
                 {
                     <span class="prelude-val">Ok</span>(<span class="self">self</span>.add_subdiagnostic(<span class="kw-2">&amp;</span>fn_ident, slug))
                 } <span class="kw">else </span>{
-                    report_type_error(attr, <span class="string">&quot;`Span`, `MultiSpan`, `bool` or `()`&quot;</span>)<span class="question-mark">?
+                    report_type_error(attr, <span class="string">"`Span`, `MultiSpan`, `bool` or `()`"</span>)<span class="question-mark">?
                 </span>}
             }
             SubdiagnosticKind::Suggestion {
@@ -990,26 +886,26 @@
                 <span class="kw">if let </span>FieldInnerTy::Vec(<span class="kw">_</span>) = info.ty {
                     <span class="macro">throw_invalid_attr!</span>(attr, |diag| {
                         diag
-                        .note(<span class="string">&quot;`#[suggestion(...)]` applied to `Vec` field is ambiguous&quot;</span>)
-                        .help(<span class="string">&quot;to show a suggestion consisting of multiple parts, use a `Subdiagnostic` annotated with `#[multipart_suggestion(...)]`&quot;</span>)
-                        .help(<span class="string">&quot;to show a variable set of suggestions, use a `Vec` of `Subdiagnostic`s annotated with `#[suggestion(...)]`&quot;</span>)
+                        .note(<span class="string">"`#[suggestion(...)]` applied to `Vec` field is ambiguous"</span>)
+                        .help(<span class="string">"to show a suggestion consisting of multiple parts, use a `Subdiagnostic` annotated with `#[multipart_suggestion(...)]`"</span>)
+                        .help(<span class="string">"to show a variable set of suggestions, use a `Vec` of `Subdiagnostic`s annotated with `#[suggestion(...)]`"</span>)
                     });
                 }
 
                 <span class="kw">let </span>(span_field, <span class="kw-2">mut </span>applicability) = <span class="self">self</span>.span_and_applicability_of_ty(info)<span class="question-mark">?</span>;
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>((static_applicability, span)) = static_applicability {
-                    applicability.set_once(<span class="macro">quote! </span>{ #static_applicability }, span);
+                    applicability.set_once(<span class="macro">quote!</span> { #static_applicability }, span);
                 }
 
                 <span class="kw">let </span>applicability = applicability
                     .value()
-                    .unwrap_or_else(|| <span class="macro">quote! </span>{ rustc_errors::Applicability::Unspecified });
+                    .unwrap_or_else(|| <span class="macro">quote!</span> { rustc_errors::Applicability::Unspecified });
                 <span class="kw">let </span>style = suggestion_kind.to_suggestion_style();
 
                 <span class="self">self</span>.formatting_init.extend(code_init);
-                <span class="prelude-val">Ok</span>(<span class="macro">quote! </span>{
-                    #diag.span_suggestions_with_style(
+                <span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {
+                    diag.span_suggestions_with_style(
                         #span_field,
                         <span class="kw">crate</span>::fluent_generated::#slug,
                         #code_field,
@@ -1030,10 +926,9 @@
         kind: <span class="kw-2">&amp;</span>Ident,
         fluent_attr_identifier: Path,
     ) -&gt; TokenStream {
-        <span class="kw">let </span>diag = <span class="kw-2">&amp;</span><span class="self">self</span>.parent.diag;
-        <span class="kw">let </span>fn_name = <span class="macro">format_ident!</span>(<span class="string">&quot;span_{}&quot;</span>, kind);
-        <span class="macro">quote! </span>{
-            #diag.#fn_name(
+        <span class="kw">let </span>fn_name = <span class="macro">format_ident!</span>(<span class="string">"span_{}"</span>, kind);
+        <span class="macro">quote!</span> {
+            diag.#fn_name(
                 #field_binding,
                 <span class="kw">crate</span>::fluent_generated::#fluent_attr_identifier
             );
@@ -1043,19 +938,18 @@
     <span class="doccomment">/// Adds a subdiagnostic by generating a `diag.span_$kind` call with the current slug
     /// and `fluent_attr_identifier`.
     </span><span class="kw">fn </span>add_subdiagnostic(<span class="kw-2">&amp;</span><span class="self">self</span>, kind: <span class="kw-2">&amp;</span>Ident, fluent_attr_identifier: Path) -&gt; TokenStream {
-        <span class="kw">let </span>diag = <span class="kw-2">&amp;</span><span class="self">self</span>.parent.diag;
-        <span class="macro">quote! </span>{
-            #diag.#kind(<span class="kw">crate</span>::fluent_generated::#fluent_attr_identifier);
+        <span class="macro">quote!</span> {
+            diag.#kind(<span class="kw">crate</span>::fluent_generated::#fluent_attr_identifier);
         }
     }
 
     <span class="kw">fn </span>span_and_applicability_of_ty(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        info: FieldInfo&lt;<span class="lifetime">&#39;_</span>&gt;,
+        info: FieldInfo&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(TokenStream, SpannedOption&lt;TokenStream&gt;), DiagnosticDeriveError&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span>info.ty.inner_type() {
             <span class="comment">// If `ty` is `Span` w/out applicability, then use `Applicability::Unspecified`.
-            </span>ty @ Type::Path(..) <span class="kw">if </span>type_matches_path(ty, <span class="kw-2">&amp;</span>[<span class="string">&quot;rustc_span&quot;</span>, <span class="string">&quot;Span&quot;</span>]) =&gt; {
+            </span>ty @ Type::Path(..) <span class="kw">if </span>type_matches_path(ty, <span class="kw-2">&amp;</span>[<span class="string">"rustc_span"</span>, <span class="string">"Span"</span>]) =&gt; {
                 <span class="kw">let </span>binding = <span class="kw-2">&amp;</span>info.binding.binding;
                 <span class="prelude-val">Ok</span>((<span class="macro">quote!</span>(#binding), <span class="prelude-val">None</span>))
             }
@@ -1065,19 +959,19 @@
                 <span class="kw">let </span><span class="kw-2">mut </span>applicability_idx = <span class="prelude-val">None</span>;
 
                 <span class="kw">fn </span>type_err(span: <span class="kw-2">&amp;</span>Span) -&gt; <span class="prelude-ty">Result</span>&lt;!, DiagnosticDeriveError&gt; {
-                    span_err(span.unwrap(), <span class="string">&quot;wrong types for suggestion&quot;</span>)
+                    span_err(span.unwrap(), <span class="string">"wrong types for suggestion"</span>)
                         .help(
-                            <span class="string">&quot;`#[suggestion(...)]` on a tuple field must be applied to fields \
-                             of type `(Span, Applicability)`&quot;</span>,
+                            <span class="string">"`#[suggestion(...)]` on a tuple field must be applied to fields \
+                             of type `(Span, Applicability)`"</span>,
                         )
                         .emit();
                     <span class="prelude-val">Err</span>(DiagnosticDeriveError::ErrorHandled)
                 }
 
                 <span class="kw">for </span>(idx, elem) <span class="kw">in </span>tup.elems.iter().enumerate() {
-                    <span class="kw">if </span>type_matches_path(elem, <span class="kw-2">&amp;</span>[<span class="string">&quot;rustc_span&quot;</span>, <span class="string">&quot;Span&quot;</span>]) {
+                    <span class="kw">if </span>type_matches_path(elem, <span class="kw-2">&amp;</span>[<span class="string">"rustc_span"</span>, <span class="string">"Span"</span>]) {
                         span_idx.set_once(syn::Index::from(idx), elem.span().unwrap());
-                    } <span class="kw">else if </span>type_matches_path(elem, <span class="kw-2">&amp;</span>[<span class="string">&quot;rustc_errors&quot;</span>, <span class="string">&quot;Applicability&quot;</span>]) {
+                    } <span class="kw">else if </span>type_matches_path(elem, <span class="kw-2">&amp;</span>[<span class="string">"rustc_errors"</span>, <span class="string">"Applicability"</span>]) {
                         applicability_idx.set_once(syn::Index::from(idx), elem.span().unwrap());
                     } <span class="kw">else </span>{
                         type_err(<span class="kw-2">&amp;</span>elem.span())<span class="question-mark">?</span>;
@@ -1096,12 +990,12 @@
 
                 <span class="prelude-val">Ok</span>((span, <span class="prelude-val">Some</span>((applicability, applicability_span))))
             }
-            <span class="comment">// If `ty` isn&#39;t a `Span` or `(Span, Applicability)` then emit an error.
+            <span class="comment">// If `ty` isn't a `Span` or `(Span, Applicability)` then emit an error.
             </span><span class="kw">_ </span>=&gt; {
-                <span class="macro">throw_span_err!</span>(info.span.unwrap(), <span class="string">&quot;wrong field type for suggestion&quot;</span>, |diag| {
+                <span class="macro">throw_span_err!</span>(info.span.unwrap(), <span class="string">"wrong field type for suggestion"</span>, |diag| {
                     diag.help(
-                        <span class="string">&quot;`#[suggestion(...)]` should be applied to fields of type `Span` or \
-                     `(Span, Applicability)`&quot;</span>,
+                        <span class="string">"`#[suggestion(...)]` should be applied to fields of type `Span` or \
+                     `(Span, Applicability)`"</span>,
                     )
                 })
             }

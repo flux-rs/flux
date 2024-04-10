@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fixpoint/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_fixpoint" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fixpoint/src/lib.rs`."><title>lib.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_fixpoint" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../flux_fixpoint/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -274,10 +276,13 @@
 <a href="#274" id="274">274</a>
 <a href="#275" id="275">275</a>
 <a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, lazy_cell, box_patterns)]
 
 </span><span class="kw">extern crate </span>rustc_macros;
 <span class="kw">extern crate </span>rustc_serialize;
+<span class="kw">extern crate </span>rustc_span;
 
 <span class="kw">pub mod </span>big_int;
 <span class="kw">mod </span>constraint;
@@ -315,7 +320,7 @@
 }
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>declare_types {
+</span><span class="macro">macro_rules!</span> declare_types {
     (<span class="kw">type </span>Sort = <span class="macro-nonterminal">$sort</span>:ty; <span class="kw">type </span>KVar = <span class="macro-nonterminal">$kvar</span>:ty; <span class="kw">type </span>Var = <span class="macro-nonterminal">$var</span>:ty; <span class="kw">type </span>Tag = <span class="macro-nonterminal">$tag</span>:ty;) =&gt; {
         <span class="kw">pub mod </span>fixpoint_generated {
             <span class="kw">pub struct </span>FixpointTypes;
@@ -347,9 +352,9 @@
 <span class="kw">struct </span>StringTypes;
 
 <span class="kw">impl </span>Types <span class="kw">for </span>StringTypes {
-    <span class="kw">type </span>Sort = <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
-    <span class="kw">type </span>KVar = <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
-    <span class="kw">type </span>Var = <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str;
+    <span class="kw">type </span>Sort = <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
+    <span class="kw">type </span>KVar = <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
+    <span class="kw">type </span>Var = <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
     <span class="kw">type </span>Tag = String;
 }
 
@@ -374,7 +379,7 @@
 }
 
 <span class="attr">#[derive(Deserialize, Debug)]
-#[serde(tag = <span class="string">&quot;tag&quot;</span>, content = <span class="string">&quot;contents&quot;</span>, bound(deserialize = <span class="string">&quot;Tag: FromStr&quot;</span>))]
+#[serde(tag = <span class="string">"tag"</span>, content = <span class="string">"contents"</span>, bound(deserialize = <span class="string">"Tag: FromStr"</span>))]
 </span><span class="kw">pub enum </span>FixpointResult&lt;Tag&gt; {
     Safe(Stats),
     Unsafe(Stats, Vec&lt;Error&lt;Tag&gt;&gt;),
@@ -388,7 +393,7 @@
 }
 
 <span class="attr">#[derive(Debug, Deserialize, Default)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>Stats {
     <span class="kw">pub </span>num_cstr: i32,
     <span class="kw">pub </span>num_iter: i32,
@@ -396,7 +401,8 @@
     <span class="kw">pub </span>num_vald: i32,
 }
 
-<span class="attr">#[derive(Deserialize, Debug)]
+<span class="attr">#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
 </span><span class="kw">pub struct </span>CrashInfo(Vec&lt;serde_json::Value&gt;);
 
 <span class="attr">#[derive_where(Hash)]
@@ -436,13 +442,13 @@
     }
 
     <span class="kw">fn </span>check(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; io::Result&lt;FixpointResult&lt;T::Tag&gt;&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>child = Command::new(<span class="string">&quot;fixpoint&quot;</span>)
-            .arg(<span class="string">&quot;-q&quot;</span>)
-            .arg(<span class="string">&quot;--stdin&quot;</span>)
-            .arg(<span class="string">&quot;--json&quot;</span>)
-            .arg(<span class="string">&quot;--nosmthorn&quot;</span>)
-            .arg(<span class="string">&quot;--allowho&quot;</span>)
-            .arg(<span class="string">&quot;--allowhoqs&quot;</span>)
+        <span class="kw">let </span><span class="kw-2">mut </span>child = Command::new(<span class="string">"fixpoint"</span>)
+            .arg(<span class="string">"-q"</span>)
+            .arg(<span class="string">"--stdin"</span>)
+            .arg(<span class="string">"--json"</span>)
+            .arg(<span class="string">"--nosmthorn"</span>)
+            .arg(<span class="string">"--allowho"</span>)
+            .arg(<span class="string">"--allowhoqs"</span>)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -452,7 +458,7 @@
         std::mem::swap(<span class="kw-2">&amp;mut </span>stdin, <span class="kw-2">&amp;mut </span>child.stdin);
         {
             <span class="kw">let </span><span class="kw-2">mut </span>w = BufWriter::new(stdin.unwrap());
-            <span class="macro">writeln!</span>(w, <span class="string">&quot;{self}&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(w, <span class="string">"{self}"</span>)<span class="question-mark">?</span>;
         }
         <span class="kw">let </span>out = child.wait_with_output()<span class="question-mark">?</span>;
 
@@ -469,84 +475,84 @@
 }
 
 <span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>Task&lt;T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">if </span><span class="self">self</span>.scrape_quals {
-            <span class="macro">writeln!</span>(f, <span class="string">&quot;(fixpoint \&quot;--scrape=both\&quot;)&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(f, <span class="string">"(fixpoint \"--scrape=both\")"</span>)<span class="question-mark">?</span>;
         }
         <span class="kw">for </span>line <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.comments {
-            <span class="macro">writeln!</span>(f, <span class="string">&quot;// {line}&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(f, <span class="string">"// {line}"</span>)<span class="question-mark">?</span>;
         }
         <span class="macro">writeln!</span>(f)<span class="question-mark">?</span>;
 
         <span class="kw">for </span>data_decl <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.data_decls {
-            <span class="macro">writeln!</span>(f, <span class="string">&quot;{data_decl}&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(f, <span class="string">"{data_decl}"</span>)<span class="question-mark">?</span>;
         }
 
         <span class="kw">for </span>qualif <span class="kw">in </span>DEFAULT_QUALIFIERS.iter() {
-            <span class="macro">writeln!</span>(f, <span class="string">&quot;{qualif}&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(f, <span class="string">"{qualif}"</span>)<span class="question-mark">?</span>;
         }
 
         <span class="kw">for </span>qualif <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.qualifiers {
-            <span class="macro">writeln!</span>(f, <span class="string">&quot;{qualif}&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(f, <span class="string">"{qualif}"</span>)<span class="question-mark">?</span>;
         }
 
         <span class="kw">for </span>cinfo <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.constants {
-            <span class="macro">writeln!</span>(f, <span class="string">&quot;{cinfo}&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(f, <span class="string">"{cinfo}"</span>)<span class="question-mark">?</span>;
         }
 
         <span class="kw">for </span>kvar <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.kvars {
-            <span class="macro">writeln!</span>(f, <span class="string">&quot;{kvar}&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">writeln!</span>(f, <span class="string">"{kvar}"</span>)<span class="question-mark">?</span>;
         }
 
         <span class="macro">writeln!</span>(f)<span class="question-mark">?</span>;
-        <span class="macro">write!</span>(f, <span class="string">&quot;(constraint&quot;</span>)<span class="question-mark">?</span>;
-        <span class="macro">write!</span>(PadAdapter::wrap_fmt(f, <span class="number">2</span>), <span class="string">&quot;\n{}&quot;</span>, <span class="self">self</span>.constraint)<span class="question-mark">?</span>;
-        <span class="macro">writeln!</span>(f, <span class="string">&quot;\n)&quot;</span>)
+        <span class="macro">write!</span>(f, <span class="string">"(constraint"</span>)<span class="question-mark">?</span>;
+        <span class="macro">write!</span>(PadAdapter::wrap_fmt(f, <span class="number">2</span>), <span class="string">"\n{}"</span>, <span class="self">self</span>.constraint)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(f, <span class="string">"\n)"</span>)
     }
 }
 
 <span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>KVar&lt;T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">write!</span>(
             f,
-            <span class="string">&quot;(var ${} ({})) // {}&quot;</span>,
+            <span class="string">"(var ${} ({})) // {}"</span>,
             <span class="self">self</span>.kvid,
             <span class="self">self</span>.sorts
                 .iter()
-                .format_with(<span class="string">&quot; &quot;</span>, |sort, f| f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">&quot;({sort})&quot;</span>))),
+                .format_with(<span class="string">" "</span>, |sort, f| f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"({sort})"</span>))),
             <span class="self">self</span>.comment
         )
     }
 }
 
 <span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>ConstInfo&lt;T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;(constant {} {})&quot;</span>, <span class="self">self</span>.name, <span class="self">self</span>.sort)<span class="question-mark">?</span>;
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"(constant {} {})"</span>, <span class="self">self</span>.name, <span class="self">self</span>.sort)<span class="question-mark">?</span>;
         <span class="kw">if let </span><span class="prelude-val">Some</span>(orig) = <span class="kw-2">&amp;</span><span class="self">self</span>.orig {
-            <span class="macro">write!</span>(f, <span class="string">&quot;  // orig: {orig}&quot;</span>)<span class="question-mark">?</span>;
+            <span class="macro">write!</span>(f, <span class="string">"  // orig: {orig}"</span>)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
 }
 
 <span class="kw">impl</span>&lt;T: Types&gt; fmt::Debug <span class="kw">for </span>Task&lt;T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         fmt::Display::fmt(<span class="self">self</span>, f)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, Tag: FromStr&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Error&lt;Tag&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, Tag: FromStr&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>Error&lt;Tag&gt; {
     <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
     <span class="kw">where
-        </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         <span class="attr">#[derive(Deserialize)]
-        </span><span class="kw">struct </span>ErrorInner&lt;<span class="lifetime">&#39;a</span>&gt;(i32, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str);
+        </span><span class="kw">struct </span>ErrorInner&lt;<span class="lifetime">'a</span>&gt;(i32, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str);
 
         <span class="kw">let </span>ErrorInner(id, tag) = Deserialize::deserialize(deserializer)<span class="question-mark">?</span>;
         <span class="kw">let </span>tag = tag
             .parse()
-            .map_err(|<span class="kw">_</span>| de::Error::invalid_value(de::Unexpected::Str(tag), <span class="kw-2">&amp;</span><span class="string">&quot;valid tag&quot;</span>))<span class="question-mark">?</span>;
+            .map_err(|<span class="kw">_</span>| de::Error::invalid_value(de::Unexpected::Str(tag), <span class="kw-2">&amp;</span><span class="string">"valid tag"</span>))<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(Error { id, tag })
     }
 }

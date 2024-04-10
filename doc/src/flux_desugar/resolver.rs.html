@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/resolver.rs`."><title>resolver.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/resolver.rs`."><title>resolver.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../flux_desugar/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -728,6 +730,9 @@
 <a href="#728" id="728">728</a>
 <a href="#729" id="729">729</a>
 <a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
 </pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>std::collections::hash_map::Entry;
@@ -759,7 +764,7 @@
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
-<span class="macro">macro_rules! </span>collect_err {
+<span class="macro">macro_rules!</span> collect_err {
     (<span class="macro-nonterminal">$self</span>:expr, <span class="macro-nonterminal">$body</span>:expr) =&gt; {
         <span class="macro-nonterminal">$self</span>.err = <span class="macro-nonterminal">$body</span>.err().or(<span class="macro-nonterminal">$self</span>.err)
     };
@@ -794,9 +799,9 @@
     <span class="prelude-val">Ok</span>(resolver.into_output())
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    specs: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>Specs,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+    specs: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>Specs,
     output: ResolverOutput,
     extern_crates: UnordMap&lt;Symbol, CrateNum&gt;,
     ribs: Vec&lt;Rib&gt;,
@@ -811,14 +816,14 @@
     type_ns_bindings: FxHashMap&lt;Symbol, hir::def::Res&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;tcx</span>&gt; hir::intravisit::Visitor&lt;<span class="lifetime">&#39;tcx</span>&gt; <span class="kw">for </span>CrateResolver&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; hir::intravisit::Visitor&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>CrateResolver&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">type </span>NestedFilter = rustc_middle::hir::nested_filter::All;
 
     <span class="kw">fn </span>nested_visit_map(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="self">Self</span>::Map {
         <span class="self">self</span>.genv.hir()
     }
 
-    <span class="kw">fn </span>visit_mod(<span class="kw-2">&amp;mut </span><span class="self">self</span>, module: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::Mod&lt;<span class="lifetime">&#39;tcx</span>&gt;, _s: Span, hir_id: hir::HirId) {
+    <span class="kw">fn </span>visit_mod(<span class="kw-2">&amp;mut </span><span class="self">self</span>, module: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::Mod&lt;<span class="lifetime">'tcx</span>&gt;, _s: Span, hir_id: hir::HirId) {
         <span class="self">self</span>.push_rib();
         <span class="kw">for </span>item_id <span class="kw">in </span>module.item_ids {
             <span class="kw">let </span>item = <span class="self">self</span>.genv.hir().item(<span class="kw-2">*</span>item_id);
@@ -865,7 +870,7 @@
         <span class="self">self</span>.pop_rib();
     }
 
-    <span class="kw">fn </span>visit_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::Item&lt;<span class="lifetime">&#39;tcx</span>&gt;) {
+    <span class="kw">fn </span>visit_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::Item&lt;<span class="lifetime">'tcx</span>&gt;) {
         <span class="kw">match </span>item.kind {
             ItemKind::Trait(..) =&gt; {
                 <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_trait(item.owner_id));
@@ -890,14 +895,14 @@
         hir::intravisit::walk_item(<span class="self">self</span>, item);
     }
 
-    <span class="kw">fn </span>visit_impl_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_item: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::ImplItem&lt;<span class="lifetime">&#39;tcx</span>&gt;) {
+    <span class="kw">fn </span>visit_impl_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::ImplItem&lt;<span class="lifetime">'tcx</span>&gt;) {
         <span class="kw">if let </span>hir::ImplItemKind::Fn(..) = impl_item.kind {
             <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_fn_sig(impl_item.owner_id));
         }
         hir::intravisit::walk_impl_item(<span class="self">self</span>, impl_item);
     }
 
-    <span class="kw">fn </span>visit_trait_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_item: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::TraitItem&lt;<span class="lifetime">&#39;tcx</span>&gt;) {
+    <span class="kw">fn </span>visit_trait_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::TraitItem&lt;<span class="lifetime">'tcx</span>&gt;) {
         <span class="kw">if let </span>hir::TraitItemKind::Fn(..) = trait_item.kind {
             <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_fn_sig(trait_item.owner_id));
         }
@@ -913,8 +918,8 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">pub fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, specs: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>Specs) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">pub fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, specs: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>Specs) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>extern_crates = UnordMap::default();
         <span class="kw">for </span>cnum <span class="kw">in </span>genv.tcx().crates(()) {
             <span class="kw">let </span>name = genv.tcx().crate_name(<span class="kw-2">*</span>cnum);
@@ -1099,11 +1104,11 @@
     }
 }
 
-<span class="kw">struct </span>ItemResolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">struct </span>ItemResolver&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     table: NameResTable,
-    resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     opaque: <span class="prelude-ty">Option</span>&lt;ItemId&gt;, <span class="comment">// TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
-    </span>errors: Errors&lt;<span class="lifetime">&#39;genv</span>&gt;,
+    </span>errors: Errors&lt;<span class="lifetime">'genv</span>&gt;,
 }
 
 <span class="kw">struct </span>ResTableNode {
@@ -1154,9 +1159,9 @@
     </span>}
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; ItemResolver&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; ItemResolver&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">fn </span>run(
-        resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         owner_id: OwnerId,
         f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>ItemResolver),
     ) -&gt; <span class="prelude-ty">Result </span>{
@@ -1165,10 +1170,10 @@
         item_resolver.errors.into_result()
     }
 
-    <span class="kw">fn </span>new(resolver: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+    <span class="kw">fn </span>new(resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, owner_id: OwnerId) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>tcx = resolver.genv.tcx();
         <span class="kw">let </span>sess = resolver.genv.sess();
-        <span class="kw">let </span>(table, opaque) = <span class="kw">match </span>tcx.hir().owner(owner_id) {
+        <span class="kw">let </span>(table, opaque) = <span class="kw">match </span>tcx.hir_owner_node(owner_id) {
             hir::OwnerNode::Item(item) =&gt; NameResCollector::collect_item(tcx, sess, item)<span class="question-mark">?</span>,
             hir::OwnerNode::ImplItem(impl_item) =&gt; {
                 NameResCollector::collect_impl_item(tcx, sess, impl_item)<span class="question-mark">?
@@ -1176,8 +1181,10 @@
             hir::OwnerNode::TraitItem(trait_item) =&gt; {
                 NameResCollector::collect_trait_item(tcx, sess, trait_item)<span class="question-mark">?
             </span>}
-            node @ (hir::OwnerNode::ForeignItem(<span class="kw">_</span>) | hir::OwnerNode::Crate(<span class="kw">_</span>)) =&gt; {
-                <span class="macro">bug!</span>(<span class="string">&quot;unsupported node {node:?}&quot;</span>)
+            node @ (hir::OwnerNode::ForeignItem(<span class="kw">_</span>)
+            | hir::OwnerNode::Crate(<span class="kw">_</span>)
+            | hir::OwnerNode::Synthetic) =&gt; {
+                <span class="macro">bug!</span>(<span class="string">"unsupported node {node:?}"</span>)
             }
         };
 
@@ -1193,7 +1200,7 @@
                 .insert(node_id, def_id);
         } <span class="kw">else </span>{
             <span class="self">self</span>.errors
-                .emit(errors::UnresolvedPath { span, path: <span class="string">&quot;opaque type&quot;</span>.into() });
+                .emit(errors::UnresolvedPath { span, path: <span class="string">"opaque type"</span>.into() });
         }
     }
 
@@ -1216,7 +1223,7 @@
     }
 }
 
-<span class="kw">impl </span>surface::visit::Visitor <span class="kw">for </span>ItemResolver&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>surface::visit::Visitor <span class="kw">for </span>ItemResolver&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>visit_async(<span class="kw-2">&amp;mut </span><span class="self">self</span>, asyncness: <span class="kw-2">&amp;</span>surface::Async) {
         <span class="kw">if let </span>surface::Async::Yes { node_id, span } = asyncness {
             <span class="self">self</span>.resolve_opaque_impl(<span class="kw-2">*</span>node_id, <span class="kw-2">*</span>span);
@@ -1252,22 +1259,22 @@
     }
 }
 
-<span class="kw">struct </span>NameResCollector&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">struct </span>NameResCollector&lt;<span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; {
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     table: NameResTable,
     opaque: <span class="prelude-ty">Option</span>&lt;ItemId&gt;, <span class="comment">// TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
-    </span>errors: Errors&lt;<span class="lifetime">&#39;sess</span>&gt;,
+    </span>errors: Errors&lt;<span class="lifetime">'sess</span>&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; NameResCollector&lt;<span class="lifetime">&#39;sess</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">fn </span>new(tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;, sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; NameResCollector&lt;<span class="lifetime">'sess</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">fn </span>new(tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;, sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ tcx, table: NameResTable::default(), opaque: <span class="prelude-val">None</span>, errors: Errors::new(sess) }
     }
 
     <span class="kw">fn </span>collect_item(
-        tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-        sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession,
-        item: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::Item,
+        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+        sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession,
+        item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::Item,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(NameResTable, <span class="prelude-ty">Option</span>&lt;ItemId&gt;)&gt; {
         <span class="kw">let </span>def_id = item.owner_id.def_id;
 
@@ -1307,9 +1314,9 @@
     }
 
     <span class="kw">fn </span>collect_impl_item(
-        tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-        sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession,
-        impl_item: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::ImplItem,
+        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+        sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession,
+        impl_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::ImplItem,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(NameResTable, <span class="prelude-ty">Option</span>&lt;ItemId&gt;)&gt; {
         <span class="kw">let </span>def_id = impl_item.owner_id.def_id;
 
@@ -1345,9 +1352,9 @@
     }
 
     <span class="kw">fn </span>collect_trait_item(
-        tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
-        sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession,
-        trait_item: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::TraitItem,
+        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+        sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession,
+        trait_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::TraitItem,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(NameResTable, <span class="prelude-ty">Option</span>&lt;ItemId&gt;)&gt; {
         <span class="kw">let </span>def_id = trait_item.owner_id.def_id;
 
@@ -1398,13 +1405,13 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;tcx</span>&gt; hir::intravisit::Visitor&lt;<span class="lifetime">&#39;tcx</span>&gt; <span class="kw">for </span>NameResCollector&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>hir::Ty&lt;<span class="lifetime">&#39;tcx</span>&gt;) {
+<span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; hir::intravisit::Visitor&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>NameResCollector&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::Ty&lt;<span class="lifetime">'tcx</span>&gt;) {
         <span class="kw">if let </span>hir::TyKind::OpaqueDef(item_id, ..) = ty.kind {
             <span class="kw">if </span><span class="self">self</span>.opaque.is_some() {
                 <span class="self">self</span>.errors.emit(errors::UnsupportedSignature::new(
                     ty.span,
-                    <span class="string">&quot;duplicate opaque types in signature&quot;</span>,
+                    <span class="string">"duplicate opaque types in signature"</span>,
                 ));
             } <span class="kw">else </span>{
                 <span class="self">self</span>.opaque = <span class="prelude-val">Some</span>(item_id);
@@ -1413,35 +1420,36 @@
         hir::intravisit::walk_ty(<span class="self">self</span>, ty);
     }
 
-    <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>hir::Path&lt;<span class="lifetime">&#39;tcx</span>&gt;, _id: hir::HirId) {
+    <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>hir::Path&lt;<span class="lifetime">'tcx</span>&gt;, _id: hir::HirId) {
         <span class="self">self</span>.table.insert_hir_path(path);
         hir::intravisit::walk_path(<span class="self">self</span>, path);
     }
 }
 
 <span class="kw">mod </span>errors {
+    <span class="kw">use </span>flux_errors::E0999;
     <span class="kw">use </span>flux_macros::Diagnostic;
     <span class="kw">use </span>flux_syntax::surface;
     <span class="kw">use </span>itertools::Itertools;
     <span class="kw">use </span>rustc_span::Span;
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(desugar_unsupported_signature, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(desugar_unsupported_signature, code = E0999)]
     #[note]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnsupportedSignature&lt;<span class="lifetime">&#39;a</span>&gt; {
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnsupportedSignature&lt;<span class="lifetime">'a</span>&gt; {
         <span class="attr">#[primary_span]
         </span>span: Span,
-        note: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str,
+        note: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
     }
 
-    <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; UnsupportedSignature&lt;<span class="lifetime">&#39;a</span>&gt; {
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, note: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>str) -&gt; <span class="self">Self </span>{
+    <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; UnsupportedSignature&lt;<span class="lifetime">'a</span>&gt; {
+        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, note: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{ span, note }
         }
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(desugar_unresolved_path, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(desugar_unresolved_path, code = E0999)]
     #[help]
     </span><span class="kw">pub struct </span>UnresolvedPath {
         <span class="attr">#[primary_span]
@@ -1453,7 +1461,7 @@
         <span class="kw">pub fn </span>new(path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{
                 span: path.span,
-                path: path.segments.iter().map(|segment| segment.ident).join(<span class="string">&quot;::&quot;</span>),
+                path: path.segments.iter().map(|segment| segment.ident).join(<span class="string">"::"</span>),
             }
         }
     }

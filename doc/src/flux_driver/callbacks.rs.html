@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-driver/src/callbacks.rs`."><title>callbacks.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_driver" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-driver/src/callbacks.rs`."><title>callbacks.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_driver" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../flux_driver/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -258,6 +260,7 @@
 <a href="#258" id="258">258</a>
 <a href="#259" id="259">259</a>
 <a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
@@ -291,10 +294,10 @@
         });
     }
 
-    <span class="kw">fn </span>after_analysis&lt;<span class="lifetime">&#39;tcx</span>&gt;(
+    <span class="kw">fn </span>after_analysis&lt;<span class="lifetime">'tcx</span>&gt;(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         compiler: <span class="kw-2">&amp;</span>Compiler,
-        queries: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>Queries&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+        queries: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>Queries&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; Compilation {
         <span class="kw">if </span><span class="self">self</span>.verify {
             <span class="self">self</span>.verify(compiler, queries);
@@ -309,20 +312,15 @@
 }
 
 <span class="kw">impl </span>FluxCallbacks {
-    <span class="kw">fn </span>verify&lt;<span class="lifetime">&#39;tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, compiler: <span class="kw-2">&amp;</span>Compiler, queries: <span class="kw-2">&amp;</span><span class="lifetime">&#39;tcx </span>Queries&lt;<span class="lifetime">&#39;tcx</span>&gt;) {
-        <span class="kw">if </span>compiler
-            .session()
-            .diagnostic()
-            .has_errors_or_lint_errors()
-            .is_some()
-        {
+    <span class="kw">fn </span>verify&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, compiler: <span class="kw-2">&amp;</span>Compiler, queries: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>Queries&lt;<span class="lifetime">'tcx</span>&gt;) {
+        <span class="kw">if </span>compiler.sess.dcx().has_errors().is_some() {
             <span class="kw">return</span>;
         }
 
         queries.global_ctxt().unwrap().enter(|tcx| {
             <span class="kw">let </span>sess = FluxSession::new(
                 <span class="kw-2">&amp;</span>tcx.sess.opts,
-                tcx.sess.parse_sess.clone_source_map(),
+                tcx.sess.psess.clone_source_map(),
                 rustc_errors::fallback_fluent_bundle(DEFAULT_LOCALE_RESOURCES.to_vec(), <span class="bool-val">false</span>),
             );
 
@@ -342,8 +340,8 @@
 }
 
 <span class="kw">fn </span>check_crate(genv: GlobalEnv) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-    <span class="macro">tracing::info_span!</span>(<span class="string">&quot;check_crate&quot;</span>).in_scope(<span class="kw">move </span>|| {
-        <span class="macro">tracing::info!</span>(<span class="string">&quot;Callbacks::check_wf&quot;</span>);
+    <span class="macro">tracing::info_span!</span>(<span class="string">"check_crate"</span>).in_scope(<span class="kw">move </span>|| {
+        <span class="macro">tracing::info!</span>(<span class="string">"Callbacks::check_wf"</span>);
 
         <span class="kw">let </span>fhir = genv.fhir_crate();
 
@@ -355,18 +353,14 @@
         <span class="kw">let </span><span class="kw-2">mut </span>ck = CrateChecker::new(genv, fhir);
 
         <span class="kw">let </span>crate_items = genv.tcx().hir_crate_items(());
-        <span class="kw">let </span>items = crate_items.items().map(|item| item.owner_id.def_id);
-        <span class="kw">let </span>impl_items = crate_items
-            .impl_items()
-            .map(|impl_item| impl_item.owner_id.def_id);
 
-        <span class="kw">let </span>result = items
-            .chain(impl_items)
+        <span class="kw">let </span>result = crate_items
+            .definitions()
             .try_for_each_exhaust(|def_id| ck.check_def(def_id));
 
         ck.cache.save().unwrap_or(());
 
-        <span class="macro">tracing::info!</span>(<span class="string">&quot;Callbacks::check_crate&quot;</span>);
+        <span class="macro">tracing::info!</span>(<span class="string">"Callbacks::check_crate"</span>);
         save_metadata(<span class="kw-2">&amp;</span>genv);
 
         result
@@ -395,15 +389,15 @@
     }
 }
 
-<span class="kw">struct </span>CrateChecker&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    fhir: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Crate&lt;<span class="lifetime">&#39;genv</span>&gt;,
+<span class="kw">struct </span>CrateChecker&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+    fhir: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;,
     cache: QueryCache,
     checker_config: CheckerConfig,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; CrateChecker&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, fhir: <span class="kw-2">&amp;</span><span class="lifetime">&#39;genv </span>fhir::Crate&lt;<span class="lifetime">&#39;genv</span>&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; CrateChecker&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, fhir: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>checker_config = CheckerConfig {
             check_overflow: fhir.crate_config.check_overflow,
             scrape_quals: fhir.crate_config.scrape_quals,
@@ -411,7 +405,7 @@
         CrateChecker { genv, fhir, cache: QueryCache::load(), checker_config }
     }
 
-    <span class="doccomment">/// `is_ignored` transitively follows the `def_id`&#39;s parent-chain to check if
+    <span class="doccomment">/// `is_ignored` transitively follows the `def_id`'s parent-chain to check if
     /// any enclosing mod has been marked as `ignore`
     </span><span class="kw">fn </span>is_ignored(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
         <span class="kw">let </span>parent_def_id = <span class="self">self
@@ -441,7 +435,17 @@
 
         <span class="kw">match </span><span class="self">self</span>.genv.def_kind(def_id) {
             DefKind::Fn | DefKind::AssocFn =&gt; {
-                refineck::check_fn(<span class="self">self</span>.genv, <span class="kw-2">&amp;mut </span><span class="self">self</span>.cache, def_id, <span class="self">self</span>.checker_config)
+                <span class="comment">// Skip trait methods without body
+                </span><span class="kw">if </span><span class="self">self
+                    </span>.genv
+                    .tcx()
+                    .hir_node_by_def_id(def_id)
+                    .body_id()
+                    .is_some()
+                {
+                    refineck::check_fn(<span class="self">self</span>.genv, <span class="kw-2">&amp;mut </span><span class="self">self</span>.cache, def_id, <span class="self">self</span>.checker_config)<span class="question-mark">?</span>;
+                }
+                <span class="prelude-val">Ok</span>(())
             }
             DefKind::Enum =&gt; {
                 <span class="kw">let </span>adt_def = <span class="self">self
@@ -488,8 +492,8 @@
 }
 
 <span class="attr">#[allow(clippy::needless_lifetimes)]
-</span><span class="kw">fn </span>mir_borrowck&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+</span><span class="kw">fn </span>mir_borrowck&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     def_id: LocalDefId,
 ) -&gt; query::queries::mir_borrowck::ProvidedValue {
     <span class="kw">let </span>body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(
@@ -503,7 +507,7 @@
             tcx,
             <span class="kw-2">&amp;</span>body_with_facts.body,
             <span class="kw-2">&amp;mut </span>|<span class="kw">_</span>, <span class="kw">_</span>| <span class="prelude-val">Ok</span>(()),
-            <span class="kw-2">&amp;mut </span>dbg::writer_for_item(tcx, def_id.to_def_id(), <span class="string">&quot;mir&quot;</span>).unwrap(),
+            <span class="kw-2">&amp;mut </span>dbg::writer_for_item(tcx, def_id.to_def_id(), <span class="string">"mir"</span>).unwrap(),
         )
         .unwrap();
     }

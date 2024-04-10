@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-macros/src/diagnostics/diagnostic.rs`."><title>diagnostic.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_macros" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-macros/src/diagnostics/diagnostic.rs`."><title>diagnostic.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_macros" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_macros/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -248,24 +250,6 @@
 <a href="#248" id="248">248</a>
 <a href="#249" id="249">249</a>
 <a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
-<a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a>
-<a href="#257" id="257">257</a>
-<a href="#258" id="258">258</a>
-<a href="#259" id="259">259</a>
-<a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
 </pre></div><pre class="rust"><code><span class="attr">#![allow(clippy::pedantic)]
 #![deny(unused_must_use)]
 
@@ -277,46 +261,35 @@
 <span class="kw">use </span>synstructure::Structure;
 
 <span class="kw">use </span><span class="kw">crate</span>::diagnostics::{
-    diagnostic_builder::{DiagnosticDeriveBuilder, DiagnosticDeriveKind},
+    diagnostic_builder::DiagnosticDeriveKind,
     error::{span_err, DiagnosticDeriveError},
     utils::SetOnce,
 };
 
-<span class="doccomment">/// The central struct for constructing the `into_diagnostic` method from an annotated struct.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>DiagnosticDerive&lt;<span class="lifetime">&#39;a</span>&gt; {
-    structure: Structure&lt;<span class="lifetime">&#39;a</span>&gt;,
-    builder: DiagnosticDeriveBuilder,
+<span class="doccomment">/// The central struct for constructing the `into_diag` method from an annotated struct.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>DiagnosticDerive&lt;<span class="lifetime">'a</span>&gt; {
+    structure: Structure&lt;<span class="lifetime">'a</span>&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; DiagnosticDerive&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(diag: syn::Ident, handler: syn::Ident, structure: Structure&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            builder: DiagnosticDeriveBuilder {
-                diag,
-                kind: DiagnosticDeriveKind::Diagnostic { handler },
-            },
-            structure,
-        }
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; DiagnosticDerive&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(structure: Structure&lt;<span class="lifetime">'a</span>&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ structure }
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_tokens(<span class="self">self</span>) -&gt; TokenStream {
-        <span class="kw">let </span>DiagnosticDerive { <span class="kw-2">mut </span>structure, <span class="kw-2">mut </span>builder } = <span class="self">self</span>;
-
+        <span class="kw">let </span>DiagnosticDerive { <span class="kw-2">mut </span>structure } = <span class="self">self</span>;
+        <span class="kw">let </span>kind = DiagnosticDeriveKind::Diagnostic;
         <span class="kw">let </span>slugs = RefCell::new(Vec::new());
-        <span class="kw">let </span>implementation = builder.each_variant(<span class="kw-2">&amp;mut </span>structure, |<span class="kw-2">mut </span>builder, variant| {
+        <span class="kw">let </span>implementation = kind.each_variant(<span class="kw-2">&amp;mut </span>structure, |<span class="kw-2">mut </span>builder, variant| {
             <span class="kw">let </span>preamble = builder.preamble(variant);
             <span class="kw">let </span>body = builder.body(variant);
 
-            <span class="kw">let </span>diag = <span class="kw-2">&amp;</span>builder.parent.diag;
-            <span class="kw">let </span>DiagnosticDeriveKind::Diagnostic { handler } = <span class="kw-2">&amp;</span>builder.parent.kind <span class="kw">else </span>{
-                <span class="macro">unreachable!</span>()
-            };
             <span class="kw">let </span>init = <span class="kw">match </span>builder.slug.value_ref() {
                 <span class="prelude-val">None </span>=&gt; {
-                    span_err(builder.span, <span class="string">&quot;diagnostic slug not specified&quot;</span>)
+                    span_err(builder.span, <span class="string">"diagnostic slug not specified"</span>)
                         .help(
-                            <span class="string">&quot;specify the slug as the first argument to the `#[diag(...)]` \
-                            attribute, such as `#[diag(hir_analysis_example_error)]`&quot;</span>,
+                            <span class="string">"specify the slug as the first argument to the `#[diag(...)]` \
+                            attribute, such as `#[diag(hir_analysis_example_error)]`"</span>,
                         )
                         .emit();
                     <span class="kw">return </span>DiagnosticDeriveError::ErrorHandled.to_compile_error();
@@ -325,45 +298,45 @@
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(Mismatch { slug_name, crate_name, slug_prefix }) =
                         Mismatch::check(slug) =&gt;
                 {
-                    span_err(slug.span().unwrap(), <span class="string">&quot;diagnostic slug and crate name do not match&quot;</span>)
-                        .note(<span class="macro">format!</span>(<span class="string">&quot;slug is `{slug_name}` but the crate name is `{crate_name}`&quot;</span>))
-                        .help(<span class="macro">format!</span>(<span class="string">&quot;expected a slug starting with `{slug_prefix}_...`&quot;</span>))
+                    span_err(slug.span().unwrap(), <span class="string">"diagnostic slug and crate name do not match"</span>)
+                        .note(<span class="macro">format!</span>(<span class="string">"slug is `{slug_name}` but the crate name is `{crate_name}`"</span>))
+                        .help(<span class="macro">format!</span>(<span class="string">"expected a slug starting with `{slug_prefix}_...`"</span>))
                         .emit();
                     <span class="kw">return </span>DiagnosticDeriveError::ErrorHandled.to_compile_error();
                 }
                 <span class="prelude-val">Some</span>(slug) =&gt; {
                     slugs.borrow_mut().push(slug.clone());
-                    <span class="macro">quote! </span>{
-                        <span class="kw">let </span><span class="kw-2">mut </span>#diag = #handler.struct_diagnostic(<span class="kw">crate</span>::fluent_generated::#slug);
+                    <span class="macro">quote!</span> {
+                        <span class="kw">let </span><span class="kw-2">mut </span>diag = rustc_errors::Diag::new(
+                            dcx,
+                            level,
+                            <span class="kw">crate</span>::fluent_generated::#slug
+                        );
                     }
                 }
             };
 
             <span class="kw">let </span>formatting_init = <span class="kw-2">&amp;</span>builder.formatting_init;
-            <span class="macro">quote! </span>{
+            <span class="macro">quote!</span> {
                 #init
                 #formatting_init
                 #preamble
                 #body
-                #diag
+                diag
             }
         });
 
-        <span class="kw">let </span>DiagnosticDeriveKind::Diagnostic { handler } = <span class="kw-2">&amp;</span>builder.kind <span class="kw">else </span>{ <span class="macro">unreachable!</span>() };
-
-        <span class="kw">let </span><span class="kw-2">mut </span>imp = structure.gen_impl(<span class="macro">quote! </span>{
-            gen <span class="kw">impl</span>&lt;<span class="lifetime">&#39;__diagnostic_handler_sess</span>, G&gt;
-                    rustc_errors::IntoDiagnostic&lt;<span class="lifetime">&#39;__diagnostic_handler_sess</span>, G&gt;
-                    <span class="kw">for </span>@<span class="self">Self
+        <span class="comment">// A lifetime of `'a` causes conflicts, but `_sess` is fine.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>imp = structure.gen_impl(<span class="macro">quote!</span> {
+            gen <span class="kw">impl</span>&lt;<span class="lifetime">'_sess</span>, G&gt; rustc_errors::Diagnostic&lt;<span class="lifetime">'_sess</span>, G&gt; <span class="kw">for </span>@<span class="self">Self
                 </span><span class="kw">where </span>G: rustc_errors::EmissionGuarantee
             {
-
                 <span class="attr">#[track_caller]
-                </span><span class="kw">fn </span>into_diagnostic(
+                </span><span class="kw">fn </span>into_diag(
                     <span class="self">self</span>,
-                    #handler: <span class="kw-2">&amp;</span><span class="lifetime">&#39;__diagnostic_handler_sess </span>rustc_errors::Handler
-                ) -&gt; rustc_errors::DiagnosticBuilder&lt;<span class="lifetime">&#39;__diagnostic_handler_sess</span>, G&gt; {
-                    <span class="kw">use </span>rustc_errors::IntoDiagnosticArg;
+                    dcx: <span class="kw-2">&amp;</span><span class="lifetime">'_sess </span>rustc_errors::DiagCtxt,
+                    level: rustc_errors::Level
+                ) -&gt; rustc_errors::Diag&lt;<span class="lifetime">'_sess</span>, G&gt; {
                     #implementation
                 }
             }
@@ -376,47 +349,42 @@
 }
 
 <span class="doccomment">/// The central struct for constructing the `decorate_lint` method from an annotated struct.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>LintDiagnosticDerive&lt;<span class="lifetime">&#39;a</span>&gt; {
-    structure: Structure&lt;<span class="lifetime">&#39;a</span>&gt;,
-    builder: DiagnosticDeriveBuilder,
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>LintDiagnosticDerive&lt;<span class="lifetime">'a</span>&gt; {
+    structure: Structure&lt;<span class="lifetime">'a</span>&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; LintDiagnosticDerive&lt;<span class="lifetime">&#39;a</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(diag: syn::Ident, structure: Structure&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            builder: DiagnosticDeriveBuilder { diag, kind: DiagnosticDeriveKind::LintDiagnostic },
-            structure,
-        }
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; LintDiagnosticDerive&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(structure: Structure&lt;<span class="lifetime">'a</span>&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ structure }
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_tokens(<span class="self">self</span>) -&gt; TokenStream {
-        <span class="kw">let </span>LintDiagnosticDerive { <span class="kw-2">mut </span>structure, <span class="kw-2">mut </span>builder } = <span class="self">self</span>;
-
-        <span class="kw">let </span>implementation = builder.each_variant(<span class="kw-2">&amp;mut </span>structure, |<span class="kw-2">mut </span>builder, variant| {
+        <span class="kw">let </span>LintDiagnosticDerive { <span class="kw-2">mut </span>structure } = <span class="self">self</span>;
+        <span class="kw">let </span>kind = DiagnosticDeriveKind::LintDiagnostic;
+        <span class="kw">let </span>implementation = kind.each_variant(<span class="kw-2">&amp;mut </span>structure, |<span class="kw-2">mut </span>builder, variant| {
             <span class="kw">let </span>preamble = builder.preamble(variant);
             <span class="kw">let </span>body = builder.body(variant);
 
-            <span class="kw">let </span>diag = <span class="kw-2">&amp;</span>builder.parent.diag;
             <span class="kw">let </span>formatting_init = <span class="kw-2">&amp;</span>builder.formatting_init;
-            <span class="macro">quote! </span>{
+            <span class="macro">quote!</span> {
                 #preamble
                 #formatting_init
                 #body
-                #diag
+                diag
             }
         });
 
         <span class="kw">let </span>slugs = RefCell::new(Vec::new());
-        <span class="kw">let </span>msg = builder.each_variant(<span class="kw-2">&amp;mut </span>structure, |<span class="kw-2">mut </span>builder, variant| {
+        <span class="kw">let </span>msg = kind.each_variant(<span class="kw-2">&amp;mut </span>structure, |<span class="kw-2">mut </span>builder, variant| {
             <span class="comment">// Collect the slug by generating the preamble.
             </span><span class="kw">let _ </span>= builder.preamble(variant);
 
             <span class="kw">match </span>builder.slug.value_ref() {
                 <span class="prelude-val">None </span>=&gt; {
-                    span_err(builder.span, <span class="string">&quot;diagnostic slug not specified&quot;</span>)
+                    span_err(builder.span, <span class="string">"diagnostic slug not specified"</span>)
                         .help(
-                            <span class="string">&quot;specify the slug as the first argument to the attribute, such as \
-                            `#[diag(compiletest_example)]`&quot;</span>,
+                            <span class="string">"specify the slug as the first argument to the attribute, such as \
+                            `#[diag(compiletest_example)]`"</span>,
                         )
                         .emit();
                     DiagnosticDeriveError::ErrorHandled.to_compile_error()
@@ -425,34 +393,32 @@
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(Mismatch { slug_name, crate_name, slug_prefix }) =
                         Mismatch::check(slug) =&gt;
                 {
-                    span_err(slug.span().unwrap(), <span class="string">&quot;diagnostic slug and crate name do not match&quot;</span>)
-                        .note(<span class="macro">format!</span>(<span class="string">&quot;slug is `{slug_name}` but the crate name is `{crate_name}`&quot;</span>))
-                        .help(<span class="macro">format!</span>(<span class="string">&quot;expected a slug starting with `{slug_prefix}_...`&quot;</span>))
+                    span_err(slug.span().unwrap(), <span class="string">"diagnostic slug and crate name do not match"</span>)
+                        .note(<span class="macro">format!</span>(<span class="string">"slug is `{slug_name}` but the crate name is `{crate_name}`"</span>))
+                        .help(<span class="macro">format!</span>(<span class="string">"expected a slug starting with `{slug_prefix}_...`"</span>))
                         .emit();
                     DiagnosticDeriveError::ErrorHandled.to_compile_error()
                 }
                 <span class="prelude-val">Some</span>(slug) =&gt; {
                     slugs.borrow_mut().push(slug.clone());
-                    <span class="macro">quote! </span>{
+                    <span class="macro">quote!</span> {
                         <span class="kw">crate</span>::fluent_generated::#slug.into()
                     }
                 }
             }
         });
 
-        <span class="kw">let </span>diag = <span class="kw-2">&amp;</span>builder.diag;
-        <span class="kw">let </span><span class="kw-2">mut </span>imp = structure.gen_impl(<span class="macro">quote! </span>{
-            gen <span class="kw">impl</span>&lt;<span class="lifetime">&#39;__a</span>&gt; rustc_errors::DecorateLint&lt;<span class="lifetime">&#39;__a</span>, ()&gt; <span class="kw">for </span>@<span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>imp = structure.gen_impl(<span class="macro">quote!</span> {
+            gen <span class="kw">impl</span>&lt;<span class="lifetime">'__a</span>&gt; rustc_errors::LintDiagnostic&lt;<span class="lifetime">'__a</span>, ()&gt; <span class="kw">for </span>@<span class="self">Self </span>{
                 <span class="attr">#[track_caller]
-                </span><span class="kw">fn </span>decorate_lint&lt;<span class="lifetime">&#39;__b</span>&gt;(
+                </span><span class="kw">fn </span>decorate_lint&lt;<span class="lifetime">'__b</span>&gt;(
                     <span class="self">self</span>,
-                    #diag: <span class="kw-2">&amp;</span><span class="lifetime">&#39;__b </span><span class="kw-2">mut </span>rustc_errors::DiagnosticBuilder&lt;<span class="lifetime">&#39;__a</span>, ()&gt;
-                ) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;__b </span><span class="kw-2">mut </span>rustc_errors::DiagnosticBuilder&lt;<span class="lifetime">&#39;__a</span>, ()&gt; {
-                    <span class="kw">use </span>rustc_errors::IntoDiagnosticArg;
-                    #implementation
+                    diag: <span class="kw-2">&amp;</span><span class="lifetime">'__b </span><span class="kw-2">mut </span>rustc_errors::Diag&lt;<span class="lifetime">'__a</span>, ()&gt;
+                ) {
+                    #implementation;
                 }
 
-                <span class="kw">fn </span>msg(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; rustc_errors::DiagnosticMessage {
+                <span class="kw">fn </span>msg(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; rustc_errors::DiagMessage {
                     #msg
                 }
             }
@@ -472,13 +438,13 @@
 }
 
 <span class="kw">impl </span>Mismatch {
-    <span class="doccomment">/// Checks whether the slug starts with the crate name it&#39;s in.
+    <span class="doccomment">/// Checks whether the slug starts with the crate name it's in.
     </span><span class="kw">fn </span>check(slug: <span class="kw-2">&amp;</span>syn::Path) -&gt; <span class="prelude-ty">Option</span>&lt;Mismatch&gt; {
-        <span class="comment">// If this is missing we&#39;re probably in a test, so bail.
-        </span><span class="kw">let </span>crate_name = std::env::var(<span class="string">&quot;CARGO_CRATE_NAME&quot;</span>).ok()<span class="question-mark">?</span>;
+        <span class="comment">// If this is missing we're probably in a test, so bail.
+        </span><span class="kw">let </span>crate_name = std::env::var(<span class="string">"CARGO_CRATE_NAME"</span>).ok()<span class="question-mark">?</span>;
 
-        <span class="comment">// If we&#39;re not in a &quot;rustc_&quot; crate, bail.
-        </span><span class="kw">let </span><span class="prelude-val">Some</span>((<span class="string">&quot;rustc&quot;</span>, slug_prefix)) = crate_name.split_once(<span class="string">&#39;_&#39;</span>) <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">None </span>};
+        <span class="comment">// If we're not in a "rustc_" crate, bail.
+        </span><span class="kw">let </span><span class="prelude-val">Some</span>((<span class="string">"rustc"</span>, slug_prefix)) = crate_name.split_once(<span class="string">'_'</span>) <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">None </span>};
 
         <span class="kw">let </span>slug_name = slug.segments.first()<span class="question-mark">?</span>.ident.to_string();
         <span class="kw">if </span>!slug_name.starts_with(slug_prefix) {
@@ -491,26 +457,26 @@
 
 <span class="doccomment">/// Generates a `#[test]` that verifies that all referenced variables
 /// exist on this structure.
-</span><span class="kw">fn </span>generate_test(slug: <span class="kw-2">&amp;</span>syn::Path, structure: <span class="kw-2">&amp;</span>Structure&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; TokenStream {
-    <span class="comment">// FIXME: We can&#39;t identify variables in a subdiagnostic
+</span><span class="kw">fn </span>generate_test(slug: <span class="kw-2">&amp;</span>syn::Path, structure: <span class="kw-2">&amp;</span>Structure&lt;<span class="lifetime">'_</span>&gt;) -&gt; TokenStream {
+    <span class="comment">// FIXME: We can't identify variables in a subdiagnostic
     </span><span class="kw">for </span>field <span class="kw">in </span>structure
         .variants()
         .iter()
         .flat_map(|v| v.ast().fields.iter())
     {
         <span class="kw">for </span>attr_name <span class="kw">in </span>field.attrs.iter().filter_map(|at| at.path().get_ident()) {
-            <span class="kw">if </span>attr_name == <span class="string">&quot;subdiagnostic&quot; </span>{
+            <span class="kw">if </span>attr_name == <span class="string">"subdiagnostic" </span>{
                 <span class="kw">return </span><span class="macro">quote!</span>();
             }
         }
     }
     <span class="kw">use </span>std::sync::atomic::{AtomicUsize, Ordering};
-    <span class="comment">// We need to make sure that the same diagnostic slug can be used multiple times without causing an
-    // error, so just have a global counter here.
+    <span class="comment">// We need to make sure that the same diagnostic slug can be used multiple times without
+    // causing an error, so just have a global counter here.
     </span><span class="kw">static </span>COUNTER: AtomicUsize = AtomicUsize::new(<span class="number">0</span>);
     <span class="kw">let </span>slug = slug.get_ident().unwrap();
-    <span class="kw">let </span>ident = <span class="macro">quote::format_ident!</span>(<span class="string">&quot;verify_{slug}_{}&quot;</span>, COUNTER.fetch_add(<span class="number">1</span>, Ordering::Relaxed));
-    <span class="kw">let </span>ref_slug = <span class="macro">quote::format_ident!</span>(<span class="string">&quot;{slug}_refs&quot;</span>);
+    <span class="kw">let </span>ident = <span class="macro">quote::format_ident!</span>(<span class="string">"verify_{slug}_{}"</span>, COUNTER.fetch_add(<span class="number">1</span>, Ordering::Relaxed));
+    <span class="kw">let </span>ref_slug = <span class="macro">quote::format_ident!</span>(<span class="string">"{slug}_refs"</span>);
     <span class="kw">let </span>struct_name = <span class="kw-2">&amp;</span>structure.ast().ident;
     <span class="kw">let </span>variables: Vec&lt;<span class="kw">_</span>&gt; = structure
         .variants()
@@ -523,13 +489,13 @@
         })
         .collect();
     <span class="comment">// tidy errors on `#[test]` outside of test files, so we use `#[test ]` to work around this
-    </span><span class="macro">quote! </span>{
+    </span><span class="macro">quote!</span> {
         <span class="attr">#[cfg(test)]
         #[test ]
         </span><span class="kw">fn </span>#ident() {
             <span class="kw">let </span>variables = [#(#variables),<span class="kw-2">*</span>];
             <span class="kw">for </span>vref <span class="kw">in </span><span class="kw">crate</span>::fluent_generated::#ref_slug {
-                <span class="macro">assert!</span>(variables.contains(vref), <span class="string">&quot;{}: variable `{vref}` not found ({})&quot;</span>, <span class="macro">stringify!</span>(#struct_name), <span class="macro">stringify!</span>(#slug));
+                <span class="macro">assert!</span>(variables.contains(vref), <span class="string">"{}: variable `{vref}` not found ({})"</span>, <span class="macro">stringify!</span>(#struct_name), <span class="macro">stringify!</span>(#slug));
             }
         }
     }

@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/annot_check.rs`."><title>annot_check.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/annot_check.rs`."><title>annot_check.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../flux_fhir_analysis/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -592,10 +594,11 @@
 <a href="#592" id="592">592</a>
 <a href="#593" id="593">593</a>
 <a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check if an [`fhir`] annotation is a valid refinement of the corresponding rust declaration.
 //!
 //! To check if an [`fhir`] is valid, we first [`lift`] the `hir` declaration into [`fhir`] and then
-//! &quot;zip&quot; them together.
+//! "zip" them together.
 //!
 //! [`lift`]: flux_middle::fhir::lift
 //! [`fhir`]: flux_middle::fhir
@@ -613,12 +616,12 @@
     rty::WfckResults,
 };
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_errors::IntoDiagnostic;
+<span class="kw">use </span>rustc_errors::Diagnostic;
 <span class="kw">use </span>rustc_hir::OwnerId;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_node&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_node&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
     node: <span class="kw-2">&amp;</span>fhir::Node,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">match </span>node {
@@ -628,9 +631,9 @@
     }
 }
 
-<span class="kw">fn </span>check_item&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+<span class="kw">fn </span>check_item&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
     item: <span class="kw-2">&amp;</span>fhir::Item,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
@@ -648,9 +651,9 @@
     }
 }
 
-<span class="kw">fn </span>check_trait_item&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+<span class="kw">fn </span>check_trait_item&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
     trait_item: <span class="kw-2">&amp;</span>fhir::TraitItem,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">match </span><span class="kw-2">&amp;</span>trait_item.kind {
@@ -661,9 +664,9 @@
     }
 }
 
-<span class="kw">fn </span>check_impl_item&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+<span class="kw">fn </span>check_impl_item&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
     impl_item: <span class="kw-2">&amp;</span>fhir::ImplItem,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">match </span><span class="kw-2">&amp;</span>impl_item.kind {
@@ -674,9 +677,9 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_fn_sig&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_fn_sig&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
     owner_id: OwnerId,
     fn_sig: <span class="kw-2">&amp;</span>fhir::FnSig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
@@ -688,9 +691,9 @@
     Zipper::new(genv, wfckresults, self_ty).zip_fn_decl(fn_sig.decl, expected_fn_decl)
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_ty_alias&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_ty_alias&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
     owner_id: OwnerId,
     ty_alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
@@ -701,9 +704,9 @@
     Zipper::new(genv, wfckresults, <span class="prelude-val">None</span>).zip_ty(<span class="kw-2">&amp;</span>ty_alias.ty, <span class="kw-2">&amp;</span>expected_ty_alias.ty)
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_struct_def&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_struct_def&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
     owner_id: OwnerId,
     struct_def: <span class="kw-2">&amp;</span>fhir::StructDef,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
@@ -724,9 +727,9 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_enum_def&lt;<span class="lifetime">&#39;genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_enum_def&lt;<span class="lifetime">'genv</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
     owner_id: OwnerId,
     enum_def: <span class="kw-2">&amp;</span>fhir::EnumDef,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
@@ -742,20 +745,20 @@
     })
 }
 
-<span class="kw">struct </span>Zipper&lt;<span class="lifetime">&#39;zip</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span><span class="kw-2">mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
-    locs: LocsMap&lt;<span class="lifetime">&#39;genv</span>&gt;,
-    self_ty: <span class="prelude-ty">Option</span>&lt;fhir::Ty&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;,
+<span class="kw">struct </span>Zipper&lt;<span class="lifetime">'zip</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+    wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">'zip </span><span class="kw-2">mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
+    locs: LocsMap&lt;<span class="lifetime">'genv</span>&gt;,
+    self_ty: <span class="prelude-ty">Option</span>&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt;,
 }
 
-<span class="kw">type </span>LocsMap&lt;<span class="lifetime">&#39;genv</span>&gt; = UnordMap&lt;fhir::ParamId, fhir::Ty&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;;
+<span class="kw">type </span>LocsMap&lt;<span class="lifetime">'genv</span>&gt; = UnordMap&lt;fhir::ParamId, fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt;;
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;zip</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; Zipper&lt;<span class="lifetime">&#39;zip</span>, <span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'zip</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Zipper&lt;<span class="lifetime">'zip</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">fn </span>new(
-        genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
-        wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">&#39;zip </span><span class="kw-2">mut </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt;,
-        self_ty: <span class="prelude-ty">Option</span>&lt;fhir::Ty&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;,
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+        wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">'zip </span><span class="kw-2">mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
+        self_ty: <span class="prelude-ty">Option</span>&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ genv, wfckresults, locs: LocsMap::default(), self_ty }
     }
@@ -763,7 +766,7 @@
     <span class="kw">fn </span>zip_enum_variant(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         variant: <span class="kw-2">&amp;</span>fhir::VariantDef,
-        expected_variant: <span class="kw-2">&amp;</span>fhir::VariantDef&lt;<span class="lifetime">&#39;genv</span>&gt;,
+        expected_variant: <span class="kw-2">&amp;</span>fhir::VariantDef&lt;<span class="lifetime">'genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">if </span>variant.fields.len() != expected_variant.fields.len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(
@@ -780,7 +783,7 @@
     <span class="kw">fn </span>zip_fn_decl(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         fn_decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
-        expected_fn_sig: <span class="kw-2">&amp;</span>fhir::FnDecl&lt;<span class="lifetime">&#39;genv</span>&gt;,
+        expected_fn_sig: <span class="kw-2">&amp;</span>fhir::FnDecl&lt;<span class="lifetime">'genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">if </span>fn_decl.args.len() != expected_fn_sig.args.len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::FunArgCountMismatch::new(fn_decl, expected_fn_sig)));
@@ -796,7 +799,7 @@
         constrs.iter().try_for_each_exhaust(|constr| {
             <span class="kw">if let </span>fhir::Constraint::Type(loc, ty) = constr {
                 <span class="kw">let </span>ExprRes::Param(<span class="kw">_</span>, id) = loc.res <span class="kw">else </span>{
-                    <span class="macro">span_bug!</span>(loc.span, <span class="string">&quot;unexpected path in loc position&quot;</span>)
+                    <span class="macro">span_bug!</span>(loc.span, <span class="string">"unexpected path in loc position"</span>)
                 };
                 <span class="kw">let </span>expected_ty = <span class="self">self</span>.locs[<span class="kw-2">&amp;</span>id];
                 <span class="self">self</span>.zip_ty(ty, <span class="kw-2">&amp;</span>expected_ty)
@@ -809,7 +812,7 @@
     <span class="kw">fn </span>zip_tys(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         tys: <span class="kw-2">&amp;</span>[fhir::Ty],
-        expected_tys: <span class="kw-2">&amp;</span>[fhir::Ty&lt;<span class="lifetime">&#39;genv</span>&gt;],
+        expected_tys: <span class="kw-2">&amp;</span>[fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         iter::zip(tys, expected_tys)
             .try_for_each_exhaust(|(ty, expected)| <span class="self">self</span>.zip_ty(ty, expected))
@@ -818,7 +821,7 @@
     <span class="kw">fn </span>zip_ty(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         ty: <span class="kw-2">&amp;</span>fhir::Ty,
-        expected_ty: <span class="kw-2">&amp;</span>fhir::Ty&lt;<span class="lifetime">&#39;genv</span>&gt;,
+        expected_ty: <span class="kw-2">&amp;</span>fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">match </span>(ty.kind, expected_ty.kind) {
             (fhir::TyKind::Constr(<span class="kw">_</span>, ty) | fhir::TyKind::Exists(.., ty), <span class="kw">_</span>) =&gt; {
@@ -831,7 +834,7 @@
             (fhir::TyKind::Ptr(lft, loc), fhir::TyKind::Ref(expected_lft, expected_mut_ty)) =&gt; {
                 <span class="kw">if </span>expected_mut_ty.mutbl.is_mut() {
                     <span class="kw">let </span>ExprRes::Param(<span class="kw">_</span>, id) = loc.res <span class="kw">else </span>{
-                        <span class="macro">span_bug!</span>(loc.span, <span class="string">&quot;unexpected path in loc position&quot;</span>)
+                        <span class="macro">span_bug!</span>(loc.span, <span class="string">"unexpected path in loc position"</span>)
                     };
                     <span class="self">self</span>.zip_lifetime(lft, expected_lft);
                     <span class="self">self</span>.locs.insert(id, <span class="kw-2">*</span>expected_mut_ty.ty);
@@ -839,7 +842,7 @@
                 } <span class="kw">else </span>{
                     <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(
                         errors::InvalidRefinement::from_tys(ty, expected_ty).with_note(
-                            <span class="string">&quot;only mutable reference can be refined with a strong reference&quot;</span>,
+                            <span class="string">"only mutable reference can be refined with a strong reference"</span>,
                         ),
                     ))
                 }
@@ -848,7 +851,7 @@
                 <span class="kw">if </span>mut_ty.mutbl != expected_mut_ty.mutbl {
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(
                         errors::InvalidRefinement::from_tys(ty, expected_ty)
-                            .with_note(<span class="string">&quot;types differ in mutability&quot;</span>),
+                            .with_note(<span class="string">"types differ in mutability"</span>),
                     ));
                 }
                 <span class="self">self</span>.zip_lifetime(lft, expected_lft);
@@ -858,7 +861,7 @@
                 <span class="kw">if </span>tys.len() != expected_tys.len() {
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(
                         errors::InvalidRefinement::from_tys(ty, expected_ty)
-                            .with_note(<span class="string">&quot;tuples have different length&quot;</span>),
+                            .with_note(<span class="string">"tuples have different length"</span>),
                     ));
                 }
                 <span class="self">self</span>.zip_tys(tys, expected_tys)
@@ -876,7 +879,7 @@
                 <span class="kw">if </span>mutbl != expected_mutbl {
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(
                         errors::InvalidRefinement::from_tys(ty, expected_ty)
-                            .with_note(<span class="string">&quot;types differ in mutability&quot;</span>),
+                            .with_note(<span class="string">"types differ in mutability"</span>),
                     ));
                 }
                 <span class="self">self</span>.zip_ty(ty, expected_ty)
@@ -895,13 +898,13 @@
                 <span class="kw">if </span>item_id != exp_item_id {
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(
                         errors::InvalidRefinement::from_tys(ty, expected_ty)
-                            .with_note(<span class="string">&quot;impl trait: types differ in impl id!&quot;</span>),
+                            .with_note(<span class="string">"impl trait: types differ in impl id!"</span>),
                     ));
                 }
                 <span class="kw">if </span>args.len() != exp_args.len() {
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(
                         errors::InvalidRefinement::from_tys(ty, expected_ty)
-                            .with_note(<span class="string">&quot;impl trait: types differ in number of args!&quot;</span>),
+                            .with_note(<span class="string">"impl trait: types differ in number of args!"</span>),
                     ));
                 }
                 <span class="kw">for </span>(arg, exp_arg) <span class="kw">in </span>args.iter().zip(exp_args) {
@@ -917,7 +920,7 @@
     <span class="kw">fn </span>zip_generic_arg(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         arg1: <span class="kw-2">&amp;</span>fhir::GenericArg,
-        arg2: <span class="kw-2">&amp;</span>fhir::GenericArg&lt;<span class="lifetime">&#39;genv</span>&gt;,
+        arg2: <span class="kw-2">&amp;</span>fhir::GenericArg&lt;<span class="lifetime">'genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">match </span>(arg1, arg2) {
             (fhir::GenericArg::Type(ty1), fhir::GenericArg::Type(ty2)) =&gt; <span class="self">self</span>.zip_ty(ty1, ty2),
@@ -939,7 +942,7 @@
                 <span class="self">self</span>.wfckresults.lifetime_holes_mut().insert(fhir_id, res);
             }
             fhir::Lifetime::Hole(<span class="kw">_</span>) =&gt; {
-                <span class="macro">bug!</span>(<span class="string">&quot;unexpected hole in lifted lifetime&quot;</span>);
+                <span class="macro">bug!</span>(<span class="string">"unexpected hole in lifted lifetime"</span>);
             }
         }
     }
@@ -947,7 +950,7 @@
     <span class="kw">fn </span>zip_bty(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         bty: <span class="kw-2">&amp;</span>fhir::BaseTy,
-        expected_bty: <span class="kw-2">&amp;</span>fhir::BaseTy&lt;<span class="lifetime">&#39;genv</span>&gt;,
+        expected_bty: <span class="kw-2">&amp;</span>fhir::BaseTy&lt;<span class="lifetime">'genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">match </span>(bty.kind, expected_bty.kind) {
             (fhir::BaseTyKind::Path(qpath), fhir::BaseTyKind::Path(expected_qpath)) =&gt; {
@@ -963,7 +966,7 @@
     <span class="kw">fn </span>zip_qpath(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         qpath: <span class="kw-2">&amp;</span>fhir::QPath,
-        expected_qpath: <span class="kw-2">&amp;</span>fhir::QPath&lt;<span class="lifetime">&#39;genv</span>&gt;,
+        expected_qpath: <span class="kw-2">&amp;</span>fhir::QPath&lt;<span class="lifetime">'genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">match </span>(qpath, expected_qpath) {
             (fhir::QPath::Resolved(<span class="prelude-val">None</span>, path), fhir::QPath::Resolved(<span class="prelude-val">None</span>, expected_path)) =&gt; {
@@ -998,7 +1001,7 @@
     <span class="kw">fn </span>zip_path(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         path: <span class="kw-2">&amp;</span>fhir::Path,
-        expected_path: <span class="kw-2">&amp;</span>fhir::Path&lt;<span class="lifetime">&#39;genv</span>&gt;,
+        expected_path: <span class="kw-2">&amp;</span>fhir::Path&lt;<span class="lifetime">'genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
         <span class="kw">if </span>!<span class="self">self</span>.is_same_res(path.res, expected_path.res) {
             <span class="kw">if let </span>fhir::Res::SelfTyAlias { .. } = expected_path.res
@@ -1019,18 +1022,19 @@
     }
 
     <span class="attr">#[track_caller]
-    </span><span class="kw">fn </span>emit_err&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, err: <span class="kw">impl </span>IntoDiagnostic&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; ErrorGuaranteed {
+    </span><span class="kw">fn </span>emit_err&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, err: <span class="kw">impl </span>Diagnostic&lt;<span class="lifetime">'a</span>&gt;) -&gt; ErrorGuaranteed {
         <span class="self">self</span>.genv.sess().emit_err(err)
     }
 }
 
 <span class="kw">mod </span>errors {
+    <span class="kw">use </span>flux_errors::E0999;
     <span class="kw">use </span>flux_macros::Diagnostic;
     <span class="kw">use </span>flux_middle::fhir;
     <span class="kw">use </span>rustc_span::Span;
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_refinement, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(fhir_analysis_invalid_refinement, code = E0999)]
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InvalidRefinement {
         <span class="attr">#[primary_span]
         #[label]
@@ -1048,7 +1052,7 @@
             <span class="self">Self </span>{
                 span: ty.span,
                 expected_span: expected_ty.span,
-                expected_ty: <span class="macro">format!</span>(<span class="string">&quot;{expected_ty:?}&quot;</span>),
+                expected_ty: <span class="macro">format!</span>(<span class="string">"{expected_ty:?}"</span>),
                 has_note: <span class="prelude-val">None</span>,
                 note: String::new(),
             }
@@ -1058,7 +1062,7 @@
             <span class="self">Self </span>{
                 span: path.span,
                 expected_span: expected_path.span,
-                expected_ty: <span class="macro">format!</span>(<span class="string">&quot;{expected_path:?}&quot;</span>),
+                expected_ty: <span class="macro">format!</span>(<span class="string">"{expected_path:?}"</span>),
                 has_note: <span class="prelude-val">None</span>,
                 note: String::new(),
             }
@@ -1068,7 +1072,7 @@
             <span class="self">Self </span>{
                 span: bty.span,
                 expected_span: expected_bty.span,
-                expected_ty: <span class="macro">format!</span>(<span class="string">&quot;{expected_bty:?}&quot;</span>),
+                expected_ty: <span class="macro">format!</span>(<span class="string">"{expected_bty:?}"</span>),
                 has_note: <span class="prelude-val">None</span>,
                 note: String::new(),
             }
@@ -1078,7 +1082,7 @@
             <span class="self">Self </span>{
                 span: qpath.span(),
                 expected_span: expected_qpath.span(),
-                expected_ty: <span class="macro">format!</span>(<span class="string">&quot;{expected_qpath:?}&quot;</span>),
+                expected_ty: <span class="macro">format!</span>(<span class="string">"{expected_qpath:?}"</span>),
                 has_note: <span class="prelude-val">None</span>,
                 note: String::new(),
             }
@@ -1090,7 +1094,7 @@
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(fhir_analysis_fun_arg_count_mismatch, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(fhir_analysis_fun_arg_count_mismatch, code = E0999)]
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>FunArgCountMismatch {
         <span class="attr">#[primary_span]
         #[label]
@@ -1113,14 +1117,14 @@
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(fhir_analysis_generic_argument_count_mismatch, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(fhir_analysis_generic_argument_count_mismatch, code = E0999)]
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>GenericArgCountMismatch {
         <span class="attr">#[primary_span]
         #[label]
         </span>span: Span,
         found: usize,
         expected: usize,
-        def_descr: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+        def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
         <span class="attr">#[label(fhir_analysis_expected_label)]
         </span>expected_span: Span,
     }
@@ -1138,7 +1142,7 @@
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(fhir_analysis_array_len_mismatch, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(fhir_analysis_array_len_mismatch, code = E0999)]
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>ArrayLenMismatch {
         <span class="attr">#[primary_span]
         #[label]
@@ -1161,7 +1165,7 @@
     }
 
     <span class="attr">#[derive(Diagnostic)]
-    #[diag(fhir_analysis_field_count_mismatch, code = <span class="string">&quot;FLUX&quot;</span>)]
+    #[diag(fhir_analysis_field_count_mismatch, code = E0999)]
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>FieldCountMismatch {
         <span class="attr">#[primary_span]
         #[label]

@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-errors/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_errors" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-errors/src/lib.rs`."><title>lib.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_errors" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../flux_errors/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -174,6 +176,7 @@
 <a href="#174" id="174">174</a>
 <a href="#175" id="175">175</a>
 <a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_data_structures;
@@ -181,17 +184,17 @@
 <span class="kw">extern crate </span>rustc_session;
 <span class="kw">extern crate </span>rustc_span;
 
-<span class="kw">use </span>std::{cell::Cell, sync::Arc};
+<span class="kw">use </span>std::{cell::Cell, io, sync::Arc};
 
 <span class="kw">use </span>flux_common::result::{ErrorCollector, ErrorEmitter};
 <span class="kw">use </span>rustc_data_structures::sync;
 <span class="kw">pub use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_errors::{
-    annotate_snippet_emitter_writer::AnnotateSnippetEmitterWriter,
-    emitter::{Emitter, EmitterWriter, HumanReadableErrorType},
+    annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
+    emitter::{stderr_destination, Emitter, HumanEmitter, HumanReadableErrorType},
     json::JsonEmitter,
     registry::Registry,
-    DiagnosticId, FatalError, IntoDiagnostic, LazyFallbackBundle,
+    Diagnostic, ErrCode, FatalAbort, FatalError, LazyFallbackBundle,
 };
 <span class="kw">use </span>rustc_session::{
     config::{<span class="self">self</span>, ErrorOutputType},
@@ -203,9 +206,8 @@
     <span class="kw">pub </span>parse_sess: ParseSess,
 }
 
-<span class="kw">pub fn </span>diagnostic_id() -&gt; DiagnosticId {
-    DiagnosticId::Error(<span class="string">&quot;FLUX&quot;</span>.to_string())
-}
+<span class="comment">// FIXME(nilehmann) We probably need to move out of this error reporting
+</span><span class="kw">pub const </span>E0999: ErrCode = ErrCode::from_u32(<span class="number">999</span>);
 
 <span class="kw">impl </span>FluxSession {
     <span class="kw">pub fn </span>new(
@@ -214,42 +216,40 @@
         fallback_bundle: LazyFallbackBundle,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>emitter = emitter(opts, source_map.clone(), fallback_bundle);
-        <span class="kw">let </span>handler = rustc_errors::Handler::with_emitter(emitter);
-        <span class="self">Self </span>{ parse_sess: ParseSess::with_span_handler(handler, source_map) }
+        <span class="kw">let </span>dcx = rustc_errors::DiagCtxt::new(emitter);
+        <span class="self">Self </span>{ parse_sess: ParseSess::with_dcx(dcx, source_map) }
     }
 
     <span class="kw">pub fn </span>err_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.parse_sess.span_diagnostic.err_count()
+        <span class="self">self</span>.parse_sess.dcx.err_count()
     }
 
     <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>emit_err&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, err: <span class="kw">impl </span>IntoDiagnostic&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; ErrorGuaranteed {
-        <span class="self">self</span>.parse_sess.emit_err(err)
+    </span><span class="kw">pub fn </span>emit_err&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, err: <span class="kw">impl </span>Diagnostic&lt;<span class="lifetime">'a</span>&gt;) -&gt; ErrorGuaranteed {
+        <span class="self">self</span>.parse_sess.dcx.emit_err(err)
     }
 
     <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>emit_fatal&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, fatal: <span class="kw">impl </span>IntoDiagnostic&lt;<span class="lifetime">&#39;a</span>, !&gt;) -&gt; ! {
-        <span class="self">self</span>.parse_sess.emit_fatal(fatal)
+    </span><span class="kw">pub fn </span>emit_fatal&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, fatal: <span class="kw">impl </span>Diagnostic&lt;<span class="lifetime">'a</span>, FatalAbort&gt;) -&gt; ! {
+        <span class="self">self</span>.parse_sess.dcx.emit_fatal(fatal)
     }
 
     <span class="kw">pub fn </span>abort(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: ErrorGuaranteed) -&gt; ! {
-        <span class="self">self</span>.parse_sess.span_diagnostic.abort_if_errors();
+        <span class="self">self</span>.parse_sess.dcx.abort_if_errors();
         FatalError.raise()
     }
 
     <span class="kw">pub fn </span>abort_if_errors(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="self">self</span>.parse_sess.span_diagnostic.abort_if_errors();
+        <span class="self">self</span>.parse_sess.dcx.abort_if_errors();
     }
 
     <span class="kw">pub fn </span>finish_diagnostics(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="self">self</span>.parse_sess
-            .span_diagnostic
-            .print_error_count(<span class="kw-2">&amp;</span>Registry::new(<span class="kw-2">&amp;</span>[]));
+        <span class="self">self</span>.parse_sess.dcx.print_error_count(<span class="kw-2">&amp;</span>Registry::new(<span class="kw-2">&amp;</span>[]));
         <span class="self">self</span>.abort_if_errors();
     }
 
-    <span class="kw">pub fn </span>diagnostic(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>rustc_errors::Handler {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.parse_sess.span_diagnostic
+    <span class="kw">pub fn </span>dcx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>rustc_errors::DiagCtxt {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.parse_sess.dcx
     }
 }
 
@@ -265,7 +265,7 @@
         ErrorOutputType::HumanReadable(kind) =&gt; {
             <span class="kw">let </span>(short, color_config) = kind.unzip();
             <span class="kw">if let </span>HumanReadableErrorType::AnnotateSnippet(<span class="kw">_</span>) = kind {
-                <span class="kw">let </span>emitter = AnnotateSnippetEmitterWriter::new(
+                <span class="kw">let </span>emitter = AnnotateSnippetEmitter::new(
                     <span class="prelude-val">Some</span>(source_map),
                     <span class="prelude-val">None</span>,
                     fallback_bundle,
@@ -274,50 +274,54 @@
                 );
                 Box::new(emitter)
             } <span class="kw">else </span>{
-                <span class="kw">let </span>emitter = EmitterWriter::stderr(color_config, fallback_bundle)
+                <span class="kw">let </span>dst = stderr_destination(color_config);
+                <span class="kw">let </span>emitter = HumanEmitter::new(dst, fallback_bundle)
                     .sm(<span class="prelude-val">Some</span>(source_map))
                     .short_message(short)
+                    .diagnostic_width(opts.diagnostic_width)
                     .track_diagnostics(track_diagnostics)
                     .terminal_url(opts.unstable_opts.terminal_urls);
                 Box::new(emitter)
             }
         }
         ErrorOutputType::Json { pretty, json_rendered } =&gt; {
-            Box::new(JsonEmitter::stderr(
-                <span class="prelude-val">Some</span>(Registry::new(<span class="kw-2">&amp;</span>[])),
-                source_map,
-                bundle,
-                fallback_bundle,
-                pretty,
-                json_rendered,
-                <span class="prelude-val">None</span>,
-                <span class="bool-val">false</span>,
-                track_diagnostics,
-                opts.unstable_opts.terminal_urls,
-            ))
+            Box::new(
+                JsonEmitter::new(
+                    Box::new(io::BufWriter::new(io::stderr())),
+                    source_map,
+                    fallback_bundle,
+                    pretty,
+                    json_rendered,
+                )
+                .registry(<span class="prelude-val">Some</span>(Registry::new(<span class="kw-2">&amp;</span>[])))
+                .fluent_bundle(bundle)
+                .track_diagnostics(track_diagnostics)
+                .diagnostic_width(opts.diagnostic_width)
+                .terminal_url(opts.unstable_opts.terminal_urls),
+            )
         }
     }
 }
 
 <span class="kw">impl </span>ErrorEmitter <span class="kw">for </span>FluxSession {
-    <span class="kw">fn </span>emit&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, err: <span class="kw">impl </span>IntoDiagnostic&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; ErrorGuaranteed {
+    <span class="kw">fn </span>emit&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, err: <span class="kw">impl </span>Diagnostic&lt;<span class="lifetime">'a</span>&gt;) -&gt; ErrorGuaranteed {
         <span class="self">self</span>.emit_err(err)
     }
 }
 
 <span class="doccomment">/// Convience struct implementing [`ErrorEmitter`] and [`ErrorCollector`]
-</span><span class="kw">pub struct </span>Errors&lt;<span class="lifetime">&#39;sess</span>&gt; {
-    sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession,
+</span><span class="kw">pub struct </span>Errors&lt;<span class="lifetime">'sess</span>&gt; {
+    sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession,
     err: Cell&lt;<span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt;&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;sess</span>&gt; Errors&lt;<span class="lifetime">&#39;sess</span>&gt; {
-    <span class="kw">pub fn </span>new(sess: <span class="kw-2">&amp;</span><span class="lifetime">&#39;sess </span>FluxSession) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'sess</span>&gt; Errors&lt;<span class="lifetime">'sess</span>&gt; {
+    <span class="kw">pub fn </span>new(sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ sess, err: Cell::new(<span class="prelude-val">None</span>) }
     }
 
     <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>emit&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, err: <span class="kw">impl </span>IntoDiagnostic&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; ErrorGuaranteed {
+    </span><span class="kw">pub fn </span>emit&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, err: <span class="kw">impl </span>Diagnostic&lt;<span class="lifetime">'a</span>&gt;) -&gt; ErrorGuaranteed {
         <span class="kw">let </span>err = <span class="self">self</span>.sess.emit_err(err);
         <span class="self">self</span>.err.set(<span class="prelude-val">Some</span>(err));
         err
@@ -332,14 +336,14 @@
     }
 }
 
-<span class="kw">impl </span>ErrorEmitter <span class="kw">for </span>Errors&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>ErrorEmitter <span class="kw">for </span>Errors&lt;<span class="lifetime">'_</span>&gt; {
     <span class="attr">#[track_caller]
-    </span><span class="kw">fn </span>emit&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, err: <span class="kw">impl </span>IntoDiagnostic&lt;<span class="lifetime">&#39;a</span>&gt;) -&gt; ErrorGuaranteed {
+    </span><span class="kw">fn </span>emit&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, err: <span class="kw">impl </span>Diagnostic&lt;<span class="lifetime">'a</span>&gt;) -&gt; ErrorGuaranteed {
         Errors::emit(<span class="self">self</span>, err)
     }
 }
 
-<span class="kw">impl </span>ErrorCollector&lt;ErrorGuaranteed&gt; <span class="kw">for </span>Errors&lt;<span class="lifetime">&#39;_</span>&gt; {
+<span class="kw">impl </span>ErrorCollector&lt;ErrorGuaranteed&gt; <span class="kw">for </span>Errors&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">type </span><span class="prelude-ty">Result </span>= <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt;;
 
     <span class="kw">fn </span>collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: ErrorGuaranteed) {

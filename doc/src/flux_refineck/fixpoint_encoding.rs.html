@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/fixpoint_encoding.rs`."><title>fixpoint_encoding.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/fixpoint_encoding.rs`."><title>fixpoint_encoding.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../flux_refineck/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1145,7 +1147,7 @@
         Constant, ESpan, Lambda,
     },
 };
-<span class="kw">use </span>itertools::{<span class="self">self</span>, Itertools};
+<span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},
@@ -1157,8 +1159,8 @@
 
 <span class="kw">use crate</span>::{refine_tree::Scope, CheckerConfig};
 
-<span class="macro">newtype_index! </span>{
-    <span class="attr">#[debug_format = <span class="string">&quot;TagIdx({})&quot;</span>]
+<span class="macro">newtype_index!</span> {
+    <span class="attr">#[debug_format = <span class="string">"TagIdx({})"</span>]
     </span><span class="kw">pub struct </span>TagIdx {}
 }
 
@@ -1230,15 +1232,15 @@
 
     <span class="kw">use </span>rustc_index::newtype_index;
 
-    <span class="macro">newtype_index! </span>{
+    <span class="macro">newtype_index!</span> {
         <span class="kw">pub struct </span>KVid {}
     }
 
-    <span class="macro">newtype_index! </span>{
+    <span class="macro">newtype_index!</span> {
         <span class="kw">pub struct </span>LocalVar {}
     }
 
-    <span class="macro">newtype_index! </span>{
+    <span class="macro">newtype_index!</span> {
         <span class="kw">pub struct </span>GlobalVar {}
     }
 
@@ -1273,32 +1275,32 @@
     }
 
     <span class="kw">impl </span>fmt::Display <span class="kw">for </span>KVid {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-            <span class="macro">write!</span>(f, <span class="string">&quot;k{}&quot;</span>, <span class="self">self</span>.as_u32())
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+            <span class="macro">write!</span>(f, <span class="string">"k{}"</span>, <span class="self">self</span>.as_u32())
         }
     }
 
     <span class="kw">impl </span>fmt::Display <span class="kw">for </span>Var {
-        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="kw">match </span><span class="self">self </span>{
-                Var::Global(v) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;c{}&quot;</span>, v.as_u32()),
-                Var::Local(v) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;a{}&quot;</span>, v.as_u32()),
-                Var::TupleCtor { arity } =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;mktuple{arity}&quot;</span>),
-                Var::TupleProj { arity, field } =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;tuple{arity}${field}&quot;</span>),
-                Var::Itf(name) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;{name}&quot;</span>),
-                Var::UIFRel(BinRel::Gt) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;gt&quot;</span>),
-                Var::UIFRel(BinRel::Ge) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;ge&quot;</span>),
-                Var::UIFRel(BinRel::Lt) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;lt&quot;</span>),
-                Var::UIFRel(BinRel::Le) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;le&quot;</span>),
+                Var::Global(v) =&gt; <span class="macro">write!</span>(f, <span class="string">"c{}"</span>, v.as_u32()),
+                Var::Local(v) =&gt; <span class="macro">write!</span>(f, <span class="string">"a{}"</span>, v.as_u32()),
+                Var::TupleCtor { arity } =&gt; <span class="macro">write!</span>(f, <span class="string">"mktuple{arity}"</span>),
+                Var::TupleProj { arity, field } =&gt; <span class="macro">write!</span>(f, <span class="string">"tuple{arity}${field}"</span>),
+                Var::Itf(name) =&gt; <span class="macro">write!</span>(f, <span class="string">"{name}"</span>),
+                Var::UIFRel(BinRel::Gt) =&gt; <span class="macro">write!</span>(f, <span class="string">"gt"</span>),
+                Var::UIFRel(BinRel::Ge) =&gt; <span class="macro">write!</span>(f, <span class="string">"ge"</span>),
+                Var::UIFRel(BinRel::Lt) =&gt; <span class="macro">write!</span>(f, <span class="string">"lt"</span>),
+                Var::UIFRel(BinRel::Le) =&gt; <span class="macro">write!</span>(f, <span class="string">"le"</span>),
                 <span class="comment">// these are actually not necessary because all equality is interpreted.
-                </span>Var::UIFRel(BinRel::Eq) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;eq&quot;</span>),
-                Var::UIFRel(BinRel::Ne) =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;ne&quot;</span>),
-                Var::Underscore =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;_&quot;</span>),
+                </span>Var::UIFRel(BinRel::Eq) =&gt; <span class="macro">write!</span>(f, <span class="string">"eq"</span>),
+                Var::UIFRel(BinRel::Ne) =&gt; <span class="macro">write!</span>(f, <span class="string">"ne"</span>),
+                Var::Underscore =&gt; <span class="macro">write!</span>(f, <span class="string">"_"</span>),
             }
         }
     }
 
-    <span class="macro">flux_fixpoint::declare_types! </span>{
+    <span class="macro">flux_fixpoint::declare_types!</span> {
         <span class="kw">type </span>Sort = String;
         <span class="kw">type </span>KVar = KVid;
         <span class="kw">type </span>Var = Var;
@@ -1308,23 +1310,23 @@
     <span class="kw">use </span>rustc_span::Symbol;
 }
 
-<span class="kw">type </span>ConstMap&lt;<span class="lifetime">&#39;tcx</span>&gt; = FxIndexMap&lt;Key&lt;<span class="lifetime">&#39;tcx</span>&gt;, ConstInfo&gt;;
+<span class="kw">type </span>ConstMap&lt;<span class="lifetime">'tcx</span>&gt; = FxIndexMap&lt;Key&lt;<span class="lifetime">'tcx</span>&gt;, ConstInfo&gt;;
 
 <span class="attr">#[derive(Eq, Hash, PartialEq)]
-</span><span class="kw">enum </span>Key&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+</span><span class="kw">enum </span>Key&lt;<span class="lifetime">'tcx</span>&gt; {
     Uif(rustc_span::Symbol),
     Const(DefId),
-    Alias(rustc_middle::ty::TraitRef&lt;<span class="lifetime">&#39;tcx</span>&gt;),
+    Alias(rustc_middle::ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;),
     Lambda(Lambda),
 }
 
-<span class="kw">pub struct </span>FixpointCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, T: Eq + Hash&gt; {
+<span class="kw">pub struct </span>FixpointCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, T: Eq + Hash&gt; {
     comments: Vec&lt;String&gt;,
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     kvars: KVarStore,
     sorts: SortStore,
     kcx: KVarEncodingCtxt,
-    ecx: ExprEncodingCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+    ecx: ExprEncodingCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     env: Env,
     tags: IndexVec&lt;TagIdx, T&gt;,
     tags_inv: UnordMap&lt;T, TagIdx&gt;,
@@ -1391,7 +1393,7 @@
         <span class="self">Self </span>{ local_var_gen: IndexGen::new(), fvars: Default::default(), layers: Vec::new() }
     }
 
-    <span class="comment">// This doesn&#39;t require to be mutable because `IndexGen` uses atomics, but we make it mutable
+    <span class="comment">// This doesn't require to be mutable because `IndexGen` uses atomics, but we make it mutable
     // to better declare the intent.
     </span><span class="kw">fn </span>fresh_name(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; fixpoint::LocalVar {
         <span class="self">self</span>.local_var_gen.fresh()
@@ -1420,15 +1422,15 @@
         <span class="kw">match </span>var {
             rty::Var::Free(name) =&gt; {
                 <span class="self">self</span>.get_fvar(<span class="kw-2">*</span>name)
-                    .unwrap_or_else(|| <span class="macro">span_bug!</span>(dbg_span, <span class="string">&quot;no entry found for name: `{name:?}`&quot;</span>))
+                    .unwrap_or_else(|| <span class="macro">span_bug!</span>(dbg_span, <span class="string">"no entry found for name: `{name:?}`"</span>))
             }
             rty::Var::LateBound(debruijn, var) =&gt; {
                 <span class="self">self</span>.get_late_bvar(<span class="kw-2">*</span>debruijn, var.index).unwrap_or_else(|| {
-                    <span class="macro">span_bug!</span>(dbg_span, <span class="string">&quot;no entry found for late bound var: `{var:?}`&quot;</span>)
+                    <span class="macro">span_bug!</span>(dbg_span, <span class="string">"no entry found for late bound var: `{var:?}`"</span>)
                 })
             }
             rty::Var::EarlyParam(<span class="kw">_</span>) | rty::Var::EVar(<span class="kw">_</span>) =&gt; {
-                <span class="macro">span_bug!</span>(dbg_span, <span class="string">&quot;unexpected var: `{var:?}`&quot;</span>)
+                <span class="macro">span_bug!</span>(dbg_span, <span class="string">"unexpected var: `{var:?}`"</span>)
             }
         }
     }
@@ -1443,10 +1445,10 @@
     }
 }
 
-<span class="kw">struct </span>ExprEncodingCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">struct </span>ExprEncodingCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     global_var_gen: IndexGen&lt;fixpoint::GlobalVar&gt;,
-    const_map: ConstMap&lt;<span class="lifetime">&#39;tcx</span>&gt;,
+    const_map: ConstMap&lt;<span class="lifetime">'tcx</span>&gt;,
     <span class="doccomment">/// Used to report bugs
     </span>dbg_span: Span,
 }
@@ -1479,11 +1481,11 @@
 /// localized errors when refine checking fails.
 </span><span class="kw">type </span>PredSpans = Vec&lt;(fixpoint::Pred, <span class="prelude-ty">Option</span>&lt;ESpan&gt;)&gt;;
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, Tag&gt; FixpointCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>, Tag&gt;
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, Tag&gt; FixpointCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, Tag&gt;
 <span class="kw">where
     </span>Tag: std::hash::Hash + Eq + Copy,
 {
-    <span class="kw">pub fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, def_id: LocalDefId, kvars: KVarStore) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, def_id: LocalDefId, kvars: KVarStore) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>dbg_span = genv.tcx().def_span(def_id);
         <span class="self">Self </span>{
             comments: <span class="macro">vec!</span>[],
@@ -1501,10 +1503,10 @@
 
     <span class="doccomment">/// Collect all the sorts that need to be defined in fixpoint to encode `t`
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>collect_sorts&lt;T: TypeVisitable&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) {
-        <span class="kw">struct </span>Visitor&lt;<span class="lifetime">&#39;a</span>&gt; {
-            sorts: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>SortStore,
+        <span class="kw">struct </span>Visitor&lt;<span class="lifetime">'a</span>&gt; {
+            sorts: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>SortStore,
         }
-        <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>Visitor&lt;<span class="lifetime">&#39;_</span>&gt; {
+        <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>Visitor&lt;<span class="lifetime">'_</span>&gt; {
             <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>rty::Expr) -&gt; ControlFlow&lt;!&gt; {
                 <span class="kw">if let </span>rty::ExprKind::Aggregate(<span class="kw">_</span>, flds) = expr.kind() {
                     <span class="self">self</span>.sorts.declare_tuple(flds.len());
@@ -1576,7 +1578,7 @@
             .kvars
             .into_iter_enumerated()
             .map(|(kvid, kvar)| {
-                fixpoint::KVar::new(kvid, kvar.sorts, <span class="macro">format!</span>(<span class="string">&quot;orig: {:?}&quot;</span>, kvar.orig))
+                fixpoint::KVar::new(kvid, kvar.sorts, <span class="macro">format!</span>(<span class="string">"orig: {:?}"</span>, kvar.orig))
             })
             .collect_vec();
 
@@ -1624,7 +1626,7 @@
             data_decls: <span class="self">self</span>.sorts.into_data_decls(),
         };
         <span class="kw">if </span>config::dump_constraint() {
-            dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), <span class="self">self</span>.def_id, <span class="string">&quot;smt2&quot;</span>, <span class="kw-2">&amp;</span>task).unwrap();
+            dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), <span class="self">self</span>.def_id, <span class="string">"smt2"</span>, <span class="kw-2">&amp;</span>task).unwrap();
         }
 
         <span class="kw">let </span>task_key = <span class="self">self</span>.genv.tcx().def_path_str(<span class="self">self</span>.def_id);
@@ -1638,8 +1640,8 @@
                     .unique()
                     .collect_vec())
             }
-            <span class="prelude-val">Ok</span>(FixpointResult::Crash(err)) =&gt; <span class="macro">span_bug!</span>(span, <span class="string">&quot;fixpoint crash: {err:?}&quot;</span>),
-            <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">span_bug!</span>(span, <span class="string">&quot;failed to run fixpoint: {err:?}&quot;</span>),
+            <span class="prelude-val">Ok</span>(FixpointResult::Crash(err)) =&gt; <span class="macro">span_bug!</span>(span, <span class="string">"fixpoint crash: {err:?}"</span>),
+            <span class="prelude-val">Err</span>(err) =&gt; <span class="macro">span_bug!</span>(span, <span class="string">"failed to run fixpoint: {err:?}"</span>),
         }
     }
 
@@ -1649,7 +1651,7 @@
     {
         <span class="kw-2">*</span><span class="self">self</span>.tags_inv.entry(tag).or_insert_with(|| {
             <span class="kw">let </span>idx = <span class="self">self</span>.tags.push(tag);
-            <span class="self">self</span>.comments.push(<span class="macro">format!</span>(<span class="string">&quot;Tag {idx}: {tag:?}&quot;</span>));
+            <span class="self">self</span>.comments.push(<span class="macro">format!</span>(<span class="string">"Tag {idx}: {tag:?}"</span>));
             idx
         })
     }
@@ -1693,7 +1695,7 @@
             })
             .collect_vec();
 
-        <span class="comment">// Fixpoint doesn&#39;t support kvars without arguments, which we do generate sometimes. To get
+        <span class="comment">// Fixpoint doesn't support kvars without arguments, which we do generate sometimes. To get
         // around it, we encode `$k()` as ($k 0), or more precisley `(forall ((x int) (= x 0)) ... ($k x)`
         // after ANF-ing.
         </span><span class="kw">if </span>all_args.is_empty() {
@@ -1730,10 +1732,10 @@
     }
 }
 
-<span class="kw">fn </span>fixpoint_const_map&lt;<span class="lifetime">&#39;tcx</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;tcx</span>&gt;,
+<span class="kw">fn </span>fixpoint_const_map&lt;<span class="lifetime">'tcx</span>&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
     global_var_gen: <span class="kw-2">&amp;</span>IndexGen&lt;fixpoint::GlobalVar&gt;,
-) -&gt; ConstMap&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+) -&gt; ConstMap&lt;<span class="lifetime">'tcx</span>&gt; {
     <span class="kw">let </span>consts = genv
         .map()
         .consts()
@@ -1840,8 +1842,8 @@
 }
 
 <span class="kw">impl </span>std::fmt::Display <span class="kw">for </span>TagIdx {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.as_u32())
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.as_u32())
     }
 }
 
@@ -1859,7 +1861,7 @@
         rty::Sort::Real =&gt; fixpoint::Sort::Real,
         rty::Sort::Bool =&gt; fixpoint::Sort::Bool,
         rty::Sort::BitVec(w) =&gt; fixpoint::Sort::BitVec(<span class="kw-2">*</span>w),
-        <span class="comment">// There&#39;s no way to declare user defined sorts in the fixpoint horn syntax so we encode
+        <span class="comment">// There's no way to declare user defined sorts in the fixpoint horn syntax so we encode
         // user declared opaque sorts and type variable sorts as integers. Well-formedness should
         // ensure values of these sorts are properly used.
         </span>rty::Sort::App(rty::SortCtor::User { .. }, <span class="kw">_</span>) | rty::Sort::Param(<span class="kw">_</span>) =&gt; fixpoint::Sort::Int,
@@ -1883,13 +1885,13 @@
         rty::Sort::Func(sort) =&gt; func_sort_to_fixpoint(sort),
         rty::Sort::Var(k) =&gt; fixpoint::Sort::Var(k.index),
         rty::Sort::Err | rty::Sort::Infer(<span class="kw">_</span>) | rty::Sort::Loc =&gt; {
-            <span class="macro">bug!</span>(<span class="string">&quot;unexpected sort {sort:?}&quot;</span>)
+            <span class="macro">bug!</span>(<span class="string">"unexpected sort {sort:?}"</span>)
         }
     }
 }
 
 <span class="kw">fn </span>tuple_sort_name(arity: usize) -&gt; String {
-    <span class="macro">format!</span>(<span class="string">&quot;Tuple{arity}&quot;</span>)
+    <span class="macro">format!</span>(<span class="string">"Tuple{arity}"</span>)
 }
 
 <span class="kw">fn </span>func_sort_to_fixpoint(fsort: <span class="kw-2">&amp;</span>rty::PolyFuncSort) -&gt; fixpoint::Sort {
@@ -1902,8 +1904,8 @@
     )
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; ExprEncodingCtxt&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt; {
-    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">&#39;genv</span>, <span class="lifetime">&#39;tcx</span>&gt;, dbg_span: Span) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; ExprEncodingCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, dbg_span: Span) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>global_var_gen = IndexGen::new();
         <span class="kw">let </span>const_map = fixpoint_const_map(genv, <span class="kw-2">&amp;</span>global_var_gen);
         <span class="self">Self </span>{ genv, global_var_gen, const_map, dbg_span }
@@ -1933,7 +1935,7 @@
             }
             rty::ExprKind::ConstDefId(did) =&gt; {
                 <span class="kw">let </span>const_info = <span class="self">self</span>.const_map.get(<span class="kw-2">&amp;</span>Key::Const(<span class="kw-2">*</span>did)).unwrap_or_else(|| {
-                    <span class="macro">span_bug!</span>(<span class="self">self</span>.dbg_span, <span class="string">&quot;no entry found in const_map for def_id: `{did:?}`&quot;</span>)
+                    <span class="macro">span_bug!</span>(<span class="self">self</span>.dbg_span, <span class="string">"no entry found in const_map for def_id: `{did:?}`"</span>)
                 });
                 fixpoint::Expr::Var(const_info.name.into())
             }
@@ -1966,14 +1968,14 @@
             | rty::ExprKind::Local(<span class="kw">_</span>)
             | rty::ExprKind::GlobalFunc(..)
             | rty::ExprKind::PathProj(..) =&gt; {
-                <span class="macro">span_bug!</span>(<span class="self">self</span>.dbg_span, <span class="string">&quot;unexpected expr: `{expr:?}`&quot;</span>)
+                <span class="macro">span_bug!</span>(<span class="self">self</span>.dbg_span, <span class="string">"unexpected expr: `{expr:?}`"</span>)
             }
         }
     }
 
-    <span class="kw">fn </span>exprs_to_fixpoint&lt;<span class="lifetime">&#39;b</span>&gt;(
+    <span class="kw">fn </span>exprs_to_fixpoint&lt;<span class="lifetime">'b</span>&gt;(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        exprs: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;b </span>rty::Expr&gt;,
+        exprs: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'b </span>rty::Expr&gt;,
         env: <span class="kw-2">&amp;</span>Env,
     ) -&gt; Vec&lt;fixpoint::Expr&gt; {
         exprs
@@ -2058,7 +2060,7 @@
     }
 
     <span class="doccomment">/// A binary relation is encoded as a structurally recursive relation between aggregate sorts.
-    /// For &quot;leaf&quot; expressions, we encode them as an interpreted relation if the sort supports it,
+    /// For "leaf" expressions, we encode them as an interpreted relation if the sort supports it,
     /// otherwise we use an uninterpreted function. For example, consider the following relation
     /// between two tuples of sort `(int, int -&gt; int)`
     /// ```text
@@ -2143,16 +2145,16 @@
                 <span class="kw">let </span>cinfo = <span class="self">self</span>.const_map.get(<span class="kw-2">&amp;</span>Key::Uif(<span class="kw-2">*</span>sym)).unwrap_or_else(|| {
                     <span class="macro">span_bug!</span>(
                         <span class="self">self</span>.dbg_span,
-                        <span class="string">&quot;no constant found for uninterpreted function `{sym}` in `const_map`&quot;
+                        <span class="string">"no constant found for uninterpreted function `{sym}` in `const_map`"
                     </span>)
                 });
                 cinfo.name.into()
             }
             rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Def) =&gt; {
-                <span class="macro">span_bug!</span>(<span class="self">self</span>.dbg_span, <span class="string">&quot;unexpected global function `{sym}`. Function must be normalized away at this point&quot;</span>)
+                <span class="macro">span_bug!</span>(<span class="self">self</span>.dbg_span, <span class="string">"unexpected global function `{sym}`. Function must be normalized away at this point"</span>)
             }
             <span class="kw">_ </span>=&gt; {
-                <span class="macro">span_bug!</span>(<span class="self">self</span>.dbg_span, <span class="string">&quot;unexpected expr `{func:?}` in function position&quot;</span>)
+                <span class="macro">span_bug!</span>(<span class="self">self</span>.dbg_span, <span class="string">"unexpected expr `{func:?}` in function position"</span>)
             }
         }
     }
@@ -2178,7 +2180,7 @@
         }
     }
 
-    <span class="doccomment">/// returns the &#39;constant&#39; UIF for Var used to represent the alias_pred, creating and adding it
+    <span class="doccomment">/// returns the 'constant' UIF for Var used to represent the alias_pred, creating and adding it
     /// to the const_map if necessary
     </span><span class="kw">fn </span>register_const_for_alias_reft(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
@@ -2189,7 +2191,7 @@
         <span class="self">self</span>.const_map
             .entry(key)
             .or_insert_with(|| {
-                <span class="kw">let </span>orig = <span class="macro">format!</span>(<span class="string">&quot;{alias_reft:?}&quot;</span>);
+                <span class="kw">let </span>orig = <span class="macro">format!</span>(<span class="string">"{alias_reft:?}"</span>);
                 <span class="kw">let </span>name = <span class="self">self</span>.global_var_gen.fresh();
                 <span class="kw">let </span>fsort = alias_reft_sort(arity);
                 <span class="kw">let </span>sort = func_sort_to_fixpoint(<span class="kw-2">&amp;</span>fsort);
@@ -2205,7 +2207,7 @@
         <span class="self">self</span>.const_map
             .entry(key)
             .or_insert_with(|| {
-                <span class="kw">let </span>orig = <span class="macro">format!</span>(<span class="string">&quot;{lam:?}&quot;</span>);
+                <span class="kw">let </span>orig = <span class="macro">format!</span>(<span class="string">"{lam:?}"</span>);
                 <span class="kw">let </span>name = <span class="self">self</span>.global_var_gen.fresh();
                 <span class="kw">let </span>sort = func_sort_to_fixpoint(<span class="kw-2">&amp;</span>lam.sort().to_poly());
                 ConstInfo { name, orig, sort, val: <span class="prelude-val">None </span>}

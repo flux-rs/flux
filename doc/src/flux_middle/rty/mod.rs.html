@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/mod.rs`."><title>mod.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_middle/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -2080,9 +2082,6 @@
 <a href="#2080" id="2080">2080</a>
 <a href="#2081" id="2081">2081</a>
 <a href="#2082" id="2082">2082</a>
-<a href="#2083" id="2083">2083</a>
-<a href="#2084" id="2084">2084</a>
-<a href="#2085" id="2085">2085</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2112,8 +2111,8 @@
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
-<span class="kw">use </span>rustc_index::IndexSlice;
-<span class="kw">use </span>rustc_macros::{newtype_index, Decodable, Encodable, TyDecodable, TyEncodable};
+<span class="kw">use </span>rustc_index::{newtype_index, IndexSlice};
+<span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 <span class="kw">use </span>rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
     ty::{ParamConst, TyCtxt},
@@ -2134,7 +2133,7 @@
 <span class="kw">pub use crate</span>::{
     fhir::InferMode,
     rustc::ty::{
-        BoundRegion, BoundRegionKind, BoundVar, Const, EarlyBoundRegion, FreeRegion,
+        BoundRegion, BoundRegionKind, BoundVar, Const, EarlyParamRegion, FreeRegion,
         Region::{<span class="self">self</span>, <span class="kw-2">*</span>},
     },
 };
@@ -2192,7 +2191,7 @@
 
     <span class="doccomment">/// Given a list of generic args, returns an iterator of the generic arguments that should be
     /// mapped to sorts for instantiation.
-    </span><span class="kw">pub fn </span>filter_generic_args&lt;<span class="lifetime">&#39;a</span>, A&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">self</span>, args: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[A]) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>A&gt; + <span class="lifetime">&#39;a </span>{
+    </span><span class="kw">pub fn </span>filter_generic_args&lt;<span class="lifetime">'a</span>, A&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, args: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[A]) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>A&gt; + <span class="lifetime">'a </span>{
         <span class="self">self</span>.<span class="number">0</span>.params.iter().map(|p| <span class="kw-2">&amp;</span>args[p.index <span class="kw">as </span>usize])
     }
 
@@ -2262,6 +2261,7 @@
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
     TypeOutlives(TypeOutlivesPredicate),
+    ConstArgHasType(Const, Ty),
     CoroutineOblig(CoroutineObligPredicate),
 }
 
@@ -2333,7 +2333,7 @@
 }
 
 <span class="doccomment">/// [ParamSort] are used for polymorphic sorts (Set, Map etc.) and they should occur
-/// &quot;bound&quot; under a PolyFuncSort; i.e. should be &lt; than the number of params in the
+/// "bound" under a PolyFuncSort; i.e. should be &lt; than the number of params in the
 /// PolyFuncSort.
 </span><span class="attr">#[derive(Clone, PartialEq, Eq, Debug, Hash, Encodable, Decodable)]
 </span><span class="kw">pub struct </span>ParamSort {
@@ -2346,9 +2346,10 @@
     }
 }
 
-<span class="macro">newtype_index! </span>{
+<span class="macro">newtype_index!</span> {
     <span class="doccomment">/// A *sort* *v*variable *id*
-    </span><span class="attr">#[debug_format = <span class="string">&quot;?{}s&quot;</span>]
+    </span><span class="attr">#[debug_format = <span class="string">"?{}s"</span>]
+    #[encodable]
     </span><span class="kw">pub struct </span>SortVid {}
 }
 
@@ -2365,16 +2366,17 @@
         SortVid::from_u32(u)
     }
 
-    <span class="kw">fn </span>tag() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;SortVid&quot;
+    <span class="kw">fn </span>tag() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"SortVid"
     </span>}
 }
 
 <span class="kw">impl </span>ena::unify::EqUnifyValue <span class="kw">for </span>Sort {}
 
-<span class="macro">newtype_index! </span>{
+<span class="macro">newtype_index!</span> {
     <span class="doccomment">/// A *num*eric *v*variable *id*
-    </span><span class="attr">#[debug_format = <span class="string">&quot;?{}n&quot;</span>]
+    </span><span class="attr">#[debug_format = <span class="string">"?{}n"</span>]
+    #[encodable]
     </span><span class="kw">pub struct </span>NumVid {}
 }
 
@@ -2406,8 +2408,8 @@
         NumVid::from_u32(u)
     }
 
-    <span class="kw">fn </span>tag() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str {
-        <span class="string">&quot;NumVid&quot;
+    <span class="kw">fn </span>tag() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="string">"NumVid"
     </span>}
 }
 
@@ -2438,15 +2440,15 @@
     <span class="prelude-val">Err</span>,
 }
 
-<span class="kw">impl </span>rustc_errors::IntoDiagnosticArg <span class="kw">for </span>Sort {
-    <span class="kw">fn </span>into_diagnostic_arg(<span class="self">self</span>) -&gt; rustc_errors::DiagnosticArgValue&lt;<span class="lifetime">&#39;static</span>&gt; {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(<span class="macro">format!</span>(<span class="string">&quot;{self:?}&quot;</span>)))
+<span class="kw">impl </span>rustc_errors::IntoDiagArg <span class="kw">for </span>Sort {
+    <span class="kw">fn </span>into_diag_arg(<span class="self">self</span>) -&gt; rustc_errors::DiagArgValue {
+        rustc_errors::DiagArgValue::Str(Cow::Owned(<span class="macro">format!</span>(<span class="string">"{self:?}"</span>)))
     }
 }
 
-<span class="kw">impl </span>rustc_errors::IntoDiagnosticArg <span class="kw">for </span>FuncSort {
-    <span class="kw">fn </span>into_diagnostic_arg(<span class="self">self</span>) -&gt; rustc_errors::DiagnosticArgValue&lt;<span class="lifetime">&#39;static</span>&gt; {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(<span class="macro">format!</span>(<span class="string">&quot;{self:?}&quot;</span>)))
+<span class="kw">impl </span>rustc_errors::IntoDiagArg <span class="kw">for </span>FuncSort {
+    <span class="kw">fn </span>into_diag_arg(<span class="self">self</span>) -&gt; rustc_errors::DiagArgValue {
+        rustc_errors::DiagArgValue::Str(Cow::Owned(<span class="macro">format!</span>(<span class="string">"{self:?}"</span>)))
     }
 }
 
@@ -2518,7 +2520,7 @@
     rustc: rustc::ty::AdtDef,
 }
 
-<span class="doccomment">/// Option-like enum to explicitly mark that we don&#39;t have information about an ADT because it was
+<span class="doccomment">/// Option-like enum to explicitly mark that we don't have information about an ADT because it was
 /// annotated with `#[flux::opaque]`. Note that only structs can be marked as opaque.
 </span><span class="attr">#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>Opaqueness&lt;T&gt; {
@@ -2533,7 +2535,7 @@
 
 <span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>Invariant {
-    <span class="comment">// This predicate may have sort variables, but we don&#39;t explicitly mark it like in `PolyFuncSort`.
+    <span class="comment">// This predicate may have sort variables, but we don't explicitly mark it like in `PolyFuncSort`.
     // See comment on `apply` for details.
     </span>pred: Binder&lt;Expr&gt;,
 }
@@ -2544,11 +2546,11 @@
     }
 
     <span class="kw">pub fn </span>apply(<span class="kw-2">&amp;</span><span class="self">self</span>, idx: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
-        <span class="comment">// The predicate may have sort variables but we don&#39;t explicitly instantiate them. This
+        <span class="comment">// The predicate may have sort variables but we don't explicitly instantiate them. This
         // works because within an expression, sort variables can only appear inside a lambda and
         // invariants cannot have lambdas. It remains to instantiate variables in the sort of the
         // binder itself, but since we are removing it, we can avoid the explicit instantiation.
-        // Ultimately, this works because the expression we generate in fixpoint don&#39;t need
+        // Ultimately, this works because the expression we generate in fixpoint don't need
         // sort annotations (sorts are re-inferred).
         </span><span class="self">self</span>.pred.replace_bound_reft(idx)
     }
@@ -2799,7 +2801,7 @@
         }
     }
 
-    <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">&#39;tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; rustc_middle::ty::Ty&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="kw">match </span><span class="self">self</span>.kind() {
             TyKind::Indexed(bty, <span class="kw">_</span>) =&gt; bty.to_rustc(tcx),
             TyKind::Exists(ty) =&gt; ty.as_ref().skip_binder().to_rustc(tcx),
@@ -2974,10 +2976,10 @@
 <span class="doccomment">/// A subset type is a simplified version of a type that has the form `{b[e] | p}` where `b` is a
 /// [`BaseTy`], `e` a refinement index, and `p` a predicate.
 ///
-/// These are mainly found under a [`Binder`] with a single variable of the base type&#39;s sort. This
+/// These are mainly found under a [`Binder`] with a single variable of the base type's sort. This
 /// can be interpreted as a type constructor or an existial type. For example, under a binder with a
 /// variable `v` of sort `int`, we can interpret `{i32[v] | v &gt; 0}` as a lambda `λv:int. {i32[v] | v &gt; 0}`
-/// that &quot;constructs&quot; types when applied to ints, or as an existential type `∃v:int. {i32[v] | v &gt; 0}`.
+/// that "constructs" types when applied to ints, or as an existential type `∃v:int. {i32[v] | v &gt; 0}`.
 /// This second interpretation is the reason we call this a subset type, i.e., the type `∃v. {b[v] | p}`
 /// corresponds to the subset of values of (base) type `b` whose index satisfies `p`. In other words,
 /// these are the types written as `B{v: p}` in the surface syntax and correspond to the types
@@ -3016,7 +3018,7 @@
 </span><span class="kw">pub struct </span>SubsetTy {
     <span class="doccomment">/// **NOTE:** This [`BaseTy`] is mainly going to be under a [`Binder`]. It is not yet clear whether
     /// this [`BaseTy`] should be able to mention variables in the binder. In general, in a type
-    /// `∃v. {b[e] | p}`, it&#39;s fine to mention `v` inside `b`, but since [`SubsetTy`] is meant to
+    /// `∃v. {b[e] | p}`, it's fine to mention `v` inside `b`, but since [`SubsetTy`] is meant to
     /// facilitate syntatic manipulation we may restrict this.
     </span><span class="kw">pub </span>bty: BaseTy,
     <span class="doccomment">/// This can be an arbitrary expression which makes manipulation easier, but since this is mostly
@@ -3039,7 +3041,7 @@
         <span class="self">Self </span>{ bty: this.bty, idx: this.idx, pred: Expr::and([this.pred, pred.into()]) }
     }
 
-    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">&#39;tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; rustc_middle::ty::Ty&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="self">self</span>.bty.to_rustc(tcx)
     }
 
@@ -3066,7 +3068,7 @@
         <span class="kw">if let </span>GenericArg::Ty(ty) = <span class="self">self </span>{
             ty
         } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">&quot;expected `rty::GenericArg::Ty`, found `{self:?}`&quot;</span>)
+            <span class="macro">bug!</span>(<span class="string">"expected `rty::GenericArg::Ty`, found `{self:?}`"</span>)
         }
     }
 
@@ -3074,7 +3076,7 @@
         <span class="kw">if let </span>GenericArg::Base(ctor) = <span class="self">self </span>{
             ctor
         } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">&quot;expected `rty::GenericArg::Base`, found `{self:?}`&quot;</span>)
+            <span class="macro">bug!</span>(<span class="string">"expected `rty::GenericArg::Base`, found `{self:?}`"</span>)
         }
     }
 
@@ -3094,7 +3096,7 @@
             }
             GenericParamDefKind::Lifetime =&gt; {
                 <span class="kw">let </span>region =
-                    EarlyBoundRegion { index: param.index, name: param.name, def_id: param.def_id };
+                    EarlyParamRegion { index: param.index, name: param.name, def_id: param.def_id };
                 <span class="prelude-val">Ok</span>(GenericArg::Lifetime(Region::ReEarlyBound(region)))
             }
             GenericParamDefKind::Const { .. } =&gt; {
@@ -3106,7 +3108,7 @@
         }
     }
 
-    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">&#39;tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; rustc_middle::ty::GenericArg&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::GenericArg&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="kw">use </span>rustc_middle::ty;
         <span class="kw">match </span><span class="self">self </span>{
             GenericArg::Ty(ty) =&gt; ty::GenericArg::from(ty.to_rustc(tcx)),
@@ -3146,13 +3148,13 @@
         }
         <span class="kw">for </span>param <span class="kw">in </span><span class="kw-2">&amp;</span>generics.params {
             <span class="kw">let </span>kind = mk_kind(param, args)<span class="question-mark">?</span>;
-            <span class="macro">assert_eq!</span>(param.index <span class="kw">as </span>usize, args.len(), <span class="string">&quot;{args:#?}, {generics:#?}&quot;</span>);
+            <span class="macro">assert_eq!</span>(param.index <span class="kw">as </span>usize, args.len(), <span class="string">"{args:#?}, {generics:#?}"</span>);
             args.push(kind);
         }
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">&#39;tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt; {
         tcx.mk_args_from_iter(<span class="self">self</span>.iter().map(|arg| arg.to_rustc(tcx)))
     }
 }
@@ -3225,7 +3227,7 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = param_index.checked_sub(<span class="self">self</span>.parent_count) {
             <span class="prelude-val">Ok</span>(<span class="self">self</span>.params[index].clone())
         } <span class="kw">else </span>{
-            <span class="kw">let </span>parent = <span class="self">self</span>.parent.expect(<span class="string">&quot;parent_count &gt; 0 but no parent?&quot;</span>);
+            <span class="kw">let </span>parent = <span class="self">self</span>.parent.expect(<span class="string">"parent_count &gt; 0 but no parent?"</span>);
             genv.generics_of(parent)<span class="question-mark">?</span>.param_at(param_index, genv)
         }
     }
@@ -3240,7 +3242,7 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = param_index.checked_sub(<span class="self">self</span>.parent_count) {
             <span class="prelude-val">Ok</span>(<span class="self">self</span>.params[index].clone())
         } <span class="kw">else </span>{
-            <span class="kw">let </span>parent = <span class="self">self</span>.parent.expect(<span class="string">&quot;parent_count &gt; 0 but no parent?&quot;</span>);
+            <span class="kw">let </span>parent = <span class="self">self</span>.parent.expect(<span class="string">"parent_count &gt; 0 but no parent?"</span>);
             genv.refinement_generics_of(parent)<span class="question-mark">?
                 </span>.param_at(param_index, genv)
         }
@@ -3287,7 +3289,7 @@
         <span class="kw">if let </span>Sort::Func(sort) = <span class="self">self </span>{
             sort
         } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">&quot;expected `Sort::Func`&quot;</span>)
+            <span class="macro">bug!</span>(<span class="string">"expected `Sort::Func`"</span>)
         }
     }
 
@@ -3361,7 +3363,7 @@
         <span class="kw">if let </span>BoundVariableKind::Refine(sort, mode, kind) = <span class="self">self </span>{
             (sort, <span class="kw-2">*</span>mode, <span class="kw-2">*</span>kind)
         } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">&quot;expected `BoundVariableKind::Refine`&quot;</span>)
+            <span class="macro">bug!</span>(<span class="string">"expected `BoundVariableKind::Refine`"</span>)
         }
     }
 
@@ -3419,7 +3421,7 @@
     </span><span class="kw">pub fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Sort {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.vars[..] {
             [BoundVariableKind::Refine(sort, ..)] =&gt; sort.clone(),
-            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">&quot;expected single-sorted binder&quot;</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected single-sorted binder"</span>),
         }
     }
 }
@@ -3430,7 +3432,7 @@
             .map(|kind| {
                 <span class="kw">match </span>kind {
                     BoundVariableKind::Region(<span class="kw">_</span>) =&gt; {
-                        <span class="macro">bug!</span>(<span class="string">&quot;`to_sort_list` called on bound variable list with non-refinements&quot;</span>)
+                        <span class="macro">bug!</span>(<span class="string">"`to_sort_list` called on bound variable list with non-refinements"</span>)
                     }
                     BoundVariableKind::Refine(sort, ..) =&gt; sort.clone(),
                 }
@@ -3495,7 +3497,7 @@
     <span class="kw">pub fn </span>replace_bound_refts(<span class="kw-2">&amp;</span><span class="self">self</span>, exprs: <span class="kw-2">&amp;</span>[Expr]) -&gt; T {
         <span class="kw">let </span>delegate = FnMutDelegate::new(
             |var| exprs[var.index <span class="kw">as </span>usize].clone(),
-            |<span class="kw">_</span>| <span class="macro">bug!</span>(<span class="string">&quot;unexpected escaping region&quot;</span>),
+            |<span class="kw">_</span>| <span class="macro">bug!</span>(<span class="string">"unexpected escaping region"</span>),
         );
         <span class="self">self</span>.value
             .fold_with(<span class="kw-2">&amp;mut </span>BoundVarReplacer::new(delegate))
@@ -3680,7 +3682,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.invariants
     }
 
-    <span class="kw">pub fn </span>discriminants(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (VariantIdx, u128)&gt; + <span class="lifetime">&#39;_ </span>{
+    <span class="kw">pub fn </span>discriminants(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (VariantIdx, u128)&gt; + <span class="lifetime">'_ </span>{
         <span class="self">self</span>.<span class="number">0</span>.rustc.discriminants()
     }
 
@@ -3725,7 +3727,7 @@
     </span><span class="kw">pub fn </span>expect(<span class="self">self</span>, msg: <span class="kw-2">&amp;</span>str) -&gt; T {
         <span class="kw">match </span><span class="self">self </span>{
             Opaqueness::Transparent(val) =&gt; val,
-            Opaqueness::Opaque =&gt; <span class="macro">bug!</span>(<span class="string">&quot;{}&quot;</span>, msg),
+            Opaqueness::Opaque =&gt; <span class="macro">bug!</span>(<span class="string">"{}"</span>, msg),
         }
     }
 }
@@ -3777,7 +3779,7 @@
         <span class="kw">if let </span>TyKind::Discr(adt_def, place) = <span class="self">self</span>.kind() {
             (adt_def, place)
         } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">&quot;expected discr&quot;</span>)
+            <span class="macro">bug!</span>(<span class="string">"expected discr"</span>)
         }
     }
 
@@ -3786,7 +3788,7 @@
         <span class="kw">if let </span>TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = <span class="self">self</span>.kind() {
             (adt_def, args, idx)
         } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">&quot;expected adt&quot;</span>)
+            <span class="macro">bug!</span>(<span class="string">"expected adt"</span>)
         }
     }
 
@@ -3795,7 +3797,7 @@
         <span class="kw">if let </span>TyKind::Indexed(BaseTy::Tuple(tys), <span class="kw">_</span>) = <span class="self">self</span>.kind() {
             tys
         } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">&quot;expected tuple found `{self:?}` (kind: `{:?}`)&quot;</span>, <span class="self">self</span>.kind())
+            <span class="macro">bug!</span>(<span class="string">"expected tuple found `{self:?}` (kind: `{:?}`)"</span>, <span class="self">self</span>.kind())
         }
     }
 }
@@ -3810,7 +3812,7 @@
         <span class="self">self</span>.args[<span class="number">0</span>].expect_type()
     }
 
-    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">&#39;tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; rustc_middle::ty::AliasTy&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::AliasTy&lt;<span class="lifetime">'tcx</span>&gt; {
         rustc_middle::ty::AliasTy::new(tcx, <span class="self">self</span>.def_id, <span class="self">self</span>.args.to_rustc(tcx))
     }
 }
@@ -3885,7 +3887,7 @@
         }
     }
 
-    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">&#39;tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">&#39;tcx</span>&gt;) -&gt; rustc_middle::ty::Ty&lt;<span class="lifetime">&#39;tcx</span>&gt; {
+    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="kw">use </span>rustc_middle::ty;
         <span class="kw">match </span><span class="self">self </span>{
             BaseTy::Int(i) =&gt; ty::Ty::new_int(tcx, <span class="kw-2">*</span>i),
@@ -3902,15 +3904,9 @@
                 ty::Ty::new_adt(tcx, adt_def, args)
             }
             BaseTy::Float(f) =&gt; ty::Ty::new_float(tcx, <span class="kw-2">*</span>f),
-            BaseTy::RawPtr(ty, mutbl) =&gt; {
-                ty::Ty::new_ptr(tcx, ty::TypeAndMut { ty: ty.to_rustc(tcx), mutbl: <span class="kw-2">*</span>mutbl })
-            }
+            BaseTy::RawPtr(ty, mutbl) =&gt; ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), <span class="kw-2">*</span>mutbl),
             BaseTy::Ref(re, ty, mutbl) =&gt; {
-                ty::Ty::new_ref(
-                    tcx,
-                    re.to_rustc(tcx),
-                    ty::TypeAndMut { ty: ty.to_rustc(tcx), mutbl: <span class="kw-2">*</span>mutbl },
-                )
+                ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), <span class="kw-2">*</span>mutbl)
             }
             BaseTy::Tuple(tys) =&gt; {
                 <span class="kw">let </span>ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
@@ -3920,7 +3916,7 @@
             BaseTy::Never =&gt; tcx.types.never,
             BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
             BaseTy::Coroutine(def_id, resume_ty, upvars) =&gt; {
-                <span class="macro">todo!</span>(<span class="string">&quot;Generator {def_id:?} {resume_ty:?} {upvars:?}&quot;</span>)
+                <span class="macro">todo!</span>(<span class="string">"Generator {def_id:?} {resume_ty:?} {upvars:?}"</span>)
                 <span class="comment">// let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
                 // let args = tcx.mk_args_from_iter(args);
                 // ty::Ty::new_generator(*tcx, *def_id, args, mov)
@@ -3941,11 +3937,11 @@
     <span class="kw">if let </span>[GenericArg::Ty(boxed), GenericArg::Ty(alloc)] = <span class="kw-2">&amp;</span>args[..] {
         (boxed, alloc)
     } <span class="kw">else </span>{
-        <span class="macro">bug!</span>(<span class="string">&quot;invalid generic arguments for box&quot;</span>);
+        <span class="macro">bug!</span>(<span class="string">"invalid generic arguments for box"</span>);
     }
 }
 
-<span class="kw">fn </span>uint_invariants(uint_ty: UintTy, overflow_checking: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[Invariant] {
+<span class="kw">fn </span>uint_invariants(uint_ty: UintTy, overflow_checking: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[Invariant] {
     <span class="kw">static </span>DEFAULT: LazyLock&lt;[Invariant; <span class="number">1</span>]&gt; = LazyLock::new(|| {
         [Invariant { pred: Binder::with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
     });
@@ -3976,7 +3972,7 @@
     }
 }
 
-<span class="kw">fn </span>int_invariants(int_ty: IntTy, overflow_checking: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[Invariant] {
+<span class="kw">fn </span>int_invariants(int_ty: IntTy, overflow_checking: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[Invariant] {
     <span class="kw">static </span>DEFAULT: [Invariant; <span class="number">0</span>] = [];
 
     <span class="kw">static </span>OVERFLOW: LazyLock&lt;UnordMap&lt;IntTy, [Invariant; <span class="number">2</span>]&gt;&gt; = LazyLock::new(|| {
@@ -4025,7 +4021,7 @@
 );
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>_Int {
+</span><span class="macro">macro_rules!</span> _Int {
     (<span class="macro-nonterminal">$int_ty</span>:pat, <span class="macro-nonterminal">$idxs</span>:pat) =&gt; {
         TyKind::Indexed(BaseTy::Int(<span class="macro-nonterminal">$int_ty</span>), <span class="macro-nonterminal">$idxs</span>)
     };
@@ -4033,7 +4029,7 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::_Int <span class="kw">as </span>Int;
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>_Uint {
+</span><span class="macro">macro_rules!</span> _Uint {
     (<span class="macro-nonterminal">$uint_ty</span>:pat, <span class="macro-nonterminal">$idxs</span>:pat) =&gt; {
         TyKind::Indexed(BaseTy::Uint(<span class="macro-nonterminal">$uint_ty</span>), <span class="macro-nonterminal">$idxs</span>)
     };
@@ -4041,7 +4037,7 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::_Uint <span class="kw">as </span>Uint;
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>_Bool {
+</span><span class="macro">macro_rules!</span> _Bool {
     (<span class="macro-nonterminal">$idxs</span>:pat) =&gt; {
         TyKind::Indexed(BaseTy::Bool, <span class="macro-nonterminal">$idxs</span>)
     };
@@ -4049,7 +4045,7 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::_Bool <span class="kw">as </span>Bool;
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>_Float {
+</span><span class="macro">macro_rules!</span> _Float {
     (<span class="macro-nonterminal">$float_ty</span>:pat) =&gt; {
         TyKind::Indexed(BaseTy::Float(<span class="macro-nonterminal">$float_ty</span>), <span class="kw">_</span>)
     };
@@ -4057,20 +4053,20 @@
 <span class="kw">pub use </span><span class="kw">crate</span>::_Float <span class="kw">as </span>Float;
 
 <span class="attr">#[macro_export]
-</span><span class="macro">macro_rules! </span>_Ref {
+</span><span class="macro">macro_rules!</span> _Ref {
     ($(<span class="macro-nonterminal">$pats</span>:pat),+ $(,)<span class="question-mark">?</span>) =&gt; {
         TyKind::Indexed(BaseTy::Ref($(<span class="macro-nonterminal">$pats</span>),+), <span class="kw">_</span>)
     };
 }
 <span class="kw">pub use </span><span class="kw">crate</span>::_Ref <span class="kw">as </span>Ref;
 
-<span class="kw">pub struct </span>WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt; {
+<span class="kw">pub struct </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt; {
     <span class="kw">pub </span>owner: FluxOwnerId,
     record_ctors: ItemLocalMap&lt;DefId&gt;,
     node_sorts: ItemLocalMap&lt;Sort&gt;,
     bin_rel_sorts: ItemLocalMap&lt;Sort&gt;,
     coercions: ItemLocalMap&lt;Vec&lt;Coercion&gt;&gt;,
-    type_holes: ItemLocalMap&lt;fhir::Ty&lt;<span class="lifetime">&#39;genv</span>&gt;&gt;,
+    type_holes: ItemLocalMap&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt;,
     lifetime_holes: ItemLocalMap&lt;ResolvedArg&gt;,
 }
 
@@ -4083,17 +4079,17 @@
 <span class="kw">pub type </span>ItemLocalMap&lt;T&gt; = FxHashMap&lt;fhir::ItemLocalId, T&gt;;
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>LocalTableInContext&lt;<span class="lifetime">&#39;a</span>, T&gt; {
+</span><span class="kw">pub struct </span>LocalTableInContext&lt;<span class="lifetime">'a</span>, T&gt; {
     owner: FluxOwnerId,
-    data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>ItemLocalMap&lt;T&gt;,
+    data: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>ItemLocalMap&lt;T&gt;,
 }
 
-<span class="kw">pub struct </span>LocalTableInContextMut&lt;<span class="lifetime">&#39;a</span>, T&gt; {
+<span class="kw">pub struct </span>LocalTableInContextMut&lt;<span class="lifetime">'a</span>, T&gt; {
     owner: FluxOwnerId,
-    data: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>ItemLocalMap&lt;T&gt;,
+    data: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>ItemLocalMap&lt;T&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;genv</span>&gt; WfckResults&lt;<span class="lifetime">&#39;genv</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>&gt; WfckResults&lt;<span class="lifetime">'genv</span>&gt; {
     <span class="kw">pub fn </span>new(owner: <span class="kw">impl </span>Into&lt;FluxOwnerId&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             owner: owner.into(),
@@ -4138,7 +4134,7 @@
         LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.coercions }
     }
 
-    <span class="kw">pub fn </span>type_holes_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;fhir::Ty&lt;<span class="lifetime">&#39;genv</span>&gt;&gt; {
+    <span class="kw">pub fn </span>type_holes_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.type_holes }
     }
 
@@ -4155,15 +4151,15 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T&gt; LocalTableInContextMut&lt;<span class="lifetime">&#39;a</span>, T&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; LocalTableInContextMut&lt;<span class="lifetime">'a</span>, T&gt; {
     <span class="kw">pub fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fhir_id: FhirId, value: T) {
         <span class="macro">assert_eq!</span>(<span class="self">self</span>.owner, fhir_id.owner);
         <span class="self">self</span>.data.insert(fhir_id.local_id, value);
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T&gt; LocalTableInContext&lt;<span class="lifetime">&#39;a</span>, T&gt; {
-    <span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>T&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; LocalTableInContext&lt;<span class="lifetime">'a</span>, T&gt; {
+    <span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>T&gt; {
         <span class="macro">assert_eq!</span>(<span class="self">self</span>.owner, fhir_id.owner);
         <span class="self">self</span>.data.get(<span class="kw-2">&amp;</span>fhir_id.local_id)
     }

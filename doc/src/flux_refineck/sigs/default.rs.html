@@ -1,4 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/sigs/default.rs`."><title>default.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (7adc89b69 2023-11-07)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/sigs/default.rs`."><title>default.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9e1300b5663a8a03.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (9d5cdf75a 2024-04-07)" data-channel="nightly" data-search-js="search-ffac13a0df2b1870.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-c97aec732c613ca4.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_refineck/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -226,7 +228,7 @@
     UINT_TYS
         .into_iter()
         .flat_map(|uint_ty| {
-            <span class="macro">define_btys! </span>{
+            <span class="macro">define_btys!</span> {
                 <span class="kw">let </span>bool = BaseTy::Bool;
                 <span class="kw">let </span>Uint = BaseTy::Uint(uint_ty);
             }
@@ -263,7 +265,7 @@
     INT_TYS
         .into_iter()
         .flat_map(|int_ty| {
-            <span class="macro">define_btys! </span>{
+            <span class="macro">define_btys!</span> {
                 <span class="kw">let </span>bool = BaseTy::Bool;
                 <span class="kw">let </span>Int = BaseTy::Int(int_ty);
             }
@@ -297,7 +299,7 @@
 <span class="attr">#[rustfmt::skip]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>mk_bool_bin_ops() -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = (mir::BinOp, Sig&lt;<span class="number">2</span>&gt;)&gt; {
     <span class="kw">use </span>mir::BinOp::<span class="kw-2">*</span>;
-    <span class="macro">define_btys! </span>{ <span class="kw">let </span>bool = BaseTy::Bool; }
+    <span class="macro">define_btys!</span> { <span class="kw">let </span>bool = BaseTy::Bool; }
     [
         <span class="comment">// BIT
         </span>(BitAnd, <span class="macro">s!</span>(<span class="kw">fn</span>(a: bool, b: bool) -&gt; bool[E::and([a, b])])),
@@ -317,7 +319,7 @@
     <span class="kw">use </span>mir::BinOp::<span class="kw-2">*</span>;
     <span class="macro">iproduct!</span>(INT_TYS, UINT_TYS)
         .flat_map(|(int_ty, uint_ty)|{
-            <span class="macro">define_btys! </span>{
+            <span class="macro">define_btys!</span> {
                 <span class="kw">let </span>Int = BaseTy::Int(int_ty);
                 <span class="kw">let </span>Uint = BaseTy::Uint(uint_ty);
             }
@@ -341,24 +343,24 @@
     INT_TYS
         .into_iter()
         .map(|int_ty| {
-            <span class="macro">define_btys! </span>{ <span class="kw">let </span>Int = BaseTy::Int(int_ty); }
+            <span class="macro">define_btys!</span> { <span class="kw">let </span>Int = BaseTy::Int(int_ty); }
             (Neg, <span class="macro">s!</span>(<span class="kw">fn</span>(a: Int) -&gt; Int[a.neg()]))
         })
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>mk_not() -&gt; (mir::UnOp, Sig&lt;<span class="number">1</span>&gt;) {
-    <span class="macro">define_btys! </span>{ <span class="kw">let </span>bool = BaseTy::Bool; }
+    <span class="macro">define_btys!</span> { <span class="kw">let </span>bool = BaseTy::Bool; }
     (mir::UnOp::Not, <span class="macro">s!</span>(<span class="kw">fn</span>(a: bool) -&gt; bool[a.not()]))
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>mk_lnot() -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = (mir::UnOp, Sig&lt;<span class="number">1</span>&gt;)&gt; {
     <span class="kw">let </span>int_lnots = INT_TYS.map(|int_ty| {
-        <span class="macro">define_btys! </span>{ <span class="kw">let </span>Int = BaseTy::Int(int_ty); };
+        <span class="macro">define_btys!</span> { <span class="kw">let </span>Int = BaseTy::Int(int_ty); };
         (mir::UnOp::Not, <span class="macro">s!</span>(<span class="kw">fn</span>(a: Int) -&gt; Int{v: E::tt()}))
     });
 
     <span class="kw">let </span>uint_lnots = UINT_TYS.map(|uint_ty| {
-        <span class="macro">define_btys! </span>{ <span class="kw">let </span>Uint = BaseTy::Uint(uint_ty); };
+        <span class="macro">define_btys!</span> { <span class="kw">let </span>Uint = BaseTy::Uint(uint_ty); };
         (mir::UnOp::Not, <span class="macro">s!</span>(<span class="kw">fn</span>(a: Uint) -&gt; Uint{v: E::tt()}))
     });
 
