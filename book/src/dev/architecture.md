@@ -17,7 +17,7 @@ Flux is implemented as a compiler [driver](https://rustc-dev-guide.rust-lang.org
 - `crates/flux-middle`: This crate contains common type definitions that are used by the rest of Flux like the `rty` and `fhir` intermediate representations. Akin to [`rustc_middle`](https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/index.html).
 - `crates/flux-refineck`: Implementation of refinement type checking.
 - `crates/flux-syntax`: Definition of the surface syntax AST and parser.
-- `crates/flux-tests`: Flux regression tests.
+- `tests`: Flux regression tests.
 - `lib/flux-attrs`: Implementation of user facing procedural macros for annotating programs with Flux specs.
 - `lib/flux-rs`: This is just a re-export of the macros implemented in `flux-attrs`. The intention is to eventually put Flux "standard library" here, i.e., a set of definitions that are useful when working with Flux.
 

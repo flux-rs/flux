@@ -20,7 +20,7 @@ fn find_file_in_target_dir(file: &str) -> PathBuf {
     if local_path.exists() {
         return local_path;
     }
-    let workspace_path: PathBuf = ["..", "..", "target", target_directory, file]
+    let workspace_path: PathBuf = ["..", "target", target_directory, file]
         .into_iter()
         .collect();
     if workspace_path.exists() {

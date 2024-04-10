@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use flux_tests::{find_flux_path, FLUX_SYSROOT};
+use tests::{find_flux_path, FLUX_SYSROOT};
 use xshell::{cmd, Shell};
 
 xflags::xflags! {
@@ -79,9 +79,9 @@ fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
     let Test { filter } = args;
     prepare(&sh)?;
     if let Some(filter) = filter {
-        cmd!(sh, "cargo test -p flux-tests -- --test-args {filter}").run()?;
+        cmd!(sh, "cargo test -p tests -- --test-args {filter}").run()?;
     } else {
-        cmd!(sh, "cargo test -p flux-tests").run()?;
+        cmd!(sh, "cargo test -p tests").run()?;
     }
     Ok(())
 }
@@ -110,7 +110,7 @@ fn run_inner(
     prepare(sh)?;
     let flux_path = find_flux_path();
     let _env = sh.push_env(FLUX_SYSROOT, flux_path.parent().unwrap());
-    let mut rustc_flags = flux_tests::rustc_flags();
+    let mut rustc_flags = tests::rustc_flags();
     rustc_flags.extend(flags);
 
     cmd!(sh, "{flux_path} {rustc_flags...} {input}").run()?;

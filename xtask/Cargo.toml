@@ -6,7 +6,7 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-flux-tests.workspace = true
+tests.workspace = true
 home.workspace = true
 
 anyhow = "1.0.79"

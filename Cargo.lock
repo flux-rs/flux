@@ -645,14 +645,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "flux-tests"
-version = "0.1.0"
-dependencies = [
- "compiletest_rs",
- "itertools",
-]
-
-[[package]]
 name = "fxhash"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1376,6 +1368,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "tests"
+version = "0.1.0"
+dependencies = [
+ "compiletest_rs",
+ "itertools",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1916,9 +1916,9 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "flux-tests",
  "home",
  "opener",
+ "tests",
  "xflags",
  "xshell",
 ]

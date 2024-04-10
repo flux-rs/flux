@@ -4,7 +4,7 @@
 use std::{env, path::PathBuf};
 
 use compiletest_rs::{common::Mode, Config};
-use flux_tests::{find_flux_path, rustc_flags, FLUX_SYSROOT};
+use tests::{find_flux_path, rustc_flags, FLUX_SYSROOT};
 use itertools::Itertools;
 
 fn config() -> Config {

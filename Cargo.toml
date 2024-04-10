@@ -1,6 +1,6 @@
 [workspace]
 default-members = ["crates/*", "xtask"]
-members = ["crates/*", "lib/*", "xtask"]
+members = ["crates/*", "lib/*", "tests", "xtask"]
 resolver = "2"
 
 [workspace.package]
@@ -21,7 +21,7 @@ flux-middle = { path = "./crates/flux-middle", version = "0.1.0" }
 flux-refineck = { path = "./crates/flux-refineck", version = "0.1.0" }
 flux-rs = { path = "./crates/flux-rs", version = "0.1.0" }
 flux-syntax = { path = "./crates/flux-syntax", version = "0.1.0" }
-flux-tests = { path = "./crates/flux-tests", version = "0.1.0" }
+tests = { path = "./tests", version = "0.1.0" }
 
 home = "0.5.9"
 itertools = "0.10.5"
