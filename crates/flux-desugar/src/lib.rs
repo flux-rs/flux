@@ -231,8 +231,11 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
                     let assoc_ty = self
                         .as_rust_item_ctxt(owner_id, None)
                         .desugar_assoc_type()?;
-                    let impl_item =
-                        fhir::ImplItem { kind: fhir::ImplItemKind::Type(assoc_ty), owner_id };
+                    let impl_item = fhir::ImplItem {
+                        kind: fhir::ImplItemKind::Type(assoc_ty),
+                        owner_id,
+                        extern_id: None,
+                    };
                     self.fhir.impl_items.insert(owner_id.def_id, impl_item);
                     Ok(())
                 });
@@ -314,7 +317,11 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
     fn desugar_impl_fn(&mut self, owner_id: OwnerId, fn_spec: &surface::FnSpec) -> Result {
         let fn_sig = self.desugar_fn_spec(owner_id, fn_spec)?;
 
-        let impl_item = fhir::ImplItem { kind: fhir::ImplItemKind::Fn(fn_sig), owner_id };
+        let impl_item = fhir::ImplItem {
+            kind: fhir::ImplItemKind::Fn(fn_sig),
+            owner_id,
+            extern_id: fn_spec.extern_id,
+        };
         self.fhir.impl_items.insert(owner_id.def_id, impl_item);
 
         Ok(())

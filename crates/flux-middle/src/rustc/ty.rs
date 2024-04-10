@@ -26,7 +26,7 @@ use crate::{
     pretty::def_id_to_string,
 };
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Generics<'tcx> {
     pub params: List<GenericParamDef>,
     pub orig: &'tcx rustc_middle::ty::Generics,
@@ -43,7 +43,7 @@ pub enum BoundVariableKind {
     Region(BoundRegionKind),
 }
 
-#[derive(Hash, Eq, PartialEq)]
+#[derive(Debug, Hash, Eq, PartialEq)]
 pub struct GenericParamDef {
     pub def_id: DefId,
     pub index: u32,
@@ -51,11 +51,11 @@ pub struct GenericParamDef {
     pub kind: GenericParamDefKind,
 }
 
-#[derive(Hash, Eq, PartialEq)]
+#[derive(Debug, Hash, Eq, PartialEq)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
     Lifetime,
-    Const { has_default: bool },
+    Const { has_default: bool, is_host_effect: bool },
 }
 
 #[derive(Clone, Debug)]

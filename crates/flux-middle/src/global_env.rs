@@ -395,7 +395,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn extern_id_of(self, def_id: LocalDefId) -> Option<DefId> {
-        self.expect_item(def_id).extern_id
+        self.node(def_id).extern_id()
     }
 
     pub fn spec_funcs(self) -> impl Iterator<Item = &'genv fhir::SpecFunc<'genv>> {
@@ -446,7 +446,10 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn expect_item(self, def_id: LocalDefId) -> &'genv fhir::Item<'genv> {
-        self.fhir.items.get(&def_id).unwrap()
+        self.fhir
+            .items
+            .get(&def_id)
+            .unwrap_or_else(|| bug!("no item found for {def_id:?}"))
     }
 
     pub fn node(self, def_id: LocalDefId) -> fhir::Node<'genv> {

@@ -24,7 +24,7 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> QueryResult<rty
                 rustc::ty::GenericParamDefKind::Type { has_default } => {
                     rty::GenericParamDefKind::Type { has_default }
                 }
-                rustc::ty::GenericParamDefKind::Const { has_default } => {
+                rustc::ty::GenericParamDefKind::Const { has_default, .. } => {
                     rty::GenericParamDefKind::Const { has_default }
                 }
             };

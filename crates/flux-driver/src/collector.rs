@@ -347,7 +347,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let mut trusted = attrs.trusted();
         let fn_sig = attrs.fn_sig();
         let qual_names: Option<surface::QualNames> = attrs.qual_names();
-        if attrs.extern_spec() {
+        let extern_id = if attrs.extern_spec() {
             if fn_sig.is_none() {
                 return Err(self.emit_err(errors::MissingFnSigForExternSpec {
                     span: self.tcx.def_span(owner_id),
@@ -359,10 +359,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 .insert(extern_def_id, owner_id.def_id);
             // We should never check an extern spec (it will infinitely recurse)
             trusted = true;
-        }
+            Some(extern_def_id)
+        } else {
+            None
+        };
         self.specs
             .fn_sigs
-            .insert(owner_id, surface::FnSpec { fn_sig, trusted, qual_names });
+            .insert(owner_id, surface::FnSpec { fn_sig, trusted, qual_names, extern_id });
         Ok(())
     }
 

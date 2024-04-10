@@ -113,6 +113,14 @@ impl<'fhir> Node<'fhir> {
             Node::ImplItem(impl_item) => impl_item.owner_id,
         }
     }
+
+    pub fn extern_id(&self) -> Option<DefId> {
+        match self {
+            Node::Item(item) => item.extern_id,
+            Node::TraitItem(_) => None,
+            Node::ImplItem(item) => item.extern_id,
+        }
+    }
 }
 
 pub struct Item<'fhir> {
@@ -208,6 +216,8 @@ pub enum TraitItemKind<'fhir> {
 pub struct ImplItem<'fhir> {
     pub owner_id: OwnerId,
     pub kind: ImplItemKind<'fhir>,
+    /// Whether this is a spec for an extern item
+    pub extern_id: Option<DefId>,
 }
 
 impl<'fhir> ImplItem<'fhir> {

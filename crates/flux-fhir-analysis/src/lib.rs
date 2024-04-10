@@ -237,7 +237,7 @@ fn item_bounds(
 
 fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generics> {
     let def_id = local_id.to_def_id();
-    let rustc_generics = genv.lower_generics_of(local_id)?;
+    let rustc_generics = genv.lower_generics_of(def_id)?;
 
     let def_kind = genv.def_kind(def_id);
     match def_kind {

@@ -824,8 +824,8 @@ fn lower_generic_param_def(
             GenericParamDefKind::Type { has_default }
         }
         rustc_ty::GenericParamDefKind::Lifetime => GenericParamDefKind::Lifetime,
-        rustc_ty::GenericParamDefKind::Const { has_default, .. } => {
-            GenericParamDefKind::Const { has_default }
+        rustc_ty::GenericParamDefKind::Const { has_default, is_host_effect } => {
+            GenericParamDefKind::Const { has_default, is_host_effect }
         }
         _ => return Err(UnsupportedReason::new("unsupported generic param")),
     };
