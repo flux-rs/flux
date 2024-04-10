@@ -751,20 +751,21 @@ fn mk_generator_obligations(
     upvar_tys: &List<Ty>,
     opaque_def_id: &DefId,
 ) -> Result<Vec<rty::Clause>> {
-    let bounds = genv.item_bounds(*opaque_def_id)?;
-    let pred = if let rty::ClauseKind::Projection(proj) = bounds.skip_binder()[0].kind() {
-        let output = proj.term;
-        CoroutineObligPredicate {
-            def_id: *generator_did,
-            resume_ty: resume_ty.clone(),
-            upvar_tys: upvar_tys.clone(),
-            output,
+    let bounds = genv.item_bounds(*opaque_def_id)?.skip_binder();
+    for bound in &bounds {
+        if let rty::ClauseKind::Projection(proj) = bound.kind() {
+            let output = proj.term;
+            let pred = CoroutineObligPredicate {
+                def_id: *generator_did,
+                resume_ty: resume_ty.clone(),
+                upvar_tys: upvar_tys.clone(),
+                output,
+            };
+            let clause = rty::Clause::new(vec![], rty::ClauseKind::CoroutineOblig(pred));
+            return Ok(vec![clause]);
         }
-    } else {
-        panic!("mk_generator_obligations: unexpected bounds")
-    };
-    let clause = rty::Clause::new(vec![], rty::ClauseKind::CoroutineOblig(pred));
-    Ok(vec![clause])
+    }
+    bug!("no projection predicate")
 }
 
 fn mk_obligations(

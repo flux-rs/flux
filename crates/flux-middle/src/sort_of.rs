@@ -65,7 +65,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let param = self.get_generic_param(def_id);
         match &param.kind {
             fhir::GenericParamKind::Base => Some(rty::Sort::Param(self.def_id_to_param_ty(def_id))),
-            fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
+            fhir::GenericParamKind::Const { .. }
+            | fhir::GenericParamKind::Type { .. }
+            | fhir::GenericParamKind::Lifetime => None,
         }
     }
 
@@ -74,7 +76,9 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let kind = generics.self_kind.as_ref()?;
         match kind {
             fhir::GenericParamKind::Base => Some(rty::Sort::Param(rty::SELF_PARAM_TY)),
-            fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
+            fhir::GenericParamKind::Const { .. }
+            | fhir::GenericParamKind::Type { .. }
+            | fhir::GenericParamKind::Lifetime => None,
         }
     }
 

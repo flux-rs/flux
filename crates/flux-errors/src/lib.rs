@@ -99,6 +99,7 @@ fn emitter(
                 let emitter = HumanEmitter::new(dst, fallback_bundle)
                     .sm(Some(source_map))
                     .short_message(short)
+                    .diagnostic_width(opts.diagnostic_width)
                     .track_diagnostics(track_diagnostics)
                     .terminal_url(opts.unstable_opts.terminal_urls);
                 Box::new(emitter)
@@ -113,8 +114,10 @@ fn emitter(
                     pretty,
                     json_rendered,
                 )
+                .registry(Some(Registry::new(&[])))
                 .fluent_bundle(bundle)
                 .track_diagnostics(track_diagnostics)
+                .diagnostic_width(opts.diagnostic_width)
                 .terminal_url(opts.unstable_opts.terminal_urls),
             )
         }

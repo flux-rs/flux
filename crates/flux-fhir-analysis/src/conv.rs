@@ -167,8 +167,10 @@ pub(crate) fn conv_opaque_ty<'genv>(
 }
 
 pub(crate) fn conv_generics(
+    genv: GlobalEnv,
     rust_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
+    extern_id: Option<DefId>,
     is_trait: Option<LocalDefId>,
 ) -> QueryResult<rty::Generics> {
     let opt_self = is_trait.map(|def_id| {
@@ -178,7 +180,7 @@ pub(crate) fn conv_generics(
             .map_or(rty::GenericParamDefKind::Type { has_default: false }, conv_generic_param_kind);
         rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.to_def_id(), kind }
     });
-    let params = opt_self
+    let mut params = opt_self
         .into_iter()
         .chain(rust_generics.params.iter().flat_map(|rust_param| {
             // We have to filter out late bound parameters
@@ -194,10 +196,30 @@ pub(crate) fn conv_generics(
                 name: rust_param.name,
             })
         }))
-        .collect();
+        .collect_vec();
+
+    // HACK(nilehmann) add host param for effect to std/core external specs
+    if let Some(extern_id) = extern_id {
+        if let Some((pos, param)) = genv
+            .lower_generics_of(extern_id)?
+            .params
+            .iter()
+            .find_position(|p| p.is_host_effect())
+        {
+            params.insert(
+                pos,
+                rty::GenericParamDef {
+                    kind: refining::refine_generic_param_def_kind(param.kind),
+                    def_id: param.def_id,
+                    index: param.index,
+                    name: param.name,
+                },
+            );
+        }
+    }
 
     Ok(rty::Generics {
-        params,
+        params: List::from_vec(params),
         parent: rust_generics.parent(),
         parent_count: rust_generics.parent_count(),
     })
@@ -221,6 +243,9 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
         }
         fhir::GenericParamKind::Base => rty::GenericParamDefKind::Base,
         fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
+        fhir::GenericParamKind::Const { is_host_effect: _ } => {
+            rty::GenericParamDefKind::Const { has_default: false }
+        }
     }
 }
 
@@ -424,7 +449,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 let kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
                 Ok(rty::BoundVariableKind::Region(kind))
             }
-            fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Base => {
+            fhir::GenericParamKind::Const { .. }
+            | fhir::GenericParamKind::Type { .. }
+            | fhir::GenericParamKind::Base => {
                 bug!("unexpected!")
             }
         }

@@ -97,6 +97,7 @@ pub(crate) struct RustItemCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
+    extern_id: Option<DefId>,
     fn_sig_scope: Option<ScopeId>,
     resolver_output: &'genv ResolverOutput,
     opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
@@ -113,12 +114,14 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         owner: OwnerId,
+        extern_id: Option<DefId>,
         resolver_output: &'genv ResolverOutput,
         opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
     ) -> Self {
         RustItemCtxt {
             genv,
             owner,
+            extern_id,
             fn_sig_scope: None,
             local_id_gen: IndexGen::new(),
             resolver_output,
@@ -127,7 +130,13 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     }
 
     fn with_new_owner<'b>(&'b mut self, owner: OwnerId) -> RustItemCtxt<'b, 'genv, 'tcx> {
-        RustItemCtxt::new(self.genv, owner, self.resolver_output, self.opaque_tys.as_deref_mut())
+        RustItemCtxt::new(
+            self.genv,
+            owner,
+            self.extern_id,
+            self.resolver_output,
+            self.opaque_tys.as_deref_mut(),
+        )
     }
 
     fn as_lift_cx<'b>(&'b mut self) -> LiftCtxt<'b, 'genv, 'tcx> {

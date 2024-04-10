@@ -51,7 +51,13 @@ pub struct GenericParamDef {
     pub kind: GenericParamDefKind,
 }
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+impl GenericParamDef {
+    pub fn is_host_effect(&self) -> bool {
+        matches!(self.kind, GenericParamDefKind::Const { is_host_effect: true, .. })
+    }
+}
+
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
     Lifetime,

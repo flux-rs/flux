@@ -255,7 +255,8 @@ fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generi
                 .map()
                 .get_generics(local_id)
                 .unwrap_or_else(|| bug!("no generics for {:?}", def_id));
-            conv::conv_generics(&rustc_generics, generics, is_trait)
+            let extern_id = genv.map().extern_id_of(local_id);
+            conv::conv_generics(genv, &rustc_generics, generics, extern_id, is_trait)
         }
         DefKind::Closure => {
             Ok(rty::Generics {

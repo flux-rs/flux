@@ -64,6 +64,7 @@ pub enum GenericParamKind<'fhir> {
     Type { default: Option<Ty<'fhir>> },
     Base,
     Lifetime,
+    Const { is_host_effect: bool },
 }
 
 #[derive(Debug, Clone, Copy)]
