@@ -1,8 +1,8 @@
-use rustc_errors::{ErrorGuaranteed, IntoDiagnostic};
+use rustc_errors::{Diagnostic, ErrorGuaranteed};
 
 pub trait ErrorEmitter {
     #[track_caller]
-    fn emit<'a>(&'a self, err: impl IntoDiagnostic<'a>) -> ErrorGuaranteed;
+    fn emit<'a>(&'a self, err: impl Diagnostic<'a>) -> ErrorGuaranteed;
 }
 
 pub trait ErrorCollector<E> {
@@ -35,7 +35,7 @@ pub trait ResultExt<T, E> {
     #[track_caller]
     fn emit<'a>(self, emitter: &'a impl ErrorEmitter) -> Result<T, ErrorGuaranteed>
     where
-        E: IntoDiagnostic<'a>;
+        E: Diagnostic<'a>;
 }
 
 impl<T, E> ResultExt<T, E> for Result<T, E> {
@@ -48,7 +48,7 @@ impl<T, E> ResultExt<T, E> for Result<T, E> {
     #[track_caller]
     fn emit<'a>(self, emitter: &'a impl ErrorEmitter) -> Result<T, ErrorGuaranteed>
     where
-        E: IntoDiagnostic<'a>,
+        E: Diagnostic<'a>,
     {
         match self {
             Ok(v) => Ok(v),

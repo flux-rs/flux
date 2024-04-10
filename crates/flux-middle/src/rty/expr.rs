@@ -284,11 +284,14 @@ pub enum Loc {
 
 newtype_index! {
     #[debug_format = "$k{}"]
+    #[encodable]
     pub struct KVid {}
 }
 
 newtype_index! {
     #[debug_format = "a{}"]
+    #[orderable]
+    #[encodable]
     pub struct Name {}
 }
 

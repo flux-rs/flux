@@ -167,8 +167,10 @@ pub(crate) fn conv_opaque_ty<'genv>(
 }
 
 pub(crate) fn conv_generics(
+    genv: GlobalEnv,
     rust_generics: &rustc::ty::Generics,
     generics: &fhir::Generics,
+    extern_id: Option<DefId>,
     is_trait: Option<LocalDefId>,
 ) -> QueryResult<rty::Generics> {
     let opt_self = is_trait.map(|def_id| {
@@ -178,7 +180,7 @@ pub(crate) fn conv_generics(
             .map_or(rty::GenericParamDefKind::Type { has_default: false }, conv_generic_param_kind);
         rty::GenericParamDef { index: 0, name: kw::SelfUpper, def_id: def_id.to_def_id(), kind }
     });
-    let params = opt_self
+    let mut params = opt_self
         .into_iter()
         .chain(rust_generics.params.iter().flat_map(|rust_param| {
             // We have to filter out late bound parameters
@@ -194,10 +196,30 @@ pub(crate) fn conv_generics(
                 name: rust_param.name,
             })
         }))
-        .collect();
+        .collect_vec();
+
+    // HACK(nilehmann) add host param for effect to std/core external specs
+    if let Some(extern_id) = extern_id {
+        if let Some((pos, param)) = genv
+            .lower_generics_of(extern_id)?
+            .params
+            .iter()
+            .find_position(|p| p.is_host_effect())
+        {
+            params.insert(
+                pos,
+                rty::GenericParamDef {
+                    kind: refining::refine_generic_param_def_kind(param.kind),
+                    def_id: param.def_id,
+                    index: param.index,
+                    name: param.name,
+                },
+            );
+        }
+    }
 
     Ok(rty::Generics {
-        params,
+        params: List::from_vec(params),
         parent: rust_generics.parent(),
         parent_count: rust_generics.parent_count(),
     })
@@ -221,6 +243,9 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
         }
         fhir::GenericParamKind::Base => rty::GenericParamDefKind::Base,
         fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
+        fhir::GenericParamKind::Const { is_host_effect: _ } => {
+            rty::GenericParamDefKind::Const { has_default: false }
+        }
     }
 }
 
@@ -420,11 +445,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .genv
                     .tcx()
                     .hir()
-                    .name(self.genv.hir().local_def_id_to_hir_id(def_id));
+                    .name(self.genv.tcx().local_def_id_to_hir_id(def_id));
                 let kind = rty::BoundRegionKind::BrNamed(def_id.to_def_id(), name);
                 Ok(rty::BoundVariableKind::Region(kind))
             }
-            fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Base => {
+            fhir::GenericParamKind::Const { .. }
+            | fhir::GenericParamKind::Type { .. }
+            | fhir::GenericParamKind::Base => {
                 bug!("unexpected!")
             }
         }
@@ -797,13 +824,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::Lifetime::Resolved(res) => res,
         };
         let tcx = self.genv.tcx();
-        let lifetime_name = |def_id| tcx.hir().name(tcx.hir().local_def_id_to_hir_id(def_id));
+        let lifetime_name = |def_id| tcx.hir().name(tcx.local_def_id_to_hir_id(def_id));
         match res {
             ResolvedArg::StaticLifetime => rty::ReStatic,
             ResolvedArg::EarlyBound(def_id) => {
                 let index = self.genv.def_id_to_param_index(def_id.expect_local());
                 let name = lifetime_name(def_id.expect_local());
-                rty::ReEarlyBound(rty::EarlyBoundRegion { def_id, index, name })
+                rty::ReEarlyBound(rty::EarlyParamRegion { def_id, index, name })
             }
             ResolvedArg::LateBound(_, index, def_id) => {
                 let depth = env.depth().checked_sub(1).unwrap();
@@ -1470,12 +1497,13 @@ fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
 }
 
 mod errors {
+    use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use flux_middle::fhir::{self, SurfaceIdent};
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_assoc_type_not_found, code = "FLUX")]
+    #[diag(fhir_analysis_assoc_type_not_found, code = E0999)]
     #[note]
     pub(super) struct AssocTypeNotFound {
         #[primary_span]
@@ -1490,7 +1518,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_base_instance, code = "FLUX")]
+    #[diag(fhir_analysis_invalid_base_instance, code = E0999)]
     pub(super) struct InvalidBaseInstance<'fhir> {
         #[primary_span]
         span: Span,

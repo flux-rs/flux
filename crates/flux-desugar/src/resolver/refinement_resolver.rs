@@ -849,13 +849,14 @@ impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
 }
 
 mod errors {
+    use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use flux_syntax::surface;
     use itertools::Itertools;
     use rustc_span::{symbol::Ident, Span, Symbol};
 
     #[derive(Diagnostic)]
-    #[diag(desugar_duplicate_param, code = "FLUX")]
+    #[diag(desugar_duplicate_param, code = E0999)]
     pub(super) struct DuplicateParam {
         #[primary_span]
         #[label]
@@ -873,7 +874,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_unresolved_sort, code = "FLUX")]
+    #[diag(desugar_unresolved_sort, code = E0999)]
     pub(super) struct UnresolvedSort {
         #[primary_span]
         #[label]
@@ -888,7 +889,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_unresolved_var, code = "FLUX")]
+    #[diag(desugar_unresolved_var, code = E0999)]
     pub(super) struct UnresolvedVar {
         #[primary_span]
         #[label]
@@ -916,7 +917,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_invalid_unrefined_param, code = "FLUX")]
+    #[diag(desugar_invalid_unrefined_param, code = E0999)]
     pub(super) struct InvalidUnrefinedParam {
         #[primary_span]
         #[label]
@@ -931,7 +932,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_illegal_binder, code = "FLUX")]
+    #[diag(desugar_illegal_binder, code = E0999)]
     pub(super) struct IllegalBinder {
         #[primary_span]
         #[label]

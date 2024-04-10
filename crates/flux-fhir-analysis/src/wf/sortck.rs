@@ -14,7 +14,7 @@ use flux_middle::{
 };
 use itertools::izip;
 use rustc_data_structures::unord::UnordMap;
-use rustc_errors::IntoDiagnostic;
+use rustc_errors::Diagnostic;
 use rustc_span::{def_id::DefId, Span};
 
 use super::errors;
@@ -632,7 +632,7 @@ impl InferCtxt<'_, '_> {
     }
 
     #[track_caller]
-    fn emit_err<'b>(&'b self, err: impl IntoDiagnostic<'b>) -> ErrorGuaranteed {
+    fn emit_err<'b>(&'b self, err: impl Diagnostic<'b>) -> ErrorGuaranteed {
         self.genv.sess().emit_err(err)
     }
 }

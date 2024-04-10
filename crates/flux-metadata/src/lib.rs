@@ -1,6 +1,7 @@
 #![allow(incomplete_features)]
 #![feature(rustc_private, specialization, if_let_guard)]
 
+extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
@@ -22,7 +23,6 @@ use decoder::decode_crate_metadata;
 use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
 use flux_middle::{cstore::CrateStore, global_env::GlobalEnv, intern::List, rty};
-use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 use rustc_hash::FxHashMap;
 use rustc_hir::def::DefKind;
 use rustc_macros::{TyDecodable, TyEncodable};

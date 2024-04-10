@@ -1,30 +1,31 @@
+use flux_errors::E0999;
 use flux_macros::Diagnostic;
 use flux_syntax::surface;
 use rustc_span::{symbol::Ident, Span, Symbol};
 
 #[derive(Diagnostic)]
-#[diag(desugar_int_too_large, code = "FLUX")]
+#[diag(desugar_int_too_large, code = E0999)]
 pub(super) struct IntTooLarge {
     #[primary_span]
     pub(super) span: Span,
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_unexpected_literal, code = "FLUX")]
+#[diag(desugar_unexpected_literal, code = E0999)]
 pub(super) struct UnexpectedLiteral {
     #[primary_span]
     pub(super) span: Span,
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_dot_var, code = "FLUX")]
+#[diag(desugar_invalid_dot_var, code = E0999)]
 pub(super) struct InvalidDotVar {
     #[primary_span]
     pub(super) span: Span,
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_func_as_var, code = "FLUX")]
+#[diag(desugar_invalid_func_as_var, code = E0999)]
 pub(super) struct InvalidFuncAsVar {
     #[primary_span]
     #[label]
@@ -32,7 +33,7 @@ pub(super) struct InvalidFuncAsVar {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_func, code = "FLUX")]
+#[diag(desugar_invalid_func, code = E0999)]
 pub(super) struct InvalidFunc {
     #[primary_span]
     #[label]
@@ -40,14 +41,14 @@ pub(super) struct InvalidFunc {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_loc, code = "FLUX")]
+#[diag(desugar_invalid_loc, code = E0999)]
 pub(super) struct InvalidLoc {
     #[primary_span]
     pub(super) span: Span,
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_numeric_suffix, code = "FLUX")]
+#[diag(desugar_invalid_numeric_suffix, code = E0999)]
 pub(super) struct InvalidNumericSuffix {
     #[primary_span]
     #[label]
@@ -62,7 +63,7 @@ impl InvalidNumericSuffix {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_unresolved_generic_param, code = "FLUX")]
+#[diag(desugar_unresolved_generic_param, code = E0999)]
 #[note]
 pub(super) struct UnresolvedGenericParam {
     #[primary_span]
@@ -76,7 +77,7 @@ impl UnresolvedGenericParam {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_constant, code = "FLUX")]
+#[diag(desugar_invalid_constant, code = E0999)]
 pub(super) struct InvalidConstant {
     #[primary_span]
     span: Span,
@@ -89,7 +90,7 @@ impl InvalidConstant {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_alias_reft, code = "FLUX")]
+#[diag(desugar_invalid_alias_reft, code = E0999)]
 pub(super) struct InvalidAliasReft {
     #[primary_span]
     #[label]

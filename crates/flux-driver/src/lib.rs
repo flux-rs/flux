@@ -14,7 +14,6 @@ pub mod callbacks;
 mod collector;
 
 use flux_macros::fluent_messages;
-use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 
 fluent_messages! { "../locales/en-US.ftl" }
 

@@ -5,7 +5,7 @@ use rustc_middle::ty::tls;
 use rustc_span::Span;
 
 thread_local! {
-    static TRACKED_SPAN: Cell<Option<Span>> = Cell::new(None);
+    static TRACKED_SPAN: Cell<Option<Span>> = const { Cell::new(None) };
 }
 
 pub fn track_span<R>(span: Span, f: impl FnOnce() -> R) -> R {
@@ -71,8 +71,8 @@ fn opt_span_bug_fmt<S: Into<MultiSpan>>(
     tls::with_opt(move |tcx| {
         let msg = format!("{location}: {args}");
         match (tcx, span) {
-            (Some(tcx), Some(span)) => tcx.sess.diagnostic().span_bug(span, msg),
-            (Some(tcx), None) => tcx.sess.diagnostic().bug(msg),
+            (Some(tcx), Some(span)) => tcx.sess.dcx().span_bug(span, msg),
+            (Some(tcx), None) => tcx.sess.dcx().bug(msg),
             (None, _) => std::panic::panic_any(msg),
         }
     })

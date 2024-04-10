@@ -1,4 +1,4 @@
-use std::{collections::hash_map::Entry, iter, ops::ControlFlow};
+use std::{collections::hash_map::Entry, iter};
 
 use flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
 use flux_config as config;
@@ -26,7 +26,6 @@ use itertools::Itertools;
 use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
-    def::DefKind,
     def_id::{DefId, LocalDefId},
     LangItem,
 };
@@ -263,7 +262,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
         //    to the `resume_arg` place..."
-        let resume_ty = if genv.def_kind(def_id) == DefKind::Coroutine {
+        let resume_ty = if genv.tcx().is_coroutine(def_id.to_def_id()) {
             Some(fn_sig.args()[1].clone())
         } else {
             None
@@ -588,7 +587,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
                 rty::ClauseKind::Projection(_)
                 | rty::ClauseKind::Trait(_)
-                | rty::ClauseKind::TypeOutlives(_) => {}
+                | rty::ClauseKind::TypeOutlives(_)
+                | rty::ClauseKind::ConstArgHasType(_, _) => {}
             }
         }
         Ok(())
@@ -1203,11 +1203,11 @@ fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize>
     }
 
     impl<'tcx> rustc_middle::ty::TypeVisitor<TyCtxt<'tcx>> for Collector {
-        fn visit_ty(&mut self, t: rustc_middle::ty::Ty) -> ControlFlow<!> {
+        fn visit_ty(&mut self, t: rustc_middle::ty::Ty) {
             if let rustc_middle::ty::Param(param_ty) = t.kind() {
                 self.params.insert(param_ty.index as usize);
             }
-            t.super_visit_with(self)
+            t.super_visit_with(self);
         }
     }
     let mut vis = Collector { params: Default::default() };
@@ -1494,9 +1494,9 @@ fn snapshot_at_dominator<'a>(
 }
 
 pub(crate) mod errors {
-    use flux_errors::ErrorGuaranteed;
+    use flux_errors::{ErrorGuaranteed, E0999};
     use flux_middle::{pretty, queries::QueryErr, rty::evars::UnsolvedEvar};
-    use rustc_errors::IntoDiagnostic;
+    use rustc_errors::Diagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_middle::mir::SourceInfo;
     use rustc_span::Span;
@@ -1519,32 +1519,26 @@ pub(crate) mod errors {
         }
     }
 
-    impl<'a> IntoDiagnostic<'a> for CheckerError {
-        fn into_diagnostic(
+    impl<'a> Diagnostic<'a> for CheckerError {
+        fn into_diag(
             self,
-            handler: &'a rustc_errors::Handler,
-        ) -> rustc_errors::DiagnosticBuilder<'a, ErrorGuaranteed> {
+            dcx: &'a rustc_errors::DiagCtxt,
+            level: rustc_errors::Level,
+        ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
             use crate::fluent_generated as fluent;
-            let mut builder = match self.kind {
-                CheckerErrKind::Inference => {
-                    handler.struct_err_with_code(
-                        fluent::refineck_param_inference_error,
-                        flux_errors::diagnostic_id(),
-                    )
-                }
+            let mut diag = match self.kind {
+                CheckerErrKind::Inference => dcx.struct_err(fluent::refineck_param_inference_error),
                 CheckerErrKind::OpaqueStruct(def_id) => {
-                    let mut builder = handler.struct_err_with_code(
-                        fluent::refineck_opaque_struct_error,
-                        flux_errors::diagnostic_id(),
-                    );
-                    builder.set_arg("struct", pretty::def_id_to_string(def_id));
-                    builder
+                    let mut diag = dcx.struct_err(fluent::refineck_opaque_struct_error);
+                    diag.arg("struct", pretty::def_id_to_string(def_id));
+                    diag
                 }
-                CheckerErrKind::Query(err) => err.into_diagnostic(handler),
+                CheckerErrKind::Query(err) => err.into_diag(dcx, level),
             };
-            builder.set_span(self.span);
+            diag.code(E0999);
+            diag.span(self.span);
 
-            builder
+            diag
         }
     }
 

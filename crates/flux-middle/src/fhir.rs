@@ -64,6 +64,7 @@ pub enum GenericParamKind<'fhir> {
     Type { default: Option<Ty<'fhir>> },
     Base,
     Lifetime,
+    Const { is_host_effect: bool },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -111,6 +112,14 @@ impl<'fhir> Node<'fhir> {
             Node::Item(item) => item.owner_id,
             Node::TraitItem(trait_item) => trait_item.owner_id,
             Node::ImplItem(impl_item) => impl_item.owner_id,
+        }
+    }
+
+    pub fn extern_id(&self) -> Option<DefId> {
+        match self {
+            Node::Item(item) => item.extern_id,
+            Node::TraitItem(_) => None,
+            Node::ImplItem(item) => item.extern_id,
         }
     }
 }
@@ -208,6 +217,8 @@ pub enum TraitItemKind<'fhir> {
 pub struct ImplItem<'fhir> {
     pub owner_id: OwnerId,
     pub kind: ImplItemKind<'fhir>,
+    /// Whether this is a spec for an extern item
+    pub extern_id: Option<DefId>,
 }
 
 impl<'fhir> ImplItem<'fhir> {
@@ -1072,15 +1083,15 @@ impl<'fhir> FuncSort<'fhir> {
     }
 }
 
-impl rustc_errors::IntoDiagnosticArg for Ty<'_> {
-    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+impl rustc_errors::IntoDiagArg for Ty<'_> {
+    fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+        rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 
-impl rustc_errors::IntoDiagnosticArg for Path<'_> {
-    fn into_diagnostic_arg(self) -> rustc_errors::DiagnosticArgValue<'static> {
-        rustc_errors::DiagnosticArgValue::Str(Cow::Owned(format!("{self:?}")))
+impl rustc_errors::IntoDiagArg for Path<'_> {
+    fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+        rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 

@@ -50,19 +50,14 @@ impl Callbacks for FluxCallbacks {
 
 impl FluxCallbacks {
     fn verify<'tcx>(&self, compiler: &Compiler, queries: &'tcx Queries<'tcx>) {
-        if compiler
-            .session()
-            .diagnostic()
-            .has_errors_or_lint_errors()
-            .is_some()
-        {
+        if compiler.sess.dcx().has_errors().is_some() {
             return;
         }
 
         queries.global_ctxt().unwrap().enter(|tcx| {
             let sess = FluxSession::new(
                 &tcx.sess.opts,
-                tcx.sess.parse_sess.clone_source_map(),
+                tcx.sess.psess.clone_source_map(),
                 rustc_errors::fallback_fluent_bundle(DEFAULT_LOCALE_RESOURCES.to_vec(), false),
             );
 
@@ -95,13 +90,9 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let mut ck = CrateChecker::new(genv, fhir);
 
         let crate_items = genv.tcx().hir_crate_items(());
-        let items = crate_items.items().map(|item| item.owner_id.def_id);
-        let impl_items = crate_items
-            .impl_items()
-            .map(|impl_item| impl_item.owner_id.def_id);
 
-        let result = items
-            .chain(impl_items)
+        let result = crate_items
+            .definitions()
             .try_for_each_exhaust(|def_id| ck.check_def(def_id));
 
         ck.cache.save().unwrap_or(());
@@ -181,7 +172,17 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
 
         match self.genv.def_kind(def_id) {
             DefKind::Fn | DefKind::AssocFn => {
-                refineck::check_fn(self.genv, &mut self.cache, def_id, self.checker_config)
+                // Skip trait methods without body
+                if self
+                    .genv
+                    .tcx()
+                    .hir_node_by_def_id(def_id)
+                    .body_id()
+                    .is_some()
+                {
+                    refineck::check_fn(self.genv, &mut self.cache, def_id, self.checker_config)?;
+                }
+                Ok(())
             }
             DefKind::Enum => {
                 let adt_def = self

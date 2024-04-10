@@ -18,7 +18,8 @@
 //!
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
-use rustc_type_ir::{Mutability, INNERMOST};
+use rustc_ast::Mutability;
+use rustc_type_ir::INNERMOST;
 
 use super::{
     box_args,

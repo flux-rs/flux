@@ -1,5 +1,4 @@
 #![feature(allocator_api)]
-#![feature(associated_type_bounds)]
 
 use std::alloc::{Allocator, Global};
 

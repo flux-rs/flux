@@ -208,7 +208,7 @@ impl<'t> Cursor<'t> {
                 }
                 self.map_token(token);
             }
-            Some(TokenTree::Delimited(span, delim, tokens)) => {
+            Some(TokenTree::Delimited(span, _spacing, delim, tokens)) => {
                 let close = (
                     Location(span.close.lo() - self.offset),
                     Token::CloseDelim(*delim),

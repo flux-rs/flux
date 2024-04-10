@@ -438,7 +438,7 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>, owner_id: OwnerId) -> Result<Self> {
         let tcx = resolver.genv.tcx();
         let sess = resolver.genv.sess();
-        let (table, opaque) = match tcx.hir().owner(owner_id) {
+        let (table, opaque) = match tcx.hir_owner_node(owner_id) {
             hir::OwnerNode::Item(item) => NameResCollector::collect_item(tcx, sess, item)?,
             hir::OwnerNode::ImplItem(impl_item) => {
                 NameResCollector::collect_impl_item(tcx, sess, impl_item)?
@@ -446,7 +446,9 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
             hir::OwnerNode::TraitItem(trait_item) => {
                 NameResCollector::collect_trait_item(tcx, sess, trait_item)?
             }
-            node @ (hir::OwnerNode::ForeignItem(_) | hir::OwnerNode::Crate(_)) => {
+            node @ (hir::OwnerNode::ForeignItem(_)
+            | hir::OwnerNode::Crate(_)
+            | hir::OwnerNode::Synthetic) => {
                 bug!("unsupported node {node:?}")
             }
         };
@@ -690,13 +692,14 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for NameResCollector<'_, 'tcx> {
 }
 
 mod errors {
+    use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use flux_syntax::surface;
     use itertools::Itertools;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
-    #[diag(desugar_unsupported_signature, code = "FLUX")]
+    #[diag(desugar_unsupported_signature, code = E0999)]
     #[note]
     pub(super) struct UnsupportedSignature<'a> {
         #[primary_span]
@@ -711,7 +714,7 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(desugar_unresolved_path, code = "FLUX")]
+    #[diag(desugar_unresolved_path, code = E0999)]
     #[help]
     pub struct UnresolvedPath {
         #[primary_span]

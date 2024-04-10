@@ -6,13 +6,16 @@ use rustc_middle::{
     ty::{self, TyCtxt},
 };
 use rustc_serialize::{opaque, Encodable, Encoder};
-use rustc_span::def_id::{CrateNum, DefIndex};
+use rustc_span::{
+    def_id::{CrateNum, DefIndex},
+    SpanEncoder,
+};
 use rustc_type_ir::TyEncoder;
 
 use crate::{CrateMetadata, METADATA_HEADER};
 
 struct EncodeContext<'tcx> {
-    tcx: TyCtxt<'tcx>,
+    _tcx: TyCtxt<'tcx>,
     opaque: opaque::FileEncoder,
     type_shorthands: FxHashMap<ty::Ty<'tcx>, usize>,
     predicate_shorthands: FxHashMap<ty::PredicateKind<'tcx>, usize>,
@@ -20,15 +23,19 @@ struct EncodeContext<'tcx> {
 }
 
 pub fn encode_metadata(genv: &GlobalEnv, path: &std::path::Path) {
-    let mut encoder = opaque::FileEncoder::new(path)
-        .unwrap_or_else(|err| genv.tcx().sess.emit_fatal(FailCreateFileEncoder { err }));
+    let mut encoder = opaque::FileEncoder::new(path).unwrap_or_else(|err| {
+        genv.tcx()
+            .sess
+            .dcx()
+            .emit_fatal(FailCreateFileEncoder { err })
+    });
 
     encoder.emit_raw_bytes(METADATA_HEADER);
 
     let crate_root = CrateMetadata::new(genv);
 
     let mut ecx = EncodeContext {
-        tcx: genv.tcx(),
+        _tcx: genv.tcx(),
         opaque: encoder,
         type_shorthands: Default::default(),
         predicate_shorthands: Default::default(),
@@ -37,6 +44,36 @@ pub fn encode_metadata(genv: &GlobalEnv, path: &std::path::Path) {
     crate_root.encode(&mut ecx);
 
     ecx.opaque.finish().unwrap();
+}
+
+impl<'tcx> SpanEncoder for EncodeContext<'tcx> {
+    fn encode_span(&mut self, span: rustc_span::Span) {
+        self.opaque.encode_span(span);
+    }
+
+    fn encode_symbol(&mut self, symbol: rustc_span::Symbol) {
+        self.opaque.encode_symbol(symbol);
+    }
+
+    fn encode_expn_id(&mut self, expn_id: rustc_span::ExpnId) {
+        self.opaque.encode_expn_id(expn_id);
+    }
+
+    fn encode_syntax_context(&mut self, syntax_context: rustc_span::SyntaxContext) {
+        self.opaque.encode_syntax_context(syntax_context);
+    }
+
+    fn encode_crate_num(&mut self, crate_num: CrateNum) {
+        self.opaque.encode_crate_num(crate_num);
+    }
+
+    fn encode_def_index(&mut self, def_index: DefIndex) {
+        self.opaque.encode_def_index(def_index);
+    }
+
+    fn encode_def_id(&mut self, def_id: rustc_hir::def_id::DefId) {
+        self.opaque.encode_def_id(def_id);
+    }
 }
 
 impl<'tcx> TyEncoder for EncodeContext<'tcx> {
@@ -60,18 +97,6 @@ impl<'tcx> TyEncoder for EncodeContext<'tcx> {
         bug!("Encoding `interpret::AllocId` is not supported");
         // let (index, _) = self.interpret_allocs.insert_full(*alloc_id);
         // index.encode(self);
-    }
-}
-
-impl<'tcx> Encodable<EncodeContext<'tcx>> for DefIndex {
-    fn encode(&self, s: &mut EncodeContext<'tcx>) {
-        s.emit_u32(self.as_u32());
-    }
-}
-
-impl<'tcx> Encodable<EncodeContext<'tcx>> for CrateNum {
-    fn encode(&self, s: &mut EncodeContext<'tcx>) {
-        s.tcx.stable_crate_id(*self).encode(s);
     }
 }
 

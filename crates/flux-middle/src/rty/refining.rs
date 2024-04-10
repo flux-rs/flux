@@ -19,17 +19,8 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> QueryResult<rty
         .params
         .iter()
         .map(|param| {
-            let kind = match param.kind {
-                rustc::ty::GenericParamDefKind::Lifetime => rty::GenericParamDefKind::Lifetime,
-                rustc::ty::GenericParamDefKind::Type { has_default } => {
-                    rty::GenericParamDefKind::Type { has_default }
-                }
-                rustc::ty::GenericParamDefKind::Const { has_default } => {
-                    rty::GenericParamDefKind::Const { has_default }
-                }
-            };
             rty::GenericParamDef {
-                kind,
+                kind: refine_generic_param_def_kind(param.kind),
                 index: param.index,
                 name: param.name,
                 def_id: param.def_id,
@@ -38,6 +29,20 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> QueryResult<rty
         .collect();
 
     Ok(rty::Generics { params, parent: generics.parent(), parent_count: generics.parent_count() })
+}
+
+pub fn refine_generic_param_def_kind(
+    kind: rustc::ty::GenericParamDefKind,
+) -> rty::GenericParamDefKind {
+    match kind {
+        rustc::ty::GenericParamDefKind::Lifetime => rty::GenericParamDefKind::Lifetime,
+        rustc::ty::GenericParamDefKind::Type { has_default } => {
+            rty::GenericParamDefKind::Type { has_default }
+        }
+        rustc::ty::GenericParamDefKind::Const { has_default, .. } => {
+            rty::GenericParamDefKind::Const { has_default }
+        }
+    }
 }
 
 pub struct Refiner<'genv, 'tcx> {
@@ -128,6 +133,9 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             rustc::ty::ClauseKind::TypeOutlives(pred) => {
                 let pred = rty::OutlivesPredicate(self.refine_ty(&pred.0)?, pred.1);
                 rty::ClauseKind::TypeOutlives(pred)
+            }
+            rustc::ty::ClauseKind::ConstArgHasType(const_, ty) => {
+                rty::ClauseKind::ConstArgHasType(const_.clone(), self.as_default().refine_ty(ty)?)
             }
         };
         let kind = rty::Binder::new(kind, List::empty());

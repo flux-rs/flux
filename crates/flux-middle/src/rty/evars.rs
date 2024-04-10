@@ -40,6 +40,8 @@ enum EVarState {
 
 newtype_index! {
     /// *E*xistential *v*ariable *id*
+    #[orderable]
+    #[encodable]
     struct EVid {}
 }
 

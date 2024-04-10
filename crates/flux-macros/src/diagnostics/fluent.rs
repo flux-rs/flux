@@ -1,14 +1,11 @@
-#![allow(clippy::all, clippy::pedantic)]
+#![allow(clippy::pedantic)]
 use std::{
     collections::{HashMap, HashSet},
     fs::read_to_string,
     path::{Path, PathBuf},
 };
 
-use annotate_snippets::{
-    display_list::DisplayList,
-    snippet::{Annotation, AnnotationType, Slice, Snippet, SourceAnnotation},
-};
+use annotate_snippets::{Annotation, AnnotationType, Renderer, Slice, Snippet, SourceAnnotation};
 use fluent_bundle::{FluentBundle, FluentError, FluentResource};
 use fluent_syntax::{
     ast::{
@@ -59,20 +56,20 @@ fn finish(body: TokenStream, resource: TokenStream) -> proc_macro::TokenStream {
             /// identifiers for different subdiagnostic kinds.
             pub mod _subdiag {
                 /// Default for `#[help]`
-                pub const help: crate::SubdiagnosticMessage =
-                    crate::SubdiagnosticMessage::FluentAttr(std::borrow::Cow::Borrowed("help"));
+                pub const help: rustc_errors::SubdiagMessage =
+                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("help"));
                 /// Default for `#[note]`
-                pub const note: crate::SubdiagnosticMessage =
-                    crate::SubdiagnosticMessage::FluentAttr(std::borrow::Cow::Borrowed("note"));
+                pub const note: rustc_errors::SubdiagMessage =
+                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("note"));
                 /// Default for `#[warn]`
-                pub const warn: crate::SubdiagnosticMessage =
-                    crate::SubdiagnosticMessage::FluentAttr(std::borrow::Cow::Borrowed("warn"));
+                pub const warn: rustc_errors::SubdiagMessage =
+                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("warn"));
                 /// Default for `#[label]`
-                pub const label: crate::SubdiagnosticMessage =
-                    crate::SubdiagnosticMessage::FluentAttr(std::borrow::Cow::Borrowed("label"));
+                pub const label: rustc_errors::SubdiagMessage =
+                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("label"));
                 /// Default for `#[suggestion]`
-                pub const suggestion: crate::SubdiagnosticMessage =
-                    crate::SubdiagnosticMessage::FluentAttr(std::borrow::Cow::Borrowed("suggestion"));
+                pub const suggestion: rustc_errors::SubdiagMessage =
+                    rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed("suggestion"));
             }
         }
     }
@@ -84,6 +81,7 @@ fn failed(crate_name: &Ident) -> proc_macro::TokenStream {
     finish(quote! { pub mod #crate_name {} }, quote! { "" })
 }
 
+/// See [rustc_fluent_macro::fluent_messages].
 pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let crate_name = std::env::var("CARGO_PKG_NAME")
         // If `CARGO_PKG_NAME` is missing, then we're probably running in a test, so use
@@ -181,10 +179,9 @@ pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::Tok
                             range: (pos.start, pos.end - 1),
                         }],
                     }],
-                    opt: Default::default(),
                 };
-                let dl = DisplayList::from(snippet);
-                eprintln!("{dl}\n");
+                let renderer = Renderer::plain();
+                eprintln!("{}\n", renderer.render(snippet));
             }
 
             return failed(&crate_name);
@@ -198,7 +195,7 @@ pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::Tok
         if let Entry::Message(msg) = entry {
             let Message { id: Identifier { name }, attributes, value, .. } = msg;
             let _ = previous_defns
-                .entry(name.to_string())
+                .entry((*name).to_string())
                 .or_insert(resource_span);
             if name.contains('-') {
                 Diagnostic::spanned(
@@ -252,8 +249,8 @@ pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::Tok
                 format!("Constant referring to Fluent message `{name}` from `{crate_name}`");
             constants.extend(quote! {
                 #[doc = #docstr]
-                pub const #snake_name: crate::DiagnosticMessage =
-                    crate::DiagnosticMessage::FluentIdentifier(
+                pub const #snake_name: rustc_errors::DiagMessage =
+                    rustc_errors::DiagMessage::FluentIdentifier(
                         std::borrow::Cow::Borrowed(#name),
                         None
                     );
@@ -283,10 +280,8 @@ pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::Tok
                 );
                 constants.extend(quote! {
                     #[doc = #msg]
-                    pub const #snake_name: crate::SubdiagnosticMessage =
-                        crate::SubdiagnosticMessage::FluentAttr(
-                            std::borrow::Cow::Borrowed(#attr_name)
-                        );
+                    pub const #snake_name: rustc_errors::SubdiagMessage =
+                        rustc_errors::SubdiagMessage::FluentAttr(std::borrow::Cow::Borrowed(#attr_name));
                 });
             }
 

@@ -419,6 +419,7 @@ impl TypeVisitable for ClauseKind {
             ClauseKind::Projection(pred) => pred.visit_with(visitor),
             ClauseKind::CoroutineOblig(pred) => pred.visit_with(visitor),
             ClauseKind::TypeOutlives(pred) => pred.visit_with(visitor),
+            ClauseKind::ConstArgHasType(_const, ty) => ty.visit_with(visitor),
         }
     }
 }
@@ -434,6 +435,9 @@ impl TypeFoldable for ClauseKind {
             }
             ClauseKind::TypeOutlives(pred) => {
                 Ok(ClauseKind::TypeOutlives(pred.try_fold_with(folder)?))
+            }
+            ClauseKind::ConstArgHasType(const_, ty) => {
+                Ok(ClauseKind::ConstArgHasType(const_.clone(), ty.try_fold_with(folder)?))
             }
         }
     }

@@ -2,6 +2,7 @@
 
 extern crate rustc_macros;
 extern crate rustc_serialize;
+extern crate rustc_span;
 
 pub mod big_int;
 mod constraint;
@@ -120,6 +121,7 @@ pub struct Stats {
     pub num_vald: i32,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct CrashInfo(Vec<serde_json::Value>);
 

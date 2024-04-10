@@ -46,7 +46,6 @@ use flux_config as config;
 use flux_macros::fluent_messages;
 use flux_syntax::surface::{self, NodeId};
 use rustc_data_structures::unord::{UnordMap, UnordSet};
-use rustc_errors::{DiagnosticMessage, SubdiagnosticMessage};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir as hir;
 use rustc_hir::OwnerId;

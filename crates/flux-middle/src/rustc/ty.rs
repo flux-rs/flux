@@ -13,7 +13,7 @@ use rustc_middle::ty::{AdtFlags, ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundRegionKind, BoundVar, DebruijnIndex, EarlyBoundRegion, FloatTy, IntTy,
+        BoundRegionKind, BoundVar, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy,
         OutlivesPredicate, ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
@@ -26,7 +26,7 @@ use crate::{
     pretty::def_id_to_string,
 };
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Generics<'tcx> {
     pub params: List<GenericParamDef>,
     pub orig: &'tcx rustc_middle::ty::Generics,
@@ -43,7 +43,7 @@ pub enum BoundVariableKind {
     Region(BoundRegionKind),
 }
 
-#[derive(Hash, Eq, PartialEq)]
+#[derive(Debug, Hash, Eq, PartialEq)]
 pub struct GenericParamDef {
     pub def_id: DefId,
     pub index: u32,
@@ -51,11 +51,17 @@ pub struct GenericParamDef {
     pub kind: GenericParamDefKind,
 }
 
-#[derive(Hash, Eq, PartialEq)]
+impl GenericParamDef {
+    pub fn is_host_effect(&self) -> bool {
+        matches!(self.kind, GenericParamDefKind::Const { is_host_effect: true, .. })
+    }
+}
+
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
     Lifetime,
-    Const { has_default: bool },
+    Const { has_default: bool, is_host_effect: bool },
 }
 
 #[derive(Clone, Debug)]
@@ -74,6 +80,7 @@ pub enum ClauseKind {
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
     TypeOutlives(TypeOutlivesPredicate),
+    ConstArgHasType(Const, Ty),
 }
 
 pub type TypeOutlivesPredicate = OutlivesPredicate<Ty, Region>;
@@ -254,7 +261,7 @@ pub struct CoroutineArgsParts<'a> {
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Region {
     ReLateBound(DebruijnIndex, BoundRegion),
-    ReEarlyBound(EarlyBoundRegion),
+    ReEarlyBound(EarlyParamRegion),
     ReStatic,
     ReVar(RegionVid),
     ReFree(FreeRegion),
@@ -264,13 +271,13 @@ impl Region {
     pub fn to_rustc(self, tcx: TyCtxt) -> rustc_middle::ty::Region {
         match self {
             Region::ReLateBound(debruijn, bound_region) => {
-                rustc_middle::ty::Region::new_late_bound(tcx, debruijn, bound_region.to_rustc())
+                rustc_middle::ty::Region::new_bound(tcx, debruijn, bound_region.to_rustc())
             }
-            Region::ReEarlyBound(ebr) => rustc_middle::ty::Region::new_early_bound(tcx, ebr),
+            Region::ReEarlyBound(epr) => rustc_middle::ty::Region::new_early_param(tcx, epr),
             Region::ReStatic => tcx.lifetimes.re_static,
             Region::ReVar(rvid) => rustc_middle::ty::Region::new_var(tcx, rvid),
             Region::ReFree(FreeRegion { scope, bound_region }) => {
-                rustc_middle::ty::Region::new_free(tcx, scope, bound_region)
+                rustc_middle::ty::Region::new_late_param(tcx, scope, bound_region)
             }
         }
     }

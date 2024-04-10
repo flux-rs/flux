@@ -22,7 +22,7 @@ use flux_middle::{
         Constant, ESpan, Lambda,
     },
 };
-use itertools::{self, Itertools};
+use itertools::Itertools;
 use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},

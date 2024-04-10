@@ -1,16 +1,14 @@
 use std::{cmp::Ordering, collections::hash_map};
 
 use flux_common::bug;
-use rustc_data_structures::unord::UnordMap;
 use rustc_middle::ty::RegionVid;
-use rustc_type_ir::{DebruijnIndex, INNERMOST};
+use rustc_type_ir::DebruijnIndex;
 
-use self::expr::BoundReft;
 use super::{
     evars::EVarSol,
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+    fold::{TypeFolder, TypeSuperFoldable},
 };
-use crate::{rty::*, rustc};
+use crate::rty::*;
 
 #[derive(Debug)]
 pub struct RegionSubst {
@@ -254,7 +252,7 @@ trait GenericsSubstDelegate {
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Sort;
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty;
     fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor;
-    fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region;
+    fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region;
 }
 
 /// The identity substitution used when checking the body of a (polymorphic) function. For example,
@@ -280,7 +278,7 @@ impl GenericsSubstDelegate for IdentitySubstDelegate {
         )
     }
 
-    fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region {
+    fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region {
         ReEarlyBound(ebr)
     }
 }
@@ -313,7 +311,7 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
         }
     }
 
-    fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region {
+    fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region {
         match self.0.get(ebr.index as usize) {
             Some(GenericArg::Lifetime(re)) => *re,
             Some(arg) => bug!("expected region for generic parameter, found `{arg:?}`"),
@@ -356,7 +354,7 @@ where
         bug!("unexpected base type param {param_ty:?}");
     }
 
-    fn region_for_param(&mut self, ebr: EarlyBoundRegion) -> Region {
+    fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region {
         bug!("unexpected region param {ebr:?}");
     }
 }
