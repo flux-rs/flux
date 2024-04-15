@@ -310,7 +310,7 @@ fn desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> fhir::Crate<'genv> {
 
 fn try_desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::Crate<'genv>> {
     let specs = genv.collect_specs();
-    let fhir = fhir::Crate::new(specs.ignores.clone(), specs.crate_config);
+    let fhir = fhir::Crate::new();
     let resolver_output = genv.resolve_crate();
     let mut cx = CrateDesugar::new(genv, fhir, resolver_output);
     cx.desugar_flux_items(specs);

@@ -1,7 +1,9 @@
 use std::{alloc, ptr, rc::Rc, slice};
 
 use flux_common::{bug, result::ErrorEmitter};
+use flux_config::CrateConfig;
 use flux_errors::FluxSession;
+use rustc_data_structures::unord::UnordSet;
 use rustc_hash::FxHashSet;
 use rustc_hir::{
     def::DefKind,
@@ -363,6 +365,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .extern_specs
             .get(&extern_def_id)
             .copied()
+    }
+
+    pub fn ignores(self) -> &'genv UnordSet<fhir::IgnoreKey> {
+        &self.collect_specs().ignores
+    }
+
+    pub fn crate_config(self) -> Option<CrateConfig> {
+        self.collect_specs().crate_config
     }
 }
 
