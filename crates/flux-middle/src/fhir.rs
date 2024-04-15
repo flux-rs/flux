@@ -290,6 +290,7 @@ pub enum TraitBoundModifier {
     Maybe,
 }
 
+#[derive(Debug)]
 pub struct Trait<'fhir> {
     pub generics: Generics<'fhir>,
     pub assoc_refinements: &'fhir [TraitAssocReft<'fhir>],
@@ -311,6 +312,7 @@ pub struct TraitAssocReft<'fhir> {
     pub span: Span,
 }
 
+#[derive(Debug)]
 pub struct Impl<'fhir> {
     pub generics: Generics<'fhir>,
     pub assoc_refinements: &'fhir [ImplAssocReft<'fhir>],
@@ -324,7 +326,7 @@ impl<'fhir> Impl<'fhir> {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct ImplAssocReft<'fhir> {
     pub name: Symbol,
     pub params: &'fhir [RefineParam<'fhir>],

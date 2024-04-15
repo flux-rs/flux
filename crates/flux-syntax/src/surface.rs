@@ -192,6 +192,7 @@ pub struct ConstSig {
     pub span: Span,
 }
 
+#[derive(Debug)]
 pub struct Impl {
     pub generics: Option<Generics>,
     pub assoc_refinements: Vec<ImplAssocReft>,
