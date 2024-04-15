@@ -322,7 +322,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::AdtSortDef> {
         run_with_cache(&self.adt_sort_def_of, def_id, || {
-            let extern_id = genv.lookup_extern(def_id);
+            let extern_id = lookup_extern(genv, def_id);
             let def_id = extern_id.unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_sort_def_of)(genv, local_id)
@@ -344,7 +344,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
     pub(crate) fn adt_def(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::AdtDef> {
         run_with_cache(&self.adt_def, def_id, || {
-            let extern_id = genv.lookup_extern(def_id);
+            let extern_id = lookup_extern(genv, def_id);
             let def_id = extern_id.unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_def)(genv, local_id)
@@ -363,7 +363,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
     pub(crate) fn generics_of(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::Generics> {
         run_with_cache(&self.generics_of, def_id, || {
-            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
+            let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.generics_of)(genv, local_id)
             } else {
@@ -379,7 +379,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::RefinementGenerics> {
         run_with_cache(&self.refinement_generics_of, def_id, || {
-            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
+            let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.refinement_generics_of)(genv, local_id)
             } else {
@@ -395,7 +395,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
         run_with_cache(&self.item_bounds, def_id, || {
-            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
+            let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
 
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.item_bounds)(genv, local_id)
@@ -418,7 +418,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
         run_with_cache(&self.predicates_of, def_id, || {
-            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
+            let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
 
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.predicates_of)(genv, local_id)
@@ -437,7 +437,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::AssocRefinements> {
         run_with_cache(&self.assoc_refinements_of, def_id, || {
-            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
+            let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.assoc_refinements_of)(genv, local_id)
             } else {
@@ -453,7 +453,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         name: Symbol,
     ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
         run_with_cache(&self.assoc_refinement_def, (impl_id, name), || {
-            let impl_id = genv.lookup_extern(impl_id).unwrap_or(impl_id);
+            let impl_id = lookup_extern(genv, impl_id).unwrap_or(impl_id);
             if let Some(local_id) = impl_id.as_local() {
                 (self.providers.assoc_refinement_def)(genv, local_id, name)
             } else {
@@ -469,7 +469,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         name: Symbol,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>> {
         run_with_cache(&self.sort_of_assoc_reft, (def_id, name), || {
-            let impl_id = genv.lookup_extern(def_id).unwrap_or(def_id);
+            let impl_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             if let Some(local_id) = impl_id.as_local() {
                 (self.providers.sort_of_assoc_reft)(genv, local_id, name)
             } else {
@@ -508,7 +508,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
         run_with_cache(&self.variants_of, def_id, || {
-            let (def_id, _is_extern) = match genv.lookup_extern(def_id) {
+            let (def_id, _is_extern) = match lookup_extern(genv, def_id) {
                 Some(def_id) => (def_id, true),
                 None => (def_id, false),
             };
@@ -545,7 +545,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.fn_sig, def_id, || {
             // If it's an extern_fn, resolve it to its local fn_sig's def_id,
             // otherwise don't change it.
-            let def_id = genv.lookup_extern(def_id).unwrap_or(def_id);
+            let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.fn_sig)(genv, local_id)
             } else if let Some(fn_sig) = genv.cstore().fn_sig(def_id) {
@@ -572,6 +572,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 .map_err(|err| QueryErr::unsupported(genv.tcx(), def_id.to_def_id(), err))
         })
     }
+}
+
+fn lookup_extern(genv: GlobalEnv, extern_def_id: DefId) -> Option<DefId> {
+    genv.get_local_id_for_extern(extern_def_id)
+        .map(LocalDefId::to_def_id)
 }
 
 fn run_with_cache<K, V>(cache: &Cache<K, V>, key: K, f: impl FnOnce() -> V) -> V

@@ -27,7 +27,7 @@ pub use flux_syntax::surface::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
-    unord::{UnordMap, UnordSet},
+    unord::UnordSet,
 };
 use rustc_hash::FxHashMap;
 pub use rustc_hir::PrimTy;
@@ -360,11 +360,7 @@ pub enum IgnoreKey {
 /// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
 #[derive(Default)]
 pub struct Crate<'fhir> {
-    pub items: UnordMap<LocalDefId, Item<'fhir>>,
-    pub trait_items: UnordMap<LocalDefId, TraitItem<'fhir>>,
-    pub impl_items: UnordMap<LocalDefId, ImplItem<'fhir>>,
     pub consts: FxHashMap<Symbol, ConstInfo>,
-    pub externs: UnordMap<DefId, LocalDefId>,
     pub flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
     pub ignores: UnordSet<IgnoreKey>,
     pub crate_config: config::CrateConfig,
@@ -373,11 +369,7 @@ pub struct Crate<'fhir> {
 impl<'fhir> Crate<'fhir> {
     pub fn new(ignores: UnordSet<IgnoreKey>, crate_config: Option<config::CrateConfig>) -> Self {
         Self {
-            items: Default::default(),
-            trait_items: Default::default(),
-            impl_items: Default::default(),
             consts: Default::default(),
-            externs: Default::default(),
             flux_items: Default::default(),
             ignores,
             crate_config: crate_config.unwrap_or_default(),

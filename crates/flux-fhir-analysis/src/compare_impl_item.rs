@@ -37,7 +37,6 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result 
 
 fn check_assoc_reft(genv: GlobalEnv, impl_id: LocalDefId, trait_id: DefId, name: Symbol) -> Result {
     let fake_impl_id = genv
-        .map()
         .get_local_id_for_extern(impl_id.to_def_id())
         .unwrap_or(impl_id);
 

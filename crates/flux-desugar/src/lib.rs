@@ -314,11 +314,6 @@ fn try_desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::Crate<'g
     let resolver_output = genv.resolve_crate();
     let mut cx = CrateDesugar::new(genv, fhir, resolver_output);
     cx.desugar_flux_items(specs);
-    // cx.desugar_rust_items(specs);
-
-    for (extern_def_id, local_def_id) in &specs.extern_specs {
-        cx.fhir.externs.insert(*extern_def_id, *local_def_id);
-    }
 
     if let Some(err) = cx.err {
         Err(err)

@@ -392,7 +392,7 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
         };
         if let Res::Def(res_kind, res_did) = res
             && let Res::Def(expected_kind, expected_did) = expected
-            && let Some(extern_id) = self.genv.map().get_local_id_for_extern(res_did)
+            && let Some(extern_id) = self.genv.get_local_id_for_extern(res_did)
             && res_kind == expected_kind
             && extern_id.to_def_id() == expected_did
         {

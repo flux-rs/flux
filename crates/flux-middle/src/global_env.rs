@@ -347,12 +347,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         &*self.inner.cstore
     }
 
-    pub(crate) fn lookup_extern(&self, def_id: DefId) -> Option<DefId> {
-        self.map()
-            .get_local_id_for_extern(def_id)
-            .map(LocalDefId::to_def_id)
-    }
-
     pub fn is_fn_once_output(&self, def_id: DefId) -> bool {
         self.tcx()
             .require_lang_item(rustc_hir::LangItem::FnOnceOutput, None)
@@ -362,6 +356,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn extern_id_of(self, def_id: DefId) -> QueryResult<Option<DefId>> {
         let Some(local_id) = def_id.as_local() else { return Ok(None) };
         self.map().extern_id_of(local_id)
+    }
+
+    pub fn get_local_id_for_extern(self, extern_def_id: DefId) -> Option<LocalDefId> {
+        self.collect_specs()
+            .extern_specs
+            .get(&extern_def_id)
+            .copied()
     }
 }
 
@@ -386,10 +387,6 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         } else {
             Ok(Some(self.node(def_id)?.generics()))
         }
-    }
-
-    pub fn get_local_id_for_extern(self, extern_def_id: DefId) -> Option<LocalDefId> {
-        self.fhir.externs.get(&extern_def_id).copied()
     }
 
     pub fn get_flux_item(self, name: Symbol) -> Option<&'genv fhir::FluxItem<'genv>> {
@@ -467,15 +464,6 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
 
     pub fn node(self, def_id: LocalDefId) -> QueryResult<fhir::Node<'genv>> {
         self.genv.desugar(def_id)
-        // if let Some(item) = self.fhir.items.get(&def_id) {
-        //     fhir::Node::Item(item)
-        // } else if let Some(trait_item) = self.fhir.trait_items.get(&def_id) {
-        //     fhir::Node::TraitItem(trait_item)
-        // } else if let Some(impl_item) = self.fhir.impl_items.get(&def_id) {
-        //     fhir::Node::ImplItem(impl_item)
-        // } else {
-        //     bug!("node not found {def_id:?}");
-        // }
     }
 }
 
