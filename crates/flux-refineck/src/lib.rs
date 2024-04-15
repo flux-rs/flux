@@ -92,8 +92,8 @@ pub fn check_fn(
         }
         let mut fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars).emit(&genv)?;
         fcx.collect_sorts(&refine_tree);
-        let constraint = refine_tree.into_fixpoint(&mut fcx);
-        let errors = fcx.check(cache, constraint, &config).emit(&genv)?;
+        let cstr = refine_tree.into_fixpoint(&mut fcx).emit(&genv)?;
+        let errors = fcx.check(cache, cstr, &config).emit(&genv)?;
 
         tracing::info!("check_fn::fixpoint");
         if errors.is_empty() {

@@ -7,6 +7,7 @@ use flux_common::{
     cache::QueryCache,
     dbg,
     index::{IndexGen, IndexVec},
+    iter::IterExt,
     span_bug,
 };
 use flux_config as config;
@@ -472,7 +473,7 @@ where
             .genv
             .qualifiers_for(self.def_id)?
             .map(|qual| self.ecx.qualifier_to_fixpoint(qual))
-            .collect();
+            .try_collect()?;
 
         let mut constants = self
             .ecx
@@ -535,11 +536,11 @@ where
         })
     }
 
-    pub fn pred_to_fixpoint(&mut self, pred: &rty::Expr) -> (Bindings, PredSpans) {
+    pub fn pred_to_fixpoint(&mut self, pred: &rty::Expr) -> QueryResult<(Bindings, PredSpans)> {
         let mut bindings = vec![];
         let mut preds = vec![];
-        self.pred_to_fixpoint_internal(pred, &mut bindings, &mut preds);
-        (bindings, preds)
+        self.pred_to_fixpoint_internal(pred, &mut bindings, &mut preds)?;
+        Ok((bindings, preds))
     }
 
     fn pred_to_fixpoint_internal(
@@ -547,32 +548,39 @@ where
         expr: &rty::Expr,
         bindings: &mut Bindings,
         preds: &mut PredSpans,
-    ) {
+    ) -> QueryResult {
         match expr.kind() {
             rty::ExprKind::BinaryOp(rty::BinOp::And, e1, e2) => {
-                self.pred_to_fixpoint_internal(e1, bindings, preds);
-                self.pred_to_fixpoint_internal(e2, bindings, preds);
+                self.pred_to_fixpoint_internal(e1, bindings, preds)?;
+                self.pred_to_fixpoint_internal(e2, bindings, preds)?;
             }
             rty::ExprKind::KVar(kvar) => {
-                preds.push((self.kvar_to_fixpoint(kvar, bindings), None));
+                preds.push((self.kvar_to_fixpoint(kvar, bindings)?, None));
             }
             _ => {
                 let span = expr.span();
-                preds
-                    .push((fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &self.env)), span));
+                preds.push((
+                    fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &self.env)?),
+                    span,
+                ));
             }
         }
+        Ok(())
     }
 
-    fn kvar_to_fixpoint(&mut self, kvar: &rty::KVar, bindings: &mut Bindings) -> fixpoint::Pred {
+    fn kvar_to_fixpoint(
+        &mut self,
+        kvar: &rty::KVar,
+        bindings: &mut Bindings,
+    ) -> QueryResult<fixpoint::Pred> {
         let decl = self.kvars.get(kvar.kvid);
         let kvids = self.kcx.encode(kvar.kvid, decl);
 
         let all_args = iter::zip(&kvar.args, &decl.sorts)
-            .map(|(arg, sort)| {
-                fixpoint::Var::Local(self.ecx.imm(arg, sort, &mut self.env, bindings))
+            .map(|(arg, sort)| -> QueryResult<_> {
+                Ok(fixpoint::Var::Local(self.ecx.imm(arg, sort, &mut self.env, bindings)?))
             })
-            .collect_vec();
+            .try_collect_vec()?;
 
         // Fixpoint doesn't support kvars without arguments, which we do generate sometimes. To get
         // around it, we encode `$k()` as ($k 0), or more precisley `(forall ((x int) (= x 0)) ... ($k x)`
@@ -585,7 +593,7 @@ where
                 fixpoint::Sort::Int,
                 fixpoint::Expr::eq(fixpoint::Expr::Var(var), fixpoint::Expr::ZERO),
             ));
-            return fixpoint::Pred::KVar(kvids[0], vec![var]);
+            return Ok(fixpoint::Pred::KVar(kvids[0], vec![var]));
         }
 
         let kvars = kvids
@@ -597,7 +605,7 @@ where
             })
             .collect_vec();
 
-        fixpoint::Pred::And(kvars)
+        Ok(fixpoint::Pred::And(kvars))
     }
 
     fn def_span(&self) -> Span {
@@ -790,26 +798,29 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         Ok(Self { genv, global_var_gen, const_map, dbg_span })
     }
 
-    fn expr_to_fixpoint(&mut self, expr: &rty::Expr, env: &Env) -> fixpoint::Expr {
-        match expr.kind() {
+    fn expr_to_fixpoint(&mut self, expr: &rty::Expr, env: &Env) -> QueryResult<fixpoint::Expr> {
+        let e = match expr.kind() {
             rty::ExprKind::Var(var) => fixpoint::Expr::Var(env.get_var(var, self.dbg_span).into()),
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
-            rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, env),
-            rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, env),
+            rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, env)?,
+            rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, env)?,
             rty::ExprKind::FieldProj(e, proj) => {
                 let (arity, field) = match *proj {
                     rty::FieldProj::Tuple { arity, field } => (arity, field),
                     rty::FieldProj::Adt { def_id, field } => {
-                        let arity = self.genv.adt_sort_def_of(def_id).fields();
+                        let arity = self.genv.adt_sort_def_of(def_id)?.fields();
                         (arity, field)
                     }
                 };
                 let proj = fixpoint::Var::TupleProj { arity, field };
-                fixpoint::Expr::App(proj, vec![self.expr_to_fixpoint(e, env)])
+                fixpoint::Expr::App(proj, vec![self.expr_to_fixpoint(e, env)?])
             }
             rty::ExprKind::Aggregate(_, flds) => {
                 let ctor = fixpoint::Var::TupleCtor { arity: flds.len() };
-                let args = flds.iter().map(|e| self.expr_to_fixpoint(e, env)).collect();
+                let args = flds
+                    .iter()
+                    .map(|e| self.expr_to_fixpoint(e, env))
+                    .try_collect()?;
                 fixpoint::Expr::App(ctor, args)
             }
             rty::ExprKind::ConstDefId(did) => {
@@ -820,14 +831,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             rty::ExprKind::App(func, args) => {
                 let func = self.func_to_fixpoint(func, env);
-                let args = self.exprs_to_fixpoint(args, env);
+                let args = self.exprs_to_fixpoint(args, env)?;
                 fixpoint::Expr::App(func, args)
             }
             rty::ExprKind::IfThenElse(p, e1, e2) => {
                 fixpoint::Expr::IfThenElse(Box::new([
-                    self.expr_to_fixpoint(p, env),
-                    self.expr_to_fixpoint(e1, env),
-                    self.expr_to_fixpoint(e2, env),
+                    self.expr_to_fixpoint(p, env)?,
+                    self.expr_to_fixpoint(e1, env)?,
+                    self.expr_to_fixpoint(e2, env)?,
                 ]))
             }
             rty::ExprKind::Alias(alias_pred, args) => {
@@ -835,7 +846,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let args = args
                     .iter()
                     .map(|expr| self.expr_to_fixpoint(expr, env))
-                    .collect_vec();
+                    .try_collect()?;
                 fixpoint::Expr::App(func.into(), args)
             }
             rty::ExprKind::Abs(lam) => {
@@ -849,24 +860,30 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::ExprKind::PathProj(..) => {
                 span_bug!(self.dbg_span, "unexpected expr: `{expr:?}`")
             }
-        }
+        };
+        Ok(e)
     }
 
     fn exprs_to_fixpoint<'b>(
         &mut self,
         exprs: impl IntoIterator<Item = &'b rty::Expr>,
         env: &Env,
-    ) -> Vec<fixpoint::Expr> {
+    ) -> QueryResult<Vec<fixpoint::Expr>> {
         exprs
             .into_iter()
             .map(|e| self.expr_to_fixpoint(e, env))
-            .collect()
+            .try_collect()
     }
 
-    fn un_op_to_fixpoint(&mut self, op: rty::UnOp, e: &rty::Expr, env: &Env) -> fixpoint::Expr {
+    fn un_op_to_fixpoint(
+        &mut self,
+        op: rty::UnOp,
+        e: &rty::Expr,
+        env: &Env,
+    ) -> QueryResult<fixpoint::Expr> {
         match op {
-            rty::UnOp::Not => fixpoint::Expr::Not(Box::new(self.expr_to_fixpoint(e, env))),
-            rty::UnOp::Neg => fixpoint::Expr::Neg(Box::new(self.expr_to_fixpoint(e, env))),
+            rty::UnOp::Not => Ok(fixpoint::Expr::Not(Box::new(self.expr_to_fixpoint(e, env)?))),
+            rty::UnOp::Neg => Ok(fixpoint::Expr::Neg(Box::new(self.expr_to_fixpoint(e, env)?))),
         }
     }
 
@@ -876,19 +893,19 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         e1: &rty::Expr,
         e2: &rty::Expr,
         env: &Env,
-    ) -> fixpoint::Expr {
+    ) -> QueryResult<fixpoint::Expr> {
         let op = match op {
             rty::BinOp::Eq => {
-                return fixpoint::Expr::Atom(
+                return Ok(fixpoint::Expr::Atom(
                     fixpoint::BinRel::Eq,
-                    Box::new([self.expr_to_fixpoint(e1, env), self.expr_to_fixpoint(e2, env)]),
-                )
+                    Box::new([self.expr_to_fixpoint(e1, env)?, self.expr_to_fixpoint(e2, env)?]),
+                ))
             }
             rty::BinOp::Ne => {
-                return fixpoint::Expr::Atom(
+                return Ok(fixpoint::Expr::Atom(
                     fixpoint::BinRel::Ne,
-                    Box::new([self.expr_to_fixpoint(e1, env), self.expr_to_fixpoint(e2, env)]),
-                )
+                    Box::new([self.expr_to_fixpoint(e1, env)?, self.expr_to_fixpoint(e2, env)?]),
+                ))
             }
             rty::BinOp::Gt(sort) => {
                 return self.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Gt, e1, e2, env);
@@ -903,28 +920,28 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 return self.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Le, e1, e2, env);
             }
             rty::BinOp::And => {
-                return fixpoint::Expr::And(vec![
-                    self.expr_to_fixpoint(e1, env),
-                    self.expr_to_fixpoint(e2, env),
-                ])
+                return Ok(fixpoint::Expr::And(vec![
+                    self.expr_to_fixpoint(e1, env)?,
+                    self.expr_to_fixpoint(e2, env)?,
+                ]))
             }
             rty::BinOp::Or => {
-                return fixpoint::Expr::Or(vec![
-                    self.expr_to_fixpoint(e1, env),
-                    self.expr_to_fixpoint(e2, env),
-                ])
+                return Ok(fixpoint::Expr::Or(vec![
+                    self.expr_to_fixpoint(e1, env)?,
+                    self.expr_to_fixpoint(e2, env)?,
+                ]))
             }
             rty::BinOp::Imp => {
-                return fixpoint::Expr::Imp(Box::new([
-                    self.expr_to_fixpoint(e1, env),
-                    self.expr_to_fixpoint(e2, env),
-                ]))
+                return Ok(fixpoint::Expr::Imp(Box::new([
+                    self.expr_to_fixpoint(e1, env)?,
+                    self.expr_to_fixpoint(e2, env)?,
+                ])))
             }
             rty::BinOp::Iff => {
-                return fixpoint::Expr::Iff(Box::new([
-                    self.expr_to_fixpoint(e1, env),
-                    self.expr_to_fixpoint(e2, env),
-                ]))
+                return Ok(fixpoint::Expr::Iff(Box::new([
+                    self.expr_to_fixpoint(e1, env)?,
+                    self.expr_to_fixpoint(e2, env)?,
+                ])))
             }
             rty::BinOp::Add => fixpoint::BinOp::Add,
             rty::BinOp::Sub => fixpoint::BinOp::Sub,
@@ -932,10 +949,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::BinOp::Div => fixpoint::BinOp::Div,
             rty::BinOp::Mod => fixpoint::BinOp::Mod,
         };
-        fixpoint::Expr::BinaryOp(
+        Ok(fixpoint::Expr::BinaryOp(
             op,
-            Box::new([self.expr_to_fixpoint(e1, env), self.expr_to_fixpoint(e2, env)]),
-        )
+            Box::new([self.expr_to_fixpoint(e1, env)?, self.expr_to_fixpoint(e2, env)?]),
+        ))
     }
 
     /// A binary relation is encoded as a structurally recursive relation between aggregate sorts.
@@ -961,35 +978,36 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         e1: &rty::Expr,
         e2: &rty::Expr,
         env: &Env,
-    ) -> fixpoint::Expr {
-        match sort {
+    ) -> QueryResult<fixpoint::Expr> {
+        let e = match sort {
             rty::Sort::Int | rty::Sort::Real => {
                 fixpoint::Expr::Atom(
                     rel,
-                    Box::new([self.expr_to_fixpoint(e1, env), self.expr_to_fixpoint(e2, env)]),
+                    Box::new([self.expr_to_fixpoint(e1, env)?, self.expr_to_fixpoint(e2, env)?]),
                 )
             }
             rty::Sort::Tuple(sorts) => {
                 let arity = sorts.len();
                 self.apply_bin_rel_rec(sorts, rel, e1, e2, env, |field| {
                     rty::FieldProj::Tuple { arity, field }
-                })
+                })?
             }
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) => {
                 let def_id = sort_def.did();
                 let sorts = sort_def.sorts(args);
                 self.apply_bin_rel_rec(&sorts, rel, e1, e2, env, |field| {
                     rty::FieldProj::Adt { def_id, field }
-                })
+                })?
             }
             _ => {
                 let rel = fixpoint::Var::UIFRel(rel);
                 fixpoint::Expr::App(
                     rel,
-                    vec![self.expr_to_fixpoint(e1, env), self.expr_to_fixpoint(e2, env)],
+                    vec![self.expr_to_fixpoint(e1, env)?, self.expr_to_fixpoint(e2, env)?],
                 )
             }
-        }
+        };
+        Ok(e)
     }
 
     /// Apply binary relation recursively over aggregate expessions
@@ -1001,8 +1019,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         e2: &rty::Expr,
         env: &Env,
         mk_proj: impl Fn(u32) -> rty::FieldProj,
-    ) -> fixpoint::Expr {
-        fixpoint::Expr::And(
+    ) -> QueryResult<fixpoint::Expr> {
+        Ok(fixpoint::Expr::And(
             sorts
                 .iter()
                 .enumerate()
@@ -1012,8 +1030,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     let e2 = e2.proj_and_reduce(proj);
                     self.bin_rel_to_fixpoint(s, rel, &e1, &e2, env)
                 })
-                .collect(),
-        )
+                .try_collect()?,
+        ))
     }
 
     fn func_to_fixpoint(&mut self, func: &rty::Expr, env: &Env) -> fixpoint::Var {
@@ -1044,17 +1062,17 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         sort: &rty::Sort,
         env: &mut Env,
         bindings: &mut Vec<(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)>,
-    ) -> fixpoint::LocalVar {
+    ) -> QueryResult<fixpoint::LocalVar> {
         match arg.kind() {
-            rty::ExprKind::Var(var) => env.get_var(var, self.dbg_span),
+            rty::ExprKind::Var(var) => Ok(env.get_var(var, self.dbg_span)),
             _ => {
                 let fresh = env.fresh_name();
                 let pred = fixpoint::Expr::eq(
                     fixpoint::Expr::Var(fresh.into()),
-                    self.expr_to_fixpoint(arg, env),
+                    self.expr_to_fixpoint(arg, env)?,
                 );
                 bindings.push((fresh, sort_to_fixpoint(sort), pred));
-                fresh
+                Ok(fresh)
             }
         }
     }
@@ -1094,7 +1112,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .name
     }
 
-    fn qualifier_to_fixpoint(&mut self, qualifier: &rty::Qualifier) -> fixpoint::Qualifier {
+    fn qualifier_to_fixpoint(
+        &mut self,
+        qualifier: &rty::Qualifier,
+    ) -> QueryResult<fixpoint::Qualifier> {
         let mut env = Env::new();
         env.push_layer_with_fresh_names(qualifier.body.vars().len());
 
@@ -1103,11 +1124,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .map(|(name, var)| ((*name).into(), sort_to_fixpoint(var.expect_sort())))
                 .collect();
 
-        let body = self.expr_to_fixpoint(qualifier.body.as_ref().skip_binder(), &env);
+        let body = self.expr_to_fixpoint(qualifier.body.as_ref().skip_binder(), &env)?;
 
         let name = qualifier.name.to_string();
 
-        fixpoint::Qualifier { name, args, body }
+        Ok(fixpoint::Qualifier { name, args, body })
     }
 }
 

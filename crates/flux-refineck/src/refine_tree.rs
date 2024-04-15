@@ -4,14 +4,21 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use flux_common::index::{IndexGen, IndexVec};
-use flux_middle::rty::{
-    box_args,
-    evars::EVarSol,
-    fold::{
-        TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor,
+use flux_common::{
+    index::{IndexGen, IndexVec},
+    iter::IterExt,
+};
+use flux_middle::{
+    queries::QueryResult,
+    rty::{
+        box_args,
+        evars::EVarSol,
+        fold::{
+            TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
+            TypeVisitor,
+        },
+        BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind,
     },
-    BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind,
 };
 use itertools::Itertools;
 
@@ -124,11 +131,15 @@ impl RefineTree {
         self.root.borrow_mut().simplify();
     }
 
-    pub(crate) fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> fixpoint::Constraint {
-        self.root
+    pub(crate) fn into_fixpoint(
+        self,
+        cx: &mut FixpointCtxt<Tag>,
+    ) -> QueryResult<fixpoint::Constraint> {
+        Ok(self
+            .root
             .borrow()
-            .to_fixpoint(cx)
-            .unwrap_or(fixpoint::Constraint::TRUE)
+            .to_fixpoint(cx)?
+            .unwrap_or(fixpoint::Constraint::TRUE))
     }
 
     pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
@@ -528,27 +539,33 @@ impl Node {
         }
     }
 
-    fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> Option<fixpoint::Constraint> {
-        match &self.kind {
+    fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<Option<fixpoint::Constraint>> {
+        let cstr = match &self.kind {
             NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(_, Sort::Loc) => {
-                children_to_fixpoint(cx, &self.children)
+                children_to_fixpoint(cx, &self.children)?
             }
             NodeKind::ForAll(name, sort) => {
-                cx.with_name_map(*name, |cx, fresh| {
-                    Some(fixpoint::Constraint::ForAll(
+                cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
+                    let Some(children) = children_to_fixpoint(cx, &self.children)? else {
+                        return Ok(None);
+                    };
+                    Ok(Some(fixpoint::Constraint::ForAll(
                         fixpoint::Bind {
                             name: fixpoint::Var::Local(fresh),
                             sort: sort_to_fixpoint(sort),
                             pred: fixpoint::Pred::TRUE,
                         },
-                        Box::new(children_to_fixpoint(cx, &self.children)?),
-                    ))
-                })
+                        Box::new(children),
+                    )))
+                })?
             }
             NodeKind::Guard(pred) => {
-                let (bindings, preds) = cx.pred_to_fixpoint(pred);
+                let (bindings, preds) = cx.pred_to_fixpoint(pred)?;
                 let preds = preds.into_iter().map(|(pred, _)| pred).collect_vec();
                 let pred = fixpoint::Pred::And(preds);
+                let Some(children) = children_to_fixpoint(cx, &self.children)? else {
+                    return Ok(None);
+                };
                 Some(stitch(
                     bindings,
                     fixpoint::Constraint::ForAll(
@@ -557,12 +574,12 @@ impl Node {
                             sort: fixpoint::Sort::Int,
                             pred,
                         },
-                        Box::new(children_to_fixpoint(cx, &self.children)?),
+                        Box::new(children),
                     ),
                 ))
             }
             NodeKind::Head(pred, tag) => {
-                let (bindings, preds) = cx.pred_to_fixpoint(pred);
+                let (bindings, preds) = cx.pred_to_fixpoint(pred)?;
                 let cstr = preds
                     .into_iter()
                     .map(|(pred, span)| {
@@ -572,7 +589,8 @@ impl Node {
                 Some(stitch(bindings, fixpoint::Constraint::Conj(cstr)))
             }
             NodeKind::True => None,
-        }
+        };
+        Ok(cstr)
     }
 
     /// Returns `true` if the node kind is [`ForAll`].
@@ -593,16 +611,17 @@ impl Node {
 fn children_to_fixpoint(
     cx: &mut FixpointCtxt<Tag>,
     children: &[NodePtr],
-) -> Option<fixpoint::Constraint> {
+) -> QueryResult<Option<fixpoint::Constraint>> {
     let mut children = children
         .iter()
-        .filter_map(|node| node.borrow().to_fixpoint(cx))
-        .collect_vec();
-    match children.len() {
+        .filter_map(|node| node.borrow().to_fixpoint(cx).transpose())
+        .try_collect_vec()?;
+    let cstr = match children.len() {
         0 => None,
         1 => children.pop(),
         _ => Some(fixpoint::Constraint::Conj(children)),
-    }
+    };
+    Ok(cstr)
 }
 
 struct ParentsIter {
