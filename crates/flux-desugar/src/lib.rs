@@ -22,7 +22,10 @@ mod errors;
 pub mod resolver;
 
 use flux_middle::{
-    const_eval, fhir, global_env::GlobalEnv, queries::Providers, rty, ResolverOutput, Specs,
+    const_eval, fhir,
+    global_env::GlobalEnv,
+    queries::{Providers, QueryResult},
+    rty, ResolverOutput, Specs,
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
@@ -34,7 +37,15 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub fn provide(providers: &mut Providers) {
     providers.resolve_crate = resolver::resolve_crate;
+    providers.desugar = desugar;
     providers.fhir_crate = desugar_crate;
+}
+
+pub fn desugar<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    def_id: LocalDefId,
+) -> QueryResult<UnordMap<LocalDefId, fhir::Node<'genv>>> {
+    todo!()
 }
 
 fn desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> fhir::Crate<'genv> {

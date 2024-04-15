@@ -360,20 +360,24 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: LocalDefId, kvars: KVarStore) -> Self {
+    pub fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        def_id: LocalDefId,
+        kvars: KVarStore,
+    ) -> QueryResult<Self> {
         let dbg_span = genv.tcx().def_span(def_id);
-        Self {
+        Ok(Self {
             comments: vec![],
             kvars,
             sorts: SortStore::default(),
             genv,
             env: Env::new(),
-            ecx: ExprEncodingCtxt::new(genv, dbg_span),
+            ecx: ExprEncodingCtxt::new(genv, dbg_span)?,
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
             def_id,
-        }
+        })
     }
 
     /// Collect all the sorts that need to be defined in fixpoint to encode `t`
@@ -610,7 +614,7 @@ impl FixpointKVar {
 fn fixpoint_const_map<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     global_var_gen: &IndexGen<fixpoint::GlobalVar>,
-) -> ConstMap<'tcx> {
+) -> QueryResult<ConstMap<'tcx>> {
     let consts = genv
         .map()
         .consts()
@@ -625,7 +629,7 @@ fn fixpoint_const_map<'tcx>(
             (Key::Const(const_info.def_id), cinfo)
         });
     let uifs = genv
-        .func_decls()
+        .func_decls()?
         .sorted_by(|a, b| Ord::cmp(&a.name, &b.name))
         .filter_map(|decl| {
             match decl.kind {
@@ -641,7 +645,7 @@ fn fixpoint_const_map<'tcx>(
                 _ => None,
             }
         });
-    itertools::chain(consts, uifs).collect()
+    Ok(itertools::chain(consts, uifs).collect())
 }
 
 impl KVarStore {
@@ -780,10 +784,10 @@ fn func_sort_to_fixpoint(fsort: &rty::PolyFuncSort) -> fixpoint::Sort {
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, dbg_span: Span) -> Self {
+    fn new(genv: GlobalEnv<'genv, 'tcx>, dbg_span: Span) -> QueryResult<Self> {
         let global_var_gen = IndexGen::new();
-        let const_map = fixpoint_const_map(genv, &global_var_gen);
-        Self { genv, global_var_gen, const_map, dbg_span }
+        let const_map = fixpoint_const_map(genv, &global_var_gen)?;
+        Ok(Self { genv, global_var_gen, const_map, dbg_span })
     }
 
     fn expr_to_fixpoint(&mut self, expr: &rty::Expr, env: &Env) -> fixpoint::Expr {

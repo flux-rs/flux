@@ -62,7 +62,7 @@ pub fn check_fn(
     config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
     dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| {
-        if genv.map().is_trusted(def_id) {
+        if genv.map().is_trusted(def_id).emit(&genv)? {
             return Ok(());
         }
 
@@ -72,17 +72,17 @@ pub fn check_fn(
         if genv.tcx().def_span(def_id).ctxt() > rustc_span::SyntaxContext::root() {
             return Ok(());
         }
-        let ghost_stmts = compute_ghost_statements(genv, def_id).emit(genv.sess())?;
+        let ghost_stmts = compute_ghost_statements(genv, def_id).emit(&genv)?;
 
         // PHASE 1: infer shape of `TypeEnv` at the entry of join points
         let shape_result =
-            Checker::run_in_shape_mode(genv, def_id, &ghost_stmts, config).emit(genv.sess())?;
+            Checker::run_in_shape_mode(genv, def_id, &ghost_stmts, config).emit(&genv)?;
         tracing::info!("check_fn::shape");
 
         // PHASE 2: generate refinement tree constraint
         let (mut refine_tree, kvars) =
             Checker::run_in_refine_mode(genv, def_id, &ghost_stmts, shape_result, config)
-                .emit(genv.sess())?;
+                .emit(&genv)?;
         tracing::info!("check_fn::refine");
 
         // PHASE 3: invoke fixpoint on the constraint
@@ -90,10 +90,10 @@ pub fn check_fn(
         if config::dump_constraint() {
             dbg::dump_item_info(genv.tcx(), def_id, "fluxc", &refine_tree).unwrap();
         }
-        let mut fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars);
+        let mut fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars).emit(&genv)?;
         fcx.collect_sorts(&refine_tree);
         let constraint = refine_tree.into_fixpoint(&mut fcx);
-        let errors = fcx.check(cache, constraint, &config).emit(genv.sess())?;
+        let errors = fcx.check(cache, constraint, &config).emit(&genv)?;
 
         tracing::info!("check_fn::fixpoint");
         if errors.is_empty() {

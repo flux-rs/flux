@@ -1,6 +1,6 @@
 use std::{alloc, ptr, rc::Rc, slice};
 
-use flux_common::bug;
+use flux_common::{bug, result::ErrorEmitter};
 use flux_errors::FluxSession;
 use rustc_hash::FxHashSet;
 use rustc_hir::{
@@ -68,6 +68,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.resolve_crate(self)
     }
 
+    pub fn desugar(self, def_id: LocalDefId) -> QueryResult<fhir::Node<'genv>> {
+        self.inner.queries.desugar(self, def_id)
+    }
+
     pub fn fhir_crate(self) -> &'genv fhir::Crate<'genv> {
         self.inner.queries.fhir_crate(self)
     }
@@ -133,7 +137,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     ) -> QueryResult<impl Iterator<Item = &'genv rty::Qualifier>> {
         let names: FxHashSet<Symbol> = self
             .map()
-            .fn_quals_for(did)
+            .fn_quals_for(did)?
             .iter()
             .map(|qual| qual.name)
             .collect();
@@ -145,12 +149,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .filter(move |qualifier| qualifier.global || names.contains(&qualifier.name)))
     }
 
-    pub fn func_decls(self) -> impl Iterator<Item = &'genv rty::SpecFuncDecl> {
-        self.inner.queries.func_decls(self).values()
+    pub fn func_decls(self) -> QueryResult<impl Iterator<Item = &'genv rty::SpecFuncDecl>> {
+        Ok(self.inner.queries.func_decls(self)?.values())
     }
 
-    pub fn func_decl(self, name: Symbol) -> rty::SpecFuncDecl {
-        self.inner.queries.func_decls(self)[&name].clone()
+    pub fn func_decl(self, name: Symbol) -> QueryResult<rty::SpecFuncDecl> {
+        Ok(self.inner.queries.func_decls(self)?[&name].clone())
     }
 
     pub fn variances_of(self, did: DefId) -> &'tcx [Variance] {
@@ -194,7 +198,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.adt_def(self, def_id.into())
     }
 
-    pub fn adt_sort_def_of(self, def_id: impl Into<DefId>) -> rty::AdtSortDef {
+    pub fn adt_sort_def_of(self, def_id: impl Into<DefId>) -> QueryResult<rty::AdtSortDef> {
         self.inner.queries.adt_sort_def_of(self, def_id.into())
     }
 
@@ -209,7 +213,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         impl_id: DefId,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::TraitRef>>> {
-        let impl_id = self.extern_id_of(impl_id).unwrap_or(impl_id);
+        let impl_id = self.extern_id_of(impl_id)?.unwrap_or(impl_id);
 
         let Some(poly_trait_ref) = self.tcx().impl_trait_ref(impl_id) else { return Ok(None) };
 
@@ -256,7 +260,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         def_id: impl Into<DefId>,
         name: Symbol,
-    ) -> Option<rty::EarlyBinder<rty::FuncSort>> {
+    ) -> QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>> {
         self.inner
             .queries
             .sort_of_assoc_reft(self, def_id.into(), name)
@@ -298,9 +302,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.lower_late_bound_vars(self, def_id)
     }
 
-    pub fn get_generic_param(&self, def_id: LocalDefId) -> &fhir::GenericParam {
+    pub fn get_generic_param(&self, def_id: LocalDefId) -> QueryResult<&fhir::GenericParam> {
         let owner = self.hir().ty_param_owner(def_id);
-        self.map().get_generics(owner).unwrap().get_param(def_id)
+        Ok(self.map().get_generics(owner)?.unwrap().get_param(def_id))
     }
 
     pub fn is_box(&self, res: fhir::Res) -> bool {
@@ -352,8 +356,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             == def_id
     }
 
-    pub fn extern_id_of(self, def_id: DefId) -> Option<DefId> {
-        self.map().extern_id_of(def_id.as_local()?)
+    pub fn extern_id_of(self, def_id: DefId) -> QueryResult<Option<DefId>> {
+        let Some(local_id) = def_id.as_local() else { return Ok(None) };
+        self.map().extern_id_of(local_id)
     }
 }
 
@@ -368,12 +373,15 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         Self { genv, fhir }
     }
 
-    pub fn get_generics(self, def_id: LocalDefId) -> Option<&'genv fhir::Generics<'genv>> {
+    pub fn get_generics(
+        self,
+        def_id: LocalDefId,
+    ) -> QueryResult<Option<&'genv fhir::Generics<'genv>>> {
         // We don't have nodes for closures and coroutines
         if matches!(self.genv.def_kind(def_id), DefKind::Closure) {
-            None
+            Ok(None)
         } else {
-            Some(self.node(def_id).generics())
+            Ok(Some(self.node(def_id)?.generics()))
         }
     }
 
@@ -394,8 +402,8 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         }
     }
 
-    pub fn extern_id_of(self, def_id: LocalDefId) -> Option<DefId> {
-        self.node(def_id).extern_id()
+    pub fn extern_id_of(self, def_id: LocalDefId) -> QueryResult<Option<DefId>> {
+        Ok(self.node(def_id)?.extern_id())
     }
 
     pub fn spec_funcs(self) -> impl Iterator<Item = &'genv fhir::SpecFunc<'genv>> {
@@ -432,16 +440,16 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         self.fhir.consts.values().copied()
     }
 
-    pub fn is_trusted(self, def_id: LocalDefId) -> bool {
-        self.node(def_id).fn_sig().unwrap().trusted
+    pub fn is_trusted(self, def_id: LocalDefId) -> QueryResult<bool> {
+        Ok(self.node(def_id)?.fn_sig().unwrap().trusted)
     }
 
-    pub fn fn_quals_for(self, def_id: LocalDefId) -> &'genv [fhir::SurfaceIdent] {
+    pub fn fn_quals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [fhir::SurfaceIdent]> {
         // This is called on adts when checking invariants
-        if let Some(fn_sig) = self.node(def_id).fn_sig() {
-            fn_sig.qualifiers
+        if let Some(fn_sig) = self.node(def_id)?.fn_sig() {
+            Ok(fn_sig.qualifiers)
         } else {
-            &[]
+            Ok(&[])
         }
     }
 
@@ -452,16 +460,17 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
             .unwrap_or_else(|| bug!("no item found for {def_id:?}"))
     }
 
-    pub fn node(self, def_id: LocalDefId) -> fhir::Node<'genv> {
-        if let Some(item) = self.fhir.items.get(&def_id) {
-            fhir::Node::Item(item)
-        } else if let Some(trait_item) = self.fhir.trait_items.get(&def_id) {
-            fhir::Node::TraitItem(trait_item)
-        } else if let Some(impl_item) = self.fhir.impl_items.get(&def_id) {
-            fhir::Node::ImplItem(impl_item)
-        } else {
-            bug!("node not found {def_id:?}");
-        }
+    pub fn node(self, def_id: LocalDefId) -> QueryResult<fhir::Node<'genv>> {
+        self.genv.desugar(def_id)
+        // if let Some(item) = self.fhir.items.get(&def_id) {
+        //     fhir::Node::Item(item)
+        // } else if let Some(trait_item) = self.fhir.trait_items.get(&def_id) {
+        //     fhir::Node::TraitItem(trait_item)
+        // } else if let Some(impl_item) = self.fhir.impl_items.get(&def_id) {
+        //     fhir::Node::ImplItem(impl_item)
+        // } else {
+        //     bug!("node not found {def_id:?}");
+        // }
     }
 }
 
@@ -476,4 +485,10 @@ macro_rules! try_alloc_slice {
         let slice = $genv.alloc_slice_with_capacity($cap, $it.into_iter().collect_errors(&mut err));
         err.map_or(Ok(slice), Err)
     }};
+}
+
+impl ErrorEmitter for GlobalEnv<'_, '_> {
+    fn emit<'a>(&'a self, err: impl rustc_errors::Diagnostic<'a>) -> rustc_span::ErrorGuaranteed {
+        self.sess().emit(err)
+    }
 }
