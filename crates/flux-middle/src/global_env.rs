@@ -244,7 +244,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.predicates_of(self, def_id.into())
     }
 
-    pub fn assoc_refinements_of(self, def_id: impl Into<DefId>) -> rty::AssocRefinements {
+    pub fn assoc_refinements_of(
+        self,
+        def_id: impl Into<DefId>,
+    ) -> QueryResult<rty::AssocRefinements> {
         self.inner.queries.assoc_refinements_of(self, def_id.into())
     }
 
@@ -393,13 +396,14 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         self.fhir.flux_items.get(&name).as_ref().copied()
     }
 
-    pub fn refined_by(self, def_id: LocalDefId) -> &'genv fhir::RefinedBy<'genv> {
-        match &self.expect_item(def_id).kind {
+    pub fn refined_by(self, def_id: LocalDefId) -> QueryResult<&'genv fhir::RefinedBy<'genv>> {
+        let refined_by = match &self.expect_item(def_id)?.kind {
             fhir::ItemKind::Enum(enum_def) => enum_def.refined_by,
             fhir::ItemKind::Struct(struct_def) => struct_def.refined_by,
             fhir::ItemKind::TyAlias(ty_alias) => ty_alias.refined_by,
             _ => bug!("expected struct, enum or type alias"),
-        }
+        };
+        Ok(refined_by)
     }
 
     pub fn extern_id_of(self, def_id: LocalDefId) -> QueryResult<Option<DefId>> {
@@ -453,11 +457,12 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         }
     }
 
-    pub fn expect_item(self, def_id: LocalDefId) -> &'genv fhir::Item<'genv> {
-        self.fhir
-            .items
-            .get(&def_id)
-            .unwrap_or_else(|| bug!("no item found for {def_id:?}"))
+    pub fn expect_item(self, def_id: LocalDefId) -> QueryResult<&'genv fhir::Item<'genv>> {
+        if let fhir::Node::Item(item) = self.node(def_id)? {
+            Ok(item)
+        } else {
+            bug!("expected item: `{def_id:?}`")
+        }
     }
 
     pub fn node(self, def_id: LocalDefId) -> QueryResult<fhir::Node<'genv>> {

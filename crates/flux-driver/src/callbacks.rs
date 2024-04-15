@@ -186,7 +186,12 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             }
             DefKind::Enum => {
                 let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(&self.genv)?;
-                let enum_def = self.genv.map().expect_item(def_id).expect_enum();
+                let enum_def = self
+                    .genv
+                    .map()
+                    .expect_item(def_id)
+                    .emit(&self.genv)?
+                    .expect_enum();
                 refineck::invariants::check_invariants(
                     self.genv,
                     &mut self.cache,
@@ -198,7 +203,12 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             }
             DefKind::Struct => {
                 let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(&self.genv)?;
-                let struct_def = self.genv.map().expect_item(def_id).expect_struct();
+                let struct_def = self
+                    .genv
+                    .map()
+                    .expect_item(def_id)
+                    .emit(&self.genv)?
+                    .expect_struct();
                 if struct_def.is_opaque() {
                     return Ok(());
                 }

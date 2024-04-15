@@ -56,7 +56,7 @@ pub fn provide(providers: &mut Providers) {
 }
 
 fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtSortDef> {
-    conv::conv_adt_sort_def(genv, def_id, genv.map().refined_by(def_id))
+    conv::conv_adt_sort_def(genv, def_id, genv.map().refined_by(def_id)?)
 }
 
 fn spec_func_decls(genv: GlobalEnv) -> QueryResult<FxHashMap<Symbol, rty::SpecFuncDecl>> {
@@ -104,7 +104,7 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
 }
 
 fn invariants_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::Invariant>> {
-    let (params, invariants) = match &genv.map().expect_item(def_id).kind {
+    let (params, invariants) = match &genv.map().expect_item(def_id)?.kind {
         fhir::ItemKind::Enum(enum_def) => (&enum_def.params, &enum_def.invariants),
         fhir::ItemKind::Struct(struct_def) => (&struct_def.params, &struct_def.invariants),
         _ => bug!("expected struct or enum"),
@@ -118,7 +118,7 @@ fn invariants_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Vec<rty::In
 
 fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
     let invariants = invariants_of(genv, def_id)?;
-    let item = genv.map().expect_item(def_id);
+    let item = genv.map().expect_item(def_id)?;
 
     let adt_def = if let Some(extern_id) = item.extern_id {
         lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(extern_id))
@@ -146,8 +146,11 @@ fn predicates_of(
     }
 }
 
-fn assoc_refinements_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocRefinements {
-    let predicates = match &genv.map().expect_item(local_id).kind {
+fn assoc_refinements_of(
+    genv: GlobalEnv,
+    local_id: LocalDefId,
+) -> QueryResult<rty::AssocRefinements> {
+    let predicates = match &genv.map().expect_item(local_id)?.kind {
         fhir::ItemKind::Trait(trait_) => {
             trait_
                 .assoc_refinements
@@ -176,7 +179,7 @@ fn assoc_refinements_of(genv: GlobalEnv, local_id: LocalDefId) -> rty::AssocRefi
             bug!("expected trait or impl");
         }
     };
-    rty::AssocRefinements { predicates }
+    Ok(rty::AssocRefinements { predicates })
 }
 
 fn assoc_refinement_def(
@@ -186,7 +189,7 @@ fn assoc_refinement_def(
 ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
     let assoc_reft = genv
         .map()
-        .expect_item(impl_id)
+        .expect_item(impl_id)?
         .expect_impl()
         .find_assoc_reft(name)
         .unwrap();
@@ -199,7 +202,7 @@ fn sort_of_assoc_reft(
     def_id: LocalDefId,
     name: Symbol,
 ) -> QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>> {
-    match &genv.map().expect_item(def_id).kind {
+    match &genv.map().expect_item(def_id)?.kind {
         fhir::ItemKind::Trait(trait_) => {
             let Some(assoc_reft) = trait_.find_assoc_reft(name) else { return Ok(None) };
             let inputs = assoc_reft
@@ -231,7 +234,7 @@ fn item_bounds(
     local_id: LocalDefId,
 ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
     let wfckresults = genv.check_wf(local_id)?;
-    let opaque_ty = genv.map().expect_item(local_id).expect_opaque_ty();
+    let opaque_ty = genv.map().expect_item(local_id)?.expect_opaque_ty();
     Ok(rty::EarlyBinder(conv::conv_opaque_ty(genv, local_id, opaque_ty, &wfckresults)?))
 }
 
@@ -302,7 +305,7 @@ fn refinement_generics_of(
 fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
     let ty = match genv.def_kind(def_id) {
         DefKind::TyAlias { .. } => {
-            let alias = genv.map().expect_item(def_id).expect_type_alias();
+            let alias = genv.map().expect_item(def_id)?.expect_type_alias();
             let wfckresults = genv.check_wf(def_id)?;
             conv::expand_type_alias(genv, def_id.to_def_id(), alias, &wfckresults)?
         }
@@ -331,7 +334,7 @@ fn variants_of(
     genv: GlobalEnv,
     def_id: LocalDefId,
 ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
-    let item = &genv.map().expect_item(def_id);
+    let item = &genv.map().expect_item(def_id)?;
     let variants = match &item.kind {
         fhir::ItemKind::Enum(enum_def) => {
             let wfckresults = genv.check_wf(def_id)?;
