@@ -22,13 +22,9 @@ pub mod visit;
 use std::{borrow::Cow, fmt};
 
 use flux_common::{bug, span_bug};
-use flux_config as config;
 pub use flux_syntax::surface::{BinOp, UnOp};
 use itertools::Itertools;
-use rustc_data_structures::{
-    fx::{FxIndexMap, FxIndexSet},
-    unord::{UnordMap, UnordSet},
-};
+use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 use rustc_hash::FxHashMap;
 pub use rustc_hir::PrimTy;
 use rustc_hir::{
@@ -290,6 +286,7 @@ pub enum TraitBoundModifier {
     Maybe,
 }
 
+#[derive(Debug)]
 pub struct Trait<'fhir> {
     pub generics: Generics<'fhir>,
     pub assoc_refinements: &'fhir [TraitAssocReft<'fhir>],
@@ -311,6 +308,7 @@ pub struct TraitAssocReft<'fhir> {
     pub span: Span,
 }
 
+#[derive(Debug)]
 pub struct Impl<'fhir> {
     pub generics: Generics<'fhir>,
     pub assoc_refinements: &'fhir [ImplAssocReft<'fhir>],
@@ -324,7 +322,7 @@ impl<'fhir> Impl<'fhir> {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct ImplAssocReft<'fhir> {
     pub name: Symbol,
     pub params: &'fhir [RefineParam<'fhir>],
@@ -355,31 +353,17 @@ pub enum IgnoreKey {
 
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
-/// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
+/// note: most items in this struct have been moved out into their own query or method in genv.
+/// We should eventually get rid of this or change its name.
 #[derive(Default)]
 pub struct Crate<'fhir> {
-    pub items: UnordMap<LocalDefId, Item<'fhir>>,
-    pub trait_items: UnordMap<LocalDefId, TraitItem<'fhir>>,
-    pub impl_items: UnordMap<LocalDefId, ImplItem<'fhir>>,
     pub consts: FxHashMap<Symbol, ConstInfo>,
-    pub externs: UnordMap<DefId, LocalDefId>,
     pub flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
-    pub ignores: UnordSet<IgnoreKey>,
-    pub crate_config: config::CrateConfig,
 }
 
 impl<'fhir> Crate<'fhir> {
-    pub fn new(ignores: UnordSet<IgnoreKey>, crate_config: Option<config::CrateConfig>) -> Self {
-        Self {
-            items: Default::default(),
-            trait_items: Default::default(),
-            impl_items: Default::default(),
-            consts: Default::default(),
-            externs: Default::default(),
-            flux_items: Default::default(),
-            ignores,
-            crate_config: crate_config.unwrap_or_default(),
-        }
+    pub fn new() -> Self {
+        Self { consts: Default::default(), flux_items: Default::default() }
     }
 }
 
@@ -988,7 +972,7 @@ impl Lit {
     pub const TRUE: Lit = Lit::Bool(true);
 }
 
-/// Information about the refinement parameters associated with a type alias or a struct/enum.
+/// Information about the refinement parameters associated with a type alias or an adt (struct/enum).
 #[derive(Clone, Debug)]
 pub struct RefinedBy<'fhir> {
     pub span: Span,

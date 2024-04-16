@@ -1443,24 +1443,31 @@ where
 
 impl<T: TypeFoldable> EarlyBinder<T> {
     pub fn instantiate(self, args: &[GenericArg], refine_args: &[Expr]) -> T {
-        self.0.fold_with(&mut subst::GenericsSubstFolder::new(
-            subst::GenericArgsDelegate(args),
-            refine_args,
-        ))
+        self.0
+            .try_fold_with(&mut subst::GenericsSubstFolder::new(
+                subst::GenericArgsDelegate(args),
+                refine_args,
+            ))
+            .into_ok()
     }
 
     pub fn instantiate_identity(self, refine_args: &[Expr]) -> T {
-        self.0.fold_with(&mut subst::GenericsSubstFolder::new(
-            subst::IdentitySubstDelegate,
-            refine_args,
-        ))
+        self.0
+            .try_fold_with(&mut subst::GenericsSubstFolder::new(
+                subst::IdentitySubstDelegate,
+                refine_args,
+            ))
+            .into_ok()
     }
 }
 
 impl EarlyBinder<FuncSort> {
     /// See [`subst::GenericsSubstForSort`]
-    pub fn instantiate_func_sort(self, sort_for_param: impl FnMut(ParamTy) -> Sort) -> FuncSort {
-        self.0.fold_with(&mut subst::GenericsSubstFolder::new(
+    pub fn instantiate_func_sort<E>(
+        self,
+        sort_for_param: impl FnMut(ParamTy) -> Result<Sort, E>,
+    ) -> Result<FuncSort, E> {
+        self.0.try_fold_with(&mut subst::GenericsSubstFolder::new(
             subst::GenericsSubstForSort { sort_for_param },
             &[],
         ))

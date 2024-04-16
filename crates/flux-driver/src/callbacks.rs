@@ -80,14 +80,12 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     tracing::info_span!("check_crate").in_scope(move || {
         tracing::info!("Callbacks::check_wf");
 
-        let fhir = genv.fhir_crate();
-
         // Ignore everything and go home
-        if fhir.ignores.contains(&fhir::IgnoreKey::Crate) {
+        if genv.ignores().contains(&fhir::IgnoreKey::Crate) {
             return Ok(());
         }
         flux_fhir_analysis::check_crate_wf(genv)?;
-        let mut ck = CrateChecker::new(genv, fhir);
+        let mut ck = CrateChecker::new(genv);
 
         let crate_items = genv.tcx().hir_crate_items(());
 
@@ -128,18 +126,18 @@ fn save_metadata(genv: &GlobalEnv) {
 
 struct CrateChecker<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    fhir: &'genv fhir::Crate<'genv>,
     cache: QueryCache,
     checker_config: CheckerConfig,
 }
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, fhir: &'genv fhir::Crate<'genv>) -> Self {
+    fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
+        let crate_config = genv.crate_config().unwrap_or_default();
         let checker_config = CheckerConfig {
-            check_overflow: fhir.crate_config.check_overflow,
-            scrape_quals: fhir.crate_config.scrape_quals,
+            check_overflow: crate_config.check_overflow,
+            scrape_quals: crate_config.scrape_quals,
         };
-        CrateChecker { genv, fhir, cache: QueryCache::load(), checker_config }
+        CrateChecker { genv, cache: QueryCache::load(), checker_config }
     }
 
     /// `is_ignored` transitively follows the `def_id`'s parent-chain to check if
@@ -153,8 +151,8 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         if parent_def_id == def_id {
             false
         } else {
-            self.fhir
-                .ignores
+            self.genv
+                .ignores()
                 .contains(&fhir::IgnoreKey::Module(parent_def_id))
                 || self.is_ignored(parent_def_id)
         }
@@ -185,11 +183,13 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 Ok(())
             }
             DefKind::Enum => {
-                let adt_def = self
+                let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(&self.genv)?;
+                let enum_def = self
                     .genv
-                    .adt_def(def_id.to_def_id())
-                    .emit(self.genv.sess())?;
-                let enum_def = self.genv.map().expect_item(def_id).expect_enum();
+                    .map()
+                    .expect_item(def_id)
+                    .emit(&self.genv)?
+                    .expect_enum();
                 refineck::invariants::check_invariants(
                     self.genv,
                     &mut self.cache,
@@ -200,11 +200,13 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 )
             }
             DefKind::Struct => {
-                let adt_def = self
+                let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(&self.genv)?;
+                let struct_def = self
                     .genv
-                    .adt_def(def_id.to_def_id())
-                    .emit(self.genv.sess())?;
-                let struct_def = self.genv.map().expect_item(def_id).expect_struct();
+                    .map()
+                    .expect_item(def_id)
+                    .emit(&self.genv)?
+                    .expect_struct();
                 if struct_def.is_opaque() {
                     return Ok(());
                 }

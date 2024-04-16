@@ -1,7 +1,7 @@
 use std::iter;
 
 use ena::unify::InPlaceUnificationTable;
-use flux_common::{bug, iter::IterExt, span_bug};
+use flux_common::{bug, iter::IterExt, result::ResultExt, span_bug};
 use flux_errors::{ErrorGuaranteed, Errors};
 use flux_middle::{
     fhir::{self, visit::Visitor as _, ExprRes, FhirId, FluxOwnerId},
@@ -62,7 +62,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     ) -> Result {
         if let Some(fsort) = self.is_coercible_from_func(expected, arg.fhir_id) {
             let fsort = fsort.expect_mono();
-            self.insert_params(params);
+            self.insert_params(params)?;
 
             if params.len() != fsort.inputs().len() {
                 return Err(self.emit_err(errors::ParamCountMismatch::new(
@@ -288,7 +288,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         args: &[fhir::Expr],
         span: Span,
     ) -> Result<rty::Sort> {
-        let Some(fsort) = self.genv.sort_of_alias_reft(alias) else {
+        let Some(fsort) = self.genv.sort_of_alias_reft(alias).emit(&self.genv)? else {
             return Err(self.emit_err(InvalidAssocReft::new(
                 span,
                 alias.name,
@@ -318,7 +318,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 };
                 fsort
             }
-            ExprRes::GlobalFunc(.., sym) => self.genv.func_decl(sym).sort.clone(),
+            ExprRes::GlobalFunc(.., sym) => self.genv.func_decl(sym).emit(&self.genv)?.sort.clone(),
             _ => span_bug!(func.span, "unexpected path in function position"),
         };
         Ok(self.instantiate_func_sort(poly_fsort))
@@ -334,11 +334,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
 impl<'genv> InferCtxt<'genv, '_> {
     /// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
-    pub(super) fn insert_params(&mut self, params: &[fhir::RefineParam]) {
+    pub(super) fn insert_params(&mut self, params: &[fhir::RefineParam]) -> Result {
         for param in params {
-            let sort = conv::conv_sort(self.genv, &param.sort, &mut || self.next_sort_var());
+            let sort = conv::conv_sort(self.genv, &param.sort, &mut || self.next_sort_var())
+                .emit(&self.genv)?;
             self.insert_param(param.id, sort, param.kind);
         }
+        Ok(())
     }
 
     pub(super) fn insert_param(
@@ -596,7 +598,10 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
 impl fhir::visit::Visitor for ImplicitParamInferer<'_, '_, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty) {
         if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
-            if let Some(expected) = self.infcx.genv.sort_of_bty(bty) {
+            let Ok(sort_of_bty) = self.infcx.genv.sort_of_bty(bty).emit(&self.errors) else {
+                return;
+            };
+            if let Some(expected) = sort_of_bty {
                 self.infer_implicit_params(idx, &expected);
             } else if let Some(id) = idx.is_colon_param() {
                 let found = self.infcx.param_sort(id);

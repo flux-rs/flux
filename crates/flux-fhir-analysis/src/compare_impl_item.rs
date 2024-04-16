@@ -10,8 +10,8 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result {
     let trait_id = genv.tcx().trait_id_of_impl(impl_id.to_def_id()).unwrap();
 
-    let impl_assoc_refts = genv.assoc_refinements_of(impl_id);
-    let trait_assoc_refts = genv.assoc_refinements_of(trait_id);
+    let impl_assoc_refts = genv.assoc_refinements_of(impl_id).emit(&genv)?;
+    let trait_assoc_refts = genv.assoc_refinements_of(trait_id).emit(&genv)?;
 
     for impl_assoc_reft in &impl_assoc_refts.predicates {
         let name = impl_assoc_reft.name;
@@ -19,6 +19,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result 
             let fhir_impl_assoc_reft = genv
                 .map()
                 .expect_item(impl_id)
+                .emit(&genv)?
                 .expect_impl()
                 .find_assoc_reft(name)
                 .unwrap();
@@ -36,13 +37,13 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result 
 
 fn check_assoc_reft(genv: GlobalEnv, impl_id: LocalDefId, trait_id: DefId, name: Symbol) -> Result {
     let fake_impl_id = genv
-        .map()
-        .get_local_id_for_extern(impl_id.into())
+        .get_local_id_for_extern(impl_id.to_def_id())
         .unwrap_or(impl_id);
 
     let impl_span = genv
         .map()
         .expect_item(fake_impl_id)
+        .emit(&genv)?
         .expect_impl()
         .find_assoc_reft(name)
         .unwrap()
@@ -50,11 +51,11 @@ fn check_assoc_reft(genv: GlobalEnv, impl_id: LocalDefId, trait_id: DefId, name:
 
     let impl_trait_ref = genv
         .impl_trait_ref(impl_id.to_def_id())
-        .emit(genv.sess())?
+        .emit(&genv)?
         .unwrap()
         .instantiate_identity(&[]);
 
-    let Some(impl_sort) = genv.sort_of_assoc_reft(impl_id.to_def_id(), name) else {
+    let Some(impl_sort) = genv.sort_of_assoc_reft(impl_id, name).emit(genv.sess())? else {
         return Err(genv.sess().emit_err(errors::InvalidAssocReft::new(
             impl_span,
             name,
@@ -64,7 +65,7 @@ fn check_assoc_reft(genv: GlobalEnv, impl_id: LocalDefId, trait_id: DefId, name:
 
     let impl_sort = impl_sort.instantiate_identity(&[]);
 
-    let Some(trait_sort) = genv.sort_of_assoc_reft(trait_id, name) else {
+    let Some(trait_sort) = genv.sort_of_assoc_reft(trait_id, name).emit(genv.sess())? else {
         return Err(genv.sess().emit_err(errors::InvalidAssocReft::new(
             impl_span,
             name,

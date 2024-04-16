@@ -4,6 +4,7 @@ use flux_common::bug;
 use rustc_middle::ty::RegionVid;
 use rustc_type_ir::DebruijnIndex;
 
+use self::fold::FallibleTypeFolder;
 use super::{
     evars::EVarSol,
     fold::{TypeFolder, TypeSuperFoldable},
@@ -248,8 +249,10 @@ pub(crate) struct GenericsSubstFolder<'a, D> {
     refinement_args: &'a [Expr],
 }
 
-trait GenericsSubstDelegate {
-    fn sort_for_param(&mut self, param_ty: ParamTy) -> Sort;
+pub trait GenericsSubstDelegate {
+    type Error = !;
+
+    fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, Self::Error>;
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty;
     fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor;
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region;
@@ -263,8 +266,8 @@ trait GenericsSubstDelegate {
 pub(crate) struct IdentitySubstDelegate;
 
 impl GenericsSubstDelegate for IdentitySubstDelegate {
-    fn sort_for_param(&mut self, param_ty: ParamTy) -> Sort {
-        Sort::Param(param_ty)
+    fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, !> {
+        Ok(Sort::Param(param_ty))
     }
 
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty {
@@ -287,9 +290,9 @@ impl GenericsSubstDelegate for IdentitySubstDelegate {
 pub(crate) struct GenericArgsDelegate<'a>(pub(crate) &'a [GenericArg]);
 
 impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
-    fn sort_for_param(&mut self, param_ty: ParamTy) -> Sort {
+    fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, !> {
         match self.0.get(param_ty.index as usize) {
-            Some(GenericArg::Base(ctor)) => ctor.sort(),
+            Some(GenericArg::Base(ctor)) => Ok(ctor.sort()),
             Some(arg) => bug!("extected base type for generic parameter, found `{arg:?}`"),
             None => bug!("type parameter out of range {param_ty:?}"),
         }
@@ -330,19 +333,21 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
 /// [`rty::GenericArg`]: crate::rty::GenericArg
 /// [`fhir`]: crate::fhir
 /// [`rty`]: crate::rty
-pub(crate) struct GenericsSubstForSort<F>
+pub(crate) struct GenericsSubstForSort<F, E>
 where
-    F: FnMut(ParamTy) -> Sort,
+    F: FnMut(ParamTy) -> Result<Sort, E>,
 {
     /// Implementation of [`GenericsSubstDelegate::sort_for_param`]
     pub(crate) sort_for_param: F,
 }
 
-impl<F> GenericsSubstDelegate for GenericsSubstForSort<F>
+impl<F, E> GenericsSubstDelegate for GenericsSubstForSort<F, E>
 where
-    F: FnMut(ParamTy) -> Sort,
+    F: FnMut(ParamTy) -> Result<Sort, E>,
 {
-    fn sort_for_param(&mut self, param_ty: ParamTy) -> Sort {
+    type Error = E;
+
+    fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, E> {
         (self.sort_for_param)(param_ty)
     }
 
@@ -365,60 +370,64 @@ impl<'a, D> GenericsSubstFolder<'a, D> {
     }
 }
 
-impl<D: GenericsSubstDelegate> TypeFolder for GenericsSubstFolder<'_, D> {
-    fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
+impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D> {
+    type Error = D::Error;
+
+    fn try_fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Result<Binder<T>, D::Error> {
         self.current_index.shift_in(1);
-        let r = t.super_fold_with(self);
+        let r = t.try_super_fold_with(self)?;
         self.current_index.shift_out(1);
-        r
+        Ok(r)
     }
 
-    fn fold_sort(&mut self, sort: &Sort) -> Sort {
+    fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, D::Error> {
         if let Sort::Param(param_ty) = sort {
             self.delegate.sort_for_param(*param_ty)
         } else {
-            sort.super_fold_with(self)
+            sort.try_super_fold_with(self)
         }
     }
 
-    fn fold_ty(&mut self, ty: &Ty) -> Ty {
+    fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, D::Error> {
         match ty.kind() {
-            TyKind::Param(param_ty) => self.delegate.ty_for_param(*param_ty),
+            TyKind::Param(param_ty) => Ok(self.delegate.ty_for_param(*param_ty)),
             TyKind::Indexed(BaseTy::Param(param_ty), idx) => {
-                let idx = idx.fold_with(self);
-                self.delegate
+                let idx = idx.try_fold_with(self)?;
+                Ok(self
+                    .delegate
                     .ctor_for_param(*param_ty)
                     .replace_bound_reft(&idx)
-                    .to_ty()
+                    .to_ty())
             }
-            _ => ty.super_fold_with(self),
+            _ => ty.try_super_fold_with(self),
         }
     }
 
-    fn fold_subset_ty(&mut self, constr: &SubsetTy) -> SubsetTy {
-        if let BaseTy::Param(param_ty) = &constr.bty {
-            self.delegate
+    fn try_fold_subset_ty(&mut self, sty: &SubsetTy) -> Result<SubsetTy, D::Error> {
+        if let BaseTy::Param(param_ty) = &sty.bty {
+            Ok(self
+                .delegate
                 .ctor_for_param(*param_ty)
-                .replace_bound_reft(&constr.idx)
-                .strengthen(&constr.pred)
+                .replace_bound_reft(&sty.idx)
+                .strengthen(&sty.pred))
         } else {
-            constr.super_fold_with(self)
+            sty.try_super_fold_with(self)
         }
     }
 
-    fn fold_region(&mut self, re: &Region) -> Region {
+    fn try_fold_region(&mut self, re: &Region) -> Result<Region, D::Error> {
         if let ReEarlyBound(ebr) = *re {
-            self.delegate.region_for_param(ebr)
+            Ok(self.delegate.region_for_param(ebr))
         } else {
-            *re
+            Ok(*re)
         }
     }
 
-    fn fold_expr(&mut self, expr: &Expr) -> Expr {
+    fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, D::Error> {
         if let ExprKind::Var(Var::EarlyParam(var)) = expr.kind() {
-            self.expr_for_param(var.index)
+            Ok(self.expr_for_param(var.index))
         } else {
-            expr.super_fold_with(self)
+            expr.try_super_fold_with(self)
         }
     }
 }

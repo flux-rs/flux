@@ -37,13 +37,14 @@ pub(crate) fn check_flux_item<'genv>(
     let mut infcx = InferCtxt::new(genv, owner);
     match item {
         fhir::FluxItem::Qualifier(qualifier) => {
-            infcx.insert_params(qualifier.args);
+            infcx.insert_params(qualifier.args)?;
             infcx.check_expr(&qualifier.expr, &rty::Sort::Bool)?;
         }
         fhir::FluxItem::Func(func) => {
             if let Some(body) = &func.body {
-                infcx.insert_params(func.args);
-                let output = conv::conv_sort(genv, &func.sort, &mut bug_on_infer_sort);
+                infcx.insert_params(func.args)?;
+                let output =
+                    conv::conv_sort(genv, &func.sort, &mut bug_on_infer_sort).emit(&genv)?;
                 infcx.check_expr(body, &output)?;
             }
         }
@@ -72,12 +73,12 @@ pub(crate) fn check_node<'genv>(
 
 /// Initializes the inference context with all parameters required to check node
 fn insert_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
+    let genv = infcx.genv;
     if let fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::OpaqueTy(..), owner_id, .. }) = node
     {
-        let genv = infcx.genv;
         let parent = genv.tcx().local_parent(owner_id.def_id);
-        if let Some(generics) = genv.map().get_generics(parent) {
-            let wfckresults = genv.check_wf(parent).emit(genv.sess())?;
+        if let Some(generics) = genv.map().get_generics(parent).emit(&genv)? {
+            let wfckresults = genv.check_wf(parent).emit(&genv)?;
             for param in generics.refinement_params {
                 let sort = wfckresults.node_sorts().get(param.fhir_id).unwrap().clone();
                 infcx.insert_param(param.id, sort, param.kind);
@@ -85,19 +86,16 @@ fn insert_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
         }
     }
     visit_refine_params(node, |param| {
-        let sort = conv::conv_sort(infcx.genv, &param.sort, &mut || infcx.next_sort_var());
+        let sort =
+            conv::conv_sort(infcx.genv, &param.sort, &mut || infcx.next_sort_var()).emit(&genv)?;
         infcx.insert_param(param.id, sort, param.kind);
-    });
-    Ok(())
+        Ok(())
+    })
 }
 
 /// Check that all params with [`fhir::Sort::Infer`] have a sort inferred and save it in the [`WfckResults`]
 fn resolve_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
-    let mut err = None;
-    visit_refine_params(node, |param| {
-        infcx.resolve_param_sort(param).collect_err(&mut err);
-    });
-    err.into_result()
+    visit_refine_params(node, |param| infcx.resolve_param_sort(param))
 }
 
 pub(crate) fn check_fn_quals(
@@ -151,7 +149,12 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
 
 impl fhir::visit::Visitor for Wf<'_, '_, '_> {
     fn visit_impl_assoc_reft(&mut self, assoc_reft: &fhir::ImplAssocReft) {
-        let output = conv::conv_sort(self.infcx.genv, &assoc_reft.output, &mut bug_on_infer_sort);
+        let Ok(output) =
+            conv::conv_sort(self.infcx.genv, &assoc_reft.output, &mut bug_on_infer_sort)
+                .emit(&self.errors)
+        else {
+            return;
+        };
         self.infcx
             .check_expr(&assoc_reft.body, &output)
             .collect_err(&mut self.errors);
@@ -177,11 +180,16 @@ impl fhir::visit::Visitor for Wf<'_, '_, '_> {
 
     fn visit_variant_ret(&mut self, ret: &fhir::VariantRet) {
         let bty = &ret.bty;
-        let expected = self
+        let Ok(expected) = self
             .infcx
             .genv
             .sort_of_bty(bty)
-            .unwrap_or_else(|| span_bug!(bty.span, "unrefinable base type: `{bty:?}`"));
+            .emit(&self.errors)
+            .transpose()
+            .unwrap_or_else(|| span_bug!(bty.span, "unrefinable base type: `{bty:?}`"))
+        else {
+            return;
+        };
         self.infcx
             .check_refine_arg(&ret.idx, &expected)
             .collect_err(&mut self.errors);
@@ -209,7 +217,10 @@ impl fhir::visit::Visitor for Wf<'_, '_, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty) {
         match &ty.kind {
             fhir::TyKind::Indexed(bty, idx) => {
-                if let Some(expected) = self.infcx.genv.sort_of_bty(bty) {
+                let Ok(sort_of_bty) = self.infcx.genv.sort_of_bty(bty).emit(&self.errors) else {
+                    return;
+                };
+                if let Some(expected) = sort_of_bty {
                     self.infcx
                         .check_refine_arg(idx, &expected)
                         .collect_err(&mut self.errors);
@@ -262,18 +273,21 @@ impl fhir::visit::Visitor for Wf<'_, '_, '_> {
     }
 }
 
-fn visit_refine_params(node: &fhir::Node, f: impl FnMut(&fhir::RefineParam)) {
+fn visit_refine_params(node: &fhir::Node, f: impl FnMut(&fhir::RefineParam) -> Result) -> Result {
     struct RefineParamVisitor<F> {
         f: F,
+        err: Option<ErrorGuaranteed>,
     }
 
     impl<F> fhir::visit::Visitor for RefineParamVisitor<F>
     where
-        F: FnMut(&fhir::RefineParam),
+        F: FnMut(&fhir::RefineParam) -> Result,
     {
         fn visit_refine_param(&mut self, param: &fhir::RefineParam) {
-            (self.f)(param);
+            (self.f)(param).collect_err(&mut self.err);
         }
     }
-    RefineParamVisitor { f }.visit_node(node);
+    let mut visitor = RefineParamVisitor { f, err: None };
+    visitor.visit_node(node);
+    visitor.err.into_result()
 }
