@@ -2082,6 +2082,13 @@
 <a href="#2080" id="2080">2080</a>
 <a href="#2081" id="2081">2081</a>
 <a href="#2082" id="2082">2082</a>
+<a href="#2083" id="2083">2083</a>
+<a href="#2084" id="2084">2084</a>
+<a href="#2085" id="2085">2085</a>
+<a href="#2086" id="2086">2086</a>
+<a href="#2087" id="2087">2087</a>
+<a href="#2088" id="2088">2088</a>
+<a href="#2089" id="2089">2089</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -3527,24 +3534,31 @@
 
 <span class="kw">impl</span>&lt;T: TypeFoldable&gt; EarlyBinder&lt;T&gt; {
     <span class="kw">pub fn </span>instantiate(<span class="self">self</span>, args: <span class="kw-2">&amp;</span>[GenericArg], refine_args: <span class="kw-2">&amp;</span>[Expr]) -&gt; T {
-        <span class="self">self</span>.<span class="number">0</span>.fold_with(<span class="kw-2">&amp;mut </span>subst::GenericsSubstFolder::new(
-            subst::GenericArgsDelegate(args),
-            refine_args,
-        ))
+        <span class="self">self</span>.<span class="number">0
+            </span>.try_fold_with(<span class="kw-2">&amp;mut </span>subst::GenericsSubstFolder::new(
+                subst::GenericArgsDelegate(args),
+                refine_args,
+            ))
+            .into_ok()
     }
 
     <span class="kw">pub fn </span>instantiate_identity(<span class="self">self</span>, refine_args: <span class="kw-2">&amp;</span>[Expr]) -&gt; T {
-        <span class="self">self</span>.<span class="number">0</span>.fold_with(<span class="kw-2">&amp;mut </span>subst::GenericsSubstFolder::new(
-            subst::IdentitySubstDelegate,
-            refine_args,
-        ))
+        <span class="self">self</span>.<span class="number">0
+            </span>.try_fold_with(<span class="kw-2">&amp;mut </span>subst::GenericsSubstFolder::new(
+                subst::IdentitySubstDelegate,
+                refine_args,
+            ))
+            .into_ok()
     }
 }
 
 <span class="kw">impl </span>EarlyBinder&lt;FuncSort&gt; {
     <span class="doccomment">/// See [`subst::GenericsSubstForSort`]
-    </span><span class="kw">pub fn </span>instantiate_func_sort(<span class="self">self</span>, sort_for_param: <span class="kw">impl </span>FnMut(ParamTy) -&gt; Sort) -&gt; FuncSort {
-        <span class="self">self</span>.<span class="number">0</span>.fold_with(<span class="kw-2">&amp;mut </span>subst::GenericsSubstFolder::new(
+    </span><span class="kw">pub fn </span>instantiate_func_sort&lt;E&gt;(
+        <span class="self">self</span>,
+        sort_for_param: <span class="kw">impl </span>FnMut(ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, E&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;FuncSort, E&gt; {
+        <span class="self">self</span>.<span class="number">0</span>.try_fold_with(<span class="kw-2">&amp;mut </span>subst::GenericsSubstFolder::new(
             subst::GenericsSubstForSort { sort_for_param },
             <span class="kw-2">&amp;</span>[],
         ))

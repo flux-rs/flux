@@ -279,6 +279,20 @@
 <a href="#277" id="277">277</a>
 <a href="#278" id="278">278</a>
 <a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
@@ -318,13 +332,14 @@
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner);
     <span class="kw">match </span>item {
         fhir::FluxItem::Qualifier(qualifier) =&gt; {
-            infcx.insert_params(qualifier.args);
+            infcx.insert_params(qualifier.args)<span class="question-mark">?</span>;
             infcx.check_expr(<span class="kw-2">&amp;</span>qualifier.expr, <span class="kw-2">&amp;</span>rty::Sort::Bool)<span class="question-mark">?</span>;
         }
         fhir::FluxItem::Func(func) =&gt; {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = <span class="kw-2">&amp;</span>func.body {
-                infcx.insert_params(func.args);
-                <span class="kw">let </span>output = conv::conv_sort(genv, <span class="kw-2">&amp;</span>func.sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort);
+                infcx.insert_params(func.args)<span class="question-mark">?</span>;
+                <span class="kw">let </span>output =
+                    conv::conv_sort(genv, <span class="kw-2">&amp;</span>func.sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
                 infcx.check_expr(body, <span class="kw-2">&amp;</span>output)<span class="question-mark">?</span>;
             }
         }
@@ -353,12 +368,12 @@
 
 <span class="doccomment">/// Initializes the inference context with all parameters required to check node
 </span><span class="kw">fn </span>insert_params(infcx: <span class="kw-2">&amp;mut </span>InferCtxt, node: <span class="kw-2">&amp;</span>fhir::Node) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">let </span>genv = infcx.genv;
     <span class="kw">if let </span>fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::OpaqueTy(..), owner_id, .. }) = node
     {
-        <span class="kw">let </span>genv = infcx.genv;
         <span class="kw">let </span>parent = genv.tcx().local_parent(owner_id.def_id);
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = genv.map().get_generics(parent) {
-            <span class="kw">let </span>wfckresults = genv.check_wf(parent).emit(genv.sess())<span class="question-mark">?</span>;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(generics) = genv.map().get_generics(parent).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">? </span>{
+            <span class="kw">let </span>wfckresults = genv.check_wf(parent).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
             <span class="kw">for </span>param <span class="kw">in </span>generics.refinement_params {
                 <span class="kw">let </span>sort = wfckresults.node_sorts().get(param.fhir_id).unwrap().clone();
                 infcx.insert_param(param.id, sort, param.kind);
@@ -366,19 +381,16 @@
         }
     }
     visit_refine_params(node, |param| {
-        <span class="kw">let </span>sort = conv::conv_sort(infcx.genv, <span class="kw-2">&amp;</span>param.sort, <span class="kw-2">&amp;mut </span>|| infcx.next_sort_var());
+        <span class="kw">let </span>sort =
+            conv::conv_sort(infcx.genv, <span class="kw-2">&amp;</span>param.sort, <span class="kw-2">&amp;mut </span>|| infcx.next_sort_var()).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
         infcx.insert_param(param.id, sort, param.kind);
-    });
-    <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(())
+    })
 }
 
 <span class="doccomment">/// Check that all params with [`fhir::Sort::Infer`] have a sort inferred and save it in the [`WfckResults`]
 </span><span class="kw">fn </span>resolve_params(infcx: <span class="kw-2">&amp;mut </span>InferCtxt, node: <span class="kw-2">&amp;</span>fhir::Node) -&gt; <span class="prelude-ty">Result </span>{
-    <span class="kw">let </span><span class="kw-2">mut </span>err = <span class="prelude-val">None</span>;
-    visit_refine_params(node, |param| {
-        infcx.resolve_param_sort(param).collect_err(<span class="kw-2">&amp;mut </span>err);
-    });
-    err.into_result()
+    visit_refine_params(node, |param| infcx.resolve_param_sort(param))
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_fn_quals(
@@ -432,7 +444,12 @@
 
 <span class="kw">impl </span>fhir::visit::Visitor <span class="kw">for </span>Wf&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>visit_impl_assoc_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assoc_reft: <span class="kw-2">&amp;</span>fhir::ImplAssocReft) {
-        <span class="kw">let </span>output = conv::conv_sort(<span class="self">self</span>.infcx.genv, <span class="kw-2">&amp;</span>assoc_reft.output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort);
+        <span class="kw">let </span><span class="prelude-val">Ok</span>(output) =
+            conv::conv_sort(<span class="self">self</span>.infcx.genv, <span class="kw-2">&amp;</span>assoc_reft.output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)
+                .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors)
+        <span class="kw">else </span>{
+            <span class="kw">return</span>;
+        };
         <span class="self">self</span>.infcx
             .check_expr(<span class="kw-2">&amp;</span>assoc_reft.body, <span class="kw-2">&amp;</span>output)
             .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
@@ -458,11 +475,16 @@
 
     <span class="kw">fn </span>visit_variant_ret(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ret: <span class="kw-2">&amp;</span>fhir::VariantRet) {
         <span class="kw">let </span>bty = <span class="kw-2">&amp;</span>ret.bty;
-        <span class="kw">let </span>expected = <span class="self">self
+        <span class="kw">let </span><span class="prelude-val">Ok</span>(expected) = <span class="self">self
             </span>.infcx
             .genv
             .sort_of_bty(bty)
-            .unwrap_or_else(|| <span class="macro">span_bug!</span>(bty.span, <span class="string">"unrefinable base type: `{bty:?}`"</span>));
+            .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors)
+            .transpose()
+            .unwrap_or_else(|| <span class="macro">span_bug!</span>(bty.span, <span class="string">"unrefinable base type: `{bty:?}`"</span>))
+        <span class="kw">else </span>{
+            <span class="kw">return</span>;
+        };
         <span class="self">self</span>.infcx
             .check_refine_arg(<span class="kw-2">&amp;</span>ret.idx, <span class="kw-2">&amp;</span>expected)
             .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
@@ -490,7 +512,10 @@
     <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty) {
         <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
             fhir::TyKind::Indexed(bty, idx) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(expected) = <span class="self">self</span>.infcx.genv.sort_of_bty(bty) {
+                <span class="kw">let </span><span class="prelude-val">Ok</span>(sort_of_bty) = <span class="self">self</span>.infcx.genv.sort_of_bty(bty).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors) <span class="kw">else </span>{
+                    <span class="kw">return</span>;
+                };
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(expected) = sort_of_bty {
                     <span class="self">self</span>.infcx
                         .check_refine_arg(idx, <span class="kw-2">&amp;</span>expected)
                         .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
@@ -543,19 +568,22 @@
     }
 }
 
-<span class="kw">fn </span>visit_refine_params(node: <span class="kw-2">&amp;</span>fhir::Node, f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>fhir::RefineParam)) {
+<span class="kw">fn </span>visit_refine_params(node: <span class="kw-2">&amp;</span>fhir::Node, f: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; <span class="prelude-ty">Result</span>) -&gt; <span class="prelude-ty">Result </span>{
     <span class="kw">struct </span>RefineParamVisitor&lt;F&gt; {
         f: F,
+        err: <span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt;,
     }
 
     <span class="kw">impl</span>&lt;F&gt; fhir::visit::Visitor <span class="kw">for </span>RefineParamVisitor&lt;F&gt;
     <span class="kw">where
-        </span>F: FnMut(<span class="kw-2">&amp;</span>fhir::RefineParam),
+        </span>F: FnMut(<span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; <span class="prelude-ty">Result</span>,
     {
         <span class="kw">fn </span>visit_refine_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam) {
-            (<span class="self">self</span>.f)(param);
+            (<span class="self">self</span>.f)(param).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
         }
     }
-    RefineParamVisitor { f }.visit_node(node);
+    <span class="kw">let </span><span class="kw-2">mut </span>visitor = RefineParamVisitor { f, err: <span class="prelude-val">None </span>};
+    visitor.visit_node(node);
+    visitor.err.into_result()
 }
 </code></pre></div></section></main></body></html>

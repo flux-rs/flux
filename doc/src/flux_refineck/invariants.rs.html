@@ -86,8 +86,6 @@
 <a href="#84" id="84">84</a>
 <a href="#85" id="85">85</a>
 <a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::ErrorGuaranteed;
@@ -136,7 +134,7 @@
 
         <span class="kw">let </span>variant = genv
             .variant_sig(adt_def.did(), variant_idx)
-            .emit(genv.sess())<span class="question-mark">?
+            .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?
             </span>.expect(<span class="string">"cannot check opaque structs"</span>)
             .instantiate_identity(<span class="kw-2">&amp;</span>[])
             .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| rcx.define_vars(sort));
@@ -148,15 +146,13 @@
         <span class="kw">let </span>pred = invariant.apply(<span class="kw-2">&amp;</span>variant.idx);
         rcx.check_pred(<span class="kw-2">&amp;</span>pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
-    <span class="kw">let </span><span class="kw-2">mut </span>fcx = FixpointCtxt::new(genv, def_id, KVarStore::default());
+    <span class="kw">let </span><span class="kw-2">mut </span>fcx = FixpointCtxt::new(genv, def_id, KVarStore::default()).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
     <span class="kw">if </span>config::dump_constraint() {
         dbg::dump_item_info(genv.tcx(), def_id, <span class="string">"fluxc"</span>, <span class="kw-2">&amp;</span>refine_tree).unwrap();
     }
 
-    <span class="kw">let </span>constraint = refine_tree.into_fixpoint(<span class="kw-2">&amp;mut </span>fcx);
-    <span class="kw">let </span>errors = fcx
-        .check(cache, constraint, <span class="kw-2">&amp;</span>checker_config)
-        .emit(genv.sess())<span class="question-mark">?</span>;
+    <span class="kw">let </span>cstr = refine_tree.into_fixpoint(<span class="kw-2">&amp;mut </span>fcx).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+    <span class="kw">let </span>errors = fcx.check(cache, cstr, <span class="kw-2">&amp;</span>checker_config).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
     <span class="kw">if </span>errors.is_empty() {
         <span class="prelude-val">Ok</span>(())
     } <span class="kw">else </span>{

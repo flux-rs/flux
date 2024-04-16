@@ -127,6 +127,7 @@
 <a href="#125" id="125">125</a>
 <a href="#126" id="126">126</a>
 <a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_middle::{global_env::GlobalEnv, pretty};
 <span class="kw">use </span>rustc_span::{
@@ -139,8 +140,8 @@
 <span class="kw">pub fn </span>check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -&gt; <span class="prelude-ty">Result </span>{
     <span class="kw">let </span>trait_id = genv.tcx().trait_id_of_impl(impl_id.to_def_id()).unwrap();
 
-    <span class="kw">let </span>impl_assoc_refts = genv.assoc_refinements_of(impl_id);
-    <span class="kw">let </span>trait_assoc_refts = genv.assoc_refinements_of(trait_id);
+    <span class="kw">let </span>impl_assoc_refts = genv.assoc_refinements_of(impl_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+    <span class="kw">let </span>trait_assoc_refts = genv.assoc_refinements_of(trait_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
     <span class="kw">for </span>impl_assoc_reft <span class="kw">in </span><span class="kw-2">&amp;</span>impl_assoc_refts.predicates {
         <span class="kw">let </span>name = impl_assoc_reft.name;
@@ -148,7 +149,8 @@
             <span class="kw">let </span>fhir_impl_assoc_reft = genv
                 .map()
                 .expect_item(impl_id)
-                .expect_impl()
+                .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?
+                </span>.expect_impl()
                 .find_assoc_reft(name)
                 .unwrap();
             <span class="kw">return </span><span class="prelude-val">Err</span>(genv.sess().emit_err(errors::InvalidAssocReft::new(
@@ -165,25 +167,25 @@
 
 <span class="kw">fn </span>check_assoc_reft(genv: GlobalEnv, impl_id: LocalDefId, trait_id: DefId, name: Symbol) -&gt; <span class="prelude-ty">Result </span>{
     <span class="kw">let </span>fake_impl_id = genv
-        .map()
-        .get_local_id_for_extern(impl_id.into())
+        .get_local_id_for_extern(impl_id.to_def_id())
         .unwrap_or(impl_id);
 
     <span class="kw">let </span>impl_span = genv
         .map()
         .expect_item(fake_impl_id)
-        .expect_impl()
+        .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?
+        </span>.expect_impl()
         .find_assoc_reft(name)
         .unwrap()
         .span;
 
     <span class="kw">let </span>impl_trait_ref = genv
         .impl_trait_ref(impl_id.to_def_id())
-        .emit(genv.sess())<span class="question-mark">?
+        .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?
         </span>.unwrap()
         .instantiate_identity(<span class="kw-2">&amp;</span>[]);
 
-    <span class="kw">let </span><span class="prelude-val">Some</span>(impl_sort) = genv.sort_of_assoc_reft(impl_id.to_def_id(), name) <span class="kw">else </span>{
+    <span class="kw">let </span><span class="prelude-val">Some</span>(impl_sort) = genv.sort_of_assoc_reft(impl_id, name).emit(genv.sess())<span class="question-mark">? </span><span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(genv.sess().emit_err(errors::InvalidAssocReft::new(
             impl_span,
             name,
@@ -193,7 +195,7 @@
 
     <span class="kw">let </span>impl_sort = impl_sort.instantiate_identity(<span class="kw-2">&amp;</span>[]);
 
-    <span class="kw">let </span><span class="prelude-val">Some</span>(trait_sort) = genv.sort_of_assoc_reft(trait_id, name) <span class="kw">else </span>{
+    <span class="kw">let </span><span class="prelude-val">Some</span>(trait_sort) = genv.sort_of_assoc_reft(trait_id, name).emit(genv.sess())<span class="question-mark">? </span><span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(genv.sess().emit_err(errors::InvalidAssocReft::new(
             impl_span,
             name,

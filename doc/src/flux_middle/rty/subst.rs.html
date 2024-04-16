@@ -450,12 +450,22 @@
 <a href="#448" id="448">448</a>
 <a href="#449" id="449">449</a>
 <a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cmp::Ordering, collections::hash_map};
 
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>rustc_middle::ty::RegionVid;
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
 
+<span class="kw">use </span><span class="self">self</span>::fold::FallibleTypeFolder;
 <span class="kw">use super</span>::{
     evars::EVarSol,
     fold::{TypeFolder, TypeSuperFoldable},
@@ -700,8 +710,10 @@
     refinement_args: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Expr],
 }
 
-<span class="kw">trait </span>GenericsSubstDelegate {
-    <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; Sort;
+<span class="kw">pub trait </span>GenericsSubstDelegate {
+    <span class="kw">type </span>Error = !;
+
+    <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, <span class="self">Self</span>::Error&gt;;
     <span class="kw">fn </span>ty_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; Ty;
     <span class="kw">fn </span>ctor_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; SubsetTyCtor;
     <span class="kw">fn </span>region_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ebr: EarlyParamRegion) -&gt; Region;
@@ -715,8 +727,8 @@
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>IdentitySubstDelegate;
 
 <span class="kw">impl </span>GenericsSubstDelegate <span class="kw">for </span>IdentitySubstDelegate {
-    <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; Sort {
-        Sort::Param(param_ty)
+    <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, !&gt; {
+        <span class="prelude-val">Ok</span>(Sort::Param(param_ty))
     }
 
     <span class="kw">fn </span>ty_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; Ty {
@@ -739,9 +751,9 @@
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>GenericArgsDelegate&lt;<span class="lifetime">'a</span>&gt;(<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[GenericArg]);
 
 <span class="kw">impl </span>GenericsSubstDelegate <span class="kw">for </span>GenericArgsDelegate&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; Sort {
+    <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, !&gt; {
         <span class="kw">match </span><span class="self">self</span>.<span class="number">0</span>.get(param_ty.index <span class="kw">as </span>usize) {
-            <span class="prelude-val">Some</span>(GenericArg::Base(ctor)) =&gt; ctor.sort(),
+            <span class="prelude-val">Some</span>(GenericArg::Base(ctor)) =&gt; <span class="prelude-val">Ok</span>(ctor.sort()),
             <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">"extected base type for generic parameter, found `{arg:?}`"</span>),
             <span class="prelude-val">None </span>=&gt; <span class="macro">bug!</span>(<span class="string">"type parameter out of range {param_ty:?}"</span>),
         }
@@ -782,19 +794,21 @@
 /// [`rty::GenericArg`]: crate::rty::GenericArg
 /// [`fhir`]: crate::fhir
 /// [`rty`]: crate::rty
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>GenericsSubstForSort&lt;F&gt;
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>GenericsSubstForSort&lt;F, E&gt;
 <span class="kw">where
-    </span>F: FnMut(ParamTy) -&gt; Sort,
+    </span>F: FnMut(ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, E&gt;,
 {
     <span class="doccomment">/// Implementation of [`GenericsSubstDelegate::sort_for_param`]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) sort_for_param: F,
 }
 
-<span class="kw">impl</span>&lt;F&gt; GenericsSubstDelegate <span class="kw">for </span>GenericsSubstForSort&lt;F&gt;
+<span class="kw">impl</span>&lt;F, E&gt; GenericsSubstDelegate <span class="kw">for </span>GenericsSubstForSort&lt;F, E&gt;
 <span class="kw">where
-    </span>F: FnMut(ParamTy) -&gt; Sort,
+    </span>F: FnMut(ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, E&gt;,
 {
-    <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; Sort {
+    <span class="kw">type </span>Error = E;
+
+    <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, E&gt; {
         (<span class="self">self</span>.sort_for_param)(param_ty)
     }
 
@@ -817,60 +831,64 @@
     }
 }
 
-<span class="kw">impl</span>&lt;D: GenericsSubstDelegate&gt; TypeFolder <span class="kw">for </span>GenericsSubstFolder&lt;<span class="lifetime">'_</span>, D&gt; {
-    <span class="kw">fn </span>fold_binder&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>Binder&lt;T&gt;) -&gt; Binder&lt;T&gt; {
+<span class="kw">impl</span>&lt;D: GenericsSubstDelegate&gt; FallibleTypeFolder <span class="kw">for </span>GenericsSubstFolder&lt;<span class="lifetime">'_</span>, D&gt; {
+    <span class="kw">type </span>Error = D::Error;
+
+    <span class="kw">fn </span>try_fold_binder&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>Binder&lt;T&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Binder&lt;T&gt;, D::Error&gt; {
         <span class="self">self</span>.current_index.shift_in(<span class="number">1</span>);
-        <span class="kw">let </span>r = t.super_fold_with(<span class="self">self</span>);
+        <span class="kw">let </span>r = t.try_super_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>;
         <span class="self">self</span>.current_index.shift_out(<span class="number">1</span>);
-        r
+        <span class="prelude-val">Ok</span>(r)
     }
 
-    <span class="kw">fn </span>fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Sort {
+    <span class="kw">fn </span>try_fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, D::Error&gt; {
         <span class="kw">if let </span>Sort::Param(param_ty) = sort {
             <span class="self">self</span>.delegate.sort_for_param(<span class="kw-2">*</span>param_ty)
         } <span class="kw">else </span>{
-            sort.super_fold_with(<span class="self">self</span>)
+            sort.try_super_fold_with(<span class="self">self</span>)
         }
     }
 
-    <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
+    <span class="kw">fn </span>try_fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, D::Error&gt; {
         <span class="kw">match </span>ty.kind() {
-            TyKind::Param(param_ty) =&gt; <span class="self">self</span>.delegate.ty_for_param(<span class="kw-2">*</span>param_ty),
+            TyKind::Param(param_ty) =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.delegate.ty_for_param(<span class="kw-2">*</span>param_ty)),
             TyKind::Indexed(BaseTy::Param(param_ty), idx) =&gt; {
-                <span class="kw">let </span>idx = idx.fold_with(<span class="self">self</span>);
-                <span class="self">self</span>.delegate
+                <span class="kw">let </span>idx = idx.try_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(<span class="self">self
+                    </span>.delegate
                     .ctor_for_param(<span class="kw-2">*</span>param_ty)
                     .replace_bound_reft(<span class="kw-2">&amp;</span>idx)
-                    .to_ty()
+                    .to_ty())
             }
-            <span class="kw">_ </span>=&gt; ty.super_fold_with(<span class="self">self</span>),
+            <span class="kw">_ </span>=&gt; ty.try_super_fold_with(<span class="self">self</span>),
         }
     }
 
-    <span class="kw">fn </span>fold_subset_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constr: <span class="kw-2">&amp;</span>SubsetTy) -&gt; SubsetTy {
-        <span class="kw">if let </span>BaseTy::Param(param_ty) = <span class="kw-2">&amp;</span>constr.bty {
-            <span class="self">self</span>.delegate
+    <span class="kw">fn </span>try_fold_subset_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sty: <span class="kw-2">&amp;</span>SubsetTy) -&gt; <span class="prelude-ty">Result</span>&lt;SubsetTy, D::Error&gt; {
+        <span class="kw">if let </span>BaseTy::Param(param_ty) = <span class="kw-2">&amp;</span>sty.bty {
+            <span class="prelude-val">Ok</span>(<span class="self">self
+                </span>.delegate
                 .ctor_for_param(<span class="kw-2">*</span>param_ty)
-                .replace_bound_reft(<span class="kw-2">&amp;</span>constr.idx)
-                .strengthen(<span class="kw-2">&amp;</span>constr.pred)
+                .replace_bound_reft(<span class="kw-2">&amp;</span>sty.idx)
+                .strengthen(<span class="kw-2">&amp;</span>sty.pred))
         } <span class="kw">else </span>{
-            constr.super_fold_with(<span class="self">self</span>)
+            sty.try_super_fold_with(<span class="self">self</span>)
         }
     }
 
-    <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>Region) -&gt; Region {
+    <span class="kw">fn </span>try_fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>Region) -&gt; <span class="prelude-ty">Result</span>&lt;Region, D::Error&gt; {
         <span class="kw">if let </span>ReEarlyBound(ebr) = <span class="kw-2">*</span>re {
-            <span class="self">self</span>.delegate.region_for_param(ebr)
+            <span class="prelude-val">Ok</span>(<span class="self">self</span>.delegate.region_for_param(ebr))
         } <span class="kw">else </span>{
-            <span class="kw-2">*</span>re
+            <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>re)
         }
     }
 
-    <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
+    <span class="kw">fn </span>try_fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; <span class="prelude-ty">Result</span>&lt;Expr, D::Error&gt; {
         <span class="kw">if let </span>ExprKind::Var(Var::EarlyParam(var)) = expr.kind() {
-            <span class="self">self</span>.expr_for_param(var.index)
+            <span class="prelude-val">Ok</span>(<span class="self">self</span>.expr_for_param(var.index))
         } <span class="kw">else </span>{
-            expr.super_fold_with(<span class="self">self</span>)
+            expr.try_super_fold_with(<span class="self">self</span>)
         }
     }
 }

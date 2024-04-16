@@ -316,7 +316,7 @@
     config: CheckerConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="macro">dbg::check_fn_span!</span>(genv.tcx(), def_id).in_scope(|| {
-        <span class="kw">if </span>genv.map().is_trusted(def_id) {
+        <span class="kw">if </span>genv.map().is_trusted(def_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">? </span>{
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
@@ -326,17 +326,17 @@
         </span><span class="kw">if </span>genv.tcx().def_span(def_id).ctxt() &gt; rustc_span::SyntaxContext::root() {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
-        <span class="kw">let </span>ghost_stmts = compute_ghost_statements(genv, def_id).emit(genv.sess())<span class="question-mark">?</span>;
+        <span class="kw">let </span>ghost_stmts = compute_ghost_statements(genv, def_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
         <span class="comment">// PHASE 1: infer shape of `TypeEnv` at the entry of join points
         </span><span class="kw">let </span>shape_result =
-            Checker::run_in_shape_mode(genv, def_id, <span class="kw-2">&amp;</span>ghost_stmts, config).emit(genv.sess())<span class="question-mark">?</span>;
+            Checker::run_in_shape_mode(genv, def_id, <span class="kw-2">&amp;</span>ghost_stmts, config).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::shape"</span>);
 
         <span class="comment">// PHASE 2: generate refinement tree constraint
         </span><span class="kw">let </span>(<span class="kw-2">mut </span>refine_tree, kvars) =
             Checker::run_in_refine_mode(genv, def_id, <span class="kw-2">&amp;</span>ghost_stmts, shape_result, config)
-                .emit(genv.sess())<span class="question-mark">?</span>;
+                .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::refine"</span>);
 
         <span class="comment">// PHASE 3: invoke fixpoint on the constraint
@@ -344,10 +344,10 @@
         <span class="kw">if </span>config::dump_constraint() {
             dbg::dump_item_info(genv.tcx(), def_id, <span class="string">"fluxc"</span>, <span class="kw-2">&amp;</span>refine_tree).unwrap();
         }
-        <span class="kw">let </span><span class="kw-2">mut </span>fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars);
+        <span class="kw">let </span><span class="kw-2">mut </span>fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
         fcx.collect_sorts(<span class="kw-2">&amp;</span>refine_tree);
-        <span class="kw">let </span>constraint = refine_tree.into_fixpoint(<span class="kw-2">&amp;mut </span>fcx);
-        <span class="kw">let </span>errors = fcx.check(cache, constraint, <span class="kw-2">&amp;</span>config).emit(genv.sess())<span class="question-mark">?</span>;
+        <span class="kw">let </span>cstr = refine_tree.into_fixpoint(<span class="kw-2">&amp;mut </span>fcx).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+        <span class="kw">let </span>errors = fcx.check(cache, cstr, <span class="kw-2">&amp;</span>config).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint"</span>);
         <span class="kw">if </span>errors.is_empty() {

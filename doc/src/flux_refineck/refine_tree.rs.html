@@ -859,20 +859,46 @@
 <a href="#857" id="857">857</a>
 <a href="#858" id="858">858</a>
 <a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
     rc::{Rc, Weak},
 };
 
-<span class="kw">use </span>flux_common::index::{IndexGen, IndexVec};
-<span class="kw">use </span>flux_middle::rty::{
-    box_args,
-    evars::EVarSol,
-    fold::{
-        TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor,
+<span class="kw">use </span>flux_common::{
+    index::{IndexGen, IndexVec},
+    iter::IterExt,
+};
+<span class="kw">use </span>flux_middle::{
+    queries::QueryResult,
+    rty::{
+        box_args,
+        evars::EVarSol,
+        fold::{
+            TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
+            TypeVisitor,
+        },
+        BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind,
     },
-    BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind,
 };
 <span class="kw">use </span>itertools::Itertools;
 
@@ -985,11 +1011,15 @@
         <span class="self">self</span>.root.borrow_mut().simplify();
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_fixpoint(<span class="self">self</span>, cx: <span class="kw-2">&amp;mut </span>FixpointCtxt&lt;Tag&gt;) -&gt; fixpoint::Constraint {
-        <span class="self">self</span>.root
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_fixpoint(
+        <span class="self">self</span>,
+        cx: <span class="kw-2">&amp;mut </span>FixpointCtxt&lt;Tag&gt;,
+    ) -&gt; QueryResult&lt;fixpoint::Constraint&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self
+            </span>.root
             .borrow()
-            .to_fixpoint(cx)
-            .unwrap_or(fixpoint::Constraint::TRUE)
+            .to_fixpoint(cx)<span class="question-mark">?
+            </span>.unwrap_or(fixpoint::Constraint::TRUE))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_ctxt_at_root(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; RefineCtxt {
@@ -1389,27 +1419,33 @@
         }
     }
 
-    <span class="kw">fn </span>to_fixpoint(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;mut </span>FixpointCtxt&lt;Tag&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::Constraint&gt; {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
+    <span class="kw">fn </span>to_fixpoint(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;mut </span>FixpointCtxt&lt;Tag&gt;) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;fixpoint::Constraint&gt;&gt; {
+        <span class="kw">let </span>cstr = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
             NodeKind::Comment(<span class="kw">_</span>) | NodeKind::Conj | NodeKind::ForAll(<span class="kw">_</span>, Sort::Loc) =&gt; {
-                children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)
-            }
+                children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)<span class="question-mark">?
+            </span>}
             NodeKind::ForAll(name, sort) =&gt; {
-                cx.with_name_map(<span class="kw-2">*</span>name, |cx, fresh| {
-                    <span class="prelude-val">Some</span>(fixpoint::Constraint::ForAll(
+                cx.with_name_map(<span class="kw-2">*</span>name, |cx, fresh| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; {
+                    <span class="kw">let </span><span class="prelude-val">Some</span>(children) = children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)<span class="question-mark">? </span><span class="kw">else </span>{
+                        <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
+                    };
+                    <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(fixpoint::Constraint::ForAll(
                         fixpoint::Bind {
                             name: fixpoint::Var::Local(fresh),
                             sort: sort_to_fixpoint(sort),
                             pred: fixpoint::Pred::TRUE,
                         },
-                        Box::new(children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)<span class="question-mark">?</span>),
-                    ))
-                })
-            }
+                        Box::new(children),
+                    )))
+                })<span class="question-mark">?
+            </span>}
             NodeKind::Guard(pred) =&gt; {
-                <span class="kw">let </span>(bindings, preds) = cx.pred_to_fixpoint(pred);
+                <span class="kw">let </span>(bindings, preds) = cx.pred_to_fixpoint(pred)<span class="question-mark">?</span>;
                 <span class="kw">let </span>preds = preds.into_iter().map(|(pred, <span class="kw">_</span>)| pred).collect_vec();
                 <span class="kw">let </span>pred = fixpoint::Pred::And(preds);
+                <span class="kw">let </span><span class="prelude-val">Some</span>(children) = children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)<span class="question-mark">? </span><span class="kw">else </span>{
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
+                };
                 <span class="prelude-val">Some</span>(stitch(
                     bindings,
                     fixpoint::Constraint::ForAll(
@@ -1418,12 +1454,12 @@
                             sort: fixpoint::Sort::Int,
                             pred,
                         },
-                        Box::new(children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)<span class="question-mark">?</span>),
+                        Box::new(children),
                     ),
                 ))
             }
             NodeKind::Head(pred, tag) =&gt; {
-                <span class="kw">let </span>(bindings, preds) = cx.pred_to_fixpoint(pred);
+                <span class="kw">let </span>(bindings, preds) = cx.pred_to_fixpoint(pred)<span class="question-mark">?</span>;
                 <span class="kw">let </span>cstr = preds
                     .into_iter()
                     .map(|(pred, span)| {
@@ -1433,7 +1469,8 @@
                 <span class="prelude-val">Some</span>(stitch(bindings, fixpoint::Constraint::Conj(cstr)))
             }
             NodeKind::True =&gt; <span class="prelude-val">None</span>,
-        }
+        };
+        <span class="prelude-val">Ok</span>(cstr)
     }
 
     <span class="doccomment">/// Returns `true` if the node kind is [`ForAll`].
@@ -1454,16 +1491,17 @@
 <span class="kw">fn </span>children_to_fixpoint(
     cx: <span class="kw-2">&amp;mut </span>FixpointCtxt&lt;Tag&gt;,
     children: <span class="kw-2">&amp;</span>[NodePtr],
-) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::Constraint&gt; {
+) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;fixpoint::Constraint&gt;&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>children = children
         .iter()
-        .filter_map(|node| node.borrow().to_fixpoint(cx))
-        .collect_vec();
-    <span class="kw">match </span>children.len() {
+        .filter_map(|node| node.borrow().to_fixpoint(cx).transpose())
+        .try_collect_vec()<span class="question-mark">?</span>;
+    <span class="kw">let </span>cstr = <span class="kw">match </span>children.len() {
         <span class="number">0 </span>=&gt; <span class="prelude-val">None</span>,
         <span class="number">1 </span>=&gt; children.pop(),
         <span class="kw">_ </span>=&gt; <span class="prelude-val">Some</span>(fixpoint::Constraint::Conj(children)),
-    }
+    };
+    <span class="prelude-val">Ok</span>(cstr)
 }
 
 <span class="kw">struct </span>ParentsIter {

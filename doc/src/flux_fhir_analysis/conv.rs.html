@@ -1533,6 +1533,10 @@
 <a href="#1531" id="1531">1531</a>
 <a href="#1532" id="1532">1532</a>
 <a href="#1533" id="1533">1533</a>
+<a href="#1534" id="1534">1534</a>
+<a href="#1535" id="1535">1535</a>
+<a href="#1536" id="1536">1536</a>
+<a href="#1537" id="1537">1537</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -1624,7 +1628,7 @@
     genv: GlobalEnv,
     def_id: LocalDefId,
     refined_by: <span class="kw-2">&amp;</span>fhir::RefinedBy,
-) -&gt; rty::AdtSortDef {
+) -&gt; QueryResult&lt;rty::AdtSortDef&gt; {
     <span class="kw">let </span>params = refined_by
         .sort_params
         .iter()
@@ -1633,13 +1637,15 @@
     <span class="kw">let </span>fields = refined_by
         .fields
         .iter()
-        .map(|(name, sort)| (<span class="kw-2">*</span>name, conv_sort(genv, sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)))
-        .collect_vec();
+        .map(|(name, sort)| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; {
+            <span class="prelude-val">Ok</span>((<span class="kw-2">*</span>name, conv_sort(genv, sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)<span class="question-mark">?</span>))
+        })
+        .try_collect_vec()<span class="question-mark">?</span>;
     <span class="kw">let </span>def_id = genv
         .map()
-        .extern_id_of(def_id)
-        .unwrap_or(def_id.to_def_id());
-    rty::AdtSortDef::new(def_id, params, fields)
+        .extern_id_of(def_id)<span class="question-mark">?
+        </span>.unwrap_or(def_id.to_def_id());
+    <span class="prelude-val">Ok</span>(rty::AdtSortDef::new(def_id, params, fields))
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>expand_type_alias&lt;<span class="lifetime">'genv</span>&gt;(
@@ -1650,11 +1656,11 @@
 ) -&gt; QueryResult&lt;rty::Binder&lt;rty::Ty&gt;&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
 
-    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, alias.generics.refinement_params, wfckresults);
-    env.push_layer(Layer::record(<span class="kw-2">&amp;</span>cx, def_id, alias.params));
+    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, alias.generics.refinement_params, wfckresults)<span class="question-mark">?</span>;
+    env.push_layer(Layer::record(<span class="kw-2">&amp;</span>cx, def_id, alias.params)<span class="question-mark">?</span>);
 
     <span class="kw">let </span>ty = cx.conv_ty(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>alias.ty)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)))
+    <span class="prelude-val">Ok</span>(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>))
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_generic_predicates&lt;<span class="lifetime">'genv</span>&gt;(
@@ -1665,9 +1671,9 @@
 ) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
 
-    <span class="kw">let </span>refparams = <span class="kw-2">&amp;</span>genv.map().get_generics(def_id).unwrap().refinement_params;
+    <span class="kw">let </span>refparams = <span class="kw-2">&amp;</span>genv.map().get_generics(def_id)<span class="question-mark">?</span>.unwrap().refinement_params;
 
-    <span class="kw">let </span>env = <span class="kw-2">&amp;mut </span>Env::new(genv, refparams, wfckresults);
+    <span class="kw">let </span>env = <span class="kw-2">&amp;mut </span>Env::new(genv, refparams, wfckresults)<span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>clauses = <span class="macro">vec!</span>[];
     <span class="kw">for </span>pred <span class="kw">in </span>predicates {
@@ -1688,10 +1694,10 @@
 ) -&gt; QueryResult&lt;List&lt;rty::Clause&gt;&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
     <span class="kw">let </span>parent = genv.tcx().local_parent(def_id);
-    <span class="kw">let </span>refparams = <span class="kw-2">&amp;</span>genv.map().get_generics(parent).unwrap().refinement_params;
+    <span class="kw">let </span>refparams = <span class="kw-2">&amp;</span>genv.map().get_generics(parent)<span class="question-mark">?</span>.unwrap().refinement_params;
     <span class="kw">let </span>parent_wfckresults = genv.check_wf(parent)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>env = <span class="kw-2">&amp;mut </span>Env::new(genv, refparams, <span class="kw-2">&amp;</span>parent_wfckresults);
+    <span class="kw">let </span>env = <span class="kw-2">&amp;mut </span>Env::new(genv, refparams, <span class="kw-2">&amp;</span>parent_wfckresults)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>args = rty::GenericArgs::identity_for_item(genv, def_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>self_ty = rty::Ty::opaque(def_id, args, env.to_early_bound_vars());
@@ -1764,11 +1770,11 @@
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
     wfckresults: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;&gt;,
-) -&gt; List&lt;rty::RefineParam&gt; {
+) -&gt; QueryResult&lt;List&lt;rty::RefineParam&gt;&gt; {
     params
         .iter()
         .map(|param| conv_refine_param(genv, param, wfckresults))
-        .collect()
+        .try_collect()
 }
 
 <span class="kw">fn </span>conv_generic_param_kind(kind: <span class="kw-2">&amp;</span>fhir::GenericParamKind) -&gt; rty::GenericParamDefKind {
@@ -1792,8 +1798,8 @@
     wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; QueryResult&lt;Vec&lt;rty::Invariant&gt;&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
-    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults);
-    env.push_layer(Layer::record(<span class="kw-2">&amp;</span>cx, def_id.to_def_id(), params));
+    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
+    env.push_layer(Layer::record(<span class="kw-2">&amp;</span>cx, def_id.to_def_id(), params)<span class="question-mark">?</span>);
     cx.conv_invariants(<span class="kw-2">&amp;mut </span>env, invariants)
 }
 
@@ -1804,10 +1810,10 @@
 ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::SpecFunc&gt;&gt; {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = <span class="kw-2">&amp;</span>func.body {
         <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
-        <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults);
-        env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, func.args, <span class="bool-val">false</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
+        env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, func.args, <span class="bool-val">false</span>)<span class="question-mark">?</span>);
         <span class="kw">let </span>expr = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, body)<span class="question-mark">?</span>;
-        <span class="kw">let </span>expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv));
+        <span class="kw">let </span>expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>);
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::SpecFunc { name: func.name, expr }))
     } <span class="kw">else </span>{
         <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
@@ -1820,10 +1826,10 @@
     wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; QueryResult&lt;rty::Qualifier&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
-    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults);
-    env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, qualifier.args, <span class="bool-val">false</span>));
+    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
+    env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, qualifier.args, <span class="bool-val">false</span>)<span class="question-mark">?</span>);
     <span class="kw">let </span>body = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>qualifier.expr)<span class="question-mark">?</span>;
-    <span class="kw">let </span>body = rty::Binder::new(body, env.pop_layer().into_bound_vars(genv));
+    <span class="kw">let </span>body = rty::Binder::new(body, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>);
     <span class="prelude-val">Ok</span>(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
 }
 
@@ -1837,8 +1843,8 @@
 
     <span class="kw">let </span>late_bound_regions = refining::refine_bound_variables(<span class="kw-2">&amp;</span>genv.lower_late_bound_vars(def_id)<span class="question-mark">?</span>);
 
-    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, decl.generics.refinement_params, wfckresults);
-    env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, late_bound_regions.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[], <span class="bool-val">true</span>));
+    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, decl.generics.refinement_params, wfckresults)<span class="question-mark">?</span>;
+    env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, late_bound_regions.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[], <span class="bool-val">true</span>)<span class="question-mark">?</span>);
 
     <span class="kw">let </span><span class="kw-2">mut </span>requires = <span class="macro">vec!</span>[];
     <span class="kw">for </span>constr <span class="kw">in </span>decl.requires {
@@ -1854,7 +1860,7 @@
 
     <span class="kw">let </span>vars = late_bound_regions
         .iter()
-        .chain(env.pop_layer().into_bound_vars(genv).iter())
+        .chain(env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>.iter())
         .cloned()
         .collect();
 
@@ -1868,11 +1874,11 @@
     wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; QueryResult&lt;rty::Lambda&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
-    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults);
-    env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, assoc_reft.params, <span class="bool-val">false</span>));
+    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
+    env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, assoc_reft.params, <span class="bool-val">false</span>)<span class="question-mark">?</span>);
     <span class="kw">let </span>expr = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>assoc_reft.body)<span class="question-mark">?</span>;
-    <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(genv);
-    <span class="kw">let </span>output = conv_sort(genv, <span class="kw-2">&amp;</span>assoc_reft.output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort);
+    <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>;
+    <span class="kw">let </span>output = conv_sort(genv, <span class="kw-2">&amp;</span>assoc_reft.output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(rty::Lambda::with_vars(expr, inputs, output))
 }
 
@@ -1881,7 +1887,7 @@
     ty: <span class="kw-2">&amp;</span>fhir::Ty,
     wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; QueryResult&lt;rty::Binder&lt;rty::Ty&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults);
+    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
     <span class="kw">let </span>ty = ConvCtxt::new(genv, wfckresults).conv_ty(<span class="kw-2">&amp;mut </span>env, ty)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(rty::Binder::new(ty, List::empty()))
 }
@@ -1999,9 +2005,9 @@
         trait_ref: <span class="kw-2">&amp;</span>fhir::PolyTraitRef,
         kind: rty::ClosureKind,
         clauses: <span class="kw-2">&amp;mut </span>Vec&lt;rty::Clause&gt;,
-    ) -&gt; QueryResult&lt;()&gt; {
+    ) -&gt; QueryResult {
         <span class="kw">let </span>path = <span class="kw-2">&amp;</span>trait_ref.trait_ref;
-        <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, trait_ref.bound_generic_params.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[], <span class="bool-val">true</span>);
+        <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, trait_ref.bound_generic_params.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[], <span class="bool-val">true</span>)<span class="question-mark">?</span>;
         env.push_layer(layer);
 
         <span class="kw">let </span>pred = rty::FnTraitPredicate {
@@ -2065,7 +2071,7 @@
         env: <span class="kw-2">&amp;mut </span>Env,
         output: <span class="kw-2">&amp;</span>fhir::FnOutput,
     ) -&gt; QueryResult&lt;rty::Binder&lt;rty::FnOutput&gt;&gt; {
-        env.push_layer(Layer::list(<span class="self">self</span>, <span class="number">0</span>, output.params, <span class="bool-val">true</span>));
+        env.push_layer(Layer::list(<span class="self">self</span>, <span class="number">0</span>, output.params, <span class="bool-val">true</span>)<span class="question-mark">?</span>);
 
         <span class="kw">let </span>ret = <span class="self">self</span>.conv_ty(env, <span class="kw-2">&amp;</span>output.ret)<span class="question-mark">?</span>;
         <span class="kw">let </span>ensures: List&lt;rty::Constraint&gt; = output
@@ -2075,7 +2081,7 @@
             .try_collect()<span class="question-mark">?</span>;
         <span class="kw">let </span>output = rty::FnOutput::new(ret, ensures);
 
-        <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv);
+        <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(rty::Binder::new(output, vars))
     }
 
@@ -2102,8 +2108,8 @@
     ) -&gt; QueryResult&lt;rty::PolyVariant&gt; {
         <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults);
-        env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, variant.params, <span class="bool-val">true</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
+        env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, variant.params, <span class="bool-val">true</span>)<span class="question-mark">?</span>);
 
         <span class="kw">let </span>adt_def = genv.adt_def(adt_def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>fields = variant
@@ -2119,7 +2125,7 @@
             idxs,
         );
 
-        <span class="prelude-val">Ok</span>(rty::Binder::new(variant, env.pop_layer().into_bound_vars(genv)))
+        <span class="prelude-val">Ok</span>(rty::Binder::new(variant, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_struct_def_variant(
@@ -2129,8 +2135,8 @@
         wfckresults: <span class="kw-2">&amp;</span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
     ) -&gt; QueryResult&lt;rty::Opaqueness&lt;rty::PolyVariant&gt;&gt; {
         <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
-        <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults);
-        env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, struct_def.params, <span class="bool-val">false</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
+        env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, struct_def.params, <span class="bool-val">false</span>)<span class="question-mark">?</span>);
 
         <span class="kw">if let </span>fhir::StructKind::Transparent { fields } = <span class="kw-2">&amp;</span>struct_def.kind {
             <span class="kw">let </span>adt_def = genv.adt_def(adt_def_id)<span class="question-mark">?</span>;
@@ -2140,7 +2146,7 @@
                 .map(|field_def| cx.conv_ty(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>field_def.ty))
                 .try_collect()<span class="question-mark">?</span>;
 
-            <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(genv);
+            <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>;
             <span class="kw">let </span>idx = rty::Expr::adt(
                 adt_def_id,
                 (<span class="number">0</span>..vars.len())
@@ -2227,10 +2233,10 @@
                 }
             }
             fhir::TyKind::Exists(params, ty) =&gt; {
-                <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, <span class="number">0</span>, params, <span class="bool-val">false</span>);
+                <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, <span class="number">0</span>, params, <span class="bool-val">false</span>)<span class="question-mark">?</span>;
                 env.push_layer(layer);
                 <span class="kw">let </span>ty = <span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>;
-                <span class="kw">let </span>sorts = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv);
+                <span class="kw">let </span>sorts = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
                 <span class="kw">if </span>sorts.is_empty() {
                     <span class="prelude-val">Ok</span>(ty.shift_out_escaping(<span class="number">1</span>))
                 } <span class="kw">else </span>{
@@ -2388,11 +2394,11 @@
         <span class="kw">match </span><span class="kw-2">&amp;</span>arg.kind {
             fhir::RefineArgKind::Expr(expr) =&gt; <span class="self">self</span>.conv_expr(env, expr),
             fhir::RefineArgKind::Abs(params, body) =&gt; {
-                <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, <span class="number">0</span>, params, <span class="bool-val">false</span>);
+                <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, <span class="number">0</span>, params, <span class="bool-val">false</span>)<span class="question-mark">?</span>;
 
                 env.push_layer(layer);
                 <span class="kw">let </span>pred = <span class="self">self</span>.conv_expr(env, body)<span class="question-mark">?</span>;
-                <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv);
+                <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
                 <span class="kw">let </span>output = <span class="self">self
                     </span>.wfckresults
                     .node_sorts()
@@ -2535,8 +2541,8 @@
         <span class="prelude-val">Ok</span>(ctor)
     }
 
-    <span class="kw">fn </span>resolve_param_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; rty::Sort {
-        resolve_param_sort(<span class="self">self</span>.genv, param, <span class="prelude-val">Some</span>(<span class="self">self</span>.wfckresults)).clone()
+    <span class="kw">fn </span>resolve_param_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; QueryResult&lt;rty::Sort&gt; {
+        resolve_param_sort(<span class="self">self</span>.genv, param, <span class="prelude-val">Some</span>(<span class="self">self</span>.wfckresults))
     }
 }
 
@@ -2545,15 +2551,15 @@
         genv: GlobalEnv,
         early_bound: <span class="kw-2">&amp;</span>[fhir::RefineParam],
         wfckresults: <span class="kw-2">&amp;</span>WfckResults,
-    ) -&gt; <span class="self">Self </span>{
+    ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>early_bound = early_bound
             .iter()
-            .map(|param| {
-                <span class="kw">let </span>sort = resolve_param_sort(genv, param, <span class="prelude-val">Some</span>(wfckresults)).clone();
-                (param.id, (param.name, sort))
+            .map(|param| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; {
+                <span class="kw">let </span>sort = resolve_param_sort(genv, param, <span class="prelude-val">Some</span>(wfckresults))<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>((param.id, (param.name, sort)))
             })
-            .collect();
-        <span class="self">Self </span>{ layers: <span class="macro">vec!</span>[], early_bound }
+            .try_collect()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ layers: <span class="macro">vec!</span>[], early_bound })
     }
 
     <span class="kw">fn </span>depth(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
@@ -2705,7 +2711,7 @@
     <span class="kw">fn </span>conv_invariant(<span class="kw-2">&amp;</span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, invariant: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; QueryResult&lt;rty::Invariant&gt; {
         <span class="prelude-val">Ok</span>(rty::Invariant::new(rty::Binder::new(
             <span class="self">self</span>.conv_expr(env, invariant)<span class="question-mark">?</span>,
-            env.top_layer().to_bound_vars(<span class="self">self</span>.genv),
+            env.top_layer().to_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>,
         )))
     }
 
@@ -2732,21 +2738,21 @@
         params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
         filter_unit: bool,
         kind: LayerKind,
-    ) -&gt; <span class="self">Self </span>{
+    ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>idx = late_bound_regions;
         <span class="kw">let </span>map = params
             .iter()
-            .map(|param| {
-                <span class="kw">let </span>sort = cx.resolve_param_sort(param);
+            .map(|param| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; {
+                <span class="kw">let </span>sort = cx.resolve_param_sort(param)<span class="question-mark">?</span>;
                 <span class="kw">let </span>infer_mode = sort.infer_mode(param.kind);
                 <span class="kw">let </span>entry = Entry::new(idx, sort, infer_mode, param.name);
                 <span class="kw">if </span>!filter_unit || !<span class="macro">matches!</span>(entry, Entry::Unit(<span class="kw">_</span>)) {
                     idx += <span class="number">1</span>;
                 }
-                (param.id, entry)
+                <span class="prelude-val">Ok</span>((param.id, entry))
             })
-            .collect();
-        <span class="self">Self </span>{ map, filter_unit, kind }
+            .try_collect()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ map, filter_unit, kind })
     }
 
     <span class="kw">fn </span>list(
@@ -2754,11 +2760,11 @@
         late_bound_regions: u32,
         params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
         filter_unit: bool,
-    ) -&gt; <span class="self">Self </span>{
+    ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
         <span class="self">Self</span>::new(cx, late_bound_regions, params, filter_unit, LayerKind::List)
     }
 
-    <span class="kw">fn </span>record(cx: <span class="kw-2">&amp;</span>ConvCtxt, def_id: DefId, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>record(cx: <span class="kw-2">&amp;</span>ConvCtxt, def_id: DefId, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
         <span class="self">Self</span>::new(cx, <span class="number">0</span>, params, <span class="bool-val">false</span>, LayerKind::Record(def_id))
     }
 
@@ -2770,29 +2776,30 @@
         })
     }
 
-    <span class="kw">fn </span>into_bound_vars(<span class="self">self</span>, genv: GlobalEnv) -&gt; List&lt;rty::BoundVariableKind&gt; {
+    <span class="kw">fn </span>into_bound_vars(<span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;List&lt;rty::BoundVariableKind&gt;&gt; {
         <span class="kw">match </span><span class="self">self</span>.kind {
             LayerKind::List =&gt; {
-                <span class="self">self</span>.into_iter()
+                <span class="prelude-val">Ok</span>(<span class="self">self
+                    </span>.into_iter()
                     .map(|(sort, mode, name)| {
                         <span class="kw">let </span>kind = rty::BoundReftKind::Named(name);
                         rty::BoundVariableKind::Refine(sort, mode, kind)
                     })
-                    .collect()
+                    .collect())
             }
             LayerKind::Record(def_id) =&gt; {
-                <span class="kw">let </span>sort_def = genv.adt_sort_def_of(def_id);
+                <span class="kw">let </span>sort_def = genv.adt_sort_def_of(def_id)<span class="question-mark">?</span>;
                 <span class="kw">let </span>args = sort_def.identity_args();
                 <span class="kw">let </span>ctor = rty::SortCtor::Adt(sort_def);
                 <span class="kw">let </span>sort = rty::Sort::App(ctor, args);
                 <span class="kw">let </span>infer_mode = sort.default_infer_mode();
                 <span class="kw">let </span>kind = rty::BoundReftKind::Annon;
-                List::singleton(rty::BoundVariableKind::Refine(sort, infer_mode, kind))
+                <span class="prelude-val">Ok</span>(List::singleton(rty::BoundVariableKind::Refine(sort, infer_mode, kind)))
             }
         }
     }
 
-    <span class="kw">fn </span>to_bound_vars(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; List&lt;rty::BoundVariableKind&gt; {
+    <span class="kw">fn </span>to_bound_vars(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;List&lt;rty::BoundVariableKind&gt;&gt; {
         <span class="self">self</span>.clone().into_bound_vars(genv)
     }
 
@@ -2891,52 +2898,52 @@
     }
 }
 
-<span class="kw">pub fn </span>conv_func_decl(genv: GlobalEnv, func: <span class="kw-2">&amp;</span>fhir::SpecFunc) -&gt; rty::SpecFuncDecl {
+<span class="kw">pub fn </span>conv_func_decl(genv: GlobalEnv, func: <span class="kw-2">&amp;</span>fhir::SpecFunc) -&gt; QueryResult&lt;rty::SpecFuncDecl&gt; {
     <span class="kw">let </span>inputs_and_output = func
         .args
         .iter()
         .map(|p| <span class="kw-2">&amp;</span>p.sort)
         .chain(iter::once(<span class="kw-2">&amp;</span>func.sort))
         .map(|sort| conv_sort(genv, sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort))
-        .collect();
+        .try_collect()<span class="question-mark">?</span>;
     <span class="kw">let </span>sort = rty::PolyFuncSort::new(func.params, rty::FuncSort { inputs_and_output });
     <span class="kw">let </span>kind = <span class="kw">if </span>func.body.is_some() { fhir::SpecFuncKind::Def } <span class="kw">else </span>{ fhir::SpecFuncKind::Uif };
-    rty::SpecFuncDecl { name: func.name, sort, kind }
+    <span class="prelude-val">Ok</span>(rty::SpecFuncDecl { name: func.name, sort, kind })
 }
 
 <span class="kw">fn </span>conv_sorts(
     genv: GlobalEnv,
     sorts: <span class="kw-2">&amp;</span>[fhir::Sort],
     next_infer_sort: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut() -&gt; rty::Sort,
-) -&gt; Vec&lt;rty::Sort&gt; {
+) -&gt; QueryResult&lt;Vec&lt;rty::Sort&gt;&gt; {
     sorts
         .iter()
         .map(|sort| conv_sort(genv, sort, next_infer_sort))
-        .collect()
+        .try_collect()
 }
 
 <span class="kw">fn </span>conv_refine_param(
     genv: GlobalEnv,
     param: <span class="kw-2">&amp;</span>fhir::RefineParam,
     wfckresults: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>WfckResults&gt;,
-) -&gt; rty::RefineParam {
-    <span class="kw">let </span>sort = resolve_param_sort(genv, param, wfckresults);
+) -&gt; QueryResult&lt;rty::RefineParam&gt; {
+    <span class="kw">let </span>sort = resolve_param_sort(genv, param, wfckresults)<span class="question-mark">?</span>;
     <span class="kw">let </span>mode = sort.infer_mode(param.kind);
-    rty::RefineParam { sort, mode }
+    <span class="prelude-val">Ok</span>(rty::RefineParam { sort, mode })
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_param_sort(
     genv: GlobalEnv,
     param: <span class="kw-2">&amp;</span>fhir::RefineParam,
     wfckresults: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>WfckResults&gt;,
-) -&gt; rty::Sort {
+) -&gt; QueryResult&lt;rty::Sort&gt; {
     <span class="kw">if let </span>fhir::Sort::Infer = <span class="kw-2">&amp;</span>param.sort {
-        wfckresults
+        <span class="prelude-val">Ok</span>(wfckresults
             .expect(<span class="string">"`Sort::Infer` without wfckresults"</span>)
             .node_sorts()
             .get(param.fhir_id)
             .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unresolved sort for param: `{param:?}`"</span>))
-            .clone()
+            .clone())
     } <span class="kw">else </span>{
         conv_sort(genv, <span class="kw-2">&amp;</span>param.sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)
     }
@@ -2946,42 +2953,43 @@
     genv: GlobalEnv,
     sort: <span class="kw-2">&amp;</span>fhir::Sort,
     next_infer_sort: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut() -&gt; rty::Sort,
-) -&gt; rty::Sort {
-    <span class="kw">match </span>sort {
-        fhir::Sort::Path(path) =&gt; conv_sort_path(genv, path, next_infer_sort),
+) -&gt; QueryResult&lt;rty::Sort&gt; {
+    <span class="kw">let </span>sort = <span class="kw">match </span>sort {
+        fhir::Sort::Path(path) =&gt; conv_sort_path(genv, path, next_infer_sort)<span class="question-mark">?</span>,
         fhir::Sort::BitVec(w) =&gt; rty::Sort::BitVec(<span class="kw-2">*</span>w),
         fhir::Sort::Loc =&gt; rty::Sort::Loc,
         fhir::Sort::Func(fsort) =&gt; {
-            rty::Sort::Func(conv_poly_func_sort(genv, fsort, next_infer_sort))
+            rty::Sort::Func(conv_poly_func_sort(genv, fsort, next_infer_sort)<span class="question-mark">?</span>)
         }
         fhir::Sort::Infer =&gt; next_infer_sort(),
-    }
+    };
+    <span class="prelude-val">Ok</span>(sort)
 }
 
 <span class="kw">fn </span>conv_sort_path(
     genv: GlobalEnv,
     path: <span class="kw-2">&amp;</span>fhir::SortPath,
     next_infer_sort: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut() -&gt; rty::Sort,
-) -&gt; rty::Sort {
+) -&gt; QueryResult&lt;rty::Sort&gt; {
     <span class="kw">let </span>ctor = <span class="kw">match </span>path.res {
-        fhir::SortRes::PrimSort(fhir::PrimSort::Int) =&gt; <span class="kw">return </span>rty::Sort::Int,
-        fhir::SortRes::PrimSort(fhir::PrimSort::Bool) =&gt; <span class="kw">return </span>rty::Sort::Bool,
-        fhir::SortRes::PrimSort(fhir::PrimSort::Real) =&gt; <span class="kw">return </span>rty::Sort::Real,
-        fhir::SortRes::SortParam(n) =&gt; <span class="kw">return </span>rty::Sort::Var(rty::ParamSort::from(n)),
+        fhir::SortRes::PrimSort(fhir::PrimSort::Int) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Int),
+        fhir::SortRes::PrimSort(fhir::PrimSort::Bool) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Bool),
+        fhir::SortRes::PrimSort(fhir::PrimSort::Real) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Real),
+        fhir::SortRes::SortParam(n) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Var(rty::ParamSort::from(n))),
         fhir::SortRes::TyParam(def_id) =&gt; {
-            <span class="kw">return </span>rty::Sort::Param(genv.def_id_to_param_ty(def_id.expect_local()))
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Param(genv.def_id_to_param_ty(def_id.expect_local())))
         }
-        fhir::SortRes::SelfParam { .. } =&gt; <span class="kw">return </span>rty::Sort::Param(rty::SELF_PARAM_TY),
+        fhir::SortRes::SelfParam { .. } =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::Sort::Param(rty::SELF_PARAM_TY)),
         fhir::SortRes::SelfAlias { alias_to } =&gt; {
-            <span class="kw">return </span>genv
-                .sort_of_self_ty_alias(alias_to)
-                .unwrap_or(rty::Sort::Err)
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(genv
+                .sort_of_self_ty_alias(alias_to)<span class="question-mark">?
+                </span>.unwrap_or(rty::Sort::Err))
         }
         fhir::SortRes::PrimSort(fhir::PrimSort::Set) =&gt; rty::SortCtor::Set,
         fhir::SortRes::PrimSort(fhir::PrimSort::Map) =&gt; rty::SortCtor::Map,
         fhir::SortRes::User { name } =&gt; rty::SortCtor::User { name },
         fhir::SortRes::Adt(def_id) =&gt; {
-            <span class="kw">let </span>sort_def = genv.adt_sort_def_of(def_id);
+            <span class="kw">let </span>sort_def = genv.adt_sort_def_of(def_id)<span class="question-mark">?</span>;
             rty::SortCtor::Adt(sort_def)
         }
     };
@@ -2989,27 +2997,27 @@
         .args
         .iter()
         .map(|t| conv_sort(genv, t, next_infer_sort))
-        .collect_vec();
-    rty::Sort::app(ctor, args)
+        .try_collect_vec()<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(rty::Sort::app(ctor, args))
 }
 
 <span class="kw">fn </span>conv_poly_func_sort(
     genv: GlobalEnv,
     sort: <span class="kw-2">&amp;</span>fhir::PolyFuncSort,
     next_infer_sort: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut() -&gt; rty::Sort,
-) -&gt; rty::PolyFuncSort {
-    rty::PolyFuncSort::new(sort.params, conv_func_sort(genv, <span class="kw-2">&amp;</span>sort.fsort, next_infer_sort))
+) -&gt; QueryResult&lt;rty::PolyFuncSort&gt; {
+    <span class="prelude-val">Ok</span>(rty::PolyFuncSort::new(sort.params, conv_func_sort(genv, <span class="kw-2">&amp;</span>sort.fsort, next_infer_sort)<span class="question-mark">?</span>))
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_func_sort(
     genv: GlobalEnv,
     fsort: <span class="kw-2">&amp;</span>fhir::FuncSort,
     next_infer_sort: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut() -&gt; rty::Sort,
-) -&gt; rty::FuncSort {
-    rty::FuncSort::new(
-        conv_sorts(genv, fsort.inputs(), next_infer_sort),
-        conv_sort(genv, fsort.output(), next_infer_sort),
-    )
+) -&gt; QueryResult&lt;rty::FuncSort&gt; {
+    <span class="prelude-val">Ok</span>(rty::FuncSort::new(
+        conv_sorts(genv, fsort.inputs(), next_infer_sort)<span class="question-mark">?</span>,
+        conv_sort(genv, fsort.output(), next_infer_sort)<span class="question-mark">?</span>,
+    ))
 }
 
 <span class="kw">fn </span>conv_lit(lit: fhir::Lit) -&gt; rty::Constant {

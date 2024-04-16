@@ -479,10 +479,30 @@
 <a href="#477" id="477">477</a>
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
-<span class="kw">use </span>flux_common::bug;
+<span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
+<span class="kw">use </span>flux_config::CrateConfig;
 <span class="kw">use </span>flux_errors::FluxSession;
+<span class="kw">use </span>rustc_data_structures::unord::UnordSet;
 <span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
@@ -547,6 +567,10 @@
 
     <span class="kw">pub fn </span>resolve_crate(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span><span class="kw">crate</span>::ResolverOutput {
         <span class="self">self</span>.inner.queries.resolve_crate(<span class="self">self</span>)
+    }
+
+    <span class="kw">pub fn </span>desugar(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;fhir::Node&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+        <span class="self">self</span>.inner.queries.desugar(<span class="self">self</span>, def_id)
     }
 
     <span class="kw">pub fn </span>fhir_crate(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Crate&lt;<span class="lifetime">'genv</span>&gt; {
@@ -614,8 +638,8 @@
     ) -&gt; QueryResult&lt;<span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>rty::Qualifier&gt;&gt; {
         <span class="kw">let </span>names: FxHashSet&lt;Symbol&gt; = <span class="self">self
             </span>.map()
-            .fn_quals_for(did)
-            .iter()
+            .fn_quals_for(did)<span class="question-mark">?
+            </span>.iter()
             .map(|qual| qual.name)
             .collect();
         <span class="prelude-val">Ok</span>(<span class="self">self
@@ -626,12 +650,12 @@
             .filter(<span class="kw">move </span>|qualifier| qualifier.global || names.contains(<span class="kw-2">&amp;</span>qualifier.name)))
     }
 
-    <span class="kw">pub fn </span>func_decls(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>rty::SpecFuncDecl&gt; {
-        <span class="self">self</span>.inner.queries.func_decls(<span class="self">self</span>).values()
+    <span class="kw">pub fn </span>func_decls(<span class="self">self</span>) -&gt; QueryResult&lt;<span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>rty::SpecFuncDecl&gt;&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.inner.queries.func_decls(<span class="self">self</span>)<span class="question-mark">?</span>.values())
     }
 
-    <span class="kw">pub fn </span>func_decl(<span class="self">self</span>, name: Symbol) -&gt; rty::SpecFuncDecl {
-        <span class="self">self</span>.inner.queries.func_decls(<span class="self">self</span>)[<span class="kw-2">&amp;</span>name].clone()
+    <span class="kw">pub fn </span>func_decl(<span class="self">self</span>, name: Symbol) -&gt; QueryResult&lt;rty::SpecFuncDecl&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.inner.queries.func_decls(<span class="self">self</span>)<span class="question-mark">?</span>[<span class="kw-2">&amp;</span>name].clone())
     }
 
     <span class="kw">pub fn </span>variances_of(<span class="self">self</span>, did: DefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>[Variance] {
@@ -675,7 +699,7 @@
         <span class="self">self</span>.inner.queries.adt_def(<span class="self">self</span>, def_id.into())
     }
 
-    <span class="kw">pub fn </span>adt_sort_def_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; rty::AdtSortDef {
+    <span class="kw">pub fn </span>adt_sort_def_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::AdtSortDef&gt; {
         <span class="self">self</span>.inner.queries.adt_sort_def_of(<span class="self">self</span>, def_id.into())
     }
 
@@ -690,7 +714,7 @@
         <span class="self">self</span>,
         impl_id: DefId,
     ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::TraitRef&gt;&gt;&gt; {
-        <span class="kw">let </span>impl_id = <span class="self">self</span>.extern_id_of(impl_id).unwrap_or(impl_id);
+        <span class="kw">let </span>impl_id = <span class="self">self</span>.extern_id_of(impl_id)<span class="question-mark">?</span>.unwrap_or(impl_id);
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(poly_trait_ref) = <span class="self">self</span>.tcx().impl_trait_ref(impl_id) <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
 
@@ -721,7 +745,10 @@
         <span class="self">self</span>.inner.queries.predicates_of(<span class="self">self</span>, def_id.into())
     }
 
-    <span class="kw">pub fn </span>assoc_refinements_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; rty::AssocRefinements {
+    <span class="kw">pub fn </span>assoc_refinements_of(
+        <span class="self">self</span>,
+        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
+    ) -&gt; QueryResult&lt;rty::AssocRefinements&gt; {
         <span class="self">self</span>.inner.queries.assoc_refinements_of(<span class="self">self</span>, def_id.into())
     }
 
@@ -737,7 +764,7 @@
         <span class="self">self</span>,
         def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
         name: Symbol,
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt; {
+    ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;&gt; {
         <span class="self">self</span>.inner
             .queries
             .sort_of_assoc_reft(<span class="self">self</span>, def_id.into(), name)
@@ -779,9 +806,9 @@
         <span class="self">self</span>.inner.queries.lower_late_bound_vars(<span class="self">self</span>, def_id)
     }
 
-    <span class="kw">pub fn </span>get_generic_param(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span>fhir::GenericParam {
+    <span class="kw">pub fn </span>get_generic_param(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span>fhir::GenericParam&gt; {
         <span class="kw">let </span>owner = <span class="self">self</span>.hir().ty_param_owner(def_id);
-        <span class="self">self</span>.map().get_generics(owner).unwrap().get_param(def_id)
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.map().get_generics(owner)<span class="question-mark">?</span>.unwrap().get_param(def_id))
     }
 
     <span class="kw">pub fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, res: fhir::Res) -&gt; bool {
@@ -821,20 +848,30 @@
         <span class="kw-2">&amp;*</span><span class="self">self</span>.inner.cstore
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookup_extern(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
-        <span class="self">self</span>.map()
-            .get_local_id_for_extern(def_id)
-            .map(LocalDefId::to_def_id)
-    }
-
     <span class="kw">pub fn </span>is_fn_once_output(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; bool {
         <span class="self">self</span>.tcx()
             .require_lang_item(rustc_hir::LangItem::FnOnceOutput, <span class="prelude-val">None</span>)
             == def_id
     }
 
-    <span class="kw">pub fn </span>extern_id_of(<span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
-        <span class="self">self</span>.map().extern_id_of(def_id.as_local()<span class="question-mark">?</span>)
+    <span class="kw">pub fn </span>extern_id_of(<span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;DefId&gt;&gt; {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
+        <span class="self">self</span>.map().extern_id_of(local_id)
+    }
+
+    <span class="kw">pub fn </span>get_local_id_for_extern(<span class="self">self</span>, extern_def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;LocalDefId&gt; {
+        <span class="self">self</span>.collect_specs()
+            .extern_specs
+            .get(<span class="kw-2">&amp;</span>extern_def_id)
+            .copied()
+    }
+
+    <span class="kw">pub fn </span>ignores(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>UnordSet&lt;fhir::IgnoreKey&gt; {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.collect_specs().ignores
+    }
+
+    <span class="kw">pub fn </span>crate_config(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;CrateConfig&gt; {
+        <span class="self">self</span>.collect_specs().crate_config
     }
 }
 
@@ -849,34 +886,34 @@
         <span class="self">Self </span>{ genv, fhir }
     }
 
-    <span class="kw">pub fn </span>get_generics(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Generics&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    <span class="kw">pub fn </span>get_generics(
+        <span class="self">self</span>,
+        def_id: LocalDefId,
+    ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Generics&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt; {
         <span class="comment">// We don't have nodes for closures and coroutines
         </span><span class="kw">if </span><span class="macro">matches!</span>(<span class="self">self</span>.genv.def_kind(def_id), DefKind::Closure) {
-            <span class="prelude-val">None
-        </span>} <span class="kw">else </span>{
-            <span class="prelude-val">Some</span>(<span class="self">self</span>.node(def_id).generics())
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="self">self</span>.node(def_id)<span class="question-mark">?</span>.generics()))
         }
-    }
-
-    <span class="kw">pub fn </span>get_local_id_for_extern(<span class="self">self</span>, extern_def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;LocalDefId&gt; {
-        <span class="self">self</span>.fhir.externs.get(<span class="kw-2">&amp;</span>extern_def_id).copied()
     }
 
     <span class="kw">pub fn </span>get_flux_item(<span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="self">self</span>.fhir.flux_items.get(<span class="kw-2">&amp;</span>name).as_ref().copied()
     }
 
-    <span class="kw">pub fn </span>refined_by(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::RefinedBy&lt;<span class="lifetime">'genv</span>&gt; {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.expect_item(def_id).kind {
+    <span class="kw">pub fn </span>refined_by(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::RefinedBy&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+        <span class="kw">let </span>refined_by = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.expect_item(def_id)<span class="question-mark">?</span>.kind {
             fhir::ItemKind::Enum(enum_def) =&gt; enum_def.refined_by,
             fhir::ItemKind::Struct(struct_def) =&gt; struct_def.refined_by,
             fhir::ItemKind::TyAlias(ty_alias) =&gt; ty_alias.refined_by,
             <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected struct, enum or type alias"</span>),
-        }
+        };
+        <span class="prelude-val">Ok</span>(refined_by)
     }
 
-    <span class="kw">pub fn </span>extern_id_of(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
-        <span class="self">self</span>.node(def_id).extern_id()
+    <span class="kw">pub fn </span>extern_id_of(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;DefId&gt;&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.node(def_id)<span class="question-mark">?</span>.extern_id())
     }
 
     <span class="kw">pub fn </span>spec_funcs(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;&gt; {
@@ -913,36 +950,29 @@
         <span class="self">self</span>.fhir.consts.values().copied()
     }
 
-    <span class="kw">pub fn </span>is_trusted(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
-        <span class="self">self</span>.node(def_id).fn_sig().unwrap().trusted
+    <span class="kw">pub fn </span>is_trusted(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;bool&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.node(def_id)<span class="question-mark">?</span>.fn_sig().unwrap().trusted)
     }
 
-    <span class="kw">pub fn </span>fn_quals_for(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::SurfaceIdent] {
+    <span class="kw">pub fn </span>fn_quals_for(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::SurfaceIdent]&gt; {
         <span class="comment">// This is called on adts when checking invariants
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="self">self</span>.node(def_id).fn_sig() {
-            fn_sig.qualifiers
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="self">self</span>.node(def_id)<span class="question-mark">?</span>.fn_sig() {
+            <span class="prelude-val">Ok</span>(fn_sig.qualifiers)
         } <span class="kw">else </span>{
-            <span class="kw-2">&amp;</span>[]
+            <span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span>[])
         }
     }
 
-    <span class="kw">pub fn </span>expect_item(<span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Item&lt;<span class="lifetime">'genv</span>&gt; {
-        <span class="self">self</span>.fhir
-            .items
-            .get(<span class="kw-2">&amp;</span>def_id)
-            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"no item found for {def_id:?}"</span>))
+    <span class="kw">pub fn </span>expect_item(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Item&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+        <span class="kw">if let </span>fhir::Node::Item(item) = <span class="self">self</span>.node(def_id)<span class="question-mark">? </span>{
+            <span class="prelude-val">Ok</span>(item)
+        } <span class="kw">else </span>{
+            <span class="macro">bug!</span>(<span class="string">"expected item: `{def_id:?}`"</span>)
+        }
     }
 
-    <span class="kw">pub fn </span>node(<span class="self">self</span>, def_id: LocalDefId) -&gt; fhir::Node&lt;<span class="lifetime">'genv</span>&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = <span class="self">self</span>.fhir.items.get(<span class="kw-2">&amp;</span>def_id) {
-            fhir::Node::Item(item)
-        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(trait_item) = <span class="self">self</span>.fhir.trait_items.get(<span class="kw-2">&amp;</span>def_id) {
-            fhir::Node::TraitItem(trait_item)
-        } <span class="kw">else if let </span><span class="prelude-val">Some</span>(impl_item) = <span class="self">self</span>.fhir.impl_items.get(<span class="kw-2">&amp;</span>def_id) {
-            fhir::Node::ImplItem(impl_item)
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"node not found {def_id:?}"</span>);
-        }
+    <span class="kw">pub fn </span>node(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;fhir::Node&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+        <span class="self">self</span>.genv.desugar(def_id)
     }
 }
 
@@ -957,5 +987,11 @@
         <span class="kw">let </span>slice = <span class="macro-nonterminal">$genv</span>.alloc_slice_with_capacity(<span class="macro-nonterminal">$cap</span>, <span class="macro-nonterminal">$it</span>.into_iter().collect_errors(<span class="kw-2">&amp;mut </span>err));
         err.map_or(<span class="prelude-val">Ok</span>(slice), <span class="prelude-val">Err</span>)
     }};
+}
+
+<span class="kw">impl </span>ErrorEmitter <span class="kw">for </span>GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+    <span class="kw">fn </span>emit&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, err: <span class="kw">impl </span>rustc_errors::Diagnostic&lt;<span class="lifetime">'a</span>&gt;) -&gt; rustc_span::ErrorGuaranteed {
+        <span class="self">self</span>.sess().emit(err)
+    }
 }
 </code></pre></div></section></main></body></html>

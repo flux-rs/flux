@@ -261,6 +261,8 @@
 <a href="#259" id="259">259</a>
 <a href="#260" id="260">260</a>
 <a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
@@ -343,14 +345,12 @@
     <span class="macro">tracing::info_span!</span>(<span class="string">"check_crate"</span>).in_scope(<span class="kw">move </span>|| {
         <span class="macro">tracing::info!</span>(<span class="string">"Callbacks::check_wf"</span>);
 
-        <span class="kw">let </span>fhir = genv.fhir_crate();
-
         <span class="comment">// Ignore everything and go home
-        </span><span class="kw">if </span>fhir.ignores.contains(<span class="kw-2">&amp;</span>fhir::IgnoreKey::Crate) {
+        </span><span class="kw">if </span>genv.ignores().contains(<span class="kw-2">&amp;</span>fhir::IgnoreKey::Crate) {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
         flux_fhir_analysis::check_crate_wf(genv)<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>ck = CrateChecker::new(genv, fhir);
+        <span class="kw">let </span><span class="kw-2">mut </span>ck = CrateChecker::new(genv);
 
         <span class="kw">let </span>crate_items = genv.tcx().hir_crate_items(());
 
@@ -391,18 +391,18 @@
 
 <span class="kw">struct </span>CrateChecker&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    fhir: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;,
     cache: QueryCache,
     checker_config: CheckerConfig,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; CrateChecker&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, fhir: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::Crate&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>crate_config = genv.crate_config().unwrap_or_default();
         <span class="kw">let </span>checker_config = CheckerConfig {
-            check_overflow: fhir.crate_config.check_overflow,
-            scrape_quals: fhir.crate_config.scrape_quals,
+            check_overflow: crate_config.check_overflow,
+            scrape_quals: crate_config.scrape_quals,
         };
-        CrateChecker { genv, fhir, cache: QueryCache::load(), checker_config }
+        CrateChecker { genv, cache: QueryCache::load(), checker_config }
     }
 
     <span class="doccomment">/// `is_ignored` transitively follows the `def_id`'s parent-chain to check if
@@ -416,8 +416,8 @@
         <span class="kw">if </span>parent_def_id == def_id {
             <span class="bool-val">false
         </span>} <span class="kw">else </span>{
-            <span class="self">self</span>.fhir
-                .ignores
+            <span class="self">self</span>.genv
+                .ignores()
                 .contains(<span class="kw-2">&amp;</span>fhir::IgnoreKey::Module(parent_def_id))
                 || <span class="self">self</span>.is_ignored(parent_def_id)
         }
@@ -448,11 +448,13 @@
                 <span class="prelude-val">Ok</span>(())
             }
             DefKind::Enum =&gt; {
-                <span class="kw">let </span>adt_def = <span class="self">self
+                <span class="kw">let </span>adt_def = <span class="self">self</span>.genv.adt_def(def_id.to_def_id()).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?</span>;
+                <span class="kw">let </span>enum_def = <span class="self">self
                     </span>.genv
-                    .adt_def(def_id.to_def_id())
-                    .emit(<span class="self">self</span>.genv.sess())<span class="question-mark">?</span>;
-                <span class="kw">let </span>enum_def = <span class="self">self</span>.genv.map().expect_item(def_id).expect_enum();
+                    .map()
+                    .expect_item(def_id)
+                    .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?
+                    </span>.expect_enum();
                 refineck::invariants::check_invariants(
                     <span class="self">self</span>.genv,
                     <span class="kw-2">&amp;mut </span><span class="self">self</span>.cache,
@@ -463,11 +465,13 @@
                 )
             }
             DefKind::Struct =&gt; {
-                <span class="kw">let </span>adt_def = <span class="self">self
+                <span class="kw">let </span>adt_def = <span class="self">self</span>.genv.adt_def(def_id.to_def_id()).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?</span>;
+                <span class="kw">let </span>struct_def = <span class="self">self
                     </span>.genv
-                    .adt_def(def_id.to_def_id())
-                    .emit(<span class="self">self</span>.genv.sess())<span class="question-mark">?</span>;
-                <span class="kw">let </span>struct_def = <span class="self">self</span>.genv.map().expect_item(def_id).expect_struct();
+                    .map()
+                    .expect_item(def_id)
+                    .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?
+                    </span>.expect_struct();
                 <span class="kw">if </span>struct_def.is_opaque() {
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                 }

@@ -1123,6 +1123,31 @@
 <a href="#1121" id="1121">1121</a>
 <a href="#1122" id="1122">1122</a>
 <a href="#1123" id="1123">1123</a>
+<a href="#1124" id="1124">1124</a>
+<a href="#1125" id="1125">1125</a>
+<a href="#1126" id="1126">1126</a>
+<a href="#1127" id="1127">1127</a>
+<a href="#1128" id="1128">1128</a>
+<a href="#1129" id="1129">1129</a>
+<a href="#1130" id="1130">1130</a>
+<a href="#1131" id="1131">1131</a>
+<a href="#1132" id="1132">1132</a>
+<a href="#1133" id="1133">1133</a>
+<a href="#1134" id="1134">1134</a>
+<a href="#1135" id="1135">1135</a>
+<a href="#1136" id="1136">1136</a>
+<a href="#1137" id="1137">1137</a>
+<a href="#1138" id="1138">1138</a>
+<a href="#1139" id="1139">1139</a>
+<a href="#1140" id="1140">1140</a>
+<a href="#1141" id="1141">1141</a>
+<a href="#1142" id="1142">1142</a>
+<a href="#1143" id="1143">1143</a>
+<a href="#1144" id="1144">1144</a>
+<a href="#1145" id="1145">1145</a>
+<a href="#1146" id="1146">1146</a>
+<a href="#1147" id="1147">1147</a>
+<a href="#1148" id="1148">1148</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter, ops::ControlFlow};
@@ -1132,6 +1157,7 @@
     cache::QueryCache,
     dbg,
     index::{IndexGen, IndexVec},
+    iter::IterExt,
     span_bug,
 };
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -1485,20 +1511,24 @@
 <span class="kw">where
     </span>Tag: std::hash::Hash + Eq + Copy,
 {
-    <span class="kw">pub fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, def_id: LocalDefId, kvars: KVarStore) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(
+        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+        def_id: LocalDefId,
+        kvars: KVarStore,
+    ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>dbg_span = genv.tcx().def_span(def_id);
-        <span class="self">Self </span>{
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             comments: <span class="macro">vec!</span>[],
             kvars,
             sorts: SortStore::default(),
             genv,
             env: Env::new(),
-            ecx: ExprEncodingCtxt::new(genv, dbg_span),
+            ecx: ExprEncodingCtxt::new(genv, dbg_span)<span class="question-mark">?</span>,
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
             def_id,
-        }
+        })
     }
 
     <span class="doccomment">/// Collect all the sorts that need to be defined in fixpoint to encode `t`
@@ -1593,7 +1623,7 @@
             </span>.genv
             .qualifiers_for(<span class="self">self</span>.def_id)<span class="question-mark">?
             </span>.map(|qual| <span class="self">self</span>.ecx.qualifier_to_fixpoint(qual))
-            .collect();
+            .try_collect()<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>constants = <span class="self">self
             </span>.ecx
@@ -1656,11 +1686,11 @@
         })
     }
 
-    <span class="kw">pub fn </span>pred_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw-2">&amp;</span>rty::Expr) -&gt; (Bindings, PredSpans) {
+    <span class="kw">pub fn </span>pred_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw-2">&amp;</span>rty::Expr) -&gt; QueryResult&lt;(Bindings, PredSpans)&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
         <span class="kw">let </span><span class="kw-2">mut </span>preds = <span class="macro">vec!</span>[];
-        <span class="self">self</span>.pred_to_fixpoint_internal(pred, <span class="kw-2">&amp;mut </span>bindings, <span class="kw-2">&amp;mut </span>preds);
-        (bindings, preds)
+        <span class="self">self</span>.pred_to_fixpoint_internal(pred, <span class="kw-2">&amp;mut </span>bindings, <span class="kw-2">&amp;mut </span>preds)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>((bindings, preds))
     }
 
     <span class="kw">fn </span>pred_to_fixpoint_internal(
@@ -1668,32 +1698,39 @@
         expr: <span class="kw-2">&amp;</span>rty::Expr,
         bindings: <span class="kw-2">&amp;mut </span>Bindings,
         preds: <span class="kw-2">&amp;mut </span>PredSpans,
-    ) {
+    ) -&gt; QueryResult {
         <span class="kw">match </span>expr.kind() {
             rty::ExprKind::BinaryOp(rty::BinOp::And, e1, e2) =&gt; {
-                <span class="self">self</span>.pred_to_fixpoint_internal(e1, bindings, preds);
-                <span class="self">self</span>.pred_to_fixpoint_internal(e2, bindings, preds);
+                <span class="self">self</span>.pred_to_fixpoint_internal(e1, bindings, preds)<span class="question-mark">?</span>;
+                <span class="self">self</span>.pred_to_fixpoint_internal(e2, bindings, preds)<span class="question-mark">?</span>;
             }
             rty::ExprKind::KVar(kvar) =&gt; {
-                preds.push((<span class="self">self</span>.kvar_to_fixpoint(kvar, bindings), <span class="prelude-val">None</span>));
+                preds.push((<span class="self">self</span>.kvar_to_fixpoint(kvar, bindings)<span class="question-mark">?</span>, <span class="prelude-val">None</span>));
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">let </span>span = expr.span();
-                preds
-                    .push((fixpoint::Pred::Expr(<span class="self">self</span>.ecx.expr_to_fixpoint(expr, <span class="kw-2">&amp;</span><span class="self">self</span>.env)), span));
+                preds.push((
+                    fixpoint::Pred::Expr(<span class="self">self</span>.ecx.expr_to_fixpoint(expr, <span class="kw-2">&amp;</span><span class="self">self</span>.env)<span class="question-mark">?</span>),
+                    span,
+                ));
             }
         }
+        <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>kvar_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, kvar: <span class="kw-2">&amp;</span>rty::KVar, bindings: <span class="kw-2">&amp;mut </span>Bindings) -&gt; fixpoint::Pred {
+    <span class="kw">fn </span>kvar_to_fixpoint(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        kvar: <span class="kw-2">&amp;</span>rty::KVar,
+        bindings: <span class="kw-2">&amp;mut </span>Bindings,
+    ) -&gt; QueryResult&lt;fixpoint::Pred&gt; {
         <span class="kw">let </span>decl = <span class="self">self</span>.kvars.get(kvar.kvid);
         <span class="kw">let </span>kvids = <span class="self">self</span>.kcx.encode(kvar.kvid, decl);
 
         <span class="kw">let </span>all_args = iter::zip(<span class="kw-2">&amp;</span>kvar.args, <span class="kw-2">&amp;</span>decl.sorts)
-            .map(|(arg, sort)| {
-                fixpoint::Var::Local(<span class="self">self</span>.ecx.imm(arg, sort, <span class="kw-2">&amp;mut </span><span class="self">self</span>.env, bindings))
+            .map(|(arg, sort)| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; {
+                <span class="prelude-val">Ok</span>(fixpoint::Var::Local(<span class="self">self</span>.ecx.imm(arg, sort, <span class="kw-2">&amp;mut </span><span class="self">self</span>.env, bindings)<span class="question-mark">?</span>))
             })
-            .collect_vec();
+            .try_collect_vec()<span class="question-mark">?</span>;
 
         <span class="comment">// Fixpoint doesn't support kvars without arguments, which we do generate sometimes. To get
         // around it, we encode `$k()` as ($k 0), or more precisley `(forall ((x int) (= x 0)) ... ($k x)`
@@ -1706,7 +1743,7 @@
                 fixpoint::Sort::Int,
                 fixpoint::Expr::eq(fixpoint::Expr::Var(var), fixpoint::Expr::ZERO),
             ));
-            <span class="kw">return </span>fixpoint::Pred::KVar(kvids[<span class="number">0</span>], <span class="macro">vec!</span>[var]);
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Pred::KVar(kvids[<span class="number">0</span>], <span class="macro">vec!</span>[var]));
         }
 
         <span class="kw">let </span>kvars = kvids
@@ -1718,7 +1755,7 @@
             })
             .collect_vec();
 
-        fixpoint::Pred::And(kvars)
+        <span class="prelude-val">Ok</span>(fixpoint::Pred::And(kvars))
     }
 
     <span class="kw">fn </span>def_span(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Span {
@@ -1735,7 +1772,7 @@
 <span class="kw">fn </span>fixpoint_const_map&lt;<span class="lifetime">'tcx</span>&gt;(
     genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
     global_var_gen: <span class="kw-2">&amp;</span>IndexGen&lt;fixpoint::GlobalVar&gt;,
-) -&gt; ConstMap&lt;<span class="lifetime">'tcx</span>&gt; {
+) -&gt; QueryResult&lt;ConstMap&lt;<span class="lifetime">'tcx</span>&gt;&gt; {
     <span class="kw">let </span>consts = genv
         .map()
         .consts()
@@ -1750,8 +1787,8 @@
             (Key::Const(const_info.def_id), cinfo)
         });
     <span class="kw">let </span>uifs = genv
-        .func_decls()
-        .sorted_by(|a, b| Ord::cmp(<span class="kw-2">&amp;</span>a.name, <span class="kw-2">&amp;</span>b.name))
+        .func_decls()<span class="question-mark">?
+        </span>.sorted_by(|a, b| Ord::cmp(<span class="kw-2">&amp;</span>a.name, <span class="kw-2">&amp;</span>b.name))
         .filter_map(|decl| {
             <span class="kw">match </span>decl.kind {
                 SpecFuncKind::Uif =&gt; {
@@ -1766,7 +1803,7 @@
                 <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
             }
         });
-    itertools::chain(consts, uifs).collect()
+    <span class="prelude-val">Ok</span>(itertools::chain(consts, uifs).collect())
 }
 
 <span class="kw">impl </span>KVarStore {
@@ -1905,32 +1942,35 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; ExprEncodingCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, dbg_span: Span) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, dbg_span: Span) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>global_var_gen = IndexGen::new();
-        <span class="kw">let </span>const_map = fixpoint_const_map(genv, <span class="kw-2">&amp;</span>global_var_gen);
-        <span class="self">Self </span>{ genv, global_var_gen, const_map, dbg_span }
+        <span class="kw">let </span>const_map = fixpoint_const_map(genv, <span class="kw-2">&amp;</span>global_var_gen)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ genv, global_var_gen, const_map, dbg_span })
     }
 
-    <span class="kw">fn </span>expr_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>rty::Expr, env: <span class="kw-2">&amp;</span>Env) -&gt; fixpoint::Expr {
-        <span class="kw">match </span>expr.kind() {
+    <span class="kw">fn </span>expr_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>rty::Expr, env: <span class="kw-2">&amp;</span>Env) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
+        <span class="kw">let </span>e = <span class="kw">match </span>expr.kind() {
             rty::ExprKind::Var(var) =&gt; fixpoint::Expr::Var(env.get_var(var, <span class="self">self</span>.dbg_span).into()),
             rty::ExprKind::Constant(c) =&gt; fixpoint::Expr::Constant(<span class="kw-2">*</span>c),
-            rty::ExprKind::BinaryOp(op, e1, e2) =&gt; <span class="self">self</span>.bin_op_to_fixpoint(op, e1, e2, env),
-            rty::ExprKind::UnaryOp(op, e) =&gt; <span class="self">self</span>.un_op_to_fixpoint(<span class="kw-2">*</span>op, e, env),
+            rty::ExprKind::BinaryOp(op, e1, e2) =&gt; <span class="self">self</span>.bin_op_to_fixpoint(op, e1, e2, env)<span class="question-mark">?</span>,
+            rty::ExprKind::UnaryOp(op, e) =&gt; <span class="self">self</span>.un_op_to_fixpoint(<span class="kw-2">*</span>op, e, env)<span class="question-mark">?</span>,
             rty::ExprKind::FieldProj(e, proj) =&gt; {
                 <span class="kw">let </span>(arity, field) = <span class="kw">match </span><span class="kw-2">*</span>proj {
                     rty::FieldProj::Tuple { arity, field } =&gt; (arity, field),
                     rty::FieldProj::Adt { def_id, field } =&gt; {
-                        <span class="kw">let </span>arity = <span class="self">self</span>.genv.adt_sort_def_of(def_id).fields();
+                        <span class="kw">let </span>arity = <span class="self">self</span>.genv.adt_sort_def_of(def_id)<span class="question-mark">?</span>.fields();
                         (arity, field)
                     }
                 };
                 <span class="kw">let </span>proj = fixpoint::Var::TupleProj { arity, field };
-                fixpoint::Expr::App(proj, <span class="macro">vec!</span>[<span class="self">self</span>.expr_to_fixpoint(e, env)])
+                fixpoint::Expr::App(proj, <span class="macro">vec!</span>[<span class="self">self</span>.expr_to_fixpoint(e, env)<span class="question-mark">?</span>])
             }
             rty::ExprKind::Aggregate(<span class="kw">_</span>, flds) =&gt; {
                 <span class="kw">let </span>ctor = fixpoint::Var::TupleCtor { arity: flds.len() };
-                <span class="kw">let </span>args = flds.iter().map(|e| <span class="self">self</span>.expr_to_fixpoint(e, env)).collect();
+                <span class="kw">let </span>args = flds
+                    .iter()
+                    .map(|e| <span class="self">self</span>.expr_to_fixpoint(e, env))
+                    .try_collect()<span class="question-mark">?</span>;
                 fixpoint::Expr::App(ctor, args)
             }
             rty::ExprKind::ConstDefId(did) =&gt; {
@@ -1941,14 +1981,14 @@
             }
             rty::ExprKind::App(func, args) =&gt; {
                 <span class="kw">let </span>func = <span class="self">self</span>.func_to_fixpoint(func, env);
-                <span class="kw">let </span>args = <span class="self">self</span>.exprs_to_fixpoint(args, env);
+                <span class="kw">let </span>args = <span class="self">self</span>.exprs_to_fixpoint(args, env)<span class="question-mark">?</span>;
                 fixpoint::Expr::App(func, args)
             }
             rty::ExprKind::IfThenElse(p, e1, e2) =&gt; {
                 fixpoint::Expr::IfThenElse(Box::new([
-                    <span class="self">self</span>.expr_to_fixpoint(p, env),
-                    <span class="self">self</span>.expr_to_fixpoint(e1, env),
-                    <span class="self">self</span>.expr_to_fixpoint(e2, env),
+                    <span class="self">self</span>.expr_to_fixpoint(p, env)<span class="question-mark">?</span>,
+                    <span class="self">self</span>.expr_to_fixpoint(e1, env)<span class="question-mark">?</span>,
+                    <span class="self">self</span>.expr_to_fixpoint(e2, env)<span class="question-mark">?</span>,
                 ]))
             }
             rty::ExprKind::Alias(alias_pred, args) =&gt; {
@@ -1956,7 +1996,7 @@
                 <span class="kw">let </span>args = args
                     .iter()
                     .map(|expr| <span class="self">self</span>.expr_to_fixpoint(expr, env))
-                    .collect_vec();
+                    .try_collect()<span class="question-mark">?</span>;
                 fixpoint::Expr::App(func.into(), args)
             }
             rty::ExprKind::Abs(lam) =&gt; {
@@ -1970,24 +2010,30 @@
             | rty::ExprKind::PathProj(..) =&gt; {
                 <span class="macro">span_bug!</span>(<span class="self">self</span>.dbg_span, <span class="string">"unexpected expr: `{expr:?}`"</span>)
             }
-        }
+        };
+        <span class="prelude-val">Ok</span>(e)
     }
 
     <span class="kw">fn </span>exprs_to_fixpoint&lt;<span class="lifetime">'b</span>&gt;(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         exprs: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'b </span>rty::Expr&gt;,
         env: <span class="kw-2">&amp;</span>Env,
-    ) -&gt; Vec&lt;fixpoint::Expr&gt; {
+    ) -&gt; QueryResult&lt;Vec&lt;fixpoint::Expr&gt;&gt; {
         exprs
             .into_iter()
             .map(|e| <span class="self">self</span>.expr_to_fixpoint(e, env))
-            .collect()
+            .try_collect()
     }
 
-    <span class="kw">fn </span>un_op_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, op: rty::UnOp, e: <span class="kw-2">&amp;</span>rty::Expr, env: <span class="kw-2">&amp;</span>Env) -&gt; fixpoint::Expr {
+    <span class="kw">fn </span>un_op_to_fixpoint(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        op: rty::UnOp,
+        e: <span class="kw-2">&amp;</span>rty::Expr,
+        env: <span class="kw-2">&amp;</span>Env,
+    ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
         <span class="kw">match </span>op {
-            rty::UnOp::Not =&gt; fixpoint::Expr::Not(Box::new(<span class="self">self</span>.expr_to_fixpoint(e, env))),
-            rty::UnOp::Neg =&gt; fixpoint::Expr::Neg(Box::new(<span class="self">self</span>.expr_to_fixpoint(e, env))),
+            rty::UnOp::Not =&gt; <span class="prelude-val">Ok</span>(fixpoint::Expr::Not(Box::new(<span class="self">self</span>.expr_to_fixpoint(e, env)<span class="question-mark">?</span>))),
+            rty::UnOp::Neg =&gt; <span class="prelude-val">Ok</span>(fixpoint::Expr::Neg(Box::new(<span class="self">self</span>.expr_to_fixpoint(e, env)<span class="question-mark">?</span>))),
         }
     }
 
@@ -1997,19 +2043,19 @@
         e1: <span class="kw-2">&amp;</span>rty::Expr,
         e2: <span class="kw-2">&amp;</span>rty::Expr,
         env: <span class="kw-2">&amp;</span>Env,
-    ) -&gt; fixpoint::Expr {
+    ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
         <span class="kw">let </span>op = <span class="kw">match </span>op {
             rty::BinOp::Eq =&gt; {
-                <span class="kw">return </span>fixpoint::Expr::Atom(
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Atom(
                     fixpoint::BinRel::Eq,
-                    Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, env), <span class="self">self</span>.expr_to_fixpoint(e2, env)]),
-                )
+                    Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, env)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, env)<span class="question-mark">?</span>]),
+                ))
             }
             rty::BinOp::Ne =&gt; {
-                <span class="kw">return </span>fixpoint::Expr::Atom(
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Atom(
                     fixpoint::BinRel::Ne,
-                    Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, env), <span class="self">self</span>.expr_to_fixpoint(e2, env)]),
-                )
+                    Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, env)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, env)<span class="question-mark">?</span>]),
+                ))
             }
             rty::BinOp::Gt(sort) =&gt; {
                 <span class="kw">return </span><span class="self">self</span>.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Gt, e1, e2, env);
@@ -2024,28 +2070,28 @@
                 <span class="kw">return </span><span class="self">self</span>.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Le, e1, e2, env);
             }
             rty::BinOp::And =&gt; {
-                <span class="kw">return </span>fixpoint::Expr::And(<span class="macro">vec!</span>[
-                    <span class="self">self</span>.expr_to_fixpoint(e1, env),
-                    <span class="self">self</span>.expr_to_fixpoint(e2, env),
-                ])
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::And(<span class="macro">vec!</span>[
+                    <span class="self">self</span>.expr_to_fixpoint(e1, env)<span class="question-mark">?</span>,
+                    <span class="self">self</span>.expr_to_fixpoint(e2, env)<span class="question-mark">?</span>,
+                ]))
             }
             rty::BinOp::Or =&gt; {
-                <span class="kw">return </span>fixpoint::Expr::Or(<span class="macro">vec!</span>[
-                    <span class="self">self</span>.expr_to_fixpoint(e1, env),
-                    <span class="self">self</span>.expr_to_fixpoint(e2, env),
-                ])
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Or(<span class="macro">vec!</span>[
+                    <span class="self">self</span>.expr_to_fixpoint(e1, env)<span class="question-mark">?</span>,
+                    <span class="self">self</span>.expr_to_fixpoint(e2, env)<span class="question-mark">?</span>,
+                ]))
             }
             rty::BinOp::Imp =&gt; {
-                <span class="kw">return </span>fixpoint::Expr::Imp(Box::new([
-                    <span class="self">self</span>.expr_to_fixpoint(e1, env),
-                    <span class="self">self</span>.expr_to_fixpoint(e2, env),
-                ]))
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Imp(Box::new([
+                    <span class="self">self</span>.expr_to_fixpoint(e1, env)<span class="question-mark">?</span>,
+                    <span class="self">self</span>.expr_to_fixpoint(e2, env)<span class="question-mark">?</span>,
+                ])))
             }
             rty::BinOp::Iff =&gt; {
-                <span class="kw">return </span>fixpoint::Expr::Iff(Box::new([
-                    <span class="self">self</span>.expr_to_fixpoint(e1, env),
-                    <span class="self">self</span>.expr_to_fixpoint(e2, env),
-                ]))
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Iff(Box::new([
+                    <span class="self">self</span>.expr_to_fixpoint(e1, env)<span class="question-mark">?</span>,
+                    <span class="self">self</span>.expr_to_fixpoint(e2, env)<span class="question-mark">?</span>,
+                ])))
             }
             rty::BinOp::Add =&gt; fixpoint::BinOp::Add,
             rty::BinOp::Sub =&gt; fixpoint::BinOp::Sub,
@@ -2053,10 +2099,10 @@
             rty::BinOp::Div =&gt; fixpoint::BinOp::Div,
             rty::BinOp::Mod =&gt; fixpoint::BinOp::Mod,
         };
-        fixpoint::Expr::BinaryOp(
+        <span class="prelude-val">Ok</span>(fixpoint::Expr::BinaryOp(
             op,
-            Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, env), <span class="self">self</span>.expr_to_fixpoint(e2, env)]),
-        )
+            Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, env)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, env)<span class="question-mark">?</span>]),
+        ))
     }
 
     <span class="doccomment">/// A binary relation is encoded as a structurally recursive relation between aggregate sorts.
@@ -2082,35 +2128,36 @@
         e1: <span class="kw-2">&amp;</span>rty::Expr,
         e2: <span class="kw-2">&amp;</span>rty::Expr,
         env: <span class="kw-2">&amp;</span>Env,
-    ) -&gt; fixpoint::Expr {
-        <span class="kw">match </span>sort {
+    ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
+        <span class="kw">let </span>e = <span class="kw">match </span>sort {
             rty::Sort::Int | rty::Sort::Real =&gt; {
                 fixpoint::Expr::Atom(
                     rel,
-                    Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, env), <span class="self">self</span>.expr_to_fixpoint(e2, env)]),
+                    Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, env)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, env)<span class="question-mark">?</span>]),
                 )
             }
             rty::Sort::Tuple(sorts) =&gt; {
                 <span class="kw">let </span>arity = sorts.len();
                 <span class="self">self</span>.apply_bin_rel_rec(sorts, rel, e1, e2, env, |field| {
                     rty::FieldProj::Tuple { arity, field }
-                })
-            }
+                })<span class="question-mark">?
+            </span>}
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) =&gt; {
                 <span class="kw">let </span>def_id = sort_def.did();
                 <span class="kw">let </span>sorts = sort_def.sorts(args);
                 <span class="self">self</span>.apply_bin_rel_rec(<span class="kw-2">&amp;</span>sorts, rel, e1, e2, env, |field| {
                     rty::FieldProj::Adt { def_id, field }
-                })
-            }
+                })<span class="question-mark">?
+            </span>}
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">let </span>rel = fixpoint::Var::UIFRel(rel);
                 fixpoint::Expr::App(
                     rel,
-                    <span class="macro">vec!</span>[<span class="self">self</span>.expr_to_fixpoint(e1, env), <span class="self">self</span>.expr_to_fixpoint(e2, env)],
+                    <span class="macro">vec!</span>[<span class="self">self</span>.expr_to_fixpoint(e1, env)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, env)<span class="question-mark">?</span>],
                 )
             }
-        }
+        };
+        <span class="prelude-val">Ok</span>(e)
     }
 
     <span class="doccomment">/// Apply binary relation recursively over aggregate expessions
@@ -2122,8 +2169,8 @@
         e2: <span class="kw-2">&amp;</span>rty::Expr,
         env: <span class="kw-2">&amp;</span>Env,
         mk_proj: <span class="kw">impl </span>Fn(u32) -&gt; rty::FieldProj,
-    ) -&gt; fixpoint::Expr {
-        fixpoint::Expr::And(
+    ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
+        <span class="prelude-val">Ok</span>(fixpoint::Expr::And(
             sorts
                 .iter()
                 .enumerate()
@@ -2133,8 +2180,8 @@
                     <span class="kw">let </span>e2 = e2.proj_and_reduce(proj);
                     <span class="self">self</span>.bin_rel_to_fixpoint(s, rel, <span class="kw-2">&amp;</span>e1, <span class="kw-2">&amp;</span>e2, env)
                 })
-                .collect(),
-        )
+                .try_collect()<span class="question-mark">?</span>,
+        ))
     }
 
     <span class="kw">fn </span>func_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>rty::Expr, env: <span class="kw-2">&amp;</span>Env) -&gt; fixpoint::Var {
@@ -2165,17 +2212,17 @@
         sort: <span class="kw-2">&amp;</span>rty::Sort,
         env: <span class="kw-2">&amp;mut </span>Env,
         bindings: <span class="kw-2">&amp;mut </span>Vec&lt;(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)&gt;,
-    ) -&gt; fixpoint::LocalVar {
+    ) -&gt; QueryResult&lt;fixpoint::LocalVar&gt; {
         <span class="kw">match </span>arg.kind() {
-            rty::ExprKind::Var(var) =&gt; env.get_var(var, <span class="self">self</span>.dbg_span),
+            rty::ExprKind::Var(var) =&gt; <span class="prelude-val">Ok</span>(env.get_var(var, <span class="self">self</span>.dbg_span)),
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">let </span>fresh = env.fresh_name();
                 <span class="kw">let </span>pred = fixpoint::Expr::eq(
                     fixpoint::Expr::Var(fresh.into()),
-                    <span class="self">self</span>.expr_to_fixpoint(arg, env),
+                    <span class="self">self</span>.expr_to_fixpoint(arg, env)<span class="question-mark">?</span>,
                 );
                 bindings.push((fresh, sort_to_fixpoint(sort), pred));
-                fresh
+                <span class="prelude-val">Ok</span>(fresh)
             }
         }
     }
@@ -2215,7 +2262,10 @@
             .name
     }
 
-    <span class="kw">fn </span>qualifier_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, qualifier: <span class="kw-2">&amp;</span>rty::Qualifier) -&gt; fixpoint::Qualifier {
+    <span class="kw">fn </span>qualifier_to_fixpoint(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        qualifier: <span class="kw-2">&amp;</span>rty::Qualifier,
+    ) -&gt; QueryResult&lt;fixpoint::Qualifier&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new();
         env.push_layer_with_fresh_names(qualifier.body.vars().len());
 
@@ -2224,11 +2274,11 @@
                 .map(|(name, var)| ((<span class="kw-2">*</span>name).into(), sort_to_fixpoint(var.expect_sort())))
                 .collect();
 
-        <span class="kw">let </span>body = <span class="self">self</span>.expr_to_fixpoint(qualifier.body.as_ref().skip_binder(), <span class="kw-2">&amp;</span>env);
+        <span class="kw">let </span>body = <span class="self">self</span>.expr_to_fixpoint(qualifier.body.as_ref().skip_binder(), <span class="kw-2">&amp;</span>env)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>name = qualifier.name.to_string();
 
-        fixpoint::Qualifier { name, args, body }
+        <span class="prelude-val">Ok</span>(fixpoint::Qualifier { name, args, body })
     }
 }
 

@@ -699,10 +699,15 @@
 <a href="#697" id="697">697</a>
 <a href="#698" id="698">698</a>
 <a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
-<span class="kw">use </span>flux_common::{bug, iter::IterExt, span_bug};
+<span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug};
 <span class="kw">use </span>flux_errors::{ErrorGuaranteed, Errors};
 <span class="kw">use </span>flux_middle::{
     fhir::{<span class="self">self</span>, visit::Visitor <span class="kw">as _</span>, ExprRes, FhirId, FluxOwnerId},
@@ -763,7 +768,7 @@
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">if let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.is_coercible_from_func(expected, arg.fhir_id) {
             <span class="kw">let </span>fsort = fsort.expect_mono();
-            <span class="self">self</span>.insert_params(params);
+            <span class="self">self</span>.insert_params(params)<span class="question-mark">?</span>;
 
             <span class="kw">if </span>params.len() != fsort.inputs().len() {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ParamCountMismatch::new(
@@ -989,7 +994,7 @@
         args: <span class="kw-2">&amp;</span>[fhir::Expr],
         span: Span,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Sort&gt; {
-        <span class="kw">let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.genv.sort_of_alias_reft(alias) <span class="kw">else </span>{
+        <span class="kw">let </span><span class="prelude-val">Some</span>(fsort) = <span class="self">self</span>.genv.sort_of_alias_reft(alias).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">? </span><span class="kw">else </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(InvalidAssocReft::new(
                 span,
                 alias.name,
@@ -1019,7 +1024,7 @@
                 };
                 fsort
             }
-            ExprRes::GlobalFunc(.., sym) =&gt; <span class="self">self</span>.genv.func_decl(sym).sort.clone(),
+            ExprRes::GlobalFunc(.., sym) =&gt; <span class="self">self</span>.genv.func_decl(sym).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?</span>.sort.clone(),
             <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(func.span, <span class="string">"unexpected path in function position"</span>),
         };
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.instantiate_func_sort(poly_fsort))
@@ -1035,11 +1040,13 @@
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>&gt; InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt; {
     <span class="doccomment">/// Push a layer of binders. We assume all names are fresh so we don't care about shadowing
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>insert_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) {
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>insert_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">for </span>param <span class="kw">in </span>params {
-            <span class="kw">let </span>sort = conv::conv_sort(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>param.sort, <span class="kw-2">&amp;mut </span>|| <span class="self">self</span>.next_sort_var());
+            <span class="kw">let </span>sort = conv::conv_sort(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>param.sort, <span class="kw-2">&amp;mut </span>|| <span class="self">self</span>.next_sort_var())
+                .emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?</span>;
             <span class="self">self</span>.insert_param(param.id, sort, param.kind);
         }
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>insert_param(
@@ -1297,7 +1304,10 @@
 <span class="kw">impl </span>fhir::visit::Visitor <span class="kw">for </span>ImplicitParamInferer&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty) {
         <span class="kw">if let </span>fhir::TyKind::Indexed(bty, idx) = <span class="kw-2">&amp;</span>ty.kind {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(expected) = <span class="self">self</span>.infcx.genv.sort_of_bty(bty) {
+            <span class="kw">let </span><span class="prelude-val">Ok</span>(sort_of_bty) = <span class="self">self</span>.infcx.genv.sort_of_bty(bty).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors) <span class="kw">else </span>{
+                <span class="kw">return</span>;
+            };
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(expected) = sort_of_bty {
                 <span class="self">self</span>.infer_implicit_params(idx, <span class="kw-2">&amp;</span>expected);
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(id) = idx.is_colon_param() {
                 <span class="kw">let </span>found = <span class="self">self</span>.infcx.param_sort(id);

@@ -1398,22 +1398,6 @@
 <a href="#1396" id="1396">1396</a>
 <a href="#1397" id="1397">1397</a>
 <a href="#1398" id="1398">1398</a>
-<a href="#1399" id="1399">1399</a>
-<a href="#1400" id="1400">1400</a>
-<a href="#1401" id="1401">1401</a>
-<a href="#1402" id="1402">1402</a>
-<a href="#1403" id="1403">1403</a>
-<a href="#1404" id="1404">1404</a>
-<a href="#1405" id="1405">1405</a>
-<a href="#1406" id="1406">1406</a>
-<a href="#1407" id="1407">1407</a>
-<a href="#1408" id="1408">1408</a>
-<a href="#1409" id="1409">1409</a>
-<a href="#1410" id="1410">1410</a>
-<a href="#1411" id="1411">1411</a>
-<a href="#1412" id="1412">1412</a>
-<a href="#1413" id="1413">1413</a>
-<a href="#1414" id="1414">1414</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1438,13 +1422,9 @@
 <span class="kw">use </span>std::{borrow::Cow, fmt};
 
 <span class="kw">use </span>flux_common::{bug, span_bug};
-<span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">pub use </span>flux_syntax::surface::{BinOp, UnOp};
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>rustc_data_structures::{
-    fx::{FxIndexMap, FxIndexSet},
-    unord::{UnordMap, UnordSet},
-};
+<span class="kw">use </span>rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">pub use </span>rustc_hir::PrimTy;
 <span class="kw">use </span>rustc_hir::{
@@ -1706,7 +1686,8 @@
     Maybe,
 }
 
-<span class="kw">pub struct </span>Trait&lt;<span class="lifetime">'fhir</span>&gt; {
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>Trait&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>assoc_refinements: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[TraitAssocReft&lt;<span class="lifetime">'fhir</span>&gt;],
 }
@@ -1727,7 +1708,8 @@
     <span class="kw">pub </span>span: Span,
 }
 
-<span class="kw">pub struct </span>Impl&lt;<span class="lifetime">'fhir</span>&gt; {
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>Impl&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>assoc_refinements: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[ImplAssocReft&lt;<span class="lifetime">'fhir</span>&gt;],
 }
@@ -1740,7 +1722,7 @@
     }
 }
 
-<span class="attr">#[derive(Clone, Copy)]
+<span class="attr">#[derive(Clone, Copy, Debug)]
 </span><span class="kw">pub struct </span>ImplAssocReft&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>name: Symbol,
     <span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
@@ -1771,31 +1753,17 @@
 
 <span class="doccomment">/// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///
-/// note: `Map` is a very generic name, so we typically use the type qualified as `fhir::Map`.
+/// note: most items in this struct have been moved out into their own query or method in genv.
+/// We should eventually get rid of this or change its name.
 </span><span class="attr">#[derive(Default)]
 </span><span class="kw">pub struct </span>Crate&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>items: UnordMap&lt;LocalDefId, Item&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
-    <span class="kw">pub </span>trait_items: UnordMap&lt;LocalDefId, TraitItem&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
-    <span class="kw">pub </span>impl_items: UnordMap&lt;LocalDefId, ImplItem&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
     <span class="kw">pub </span>consts: FxHashMap&lt;Symbol, ConstInfo&gt;,
-    <span class="kw">pub </span>externs: UnordMap&lt;DefId, LocalDefId&gt;,
     <span class="kw">pub </span>flux_items: FxHashMap&lt;Symbol, FluxItem&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
-    <span class="kw">pub </span>ignores: UnordSet&lt;IgnoreKey&gt;,
-    <span class="kw">pub </span>crate_config: config::CrateConfig,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; Crate&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub fn </span>new(ignores: UnordSet&lt;IgnoreKey&gt;, crate_config: <span class="prelude-ty">Option</span>&lt;config::CrateConfig&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            items: Default::default(),
-            trait_items: Default::default(),
-            impl_items: Default::default(),
-            consts: Default::default(),
-            externs: Default::default(),
-            flux_items: Default::default(),
-            ignores,
-            crate_config: crate_config.unwrap_or_default(),
-        }
+    <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ consts: Default::default(), flux_items: Default::default() }
     }
 }
 
@@ -2404,7 +2372,7 @@
     <span class="kw">pub const </span>TRUE: Lit = Lit::Bool(<span class="bool-val">true</span>);
 }
 
-<span class="doccomment">/// Information about the refinement parameters associated with a type alias or a struct/enum.
+<span class="doccomment">/// Information about the refinement parameters associated with a type alias or an adt (struct/enum).
 </span><span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>RefinedBy&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>span: Span,
