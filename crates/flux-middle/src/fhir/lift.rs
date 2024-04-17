@@ -396,7 +396,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             _ => {
                 return self.emit_unsupported(&format!(
                     "unsupported type: `{}`",
-                    rustc_hir_pretty::ty_to_string(ty)
+                    rustc_hir_pretty::ty_to_string(&self.genv.tcx(), ty)
                 ));
             }
         };
@@ -429,13 +429,13 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             hir::QPath::TypeRelative(_, _) => {
                 self.emit_unsupported(&format!(
                     "unsupported type relative path: `{}`",
-                    rustc_hir_pretty::qpath_to_string(&qpath)
+                    rustc_hir_pretty::qpath_to_string(&self.genv.tcx(), &qpath)
                 ))
             }
             hir::QPath::LangItem(_, _) => {
                 self.emit_unsupported(&format!(
                     "unsupported type: `{}`",
-                    rustc_hir_pretty::qpath_to_string(&qpath)
+                    rustc_hir_pretty::qpath_to_string(&self.genv.tcx(), &qpath)
                 ))
             }
         }

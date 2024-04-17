@@ -713,7 +713,7 @@ extern {
         "%"  => Token::Percent,
         "if"   => Token::If,
         "else" => Token::Else,
-        "::" => Token::ModSep,
+        "::" => Token::PathSep,
         "_" => Token::Underscore,
     }
 }

@@ -57,7 +57,7 @@ pub enum Token {
     Check,
     If,
     Else,
-    ModSep,
+    PathSep,
     Qualifier,
     Sort,
     Opaque,
@@ -178,7 +178,7 @@ impl<'t> Cursor<'t> {
                 return;
             }
             TokenKind::Not => Token::Not,
-            TokenKind::ModSep => Token::ModSep,
+            TokenKind::PathSep => Token::PathSep,
             _ => Token::Invalid,
         };
         self.push_token(span.lo(), token, span.hi());
