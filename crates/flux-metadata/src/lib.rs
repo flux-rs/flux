@@ -25,7 +25,7 @@ use flux_macros::fluent_messages;
 use flux_middle::{cstore::CrateStore, global_env::GlobalEnv, intern::List, rty};
 use rustc_hash::FxHashMap;
 use rustc_hir::def::DefKind;
-use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::{
     config::{OutFileName, OutputType},
@@ -111,6 +111,10 @@ impl CrateMetadata {
         let mut type_of = FxHashMap::default();
 
         for local_id in tcx.iter_local_def_id() {
+            if genv.is_ignored(local_id) {
+                continue;
+            }
+
             let def_id = local_id.to_def_id();
             let def_kind = tcx.def_kind(local_id);
 
@@ -156,3 +160,85 @@ fn flux_metadata_extern_location(tcx: TyCtxt, crate_num: CrateNum) -> Option<Pat
         .find(|path| path.extension().unwrap_or_default() == OutputType::Metadata.extension())?;
     Some(path.with_extension("fluxmeta"))
 }
+
+#[derive(Encodable, Decodable, Copy, Clone)]
+struct SpanTag(u8);
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum SpanKind {
+    Local = 0b00,
+    Foreign = 0b01,
+    Partial = 0b10,
+    // Indicates the actual span contents are elsewhere.
+    // If this is the kind, then the span context bit represents whether it is a relative or
+    // absolute offset.
+    Indirect = 0b11,
+}
+
+impl SpanTag {
+    fn new(kind: SpanKind, context: rustc_span::SyntaxContext, length: usize) -> SpanTag {
+        let mut data = 0u8;
+        data |= kind as u8;
+        if context.is_root() {
+            data |= 0b100;
+        }
+        let all_1s_len = (0xffu8 << 3) >> 3;
+        // strictly less than - all 1s pattern is a sentinel for storage being out of band.
+        if length < all_1s_len as usize {
+            data |= (length as u8) << 3;
+        } else {
+            data |= all_1s_len << 3;
+        }
+
+        SpanTag(data)
+    }
+
+    fn indirect(relative: bool, length_bytes: u8) -> SpanTag {
+        let mut tag = SpanTag(SpanKind::Indirect as u8);
+        if relative {
+            tag.0 |= 0b100;
+        }
+        assert!(length_bytes <= 8);
+        tag.0 |= length_bytes << 3;
+        tag
+    }
+
+    // fn kind(self) -> SpanKind {
+    //     let masked = self.0 & 0b11;
+    //     match masked {
+    //         0b00 => SpanKind::Local,
+    //         0b01 => SpanKind::Foreign,
+    //         0b10 => SpanKind::Partial,
+    //         0b11 => SpanKind::Indirect,
+    //         _ => unreachable!(),
+    //     }
+    // }
+
+    // fn is_relative_offset(self) -> bool {
+    //     debug_assert_eq!(self.kind(), SpanKind::Indirect);
+    //     self.0 & 0b100 != 0
+    // }
+
+    fn context(self) -> Option<rustc_span::SyntaxContext> {
+        if self.0 & 0b100 != 0 {
+            Some(rustc_span::SyntaxContext::root())
+        } else {
+            None
+        }
+    }
+
+    fn length(self) -> Option<rustc_span::BytePos> {
+        let all_1s_len = (0xffu8 << 3) >> 3;
+        let len = self.0 >> 3;
+        if len != all_1s_len {
+            Some(rustc_span::BytePos(u32::from(len)))
+        } else {
+            None
+        }
+    }
+}
+
+// Tags for encoding Symbol's
+const SYMBOL_STR: u8 = 0;
+const SYMBOL_OFFSET: u8 = 1;
+const SYMBOL_PREINTERNED: u8 = 2;

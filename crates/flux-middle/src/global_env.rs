@@ -367,7 +367,27 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .copied()
     }
 
-    pub fn ignores(self) -> &'genv UnordSet<fhir::IgnoreKey> {
+    /// transitively follows the `def_id`'s parent-chain to check if any enclosing mod has been
+    /// marked as `ignore`
+    pub fn is_ignored(self, def_id: LocalDefId) -> bool {
+        let parent_def_id = self
+            .tcx()
+            .parent_module_from_def_id(def_id)
+            .to_local_def_id();
+        if parent_def_id == def_id {
+            false
+        } else {
+            self.ignores()
+                .contains(&fhir::IgnoreKey::Module(parent_def_id))
+                || self.is_ignored(parent_def_id)
+        }
+    }
+
+    pub fn ignore_crate(self) -> bool {
+        self.ignores().contains(&fhir::IgnoreKey::Crate)
+    }
+
+    fn ignores(self) -> &'genv UnordSet<fhir::IgnoreKey> {
         &self.collect_specs().ignores
     }
 

@@ -81,10 +81,10 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         tracing::info!("Callbacks::check_wf");
 
         // Ignore everything and go home
-        if genv.ignores().contains(&fhir::IgnoreKey::Crate) {
+        if genv.ignore_crate() {
             return Ok(());
         }
-        flux_fhir_analysis::check_crate_wf(genv)?;
+        // flux_fhir_analysis::check_crate_wf(genv)?;
         let mut ck = CrateChecker::new(genv);
 
         let crate_items = genv.tcx().hir_crate_items(());
@@ -140,31 +140,13 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         CrateChecker { genv, cache: QueryCache::load(), checker_config }
     }
 
-    /// `is_ignored` transitively follows the `def_id`'s parent-chain to check if
-    /// any enclosing mod has been marked as `ignore`
-    fn is_ignored(&self, def_id: LocalDefId) -> bool {
-        let parent_def_id = self
-            .genv
-            .tcx()
-            .parent_module_from_def_id(def_id)
-            .to_local_def_id();
-        if parent_def_id == def_id {
-            false
-        } else {
-            self.genv
-                .ignores()
-                .contains(&fhir::IgnoreKey::Module(parent_def_id))
-                || self.is_ignored(parent_def_id)
-        }
-    }
-
     fn matches_check_def(&self, def_id: LocalDefId) -> bool {
         let def_path = self.genv.tcx().def_path_str(def_id.to_def_id());
         def_path.contains(config::check_def())
     }
 
     fn check_def(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        if self.is_ignored(def_id) || !self.matches_check_def(def_id) {
+        if self.genv.is_ignored(def_id) || !self.matches_check_def(def_id) {
             return Ok(());
         }
 
