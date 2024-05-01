@@ -84,7 +84,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         if genv.ignore_crate() {
             return Ok(());
         }
-        // flux_fhir_analysis::check_crate_wf(genv)?;
+        flux_fhir_analysis::check_crate_wf(genv)?;
         let mut ck = CrateChecker::new(genv);
 
         let crate_items = genv.tcx().hir_crate_items(());
