@@ -243,24 +243,6 @@
 <a href="#243" id="243">243</a>
 <a href="#244" id="244">244</a>
 <a href="#245" id="245">245</a>
-<a href="#246" id="246">246</a>
-<a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
-<a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a>
-<a href="#257" id="257">257</a>
-<a href="#258" id="258">258</a>
-<a href="#259" id="259">259</a>
-<a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
@@ -344,7 +326,7 @@
         <span class="macro">tracing::info!</span>(<span class="string">"Callbacks::check_wf"</span>);
 
         <span class="comment">// Ignore everything and go home
-        </span><span class="kw">if </span>genv.ignores().contains(<span class="kw-2">&amp;</span>fhir::IgnoreKey::Crate) {
+        </span><span class="kw">if </span>genv.ignore_crate() {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
         flux_fhir_analysis::check_crate_wf(genv)<span class="question-mark">?</span>;
@@ -403,31 +385,13 @@
         CrateChecker { genv, cache: QueryCache::load(), checker_config }
     }
 
-    <span class="doccomment">/// `is_ignored` transitively follows the `def_id`'s parent-chain to check if
-    /// any enclosing mod has been marked as `ignore`
-    </span><span class="kw">fn </span>is_ignored(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
-        <span class="kw">let </span>parent_def_id = <span class="self">self
-            </span>.genv
-            .tcx()
-            .parent_module_from_def_id(def_id)
-            .to_local_def_id();
-        <span class="kw">if </span>parent_def_id == def_id {
-            <span class="bool-val">false
-        </span>} <span class="kw">else </span>{
-            <span class="self">self</span>.genv
-                .ignores()
-                .contains(<span class="kw-2">&amp;</span>fhir::IgnoreKey::Module(parent_def_id))
-                || <span class="self">self</span>.is_ignored(parent_def_id)
-        }
-    }
-
     <span class="kw">fn </span>matches_check_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
         <span class="kw">let </span>def_path = <span class="self">self</span>.genv.tcx().def_path_str(def_id.to_def_id());
         def_path.contains(config::check_def())
     }
 
     <span class="kw">fn </span>check_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">if </span><span class="self">self</span>.is_ignored(def_id) || !<span class="self">self</span>.matches_check_def(def_id) {
+        <span class="kw">if </span><span class="self">self</span>.genv.is_ignored(def_id) || !<span class="self">self</span>.matches_check_def(def_id) {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 

@@ -148,6 +148,7 @@
 <a href="#148" id="148">148</a>
 <a href="#149" id="149">149</a>
 <a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     fs,
     io::{<span class="self">self</span>, Read},
@@ -158,11 +159,12 @@
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>rustc_data_structures::sync::HashMapExt;
+<span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_middle::{
     implement_ty_decoder,
     ty::{<span class="self">self</span>, TyCtxt},
 };
-<span class="kw">use </span>rustc_serialize::{opaque::MemDecoder, Decodable};
+<span class="kw">use </span>rustc_serialize::{opaque::MemDecoder, Decodable, Decoder <span class="kw">as _</span>};
 <span class="kw">use </span>rustc_span::{
     def_id::{CrateNum, DefIndex},
     SpanDecoder,
@@ -222,11 +224,11 @@
     }
 
     <span class="kw">fn </span>decode_def_index(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; DefIndex {
-        <span class="self">self</span>.opaque.decode_def_index()
+        DefIndex::from_u32(<span class="self">self</span>.read_u32())
     }
 
-    <span class="kw">fn </span>decode_def_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_hir::def_id::DefId {
-        <span class="self">self</span>.opaque.decode_def_id()
+    <span class="kw">fn </span>decode_def_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; DefId {
+        DefId { krate: Decodable::decode(<span class="self">self</span>), index: Decodable::decode(<span class="self">self</span>) }
     }
 
     <span class="kw">fn </span>decode_attr_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_ast::AttrId {

@@ -495,6 +495,26 @@
 <a href="#495" id="495">495</a>
 <a href="#496" id="496">496</a>
 <a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -864,7 +884,27 @@
             .copied()
     }
 
-    <span class="kw">pub fn </span>ignores(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>UnordSet&lt;fhir::IgnoreKey&gt; {
+    <span class="doccomment">/// transitively follows the `def_id`'s parent-chain to check if any enclosing mod has been
+    /// marked as `ignore`
+    </span><span class="kw">pub fn </span>is_ignored(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
+        <span class="kw">let </span>parent_def_id = <span class="self">self
+            </span>.tcx()
+            .parent_module_from_def_id(def_id)
+            .to_local_def_id();
+        <span class="kw">if </span>parent_def_id == def_id {
+            <span class="bool-val">false
+        </span>} <span class="kw">else </span>{
+            <span class="self">self</span>.ignores()
+                .contains(<span class="kw-2">&amp;</span>fhir::IgnoreKey::Module(parent_def_id))
+                || <span class="self">self</span>.is_ignored(parent_def_id)
+        }
+    }
+
+    <span class="kw">pub fn </span>ignore_crate(<span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.ignores().contains(<span class="kw-2">&amp;</span>fhir::IgnoreKey::Crate)
+    }
+
+    <span class="kw">fn </span>ignores(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>UnordSet&lt;fhir::IgnoreKey&gt; {
         <span class="kw-2">&amp;</span><span class="self">self</span>.collect_specs().ignores
     }
 

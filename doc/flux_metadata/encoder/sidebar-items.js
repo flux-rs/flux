@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["encode_metadata"],"macro":["encoder_methods"],"struct":["EncodeContext"]};
+window.SIDEBAR_ITEMS = {"fn":["bytes_needed","encode_metadata"],"macro":["encoder_methods"],"struct":["EncodeContext"]};
