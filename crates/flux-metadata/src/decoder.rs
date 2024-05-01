@@ -8,11 +8,12 @@ use std::{
 use flux_common::bug;
 use flux_errors::FluxSession;
 use rustc_data_structures::sync::HashMapExt;
+use rustc_hir::def_id::DefId;
 use rustc_middle::{
     implement_ty_decoder,
     ty::{self, TyCtxt},
 };
-use rustc_serialize::{opaque::MemDecoder, Decodable};
+use rustc_serialize::{opaque::MemDecoder, Decodable, Decoder as _};
 use rustc_span::{
     def_id::{CrateNum, DefIndex},
     SpanDecoder,
@@ -72,11 +73,11 @@ impl<'a, 'tcx> SpanDecoder for DecodeContext<'a, 'tcx> {
     }
 
     fn decode_def_index(&mut self) -> DefIndex {
-        self.opaque.decode_def_index()
+        DefIndex::from_u32(self.read_u32())
     }
 
-    fn decode_def_id(&mut self) -> rustc_hir::def_id::DefId {
-        self.opaque.decode_def_id()
+    fn decode_def_id(&mut self) -> DefId {
+        DefId { krate: Decodable::decode(self), index: Decodable::decode(self) }
     }
 
     fn decode_attr_id(&mut self) -> rustc_ast::AttrId {
