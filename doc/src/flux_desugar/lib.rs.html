@@ -409,6 +409,10 @@
 <a href="#409" id="409">409</a>
 <a href="#410" id="410">410</a>
 <a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
 </span><span class="attr">#![feature(rustc_private, min_specialization, box_patterns, lazy_cell, let_chains, never_type)]
@@ -435,7 +439,7 @@
 <span class="kw">use </span>flux_middle::{
     const_eval, fhir,
     global_env::GlobalEnv,
-    queries::{Providers, QueryResult},
+    queries::{Providers, QueryErr, QueryResult},
     rty, ResolverOutput, Specs,
 };
 <span class="kw">use </span>flux_syntax::surface;
@@ -456,6 +460,10 @@
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     def_id: LocalDefId,
 ) -&gt; QueryResult&lt;UnordMap&lt;LocalDefId, fhir::Node&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt; {
+    <span class="kw">if </span>genv.is_ignored(def_id) {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(QueryErr::Ignored { def_id: def_id.to_def_id() });
+    }
+
     <span class="kw">let </span>cx = DesugarCtxt { genv, resolver_output: genv.resolve_crate() };
     <span class="kw">let </span>specs = genv.collect_specs();
     <span class="kw">let </span>owner_id = OwnerId { def_id };

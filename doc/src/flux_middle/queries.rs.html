@@ -633,6 +633,16 @@
 <a href="#633" id="633">633</a>
 <a href="#634" id="634">634</a>
 <a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -649,8 +659,7 @@
     def_id::{DefId, LocalDefId},
 };
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
-<span class="kw">use </span>rustc_middle::ty::TyCtxt;
-<span class="kw">use </span>rustc_span::{Span, Symbol};
+<span class="kw">use </span>rustc_span::Symbol;
 <span class="kw">use </span>rustc_trait_selection::traits::NormalizeExt;
 
 <span class="kw">use crate</span>::{
@@ -674,8 +683,9 @@
 
 <span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub enum </span>QueryErr {
-    Unsupported { def_id: DefId, def_span: Span, err: UnsupportedErr },
-    InvalidGenericArg { def_id: DefId, def_span: Span },
+    Unsupported { def_id: DefId, err: UnsupportedErr },
+    Ignored { def_id: DefId },
+    InvalidGenericArg { def_id: DefId },
     Emitted(ErrorGuaranteed),
 }
 
@@ -874,7 +884,7 @@
             <span class="kw">let </span>generics = genv.tcx().generics_of(def_id);
             lowering::lower_generics(generics)
                 .map_err(UnsupportedReason::into_err)
-                .map_err(|err| QueryErr::unsupported(genv.tcx(), def_id, err))
+                .map_err(|err| QueryErr::unsupported(def_id, err))
         })
     }
 
@@ -886,7 +896,7 @@
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.lower_predicates_of, def_id, || {
             <span class="kw">let </span>predicates = genv.tcx().predicates_of(def_id);
             lowering::lower_generic_predicates(genv.tcx(), predicates)
-                .map_err(|err| QueryErr::unsupported(genv.tcx(), def_id, err))
+                .map_err(|err| QueryErr::unsupported(def_id, err))
         })
     }
 
@@ -900,7 +910,7 @@
             <span class="prelude-val">Ok</span>(ty::EarlyBinder(
                 lowering::lower_ty(genv.tcx(), ty)
                     .map_err(UnsupportedReason::into_err)
-                    .map_err(|err| QueryErr::unsupported(genv.tcx(), def_id, err))<span class="question-mark">?</span>,
+                    .map_err(|err| QueryErr::unsupported(def_id, err))<span class="question-mark">?</span>,
             ))
         })
     }
@@ -922,7 +932,7 @@
             <span class="prelude-val">Ok</span>(ty::EarlyBinder(
                 lowering::lower_fn_sig(genv.tcx(), result.value)
                     .map_err(UnsupportedReason::into_err)
-                    .map_err(|err| QueryErr::unsupported(genv.tcx(), def_id, err))<span class="question-mark">?</span>,
+                    .map_err(|err| QueryErr::unsupported(def_id, err))<span class="question-mark">?</span>,
             ))
         })
     }
@@ -1037,7 +1047,7 @@
             } <span class="kw">else </span>{
                 <span class="kw">let </span>bounds = genv.tcx().item_bounds(def_id).skip_binder();
                 <span class="kw">let </span>clauses = lowering::lower_item_bounds(genv.tcx(), bounds)
-                    .map_err(|err| QueryErr::unsupported(genv.tcx(), def_id, err))<span class="question-mark">?</span>;
+                    .map_err(|err| QueryErr::unsupported(def_id, err))<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>clauses =
                     Refiner::default(genv, <span class="kw-2">&amp;</span>genv.generics_of(def_id)<span class="question-mark">?</span>).refine_clauses(<span class="kw-2">&amp;</span>clauses)<span class="question-mark">?</span>;
@@ -1204,7 +1214,7 @@
             <span class="kw">let </span>bound_vars = genv.tcx().late_bound_vars(hir_id);
             lowering::lower_bound_vars(bound_vars)
                 .map_err(UnsupportedReason::into_err)
-                .map_err(|err| QueryErr::unsupported(genv.tcx(), def_id.to_def_id(), err))
+                .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err))
         })
     }
 }
@@ -1228,8 +1238,8 @@
 }
 
 <span class="kw">impl </span>QueryErr {
-    <span class="kw">pub fn </span>unsupported(tcx: TyCtxt, def_id: DefId, err: UnsupportedErr) -&gt; <span class="self">Self </span>{
-        QueryErr::Unsupported { def_id, def_span: tcx.def_span(def_id), err }
+    <span class="kw">pub fn </span>unsupported(def_id: DefId, err: UnsupportedErr) -&gt; <span class="self">Self </span>{
+        QueryErr::Unsupported { def_id, err }
     }
 }
 
@@ -1240,26 +1250,36 @@
         _level: rustc_errors::Level,
     ) -&gt; rustc_errors::Diag&lt;<span class="lifetime">'a</span>, ErrorGuaranteed&gt; {
         <span class="kw">use </span><span class="kw">crate</span>::fluent_generated <span class="kw">as </span>fluent;
-        <span class="kw">match </span><span class="self">self </span>{
-            QueryErr::Unsupported { err, def_span, .. } =&gt; {
-                <span class="kw">let </span>span = err.span.unwrap_or(def_span);
-                <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_span_err(span, fluent::middle_query_unsupported);
-                diag.code(E0999);
-                diag.note(err.descr);
-                diag
+
+        rustc_middle::ty::tls::with(|tcx| {
+            <span class="kw">match </span><span class="self">self </span>{
+                QueryErr::Unsupported { def_id, err } =&gt; {
+                    <span class="kw">let </span>span = err.span.unwrap_or_else(|| tcx.def_span(def_id));
+                    <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_span_err(span, fluent::middle_query_unsupported);
+                    diag.code(E0999);
+                    diag.note(err.descr);
+                    diag
+                }
+                QueryErr::Ignored { def_id } =&gt; {
+                    <span class="kw">let </span>def_span = tcx.def_span(def_id);
+                    <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_span_err(def_span, fluent::middle_query_ignored_item);
+                    diag.code(E0999);
+                    diag
+                }
+                QueryErr::InvalidGenericArg { def_id } =&gt; {
+                    <span class="kw">let </span>def_span = tcx.def_span(def_id);
+                    <span class="kw">let </span><span class="kw-2">mut </span>diag =
+                        dcx.struct_span_err(def_span, fluent::middle_query_invalid_generic_arg);
+                    diag.code(E0999);
+                    diag
+                }
+                QueryErr::Emitted(<span class="kw">_</span>) =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_err(<span class="string">"QueryErr::Emitted should be emitted"</span>);
+                    diag.downgrade_to_delayed_bug();
+                    diag
+                }
             }
-            QueryErr::Emitted(<span class="kw">_</span>) =&gt; {
-                <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_err(<span class="string">"QueryErr::Emitted should be emitted"</span>);
-                diag.downgrade_to_delayed_bug();
-                diag
-            }
-            QueryErr::InvalidGenericArg { def_span, .. } =&gt; {
-                <span class="kw">let </span><span class="kw-2">mut </span>diag =
-                    dcx.struct_span_err(def_span, fluent::middle_query_invalid_generic_arg);
-                diag.code(E0999);
-                diag
-            }
-        }
+        })
     }
 }
 

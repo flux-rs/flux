@@ -435,7 +435,6 @@
 <a href="#435" id="435">435</a>
 <a href="#436" id="436">436</a>
 <a href="#437" id="437">437</a>
-<a href="#438" id="438">438</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
@@ -689,8 +688,7 @@
             }
             (rty::GenericParamDefKind::Base, rustc::ty::GenericArg::Ty(ty)) =&gt; {
                 <span class="kw">let </span>TyOrBase::Base(contr) = <span class="self">self</span>.refine_ty_inner(ty)<span class="question-mark">? </span><span class="kw">else </span>{
-                    <span class="kw">let </span>def_span = <span class="self">self</span>.genv.tcx().def_span(param.def_id);
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(QueryErr::InvalidGenericArg { def_id: param.def_id, def_span });
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(QueryErr::InvalidGenericArg { def_id: param.def_id });
                 };
                 <span class="prelude-val">Ok</span>(rty::GenericArg::Base(contr))
             }

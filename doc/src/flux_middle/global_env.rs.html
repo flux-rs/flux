@@ -737,7 +737,7 @@
         <span class="kw">let </span><span class="prelude-val">Some</span>(poly_trait_ref) = <span class="self">self</span>.tcx().impl_trait_ref(impl_id) <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
 
         <span class="kw">let </span>trait_ref = lowering::lower_trait_ref(<span class="self">self</span>.tcx(), poly_trait_ref.skip_binder())
-            .map_err(|err| QueryErr::unsupported(<span class="self">self</span>.tcx(), impl_id, err.into_err()))<span class="question-mark">?</span>;
+            .map_err(|err| QueryErr::unsupported(impl_id, err.into_err()))<span class="question-mark">?</span>;
         <span class="kw">let </span>impl_generics = <span class="self">self</span>.generics_of(impl_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>trait_ref = Refiner::default(<span class="self">self</span>, <span class="kw-2">&amp;</span>impl_generics).refine_trait_ref(<span class="kw-2">&amp;</span>trait_ref)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(trait_ref)))
