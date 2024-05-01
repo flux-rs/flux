@@ -14,8 +14,7 @@ use rustc_hir::{
     def_id::{DefId, LocalDefId},
 };
 use rustc_infer::infer::TyCtxtInferExt;
-use rustc_middle::ty::TyCtxt;
-use rustc_span::{Span, Symbol};
+use rustc_span::Symbol;
 use rustc_trait_selection::traits::NormalizeExt;
 
 use crate::{
@@ -39,8 +38,9 @@ pub type QueryResult<T = ()> = Result<T, QueryErr>;
 
 #[derive(Debug, Clone)]
 pub enum QueryErr {
-    Unsupported { def_id: DefId, def_span: Span, err: UnsupportedErr },
-    InvalidGenericArg { def_id: DefId, def_span: Span },
+    Unsupported { def_id: DefId, err: UnsupportedErr },
+    Ignored { def_id: DefId },
+    InvalidGenericArg { def_id: DefId },
     Emitted(ErrorGuaranteed),
 }
 
@@ -239,7 +239,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let generics = genv.tcx().generics_of(def_id);
             lowering::lower_generics(generics)
                 .map_err(UnsupportedReason::into_err)
-                .map_err(|err| QueryErr::unsupported(genv.tcx(), def_id, err))
+                .map_err(|err| QueryErr::unsupported(def_id, err))
         })
     }
 
@@ -251,7 +251,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.lower_predicates_of, def_id, || {
             let predicates = genv.tcx().predicates_of(def_id);
             lowering::lower_generic_predicates(genv.tcx(), predicates)
-                .map_err(|err| QueryErr::unsupported(genv.tcx(), def_id, err))
+                .map_err(|err| QueryErr::unsupported(def_id, err))
         })
     }
 
@@ -265,7 +265,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             Ok(ty::EarlyBinder(
                 lowering::lower_ty(genv.tcx(), ty)
                     .map_err(UnsupportedReason::into_err)
-                    .map_err(|err| QueryErr::unsupported(genv.tcx(), def_id, err))?,
+                    .map_err(|err| QueryErr::unsupported(def_id, err))?,
             ))
         })
     }
@@ -287,7 +287,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             Ok(ty::EarlyBinder(
                 lowering::lower_fn_sig(genv.tcx(), result.value)
                     .map_err(UnsupportedReason::into_err)
-                    .map_err(|err| QueryErr::unsupported(genv.tcx(), def_id, err))?,
+                    .map_err(|err| QueryErr::unsupported(def_id, err))?,
             ))
         })
     }
@@ -402,7 +402,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             } else {
                 let bounds = genv.tcx().item_bounds(def_id).skip_binder();
                 let clauses = lowering::lower_item_bounds(genv.tcx(), bounds)
-                    .map_err(|err| QueryErr::unsupported(genv.tcx(), def_id, err))?;
+                    .map_err(|err| QueryErr::unsupported(def_id, err))?;
 
                 let clauses =
                     Refiner::default(genv, &genv.generics_of(def_id)?).refine_clauses(&clauses)?;
@@ -569,7 +569,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let bound_vars = genv.tcx().late_bound_vars(hir_id);
             lowering::lower_bound_vars(bound_vars)
                 .map_err(UnsupportedReason::into_err)
-                .map_err(|err| QueryErr::unsupported(genv.tcx(), def_id.to_def_id(), err))
+                .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err))
         })
     }
 }
@@ -593,8 +593,8 @@ where
 }
 
 impl QueryErr {
-    pub fn unsupported(tcx: TyCtxt, def_id: DefId, err: UnsupportedErr) -> Self {
-        QueryErr::Unsupported { def_id, def_span: tcx.def_span(def_id), err }
+    pub fn unsupported(def_id: DefId, err: UnsupportedErr) -> Self {
+        QueryErr::Unsupported { def_id, err }
     }
 }
 
@@ -605,26 +605,36 @@ impl<'a> Diagnostic<'a> for QueryErr {
         _level: rustc_errors::Level,
     ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
         use crate::fluent_generated as fluent;
-        match self {
-            QueryErr::Unsupported { err, def_span, .. } => {
-                let span = err.span.unwrap_or(def_span);
-                let mut diag = dcx.struct_span_err(span, fluent::middle_query_unsupported);
-                diag.code(E0999);
-                diag.note(err.descr);
-                diag
+
+        rustc_middle::ty::tls::with(|tcx| {
+            match self {
+                QueryErr::Unsupported { def_id, err } => {
+                    let span = err.span.unwrap_or_else(|| tcx.def_span(def_id));
+                    let mut diag = dcx.struct_span_err(span, fluent::middle_query_unsupported);
+                    diag.code(E0999);
+                    diag.note(err.descr);
+                    diag
+                }
+                QueryErr::Ignored { def_id } => {
+                    let def_span = tcx.def_span(def_id);
+                    let mut diag = dcx.struct_span_err(def_span, fluent::middle_query_ignored_item);
+                    diag.code(E0999);
+                    diag
+                }
+                QueryErr::InvalidGenericArg { def_id } => {
+                    let def_span = tcx.def_span(def_id);
+                    let mut diag =
+                        dcx.struct_span_err(def_span, fluent::middle_query_invalid_generic_arg);
+                    diag.code(E0999);
+                    diag
+                }
+                QueryErr::Emitted(_) => {
+                    let mut diag = dcx.struct_err("QueryErr::Emitted should be emitted");
+                    diag.downgrade_to_delayed_bug();
+                    diag
+                }
             }
-            QueryErr::Emitted(_) => {
-                let mut diag = dcx.struct_err("QueryErr::Emitted should be emitted");
-                diag.downgrade_to_delayed_bug();
-                diag
-            }
-            QueryErr::InvalidGenericArg { def_span, .. } => {
-                let mut diag =
-                    dcx.struct_span_err(def_span, fluent::middle_query_invalid_generic_arg);
-                diag.code(E0999);
-                diag
-            }
-        }
+        })
     }
 }
 

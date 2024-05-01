@@ -48,3 +48,14 @@ refineck_unsupported_call =
 
 refineck_invalid_invariant =
     invariant cannot be proven
+
+
+# Query errors reported at use site
+
+refineck_query_unsupported =
+    use of unsupported {$kind}
+    .note = this {$kind} has unsupported features
+
+refineck_query_ignored =
+    use of ignored {$kind} `{$name}`
+    .label = help: try ignoring or trusting this code

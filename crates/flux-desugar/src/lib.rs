@@ -24,7 +24,7 @@ pub mod resolver;
 use flux_middle::{
     const_eval, fhir,
     global_env::GlobalEnv,
-    queries::{Providers, QueryResult},
+    queries::{Providers, QueryErr, QueryResult},
     rty, ResolverOutput, Specs,
 };
 use flux_syntax::surface;
@@ -45,6 +45,10 @@ pub fn desugar<'genv>(
     genv: GlobalEnv<'genv, '_>,
     def_id: LocalDefId,
 ) -> QueryResult<UnordMap<LocalDefId, fhir::Node<'genv>>> {
+    if genv.is_ignored(def_id) {
+        return Err(QueryErr::Ignored { def_id: def_id.to_def_id() });
+    }
+
     let cx = DesugarCtxt { genv, resolver_output: genv.resolve_crate() };
     let specs = genv.collect_specs();
     let owner_id = OwnerId { def_id };

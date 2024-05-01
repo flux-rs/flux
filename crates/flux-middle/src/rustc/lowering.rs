@@ -60,7 +60,7 @@ impl UnsupportedReason {
 
 #[derive(Debug, Clone)]
 pub struct UnsupportedErr {
-    pub(crate) descr: String,
+    pub descr: String,
     pub(crate) span: Option<Span>,
 }
 

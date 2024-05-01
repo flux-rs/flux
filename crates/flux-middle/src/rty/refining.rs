@@ -251,8 +251,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             }
             (rty::GenericParamDefKind::Base, rustc::ty::GenericArg::Ty(ty)) => {
                 let TyOrBase::Base(contr) = self.refine_ty_inner(ty)? else {
-                    let def_span = self.genv.tcx().def_span(param.def_id);
-                    return Err(QueryErr::InvalidGenericArg { def_id: param.def_id, def_span });
+                    return Err(QueryErr::InvalidGenericArg { def_id: param.def_id });
                 };
                 Ok(rty::GenericArg::Base(contr))
             }
