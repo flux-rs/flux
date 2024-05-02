@@ -1069,21 +1069,36 @@
 <a href="#1069" id="1069">1069</a>
 <a href="#1070" id="1070">1070</a>
 <a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>flux_common::{iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, CrateConfig};
 <span class="kw">use </span>flux_errors::FluxSession;
-<span class="kw">use </span>flux_middle::{fhir, rustc::lowering::resolve_trait_ref_impl_id, Specs};
+<span class="kw">use </span>flux_middle::{fhir::Ignored, rustc::lowering::resolve_trait_ref_impl_id, Specs};
 <span class="kw">use </span>flux_syntax::{surface, ParseResult, ParseSess};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_ast::{
     tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, Attribute, MetaItemKind, NestedMetaItem,
 };
+<span class="kw">use </span>rustc_ast_pretty::pprust::tts_to_string;
 <span class="kw">use </span>rustc_errors::{Diagnostic, ErrorGuaranteed};
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
-    def_id::{DefId, LocalDefId},
+    def_id::{DefId, LocalDefId, CRATE_DEF_ID},
     AssocItemKind, EnumDef, GenericBounds, ImplItemKind, ImplItemRef, Item, ItemKind, OwnerId,
     VariantData,
 };
@@ -1170,8 +1185,10 @@
         // TODO(atgeller) error if &gt;1 cfg attributes
 
         </span><span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, DefKind::Mod)<span class="question-mark">?</span>;
-        <span class="kw">if </span>attrs.ignore() {
-            <span class="self">self</span>.specs.ignores.insert(fhir::IgnoreKey::Crate);
+        <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(ignored) = attrs.ignore() {
+            <span class="self">self</span>.specs.check_item.insert(CRATE_DEF_ID, ignored);
         }
 
         <span class="self">self</span>.specs.extend_items(attrs.items());
@@ -1183,10 +1200,13 @@
 
     <span class="kw">fn </span>parse_mod_spec(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId, attrs: <span class="kw-2">&amp;</span>[Attribute]) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, DefKind::Mod)<span class="question-mark">?</span>;
-        <span class="self">self</span>.specs.extend_items(attrs.items());
-        <span class="kw">if </span>attrs.ignore() {
-            <span class="self">self</span>.specs.ignores.insert(fhir::IgnoreKey::Module(def_id));
+        <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(ignored) = attrs.ignore() {
+            <span class="self">self</span>.specs.check_item.insert(def_id, ignored);
         }
+
+        <span class="self">self</span>.specs.extend_items(attrs.items());
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1530,7 +1550,15 @@
             (<span class="string">"constant"</span>, AttrArgs::Empty) =&gt; {
                 FluxAttrKind::ConstSig(surface::ConstSig { span: attr_item.span() })
             }
-            (<span class="string">"ignore"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Ignore,
+            (<span class="string">"ignore"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Ignore(Ignored::Yes),
+            (<span class="string">"ignore"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+                <span class="kw">let </span>val = tts_to_string(<span class="kw-2">&amp;</span>dargs.tokens);
+                <span class="kw">match </span><span class="kw-2">&amp;</span>val[..] {
+                    <span class="string">"yes" </span>=&gt; FluxAttrKind::Ignore(Ignored::Yes),
+                    <span class="string">"no" </span>=&gt; FluxAttrKind::Ignore(Ignored::No),
+                    <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::InvalidAttr { span: attr_item.span() }))<span class="question-mark">?</span>,
+                }
+            }
             (<span class="string">"opaque"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Opaque,
             (<span class="string">"trusted"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Trusted,
             (<span class="string">"fake_impl"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::FakeImpl,
@@ -1796,7 +1824,7 @@
     ConstSig(surface::ConstSig),
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
-    Ignore,
+    Ignore(Ignored),
     FakeImpl,
     ExternSpec,
 }
@@ -1847,8 +1875,8 @@
         <span class="macro">read_flag!</span>(<span class="self">self</span>, Trusted)
     }
 
-    <span class="kw">fn </span>ignore(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">read_flag!</span>(<span class="self">self</span>, Ignore)
+    <span class="kw">fn </span>ignore(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Ignored&gt; {
+        <span class="macro">read_attr!</span>(<span class="self">self</span>, Ignore)
     }
 
     <span class="kw">fn </span>fake_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
@@ -1933,7 +1961,7 @@
             FluxAttrKind::Variant(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Variant),
             FluxAttrKind::TypeAlias(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(TypeAlias),
             FluxAttrKind::CrateConfig(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(CrateConfig),
-            FluxAttrKind::Ignore =&gt; <span class="macro">attr_name!</span>(Ignore),
+            FluxAttrKind::Ignore(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Ignore),
             FluxAttrKind::Invariant(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Invariant),
             FluxAttrKind::ExternSpec =&gt; <span class="macro">attr_name!</span>(ExternSpec),
             FluxAttrKind::FakeImpl =&gt; <span class="macro">attr_name!</span>(FakeImpl),

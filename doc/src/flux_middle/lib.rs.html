@@ -288,7 +288,7 @@
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, NodeId};
-<span class="kw">use </span>rustc_data_structures::unord::{UnordMap, UnordSet};
+<span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
 <span class="kw">use </span>rustc_hir <span class="kw">as </span>hir;
 <span class="kw">use </span>rustc_hir::OwnerId;
@@ -449,7 +449,7 @@
     <span class="kw">pub </span>func_defs: Vec&lt;surface::SpecFunc&gt;,
     <span class="kw">pub </span>sort_decls: Vec&lt;surface::SortDecl&gt;,
     <span class="kw">pub </span>ty_aliases: UnordMap&lt;OwnerId, <span class="prelude-ty">Option</span>&lt;surface::TyAlias&gt;&gt;,
-    <span class="kw">pub </span>ignores: UnordSet&lt;fhir::IgnoreKey&gt;,
+    <span class="kw">pub </span>check_item: UnordMap&lt;LocalDefId, fhir::Ignored&gt;,
     <span class="kw">pub </span>consts: FxHashSet&lt;LocalDefId&gt;,
     <span class="kw">pub </span>crate_config: <span class="prelude-ty">Option</span>&lt;config::CrateConfig&gt;,
     <span class="kw">pub </span>extern_specs: FxHashMap&lt;DefId, LocalDefId&gt;,

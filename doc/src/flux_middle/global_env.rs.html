@@ -511,16 +511,12 @@
 <a href="#511" id="511">511</a>
 <a href="#512" id="512">512</a>
 <a href="#513" id="513">513</a>
-<a href="#514" id="514">514</a>
-<a href="#515" id="515">515</a>
-<a href="#516" id="516">516</a>
-<a href="#517" id="517">517</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
 <span class="kw">use </span>flux_config::CrateConfig;
 <span class="kw">use </span>flux_errors::FluxSession;
-<span class="kw">use </span>rustc_data_structures::unord::UnordSet;
+<span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
@@ -532,7 +528,7 @@
 
 <span class="kw">use crate</span>::{
     cstore::CrateStoreDyn,
-    fhir::{<span class="self">self</span>, FluxLocalDefId, VariantIdx},
+    fhir::{<span class="self">self</span>, FluxLocalDefId, Ignored, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{<span class="self">self</span>, normalize::SpecFuncDefns, refining::Refiner},
@@ -884,28 +880,24 @@
             .copied()
     }
 
-    <span class="doccomment">/// transitively follows the `def_id`'s parent-chain to check if any enclosing mod has been
-    /// marked as `ignore`
-    </span><span class="kw">pub fn </span>is_ignored(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
-        <span class="kw">let </span>parent_def_id = <span class="self">self
-            </span>.tcx()
-            .parent_module_from_def_id(def_id)
-            .to_local_def_id();
-        <span class="kw">if </span>parent_def_id == def_id {
-            <span class="bool-val">false
-        </span>} <span class="kw">else </span>{
-            <span class="self">self</span>.ignores()
-                .contains(<span class="kw-2">&amp;</span>fhir::IgnoreKey::Module(parent_def_id))
-                || <span class="self">self</span>.is_ignored(parent_def_id)
+    <span class="doccomment">/// transitively follows the parent-chain to find the first containing item with an explicit
+    /// `ignore` annotation and returns whether that item is ignored or not.
+    </span><span class="kw">pub fn </span>ignored(<span class="self">self</span>, <span class="kw-2">mut </span>def_id: LocalDefId) -&gt; Ignored {
+        <span class="kw">loop </span>{
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(ignored) = <span class="self">self</span>.ignores().get(<span class="kw-2">&amp;</span>def_id) {
+                <span class="kw">break </span><span class="kw-2">*</span>ignored;
+            }
+
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(parent) = <span class="self">self</span>.tcx().opt_local_parent(def_id) {
+                def_id = parent;
+            } <span class="kw">else </span>{
+                <span class="kw">break </span>Ignored::No;
+            }
         }
     }
 
-    <span class="kw">pub fn </span>ignore_crate(<span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.ignores().contains(<span class="kw-2">&amp;</span>fhir::IgnoreKey::Crate)
-    }
-
-    <span class="kw">fn </span>ignores(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>UnordSet&lt;fhir::IgnoreKey&gt; {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.collect_specs().ignores
+    <span class="kw">fn </span>ignores(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>UnordMap&lt;LocalDefId, Ignored&gt; {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.collect_specs().check_item
     }
 
     <span class="kw">pub fn </span>crate_config(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;CrateConfig&gt; {

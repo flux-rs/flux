@@ -502,7 +502,7 @@
 <span class="kw">use </span>flux_errors::Errors;
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
-    fhir::{<span class="self">self</span>, FluxLocalDefId},
+    fhir::{<span class="self">self</span>, FluxLocalDefId, Ignored},
     global_env::GlobalEnv,
     intern::List,
     queries::{Providers, QueryResult},
@@ -894,7 +894,7 @@
     <span class="kw">let </span>qualifiers = genv.map().qualifiers().map(|q| q.name).collect();
 
     <span class="kw">for </span>def_id <span class="kw">in </span>genv.tcx().hir_crate_items(()).definitions() {
-        <span class="kw">if </span>genv.is_ignored(def_id) {
+        <span class="kw">if </span>genv.ignored(def_id) == Ignored::Yes {
             <span class="kw">continue</span>;
         }
         <span class="kw">let </span>def_kind = genv.def_kind(def_id);
