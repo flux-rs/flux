@@ -30,3 +30,13 @@ middle_query_invalid_generic_arg =
 
 middle_query_ignored_item =
     use of ignored item
+
+# Query Errors reported at use site
+
+middle_query_unsupported_at =
+    use of unsupported {$kind}
+    .note = this {$kind} has unsupported features
+
+middle_query_ignored_at =
+    use of ignored {$kind} `{$name}`
+    .label = help: try ignoring or trusting this code

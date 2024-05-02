@@ -1527,48 +1527,22 @@ pub(crate) mod errors {
         ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
             use crate::fluent_generated as fluent;
 
-            rustc_middle::ty::tls::with(|tcx| {
-                let mut diag = match self.kind {
-                    CheckerErrKind::Inference => {
-                        dcx.struct_span_err(self.span, fluent::refineck_param_inference_error)
-                    }
-                    CheckerErrKind::OpaqueStruct(def_id) => {
-                        let mut diag =
-                            dcx.struct_span_err(self.span, fluent::refineck_opaque_struct_error);
-                        diag.arg("struct", pretty::def_id_to_string(def_id));
-                        diag
-                    }
-                    CheckerErrKind::Query(err) => {
-                        match err {
-                            QueryErr::Unsupported { def_id, err, .. } => {
-                                let mut diag = dcx
-                                    .struct_span_err(self.span, fluent::refineck_query_unsupported);
-                                diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
-                                if let Some(def_ident_span) = tcx.def_ident_span(def_id) {
-                                    diag.span_note(def_ident_span, fluent::_subdiag::note);
-                                }
-                                diag.note(err.descr);
-                                diag
-                            }
-                            QueryErr::Ignored { def_id } => {
-                                let mut diag =
-                                    dcx.struct_span_err(self.span, fluent::refineck_query_ignored);
-                                diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
-                                diag.arg("name", pretty::def_id_to_string(def_id));
-                                diag.span_label(self.span, fluent::_subdiag::label);
-                                diag
-                            }
-                            QueryErr::InvalidGenericArg { .. } | QueryErr::Emitted(_) => {
-                                let mut diag = err.into_diag(dcx, level);
-                                diag.span(self.span);
-                                diag
-                            }
-                        }
-                    }
-                };
-                diag.code(E0999);
-                diag
-            })
+            match self.kind {
+                CheckerErrKind::Inference => {
+                    let mut diag =
+                        dcx.struct_span_err(self.span, fluent::refineck_param_inference_error);
+                    diag.code(E0999);
+                    diag
+                }
+                CheckerErrKind::OpaqueStruct(def_id) => {
+                    let mut diag =
+                        dcx.struct_span_err(self.span, fluent::refineck_opaque_struct_error);
+                    diag.arg("struct", pretty::def_id_to_string(def_id));
+                    diag.code(E0999);
+                    diag
+                }
+                CheckerErrKind::Query(err) => err.at(self.span).into_diag(dcx, level),
+            }
         }
     }
 

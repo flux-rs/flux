@@ -39,7 +39,7 @@ mod type_env;
 use checker::Checker;
 pub use checker::CheckerConfig;
 use constraint_gen::{ConstrReason, Tag};
-use flux_common::{cache::QueryCache, dbg, result::ResultExt};
+use flux_common::{cache::QueryCache, dbg, result::ResultExt as _};
 use flux_config as config;
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -51,7 +51,7 @@ use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::Span;
 
-use crate::ghost_statements::compute_ghost_statements;
+use crate::{checker::errors::ResultExt as _, ghost_statements::compute_ghost_statements};
 
 fluent_messages! { "../locales/en-US.ftl" }
 
@@ -62,7 +62,9 @@ pub fn check_fn(
     config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
     dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| {
-        if genv.map().is_trusted(def_id).emit(&genv)? {
+        let span = genv.tcx().def_span(def_id);
+
+        if genv.map().is_trusted(def_id).with_span(span).emit(&genv)? {
             return Ok(());
         }
 
@@ -72,7 +74,9 @@ pub fn check_fn(
         if genv.tcx().def_span(def_id).ctxt() > rustc_span::SyntaxContext::root() {
             return Ok(());
         }
-        let ghost_stmts = compute_ghost_statements(genv, def_id).emit(&genv)?;
+        let ghost_stmts = compute_ghost_statements(genv, def_id)
+            .with_span(span)
+            .emit(&genv)?;
 
         // PHASE 1: infer shape of `TypeEnv` at the entry of join points
         let shape_result =

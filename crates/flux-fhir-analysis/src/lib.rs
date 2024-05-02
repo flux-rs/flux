@@ -424,7 +424,7 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             | DefKind::Fn
             | DefKind::AssocFn
             | DefKind::OpaqueTy => {
-                let _ = genv.check_wf(def_id).emit(&errors).ok();
+                let _ = genv.check_wf(def_id).emit(&errors);
             }
             _ => {}
         }

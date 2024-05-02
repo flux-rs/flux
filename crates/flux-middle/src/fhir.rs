@@ -94,7 +94,7 @@ pub struct Qualifier<'fhir> {
     pub global: bool,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Node<'fhir> {
     Item(&'fhir Item<'fhir>),
     TraitItem(&'fhir TraitItem<'fhir>),
@@ -136,6 +136,7 @@ impl<'fhir> Node<'fhir> {
     }
 }
 
+#[derive(Debug)]
 pub struct Item<'fhir> {
     pub owner_id: OwnerId,
     pub kind: ItemKind<'fhir>,
@@ -197,6 +198,7 @@ impl<'fhir> Item<'fhir> {
     }
 }
 
+#[derive(Debug)]
 pub enum ItemKind<'fhir> {
     Enum(EnumDef<'fhir>),
     Struct(StructDef<'fhir>),
@@ -207,6 +209,7 @@ pub enum ItemKind<'fhir> {
     OpaqueTy(OpaqueTy<'fhir>),
 }
 
+#[derive(Debug)]
 pub struct TraitItem<'fhir> {
     pub owner_id: OwnerId,
     pub kind: TraitItemKind<'fhir>,
@@ -221,11 +224,13 @@ impl<'fhir> TraitItem<'fhir> {
     }
 }
 
+#[derive(Debug)]
 pub enum TraitItemKind<'fhir> {
     Fn(FnSig<'fhir>),
     Type(AssocType<'fhir>),
 }
 
+#[derive(Debug)]
 pub struct ImplItem<'fhir> {
     pub owner_id: OwnerId,
     pub kind: ImplItemKind<'fhir>,
@@ -242,6 +247,7 @@ impl<'fhir> ImplItem<'fhir> {
     }
 }
 
+#[derive(Debug)]
 pub enum ImplItemKind<'fhir> {
     Fn(FnSig<'fhir>),
     Type(AssocType<'fhir>),
@@ -347,6 +353,7 @@ pub struct ImplAssocReft<'fhir> {
     pub span: Span,
 }
 
+#[derive(Debug)]
 pub struct AssocType<'fhir> {
     pub generics: Generics<'fhir>,
 }

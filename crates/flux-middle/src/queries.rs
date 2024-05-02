@@ -14,13 +14,14 @@ use rustc_hir::{
     def_id::{DefId, LocalDefId},
 };
 use rustc_infer::infer::TyCtxtInferExt;
-use rustc_span::Symbol;
+use rustc_span::{Span, Symbol};
 use rustc_trait_selection::traits::NormalizeExt;
 
 use crate::{
     fhir::{self, FluxLocalDefId},
     global_env::GlobalEnv,
     intern::List,
+    pretty,
     rty::{
         self,
         refining::{self, Refiner},
@@ -42,6 +43,17 @@ pub enum QueryErr {
     Ignored { def_id: DefId },
     InvalidGenericArg { def_id: DefId },
     Emitted(ErrorGuaranteed),
+}
+
+impl QueryErr {
+    pub fn at(self, span: Span) -> QueryErrAt {
+        QueryErrAt { span, err: self }
+    }
+}
+
+pub struct QueryErrAt {
+    span: Span,
+    err: QueryErr,
 }
 
 pub struct Providers {
@@ -634,6 +646,45 @@ impl<'a> Diagnostic<'a> for QueryErr {
                     diag
                 }
             }
+        })
+    }
+}
+
+impl<'a> Diagnostic<'a> for QueryErrAt {
+    fn into_diag(
+        self,
+        dcx: &'a rustc_errors::DiagCtxt,
+        level: rustc_errors::Level,
+    ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
+        use crate::fluent_generated as fluent;
+
+        rustc_middle::ty::tls::with(|tcx| {
+            let mut diag = match self.err {
+                QueryErr::Unsupported { def_id, err, .. } => {
+                    let mut diag =
+                        dcx.struct_span_err(self.span, fluent::middle_query_unsupported_at);
+                    diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
+                    if let Some(def_ident_span) = tcx.def_ident_span(def_id) {
+                        diag.span_note(def_ident_span, fluent::_subdiag::note);
+                    }
+                    diag.note(err.descr);
+                    diag
+                }
+                QueryErr::Ignored { def_id } => {
+                    let mut diag = dcx.struct_span_err(self.span, fluent::middle_query_ignored_at);
+                    diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
+                    diag.arg("name", pretty::def_id_to_string(def_id));
+                    diag.span_label(self.span, fluent::_subdiag::label);
+                    diag
+                }
+                QueryErr::InvalidGenericArg { .. } | QueryErr::Emitted(_) => {
+                    let mut diag = self.err.into_diag(dcx, level);
+                    diag.span(self.span);
+                    diag
+                }
+            };
+            diag.code(E0999);
+            diag
         })
     }
 }
