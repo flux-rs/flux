@@ -11,14 +11,14 @@ mod included {
     }
 
     pub fn test2() {
-        // we cannot use ignored function in included code
+        // we cannot use an ignored function in included code
         crate::ignored_fun(); //~ERROR use of ignored function
     }
 }
 
-// bad refinement, but no error since we are ignoing this function
+// bad refinement, but no error since we are ignoring this function
 #[flux::sig(fn(i32, i32))]
 pub fn malformed(_: i32) {}
 
-// an ignored fun that cannot be used in included code
+// an ignored function that cannot be used in included code
 pub fn ignored_fun() {}
