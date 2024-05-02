@@ -905,7 +905,7 @@
             | DefKind::Fn
             | DefKind::AssocFn
             | DefKind::OpaqueTy =&gt; {
-                <span class="kw">let _ </span>= genv.check_wf(def_id).emit(<span class="kw-2">&amp;</span>errors).ok();
+                <span class="kw">let _ </span>= genv.check_wf(def_id).emit(<span class="kw-2">&amp;</span>errors);
             }
             <span class="kw">_ </span>=&gt; {}
         }

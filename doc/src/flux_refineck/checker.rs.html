@@ -1576,32 +1576,6 @@
 <a href="#1576" id="1576">1576</a>
 <a href="#1577" id="1577">1577</a>
 <a href="#1578" id="1578">1578</a>
-<a href="#1579" id="1579">1579</a>
-<a href="#1580" id="1580">1580</a>
-<a href="#1581" id="1581">1581</a>
-<a href="#1582" id="1582">1582</a>
-<a href="#1583" id="1583">1583</a>
-<a href="#1584" id="1584">1584</a>
-<a href="#1585" id="1585">1585</a>
-<a href="#1586" id="1586">1586</a>
-<a href="#1587" id="1587">1587</a>
-<a href="#1588" id="1588">1588</a>
-<a href="#1589" id="1589">1589</a>
-<a href="#1590" id="1590">1590</a>
-<a href="#1591" id="1591">1591</a>
-<a href="#1592" id="1592">1592</a>
-<a href="#1593" id="1593">1593</a>
-<a href="#1594" id="1594">1594</a>
-<a href="#1595" id="1595">1595</a>
-<a href="#1596" id="1596">1596</a>
-<a href="#1597" id="1597">1597</a>
-<a href="#1598" id="1598">1598</a>
-<a href="#1599" id="1599">1599</a>
-<a href="#1600" id="1600">1600</a>
-<a href="#1601" id="1601">1601</a>
-<a href="#1602" id="1602">1602</a>
-<a href="#1603" id="1603">1603</a>
-<a href="#1604" id="1604">1604</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -3131,48 +3105,22 @@
         ) -&gt; rustc_errors::Diag&lt;<span class="lifetime">'a</span>, ErrorGuaranteed&gt; {
             <span class="kw">use </span><span class="kw">crate</span>::fluent_generated <span class="kw">as </span>fluent;
 
-            rustc_middle::ty::tls::with(|tcx| {
-                <span class="kw">let </span><span class="kw-2">mut </span>diag = <span class="kw">match </span><span class="self">self</span>.kind {
-                    CheckerErrKind::Inference =&gt; {
-                        dcx.struct_span_err(<span class="self">self</span>.span, fluent::refineck_param_inference_error)
-                    }
-                    CheckerErrKind::OpaqueStruct(def_id) =&gt; {
-                        <span class="kw">let </span><span class="kw-2">mut </span>diag =
-                            dcx.struct_span_err(<span class="self">self</span>.span, fluent::refineck_opaque_struct_error);
-                        diag.arg(<span class="string">"struct"</span>, pretty::def_id_to_string(def_id));
-                        diag
-                    }
-                    CheckerErrKind::Query(err) =&gt; {
-                        <span class="kw">match </span>err {
-                            QueryErr::Unsupported { def_id, err, .. } =&gt; {
-                                <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx
-                                    .struct_span_err(<span class="self">self</span>.span, fluent::refineck_query_unsupported);
-                                diag.arg(<span class="string">"kind"</span>, tcx.def_kind(def_id).descr(def_id));
-                                <span class="kw">if let </span><span class="prelude-val">Some</span>(def_ident_span) = tcx.def_ident_span(def_id) {
-                                    diag.span_note(def_ident_span, fluent::_subdiag::note);
-                                }
-                                diag.note(err.descr);
-                                diag
-                            }
-                            QueryErr::Ignored { def_id } =&gt; {
-                                <span class="kw">let </span><span class="kw-2">mut </span>diag =
-                                    dcx.struct_span_err(<span class="self">self</span>.span, fluent::refineck_query_ignored);
-                                diag.arg(<span class="string">"kind"</span>, tcx.def_kind(def_id).descr(def_id));
-                                diag.arg(<span class="string">"name"</span>, pretty::def_id_to_string(def_id));
-                                diag.span_label(<span class="self">self</span>.span, fluent::_subdiag::label);
-                                diag
-                            }
-                            QueryErr::InvalidGenericArg { .. } | QueryErr::Emitted(<span class="kw">_</span>) =&gt; {
-                                <span class="kw">let </span><span class="kw-2">mut </span>diag = err.into_diag(dcx, level);
-                                diag.span(<span class="self">self</span>.span);
-                                diag
-                            }
-                        }
-                    }
-                };
-                diag.code(E0999);
-                diag
-            })
+            <span class="kw">match </span><span class="self">self</span>.kind {
+                CheckerErrKind::Inference =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>diag =
+                        dcx.struct_span_err(<span class="self">self</span>.span, fluent::refineck_param_inference_error);
+                    diag.code(E0999);
+                    diag
+                }
+                CheckerErrKind::OpaqueStruct(def_id) =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>diag =
+                        dcx.struct_span_err(<span class="self">self</span>.span, fluent::refineck_opaque_struct_error);
+                    diag.arg(<span class="string">"struct"</span>, pretty::def_id_to_string(def_id));
+                    diag.code(E0999);
+                    diag
+                }
+                CheckerErrKind::Query(err) =&gt; err.locate(<span class="self">self</span>.span).into_diag(dcx, level),
+            }
         }
     }
 

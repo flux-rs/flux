@@ -250,6 +250,10 @@
 <a href="#250" id="250">250</a>
 <a href="#251" id="251">251</a>
 <a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
 
 </span><span class="attr">#![feature(
@@ -291,7 +295,7 @@
 <span class="kw">use </span>checker::Checker;
 <span class="kw">pub use </span>checker::CheckerConfig;
 <span class="kw">use </span>constraint_gen::{ConstrReason, Tag};
-<span class="kw">use </span>flux_common::{cache::QueryCache, dbg, result::ResultExt};
+<span class="kw">use </span>flux_common::{cache::QueryCache, dbg, result::ResultExt <span class="kw">as _</span>};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
@@ -303,7 +307,7 @@
 <span class="kw">use </span>rustc_hir::def_id::LocalDefId;
 <span class="kw">use </span>rustc_span::Span;
 
-<span class="kw">use </span><span class="kw">crate</span>::ghost_statements::compute_ghost_statements;
+<span class="kw">use crate</span>::{checker::errors::ResultExt <span class="kw">as _</span>, ghost_statements::compute_ghost_statements};
 
 <span class="macro">fluent_messages!</span> { <span class="string">"../locales/en-US.ftl" </span>}
 
@@ -314,7 +318,9 @@
     config: CheckerConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="macro">dbg::check_fn_span!</span>(genv.tcx(), def_id).in_scope(|| {
-        <span class="kw">if </span>genv.map().is_trusted(def_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">? </span>{
+        <span class="kw">let </span>span = genv.tcx().def_span(def_id);
+
+        <span class="kw">if </span>genv.map().is_trusted(def_id).with_span(span).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">? </span>{
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
@@ -324,7 +330,9 @@
         </span><span class="kw">if </span>genv.tcx().def_span(def_id).ctxt() &gt; rustc_span::SyntaxContext::root() {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
-        <span class="kw">let </span>ghost_stmts = compute_ghost_statements(genv, def_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+        <span class="kw">let </span>ghost_stmts = compute_ghost_statements(genv, def_id)
+            .with_span(span)
+            .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
         <span class="comment">// PHASE 1: infer shape of `TypeEnv` at the entry of join points
         </span><span class="kw">let </span>shape_result =

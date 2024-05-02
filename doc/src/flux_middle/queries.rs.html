@@ -643,6 +643,59 @@
 <a href="#643" id="643">643</a>
 <a href="#644" id="644">644</a>
 <a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
+<a href="#663" id="663">663</a>
+<a href="#664" id="664">664</a>
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
+<a href="#687" id="687">687</a>
+<a href="#688" id="688">688</a>
+<a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
+<a href="#691" id="691">691</a>
+<a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -659,13 +712,14 @@
     def_id::{DefId, LocalDefId},
 };
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
-<span class="kw">use </span>rustc_span::Symbol;
+<span class="kw">use </span>rustc_span::{Span, Symbol};
 <span class="kw">use </span>rustc_trait_selection::traits::NormalizeExt;
 
 <span class="kw">use crate</span>::{
     fhir::{<span class="self">self</span>, FluxLocalDefId},
     global_env::GlobalEnv,
     intern::List,
+    pretty,
     rty::{
         <span class="self">self</span>,
         refining::{<span class="self">self</span>, Refiner},
@@ -687,6 +741,17 @@
     Ignored { def_id: DefId },
     InvalidGenericArg { def_id: DefId },
     Emitted(ErrorGuaranteed),
+}
+
+<span class="kw">impl </span>QueryErr {
+    <span class="kw">pub fn </span>locate(<span class="self">self</span>, span: Span) -&gt; LocatedQueryErr {
+        LocatedQueryErr { span, err: <span class="self">self </span>}
+    }
+}
+
+<span class="kw">pub struct </span>LocatedQueryErr {
+    span: Span,
+    err: QueryErr,
 }
 
 <span class="kw">pub struct </span>Providers {
@@ -1279,6 +1344,47 @@
                     diag
                 }
             }
+        })
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Diagnostic&lt;<span class="lifetime">'a</span>&gt; <span class="kw">for </span>LocatedQueryErr {
+    <span class="kw">fn </span>into_diag(
+        <span class="self">self</span>,
+        dcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_errors::DiagCtxt,
+        level: rustc_errors::Level,
+    ) -&gt; rustc_errors::Diag&lt;<span class="lifetime">'a</span>, ErrorGuaranteed&gt; {
+        <span class="kw">use </span><span class="kw">crate</span>::fluent_generated <span class="kw">as </span>fluent;
+
+        rustc_middle::ty::tls::with(|tcx| {
+            <span class="kw">let </span><span class="kw-2">mut </span>diag = <span class="kw">match </span><span class="self">self</span>.err {
+                QueryErr::Unsupported { def_id, err, .. } =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>diag =
+                        dcx.struct_span_err(<span class="self">self</span>.span, fluent::middle_query_unsupported_located);
+                    diag.arg(<span class="string">"kind"</span>, tcx.def_kind(def_id).descr(def_id));
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(def_ident_span) = tcx.def_ident_span(def_id) {
+                        diag.span_note(def_ident_span, fluent::_subdiag::note);
+                    }
+                    diag.note(err.descr);
+                    diag
+                }
+                QueryErr::Ignored { def_id } =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>diag =
+                        dcx.struct_span_err(<span class="self">self</span>.span, fluent::middle_query_ignored_located);
+                    diag.arg(<span class="string">"kind"</span>, tcx.def_kind(def_id).descr(def_id));
+                    diag.arg(<span class="string">"name"</span>, pretty::def_id_to_string(def_id));
+                    diag.span_label(<span class="self">self</span>.span, fluent::_subdiag::label);
+                    diag
+                }
+                QueryErr::InvalidGenericArg { .. } | QueryErr::Emitted(<span class="kw">_</span>) =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>diag = <span class="self">self</span>.err.into_diag(dcx, level);
+                    diag.span(<span class="self">self</span>.span);
+                    diag
+                }
+            };
+
+            diag.code(E0999);
+            diag
         })
     }
 }
