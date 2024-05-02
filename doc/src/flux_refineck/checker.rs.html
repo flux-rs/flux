@@ -3119,7 +3119,7 @@
                     diag.code(E0999);
                     diag
                 }
-                CheckerErrKind::Query(err) =&gt; err.locate(<span class="self">self</span>.span).into_diag(dcx, level),
+                CheckerErrKind::Query(err) =&gt; err.at(<span class="self">self</span>.span).into_diag(dcx, level),
             }
         }
     }
