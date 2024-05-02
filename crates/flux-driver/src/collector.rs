@@ -62,7 +62,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 ItemKind::Enum(def, ..) => collector.parse_enum_def(owner_id, attrs, def),
                 ItemKind::Mod(..) => collector.parse_mod_spec(owner_id.def_id, attrs),
                 ItemKind::TyAlias(..) => collector.parse_tyalias_spec(owner_id, attrs),
-                ItemKind::Const(..) => collector.parse_const_spec(item, attrs),
+                ItemKind::Const(..) => collector.parse_const_spec(owner_id.def_id, item, attrs),
                 ItemKind::Impl(impl_) => collector.parse_impl_specs(owner_id, attrs, impl_),
                 ItemKind::Trait(_, _, _, bounds, _) => {
                     collector.parse_trait_specs(owner_id, attrs, bounds)
@@ -125,9 +125,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         Ok(())
     }
 
-    fn parse_const_spec(&mut self, item: &Item, attrs: &[Attribute]) -> Result {
+    fn parse_const_spec(&mut self, def_id: LocalDefId, item: &Item, attrs: &[Attribute]) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Const)?;
         self.report_dups(&attrs)?;
+
+        if let Some(ignored) = attrs.ignore() {
+            self.specs.check_item.insert(def_id, ignored);
+        }
 
         let Some(_ty) = attrs.const_sig() else {
             return Ok(());
