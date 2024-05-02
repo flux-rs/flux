@@ -3,16 +3,17 @@ use std::collections::HashMap;
 use flux_common::{iter::IterExt, result::ResultExt};
 use flux_config::{self as config, CrateConfig};
 use flux_errors::FluxSession;
-use flux_middle::{fhir, rustc::lowering::resolve_trait_ref_impl_id, Specs};
+use flux_middle::{fhir::Ignored, rustc::lowering::resolve_trait_ref_impl_id, Specs};
 use flux_syntax::{surface, ParseResult, ParseSess};
 use itertools::Itertools;
 use rustc_ast::{
     tokenstream::TokenStream, AttrArgs, AttrItem, AttrKind, Attribute, MetaItemKind, NestedMetaItem,
 };
+use rustc_ast_pretty::pprust::tts_to_string;
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hir::{
     def::DefKind,
-    def_id::{DefId, LocalDefId},
+    def_id::{DefId, LocalDefId, CRATE_DEF_ID},
     AssocItemKind, EnumDef, GenericBounds, ImplItemKind, ImplItemRef, Item, ItemKind, OwnerId,
     VariantData,
 };
@@ -99,8 +100,10 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         // TODO(atgeller) error if >1 cfg attributes
 
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Mod)?;
-        if attrs.ignore() {
-            self.specs.ignores.insert(fhir::IgnoreKey::Crate);
+        self.report_dups(&attrs)?;
+
+        if let Some(ignored) = attrs.ignore() {
+            self.specs.check_item.insert(CRATE_DEF_ID, ignored);
         }
 
         self.specs.extend_items(attrs.items());
@@ -112,10 +115,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
     fn parse_mod_spec(&mut self, def_id: LocalDefId, attrs: &[Attribute]) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Mod)?;
-        self.specs.extend_items(attrs.items());
-        if attrs.ignore() {
-            self.specs.ignores.insert(fhir::IgnoreKey::Module(def_id));
+        self.report_dups(&attrs)?;
+
+        if let Some(ignored) = attrs.ignore() {
+            self.specs.check_item.insert(def_id, ignored);
         }
+
+        self.specs.extend_items(attrs.items());
         Ok(())
     }
 
@@ -459,7 +465,15 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("constant", AttrArgs::Empty) => {
                 FluxAttrKind::ConstSig(surface::ConstSig { span: attr_item.span() })
             }
-            ("ignore", AttrArgs::Empty) => FluxAttrKind::Ignore,
+            ("ignore", AttrArgs::Empty) => FluxAttrKind::Ignore(Ignored::Yes),
+            ("ignore", AttrArgs::Delimited(dargs)) => {
+                let val = tts_to_string(&dargs.tokens);
+                match &val[..] {
+                    "yes" => FluxAttrKind::Ignore(Ignored::Yes),
+                    "no" => FluxAttrKind::Ignore(Ignored::No),
+                    _ => Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() }))?,
+                }
+            }
             ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
             ("trusted", AttrArgs::Empty) => FluxAttrKind::Trusted,
             ("fake_impl", AttrArgs::Empty) => FluxAttrKind::FakeImpl,
@@ -725,7 +739,7 @@ enum FluxAttrKind {
     ConstSig(surface::ConstSig),
     CrateConfig(config::CrateConfig),
     Invariant(surface::Expr),
-    Ignore,
+    Ignore(Ignored),
     FakeImpl,
     ExternSpec,
 }
@@ -776,8 +790,8 @@ impl FluxAttrs {
         read_flag!(self, Trusted)
     }
 
-    fn ignore(&mut self) -> bool {
-        read_flag!(self, Ignore)
+    fn ignore(&mut self) -> Option<Ignored> {
+        read_attr!(self, Ignore)
     }
 
     fn fake_impl(&mut self) -> bool {
@@ -862,7 +876,7 @@ impl FluxAttrKind {
             FluxAttrKind::Variant(_) => attr_name!(Variant),
             FluxAttrKind::TypeAlias(_) => attr_name!(TypeAlias),
             FluxAttrKind::CrateConfig(_) => attr_name!(CrateConfig),
-            FluxAttrKind::Ignore => attr_name!(Ignore),
+            FluxAttrKind::Ignore(_) => attr_name!(Ignore),
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
             FluxAttrKind::FakeImpl => attr_name!(FakeImpl),

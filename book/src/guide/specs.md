@@ -230,3 +230,41 @@ r ::= n                     // numbers 1,2,3...
     | r => r                // implication
     | !r                    // negation
 ```
+
+## Ignored and trusted code
+
+Flux offers two attributes for controlling which parts of your code it analyzes: `#[flux::ignore]` and `#[flux::trusted]`.
+
+* `#[flux::ignore]`: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.
+* `#[flux::trusted]`: This attribute only applies to functions. When a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.
+
+The above means that an *ignored* function can only be called from ignored or trusted code, while a *trusted* function can also be called from analyzed code.
+
+The `#[flux::ignore]` attribute applies recursively. For instance, if a module is marked as `#[flux::ignore]`, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with `#[flux::ignore(no)]`[^ignore-shorthand], which will include all nested elements for analysis.
+
+Consider the following example:
+
+```rust
+#[flux::ignore]
+mod A {
+
+   #[flux::ignore(no)]
+   mod B {
+      mod C {
+         fn f1() {}
+      }
+   }
+
+   mod D {
+      fn f2() {}
+   }
+
+   fn f3() {}
+}
+```
+
+In this scenario, functions `f2` and `f3` will be ignored, while `f1` will be analyzed.
+
+A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate and then selectively include specific sections for analysis.
+
+[^ignore-shorthand]: `#[flux::ignore]` is shorthand for `#[flux::ignore(yes)]`.

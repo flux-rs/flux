@@ -19,6 +19,7 @@ mod foo {
         }
     }
 
+    #[flux::trusted]
     pub fn test_crap(vec: Vec<i32>) {
         let _ = vec.into_iter().map(|val| assert!(10 < val));
     }

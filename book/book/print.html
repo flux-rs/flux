@@ -1,0 +1,1491 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Flux Documentation</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+        
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="css/flux.css">
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('light')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Introduction</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="guide/install.html"><strong aria-hidden="true">1.</strong> Install</a></li><li class="chapter-item expanded "><a href="guide/run.html"><strong aria-hidden="true">2.</strong> Run</a></li><li class="chapter-item expanded "><a href="guide/specs.html"><strong aria-hidden="true">3.</strong> Specs</a></li><li class="chapter-item expanded "><a href="dev/develop.html"><strong aria-hidden="true">4.</strong> Develop</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="dev/architecture.html"><strong aria-hidden="true">4.1.</strong> Architecture</a></li></ol></li><li class="chapter-item expanded "><li class="part-title">Examples</li><li class="chapter-item expanded "><a href="blog/01-introducing-flux.html"><strong aria-hidden="true">5.</strong> Introducing Flux</a></li><li class="chapter-item expanded "><a href="blog/02-ownership.html"><strong aria-hidden="true">6.</strong> Ownership in Flux</a></li><li class="chapter-item expanded "><a href="blog/03-vectors.html"><strong aria-hidden="true">7.</strong> Refined Vectors</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">8.</strong> Iterators</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">9.</strong> Structs</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">10.</strong> Enums</div></li><li class="spacer"></li><li class="chapter-item expanded affix "><a href="about.html">About</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Flux Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <img src="img/logo-wide.svg" class="flux-logo" alt="Flux Logo">
+<p>Flux is a <strong>refinement type checker</strong> for Rust that lets you <em>specify</em>
+a range of correctness properties and have them be <em>verified</em> at compile
+time.</p>
+<p>See the <strong>examples</strong>  -- listed in the summary on the left -- to learn about Refinement types and Rust.</p>
+<p>You can try it online <a href="https://flux.programming.systems">here</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="installing-flux"><a class="header" href="#installing-flux">Installing Flux</a></h1>
+<h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
+<ul>
+<li><a href="https://rustup.rs/">rustup</a></li>
+<li><a href="https://github.com/ucsd-progsys/liquid-fixpoint">liquid-fixpoint</a></li>
+<li><a href="https://github.com/Z3Prover/z3">z3</a></li>
+</ul>
+<p>Be sure that the <code>liquid-fixpoint</code> and <code>z3</code> executables are in your <code>$PATH</code>.</p>
+<h2 id="installing"><a class="header" href="#installing">Installing</a></h2>
+<p>The only way to use <code>flux</code> is to build it from source.</p>
+<p>First you need to clone the repository</p>
+<pre><code class="language-bash">git clone https://github.com/flux-rs/flux
+cd flux
+</code></pre>
+<p>To build the source you need a nightly version of <code>rustc</code>.
+We pin the version using a <a href="https://github.com/flux-rs/flux/blob/main/rust-toolchain">toolchain file</a> (more info <a href="https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file">here</a>).
+If you are using <code>rustup</code>, no special action is needed as it should install the correct <code>rustc</code> version and components based on the information on that file.</p>
+<p>Next, run the following to build and install <code>flux</code> binaries</p>
+<pre><code class="language-bash">cargo xtask install
+</code></pre>
+<p>This will install two binaries <code>rustc-flux</code> and <code>cargo-flux</code> in your cargo home. These two binaries should be used
+respectively to run flux on either a single file or on a project using cargo. The installation process will
+also copy some files to <code>$HOME/.flux</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="running-flux"><a class="header" href="#running-flux">Running Flux</a></h1>
+<p>You can run <code>flux</code> on a single file or entire crate.</p>
+<h2 id="running-on-a-file-rustc-flux"><a class="header" href="#running-on-a-file-rustc-flux">Running on a File: <code>rustc-flux</code></a></h2>
+<p>You can use <code>rustc-flux</code> as you would use <code>rustc</code>.
+For example, the following command checks the file <code>test.rs</code>.</p>
+<pre><code class="language-bash">rustc-flux path/to/test.rs
+</code></pre>
+<p>The flux binary accepts the same flags as <code>rustc</code>.
+You could for example check a file as a library instead of a binary like so</p>
+<pre><code class="language-bash">rustc-flux --crate-type=lib path/to/test.rs
+</code></pre>
+<h2 id="running-on-a-package-cargo-flux"><a class="header" href="#running-on-a-package-cargo-flux">Running on a package: <code>cargo-flux</code></a></h2>
+<p>Flux is integrated with <code>cargo</code> and can be invoked in a package as follows:</p>
+<pre><code class="language-bash">cargo flux
+</code></pre>
+<p>By default, Flux won't verify a package unless it's explicitly enabled in the manifest.
+To do so add the following to <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[package.metadata.flux]
+enabled = true
+</code></pre>
+<h2 id="a-tiny-example"><a class="header" href="#a-tiny-example">A tiny example</a></h2>
+<p>The following example declares a function <code>inc</code>
+that returns an integer greater than the input.
+We use the nightly feature <code>register_tool</code>
+to register the <code>flux</code> tool in order to
+add refinement annotations to functions.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(x: i32) -&gt; i32{v: x &lt; v})]
+pub fn inc(x: i32) -&gt; i32 {
+    x - 1
+}
+<span class="boring">}</span></code></pre></pre>
+<p>You can save the above snippet in say <code>test0.rs</code> and then run</p>
+<pre><code class="language-bash">rustc-flux --crate-type=lib path/to/test0.rs
+</code></pre>
+<p>you should see in your output</p>
+<pre><code class="language-text">error[FLUX]: postcondition might not hold
+ --&gt; test0.rs:3:5
+  |
+3 |     x - 1
+  |     ^^^^^
+</code></pre>
+<p>as indeed <code>x - 1</code> is <em>not</em> greater than <code>x</code> as required by the output refinement <code>i32{v: x &lt; v}</code>.</p>
+<p>If you fix the error by replacing <code>x - 1</code> with <code>x + 1</code>, you should get no errors
+in the output (the output may be empty, but in this case no output is a good
+thing).</p>
+<p>Read <a href="guide/SUMMARY.html#learn">these chapters</a> to learn more about what you specify and verify with <code>flux</code>.</p>
+<h2 id="a-note-about-the-flux-driver-binary"><a class="header" href="#a-note-about-the-flux-driver-binary">A note about the flux-driver binary</a></h2>
+<p>The <code>flux-driver</code> binary is a <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=driver#the-rustc-driver-and-interface">rustc
+driver</a>
+(similar to how clippy works) meaning it uses rustc as a library to &quot;drive&quot;
+compilation performing additional analysis along the way. Running the binary
+requires dynamically linking a correct version of <code>librustc</code>. Thus, to avoid the
+hassle you should never execute it directly.  Instead, use <code>rustc-flux</code> or <code>cargo-flux</code>.</p>
+<h2 id="editor-support"><a class="header" href="#editor-support">Editor Support</a></h2>
+<p>This section assumes you have installed <code>flux</code>, <code>cargo-flux</code>, and <code>rustc-flux</code>.</p>
+<h3 id="rust-analyzer-in-vscode"><a class="header" href="#rust-analyzer-in-vscode">Rust-Analyzer in VSCode</a></h3>
+<p>Add this to the workspace settings i.e. <code>.vscode/settings.json</code></p>
+<pre><code class="language-json">{
+  &quot;rust-analyzer.check.overrideCommand&quot;: [
+    &quot;cargo&quot;,
+    &quot;flux&quot;,
+    &quot;--workspace&quot;,
+    &quot;--message-format=json-diagnostic-rendered-ansi&quot;
+  ]
+}
+</code></pre>
+<p><strong>Note:</strong> Make sure to edit the paths in the above snippet to point to the correct locations on your machine.</p>
+<h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
+<h3 id="environment-variables"><a class="header" href="#environment-variables">Environment Variables</a></h3>
+<p>You can set various <code>env</code> variables to customize the behavior of <code>flux</code>.</p>
+<ul>
+<li><code>FLUX_CONFIG</code> tells <code>flux</code> where to find a config file for these settings.
+<ul>
+<li>By default, <code>flux</code> searches its directory for a <code>flux.toml</code> or <code>.flux.toml</code>.</li>
+</ul>
+</li>
+<li><code>FLUX_SYSROOT</code> tells <code>cargo-flux</code> and <code>rustc-flux</code> where to find the <code>flux-driver</code> binary.
+<ul>
+<li>Defaults to the default installation location in <code>~/.flux</code>.</li>
+</ul>
+</li>
+<li><code>FLUX_LOG_DIR=path/to/log/</code> sets the directory where constraints, timing and cache are saved. Defaults to <code>./log/</code>.</li>
+<li><code>FLUX_DUMP_CONSTRAINT=1</code> tell <code>flux</code> to dump constraints generated for each function.</li>
+<li><code>FLUX_DUMP_CHECKER_TRACE=1</code> saves the checker's trace (useful for debugging!)</li>
+<li><code>FLUX_DUMP_TIMINGS=1</code> saves the profile information</li>
+<li><code>FLUX_DUMP_MIR=1</code> saves the low-level MIR for each analyzed function</li>
+<li><code>FLUX_POINTER_WIDTH=N</code> the size of (either <code>32</code> or <code>64</code>), used to determine if an integer cast is lossy (default <code>64</code>).</li>
+<li><code>FLUX_CHECK_DEF=name</code> only checks definitions containing <code>name</code> as a substring</li>
+<li><code>FLUX_CACHE=1&quot;</code> switches on query caching and saves the cache in <code>FLUX_CACHE_FILE</code></li>
+<li><code>FLUX_CACHE_FILE=file.json</code> customizes the cache file, default <code>FLUX_LOG_DIR/cache.json</code></li>
+<li><code>FLUX_CHECK_OVERFLOW=1</code> checks for over and underflow on arithmetic integer
+operations, default <code>0</code>. When set to <code>0</code>, it still checks for underflow on
+unsigned integer subtraction.</li>
+</ul>
+<h3 id="config-file"><a class="header" href="#config-file">Config file</a></h3>
+<p>The config file is a <code>.toml</code> file that contains on each line the lowercase name
+of a <code>flux</code> command line flag without the <code>FLUX_</code> prefix. Set environment
+variables take priority over the config file.</p>
+<p>The config file should be in the project root.</p>
+<p>For example, suppose your project root contains the following <code>flux.toml</code>.</p>
+<pre><code class="language-toml">log_dir = &quot;./test&quot;
+dump_timings = true
+dump_mir = true
+cache = true
+</code></pre>
+<p>and you run in the project root</p>
+<pre><code class="language-bash">FLUX_DUMP_MIR=0 cargo-flux check
+</code></pre>
+<p>then <code>flux</code> will create the directory <code>./test/</code> and write <code>./test/timings</code>, a file
+containing profiling information. It will <em>not</em> dump the MIR because that setting
+was overridden by setting the environment variable <code>FLUX_DUMP_MIR=0</code>.</p>
+<h3 id="crate-config"><a class="header" href="#crate-config">Crate Config</a></h3>
+<p>Some flags can be configured on a per-crate basis using the custom inner attribute <code>#![flux::cfg]</code>.
+This annotation relies on the unstable custom inner attributes feature. To be able to use with a
+non-nightly compiler you have to put it under a <code>cfg_attr</code>.
+For example, to enable overflow checking:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span>#![cfg_attr(flux, flux::cfg(check_overflow = true))]
+<span class="boring">fn main() {
+</span><span class="boring">}</span></code></pre></pre>
+<p>The only flag supported now is overflow checking.</p>
+<h3 id="query-caching"><a class="header" href="#query-caching">Query Caching</a></h3>
+<p><code>FLUX_CACHE=1</code> persistently caches the safe fixpoint queries for each <code>DefId</code> in
+<code>FLUX_LOG_DIR/FLUX_CACHE_FILE</code>, and on subsequent runs, skips queries that are
+already in the cache, which considerably speeds up <code>cargo-flux check</code> on an
+entire crate.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="flux-specification-guide"><a class="header" href="#flux-specification-guide">Flux Specification Guide</a></h1>
+<p>This is a WIP guide to writing specifications in <code>flux</code>.</p>
+<h2 id="refinement-types"><a class="header" href="#refinement-types">Refinement Types</a></h2>
+<ul>
+<li>
+<p><strong>Indexed Type</strong>: An indexed type <code>B[r]</code> is composed of a base Rust type <code>B</code> and a refinement index <code>r</code>. The meaning of the index depends on the type. Some examples are</p>
+<ul>
+<li><code>i32[n]</code>: denotes the (singleton) set of <code>i32</code> values equal to <code>n</code>.</li>
+<li><code>List&lt;T&gt;[n]</code>: values of type <code>List&lt;T&gt;</code> of length <code>n</code>.</li>
+</ul>
+</li>
+<li>
+<p><strong>Refinement parameter</strong>: Function signatures can be parametric on refinement variables. Refinement parameters are declared using the <code>@n</code> syntax. For example, the following signature:</p>
+<p><code>fn(i32[@n]) -&gt; i32[n + 1]</code></p>
+<p>binds <code>n</code> over the entire scope of the function to specify that it takes an <code>i32</code> equal to <code>n</code> and returns an <code>i32</code> equal to <code>n + 1</code>. This is analogous to languages like Haskell where a lower case letter can be used to quantify over a type, e.g., the type <code>a -&gt; a</code> in Haskell is polymorphic on the type <code>a</code> which is bound for the scope of the entire function type.</p>
+</li>
+<li>
+<p><strong>Existential Type</strong>: An existential type <code>B{v: r(v)}</code> is composed of a base type <code>B</code>, a refinement variable <code>v</code> and a refinement predicate <code>r</code> on <code>v</code>. Intuitively, a Rust value <code>x</code> has type <code>B{v: r(v)}</code> if there exists a refinement value <code>a</code> such that <code>r(a)</code> holds and <code>x</code> has type <code>B[x]</code>.</p>
+<ul>
+<li><code>i32{v: v &gt; 0}</code>: set of positive <code>i32</code> values.</li>
+<li><code>List&lt;T&gt;{v: v &gt; 0}</code>: set of non-empty lists.</li>
+</ul>
+</li>
+<li>
+<p><strong>Constraint Type</strong>: A constraint type has the form <code>{T | r}</code> where <code>T</code> is any type (not just a base type). Intuitively, a value has type <code>{T | r}</code> if it has type <code>T</code> and also <code>r</code> holds. They can be used to constraint a refinement parameter. For example, the following signature constraint the refinement parameter <code>n</code> to be less than <code>n</code>.</p>
+<p><code>fn({i32[@n] | n &lt; 10}) -&gt; i32[n + 1]</code></p>
+<p>Constraint types serve a similar role as existentials as they can also be used to constraint some
+refinement value with a predicate, but an existential type can only be used to constraint refinement
+variable that it bound locally, in contrast constraint types can be used to constraint a &quot;non-local&quot; parameter. This can be seen in the example above where the parameter <code>n</code> cannot be bound locally
+because it has to be used in the return type.</p>
+</li>
+</ul>
+<h2 id="argument-syntax"><a class="header" href="#argument-syntax">Argument Syntax</a></h2>
+<p>The <code>@n</code> syntax used to declare refinements parameters can be hard to read sometimes. Flux also supports a syntax that let you bind refinement parameters using colons similar to the syntax used to declare arguments in a function. We call this <em>argument syntax</em>. This syntax desugars to one of the refinements forms discussed above. For example, the following signature</p>
+<p><code>fn(x: i32, y: i32) -&gt; i32[x + y]</code></p>
+<p>desugars to</p>
+<p><code>fn(i32[@x], i32[@y]) -&gt; i32[x + y]</code></p>
+<p>It is also possible to attach some constraint to the parameters when using argument syntax. For example,
+to specify that <code>y</code> must be greater than <code>x</code> using argument syntax we can write:</p>
+<p><code>fn(x: i32, y: i32{x &gt; y}) -&gt; i32[x + y]</code></p>
+<p>This will desugar to:</p>
+<p><code>fn(i32[@x], {i32[@y] | x &gt; y}) -&gt; i32[x + y]</code></p>
+<h2 id="extern-specs"><a class="header" href="#extern-specs">Extern specs</a></h2>
+<p>Sometimes you may want to refine a struct or function that outside your code. We
+refer to such a specification as an &quot;extern spec,&quot; which is short for &quot;external
+specification.&quot;</p>
+<p>Flux right now has rudimentary support for extern specs: they are supported for
+functions, impls, and structs. Impls are only supported for structs and if you
+have multiple impls for a struct (such as <code>&amp;[T]</code> and <code>[T]</code>), those may conflict.
+Structs only support opaque refinements.</p>
+<h3 id="import-the-procedural-macros"><a class="header" href="#import-the-procedural-macros">Import the procedural macros</a></h3>
+<p>In order to use an extern spec you need to add a dependency on
+<a href="https://github.com/flux-rs/flux/tree/main/flux-rs"><code>flux_rs</code></a>.
+Right now this needs to be done as a local dependency since it is not published.
+Below is an example of how you can include it, although the version may be
+different.</p>
+<pre><code class="language-toml">[dependencies]
+flux-rs = { path = &quot;path-to-flux/flux/flux-rs&quot;, version = &quot;0.1.0&quot; }
+</code></pre>
+<p>Then in your code you will need to include the <code>extern_spec</code> attribute macro.</p>
+<pre><code>use flux_rs::extern_spec;
+</code></pre>
+<h3 id="extern-functions"><a class="header" href="#extern-functions">Extern functions</a></h3>
+<p>An example of refining an extern function can be found
+<a href="https://github.com/flux-rs/flux/blob/d49a74dc59b2b9bb1dda01ee019d0ab9a66cdd89/flux-tests/tests/pos/surface/extern_spec_macro.rs">here</a>.</p>
+<p>To define an extern spec on a function, you need to do three things, which
+happen to correspond to each of the below lines.</p>
+<pre><code>#[extern_spec(std::mem)]
+#[flux::sig(fn(&amp;mut i32[@a], &amp;mut i32{v : a &lt; v }) -&gt; ())]
+fn swap(a: &amp;mut i32, b: &amp;mut i32);
+</code></pre>
+<ol>
+<li>Add the <code>#[extern_spec]</code> attribute. This attribute optionally takes a path;
+in the above example, this is <code>std::mem</code>. You can use this path to qualify
+the function. So in the above example, the function we are targeting has the
+full path of <code>std::mem::swap</code>.</li>
+<li>Add a <code>#[flux::sig(...)]</code> attribute. This is required for any extern spec on
+a function. This signature behaves as if the <code>#[flux::trusted]</code> attribute was
+added, because we can't actually check the implementation. We just verify
+some simple things, like that the function arguments have compatible types.</li>
+<li>Write a function stub that matches the external function.</li>
+</ol>
+<p>If you do the above, you can use <code>std::mem::swap</code> as if it were refined by the
+above type.</p>
+<p>You shouldn't need to know the details, but here's how the macro works. It
+parses the <code>std::mem</code> into a module path and then transforms the function into</p>
+<pre><code>#[flux::extern_spec]
+#[flux::sig(fn(&amp;mut i32[@a], &amp;mut i32{v : a &lt; v }) -&gt; ())]
+#[allow(unused, dead_code)]
+fn __flux_extern_spec_swap(a: &amp;mut i32, b: &amp;mut i32) {
+    std::mem::swap(a, b)
+}
+</code></pre>
+<p>It does this to get information about the function <code>std::mem::swap</code> and its
+arguments (this turns out to be difficult to do without giving the compiler
+something to inspect and type check).</p>
+<h3 id="extern-structs-and-impls"><a class="header" href="#extern-structs-and-impls">Extern structs and impls</a></h3>
+<p>An example of refining an extern struct and impl can be found
+<a href="https://github.com/flux-rs/flux/blob/d49a74dc59b2b9bb1dda01ee019d0ab9a66cdd89/flux-tests/tests/pos/surface/extern_spec_impl.rs">here</a>.
+A simpler example just involving structs can be found
+<a href="https://github.com/flux-rs/flux/blob/d49a74dc59b2b9bb1dda01ee019d0ab9a66cdd89/flux-tests/tests/pos/surface/extern_spec_struct.rs">here</a>.</p>
+<p>The syntax for an extern spec on a struct is very similar to that for a
+function. Once again, each line in the example happens to correspond to a step.</p>
+<pre><code>#[extern_spec(std::string)]
+#[flux::refined_by(len: int)]
+struct String;
+</code></pre>
+<ol>
+<li>Add the <code>#[extern_spec]</code> attribute. This attribute optionally takes a path;
+in the above example, this is <code>std::string</code>. You can use this path to qualify
+the function. So in the above example, the struct we are targeting has the
+full path of <code>std::string::String</code>.</li>
+<li>Add a <code>#[flux::refined_by(...)]</code> attribute. This is required for any extern
+spec on a struct. Right now these attributes behave as if they were opaque
+(<code>#[flux::opaque]</code>), although we may support non-opaque extern structs.</li>
+<li>Write a stub for the extern struct.</li>
+</ol>
+<p>If you do the above, you can use <code>std::string::String</code> as if it were refined by
+an integer index.</p>
+<p>The syntax for an extern impl is a little different than that for functions or
+structs.</p>
+<pre><code>#[extern_spec(std::string)]
+impl String {
+    #[flux::sig(fn() -&gt; String[0])]
+    fn new() -&gt; String;
+
+    #[flux::sig(fn(&amp;String[@n]) -&gt; usize[n])]
+    fn len(s: &amp;String) -&gt; usize;
+}
+</code></pre>
+<ol>
+<li>You still need to add the <code>#[extern_spec]</code> attribute, with the same optional
+argument of the path as above.</li>
+<li>You need to write out the <code>impl</code> block for the struct you want to refine.
+This struct does not need an extern spec, since by refining the <code>impl</code> you're
+only refining its methods.</li>
+<li>Write an extern spec for each function you wish to refine (this may be a
+subset). This is written just like a function extern spec with the caveat
+that the <code>self</code> parameter is not presently supported. So for example, instead
+of writing <code>fn len(&amp;self) -&gt; usize;</code>, you need to write <code>fn len(s: &amp;String) -&gt; usize;</code>.</li>
+</ol>
+<p>If you do the above, you can use the above methods of<code>std::string::String</code> as if
+they were refined.</p>
+<p>You shouldn't need to know the details, but here's how the above two macros expand.</p>
+<p>For structs:</p>
+<pre><code>#[flux::extern_spec]
+#[allow(unused, dead_code)]
+#[flux::refined_by(len: int)]
+struct __FluxExternSpecString(std::string::String);
+</code></pre>
+<p>For impls (this was translated manually so there might be some bugs):</p>
+<pre><code>#[allow(unused, dead_code)]
+struct __FluxExternImplStructString;
+
+#[allow(unused, dead_code)]
+impl __FluxExternImplStructString {
+    #[flux::extern_spec]
+    #[flux::sig(fn() -&gt; String[0])]
+    #[allow(unused, dead_code)]
+    fn __flux_extern_spec_new() -&gt; String {
+       std::string::String::new::&lt;&gt;()
+    }
+    #[flux::extern_spec]
+    #[flux::sig(fn(&amp;String[@n]) -&gt; usize[n])]
+    #[allow(unused, dead_code)]
+    fn __flux_extern_spec_len(s: &amp;String) -&gt; usize {
+       std::string::String::len::&lt;&gt;(s)
+    }
+}
+</code></pre>
+<h2 id="grammar-of-refinements"><a class="header" href="#grammar-of-refinements">Grammar of Refinements</a></h2>
+<pre><code class="language-text">r ::= n                     // numbers 1,2,3...
+    | x                     // identifiers x,y,z...
+    | x.f                   // index-field access
+    | r + r                 // addition
+    | r - r                 // subtraction
+    | n * e                 // multiplication by constant
+    | if r { r } else { r } // if-then-else
+    | f(r...)               // function application
+    | true | false          // booleans
+    | r == r                // equality
+    | r != r                // not equal
+    | r &lt; r                 // less than
+    | r &lt;= r                // less than or equal
+    | r &gt; r                 // greater than
+    | r &gt;= r                // greater than or equal
+    | r || r                // disjunction
+    | r &amp;&amp; r                // conjunction
+    | r =&gt; r                // implication
+    | !r                    // negation
+</code></pre>
+<h2 id="ignored-and-trusted-code"><a class="header" href="#ignored-and-trusted-code">Ignored and trusted code</a></h2>
+<p>Flux offers two attributes for controlling which parts of your code it analyzes: <code>#[flux::ignore]</code> and <code>#[flux::trusted]</code>.</p>
+<ul>
+<li><code>#[flux::ignore]</code>: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.</li>
+<li><code>#[flux::trusted]</code>: This attribute only applies to functions. When a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.</li>
+</ul>
+<p>The above means that an <em>ignored</em> function can only be called from other ignored or trusted code, while a <em>trusted</em> function can also be called from code being analyzed.</p>
+<p>The <code>#[flux::ignore]</code> attribute applies recursively. For instance, if a module is marked as <code>#[flux::ignore]</code>, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with <code>#[flux::ignore(no)]</code><sup class="footnote-reference"><a href="#ignore-shorthand">1</a></sup>, which will include all nested elements for analysis.</p>
+<p>Consider the following example:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::ignore]
+mod A {
+
+   #[flux::ignore(no)]
+   mod B {
+      mod C {
+         fn f1() {}
+      }
+   }
+
+   mod D {
+      fn f2() {}
+   }
+
+   fn f3() {}
+}
+<span class="boring">}</span></code></pre></pre>
+<p>In this scenario, functions <code>f2</code> and <code>f3</code> will be ignored, while <code>f1</code> will be analyzed.</p>
+<p>A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate and then selectively include specific sections for analysis.</p>
+<div class="footnote-definition" id="ignore-shorthand"><sup class="footnote-definition-label">1</sup>
+<p><code>#[flux::ignore]</code> is shorthand for <code>#[flux::ignore(yes)]</code>.</p>
+</div>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
+<h2 id="regression-tests"><a class="header" href="#regression-tests">Regression Tests</a></h2>
+<p>You can run the various regression tests in the <code>tests/pos</code> and <code>tests/neg</code> directories using
+<code>cargo xtask test</code></p>
+<p>This will build the flux binary and then run it against the entire test suite.
+You can optionally pass a <em>filter</em> to only run tests containing some substring.
+For example:</p>
+<pre><code class="language-console">$ cargo xtask test impl_trait
+   Compiling xtask v0.1.0 (/path/to/flux/xtask)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.29s
+     Running `target/debug/xtask test impl_trait`
+$ cargo build
+    Finished dev [unoptimized + debuginfo] target(s) in 0.05s
+$ cargo test -p tests -- --test-args impl_trait
+   Compiling fluxtests v0.1.0 (/path/to/flux/tests)
+    Finished test [unoptimized + debuginfo] target(s) in 0.62s
+     Running tests/compiletest.rs (target/debug/deps/compiletest-1241128f1f51caa4)
+
+running 5 tests
+test [ui] pos/surface/impl_trait04.rs ... ok
+test [ui] pos/surface/impl_trait03.rs ... ok
+test [ui] pos/surface/impl_trait01.rs ... ok
+test [ui] pos/surface/impl_trait00.rs ... ok
+test [ui] pos/surface/impl_trait02.rs ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 191 filtered out; finished in 0.10s
+
+
+running 2 tests
+test [compile-fail] neg/surface/impl_trait00.rs ... ok
+test [compile-fail] neg/surface/impl_trait02.rs ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 207 filtered out; finished in 0.09s
+</code></pre>
+<h2 id="testing-flux-on-a-file"><a class="header" href="#testing-flux-on-a-file">Testing Flux on a File</a></h2>
+<p>When working on Flux, you may want to test your changes by running it against a test file.
+You can use <code>cargo xtask run &lt;input&gt;</code> to run Flux on a single input file.
+The command will set appropriate flags to be able to use custom Flux attributes and macros,
+plus some extra flags useful for debugging.
+For example:</p>
+<pre><code class="language-console">$ cat test.rs
+#[flux::sig(fn(x: i32) -&gt; i32[x + 1])]
+fn add1(x: i32) -&gt; i32 {
+    x + 1
+}
+$ cargo xtask run test.rs
+</code></pre>
+<p>The command will use a super set of the flags passed when running regression tests.
+Thus, a common workflow is to identify a failing test and run it directly with <code>cargo xtask run</code>,
+or alternatively copy it to a different file.</p>
+<p>You may also find useful to create a directory in the root of the project and add it to
+<a href="https://git-scm.com/docs/gitignore"><code>.git/info/exclude</code></a>.
+You can keep files there, outside of version control, and test Flux against them.
+I have a directory called <code>attic/</code> where I keep a file named <code>playground.rs</code>.
+To run Flux on it, I do <code>cargo xtask run attic/playground.rs</code>.</p>
+<h2 id="reporting-locations-where-errors-are-emitted"><a class="header" href="#reporting-locations-where-errors-are-emitted">Reporting locations where errors are emitted</a></h2>
+<p>When you use <code>cargo xtask run</code> you'll see that we report the location an error was emitted, e.g.,</p>
+<pre><code class="language-console">error[FLUX]: refinement type error
+ --&gt; attic/playground.rs:4:5
+  |
+4 |     0
+  |     ^ a postcondition cannot be proved
+-Ztrack-diagnostics: created at crates/flux-refineck/src/lib.rs:114:15   &lt;------- this
+</code></pre>
+<p>You can also pass <code>-Ztrack-diagnostics=y</code> to enable it if you are not using <code>cargo xtask run</code></p>
+<h2 id="running-outside-the-project"><a class="header" href="#running-outside-the-project">Running outside the project</a></h2>
+<p>To run Flux in a package outside the flux repo you need to install the binaries globally. You can
+do that using <code>cargo xtask install</code>. If you are continuously testing new changes it could be annoying
+to do it each time. To deal with this, you can set the <code>FLUX_SYSROOT</code> environment variable to change the
+location where <code>cargo-flux</code> and <code>rustc-flux</code> load the <code>flux-driver</code>. You can set it globally to point
+to the <code>target/debug</code> directory inside your local copy of the repo. This way you won't have to run
+<code>cargo xtask install</code> after every change, and you can be sure you'll be using the latest local debug
+build. Just be aware that the <code>rustc-flux</code> and <code>cargo-flux</code> binaries are built for a specific toolchain,
+and you will get a dynamic linking error if the <code>flux-driver</code> was compiled with a different one. This
+is to say, you should at least run <code>cargo xtask install</code> every time after the toolchain is updated.</p>
+<h2 id="profiling-flux"><a class="header" href="#profiling-flux">Profiling Flux</a></h2>
+<p>Set <code>FLUX_DUMP_TIMINGS=true</code> to have flux write timing diagnostics to <code>./log/timings</code>.</p>
+<p>Right now this is <em>extremely</em> simple, it just provides some details for the spans under <code>flux_typeck</code> and <code>flux_driver</code>.</p>
+<h3 id="sample-output"><a class="header" href="#sample-output">Sample output</a></h3>
+<p>Below is a sample output for an invocation of <code>cargo-flux check</code> that took 19 seconds. The missing 2 seconds approximately accounts for the time it takes for <code>cargo check</code> to run.</p>
+<p>Note that <code>check_crate</code> contains everything running under <code>check_top</code>, which is why the sum of the spans is greater than 19 seconds.</p>
+<pre><code class="language-text">check_top
+  Checker::infer
+    num events:   205
+    min non-zero: 0.52ms
+    1st quartile: 0.52ms
+    2nd quartile: 1.05ms
+    3rd quartile: 2.62ms
+    max:          24.12ms
+    total time:   229.64ms
+  Checker::check
+    num events:   205
+    min non-zero: 0.52ms
+    1st quartile: 0.52ms
+    2nd quartile: 1.05ms
+    3rd quartile: 5.24ms
+    max:          159.91ms
+    total time:   2028.47ms
+  FixpointCtx::check
+    num events:   205
+    min non-zero: 22.02ms
+    1st quartile: 26.21ms
+    2nd quartile: 28.31ms
+    3rd quartile: 40.37ms
+    max:          1867.51ms
+    total time:   9106.36ms
+total time: 11364.47ms
+
+check_crate
+  Callbacks::check_wf
+    num events:   1
+    min non-zero: 18.35ms
+    1st quartile: 18.87ms
+    2nd quartile: 18.87ms
+    3rd quartile: 18.87ms
+    max:          18.87ms
+    total time:   18.87ms
+  Callbacks::check_crate
+    num events:   1
+    min non-zero: 16986.93ms
+    1st quartile: 16995.32ms
+    2nd quartile: 16995.32ms
+    3rd quartile: 16995.32ms
+    max:          16995.32ms
+    total time:   16995.32ms
+total time: 17014.19ms
+</code></pre>
+<h2 id="macro-expansion"><a class="header" href="#macro-expansion">Macro expansion</a></h2>
+<p>For example if you have code like  in <code>path/to/file.rs</code></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[extern_spec]
+#[flux::refined_by(elems: Set&lt;T&gt;)]
+struct HashSet&lt;T, S = RandomState&gt;;
+<span class="boring">}</span></code></pre></pre>
+<p>and you want to see what the <code>extern_spec</code> macro expands it out to, then run</p>
+<pre><code>cargo x run -- -Zunpretty=expanded path/to/file.rs
+</code></pre>
+<p>Or you can run the <code>xtask</code> command directly</p>
+<pre><code>cargo x expand path/to/file.rs
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="high-level-architecture"><a class="header" href="#high-level-architecture">High-level Architecture</a></h1>
+<p>Flux is implemented as a compiler <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=Callbacks%5C#rustc_driver-and-rustc_interface">driver</a>. We hook into the compiler by implementing the <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_driver/trait.Callbacks.html"><code>Callbacks</code></a> trait. The implementation is located is in the <code>flux-driver</code> crate, and it is the main entry point to Flux.</p>
+<h2 id="crates"><a class="header" href="#crates">Crates</a></h2>
+<ul>
+<li><code>crates/flux-bin</code>: Contains the <code>cargo-flux</code> and <code>rustc-flux</code> binaries used to launch the <code>flux-driver</code>.</li>
+<li><code>crates/flux-common</code>: Common utility definitions used across all crates.</li>
+<li><code>crates/flux-config</code>: Crate containing logic associated with global configuration flags that change the behavior of Flux, e.g, to enable or disable overflow checking.</li>
+<li><code>crates/flux-desugar</code>: Implementation of name resolution and desugaring from Flux surface syntax into Flux high-level intermediate representation (<code>fhir</code>). This includes name resolution.</li>
+<li><code>crates/flux-driver</code>: Main entry point to Flux. It contains the <code>flux-driver</code> binary and the implementation of the <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_driver/trait.Callbacks.html"><code>Callbacks</code></a> trait.</li>
+<li><code>crates/flux-errors</code>: Utility definitions for user facing error reporting.</li>
+<li><code>crates/flux-fhir-analysis</code>: Implements the &quot;analyses&quot; performed in the <code>fhir</code>, most notably well-formedness checking and conversion from <code>fhir</code> into <code>rty</code>.</li>
+<li><code>crates/flux-fixpoint</code>: Code to interact with the Liquid Fixpoint binary.</li>
+<li><code>crates/flux-macros</code>: Procedural macros used internally to implement Flux.</li>
+<li><code>crates/flux-metadata</code>: Logic for saving Flux crate metadata that can be used to import refined signatures from external crates.</li>
+<li><code>crates/flux-middle</code>: This crate contains common type definitions that are used by the rest of Flux like the <code>rty</code> and <code>fhir</code> intermediate representations. Akin to <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/index.html"><code>rustc_middle</code></a>.</li>
+<li><code>crates/flux-refineck</code>: Implementation of refinement type checking.</li>
+<li><code>crates/flux-syntax</code>: Definition of the surface syntax AST and parser.</li>
+<li><code>tests</code>: Flux regression tests.</li>
+<li><code>lib/flux-attrs</code>: Implementation of user facing procedural macros for annotating programs with Flux specs.</li>
+<li><code>lib/flux-rs</code>: This is just a re-export of the macros implemented in <code>flux-attrs</code>. The intention is to eventually put Flux &quot;standard library&quot; here, i.e., a set of definitions that are useful when working with Flux.</li>
+</ul>
+<h2 id="intermediate-representations"><a class="header" href="#intermediate-representations">Intermediate Representations</a></h2>
+<p>Flux has several intermediate representations (IR) for types. They represent a refined version of an equivalent type in some <code>rustc</code> IR. We have picked a distinct <em>verb</em> to refer to the process of going between these different representations to make it easier to refer to them. The following image summarizes all the IRs and the process for going between them.</p>
+<p><img src="dev/../img/irs.svg" alt="IRs diagram" /></p>
+<h3 id="surface"><a class="header" href="#surface">Surface</a></h3>
+<p>The surface IR represents source level Flux annotations. It corresponds to the <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_ast/index.html"><code>rustc_ast</code></a> data structures in <code>rustc</code>. The definition as well as the parser is located in the <code>flux-syntax</code> crate.</p>
+<h3 id="fhir"><a class="header" href="#fhir">Fhir</a></h3>
+<p>The Flux High-Level Intermediate Representation (fhir) is a refined version of <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_hir/index.html"><code>rustc</code>'s hir</a>. The definition is located in the <code>flux_middle</code> crate inside the <code>fhir</code> module. The process of going from <code>surface</code> to <code>fhir</code> is called <em>desugaring</em>, and it is implemented in the <code>flux-desugar</code> crate.</p>
+<h3 id="rty"><a class="header" href="#rty">Rty</a></h3>
+<p>The definition in the <code>flux_middle::rty</code> module correspond to a refined version of the main <code>rustc</code> representation for types defined in <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/ty/index.html"><code>rustc_middle::ty</code></a>. The process of going from <code>fhir</code> to <code>rty</code> is called <em>conversion</em>, and it is implemented in the <code>flux_fhir_analysis::conv</code> module.</p>
+<h3 id="simplified-rustc"><a class="header" href="#simplified-rustc">Simplified Rustc</a></h3>
+<p>The definition in the <code>flux_middle::rustc</code> module correspond to simplified version of data structures in <code>rustc</code>. They can be understood as the currently supported subset of Rust. The process of going from a definition in <code>rustc_middle</code> into <code>flux_middle::rustc</code> is called <em>lowering</em> and it is implemented in <code>flux_middle::rustc::lowering</code>.</p>
+<h3 id="lifting-and-refining"><a class="header" href="#lifting-and-refining">Lifting and Refining</a></h3>
+<p>Besides the different translation between Flux intermediate representations, there are two ways to get a refined version from a rust type. The process of going from a type in <code>hir</code> into a type in <code>fhir</code> is called <em>lifting</em>, and it is implemented in <code>flux_middle::fhir::lift</code>. The process for going from a type in <code>flux_middle::rustc::ty</code> into a <code>flux_middle::rty</code> is called <em>refining</em>, and it is implemented <code>flux_middle::rty::refining</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="introducing-flux"><a class="header" href="#introducing-flux">Introducing Flux</a></h1>
+<p><a href="https://flux.programming.systems/?example=refinements.rs">Online demo</a></p>
+<p>Types bring order to code. For example, if a variable <code>i:usize</code>
+then we know <code>i</code> is a number that can be used to index a vector.
+Similarly, if <code>v:vec&lt;&amp;str&gt;</code> then we can be sure that <code>v</code> is a
+collection of strings which may <em>be</em> indexed but of course,
+not used <em>as</em> an index. However, by itself <code>usize</code> doesn't
+tell us how big or small the number and hence the programmer
+must still rely on their own wits, a lot of tests, and a dash
+of optimism, to ensure that all the different bits fit properly
+at run-time.</p>
+<p><a href="https://arxiv.org/abs/2010.07763">Refinements</a> are a promising new way to extend
+type checkers with logical constraints that <em>specify</em> additional
+correctness requirements that can be <em>verified</em> by the compiler,
+thereby entirely eliminating various classes of run-time problems.</p>
+<p>We're excited to introduce <a href="https://github.com/liquid-rust/flux/">Flux</a>, a refinement type
+checker plugin that brings this technology to <code>Rust</code>.</p>
+<!-- more -->
+<h2 id="indexed-types"><a class="header" href="#indexed-types">Indexed Types</a></h2>
+<p>The most basic form of refinement type in <code>flux</code> is a type that is
+<em>indexed</em> by a logical value. For example</p>
+<div class="table-wrapper"><table><thead><tr><th style="text-align: left"><strong>Type</strong></th><th style="text-align: left"><strong>Meaning</strong></th></tr></thead><tbody>
+<tr><td style="text-align: left"><code>i32[10]</code></td><td style="text-align: left">The (singleton) set of <code>i32</code> values equal to <code>10</code></td></tr>
+<tr><td style="text-align: left"><code>bool[true]</code></td><td style="text-align: left">The (singleton) set of <code>bool</code> values equal to <code>true</code></td></tr>
+</tbody></table>
+</div>
+<h3 id="post-conditions"><a class="header" href="#post-conditions">Post-Conditions</a></h3>
+<p>We can already start using these indexed types to start writing (and checking)
+code. For example we can write the following specification which says that
+the value <em>returned</em> by <code>mk_ten</code> must in fact be <code>10</code></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn() -&gt; i32[10])]
+pub fn mk_ten() -&gt; i32 {
+    5 + 4
+}
+<span class="boring">}</span></code></pre></pre>
+<p>but when you compile it, <code>flux</code> will say</p>
+<pre><code class="language-bash">error[FLUX]: postcondition might not hold
+ --&gt; src/basics.rs:7:5
+  |
+7 |     5 + 4
+  |     ^^^^^
+</code></pre>
+<p>The error says that that the <em>postcondition might not hold</em> which means
+that the <em>output</em> produced by <code>mk_ten</code> may not in fact be an <code>i32[10]</code>
+as indeed, in this case, the result is <code>9</code>! You can eliminate the error
+by replacing the body with <code>5 + 5</code> or just <code>10</code>.</p>
+<img src="blog/../img/mk10.gif" width="100%">
+<h3 id="pre-conditions"><a class="header" href="#pre-conditions">Pre-Conditions</a></h3>
+<p>Here's a second example that shows how you can use an index to restrict
+the space of <em>inputs</em> that a function expects.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn (b:bool[true]))]
+pub fn assert(b:bool) {
+  if !b { panic!(&quot;assertion failed&quot;) }
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Here, the refined specification for <code>assert</code> says that you can <em>only</em> call
+it with <code>true</code> as the input. So if you write</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn test(){
+  assert(2 + 2 == 4);
+  assert(2 + 2 == 5); // fails to type check
+}
+<span class="boring">}</span></code></pre></pre>
+<p>then <code>flux</code> will complain that</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>error[FLUX]: precondition might not hold
+  --&gt; src/basics.rs:12:5
+   |
+12 |     assert(2 + 2 == 5); // fails to type check
+   |     ^^^^^^^^^^^^^^^^^^
+<span class="boring">}</span></code></pre></pre>
+<p>meaning that the call to <code>assert</code> fails to establish that
+the input is indeed <code>true</code> (as of course, in this case, it is not!)</p>
+<img src="blog/../img/assert.gif" width="100%">
+<h2 id="index-parameters-and-expressions"><a class="header" href="#index-parameters-and-expressions">Index Parameters and Expressions</a></h2>
+<p>It's not terribly exciting to only talk about <em>fixed</em> values
+like <code>10</code> or <code>true</code>. To be more useful, <code>flux</code> lets you index
+types by refinement <em>parameters</em>. For example, you can write</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(n:i32) -&gt; bool[0 &lt; n])]
+pub fn is_pos(n: i32) -&gt; bool {
+    if 0 &lt; n {
+        true
+    } else {
+        false
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Here, the type says that <code>is_pos</code></p>
+<ul>
+<li>takes as <em>input</em> some <code>i32</code> <em>indexed by</em> <code>n</code></li>
+<li>returns as <em>output</em> the <code>bool</code> <em>indexed by</em> <code>0 &lt; n</code></li>
+</ul>
+<p>in other words, the output is <code>true</code> <em>exactly when</em> <code>0 &lt; n</code>.</p>
+<p>We might use this function to check that:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub fn test_pos(n: i32) {
+  let m = if is_pos(n) { n - 1 } else { 0 };
+  assert(0 &lt;= m);
+}
+<span class="boring">}</span></code></pre></pre>
+<img src="blog/../img/test_pos.gif" width="100%">
+<h2 id="existential-types"><a class="header" href="#existential-types">Existential Types</a></h2>
+<p>Often we don't care about the <em>exact</em> value of a thing -- but just
+care about some <em>properties</em> that it may have. For example, we don't
+care that an <code>i32</code> is equal to <code>5</code> or <code>10</code> or <code>n</code> but that it is
+non-negative.</p>
+<div class="table-wrapper"><table><thead><tr><th style="text-align: left"><strong>Type</strong></th><th style="text-align: left"><strong>Meaning</strong></th></tr></thead><tbody>
+<tr><td style="text-align: left"><code>i32{v: 0 &lt;  v}</code></td><td style="text-align: left">The set of <code>i32</code> values that positive</td></tr>
+<tr><td style="text-align: left"><code>i32{v: n &lt;= v}</code></td><td style="text-align: left">The set of <code>i32</code> values greater than or equal to <code>n</code></td></tr>
+</tbody></table>
+</div>
+<p>Flux allows such specifications by pairing plain Rust types
+with <em>assertions</em> <sup class="footnote-reference"><a href="#1">1</a></sup> that constrain the value. For example, we can rewrite
+<code>mk_10</code> with the output type <code>i32{v:0&lt;v}</code> that specifies a weaker property:
+the value returned by <code>mk_ten</code> is positive.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn() -&gt; i32{v: 0 &lt; v})]
+pub fn mk_ten() -&gt; i32 {
+    5 + 5
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Similarly, you might specify that a function that computes the <em>absolute</em>
+value of an <code>i32</code> with a type which says the result is non-negative <em>and</em>
+exceeds the input <code>n</code>.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn (n:i32) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
+pub fn abs(n: i32) -&gt; i32 {
+    if 0 &lt;= n {
+        n
+    } else {
+        0 - n
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<p>As a last example, you might write a function to compute the factorial of <code>n</code></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn (n:i32) -&gt; i32{v:1&lt;=v &amp;&amp; n&lt;=v})]
+pub fn factorial(n: i32) -&gt; i32 {
+    let mut i = 0;
+    let mut res = 1;
+    while i &lt; n {
+        i += 1;
+        res = res * i;
+    }
+    res
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Here the specification says the input must be non-negative, and the
+output is at least as large as the input. Note, that unlike the previous
+examples, here we're actually <em>changing</em> the values of <code>i</code> and <code>res</code>.</p>
+<img src="blog/../img/factorial.gif" width="100%">
+<p>Can you guess why the copilot suggestions <em>failed</em> to pass flux, and
+what refinements were <em>inferred</em> for <code>i</code> and <code>res</code> in the <em>fixed</em> code
+at the end?</p>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>In this post, we saw how Flux lets you</p>
+<ol>
+<li>
+<p><em>decorate</em> basic Rust types like <code>i32</code> and <code>bool</code> with
+<strong>indices</strong> and <strong>constraints</strong> that let you respectively
+<em>refine</em> the sets of values that inhabit that type, and</p>
+</li>
+<li>
+<p><em>specify</em> contracts on functions that state <strong>pre-conditions</strong> on
+the sets of legal inputs that they accept, and <strong>post-conditions</strong>
+that describe the outputs that they produce.</p>
+</li>
+</ol>
+<p>The whole point of Rust, of course, is to allow for efficient <em>imperative</em>
+sharing and updates, without sacrificing thread- or memory-safety. Next time,
+we'll see how Flux melds refinements and Rust's ownership to make refinements
+happily coexist with imperative code.</p>
+<div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
+<p>These are not arbitrary Rust expressions but a subset of expressions
+from logics that can be efficiently decided by <a href="https://github.com/flux-rs/flux/blob/main/book/src/guide/specs.md#grammar-of-refinements">SMT Solvers</a></p>
+</div>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="ownership-in-flux"><a class="header" href="#ownership-in-flux">Ownership in Flux</a></h1>
+<p><a href="https://flux.programming.systems/?example=ownership.rs">Online demo</a></p>
+<p><a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">Previously</a> we saw how to refine basic Rust
+types like <code>i32</code> and <code>bool</code> with <em>indices</em> and <em>constraints</em> to
+constrain the set of values described by those types.</p>
+<p>The whole point of Rust, of course, is to allow for efficient
+imperative <em>sharing</em> and <em>updates</em>, via the clever type system
+that keeps an eye on the <em>ownership</em> of resources to make sure
+that aliasing and mutation cannot happen at the same time.</p>
+<p>Next, lets see how Flux melds refinements and Rust's ownership
+mechanisms to make refinements work in the imperative setting.</p>
+<h2 id="exclusive-ownership"><a class="header" href="#exclusive-ownership">Exclusive Ownership</a></h2>
+<p>Rust's most basic form of ownership is <em>exclusive</em> ownership,
+in which exactly one variable in a function has the right to
+mutate a memory location. When a location is exclusively
+owned, we can be sure that there are <em>no other references</em>
+to it, which lets flux <em>update</em> the type whenever the location
+is changed. For example, consider the program</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn () -&gt; i32[3])]
+pub fn mk_three() -&gt; i32 {
+    let mut r = 0;  // r: i32[0]
+    r += 1;
+    assert(r == 1); // r: i32[1]
+    r += 1;
+    assert(r == 2); // r: i32[2]
+    r += 1;
+    assert(r == 3); // r: i32[3]
+    r
+}
+<span class="boring">}</span></code></pre></pre>
+<p>The variable <code>r</code> has <em>different types</em> at each point inside <code>mk_three</code>.
+It starts off as <code>i32[0]</code>. The first increment changes it to <code>i32[1]</code>,
+then <code>i32[2]</code> and finally, the returned type <code>i32[3]</code>.</p>
+<img src="blog/../img/mk_three.gif" width="100%">
+<p>This exclusive ownership mechanism is at work in the <code>factorial</code> example
+we signed off with <a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">previously</a></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn (n:i32{0 &lt;= n}) -&gt; i32{v:n &lt;= v})]
+pub fn factorial(n: i32) -&gt; i32 {
+    let mut i = 0;  // i: i32[0]
+    let mut r = 1;  // r: i32[1]
+    while i &lt; n {
+                    // i: i32{v:0&lt;=v&lt;=n}
+                    // r: i32{v:1&lt;=v &amp;&amp; i&lt;=v}
+        i += 1;
+        r = r * i;
+    }
+    r
+}
+<span class="boring">}</span></code></pre></pre>
+<p>In the above code, <code>i</code> and <code>r</code> start off at <code>0</code> and <code>1</code> but then
+Rust <em>infers</em> (a story for another day) that inside the <code>while</code>-loop<sup class="footnote-reference"><a href="#1">1</a></sup></p>
+<ul>
+<li><code>i</code> has type <code>i32{v:0&lt;=v &amp;&amp; v &lt; n}</code></li>
+<li><code>r</code> has type <code>i32{v:1&lt;=v &amp;&amp; i &lt;= v}</code></li>
+</ul>
+<p>and hence, upon exit since <code>i == n</code> we get that the result is at least <code>n</code>.</p>
+<h2 id="borrowing-shared-references"><a class="header" href="#borrowing-shared-references">Borrowing: Shared References</a></h2>
+<p>Exclusive ownership suffices for simple local updates like in <code>factorial</code>.
+However, for more complex data, functions must temporarily relinquish
+ownership to allow <em>other</em> functions to mutate the data. Rust cleverly
+allows this via the notion of <em>borrowing</em> using two kinds of references
+that give callees temporary access to a memory location.</p>
+<p>The simplest kind of references are of the form <code>&amp;T</code> which denote <em>read-only</em>
+access to a value of type <code>T</code>. For example, we might write <code>abs</code> to take
+a shared reference to an <code>i32</code></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn (p: &amp;i32[@n]) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
+pub fn abs(p: &amp;i32) -&gt; i32 {
+    let n = *p;
+    if 0 &lt;= n {
+        n
+    } else {
+        0 - n
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Notice that the <em>input</em> type has changed: the function now</p>
+<ul>
+<li>Accepts <code>p</code> a <em>reference</em> to an <code>i32</code> whose value is <code>n</code> as denoted by <code>@n</code></li>
+<li>Returns an <code>i32</code> that is non-negative and larger than <code>n</code></li>
+</ul>
+<p>The <code>@</code> marks the <code>n</code> as a <em>refinement parameter</em> whose value
+is automatically computed by flux during type checking.</p>
+<p>So, for example, Flux can check the below code by automatically
+determining that the refinement parameter at the call-site is <code>10</code>.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub fn test_abs() {
+    let z = 10;
+    assert(0 &lt;= abs(&amp;z))
+    assert(10 &lt;= abs(&amp;z))
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="refinement-parameters"><a class="header" href="#refinement-parameters">Refinement Parameters</a></h3>
+<p>As an aside, we have secretly been using <em>refinement parameters</em>
+like <code>@n</code> all along. For example, Flux automatically <em>desugars</em> the signature <code>fn(n:i32{0 &lt;= n} -&gt; ...</code> that we wrote for <code>factorial</code> into</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn ({i32[@n] : 0 &lt;= n}) -&gt; i32{v:n &lt;= v}
+<span class="boring">}</span></code></pre></pre>
+<p>where <code>@n</code> is a refinement parameter that is <em>implicitly</em> determined
+from the rust parameter <code>n:i32</code>. However, <em>explicit</em> parameters are
+essential to <em>name</em> the value of what a reference points to.
+In <code>abs</code> the <code>rust</code> parameter <code>p</code> names the reference but the
+<code>@n</code> names the (input) <em>value</em> and lets us use it to provide
+more information about the output of <code>abs</code>.</p>
+<p>Flux is <em>modular</em> in that the <em>only</em> information it
+knows about the implementation of <code>abs</code> is the signature: for example
+if we remove the fact that the output exceeds <code>n</code> then Flux will
+reject the assertion <code>10 &lt;= abs(&amp;z)</code>.</p>
+<img src="blog/../img/test_abs.gif" width="100%">
+<h2 id="borrowing-mutable-references"><a class="header" href="#borrowing-mutable-references">Borrowing: Mutable References</a></h2>
+<p>References of type <code>&amp;mut T</code> denote <em>mutable</em> references that can be
+used to (read and) write or update the contents of a <code>T</code> value.
+Crucially, Rust ensures that while there may be multiple read-only (shared)
+references to a location, there is at most one <em>active</em> writeable (mutable)
+reference at any point in time.</p>
+<p>Flux exploits the semantics of <code>&amp;mut T</code> to treat <code>T</code> as an <em>invariant</em>
+of the underlying data. As an example, consider the following function
+that <em>decrements</em> the value of a mutable reference while ensuring the
+data is non-negative:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(p: &amp;mut i32{v:0 &lt;= v}))]
+pub fn decr(p: &amp;mut i32) {
+    *p = *p - 1;
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Flux will complain with the following message</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>error[FLUX]: assignment might be unsafe
+  --&gt; src/basics.rs:13:9
+   |
+13 |         *p = *p - 1;
+   |         ^^^^^^^^^^^
+<span class="boring">}</span></code></pre></pre>
+<p>as in fact, we <em>may</em> be writing a negative value into <code>*p</code>
+if, for example, the old value was zero. We can fix this
+code by guarding the update with a test that ensures the
+original contents are in fact <em>non-zero</em></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(p: &amp;mut i32{v:0 &lt;= v}))]
+pub fn decr(p: &amp;mut i32) {
+    let n = *p;
+    if n != 0 {
+        *p = n - 1;
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<p>at which point Flux is happy to sign off on the code.</p>
+<img src="blog/../img/decr.gif" width="100%">
+<h2 id="aliased-references"><a class="header" href="#aliased-references">Aliased References</a></h2>
+<p>Flux uses Rust's borrowing rules to track invariants even when
+there may be aliasing. As an example, consider the function</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn (bool) -&gt; i32{v:0 &lt;= v})]
+fn test_alias(z: bool) -&gt; i32 {
+    let mut x = 1;  // x: i32[1]
+    let mut y = 2;  // y: i32[2]
+    let r = if z { &amp;mut x } else { &amp;mut y };
+                    // r: &amp;mut i32{v:0 &lt;= v}
+    decr(r);
+    *r
+}
+<span class="boring">}</span></code></pre></pre>
+<p>The reference <code>r</code> could point to <em>either</em> <code>x</code> or <code>y</code> depending
+on the (unknown) value of the boolean <code>z</code>. Nevertheless, Flux
+determines that <em>both</em> references <code>&amp;mut x</code> and <code>&amp;mut y</code> point
+to values of the more general type <code>i32{v:0&lt;=v}</code> and hence,
+infers <code>r : &amp;mut i32{v:0&lt;=v}</code> which allows us it to then call
+<code>decr</code> with the reference and guarantee the result (after <code>decr</code>)
+is still non-negative.</p>
+<h2 id="borrowing-strong-references"><a class="header" href="#borrowing-strong-references">Borrowing: Strong References</a></h2>
+<p>In many situations, we want to lend a value to another function
+that actually <em>changes</em> the value's (refinement) type upon exit.
+For example, consider the following function to increment a reference
+to a non-negative <code>i32</code></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn (p: &amp;mut i32{v:0 &lt;= v}))]
+fn incr(p: &amp;mut i32) {
+  *p += 1
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Recall that Flux is <em>modular</em> in that the <em>only</em> information it
+has about <code>incr</code> is what is said in the signature. The signature
+for <code>incr</code> only says <code>p</code> remains non-negative: Flux does <em>not</em>
+know that <code>incr</code> actually <em>increments</em> the value of <code>p</code>.</p>
+<p>Hence, Flux fusses that the following <code>assert</code> may fail even though
+its patently obvious that it will succeed!</p>
+<img src="blog/../img/test_incr.gif" width="100%">
+<p>To verify <code>test_incr</code> we need a signature for <code>incr</code> that says
+that its <em>output</em> is indeed one greater<sup class="footnote-reference"><a href="#2">2</a></sup> than its input.
+Flux extends Rust with the notion of <strong>strong references</strong>
+of the form <code>&amp;strg T</code> which refine Rust's <code>&amp;mut T</code> to grant
+<em>exclusive</em> access to the underlying <code>T</code>. Crucially, strong
+references also let us specify how the type is <em>updated</em> when
+the function exits<sup class="footnote-reference"><a href="#3">3</a></sup>. Thus, we can use strong references to
+type <code>incr</code> as</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(p: &amp;strg i32[@n]) ensures p:i32[n+1])]
+fn incr(p: &amp;mut i32) {
+  *p += 1
+}
+<span class="boring">}</span></code></pre></pre>
+<p>The Flux signature refines the plain Rust one to specify that</p>
+<ol>
+<li><code>p</code> is a strong reference to an <code>i32</code>,</li>
+<li>the <em>input type</em> of <code>*p</code> is <code>i32[n]</code>, and</li>
+<li>the <em>output type</em> of <code>*p</code> is <code>i32[n+1]</code>.</li>
+</ol>
+<p>With this specification, Flux merrily checks <code>test_incr</code>, by
+determining that the refinement parameter <code>@n</code> is <code>10</code> and
+hence, that upon return <code>x: i32[11]</code>.</p>
+<h2 id="summary-1"><a class="header" href="#summary-1">Summary</a></h2>
+<p>To sum up, Flux exploits Rust's ownership mechanisms to track properties
+of <em>shared</em> (<code>&amp;T</code>) and <em>mutable</em> (<code>&amp;mut T</code>) references, and additionally
+adds a <em>strong</em> (<code>&amp;strg T</code>) reference -- a special case of <code>&amp;mut</code> -- to
+support the cases where the type itself is <em>changed</em> by a call.</p>
+<p>Next, we'll see how refinements and ownership yield a simple refined API
+for <em>vectors</em> that lets Flux check bounds safety at compile time...</p>
+<div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
+<p>For those familiar with the term, these types are <em>loop invariants</em>
+<sup class="footnote-reference"><a href="#2">2</a></sup>: Setting aside the issue of overflows for now
+<sup class="footnote-reference"><a href="#3">3</a></sup>: Thereby allowing so-called <em>strong updates</em> in the type specifications</p>
+</div>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="refined-vectors"><a class="header" href="#refined-vectors">Refined Vectors</a></h1>
+<p><a href="http://goto.ucsd.edu:8091/index.html#?demo=vectors.rs">Online demo</a></p>
+<p>While <code>rustc</code> has a keen eye for spotting nasty bugs at
+compile time, it is not omniscient. We've all groaned in
+dismay at seeing deployed code crash with messages like</p>
+<pre><code>panicked at 'index out of bounds: the len is ... but the index is ...'
+</code></pre>
+<p>Next, lets see how flux's <a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">refinement</a> and <a href="https://liquid-rust.github.io/2022/11/16/ownership-in-flux/">ownership</a>
+mechanisms let us write a <em>refined vector</em> API whose types track vector sizes
+and ensure --- at compile time --- that vector accesses <em>cannot</em> fail at runtime.</p>
+<h2 id="refining-vectors-to-track-their-size"><a class="header" href="#refining-vectors-to-track-their-size">Refining Vectors to Track their Size</a></h2>
+<p>To begin with, we will defined a <em>refined</em> vector type which is simply a wrapper
+around the standard <code>Vec</code> type</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::refined_by(len: int)]
+pub struct RVec&lt;T&gt; {
+    inner: Vec&lt;T&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<p>The <code>#[flux::refined_by(len: int)]</code> attribute tells flux that the type <code>RVec&lt;T&gt;</code> struct
+is indexed by a <code>len</code> refinement which tracks the <em>size</em> of the underlying vector, just
+like the indices for <code>i32</code> and <code>bool</code> tracked the actual <em>value</em> of the underlying
+<a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">integer or boolean</a>). The idea is that the type</p>
+<ul>
+<li><code>RVec&lt;i32&gt;[10]</code> represents a vector of <code>i32</code> size 10, and</li>
+<li><code>RVec&lt;bool&gt;{v:0 &lt; v}</code> represents a <em>non-empty</em> vector of <code>bool</code>, and</li>
+<li><code>RVec&lt;RVec&lt;f32&gt;[n]&gt;[m]</code> represents a vector of vectors of <code>f32</code> of size <code>m</code> and
+<em>each of</em> whose elements is a vector of size <code>n</code>.</li>
+</ul>
+<h3 id="creating-vectors"><a class="header" href="#creating-vectors">Creating Vectors</a></h3>
+<p>Now that we can talk about the size of a vector, lets build up an API for creating and
+manipulating vectors. I suppose one must start with nothing: an empty vector.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl&lt;T&gt; RVec&lt;T&gt; {
+    #[flux::trusted]
+    #[flux::sig(fn() -&gt; RVec&lt;T&gt;[0])]
+    pub fn new() -&gt; Self {
+        Self { inner: Vec::new() }
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<p>The above implements <code>RVec::new</code> as a wrapper around <code>Vec::new</code>.
+The <code>#[flux::trusted]</code> attribute tells Flux there is nothing to
+&quot;check&quot; here, as we are <em>defining</em> the API itself and trusting
+that the implementation (using <code>vec</code> is correct).
+However, the signature says that <em>callers</em> of the <code>RVec::new</code> get
+back a vector indexed with <code>0</code> i.e. an empty vector.</p>
+<h3 id="pushing-values"><a class="header" href="#pushing-values">Pushing Values</a></h3>
+<p>An empty vector is a rather desolate thing.</p>
+<p>To be of any use, we need to be able to <code>push</code> values into the container, like so</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::trusted]
+#[flux::sig(fn(self: &amp;strg RVec&lt;T&gt;[@n], T)
+            ensures self: RVec&lt;T&gt;[n+1])]
+pub fn push(&amp;mut self, item: T) {
+    self.inner.push(item);
+}
+<span class="boring">}</span></code></pre></pre>
+<p>The refined type for <code>push</code> says that it takes a <em>strong</em> reference (<code>self</code>)
+--- where <code>strg</code> means the refined type may be <a href="blog/blog-owners">changed by the function</a> ---
+to an <code>RVec&lt;T&gt;</code> of size <code>n</code> and a value <code>T</code> and upon exit, the size of <code>self</code>
+is increased by <code>1</code>.</p>
+<h3 id="popping-values"><a class="header" href="#popping-values">Popping Values</a></h3>
+<p>Not much point stuffing things into a vector if we can't get them out again.</p>
+<p>For that, we might implement a <code>pop</code> method that returns the last element
+of the vector. Aha, but what if the vector is empty? You could return an
+<code>Option&lt;T&gt;</code> <em>or</em> since we're tracking sizes, we could <em>require</em> that <code>pop</code>
+only be called with non-empty vectors.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::trusted]
+#[flux::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
+            ensures self: RVec&lt;T&gt;[n-1])]
+pub fn pop(&amp;mut self) -&gt; T {
+  self.inner.pop().unwrap()
+}
+<span class="boring">}</span></code></pre></pre>
+<h3 id="using-the-api"><a class="header" href="#using-the-api">Using the API</a></h3>
+<p>Now already <code>flux</code> can start checking some code, for example if you <code>push</code> two
+elements, then you can <code>pop</code> twice, but flux will reject the third <code>pop</code> at
+compile-time</p>
+<img src="blog/../img/push_pop.gif" width="100%">
+<p>In fact, the error message from <code>flux</code> will point to exact condition that
+does not hold</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>error[FLUX]: precondition might not hold
+  --&gt; src/vectors.rs:24:5
+   |
+24 |     v.pop();
+   |     ^^^^^^^ call site
+   |
+   = note: a precondition cannot be proved at this call site
+note: this is the condition that cannot be proved
+  --&gt; src/rvec.rs:78:47
+   |
+78 |     #[flux::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
+   |                                               ^^^^^
+<span class="boring">}</span></code></pre></pre>
+<!--
+We can use `push` to implement an `rvec!` macro for constructing vectors
+and then test that lengths are tracked correctly
+
+<img src="blog/../img/test_macro_pop.gif" width="100%"> -->
+<h3 id="querying-the-size"><a class="header" href="#querying-the-size">Querying the Size</a></h3>
+<p>Perhaps we should <em>peek</em> at the size of the vector to make sure its not empty <em>before</em>
+we <code>pop</code> it. We can do that with a <code>len</code> method whose type says that the returned <code>usize</code>
+is, in fact, the size of the input vector</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::trusted]
+#[flux::sig(fn(&amp;RVec&lt;T&gt;[@n]) -&gt; usize[n])]
+pub fn len(&amp;self) -&gt; usize {
+    self.inner.len()
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Now, flux &quot;knows&quot; that after two <code>push</code>es, the size of the vector is <code>2</code> and after
+the two <code>pop</code>s, the size is <code>0</code> again</p>
+<img src="blog/../img/push_pop_len.gif" width="100%">
+<h3 id="random-access"><a class="header" href="#random-access">Random Access</a></h3>
+<p>Of course, vectors are not just <em>stacks</em>, they also allow
+<em>random</em> access to their elements which is where those
+pesky panics occur, and where the refined vector API
+gets rather useful. Since we're tracking sizes, we can
+<em>require</em> that the method to <code>get</code> an element only be
+called with a <em>valid index</em> that is between <code>0</code> and the
+vector's size</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(&amp;RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;T)]
+pub fn get(&amp;self, i: usize) -&gt; &amp;T {
+    &amp;self.inner[i]
+}
+
+#[flux::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;mut T)]
+pub fn get_mut(&amp;mut self, i: usize) -&gt; &amp;mut T {
+    &amp;mut self.inner[i]
+}
+<span class="boring">}</span></code></pre></pre>
+<p>With these refined <code>get</code> methods, flux can now spot the
+``off-by-one'' error in the following code and accepts
+the fix <sup class="footnote-reference"><a href="#1">1</a></sup></p>
+<img src="blog/../img/vec_sum.gif" width="100%">
+<p>Its a bit gross to use <code>get</code> and <code>get_mut</code> directly, so instead we implement
+the <code>Index</code> and <code>IndexMut</code> traits for <code>RVec</code> which allows us to use the
+<code>[]</code> operator to access elements</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl&lt;T&gt; std::ops::Index&lt;usize&gt; for RVec&lt;T&gt; {
+    type Output = T;
+    #[flux::sig(fn(&amp;RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;T)]
+    fn index(&amp;self, index: usize) -&gt; &amp;T {
+        self.get(index)
+    }
+}
+
+impl&lt;T&gt; std::ops::IndexMut&lt;usize&gt; for RVec&lt;T&gt; {
+    #[flux::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;mut T)]
+    fn index_mut(&amp;mut self, index: usize) -&gt; &amp;mut T {
+        self.get_mut(index)
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<p>And now the above <code>vec_sum</code> example looks a little nicer</p>
+<img src="blog/../img/vec_sum_index.gif" width="100%">
+<h2 id="memoization"><a class="header" href="#memoization">Memoization</a></h2>
+<p>Lets put the whole API to work in this &quot;memoized&quot; version of the fibonacci
+function which uses a vector to store the results of previous calls</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub fn fib(n: usize) -&gt; i32 {
+    let mut r = RVec::new();
+    let mut i = 0;
+    while i &lt; n {
+        if i == 0 {
+            r.push(0);
+        } else if i == 1 {
+            r.push(1);
+        } else {
+            let a = r[i - 1];
+            let b = r[i - 2];
+            r.push(a + b);
+        }
+        i += 1;
+    }
+    r.pop()
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Oops, flux is not happy with the call to <code>pop</code> at the end of the function
+which returns the <em>last</em> value as the result.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>error[FLUX]: precondition might not hold
+  --&gt; src/vectors.rs:40:5
+   |
+40 |     r.pop()
+   |     ^^^^^^^
+<span class="boring">}</span></code></pre></pre>
+<p>Flux complains that the vector may be <em>empty</em> and so the <code>pop</code> call may
+fail ... but why? Can you spot the problem?</p>
+<p>Indeed, we missed a &quot;corner&quot; case -- when <code>n</code> is <code>0</code> we skip the loop and
+so the vector is empty! Once we add a test for that, flux is happy.</p>
+<img src="blog/../img/fib.gif" width="100%">
+<h2 id="binary-search"><a class="header" href="#binary-search">Binary Search</a></h2>
+<p>As a last example, lets look at a simplified version of the
+<a href="https://doc.rust-lang.org/src/core/slice/mod.rs.html#2423-2425"><code>binary_search</code> method from <code>std::vec</code></a>, into which I've snuck a tiny little bug</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub fn binary_search(vec: &amp;RVec&lt;i32&gt;, x: i32) -&gt; Result&lt;usize, usize&gt; {
+    let mut size = vec.len();
+    let mut left = 0;
+    let mut right = size;
+    while left &lt;= right {
+        let mid = left + size / 2;
+        let val = vec[mid];
+        if val &lt; x {
+            left = mid + 1;
+        } else if x &lt; val {
+            right = mid;
+        } else {
+            return Ok(mid);
+        }
+        size = right - left;
+    }
+    Err(left)
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Flux complains in <em>two</em> places</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>error[FLUX]: precondition might not hold
+   --&gt; src/vectors.rs:152:19
+    |
+152 |         let val = vec[mid];
+    |                   ^^^^^^^^ call site
+    |
+    = note: a precondition cannot be proved at this call site
+note: this is the condition that cannot be proved
+   --&gt; src/rvec.rs:189:44
+    |
+189 |     #[flux::sig(fn(&amp;RVec&lt;T&gt;[@n], usize{v : v &lt; n}) -&gt; &amp;T)]
+    |                                            ^^^^^
+
+error[FLUX]: arithmetic operation may overflow
+   --&gt; src/vectors.rs:160:9
+    |
+160 |         size = right - left;
+    |         ^^^^^^^^^^^^^^^^^^^
+<span class="boring">}</span></code></pre></pre>
+<ul>
+<li>
+<p>The vector access may be <em>unsafe</em> as <code>mid</code> could be out of bounds!</p>
+</li>
+<li>
+<p>The <code>size</code> variable may <em>underflow</em> as <code>left</code> may exceed <code>right</code>!</p>
+</li>
+</ul>
+<p>Can you the spot off-by-one and figure out a fix?</p>
+<h2 id="summary-2"><a class="header" href="#summary-2">Summary</a></h2>
+<p>So, we saw how Flux's index and constraint mechanisms combine
+with Rust's ownership to let us write a <em>refined vector API</em>
+that ensures the safety of all accesses at compile time.</p>
+<p>Next time, we'll see how these mechanisms are <em>compositional</em>
+in that we can use standard type machinery to build up
+compound structures and APIs from simple ones.</p>
+<div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
+<p>Why not use an iterator? We'll get there in due course!</p>
+</div>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="about-flux"><a class="header" href="#about-flux">About Flux</a></h1>
+<img src="img/logo-wide.svg" class="flux-logo" alt="Flux Logo">
+<p>Flux is a research project described in <a href="https://arxiv.org/abs/2207.04034">the paper</a></p>
+<h2 id="team"><a class="header" href="#team">Team</a></h2>
+<p>Flux is being developed by</p>
+<ul>
+<li><a href="https://github.com/nilehmann">Nico Lehmann</a>,</li>
+<li><a href="https://www.cs.ubc.ca/~atgeller/">Adam Geller</a></li>
+<li><a href="https://www.cole-k.com/">Cole Kurashige</a></li>
+<li><a href="https://gbarthe.github.io/">Gilles Barthe</a></li>
+<li><a href="https://nikivazou.github.io/">Niki Vazou</a></li>
+<li><a href="https://cseweb.ucsd.edu/~rjhala">Ranjit Jhala</a></li>
+</ul>
+<h2 id="code"><a class="header" href="#code">Code</a></h2>
+<p>Flux is open-source and available <a href="http://github.com/liquid-rust/flux">here</a></p>
+<h2 id="thanks"><a class="header" href="#thanks">Thanks</a></h2>
+<p>This work was supported by the National Science Foundation, European Research Council,
+and by generous gifts from Microsoft Research.</p>
+<h2 id="limitations"><a class="header" href="#limitations">Limitations</a></h2>
+<p>This is a prototype! Use at your own risk. Everything could break and it will break.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="js/flux.js"></script>
+
+        <script>
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+
+    </div>
+    </body>
+</html>

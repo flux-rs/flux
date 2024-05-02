@@ -22,7 +22,8 @@ mod errors;
 pub mod resolver;
 
 use flux_middle::{
-    const_eval, fhir,
+    const_eval,
+    fhir::{self, Ignored},
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
     rty, ResolverOutput, Specs,
@@ -45,7 +46,7 @@ pub fn desugar<'genv>(
     genv: GlobalEnv<'genv, '_>,
     def_id: LocalDefId,
 ) -> QueryResult<UnordMap<LocalDefId, fhir::Node<'genv>>> {
-    if genv.is_ignored(def_id) {
+    if genv.ignored(def_id) == Ignored::Yes {
         return Err(QueryErr::Ignored { def_id: def_id.to_def_id() });
     }
 

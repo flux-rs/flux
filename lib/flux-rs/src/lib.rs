@@ -69,6 +69,11 @@ pub fn extern_spec(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     attr_impl::extern_spec(attrs, tokens)
 }
 
+#[proc_macro_attribute]
+pub fn ignore(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::ignore(attrs, tokens)
+}
+
 #[cfg(flux_sysroot)]
 mod attr_sysroot {
     use super::*;
@@ -95,7 +100,9 @@ mod attr_sysroot {
         };
     }
 
-    flux_tool_attrs!(alias, sig, qualifiers, constant, invariant, opaque, trusted, generics, assoc);
+    flux_tool_attrs!(
+        alias, sig, qualifiers, constant, invariant, opaque, trusted, generics, assoc, ignore
+    );
 }
 
 #[cfg(not(flux_sysroot))]
@@ -124,5 +131,5 @@ mod attr_dummy {
         };
     }
 
-    no_op!(alias, sig, qualifiers, invariant, constant, opaque, trusted, generics, assoc);
+    no_op!(alias, sig, qualifiers, invariant, constant, opaque, trusted, generics, assoc, ignore);
 }

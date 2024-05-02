@@ -41,6 +41,22 @@ pub use rustc_target::abi::VariantIdx;
 
 use crate::{global_env::GlobalEnv, pretty, rty::Constant};
 
+/// A boolean used to mark wether an item should be ignored or not
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum Ignored {
+    Yes,
+    No,
+}
+
+impl Ignored {
+    pub fn to_bool(self) -> bool {
+        match self {
+            Ignored::Yes => true,
+            Ignored::No => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Generics<'fhir> {
     pub params: &'fhir [GenericParam<'fhir>],
@@ -342,14 +358,6 @@ pub struct OpaqueTy<'fhir> {
 }
 
 pub type Arena = bumpalo::Bump;
-
-#[derive(PartialEq, Eq, Hash, Copy, Clone)]
-pub enum IgnoreKey {
-    /// Ignore the entire crate
-    Crate,
-    /// (Transitively) ignore the module named `LocalDefId`
-    Module(LocalDefId),
-}
 
 /// A map between rust definitions and flux annotations in their desugared `fhir` form.
 ///

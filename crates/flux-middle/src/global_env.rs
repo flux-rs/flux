@@ -3,7 +3,7 @@ use std::{alloc, ptr, rc::Rc, slice};
 use flux_common::{bug, result::ErrorEmitter};
 use flux_config::CrateConfig;
 use flux_errors::FluxSession;
-use rustc_data_structures::unord::UnordSet;
+use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashSet;
 use rustc_hir::{
     def::DefKind,
@@ -15,7 +15,7 @@ pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
     cstore::CrateStoreDyn,
-    fhir::{self, FluxLocalDefId, VariantIdx},
+    fhir::{self, FluxLocalDefId, Ignored, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{self, normalize::SpecFuncDefns, refining::Refiner},
@@ -367,28 +367,24 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .copied()
     }
 
-    /// transitively follows the `def_id`'s parent-chain to check if any enclosing mod has been
-    /// marked as `ignore`
-    pub fn is_ignored(self, def_id: LocalDefId) -> bool {
-        let parent_def_id = self
-            .tcx()
-            .parent_module_from_def_id(def_id)
-            .to_local_def_id();
-        if parent_def_id == def_id {
-            false
-        } else {
-            self.ignores()
-                .contains(&fhir::IgnoreKey::Module(parent_def_id))
-                || self.is_ignored(parent_def_id)
+    /// transitively follows the parent-chain to find the first containing item with an explicit
+    /// `ignore` annotation and returns whether that item is ignored or not.
+    pub fn ignored(self, mut def_id: LocalDefId) -> Ignored {
+        loop {
+            if let Some(ignored) = self.ignores().get(&def_id) {
+                break *ignored;
+            }
+
+            if let Some(parent) = self.tcx().opt_local_parent(def_id) {
+                def_id = parent;
+            } else {
+                break Ignored::No;
+            }
         }
     }
 
-    pub fn ignore_crate(self) -> bool {
-        self.ignores().contains(&fhir::IgnoreKey::Crate)
-    }
-
-    fn ignores(self) -> &'genv UnordSet<fhir::IgnoreKey> {
-        &self.collect_specs().ignores
+    fn ignores(self) -> &'genv UnordMap<LocalDefId, Ignored> {
+        &self.collect_specs().check_item
     }
 
     pub fn crate_config(self) -> Option<CrateConfig> {
