@@ -482,8 +482,8 @@ pub struct FnOutput<'fhir> {
 pub enum Constraint<'fhir> {
     /// A type constraint on a location
     Type(PathExpr<'fhir>, Ty<'fhir>),
-    /// A predicate that needs to hold
-    Pred(Expr<'fhir>),
+    /// A predicate that needs to hold under an (optional) list of universally quantified parameters
+    Pred(&'fhir [RefineParam<'fhir>], Expr<'fhir>),
 }
 
 #[derive(Clone, Copy)]
@@ -1161,7 +1161,18 @@ impl fmt::Debug for Constraint<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Constraint::Type(loc, ty) => write!(f, "{loc:?}: {ty:?}"),
-            Constraint::Pred(e) => write!(f, "{e:?}"),
+            Constraint::Pred(params, e) => {
+                if !params.is_empty() {
+                    write!(
+                        f,
+                        "forall {}.",
+                        params.iter().format_with(",", |param, f| {
+                            f(&format_args!("{}:{:?}", param.name, param.sort))
+                        })
+                    )?;
+                }
+                write!(f, "{e:?}")
+            }
         }
     }
 }

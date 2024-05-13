@@ -318,7 +318,10 @@ pub fn walk_constraint<V: Visitor>(vis: &mut V, constraint: &Constraint) {
             vis.visit_path_expr(loc);
             vis.visit_ty(ty);
         }
-        Constraint::Pred(p) => vis.visit_expr(p),
+        Constraint::Pred(params, pred) => {
+            walk_list!(vis, visit_refine_param, *params);
+            vis.visit_expr(pred);
+        }
     }
 }
 

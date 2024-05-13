@@ -642,7 +642,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     Local::from_usize(idx + 1),
                 ))
             }
-            fhir::Constraint::Pred(pred) => Ok(rty::Constraint::Pred(self.conv_expr(env, pred)?)),
+            fhir::Constraint::Pred(params, pred) => {
+                Ok(rty::Constraint::Pred(self.conv_expr(env, pred)?))
+            }
         }
     }
 

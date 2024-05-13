@@ -501,10 +501,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
             let mut generics = self.desugar_generics(&fn_sig.generics)?;
 
-            for require in &fn_sig.requires {
-                let a = &require.params;
-                let pred = self.desugar_expr(&require.pred)?;
-                requires.push(fhir::Constraint::Pred(pred));
+            for surface_requires in &fn_sig.requires {
+                let params = self.desugar_refine_params(&surface_requires.params);
+                let pred = self.desugar_expr(&surface_requires.pred)?;
+                requires.push(fhir::Constraint::Pred(params, pred));
             }
 
             // Bail out if there's an error in the arguments to avoid confusing error messages
@@ -605,7 +605,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             }
             surface::Ensures::Pred(e) => {
                 let pred = self.desugar_expr(e)?;
-                Ok(fhir::Constraint::Pred(pred))
+                Ok(fhir::Constraint::Pred(&[], pred))
             }
         }
     }
