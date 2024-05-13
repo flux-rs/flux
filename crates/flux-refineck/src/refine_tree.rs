@@ -115,7 +115,7 @@ enum NodeKind {
     Conj,
     Comment(String),
     ForAll(Name, Sort),
-    Guard(Expr),
+    Assumption(Expr),
     Head(Expr, Tag),
     True,
 }
@@ -232,7 +232,7 @@ impl<'rcx> RefineCtxt<'rcx> {
 
     pub(crate) fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
         self.ptr
-            .push_node(NodeKind::Guard(pred1.into()))
+            .push_node(NodeKind::Assumption(pred1.into()))
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
@@ -438,7 +438,7 @@ impl NodePtr {
     fn push_guard(&mut self, pred: impl Into<Expr>) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
-            *self = self.push_node(NodeKind::Guard(pred));
+            *self = self.push_node(NodeKind::Assumption(pred));
         }
     }
 
@@ -502,7 +502,7 @@ impl Node {
                 }
             }
             NodeKind::True => {}
-            NodeKind::Guard(pred) => {
+            NodeKind::Assumption(pred) => {
                 *pred = pred.simplify();
                 self.children
                     .extract_if(|child| {
@@ -531,7 +531,7 @@ impl Node {
             child.borrow_mut().replace_evars(sol);
         }
         match &mut self.kind {
-            NodeKind::Guard(pred) => *pred = pred.replace_evars(sol),
+            NodeKind::Assumption(pred) => *pred = pred.replace_evars(sol),
             NodeKind::Head(pred, _) => {
                 *pred = pred.replace_evars(sol);
             }
@@ -559,10 +559,8 @@ impl Node {
                     )))
                 })?
             }
-            NodeKind::Guard(pred) => {
-                let (bindings, preds) = cx.pred_to_fixpoint(pred)?;
-                let preds = preds.into_iter().map(|(pred, _)| pred).collect_vec();
-                let pred = fixpoint::Pred::And(preds);
+            NodeKind::Assumption(pred) => {
+                let (bindings, pred) = cx.assumption_to_fixpoint(pred)?;
                 let Some(children) = children_to_fixpoint(cx, &self.children)? else {
                     return Ok(None);
                 };
@@ -579,14 +577,7 @@ impl Node {
                 ))
             }
             NodeKind::Head(pred, tag) => {
-                let (bindings, preds) = cx.pred_to_fixpoint(pred)?;
-                let cstr = preds
-                    .into_iter()
-                    .map(|(pred, span)| {
-                        fixpoint::Constraint::Pred(pred, Some(cx.tag_idx(tag.with_dst(span))))
-                    })
-                    .collect_vec();
-                Some(stitch(bindings, fixpoint::Constraint::Conj(cstr)))
+                Some(cx.head_to_fixpoint(pred, |span| tag.with_dst(span))?)
             }
             NodeKind::True => None,
         };
@@ -658,7 +649,7 @@ impl TypeVisitable for NodePtr {
         let node = self.borrow();
         match &node.kind {
             NodeKind::Conj | NodeKind::Comment(_) | NodeKind::True => {}
-            NodeKind::Guard(pred) | NodeKind::Head(pred, _) => pred.visit_with(visitor)?,
+            NodeKind::Assumption(pred) | NodeKind::Head(pred, _) => pred.visit_with(visitor)?,
             NodeKind::ForAll(_, sort) => sort.visit_with(visitor)?,
         }
         for child in &node.children {
@@ -717,7 +708,7 @@ mod pretty {
     fn preds_chain(ptr: &NodePtr) -> (Vec<Expr>, Vec<NodePtr>) {
         fn go(ptr: &NodePtr, mut preds: Vec<Expr>) -> (Vec<Expr>, Vec<NodePtr>) {
             let node = ptr.borrow();
-            if let NodeKind::Guard(pred) = &node.kind {
+            if let NodeKind::Assumption(pred) = &node.kind {
                 preds.push(pred.clone());
                 if let [child] = &node.children[..] {
                     go(child, preds)
@@ -775,7 +766,7 @@ mod pretty {
                     )?;
                     fmt_children(&children, cx, f)
                 }
-                NodeKind::Guard(pred) => {
+                NodeKind::Assumption(pred) => {
                     let (preds, children) = if cx.preds_chain {
                         preds_chain(self)
                     } else {
@@ -836,7 +827,7 @@ mod pretty {
                         let node = ptr.borrow();
                         match &node.kind {
                             NodeKind::ForAll(..) => true,
-                            NodeKind::Guard(e) => !e.simplify().is_trivially_true(),
+                            NodeKind::Assumption(e) => !e.simplify().is_trivially_true(),
                             _ => false,
                         }
                     })
@@ -846,7 +837,7 @@ mod pretty {
                             NodeKind::ForAll(name, sort) => {
                                 f(&format_args_cx!("{:?}: {:?}", ^name, sort))
                             }
-                            NodeKind::Guard(pred) => f(&format_args_cx!("{:?}", pred)),
+                            NodeKind::Assumption(pred) => f(&format_args_cx!("{:?}", pred)),
                             _ => unreachable!(),
                         }
                     })
