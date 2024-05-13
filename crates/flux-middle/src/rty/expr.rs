@@ -198,6 +198,7 @@ pub enum ExprKind {
     /// and the places where we generate inference variable for them (where we do need to worry
     /// about the scope).
     Hole(HoleKind),
+    ForAll(Binder<Expr>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
@@ -486,6 +487,10 @@ impl Expr {
 
     pub fn alias(alias: AliasReft, args: List<Expr>) -> Expr {
         ExprKind::Alias(alias, args).intern()
+    }
+
+    pub fn forall(expr: Binder<Expr>) -> Expr {
+        ExprKind::ForAll(expr).intern()
     }
 
     pub fn binary_op(
@@ -985,6 +990,15 @@ mod pretty {
                     w!("{:?}", lam)
                 }
                 ExprKind::GlobalFunc(func, _) => w!("{}", ^func),
+                ExprKind::ForAll(expr) => {
+                    let vars = expr.vars();
+                    cx.with_bound_vars(vars, || {
+                        if !vars.is_empty() {
+                            cx.fmt_bound_vars("∀", vars, ". ", f)?;
+                        }
+                        w!("{:?}", expr.as_ref().skip_binder())
+                    })
+                }
             }
         }
     }

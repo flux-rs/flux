@@ -853,6 +853,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let var = self.register_const_for_lambda(lam);
                 fixpoint::Expr::Var(var.into())
             }
+            rty::ExprKind::ForAll(_) => todo!(),
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)

@@ -206,7 +206,7 @@ impl fhir::visit::Visitor for Wf<'_, '_, '_> {
                 self.infcx.check_loc(loc).collect_err(&mut self.errors);
                 self.visit_ty(ty);
             }
-            fhir::Constraint::Pred(params, pred) => {
+            fhir::Constraint::Pred(_, pred) => {
                 self.infcx
                     .check_expr(pred, &rty::Sort::Bool)
                     .collect_err(&mut self.errors);
