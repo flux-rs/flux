@@ -198,11 +198,11 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         surface::visit::walk_fun_arg(self, arg);
     }
 
-    fn visit_constraint(&mut self, constraint: &surface::Constraint) {
-        if let surface::Constraint::Type(loc, _, node_id) = constraint {
+    fn visit_ensures(&mut self, constraint: &surface::Ensures) {
+        if let surface::Ensures::Type(loc, _, node_id) = constraint {
             self.on_loc(*loc, *node_id);
         }
-        surface::visit::walk_constraint(self, constraint);
+        surface::visit::walk_ensures(self, constraint);
     }
 
     fn visit_refine_arg(&mut self, arg: &surface::RefineArg) {

@@ -501,8 +501,9 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
             let mut generics = self.desugar_generics(&fn_sig.generics)?;
 
-            if let Some(expr) = &fn_sig.requires {
-                let pred = self.desugar_expr(expr)?;
+            for require in &fn_sig.requires {
+                let a = &require.params;
+                let pred = self.desugar_expr(&require.pred)?;
                 requires.push(fhir::Constraint::Pred(pred));
             }
 
@@ -589,12 +590,9 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::FnOutput { params, ret: ret?, ensures })
     }
 
-    fn desugar_constraint(
-        &mut self,
-        cstr: &surface::Constraint,
-    ) -> Result<fhir::Constraint<'genv>> {
+    fn desugar_constraint(&mut self, cstr: &surface::Ensures) -> Result<fhir::Constraint<'genv>> {
         match cstr {
-            surface::Constraint::Type(loc, ty, node_id) => {
+            surface::Ensures::Type(loc, ty, node_id) => {
                 let res = self.desugar_loc(*loc, *node_id)?;
                 let path = fhir::PathExpr {
                     segments: self.genv().alloc_slice(&[*loc]),
@@ -605,7 +603,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 let ty = self.desugar_ty(ty)?;
                 Ok(fhir::Constraint::Type(path, ty))
             }
-            surface::Constraint::Pred(e) => {
+            surface::Ensures::Pred(e) => {
                 let pred = self.desugar_expr(e)?;
                 Ok(fhir::Constraint::Pred(pred))
             }
