@@ -580,7 +580,7 @@ impl Expr {
     /// An expression is an *atom* if it is "self-delimiting", i.e., it has a clear boundary
     /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
     pub fn is_atom(&self) -> bool {
-        !matches!(self.kind, ExprKind::Abs(..) | ExprKind::BinaryOp(..))
+        !matches!(self.kind, ExprKind::Abs(..) | ExprKind::BinaryOp(..) | ExprKind::ForAll(..))
     }
 
     /// Simple syntactic check to see if the expression is a trivially true predicate. This is used
