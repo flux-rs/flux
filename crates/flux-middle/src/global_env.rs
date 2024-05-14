@@ -369,22 +369,22 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     /// transitively follows the parent-chain to find the first containing item with an explicit
     /// `ignore` annotation and returns whether that item is ignored or not.
-    pub fn ignored(self, mut def_id: LocalDefId) -> Ignored {
+    pub fn ignored(self, mut def_id: LocalDefId) -> bool {
         loop {
             if let Some(ignored) = self.ignores().get(&def_id) {
-                break *ignored;
+                break ignored.to_bool();
             }
 
             if let Some(parent) = self.tcx().opt_local_parent(def_id) {
                 def_id = parent;
             } else {
-                break Ignored::No;
+                break false;
             }
         }
     }
 
     fn ignores(self) -> &'genv UnordMap<LocalDefId, Ignored> {
-        &self.collect_specs().check_item
+        &self.collect_specs().ignores
     }
 
     pub fn crate_config(self) -> Option<CrateConfig> {

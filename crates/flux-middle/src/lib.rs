@@ -206,7 +206,7 @@ pub struct Specs {
     pub func_defs: Vec<surface::SpecFunc>,
     pub sort_decls: Vec<surface::SortDecl>,
     pub ty_aliases: UnordMap<OwnerId, Option<surface::TyAlias>>,
-    pub check_item: UnordMap<LocalDefId, fhir::Ignored>,
+    pub ignores: UnordMap<LocalDefId, fhir::Ignored>,
     pub consts: FxHashSet<LocalDefId>,
     pub crate_config: Option<config::CrateConfig>,
     pub extern_specs: FxHashMap<DefId, LocalDefId>,

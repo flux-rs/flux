@@ -3,12 +3,7 @@ use flux_config as config;
 use flux_errors::FluxSession;
 use flux_fhir_analysis::compare_impl_item;
 use flux_metadata::CStore;
-use flux_middle::{
-    fhir::{self, Ignored},
-    global_env::GlobalEnv,
-    queries::Providers,
-    Specs,
-};
+use flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
 use flux_refineck as refineck;
 use refineck::CheckerConfig;
 use rustc_borrowck::consumers::ConsumerOptions;
@@ -147,7 +142,10 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     }
 
     fn check_def(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
-        if self.genv.ignored(def_id) == Ignored::Yes || !self.matches_check_def(def_id) {
+        if !self.matches_check_def(def_id) {
+            return Ok(());
+        }
+        if self.genv.ignored(def_id) {
             return Ok(());
         }
 

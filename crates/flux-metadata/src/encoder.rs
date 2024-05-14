@@ -77,7 +77,7 @@ impl<'a, 'tcx> SpanEncoder for EncodeContext<'a, 'tcx> {
         if crate_num != LOCAL_CRATE && self.is_proc_macro {
             panic!("Attempted to encode non-local CrateNum {crate_num:?} for proc-macro crate");
         }
-        self.emit_u32(crate_num.as_u32());
+        self.tcx.stable_crate_id(crate_num).encode(self);
     }
 
     fn encode_def_index(&mut self, def_index: DefIndex) {

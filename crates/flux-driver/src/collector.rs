@@ -101,10 +101,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Mod)?;
         self.report_dups(&attrs)?;
-
-        if let Some(ignored) = attrs.ignore() {
-            self.specs.check_item.insert(CRATE_DEF_ID, ignored);
-        }
+        self.collect_ignore(&mut attrs, CRATE_DEF_ID);
 
         self.specs.extend_items(attrs.items());
 
@@ -116,10 +113,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     fn parse_mod_spec(&mut self, def_id: LocalDefId, attrs: &[Attribute]) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Mod)?;
         self.report_dups(&attrs)?;
-
-        if let Some(ignored) = attrs.ignore() {
-            self.specs.check_item.insert(def_id, ignored);
-        }
+        self.collect_ignore(&mut attrs, def_id);
 
         self.specs.extend_items(attrs.items());
         Ok(())
@@ -128,10 +122,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     fn parse_const_spec(&mut self, def_id: LocalDefId, item: &Item, attrs: &[Attribute]) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Const)?;
         self.report_dups(&attrs)?;
-
-        if let Some(ignored) = attrs.ignore() {
-            self.specs.check_item.insert(def_id, ignored);
-        }
+        self.collect_ignore(&mut attrs, def_id);
 
         let Some(_ty) = attrs.const_sig() else {
             return Ok(());
@@ -150,6 +141,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Trait)?;
         self.report_dups(&attrs)?;
+        self.collect_ignore(&mut attrs, owner_id.def_id);
 
         let generics = attrs.generics();
         let assoc_refinements = attrs.trait_assoc_refts();
@@ -176,6 +168,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let def_kind = DefKind::Impl { of_trait: impl_.of_trait.is_some() };
         let mut attrs = self.parse_flux_attrs(attrs, def_kind)?;
         self.report_dups(&attrs)?;
+        self.collect_ignore(&mut attrs, owner_id.def_id);
 
         let generics = attrs.generics();
         let assoc_refinements = attrs.impl_assoc_refts();
@@ -211,7 +204,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Struct)?;
         self.report_dups(&attrs)?;
-        // TODO(nilehmann) error if it has non-struct attrs
+        self.collect_ignore(&mut attrs, owner_id.def_id);
 
         let mut opaque = attrs.opaque();
 
@@ -285,6 +278,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Enum)?;
         self.report_dups(&attrs)?;
+        self.collect_ignore(&mut attrs, owner_id.def_id);
 
         let generics = attrs.generics();
 
@@ -352,7 +346,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, def_kind)?;
         self.report_dups(&attrs)?;
-        // TODO(nilehmann) error if it has non-fun attrs
+        self.collect_ignore(&mut attrs, owner_id.def_id);
 
         let mut trusted = attrs.trusted();
         let fn_sig = attrs.fn_sig();
@@ -705,6 +699,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             Err(e)
         } else {
             Ok(())
+        }
+    }
+
+    fn collect_ignore(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) {
+        if let Some(ignored) = attrs.ignore() {
+            self.specs.ignores.insert(def_id, ignored);
         }
     }
 

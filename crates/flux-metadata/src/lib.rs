@@ -22,7 +22,7 @@ use std::path::PathBuf;
 use decoder::decode_crate_metadata;
 use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
-use flux_middle::{cstore::CrateStore, fhir::Ignored, global_env::GlobalEnv, intern::List, rty};
+use flux_middle::{cstore::CrateStore, global_env::GlobalEnv, intern::List, rty};
 use rustc_hash::FxHashMap;
 use rustc_hir::def::DefKind;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -111,7 +111,7 @@ impl CrateMetadata {
         let mut type_of = FxHashMap::default();
 
         for local_id in tcx.iter_local_def_id() {
-            if genv.ignored(local_id) == Ignored::Yes {
+            if genv.ignored(local_id) {
                 continue;
             }
 

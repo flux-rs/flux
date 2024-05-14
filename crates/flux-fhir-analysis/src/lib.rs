@@ -21,7 +21,7 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    fhir::{self, FluxLocalDefId, Ignored},
+    fhir::{self, FluxLocalDefId},
     global_env::GlobalEnv,
     intern::List,
     queries::{Providers, QueryResult},
@@ -413,7 +413,7 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     let qualifiers = genv.map().qualifiers().map(|q| q.name).collect();
 
     for def_id in genv.tcx().hir_crate_items(()).definitions() {
-        if genv.ignored(def_id) == Ignored::Yes {
+        if genv.ignored(def_id) {
             continue;
         }
         let def_kind = genv.def_kind(def_id);

@@ -14,13 +14,14 @@ use rustc_middle::{
     ty::{self, TyCtxt},
 };
 use rustc_serialize::{opaque::MemDecoder, Decodable, Decoder as _};
+use rustc_session::StableCrateId;
 use rustc_span::{
     def_id::{CrateNum, DefIndex},
-    SpanDecoder,
+    SpanDecoder, Symbol,
 };
 use rustc_type_ir::TyDecoder;
 
-use crate::{CrateMetadata, METADATA_HEADER};
+use crate::{CrateMetadata, METADATA_HEADER, SYMBOL_OFFSET, SYMBOL_PREINTERNED, SYMBOL_STR};
 
 struct DecodeContext<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -52,24 +53,13 @@ pub(super) fn decode_crate_metadata(
 implement_ty_decoder!(DecodeContext<'a, 'tcx>);
 
 impl<'a, 'tcx> SpanDecoder for DecodeContext<'a, 'tcx> {
-    fn decode_span(&mut self) -> rustc_span::Span {
-        self.opaque.decode_span()
-    }
-
-    fn decode_symbol(&mut self) -> rustc_span::Symbol {
-        self.opaque.decode_symbol()
-    }
-
-    fn decode_expn_id(&mut self) -> rustc_span::ExpnId {
-        self.opaque.decode_expn_id()
-    }
-
-    fn decode_syntax_context(&mut self) -> rustc_span::SyntaxContext {
-        self.opaque.decode_syntax_context()
+    fn decode_attr_id(&mut self) -> rustc_ast::AttrId {
+        self.tcx.sess.psess.attr_id_generator.mk_attr_id()
     }
 
     fn decode_crate_num(&mut self) -> CrateNum {
-        self.opaque.decode_crate_num()
+        let stable_id = StableCrateId::decode(self);
+        self.tcx.stable_crate_id_to_crate_num(stable_id)
     }
 
     fn decode_def_index(&mut self) -> DefIndex {
@@ -80,8 +70,42 @@ impl<'a, 'tcx> SpanDecoder for DecodeContext<'a, 'tcx> {
         DefId { krate: Decodable::decode(self), index: Decodable::decode(self) }
     }
 
-    fn decode_attr_id(&mut self) -> rustc_ast::AttrId {
-        self.opaque.decode_attr_id()
+    fn decode_syntax_context(&mut self) -> rustc_span::SyntaxContext {
+        panic!("cannot decode `SyntaxContext` with `DecodeContext`");
+    }
+
+    fn decode_expn_id(&mut self) -> rustc_span::ExpnId {
+        panic!("cannot decode `ExpnId` with `DecodeContext`");
+    }
+
+    fn decode_span(&mut self) -> rustc_span::Span {
+        panic!("cannot decode `Span` with `DecodeContext`");
+    }
+
+    fn decode_symbol(&mut self) -> rustc_span::Symbol {
+        let tag = self.read_u8();
+
+        match tag {
+            SYMBOL_STR => {
+                let s = self.read_str();
+                Symbol::intern(s)
+            }
+            SYMBOL_OFFSET => {
+                // read str offset
+                let pos = self.read_usize();
+
+                // move to str offset and read
+                self.opaque.with_position(pos, |d| {
+                    let s = d.read_str();
+                    Symbol::intern(s)
+                })
+            }
+            SYMBOL_PREINTERNED => {
+                let symbol_index = self.read_u32();
+                Symbol::new_from_decoded(symbol_index)
+            }
+            _ => unreachable!(),
+        }
     }
 }
 
