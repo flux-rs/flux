@@ -198,6 +198,7 @@ pub enum ExprKind {
     /// and the places where we generate inference variable for them (where we do need to worry
     /// about the scope).
     Hole(HoleKind),
+    ForAll(Binder<Expr>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
@@ -488,6 +489,10 @@ impl Expr {
         ExprKind::Alias(alias, args).intern()
     }
 
+    pub fn forall(expr: Binder<Expr>) -> Expr {
+        ExprKind::ForAll(expr).intern()
+    }
+
     pub fn binary_op(
         op: BinOp,
         e1: impl Into<Expr>,
@@ -575,7 +580,7 @@ impl Expr {
     /// An expression is an *atom* if it is "self-delimiting", i.e., it has a clear boundary
     /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
     pub fn is_atom(&self) -> bool {
-        !matches!(self.kind, ExprKind::Abs(..) | ExprKind::BinaryOp(..))
+        !matches!(self.kind, ExprKind::Abs(..) | ExprKind::BinaryOp(..) | ExprKind::ForAll(..))
     }
 
     /// Simple syntactic check to see if the expression is a trivially true predicate. This is used
@@ -720,6 +725,20 @@ impl Expr {
             ExprKind::Aggregate(_, flds) => flds[proj.field() as usize].clone(),
             _ => Expr::field_proj(self.clone(), proj, None),
         }
+    }
+
+    pub fn flatten_conjs(&self) -> Vec<&Expr> {
+        fn go<'a>(e: &'a Expr, vec: &mut Vec<&'a Expr>) {
+            if let ExprKind::BinaryOp(BinOp::And, e1, e2) = e.kind() {
+                go(e1, vec);
+                go(e2, vec);
+            } else {
+                vec.push(e);
+            }
+        }
+        let mut vec = vec![];
+        go(self, &mut vec);
+        vec
     }
 }
 
@@ -985,6 +1004,15 @@ mod pretty {
                     w!("{:?}", lam)
                 }
                 ExprKind::GlobalFunc(func, _) => w!("{}", ^func),
+                ExprKind::ForAll(expr) => {
+                    let vars = expr.vars();
+                    cx.with_bound_vars(vars, || {
+                        if !vars.is_empty() {
+                            cx.fmt_bound_vars("∀", vars, ". ", f)?;
+                        }
+                        w!("{:?}", expr.as_ref().skip_binder())
+                    })
+                }
             }
         }
     }

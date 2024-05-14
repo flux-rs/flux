@@ -236,7 +236,7 @@ pub struct FnSig {
     pub asyncness: Async,
     pub generics: Generics,
     /// example: `requires n > 0`
-    pub requires: Option<Expr>,
+    pub requires: Vec<Requires>,
     /// example: `i32<@n>`
     pub args: Vec<Arg>,
     pub output: FnOutput,
@@ -246,16 +246,23 @@ pub struct FnSig {
 }
 
 #[derive(Debug)]
+pub struct Requires {
+    /// Optional list of universally quantified parameters
+    pub params: Vec<RefineParam>,
+    pub pred: Expr,
+}
+
+#[derive(Debug)]
 pub struct FnOutput {
     /// example `i32{v:v >= 0}`
     pub returns: FnRetTy,
     /// example: `*x: i32{v. v = n+1}` or just `x > 10`
-    pub ensures: Vec<Constraint>,
+    pub ensures: Vec<Ensures>,
     pub node_id: NodeId,
 }
 
 #[derive(Debug)]
-pub enum Constraint {
+pub enum Ensures {
     /// A type constraint on a location
     Type(Ident, Ty, NodeId),
     /// A predicate that needs to hold

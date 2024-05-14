@@ -235,12 +235,11 @@ pub FnSig: surface::FnSig = {
     "(" <args:Args> ")"
     <ret_lo:@L> <ret_hi:@R>
     <returns:("->" <Ty>)?>
-    <requires:("requires" <Expr>)?>
-    <ensures:("ensures" <Ensures>)?>
+    <requires:("requires" <Comma1<Requires>>)?>
+    <ensures:("ensures" <Comma1<Ensures>>)?>
     <predicates:("where" <Predicates>)?>
     <hi:@R>
     => {
-        let ensures = ensures.unwrap_or_default();
         let returns = if let Some(ty) = returns {
             surface::FnRetTy::Ty(ty)
         } else {
@@ -249,14 +248,14 @@ pub FnSig: surface::FnSig = {
         generics.predicates = predicates.unwrap_or_default();
         let output = surface::FnOutput {
             returns,
-            ensures,
+            ensures: ensures.unwrap_or_default(),
             node_id: cx.next_node_id(),
         };
         surface::FnSig {
             asyncness,
             generics,
             args,
-            requires,
+            requires: requires.unwrap_or_default(),
             output,
             span: cx.map_span(lo, hi),
             node_id: cx.next_node_id(),
@@ -319,14 +318,21 @@ Fields: Vec<surface::Ty> = {
 }
 
 Args    = <Comma<Arg>>;
-Ensures    = <Comma<Constraint>>;
 Predicates = <Comma<WhereBoundPredicate>>;
 
-Constraint: surface::Constraint = {
-    <ident:Ident> ":" <ty:Ty> => surface::Constraint::Type(ident, ty, cx.next_node_id()),
-    <expr:Expr> => surface::Constraint::Pred(expr),
+Requires: surface::Requires = {
+    <params: ("forall" <RefineParams<"?">> ".")?> <pred:Expr> => {
+        surface::Requires {
+            params: params.unwrap_or_default(),
+            pred,
+        }
+    }
 }
 
+Ensures: surface::Ensures = {
+    <ident:Ident> ":" <ty:Ty> => surface::Ensures::Type(ident, ty, cx.next_node_id()),
+    <expr:Expr>               => surface::Ensures::Pred(expr),
+}
 
 WhereBoundPredicate: surface::WhereBoundPredicate = {
     <lo:@L> <bounded_ty:Ty> ":" <bounds:GenericBounds>  <hi:@R> => {
@@ -664,6 +670,7 @@ extern {
         "requires" => Token::Requires,
         "ensures" => Token::Ensures,
         "where" => Token::Where,
+        "forall" => Token::Forall,
         "impl" => Token::Impl,
         "qualifier" => Token::Qualifier,
         "sort" => Token::Sort,

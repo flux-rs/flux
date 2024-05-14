@@ -90,9 +90,12 @@ pub fn check_fn(
         tracing::info!("check_fn::refine");
 
         // PHASE 3: invoke fixpoint on the constraint
-        refine_tree.simplify();
         if config::dump_constraint() {
             dbg::dump_item_info(genv.tcx(), def_id, "fluxc", &refine_tree).unwrap();
+        }
+        refine_tree.simplify();
+        if config::dump_constraint() {
+            dbg::dump_item_info(genv.tcx(), def_id, "simp.fluxc", &refine_tree).unwrap();
         }
         let mut fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars).emit(&genv)?;
         fcx.collect_sorts(&refine_tree);

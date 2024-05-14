@@ -642,7 +642,17 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     Local::from_usize(idx + 1),
                 ))
             }
-            fhir::Constraint::Pred(pred) => Ok(rty::Constraint::Pred(self.conv_expr(env, pred)?)),
+            fhir::Constraint::Pred(params, pred) => {
+                let pred = if params.is_empty() {
+                    self.conv_expr(env, pred)?
+                } else {
+                    env.push_layer(Layer::list(self, 0, params, false)?);
+                    let pred = self.conv_expr(env, pred)?;
+                    let sorts = env.pop_layer().into_bound_vars(self.genv)?;
+                    rty::Expr::forall(rty::Binder::new(pred, sorts))
+                };
+                Ok(rty::Constraint::Pred(pred))
+            }
         }
     }
 

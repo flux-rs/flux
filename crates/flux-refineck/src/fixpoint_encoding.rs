@@ -290,8 +290,8 @@ impl Env {
         self.layers.push(layer);
     }
 
-    fn last_layer(&self) -> &[fixpoint::LocalVar] {
-        self.layers.last().unwrap()
+    fn pop_layer(&mut self) -> Vec<fixpoint::LocalVar> {
+        self.layers.pop().unwrap()
     }
 
     fn get_var(&self, var: &rty::Var, dbg_span: Span) -> fixpoint::LocalVar {
@@ -352,10 +352,6 @@ pub fn stitch(bindings: Bindings, c: fixpoint::Constraint) -> fixpoint::Constrai
         )
     })
 }
-
-/// An alias for a list of predicate (conjuncts) and their spans, used to give
-/// localized errors when refine checking fails.
-type PredSpans = Vec<(fixpoint::Pred, Option<ESpan>)>;
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
@@ -525,7 +521,7 @@ where
         }
     }
 
-    pub fn tag_idx(&mut self, tag: Tag) -> TagIdx
+    fn tag_idx(&mut self, tag: Tag) -> TagIdx
     where
         Tag: std::fmt::Debug,
     {
@@ -536,33 +532,93 @@ where
         })
     }
 
-    pub fn pred_to_fixpoint(&mut self, pred: &rty::Expr) -> QueryResult<(Bindings, PredSpans)> {
-        let mut bindings = vec![];
-        let mut preds = vec![];
-        self.pred_to_fixpoint_internal(pred, &mut bindings, &mut preds)?;
-        Ok((bindings, preds))
+    /// Encodes an expression in head position as a constraint "peeling out" implications and foralls.
+    pub fn head_to_fixpoint(
+        &mut self,
+        expr: &rty::Expr,
+        mk_tag: impl Fn(Option<ESpan>) -> Tag + Copy,
+    ) -> QueryResult<fixpoint::Constraint>
+    where
+        Tag: std::fmt::Debug,
+    {
+        match expr.kind() {
+            rty::ExprKind::BinaryOp(rty::BinOp::And, ..) => {
+                // avoid creating nested conjunctions
+                let cstrs = expr
+                    .flatten_conjs()
+                    .into_iter()
+                    .map(|e| self.head_to_fixpoint(e, mk_tag))
+                    .try_collect()?;
+                Ok(fixpoint::Constraint::Conj(cstrs))
+            }
+            rty::ExprKind::BinaryOp(rty::BinOp::Imp, e1, e2) => {
+                let (bindings, assumption) = self.assumption_to_fixpoint(e1)?;
+                let cstr = self.head_to_fixpoint(e2, mk_tag)?;
+                Ok(stitch(bindings, mk_implies(assumption, cstr)))
+            }
+            rty::ExprKind::KVar(kvar) => {
+                let mut bindings = vec![];
+                let pred = self.kvar_to_fixpoint(kvar, &mut bindings)?;
+                Ok(stitch(bindings, fixpoint::Constraint::Pred(pred, None)))
+            }
+            rty::ExprKind::ForAll(pred) => {
+                self.env.push_layer_with_fresh_names(pred.vars().len());
+                let cstr = self.head_to_fixpoint(pred.as_ref().skip_binder(), mk_tag)?;
+                let vars = self.env.pop_layer();
+
+                let bindings = iter::zip(vars, &pred.vars().to_sort_list())
+                    .map(|(var, sort)| (var, sort_to_fixpoint(sort), fixpoint::Expr::TRUE))
+                    .collect_vec();
+
+                Ok(stitch(bindings, cstr))
+            }
+            _ => {
+                let tag_idx = self.tag_idx(mk_tag(expr.span()));
+                let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &self.env)?);
+                Ok(fixpoint::Constraint::Pred(pred, Some(tag_idx)))
+            }
+        }
     }
 
-    fn pred_to_fixpoint_internal(
+    /// Encodes an expression in assumptive position as a [`fixpoint::Pred`]. Returns the encoded
+    /// predicate and a possible list of bindings produced by ANF-fing kvars.
+    ///
+    /// [`fixpoint::Pred`]: flux_fixpoint::Pred
+    pub fn assumption_to_fixpoint(
+        &mut self,
+        pred: &rty::Expr,
+    ) -> QueryResult<(Bindings, fixpoint::Pred)> {
+        let mut bindings = vec![];
+        let mut preds = vec![];
+        self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds)?;
+        Ok((bindings, fixpoint::Pred::And(preds)))
+    }
+
+    /// Auxiliary function to avoid creating nested conjunctions
+    fn assumption_to_fixpoint_aux(
         &mut self,
         expr: &rty::Expr,
         bindings: &mut Bindings,
-        preds: &mut PredSpans,
+        preds: &mut Vec<fixpoint::Pred>,
     ) -> QueryResult {
         match expr.kind() {
             rty::ExprKind::BinaryOp(rty::BinOp::And, e1, e2) => {
-                self.pred_to_fixpoint_internal(e1, bindings, preds)?;
-                self.pred_to_fixpoint_internal(e2, bindings, preds)?;
+                self.assumption_to_fixpoint_aux(e1, bindings, preds)?;
+                self.assumption_to_fixpoint_aux(e2, bindings, preds)?;
             }
             rty::ExprKind::KVar(kvar) => {
-                preds.push((self.kvar_to_fixpoint(kvar, bindings)?, None));
+                preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
+            }
+            rty::ExprKind::ForAll(_) => {
+                // If a forall appears in assumptive position replace it with true. This is sound
+                // because we are weakining the context, i.e., anything true without the assumption
+                // should remaing true after adding it. Note that this relies on the predicate
+                // appearing negatively. This is guaranteed by the surface syntax because foralls
+                // can only appear at the top-level in a requires clause.
+                preds.push(fixpoint::Pred::TRUE);
             }
             _ => {
-                let span = expr.span();
-                preds.push((
-                    fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &self.env)?),
-                    span,
-                ));
+                preds.push(fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &self.env)?));
             }
         }
         Ok(())
@@ -857,7 +913,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::GlobalFunc(..)
-            | rty::ExprKind::PathProj(..) => {
+            | rty::ExprKind::PathProj(..)
+            | rty::ExprKind::ForAll(_) => {
                 span_bug!(self.dbg_span, "unexpected expr: `{expr:?}`")
             }
         };
@@ -1118,13 +1175,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Qualifier> {
         let mut env = Env::new();
         env.push_layer_with_fresh_names(qualifier.body.vars().len());
+        let body = self.expr_to_fixpoint(qualifier.body.as_ref().skip_binder(), &env)?;
 
         let args: Vec<(fixpoint::Var, fixpoint::Sort)> =
-            iter::zip(env.last_layer(), qualifier.body.vars())
-                .map(|(name, var)| ((*name).into(), sort_to_fixpoint(var.expect_sort())))
+            iter::zip(env.pop_layer(), qualifier.body.vars())
+                .map(|(name, var)| (name.into(), sort_to_fixpoint(var.expect_sort())))
                 .collect();
-
-        let body = self.expr_to_fixpoint(qualifier.body.as_ref().skip_binder(), &env)?;
 
         let name = qualifier.name.to_string();
 
@@ -1145,4 +1201,15 @@ fn alias_reft_sort(arity: usize) -> rty::PolyFuncSort {
     }
     sorts.push(rty::Sort::Bool);
     rty::PolyFuncSort::new(arity, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
+}
+
+fn mk_implies(assumption: fixpoint::Pred, cstr: fixpoint::Constraint) -> fixpoint::Constraint {
+    fixpoint::Constraint::ForAll(
+        fixpoint::Bind {
+            name: fixpoint::Var::Underscore,
+            sort: fixpoint::Sort::Int,
+            pred: assumption,
+        },
+        Box::new(cstr),
+    )
 }

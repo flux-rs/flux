@@ -1,7 +1,7 @@
 use rustc_span::symbol::Ident;
 
 use super::{
-    AliasReft, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
+    AliasReft, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Ensures, EnumDef, Expr,
     ExprKind, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, GenericParamKind,
     Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathExpr, PathSegment, Qualifier, RefineArg,
     RefineParam, RefinedBy, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef,
@@ -119,8 +119,8 @@ pub trait Visitor: Sized {
         walk_fn_ret_ty(self, fn_ret_ty);
     }
 
-    fn visit_constraint(&mut self, constraint: &Constraint) {
-        walk_constraint(self, constraint);
+    fn visit_ensures(&mut self, ensures: &Ensures) {
+        walk_ensures(self, ensures);
     }
 
     fn visit_where_predicate(&mut self, predicate: &WhereBoundPredicate) {
@@ -308,8 +308,9 @@ pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
 pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
     vis.visit_async(&fn_sig.asyncness);
     vis.visit_generics(&fn_sig.generics);
-    if let Some(requires) = &fn_sig.requires {
-        vis.visit_expr(requires);
+    for requires in &fn_sig.requires {
+        walk_list!(vis, visit_refine_param, &requires.params);
+        vis.visit_expr(&requires.pred);
     }
     vis.visit_fun_args(&fn_sig.args);
     vis.visit_fn_output(&fn_sig.output);
@@ -317,7 +318,7 @@ pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
 
 pub fn walk_fn_output<V: Visitor>(vis: &mut V, fn_output: &FnOutput) {
     vis.visit_fn_ret_ty(&fn_output.returns);
-    walk_list!(vis, visit_constraint, &fn_output.ensures);
+    walk_list!(vis, visit_ensures, &fn_output.ensures);
 }
 
 pub fn walk_generics<V: Visitor>(vis: &mut V, generics: &Generics) {
@@ -358,13 +359,13 @@ pub fn walk_fn_ret_ty<V: Visitor>(vis: &mut V, fn_ret_ty: &FnRetTy) {
     }
 }
 
-pub fn walk_constraint<V: Visitor>(vis: &mut V, constraint: &Constraint) {
-    match constraint {
-        Constraint::Type(bind, ty, _node_id) => {
+pub fn walk_ensures<V: Visitor>(vis: &mut V, ensures: &Ensures) {
+    match ensures {
+        Ensures::Type(bind, ty, _node_id) => {
             vis.visit_ident(*bind);
             vis.visit_ty(ty);
         }
-        Constraint::Pred(pred) => {
+        Ensures::Pred(pred) => {
             vis.visit_expr(pred);
         }
     }

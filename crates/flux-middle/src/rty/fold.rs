@@ -1050,6 +1050,7 @@ impl TypeSuperVisitable for Expr {
                 args.visit_with(visitor)
             }
             ExprKind::Abs(body) => body.visit_with(visitor),
+            ExprKind::ForAll(expr) => expr.visit_with(visitor),
             ExprKind::Constant(_)
             | ExprKind::Hole(_)
             | ExprKind::Local(_)
@@ -1141,6 +1142,7 @@ impl TypeSuperFoldable for Expr {
                 let args = args.try_fold_with(folder)?;
                 Expr::alias(alias, args)
             }
+            ExprKind::ForAll(expr) => Expr::forall(expr.try_fold_with(folder)?),
         };
         Ok(expr)
     }
