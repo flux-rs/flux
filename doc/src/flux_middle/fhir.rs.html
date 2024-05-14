@@ -1411,6 +1411,17 @@
 <a href="#1411" id="1411">1411</a>
 <a href="#1412" id="1412">1412</a>
 <a href="#1413" id="1413">1413</a>
+<a href="#1414" id="1414">1414</a>
+<a href="#1415" id="1415">1415</a>
+<a href="#1416" id="1416">1416</a>
+<a href="#1417" id="1417">1417</a>
+<a href="#1418" id="1418">1418</a>
+<a href="#1419" id="1419">1419</a>
+<a href="#1420" id="1420">1420</a>
+<a href="#1421" id="1421">1421</a>
+<a href="#1422" id="1422">1422</a>
+<a href="#1423" id="1423">1423</a>
+<a href="#1424" id="1424">1424</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1895,8 +1906,8 @@
 </span><span class="kw">pub enum </span>Constraint&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="doccomment">/// A type constraint on a location
     </span>Type(PathExpr&lt;<span class="lifetime">'fhir</span>&gt;, Ty&lt;<span class="lifetime">'fhir</span>&gt;),
-    <span class="doccomment">/// A predicate that needs to hold
-    </span>Pred(Expr&lt;<span class="lifetime">'fhir</span>&gt;),
+    <span class="doccomment">/// A predicate that needs to hold under an (optional) list of universally quantified parameters
+    </span>Pred(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;], Expr&lt;<span class="lifetime">'fhir</span>&gt;),
 }
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -2574,7 +2585,18 @@
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
             Constraint::Type(loc, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{loc:?}: {ty:?}"</span>),
-            Constraint::Pred(e) =&gt; <span class="macro">write!</span>(f, <span class="string">"{e:?}"</span>),
+            Constraint::Pred(params, e) =&gt; {
+                <span class="kw">if </span>!params.is_empty() {
+                    <span class="macro">write!</span>(
+                        f,
+                        <span class="string">"forall {}."</span>,
+                        params.iter().format_with(<span class="string">","</span>, |param, f| {
+                            f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"{}:{:?}"</span>, param.name, param.sort))
+                        })
+                    )<span class="question-mark">?</span>;
+                }
+                <span class="macro">write!</span>(f, <span class="string">"{e:?}"</span>)
+            }
         }
     }
 }

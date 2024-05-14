@@ -1384,8 +1384,6 @@
 <a href="#1384" id="1384">1384</a>
 <a href="#1385" id="1385">1385</a>
 <a href="#1386" id="1386">1386</a>
-<a href="#1387" id="1387">1387</a>
-<a href="#1388" id="1388">1388</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -1889,9 +1887,10 @@
 
             <span class="kw">let </span><span class="kw-2">mut </span>generics = <span class="self">self</span>.desugar_generics(<span class="kw-2">&amp;</span>fn_sig.generics)<span class="question-mark">?</span>;
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(expr) = <span class="kw-2">&amp;</span>fn_sig.requires {
-                <span class="kw">let </span>pred = <span class="self">self</span>.desugar_expr(expr)<span class="question-mark">?</span>;
-                requires.push(fhir::Constraint::Pred(pred));
+            <span class="kw">for </span>surface_requires <span class="kw">in </span><span class="kw-2">&amp;</span>fn_sig.requires {
+                <span class="kw">let </span>params = <span class="self">self</span>.desugar_refine_params(<span class="kw-2">&amp;</span>surface_requires.params);
+                <span class="kw">let </span>pred = <span class="self">self</span>.desugar_expr(<span class="kw-2">&amp;</span>surface_requires.pred)<span class="question-mark">?</span>;
+                requires.push(fhir::Constraint::Pred(params, pred));
             }
 
             <span class="comment">// Bail out if there's an error in the arguments to avoid confusing error messages
@@ -1977,12 +1976,9 @@
         <span class="prelude-val">Ok</span>(fhir::FnOutput { params, ret: ret<span class="question-mark">?</span>, ensures })
     }
 
-    <span class="kw">fn </span>desugar_constraint(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        cstr: <span class="kw-2">&amp;</span>surface::Constraint,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Constraint&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    <span class="kw">fn </span>desugar_constraint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cstr: <span class="kw-2">&amp;</span>surface::Ensures) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Constraint&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">match </span>cstr {
-            surface::Constraint::Type(loc, ty, node_id) =&gt; {
+            surface::Ensures::Type(loc, ty, node_id) =&gt; {
                 <span class="kw">let </span>res = <span class="self">self</span>.desugar_loc(<span class="kw-2">*</span>loc, <span class="kw-2">*</span>node_id)<span class="question-mark">?</span>;
                 <span class="kw">let </span>path = fhir::PathExpr {
                     segments: <span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>[<span class="kw-2">*</span>loc]),
@@ -1993,9 +1989,9 @@
                 <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(ty)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(fhir::Constraint::Type(path, ty))
             }
-            surface::Constraint::Pred(e) =&gt; {
+            surface::Ensures::Pred(e) =&gt; {
                 <span class="kw">let </span>pred = <span class="self">self</span>.desugar_expr(e)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(fhir::Constraint::Pred(pred))
+                <span class="prelude-val">Ok</span>(fhir::Constraint::Pred(<span class="kw-2">&amp;</span>[], pred))
             }
         }
     }

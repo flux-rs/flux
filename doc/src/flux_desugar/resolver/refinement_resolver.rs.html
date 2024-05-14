@@ -1146,11 +1146,11 @@
         surface::visit::walk_fun_arg(<span class="self">self</span>, arg);
     }
 
-    <span class="kw">fn </span>visit_constraint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constraint: <span class="kw-2">&amp;</span>surface::Constraint) {
-        <span class="kw">if let </span>surface::Constraint::Type(loc, <span class="kw">_</span>, node_id) = constraint {
+    <span class="kw">fn </span>visit_ensures(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constraint: <span class="kw-2">&amp;</span>surface::Ensures) {
+        <span class="kw">if let </span>surface::Ensures::Type(loc, <span class="kw">_</span>, node_id) = constraint {
             <span class="self">self</span>.on_loc(<span class="kw-2">*</span>loc, <span class="kw-2">*</span>node_id);
         }
-        surface::visit::walk_constraint(<span class="self">self</span>, constraint);
+        surface::visit::walk_ensures(<span class="self">self</span>, constraint);
     }
 
     <span class="kw">fn </span>visit_refine_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>surface::RefineArg) {

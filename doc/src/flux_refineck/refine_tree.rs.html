@@ -867,15 +867,6 @@
 <a href="#867" id="867">867</a>
 <a href="#868" id="868">868</a>
 <a href="#869" id="869">869</a>
-<a href="#870" id="870">870</a>
-<a href="#871" id="871">871</a>
-<a href="#872" id="872">872</a>
-<a href="#873" id="873">873</a>
-<a href="#874" id="874">874</a>
-<a href="#875" id="875">875</a>
-<a href="#876" id="876">876</a>
-<a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
@@ -993,7 +984,7 @@
     Conj,
     Comment(String),
     ForAll(Name, Sort),
-    Guard(Expr),
+    Assumption(Expr),
     Head(Expr, Tag),
     True,
 }
@@ -1110,7 +1101,7 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred1: <span class="kw">impl </span>Into&lt;Expr&gt;, pred2: <span class="kw">impl </span>Into&lt;Expr&gt;, tag: Tag) {
         <span class="self">self</span>.ptr
-            .push_node(NodeKind::Guard(pred1.into()))
+            .push_node(NodeKind::Assumption(pred1.into()))
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
@@ -1316,7 +1307,7 @@
     <span class="kw">fn </span>push_guard(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) {
         <span class="kw">let </span>pred = pred.into();
         <span class="kw">if </span>!pred.is_trivially_true() {
-            <span class="kw-2">*</span><span class="self">self </span>= <span class="self">self</span>.push_node(NodeKind::Guard(pred));
+            <span class="kw-2">*</span><span class="self">self </span>= <span class="self">self</span>.push_node(NodeKind::Assumption(pred));
         }
     }
 
@@ -1380,7 +1371,7 @@
                 }
             }
             NodeKind::True =&gt; {}
-            NodeKind::Guard(pred) =&gt; {
+            NodeKind::Assumption(pred) =&gt; {
                 <span class="kw-2">*</span>pred = pred.simplify();
                 <span class="self">self</span>.children
                     .extract_if(|child| {
@@ -1409,7 +1400,7 @@
             child.borrow_mut().replace_evars(sol);
         }
         <span class="kw">match </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.kind {
-            NodeKind::Guard(pred) =&gt; <span class="kw-2">*</span>pred = pred.replace_evars(sol),
+            NodeKind::Assumption(pred) =&gt; <span class="kw-2">*</span>pred = pred.replace_evars(sol),
             NodeKind::Head(pred, <span class="kw">_</span>) =&gt; {
                 <span class="kw-2">*</span>pred = pred.replace_evars(sol);
             }
@@ -1437,10 +1428,8 @@
                     )))
                 })<span class="question-mark">?
             </span>}
-            NodeKind::Guard(pred) =&gt; {
-                <span class="kw">let </span>(bindings, preds) = cx.pred_to_fixpoint(pred)<span class="question-mark">?</span>;
-                <span class="kw">let </span>preds = preds.into_iter().map(|(pred, <span class="kw">_</span>)| pred).collect_vec();
-                <span class="kw">let </span>pred = fixpoint::Pred::And(preds);
+            NodeKind::Assumption(pred) =&gt; {
+                <span class="kw">let </span>(bindings, pred) = cx.assumption_to_fixpoint(pred)<span class="question-mark">?</span>;
                 <span class="kw">let </span><span class="prelude-val">Some</span>(children) = children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)<span class="question-mark">? </span><span class="kw">else </span>{
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
                 };
@@ -1457,14 +1446,7 @@
                 ))
             }
             NodeKind::Head(pred, tag) =&gt; {
-                <span class="kw">let </span>(bindings, preds) = cx.pred_to_fixpoint(pred)<span class="question-mark">?</span>;
-                <span class="kw">let </span>cstr = preds
-                    .into_iter()
-                    .map(|(pred, span)| {
-                        fixpoint::Constraint::Pred(pred, <span class="prelude-val">Some</span>(cx.tag_idx(tag.with_dst(span))))
-                    })
-                    .collect_vec();
-                <span class="prelude-val">Some</span>(stitch(bindings, fixpoint::Constraint::Conj(cstr)))
+                <span class="prelude-val">Some</span>(cx.head_to_fixpoint(pred, |span| tag.with_dst(span))<span class="question-mark">?</span>)
             }
             NodeKind::True =&gt; <span class="prelude-val">None</span>,
         };
@@ -1536,7 +1518,7 @@
         <span class="kw">let </span>node = <span class="self">self</span>.borrow();
         <span class="kw">match </span><span class="kw-2">&amp;</span>node.kind {
             NodeKind::Conj | NodeKind::Comment(<span class="kw">_</span>) | NodeKind::True =&gt; {}
-            NodeKind::Guard(pred) | NodeKind::Head(pred, <span class="kw">_</span>) =&gt; pred.visit_with(visitor)<span class="question-mark">?</span>,
+            NodeKind::Assumption(pred) | NodeKind::Head(pred, <span class="kw">_</span>) =&gt; pred.visit_with(visitor)<span class="question-mark">?</span>,
             NodeKind::ForAll(<span class="kw">_</span>, sort) =&gt; sort.visit_with(visitor)<span class="question-mark">?</span>,
         }
         <span class="kw">for </span>child <span class="kw">in </span><span class="kw-2">&amp;</span>node.children {
@@ -1595,7 +1577,7 @@
     <span class="kw">fn </span>preds_chain(ptr: <span class="kw-2">&amp;</span>NodePtr) -&gt; (Vec&lt;Expr&gt;, Vec&lt;NodePtr&gt;) {
         <span class="kw">fn </span>go(ptr: <span class="kw-2">&amp;</span>NodePtr, <span class="kw-2">mut </span>preds: Vec&lt;Expr&gt;) -&gt; (Vec&lt;Expr&gt;, Vec&lt;NodePtr&gt;) {
             <span class="kw">let </span>node = ptr.borrow();
-            <span class="kw">if let </span>NodeKind::Guard(pred) = <span class="kw-2">&amp;</span>node.kind {
+            <span class="kw">if let </span>NodeKind::Assumption(pred) = <span class="kw-2">&amp;</span>node.kind {
                 preds.push(pred.clone());
                 <span class="kw">if let </span>[child] = <span class="kw-2">&amp;</span>node.children[..] {
                     go(child, preds)
@@ -1653,7 +1635,7 @@
                     )<span class="question-mark">?</span>;
                     fmt_children(<span class="kw-2">&amp;</span>children, cx, f)
                 }
-                NodeKind::Guard(pred) =&gt; {
+                NodeKind::Assumption(pred) =&gt; {
                     <span class="kw">let </span>(preds, children) = <span class="kw">if </span>cx.preds_chain {
                         preds_chain(<span class="self">self</span>)
                     } <span class="kw">else </span>{
@@ -1714,7 +1696,7 @@
                         <span class="kw">let </span>node = ptr.borrow();
                         <span class="kw">match </span><span class="kw-2">&amp;</span>node.kind {
                             NodeKind::ForAll(..) =&gt; <span class="bool-val">true</span>,
-                            NodeKind::Guard(e) =&gt; !e.simplify().is_trivially_true(),
+                            NodeKind::Assumption(e) =&gt; !e.simplify().is_trivially_true(),
                             <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
                         }
                     })
@@ -1724,7 +1706,7 @@
                             NodeKind::ForAll(name, sort) =&gt; {
                                 f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort))
                             }
-                            NodeKind::Guard(pred) =&gt; f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}"</span>, pred)),
+                            NodeKind::Assumption(pred) =&gt; f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}"</span>, pred)),
                             <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(),
                         }
                     })

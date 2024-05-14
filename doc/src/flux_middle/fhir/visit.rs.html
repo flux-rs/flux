@@ -474,6 +474,9 @@
 <a href="#474" id="474">474</a>
 <a href="#475" id="475">475</a>
 <a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
     FnSig, FuncSort, GenericArg, GenericBound, Generics, ImplAssocReft, ImplItem, ImplItemKind,
@@ -794,7 +797,10 @@
             vis.visit_path_expr(loc);
             vis.visit_ty(ty);
         }
-        Constraint::Pred(p) =&gt; vis.visit_expr(p),
+        Constraint::Pred(params, pred) =&gt; {
+            <span class="macro">walk_list!</span>(vis, visit_refine_param, <span class="kw-2">*</span>params);
+            vis.visit_expr(pred);
+        }
     }
 }
 

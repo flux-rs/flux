@@ -1095,6 +1095,34 @@
 <a href="#1095" id="1095">1095</a>
 <a href="#1096" id="1096">1096</a>
 <a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a>
+<a href="#1101" id="1101">1101</a>
+<a href="#1102" id="1102">1102</a>
+<a href="#1103" id="1103">1103</a>
+<a href="#1104" id="1104">1104</a>
+<a href="#1105" id="1105">1105</a>
+<a href="#1106" id="1106">1106</a>
+<a href="#1107" id="1107">1107</a>
+<a href="#1108" id="1108">1108</a>
+<a href="#1109" id="1109">1109</a>
+<a href="#1110" id="1110">1110</a>
+<a href="#1111" id="1111">1111</a>
+<a href="#1112" id="1112">1112</a>
+<a href="#1113" id="1113">1113</a>
+<a href="#1114" id="1114">1114</a>
+<a href="#1115" id="1115">1115</a>
+<a href="#1116" id="1116">1116</a>
+<a href="#1117" id="1117">1117</a>
+<a href="#1118" id="1118">1118</a>
+<a href="#1119" id="1119">1119</a>
+<a href="#1120" id="1120">1120</a>
+<a href="#1121" id="1121">1121</a>
+<a href="#1122" id="1122">1122</a>
+<a href="#1123" id="1123">1123</a>
+<a href="#1124" id="1124">1124</a>
+<a href="#1125" id="1125">1125</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1295,6 +1323,7 @@
     /// and the places where we generate inference variable for them (where we do need to worry
     /// about the scope).
     </span>Hole(HoleKind),
+    ForAll(Binder&lt;Expr&gt;),
 }
 
 <span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
@@ -1585,6 +1614,10 @@
         ExprKind::Alias(alias, args).intern()
     }
 
+    <span class="kw">pub fn </span>forall(expr: Binder&lt;Expr&gt;) -&gt; Expr {
+        ExprKind::ForAll(expr).intern()
+    }
+
     <span class="kw">pub fn </span>binary_op(
         op: BinOp,
         e1: <span class="kw">impl </span>Into&lt;Expr&gt;,
@@ -1672,7 +1705,7 @@
     <span class="doccomment">/// An expression is an *atom* if it is "self-delimiting", i.e., it has a clear boundary
     /// when printed. This is used to avoid unnecesary parenthesis when pretty printing.
     </span><span class="kw">pub fn </span>is_atom(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        !<span class="macro">matches!</span>(<span class="self">self</span>.kind, ExprKind::Abs(..) | ExprKind::BinaryOp(..))
+        !<span class="macro">matches!</span>(<span class="self">self</span>.kind, ExprKind::Abs(..) | ExprKind::BinaryOp(..) | ExprKind::ForAll(..))
     }
 
     <span class="doccomment">/// Simple syntactic check to see if the expression is a trivially true predicate. This is used
@@ -1817,6 +1850,20 @@
             ExprKind::Aggregate(<span class="kw">_</span>, flds) =&gt; flds[proj.field() <span class="kw">as </span>usize].clone(),
             <span class="kw">_ </span>=&gt; Expr::field_proj(<span class="self">self</span>.clone(), proj, <span class="prelude-val">None</span>),
         }
+    }
+
+    <span class="kw">pub fn </span>flatten_conjs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;<span class="kw-2">&amp;</span>Expr&gt; {
+        <span class="kw">fn </span>go&lt;<span class="lifetime">'a</span>&gt;(e: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Expr, vec: <span class="kw-2">&amp;mut </span>Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Expr&gt;) {
+            <span class="kw">if let </span>ExprKind::BinaryOp(BinOp::And, e1, e2) = e.kind() {
+                go(e1, vec);
+                go(e2, vec);
+            } <span class="kw">else </span>{
+                vec.push(e);
+            }
+        }
+        <span class="kw">let </span><span class="kw-2">mut </span>vec = <span class="macro">vec!</span>[];
+        go(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>vec);
+        vec
     }
 }
 
@@ -2082,6 +2129,15 @@
                     <span class="macro">w!</span>(<span class="string">"{:?}"</span>, lam)
                 }
                 ExprKind::GlobalFunc(func, <span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^func),
+                ExprKind::ForAll(expr) =&gt; {
+                    <span class="kw">let </span>vars = expr.vars();
+                    cx.with_bound_vars(vars, || {
+                        <span class="kw">if </span>!vars.is_empty() {
+                            cx.fmt_bound_vars(<span class="string">"∀"</span>, vars, <span class="string">". "</span>, f)<span class="question-mark">?</span>;
+                        }
+                        <span class="macro">w!</span>(<span class="string">"{:?}"</span>, expr.as_ref().skip_binder())
+                    })
+                }
             }
         }
     }

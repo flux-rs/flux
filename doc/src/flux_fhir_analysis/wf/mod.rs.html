@@ -499,7 +499,7 @@
                 <span class="self">self</span>.infcx.check_loc(loc).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
                 <span class="self">self</span>.visit_ty(ty);
             }
-            fhir::Constraint::Pred(pred) =&gt; {
+            fhir::Constraint::Pred(<span class="kw">_</span>, pred) =&gt; {
                 <span class="self">self</span>.infcx
                     .check_expr(pred, <span class="kw-2">&amp;</span>rty::Sort::Bool)
                     .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);

@@ -1256,6 +1256,8 @@
 <a href="#1256" id="1256">1256</a>
 <a href="#1257" id="1257">1257</a>
 <a href="#1258" id="1258">1258</a>
+<a href="#1259" id="1259">1259</a>
+<a href="#1260" id="1260">1260</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -2308,6 +2310,7 @@
                 args.visit_with(visitor)
             }
             ExprKind::Abs(body) =&gt; body.visit_with(visitor),
+            ExprKind::ForAll(expr) =&gt; expr.visit_with(visitor),
             ExprKind::Constant(<span class="kw">_</span>)
             | ExprKind::Hole(<span class="kw">_</span>)
             | ExprKind::Local(<span class="kw">_</span>)
@@ -2399,6 +2402,7 @@
                 <span class="kw">let </span>args = args.try_fold_with(folder)<span class="question-mark">?</span>;
                 Expr::alias(alias, args)
             }
+            ExprKind::ForAll(expr) =&gt; Expr::forall(expr.try_fold_with(folder)<span class="question-mark">?</span>),
         };
         <span class="prelude-val">Ok</span>(expr)
     }

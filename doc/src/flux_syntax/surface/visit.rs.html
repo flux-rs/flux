@@ -507,10 +507,11 @@
 <a href="#507" id="507">507</a>
 <a href="#508" id="508">508</a>
 <a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
 
 <span class="kw">use super</span>::{
-    AliasReft, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Constraint, EnumDef, Expr,
+    AliasReft, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Ensures, EnumDef, Expr,
     ExprKind, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, GenericParamKind,
     Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathExpr, PathSegment, Qualifier, RefineArg,
     RefineParam, RefinedBy, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef,
@@ -628,8 +629,8 @@
         walk_fn_ret_ty(<span class="self">self</span>, fn_ret_ty);
     }
 
-    <span class="kw">fn </span>visit_constraint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constraint: <span class="kw-2">&amp;</span>Constraint) {
-        walk_constraint(<span class="self">self</span>, constraint);
+    <span class="kw">fn </span>visit_ensures(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ensures: <span class="kw-2">&amp;</span>Ensures) {
+        walk_ensures(<span class="self">self</span>, ensures);
     }
 
     <span class="kw">fn </span>visit_where_predicate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, predicate: <span class="kw-2">&amp;</span>WhereBoundPredicate) {
@@ -817,8 +818,9 @@
 <span class="kw">pub fn </span>walk_fn_sig&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, fn_sig: <span class="kw-2">&amp;</span>FnSig) {
     vis.visit_async(<span class="kw-2">&amp;</span>fn_sig.asyncness);
     vis.visit_generics(<span class="kw-2">&amp;</span>fn_sig.generics);
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(requires) = <span class="kw-2">&amp;</span>fn_sig.requires {
-        vis.visit_expr(requires);
+    <span class="kw">for </span>requires <span class="kw">in </span><span class="kw-2">&amp;</span>fn_sig.requires {
+        <span class="macro">walk_list!</span>(vis, visit_refine_param, <span class="kw-2">&amp;</span>requires.params);
+        vis.visit_expr(<span class="kw-2">&amp;</span>requires.pred);
     }
     vis.visit_fun_args(<span class="kw-2">&amp;</span>fn_sig.args);
     vis.visit_fn_output(<span class="kw-2">&amp;</span>fn_sig.output);
@@ -826,7 +828,7 @@
 
 <span class="kw">pub fn </span>walk_fn_output&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, fn_output: <span class="kw-2">&amp;</span>FnOutput) {
     vis.visit_fn_ret_ty(<span class="kw-2">&amp;</span>fn_output.returns);
-    <span class="macro">walk_list!</span>(vis, visit_constraint, <span class="kw-2">&amp;</span>fn_output.ensures);
+    <span class="macro">walk_list!</span>(vis, visit_ensures, <span class="kw-2">&amp;</span>fn_output.ensures);
 }
 
 <span class="kw">pub fn </span>walk_generics&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, generics: <span class="kw-2">&amp;</span>Generics) {
@@ -867,13 +869,13 @@
     }
 }
 
-<span class="kw">pub fn </span>walk_constraint&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, constraint: <span class="kw-2">&amp;</span>Constraint) {
-    <span class="kw">match </span>constraint {
-        Constraint::Type(bind, ty, _node_id) =&gt; {
+<span class="kw">pub fn </span>walk_ensures&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, ensures: <span class="kw-2">&amp;</span>Ensures) {
+    <span class="kw">match </span>ensures {
+        Ensures::Type(bind, ty, _node_id) =&gt; {
             vis.visit_ident(<span class="kw-2">*</span>bind);
             vis.visit_ty(ty);
         }
-        Constraint::Pred(pred) =&gt; {
+        Ensures::Pred(pred) =&gt; {
             vis.visit_expr(pred);
         }
     }

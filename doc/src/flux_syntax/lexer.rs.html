@@ -241,6 +241,10 @@
 <a href="#241" id="241">241</a>
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::VecDeque, iter::Peekable};
 
 <span class="kw">pub use </span>rustc_ast::token::{BinOpToken, Delimiter, Lit, LitKind};
@@ -282,6 +286,7 @@
     FatArrow,
     Mut,
     Where,
+    Forall,
     Impl,
     Requires,
     Ensures,
@@ -329,6 +334,7 @@
     local: Symbol,
     bitvec: Symbol,
     refine: Symbol,
+    forall: Symbol,
 }
 
 <span class="kw">struct </span>Frame&lt;<span class="lifetime">'t</span>&gt; {
@@ -357,6 +363,7 @@
                 opaque: Symbol::intern(<span class="string">"opaque"</span>),
                 local: Symbol::intern(<span class="string">"local"</span>),
                 refine: Symbol::intern(<span class="string">"refine"</span>),
+                forall: Symbol::intern(<span class="string">"forall"</span>),
             },
         }
     }
@@ -398,6 +405,7 @@
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.local =&gt; Token::Local,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.bitvec =&gt; Token::BitVec,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.refine =&gt; Token::Refine,
+            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.forall =&gt; Token::Forall,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Mut =&gt; Token::Mut,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Where =&gt; Token::Where,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Impl =&gt; Token::Impl,
