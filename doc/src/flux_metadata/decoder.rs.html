@@ -149,6 +149,30 @@
 <a href="#149" id="149">149</a>
 <a href="#150" id="150">150</a>
 <a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     fs,
     io::{<span class="self">self</span>, Read},
@@ -165,13 +189,14 @@
     ty::{<span class="self">self</span>, TyCtxt},
 };
 <span class="kw">use </span>rustc_serialize::{opaque::MemDecoder, Decodable, Decoder <span class="kw">as _</span>};
+<span class="kw">use </span>rustc_session::StableCrateId;
 <span class="kw">use </span>rustc_span::{
     def_id::{CrateNum, DefIndex},
-    SpanDecoder,
+    SpanDecoder, Symbol,
 };
 <span class="kw">use </span>rustc_type_ir::TyDecoder;
 
-<span class="kw">use crate</span>::{CrateMetadata, METADATA_HEADER};
+<span class="kw">use crate</span>::{CrateMetadata, METADATA_HEADER, SYMBOL_OFFSET, SYMBOL_PREINTERNED, SYMBOL_STR};
 
 <span class="kw">struct </span>DecodeContext&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; {
     tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
@@ -203,24 +228,13 @@
 <span class="macro">implement_ty_decoder!</span>(DecodeContext&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt;);
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; SpanDecoder <span class="kw">for </span>DecodeContext&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">fn </span>decode_span(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_span::Span {
-        <span class="self">self</span>.opaque.decode_span()
-    }
-
-    <span class="kw">fn </span>decode_symbol(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_span::Symbol {
-        <span class="self">self</span>.opaque.decode_symbol()
-    }
-
-    <span class="kw">fn </span>decode_expn_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_span::ExpnId {
-        <span class="self">self</span>.opaque.decode_expn_id()
-    }
-
-    <span class="kw">fn </span>decode_syntax_context(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_span::SyntaxContext {
-        <span class="self">self</span>.opaque.decode_syntax_context()
+    <span class="kw">fn </span>decode_attr_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_ast::AttrId {
+        <span class="self">self</span>.tcx.sess.psess.attr_id_generator.mk_attr_id()
     }
 
     <span class="kw">fn </span>decode_crate_num(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; CrateNum {
-        <span class="self">self</span>.opaque.decode_crate_num()
+        <span class="kw">let </span>stable_id = StableCrateId::decode(<span class="self">self</span>);
+        <span class="self">self</span>.tcx.stable_crate_id_to_crate_num(stable_id)
     }
 
     <span class="kw">fn </span>decode_def_index(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; DefIndex {
@@ -231,8 +245,42 @@
         DefId { krate: Decodable::decode(<span class="self">self</span>), index: Decodable::decode(<span class="self">self</span>) }
     }
 
-    <span class="kw">fn </span>decode_attr_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_ast::AttrId {
-        <span class="self">self</span>.opaque.decode_attr_id()
+    <span class="kw">fn </span>decode_syntax_context(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_span::SyntaxContext {
+        <span class="macro">panic!</span>(<span class="string">"cannot decode `SyntaxContext` with `DecodeContext`"</span>);
+    }
+
+    <span class="kw">fn </span>decode_expn_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_span::ExpnId {
+        <span class="macro">panic!</span>(<span class="string">"cannot decode `ExpnId` with `DecodeContext`"</span>);
+    }
+
+    <span class="kw">fn </span>decode_span(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_span::Span {
+        <span class="macro">panic!</span>(<span class="string">"cannot decode `Span` with `DecodeContext`"</span>);
+    }
+
+    <span class="kw">fn </span>decode_symbol(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_span::Symbol {
+        <span class="kw">let </span>tag = <span class="self">self</span>.read_u8();
+
+        <span class="kw">match </span>tag {
+            SYMBOL_STR =&gt; {
+                <span class="kw">let </span>s = <span class="self">self</span>.read_str();
+                Symbol::intern(s)
+            }
+            SYMBOL_OFFSET =&gt; {
+                <span class="comment">// read str offset
+                </span><span class="kw">let </span>pos = <span class="self">self</span>.read_usize();
+
+                <span class="comment">// move to str offset and read
+                </span><span class="self">self</span>.opaque.with_position(pos, |d| {
+                    <span class="kw">let </span>s = d.read_str();
+                    Symbol::intern(s)
+                })
+            }
+            SYMBOL_PREINTERNED =&gt; {
+                <span class="kw">let </span>symbol_index = <span class="self">self</span>.read_u32();
+                Symbol::new_from_decoded(symbol_index)
+            }
+            <span class="kw">_ </span>=&gt; <span class="macro">unreachable!</span>(),
+        }
     }
 }
 

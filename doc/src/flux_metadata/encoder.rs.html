@@ -452,7 +452,7 @@
         <span class="kw">if </span>crate_num != LOCAL_CRATE &amp;&amp; <span class="self">self</span>.is_proc_macro {
             <span class="macro">panic!</span>(<span class="string">"Attempted to encode non-local CrateNum {crate_num:?} for proc-macro crate"</span>);
         }
-        <span class="self">self</span>.emit_u32(crate_num.as_u32());
+        <span class="self">self</span>.tcx.stable_crate_id(crate_num).encode(<span class="self">self</span>);
     }
 
     <span class="kw">fn </span>encode_def_index(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_index: DefIndex) {

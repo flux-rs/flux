@@ -242,19 +242,12 @@
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
 <a href="#244" id="244">244</a>
-<a href="#245" id="245">245</a>
-<a href="#246" id="246">246</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_fhir_analysis::compare_impl_item;
 <span class="kw">use </span>flux_metadata::CStore;
-<span class="kw">use </span>flux_middle::{
-    fhir::{<span class="self">self</span>, Ignored},
-    global_env::GlobalEnv,
-    queries::Providers,
-    Specs,
-};
+<span class="kw">use </span>flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
 <span class="kw">use </span>flux_refineck <span class="kw">as </span>refineck;
 <span class="kw">use </span>refineck::CheckerConfig;
 <span class="kw">use </span>rustc_borrowck::consumers::ConsumerOptions;
@@ -393,7 +386,10 @@
     }
 
     <span class="kw">fn </span>check_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">if </span><span class="self">self</span>.genv.ignored(def_id) == Ignored::Yes || !<span class="self">self</span>.matches_check_def(def_id) {
+        <span class="kw">if </span>!<span class="self">self</span>.matches_check_def(def_id) {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        }
+        <span class="kw">if </span><span class="self">self</span>.genv.ignored(def_id) {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 

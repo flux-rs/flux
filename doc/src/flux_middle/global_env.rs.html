@@ -882,22 +882,22 @@
 
     <span class="doccomment">/// transitively follows the parent-chain to find the first containing item with an explicit
     /// `ignore` annotation and returns whether that item is ignored or not.
-    </span><span class="kw">pub fn </span>ignored(<span class="self">self</span>, <span class="kw-2">mut </span>def_id: LocalDefId) -&gt; Ignored {
+    </span><span class="kw">pub fn </span>ignored(<span class="self">self</span>, <span class="kw-2">mut </span>def_id: LocalDefId) -&gt; bool {
         <span class="kw">loop </span>{
             <span class="kw">if let </span><span class="prelude-val">Some</span>(ignored) = <span class="self">self</span>.ignores().get(<span class="kw-2">&amp;</span>def_id) {
-                <span class="kw">break </span><span class="kw-2">*</span>ignored;
+                <span class="kw">break </span>ignored.to_bool();
             }
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(parent) = <span class="self">self</span>.tcx().opt_local_parent(def_id) {
                 def_id = parent;
             } <span class="kw">else </span>{
-                <span class="kw">break </span>Ignored::No;
+                <span class="kw">break </span><span class="bool-val">false</span>;
             }
         }
     }
 
     <span class="kw">fn </span>ignores(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>UnordMap&lt;LocalDefId, Ignored&gt; {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.collect_specs().check_item
+        <span class="kw-2">&amp;</span><span class="self">self</span>.collect_specs().ignores
     }
 
     <span class="kw">pub fn </span>crate_config(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;CrateConfig&gt; {

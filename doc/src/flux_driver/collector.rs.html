@@ -1190,10 +1190,7 @@
 
         </span><span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, DefKind::Mod)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(ignored) = attrs.ignore() {
-            <span class="self">self</span>.specs.check_item.insert(CRATE_DEF_ID, ignored);
-        }
+        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, CRATE_DEF_ID);
 
         <span class="self">self</span>.specs.extend_items(attrs.items());
 
@@ -1205,10 +1202,7 @@
     <span class="kw">fn </span>parse_mod_spec(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId, attrs: <span class="kw-2">&amp;</span>[Attribute]) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, DefKind::Mod)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(ignored) = attrs.ignore() {
-            <span class="self">self</span>.specs.check_item.insert(def_id, ignored);
-        }
+        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, def_id);
 
         <span class="self">self</span>.specs.extend_items(attrs.items());
         <span class="prelude-val">Ok</span>(())
@@ -1217,10 +1211,7 @@
     <span class="kw">fn </span>parse_const_spec(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId, item: <span class="kw-2">&amp;</span>Item, attrs: <span class="kw-2">&amp;</span>[Attribute]) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, DefKind::Const)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(ignored) = attrs.ignore() {
-            <span class="self">self</span>.specs.check_item.insert(def_id, ignored);
-        }
+        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, def_id);
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(_ty) = attrs.const_sig() <span class="kw">else </span>{
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
@@ -1239,6 +1230,7 @@
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, DefKind::Trait)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
+        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
         <span class="kw">let </span>generics = attrs.generics();
         <span class="kw">let </span>assoc_refinements = attrs.trait_assoc_refts();
@@ -1265,6 +1257,7 @@
         <span class="kw">let </span>def_kind = DefKind::Impl { of_trait: impl_.of_trait.is_some() };
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, def_kind)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
+        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
         <span class="kw">let </span>generics = attrs.generics();
         <span class="kw">let </span>assoc_refinements = attrs.impl_assoc_refts();
@@ -1300,9 +1293,9 @@
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, DefKind::Struct)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
-        <span class="comment">// TODO(nilehmann) error if it has non-struct attrs
+        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
-        </span><span class="kw">let </span><span class="kw-2">mut </span>opaque = attrs.opaque();
+        <span class="kw">let </span><span class="kw-2">mut </span>opaque = attrs.opaque();
 
         <span class="kw">let </span>refined_by = attrs.refined_by();
 
@@ -1374,6 +1367,7 @@
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, DefKind::Enum)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
+        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
         <span class="kw">let </span>generics = attrs.generics();
 
@@ -1441,9 +1435,9 @@
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, def_kind)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
-        <span class="comment">// TODO(nilehmann) error if it has non-fun attrs
+        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
-        </span><span class="kw">let </span><span class="kw-2">mut </span>trusted = attrs.trusted();
+        <span class="kw">let </span><span class="kw-2">mut </span>trusted = attrs.trusted();
         <span class="kw">let </span>fn_sig = attrs.fn_sig();
         <span class="kw">let </span>qual_names: <span class="prelude-ty">Option</span>&lt;surface::QualNames&gt; = attrs.qual_names();
         <span class="kw">let </span>extern_id = <span class="kw">if </span>attrs.extern_spec() {
@@ -1794,6 +1788,12 @@
             <span class="prelude-val">Err</span>(e)
         } <span class="kw">else </span>{
             <span class="prelude-val">Ok</span>(())
+        }
+    }
+
+    <span class="kw">fn </span>collect_ignore(<span class="kw-2">&amp;mut </span><span class="self">self</span>, attrs: <span class="kw-2">&amp;mut </span>FluxAttrs, def_id: LocalDefId) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(ignored) = attrs.ignore() {
+            <span class="self">self</span>.specs.ignores.insert(def_id, ignored);
         }
     }
 
