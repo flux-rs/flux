@@ -617,6 +617,7 @@ pub enum BaseTyKind<'fhir> {
 #[derive(Clone, Copy)]
 pub enum QPath<'fhir> {
     Resolved(Option<&'fhir Ty<'fhir>>, Path<'fhir>),
+    TypeRelative(&'fhir Ty<'fhir>, &'fhir PathSegment<'fhir>),
 }
 
 #[derive(Clone, Copy)]
@@ -972,6 +973,7 @@ impl<'fhir> QPath<'fhir> {
     pub fn span(&self) -> Span {
         match self {
             QPath::Resolved(_, path) => path.span,
+            QPath::TypeRelative(qself, assoc) => qself.span.to(assoc.ident.span),
         }
     }
 }
@@ -1245,9 +1247,8 @@ impl fmt::Debug for BaseTy<'_> {
 impl fmt::Debug for QPath<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            QPath::Resolved(_self_ty, path) => {
-                write!(f, "{path:?}")
-            }
+            QPath::Resolved(_, path) => write!(f, "{path:?}"),
+            QPath::TypeRelative(qself, assoc) => write!(f, "<{qself:?}>::{assoc:?}"),
         }
     }
 }

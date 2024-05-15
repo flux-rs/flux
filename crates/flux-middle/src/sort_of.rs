@@ -27,6 +27,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
     pub fn sort_of_bty(self, bty: &fhir::BaseTy) -> QueryResult<Option<rty::Sort>> {
         let sort = match &bty.kind {
             fhir::BaseTyKind::Path(fhir::QPath::Resolved(_, path)) => self.sort_of_path(path)?,
+            fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(..)) => None,
             fhir::BaseTyKind::Slice(_) => Some(rty::Sort::Int),
         };
         Ok(sort)

@@ -219,11 +219,18 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         let Some(poly_trait_ref) = self.tcx().impl_trait_ref(impl_id) else { return Ok(None) };
 
-        let trait_ref = lowering::lower_trait_ref(self.tcx(), poly_trait_ref.skip_binder())
-            .map_err(|err| QueryErr::unsupported(impl_id, err.into_err()))?;
+        let trait_ref = self.lower_trait_ref(poly_trait_ref.skip_binder())?;
         let impl_generics = self.generics_of(impl_id)?;
         let trait_ref = Refiner::default(self, &impl_generics).refine_trait_ref(&trait_ref)?;
         Ok(Some(rty::EarlyBinder(trait_ref)))
+    }
+
+    fn lower_trait_ref(
+        self,
+        trait_ref: rustc_middle::ty::TraitRef<'tcx>,
+    ) -> QueryResult<rustc::ty::TraitRef> {
+        lowering::lower_trait_ref(self.tcx(), trait_ref)
+            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))
     }
 
     pub fn generics_of(self, def_id: impl Into<DefId>) -> QueryResult<rty::Generics> {

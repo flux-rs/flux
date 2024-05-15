@@ -388,11 +388,15 @@ pub fn walk_bty<V: Visitor>(vis: &mut V, bty: &BaseTy) {
 
 pub fn walk_qpath<V: Visitor>(vis: &mut V, qpath: &QPath) {
     match qpath {
-        QPath::Resolved(self_ty, path) => {
-            if let Some(self_ty) = self_ty {
+        QPath::Resolved(qself, path) => {
+            if let Some(self_ty) = qself {
                 vis.visit_ty(self_ty);
             }
             vis.visit_path(path);
+        }
+        QPath::TypeRelative(qself, assoc) => {
+            vis.visit_ty(qself);
+            vis.visit_path_segment(assoc);
         }
     }
 }
