@@ -842,7 +842,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         if let fhir::Res::SelfTyAlias { alias_to: impl_def_id, is_trait_impl: true } = qself_res {
             let Some(trait_ref) = self.genv.impl_trait_ref(impl_def_id)? else {
-                // A cycle error ocurred most likely
+                // A cycle error ocurred most likely (copied from rustc)
                 span_bug!(qself.span, "expected cycle error");
             };
             let trait_ref = trait_ref.instantiate_identity(&[]);
@@ -852,7 +852,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 AssocKind::Type,
                 assoc_ident,
             ) else {
-                todo!("report cannot find")
+                Err(self
+                    .genv
+                    .sess()
+                    .emit_err(errors::AssocTypeNotFound::new(assoc_ident)))?
             };
             let assoc_id = assoc_item.def_id;
 
@@ -864,7 +867,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
             Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty))
         } else {
-            todo!("report only supported on `Self`")
+            Err(self
+                .genv
+                .sess()
+                .emit_err(errors::AssocTypeNotFound::new(assoc_ident)))?
         }
     }
 
