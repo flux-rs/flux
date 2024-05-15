@@ -1545,6 +1545,56 @@
 <a href="#1545" id="1545">1545</a>
 <a href="#1546" id="1546">1546</a>
 <a href="#1547" id="1547">1547</a>
+<a href="#1548" id="1548">1548</a>
+<a href="#1549" id="1549">1549</a>
+<a href="#1550" id="1550">1550</a>
+<a href="#1551" id="1551">1551</a>
+<a href="#1552" id="1552">1552</a>
+<a href="#1553" id="1553">1553</a>
+<a href="#1554" id="1554">1554</a>
+<a href="#1555" id="1555">1555</a>
+<a href="#1556" id="1556">1556</a>
+<a href="#1557" id="1557">1557</a>
+<a href="#1558" id="1558">1558</a>
+<a href="#1559" id="1559">1559</a>
+<a href="#1560" id="1560">1560</a>
+<a href="#1561" id="1561">1561</a>
+<a href="#1562" id="1562">1562</a>
+<a href="#1563" id="1563">1563</a>
+<a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a>
+<a href="#1566" id="1566">1566</a>
+<a href="#1567" id="1567">1567</a>
+<a href="#1568" id="1568">1568</a>
+<a href="#1569" id="1569">1569</a>
+<a href="#1570" id="1570">1570</a>
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
+<a href="#1575" id="1575">1575</a>
+<a href="#1576" id="1576">1576</a>
+<a href="#1577" id="1577">1577</a>
+<a href="#1578" id="1578">1578</a>
+<a href="#1579" id="1579">1579</a>
+<a href="#1580" id="1580">1580</a>
+<a href="#1581" id="1581">1581</a>
+<a href="#1582" id="1582">1582</a>
+<a href="#1583" id="1583">1583</a>
+<a href="#1584" id="1584">1584</a>
+<a href="#1585" id="1585">1585</a>
+<a href="#1586" id="1586">1586</a>
+<a href="#1587" id="1587">1587</a>
+<a href="#1588" id="1588">1588</a>
+<a href="#1589" id="1589">1589</a>
+<a href="#1590" id="1590">1590</a>
+<a href="#1591" id="1591">1591</a>
+<a href="#1592" id="1592">1592</a>
+<a href="#1593" id="1593">1593</a>
+<a href="#1594" id="1594">1594</a>
+<a href="#1595" id="1595">1595</a>
+<a href="#1596" id="1596">1596</a>
+<a href="#1597" id="1597">1597</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2241,8 +2291,12 @@
             fhir::TyKind::Indexed(bty, idx) =&gt; {
                 <span class="kw">let </span>idx = <span class="self">self</span>.conv_refine_arg(env, idx)<span class="question-mark">?</span>;
                 <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
-                    fhir::BaseTyKind::Path(fhir::QPath::Resolved(<span class="kw">_</span>, path)) =&gt; {
+                    fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) =&gt; {
+                        <span class="macro">debug_assert!</span>(qself.is_none());
                         <span class="prelude-val">Ok</span>(<span class="self">self</span>.conv_ty_ctor(env, path)<span class="question-mark">?</span>.replace_bound_reft(<span class="kw-2">&amp;</span>idx))
+                    }
+                    fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(..)) =&gt; {
+                        <span class="macro">span_bug!</span>(ty.span, <span class="string">"Indexed type relative types are not yet supported"</span>);
                     }
                     fhir::BaseTyKind::Slice(ty) =&gt; {
                         <span class="kw">let </span>bty = rty::BaseTy::Slice(<span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>);
@@ -2314,7 +2368,7 @@
 
     <span class="kw">fn </span>conv_base_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, bty: <span class="kw-2">&amp;</span>fhir::BaseTy) -&gt; QueryResult&lt;rty::Ty&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
-            fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) =&gt; {
+            fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) =&gt; {
                 <span class="kw">match </span>path.res {
                     fhir::Res::Def(DefKind::AssocTy, assoc_id) =&gt; {
                         <span class="kw">let </span>trait_id = <span class="self">self</span>.genv.tcx().trait_of_item(assoc_id).unwrap();
@@ -2323,14 +2377,14 @@
                         };
 
                         <span class="kw">let </span>trait_generics = <span class="self">self</span>.genv.generics_of(trait_id)<span class="question-mark">?</span>;
-                        <span class="kw">let </span>self_ty = self_ty.as_deref().unwrap();
-                        <span class="kw">let </span>self_ty =
+                        <span class="kw">let </span>qself = qself.as_deref().unwrap();
+                        <span class="kw">let </span>qself =
                             <span class="kw">if let </span>rty::GenericParamDefKind::Base = trait_generics.params[<span class="number">0</span>].kind {
-                                rty::GenericArg::Base(<span class="self">self</span>.conv_generic_base(env, self_ty)<span class="question-mark">?</span>)
+                                rty::GenericArg::Base(<span class="self">self</span>.conv_generic_base(env, qself)<span class="question-mark">?</span>)
                             } <span class="kw">else </span>{
-                                rty::GenericArg::Ty(<span class="self">self</span>.conv_ty(env, self_ty)<span class="question-mark">?</span>)
+                                rty::GenericArg::Ty(<span class="self">self</span>.conv_ty(env, qself)<span class="question-mark">?</span>)
                             };
-                        <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[self_ty];
+                        <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[qself];
                         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment.args, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
                         <span class="self">self</span>.conv_generic_args_into(env, assoc_id, assoc_segment.args, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
                         <span class="kw">let </span>args = List::from_vec(args);
@@ -2360,6 +2414,9 @@
                 }
                 <span class="prelude-val">Ok</span>(<span class="self">self</span>.conv_ty_ctor(env, path)<span class="question-mark">?</span>.to_ty())
             }
+            fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(qself, segment)) =&gt; {
+                <span class="self">self</span>.conv_assoc_path(env, qself, segment)
+            }
             fhir::BaseTyKind::Slice(ty) =&gt; {
                 <span class="kw">let </span>bty = rty::BaseTy::Slice(<span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>).shift_in_escaping(<span class="number">1</span>);
                 <span class="kw">let </span>sort = bty.sort();
@@ -2369,6 +2426,49 @@
                 )))
             }
         }
+    }
+
+    <span class="kw">fn </span>conv_assoc_path(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        env: <span class="kw-2">&amp;mut </span>Env,
+        qself: <span class="kw-2">&amp;</span>fhir::Ty,
+        assoc_segment: <span class="kw-2">&amp;</span>fhir::PathSegment,
+    ) -&gt; QueryResult&lt;rty::Ty&gt; {
+        <span class="kw">let </span>assoc_ident = assoc_segment.ident;
+        <span class="kw">let </span>qself_res = <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = qself.as_path() { path.res } <span class="kw">else </span>{ fhir::Res::Err };
+
+        <span class="kw">if let </span>fhir::Res::SelfTyAlias { alias_to: impl_def_id, is_trait_impl: <span class="bool-val">true </span>} = qself_res {
+            <span class="kw">let </span><span class="prelude-val">Some</span>(trait_ref) = <span class="self">self</span>.genv.impl_trait_ref(impl_def_id)<span class="question-mark">? </span><span class="kw">else </span>{
+                <span class="comment">// A cycle error ocurred most likely (copied from rustc)
+                </span><span class="macro">span_bug!</span>(qself.span, <span class="string">"expected cycle error"</span>);
+            };
+            <span class="kw">let </span>trait_ref = trait_ref.instantiate_identity(<span class="kw-2">&amp;</span>[]);
+
+            <span class="kw">let </span><span class="prelude-val">Some</span>(assoc_item) = <span class="self">self</span>.trait_defines_associated_item_named(
+                trait_ref.def_id,
+                AssocKind::Type,
+                assoc_ident,
+            ) <span class="kw">else </span>{
+                <span class="prelude-val">Err</span>(<span class="self">self
+                    </span>.genv
+                    .sess()
+                    .emit_err(errors::AssocTypeNotFound::new(assoc_ident)))<span class="question-mark">?
+            </span>};
+            <span class="kw">let </span>assoc_id = assoc_item.def_id;
+
+            <span class="kw">let </span><span class="kw-2">mut </span>args = trait_ref.args.to_vec();
+            <span class="self">self</span>.conv_generic_args_into(env, assoc_id, assoc_segment.args, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
+
+            <span class="kw">let </span>args = List::from_vec(args);
+            <span class="kw">let </span>refine_args = List::empty();
+            <span class="kw">let </span>alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
+            <span class="prelude-val">Ok</span>(rty::Ty::alias(rty::AliasKind::Projection, alias_ty))
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Err</span>(<span class="self">self
+                </span>.genv
+                .sess()
+                .emit_err(errors::AssocTypeNotFound::new(assoc_ident)))<span class="question-mark">?
+        </span>}
     }
 
     <span class="kw">fn </span>conv_lifetime(<span class="kw-2">&amp;</span><span class="self">self</span>, env: <span class="kw-2">&amp;</span>Env, lft: fhir::Lifetime) -&gt; rty::Region {

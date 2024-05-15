@@ -1422,6 +1422,7 @@
 <a href="#1422" id="1422">1422</a>
 <a href="#1423" id="1423">1423</a>
 <a href="#1424" id="1424">1424</a>
+<a href="#1425" id="1425">1425</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -2041,6 +2042,7 @@
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub enum </span>QPath&lt;<span class="lifetime">'fhir</span>&gt; {
     Resolved(<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;&gt;, Path&lt;<span class="lifetime">'fhir</span>&gt;),
+    TypeRelative(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>PathSegment&lt;<span class="lifetime">'fhir</span>&gt;),
 }
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -2396,6 +2398,7 @@
     <span class="kw">pub fn </span>span(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Span {
         <span class="kw">match </span><span class="self">self </span>{
             QPath::Resolved(<span class="kw">_</span>, path) =&gt; path.span,
+            QPath::TypeRelative(qself, assoc) =&gt; qself.span.to(assoc.ident.span),
         }
     }
 }
@@ -2669,9 +2672,8 @@
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>QPath&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            QPath::Resolved(_self_ty, path) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"{path:?}"</span>)
-            }
+            QPath::Resolved(<span class="kw">_</span>, path) =&gt; <span class="macro">write!</span>(f, <span class="string">"{path:?}"</span>),
+            QPath::TypeRelative(qself, assoc) =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;{qself:?}&gt;::{assoc:?}"</span>),
         }
     }
 }

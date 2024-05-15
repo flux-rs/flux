@@ -152,6 +152,7 @@
 <a href="#152" id="152">152</a>
 <a href="#153" id="153">153</a>
 <a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>rustc_hir::{def::DefKind, PrimTy};
 <span class="kw">use </span>rustc_span::def_id::{DefId, LocalDefId};
@@ -181,6 +182,7 @@
     <span class="kw">pub fn </span>sort_of_bty(<span class="self">self</span>, bty: <span class="kw-2">&amp;</span>fhir::BaseTy) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Sort&gt;&gt; {
         <span class="kw">let </span>sort = <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
             fhir::BaseTyKind::Path(fhir::QPath::Resolved(<span class="kw">_</span>, path)) =&gt; <span class="self">self</span>.sort_of_path(path)<span class="question-mark">?</span>,
+            fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(..)) =&gt; <span class="prelude-val">None</span>,
             fhir::BaseTyKind::Slice(<span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(rty::Sort::Int),
         };
         <span class="prelude-val">Ok</span>(sort)

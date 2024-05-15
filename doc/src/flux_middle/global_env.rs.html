@@ -511,6 +511,13 @@
 <a href="#511" id="511">511</a>
 <a href="#512" id="512">512</a>
 <a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -732,11 +739,18 @@
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(poly_trait_ref) = <span class="self">self</span>.tcx().impl_trait_ref(impl_id) <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
 
-        <span class="kw">let </span>trait_ref = lowering::lower_trait_ref(<span class="self">self</span>.tcx(), poly_trait_ref.skip_binder())
-            .map_err(|err| QueryErr::unsupported(impl_id, err.into_err()))<span class="question-mark">?</span>;
+        <span class="kw">let </span>trait_ref = <span class="self">self</span>.lower_trait_ref(poly_trait_ref.skip_binder())<span class="question-mark">?</span>;
         <span class="kw">let </span>impl_generics = <span class="self">self</span>.generics_of(impl_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>trait_ref = Refiner::default(<span class="self">self</span>, <span class="kw-2">&amp;</span>impl_generics).refine_trait_ref(<span class="kw-2">&amp;</span>trait_ref)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(trait_ref)))
+    }
+
+    <span class="kw">fn </span>lower_trait_ref(
+        <span class="self">self</span>,
+        trait_ref: rustc_middle::ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;,
+    ) -&gt; QueryResult&lt;rustc::ty::TraitRef&gt; {
+        lowering::lower_trait_ref(<span class="self">self</span>.tcx(), trait_ref)
+            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))
     }
 
     <span class="kw">pub fn </span>generics_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::Generics&gt; {

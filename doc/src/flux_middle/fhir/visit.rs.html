@@ -477,6 +477,10 @@
 <a href="#477" id="477">477</a>
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
     FnSig, FuncSort, GenericArg, GenericBound, Generics, ImplAssocReft, ImplItem, ImplItemKind,
@@ -867,11 +871,15 @@
 
 <span class="kw">pub fn </span>walk_qpath&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, qpath: <span class="kw-2">&amp;</span>QPath) {
     <span class="kw">match </span>qpath {
-        QPath::Resolved(self_ty, path) =&gt; {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(self_ty) = self_ty {
+        QPath::Resolved(qself, path) =&gt; {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(self_ty) = qself {
                 vis.visit_ty(self_ty);
             }
             vis.visit_path(path);
+        }
+        QPath::TypeRelative(qself, assoc) =&gt; {
+            vis.visit_ty(qself);
+            vis.visit_path_segment(assoc);
         }
     }
 }
