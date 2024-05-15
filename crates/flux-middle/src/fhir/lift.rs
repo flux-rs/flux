@@ -379,7 +379,11 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                 let tys = try_alloc_slice!(self.genv, tys, |ty| self.lift_ty(ty))?;
                 fhir::TyKind::Tuple(tys)
             }
-            hir::TyKind::Path(qpath) => return self.lift_qpath(qpath),
+            hir::TyKind::Path(qpath) => {
+                let qpath = self.lift_qpath(qpath)?;
+                let bty = fhir::BaseTy::from(qpath);
+                return Ok(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: bty.span });
+            }
             hir::TyKind::Ptr(mut_ty) => {
                 let ty = self.lift_ty(mut_ty.ty)?;
                 fhir::TyKind::RawPtr(self.genv.alloc(ty), mut_ty.mutbl)
@@ -423,14 +427,22 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::MutTy { ty: self.genv.alloc(ty), mutbl: mut_ty.mutbl })
     }
 
-    fn lift_qpath(&mut self, qpath: hir::QPath) -> Result<fhir::Ty<'genv>> {
+    fn lift_qpath(&mut self, qpath: hir::QPath) -> Result<fhir::QPath<'genv>> {
         match qpath {
-            hir::QPath::Resolved(self_ty, path) => self.lift_path_to_ty(self_ty, path),
-            hir::QPath::TypeRelative(_, _) => {
-                self.emit_unsupported(&format!(
-                    "unsupported type relative path: `{}`",
-                    rustc_hir_pretty::qpath_to_string(&self.genv.tcx(), &qpath)
-                ))
+            hir::QPath::Resolved(qself, path) => {
+                let qself = qself
+                    .map(|ty| {
+                        let ty = self.lift_ty(ty)?;
+                        Ok(self.genv.alloc(ty))
+                    })
+                    .transpose()?;
+                let path = self.lift_path(path)?;
+                Ok(fhir::QPath::Resolved(qself, path))
+            }
+            hir::QPath::TypeRelative(qself, segment) => {
+                let qself = self.lift_ty(qself)?;
+                let segment = self.lift_path_segment(segment)?;
+                Ok(fhir::QPath::TypeRelative(self.genv.alloc(qself), self.genv.alloc(segment)))
             }
             hir::QPath::LangItem(_, _) => {
                 self.emit_unsupported(&format!(
@@ -468,25 +480,6 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         };
 
         Ok(fhir::PathSegment { res, ident: segment.ident, args, bindings })
-    }
-
-    fn lift_path_to_ty(
-        &mut self,
-        qself: Option<&hir::Ty>,
-        path: &hir::Path,
-    ) -> Result<fhir::Ty<'genv>> {
-        let path = self.lift_path(path)?;
-
-        let qself = qself
-            .map(|ty| {
-                let ty = self.lift_ty(ty)?;
-                Ok(self.genv.alloc(ty))
-            })
-            .transpose()?;
-        let qpath = fhir::QPath::Resolved(qself, path);
-        let bty = fhir::BaseTy::from(qpath);
-        let span = bty.span;
-        Ok(fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span })
     }
 
     fn lift_generic_args(
