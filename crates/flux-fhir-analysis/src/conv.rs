@@ -694,8 +694,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::TyKind::Indexed(bty, idx) => {
                 let idx = self.conv_refine_arg(env, idx)?;
                 match &bty.kind {
-                    fhir::BaseTyKind::Path(fhir::QPath::Resolved(_, path)) => {
+                    fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) => {
+                        debug_assert!(qself.is_none());
                         Ok(self.conv_ty_ctor(env, path)?.replace_bound_reft(&idx))
+                    }
+                    fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(..)) => {
+                        span_bug!(ty.span, "Indexed type relative types are not yet supported");
                     }
                     fhir::BaseTyKind::Slice(ty) => {
                         let bty = rty::BaseTy::Slice(self.conv_ty(env, ty)?);
@@ -767,7 +771,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     fn conv_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
         match &bty.kind {
-            fhir::BaseTyKind::Path(fhir::QPath::Resolved(self_ty, path)) => {
+            fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) => {
                 match path.res {
                     fhir::Res::Def(DefKind::AssocTy, assoc_id) => {
                         let trait_id = self.genv.tcx().trait_of_item(assoc_id).unwrap();
@@ -776,14 +780,14 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                         };
 
                         let trait_generics = self.genv.generics_of(trait_id)?;
-                        let self_ty = self_ty.as_deref().unwrap();
-                        let self_ty =
+                        let qself = qself.as_deref().unwrap();
+                        let qself =
                             if let rty::GenericParamDefKind::Base = trait_generics.params[0].kind {
-                                rty::GenericArg::Base(self.conv_generic_base(env, self_ty)?)
+                                rty::GenericArg::Base(self.conv_generic_base(env, qself)?)
                             } else {
-                                rty::GenericArg::Ty(self.conv_ty(env, self_ty)?)
+                                rty::GenericArg::Ty(self.conv_ty(env, qself)?)
                             };
-                        let mut args = vec![self_ty];
+                        let mut args = vec![qself];
                         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
                         self.conv_generic_args_into(env, assoc_id, assoc_segment.args, &mut args)?;
                         let args = List::from_vec(args);
@@ -813,6 +817,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 }
                 Ok(self.conv_ty_ctor(env, path)?.to_ty())
             }
+            fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(qself, segment)) => {
+                self.conv_assoc_path(env, qself, segment)
+            }
             fhir::BaseTyKind::Slice(ty) => {
                 let bty = rty::BaseTy::Slice(self.conv_ty(env, ty)?).shift_in_escaping(1);
                 let sort = bty.sort();
@@ -821,6 +828,49 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     sort,
                 )))
             }
+        }
+    }
+
+    fn conv_assoc_path(
+        &self,
+        env: &mut Env,
+        qself: &fhir::Ty,
+        assoc_segment: &fhir::PathSegment,
+    ) -> QueryResult<rty::Ty> {
+        let assoc_ident = assoc_segment.ident;
+        let qself_res = if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
+
+        if let fhir::Res::SelfTyAlias { alias_to: impl_def_id, is_trait_impl: true } = qself_res {
+            let Some(trait_ref) = self.genv.impl_trait_ref(impl_def_id)? else {
+                // A cycle error ocurred most likely (copied from rustc)
+                span_bug!(qself.span, "expected cycle error");
+            };
+            let trait_ref = trait_ref.instantiate_identity(&[]);
+
+            let Some(assoc_item) = self.trait_defines_associated_item_named(
+                trait_ref.def_id,
+                AssocKind::Type,
+                assoc_ident,
+            ) else {
+                Err(self
+                    .genv
+                    .sess()
+                    .emit_err(errors::AssocTypeNotFound::new(assoc_ident)))?
+            };
+            let assoc_id = assoc_item.def_id;
+
+            let mut args = trait_ref.args.to_vec();
+            self.conv_generic_args_into(env, assoc_id, assoc_segment.args, &mut args)?;
+
+            let args = List::from_vec(args);
+            let refine_args = List::empty();
+            let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
+            Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty))
+        } else {
+            Err(self
+                .genv
+                .sess()
+                .emit_err(errors::AssocTypeNotFound::new(assoc_ident)))?
         }
     }
 
