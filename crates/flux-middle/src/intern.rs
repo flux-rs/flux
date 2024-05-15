@@ -262,6 +262,15 @@ pub struct Interned<T: Internable + ?Sized> {
 
 pub type List<T> = Interned<[T]>;
 
+impl<T> Default for List<T>
+where
+    [T]: Internable,
+{
+    fn default() -> Self {
+        Self::from_arr([])
+    }
+}
+
 impl<T: Internable> Interned<T> {
     pub fn new(obj: T) -> Self {
         let (mut shard, hash) = Self::select(&obj);

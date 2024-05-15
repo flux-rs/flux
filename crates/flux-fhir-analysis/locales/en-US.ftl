@@ -163,6 +163,9 @@ fhir_analysis_assoc_type_not_found =
     .label = cannot resolve this associated type
     .note = Flux cannot resolved associated types if they are defined in a super trait
 
+fhir_analysis_ambiguous_assoc_type =
+    ambiguous associated type `{$name}`
+
 fhir_analysis_invalid_base_instance =
     values of this type cannot be used as base sorted instances
 

@@ -11,11 +11,16 @@ use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
-    fhir::{self, ExprRes, FhirId, SurfaceIdent},
+    fhir::{self, ExprRes, FhirId, FluxOwnerId, SurfaceIdent},
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
-    rty::{self, fold::TypeFoldable, refining, AdtSortDef, ESpan, WfckResults, INNERMOST},
+    rty::{
+        self,
+        fold::TypeFoldable,
+        refining::{self, Refiner},
+        AdtSortDef, ESpan, WfckResults, INNERMOST,
+    },
     rustc,
 };
 use itertools::Itertools;
@@ -28,9 +33,13 @@ use rustc_hir::{
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
     mir::Local,
-    ty::{AssocItem, AssocKind, BoundVar},
+    ty::{self, AssocItem, AssocKind, BoundVar},
 };
-use rustc_span::{symbol::kw, Span, Symbol};
+use rustc_span::{
+    symbol::{kw, Ident},
+    ErrorGuaranteed, Span, Symbol,
+};
+use rustc_trait_selection::traits;
 use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'genv, 'tcx> {
@@ -837,41 +846,134 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         qself: &fhir::Ty,
         assoc_segment: &fhir::PathSegment,
     ) -> QueryResult<rty::Ty> {
+        let tcx = self.genv.tcx();
         let assoc_ident = assoc_segment.ident;
         let qself_res = if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
 
-        if let fhir::Res::SelfTyAlias { alias_to: impl_def_id, is_trait_impl: true } = qself_res {
-            let Some(trait_ref) = self.genv.impl_trait_ref(impl_def_id)? else {
-                // A cycle error ocurred most likely (copied from rustc)
-                span_bug!(qself.span, "expected cycle error");
-            };
-            let trait_ref = trait_ref.instantiate_identity(&[]);
+        let bound = match qself_res {
+            fhir::Res::SelfTyAlias { alias_to: impl_def_id, is_trait_impl: true } => {
+                let Some(trait_ref) = tcx.impl_trait_ref(impl_def_id) else {
+                    // A cycle error ocurred most likely (comment copied from rustc)
+                    span_bug!(qself.span, "expected cycle error");
+                };
 
-            let Some(assoc_item) = self.trait_defines_associated_item_named(
-                trait_ref.def_id,
-                AssocKind::Type,
-                assoc_ident,
-            ) else {
+                self.probe_single_bound_for_assoc_item(
+                    || {
+                        traits::supertraits(
+                            tcx,
+                            ty::Binder::dummy(trait_ref.instantiate_identity()),
+                        )
+                    },
+                    assoc_ident,
+                )?
+            }
+            fhir::Res::Def(DefKind::TyParam, param_did)
+            | fhir::Res::SelfTyParam { trait_: param_did } => {
+                let predicates = self
+                    .probe_type_param_bounds(param_did.expect_local(), assoc_ident)
+                    .predicates;
+                self.probe_single_bound_for_assoc_item(
+                    || {
+                        traits::transitive_bounds_that_define_assoc_item(
+                            tcx,
+                            predicates.iter().filter_map(|(p, _)| {
+                                Some(p.as_trait_clause()?.map_bound(|t| t.trait_ref))
+                            }),
+                            assoc_ident,
+                        )
+                    },
+                    assoc_ident,
+                )?
+            }
+            _ => {
                 Err(self
                     .genv
                     .sess()
                     .emit_err(errors::AssocTypeNotFound::new(assoc_ident)))?
-            };
-            let assoc_id = assoc_item.def_id;
+            }
+        };
+        let generics = self.generics_of_owner()?;
 
-            let mut args = trait_ref.args.to_vec();
-            self.conv_generic_args_into(env, assoc_id, assoc_segment.args, &mut args)?;
+        let trait_ref = self.refine_trait_ref(&generics, bound)?;
 
-            let args = List::from_vec(args);
-            let refine_args = List::empty();
-            let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
-            Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty))
-        } else {
-            Err(self
+        let assoc_item = self
+            .trait_defines_associated_item_named(trait_ref.def_id, AssocKind::Type, assoc_ident)
+            .unwrap();
+
+        let assoc_id = assoc_item.def_id;
+
+        let mut args = trait_ref.args.to_vec();
+        self.conv_generic_args_into(env, assoc_id, assoc_segment.args, &mut args)?;
+
+        let args = List::from_vec(args);
+        let refine_args = List::empty();
+        let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
+        Ok(rty::Ty::alias(rty::AliasKind::Projection, alias_ty))
+    }
+
+    /// Return the generics of the containing owner item
+    fn generics_of_owner(&self) -> QueryResult<rty::Generics> {
+        match self.owner() {
+            FluxOwnerId::Rust(owner_id) => self.genv.generics_of(owner_id),
+            FluxOwnerId::Flux(_) => Ok(rty::Generics::default()),
+        }
+    }
+
+    fn probe_type_param_bounds(
+        &self,
+        param_did: LocalDefId,
+        assoc_ident: Ident,
+    ) -> ty::GenericPredicates<'tcx> {
+        match self.owner() {
+            FluxOwnerId::Rust(owner_id) => {
+                self.genv
+                    .tcx()
+                    .type_param_predicates((owner_id.def_id, param_did, assoc_ident))
+            }
+            FluxOwnerId::Flux(_) => ty::GenericPredicates::default(),
+        }
+    }
+
+    fn probe_single_bound_for_assoc_item<I>(
+        &self,
+        all_candidates: impl Fn() -> I,
+        assoc_ident: rustc_span::symbol::Ident,
+    ) -> Result<ty::TraitRef<'tcx>, ErrorGuaranteed>
+    where
+        I: Iterator<Item = ty::PolyTraitRef<'tcx>>,
+    {
+        let mut matching_candidates = all_candidates().filter(|r| {
+            self.trait_defines_associated_item_named(r.def_id(), AssocKind::Type, assoc_ident)
+                .is_some()
+        });
+
+        let Some(bound) = matching_candidates.next() else {
+            return Err(self
                 .genv
                 .sess()
-                .emit_err(errors::AssocTypeNotFound::new(assoc_ident)))?
+                .emit_err(errors::AssocTypeNotFound::new(assoc_ident)));
+        };
+
+        if matching_candidates.next().is_some() {
+            return Err(self
+                .genv
+                .sess()
+                .emit_err(errors::AmbiguousAssocType::new(assoc_ident)));
         }
+
+        let Some(bound) = bound.no_bound_vars() else {
+            bug!("higher-ranked trait bounds not supported yet");
+        };
+        Ok(bound)
+    }
+
+    fn refine_trait_ref(
+        &self,
+        item_generics: &rty::Generics,
+        trait_ref: ty::TraitRef<'tcx>,
+    ) -> QueryResult<rty::TraitRef> {
+        let trait_ref = self.genv.lower_trait_ref(trait_ref)?;
+        Refiner::default(self.genv, item_generics).refine_trait_ref(&trait_ref)
     }
 
     fn conv_lifetime(&self, env: &Env, lft: fhir::Lifetime) -> rty::Region {
@@ -1130,6 +1232,10 @@ impl Env {
 }
 
 impl ConvCtxt<'_, '_, '_> {
+    fn owner(&self) -> FluxOwnerId {
+        self.wfckresults.owner
+    }
+
     fn conv_expr(&self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
         let espan = Some(ESpan::new(expr.span));
@@ -1563,8 +1669,8 @@ fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use flux_middle::fhir::{self, SurfaceIdent};
-    use rustc_span::Span;
+    use flux_middle::fhir;
+    use rustc_span::{symbol::Ident, Span};
 
     #[derive(Diagnostic)]
     #[diag(fhir_analysis_assoc_type_not_found, code = E0999)]
@@ -1576,8 +1682,22 @@ mod errors {
     }
 
     impl AssocTypeNotFound {
-        pub(super) fn new(ident: SurfaceIdent) -> Self {
-            Self { span: ident.span }
+        pub(super) fn new(assoc_ident: Ident) -> Self {
+            Self { span: assoc_ident.span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_ambiguous_assoc_type, code = E0999)]
+    pub(super) struct AmbiguousAssocType {
+        #[primary_span]
+        span: Span,
+        name: Ident,
+    }
+
+    impl AmbiguousAssocType {
+        pub(super) fn new(assoc_ident: Ident) -> Self {
+            Self { span: assoc_ident.span, name: assoc_ident }
         }
     }
 
