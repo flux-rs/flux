@@ -7,7 +7,7 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::{mir::Local, ty::TyCtxt};
-use rustc_span::{BytePos, Span, Symbol, SyntaxContext};
+use rustc_span::{Span, Symbol};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
@@ -86,45 +86,18 @@ pub struct ExprS {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub struct ESpan {
     /// The top-level span information
-    span: SpanData,
+    pub span: Span,
     /// The span for the (base) call-site for def-expanded spans
-    base: Option<SpanData>,
+    pub base: Option<Span>,
 }
 
 impl ESpan {
     pub fn new(span: Span) -> Self {
-        Self { span: SpanData::new(span), base: None }
-    }
-
-    pub fn span(&self) -> Span {
-        self.span.span()
-    }
-
-    pub fn base(&self) -> Option<Span> {
-        self.base.as_ref().map(SpanData::span)
+        Self { span, base: None }
     }
 
     pub fn with_base(&self, espan: ESpan) -> Self {
         Self { span: self.span, base: Some(espan.span) }
-    }
-}
-
-// NOTE: we make our own "version" of `rustc`'s SpanData as we cannot `TyEncode/Decode`
-// the original one...
-#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
-pub struct SpanData {
-    pub lo: BytePos,
-    pub hi: BytePos,
-}
-
-impl SpanData {
-    pub fn new(span: Span) -> Self {
-        let data = span.data();
-        Self { lo: data.lo, hi: data.hi }
-    }
-
-    pub fn span(&self) -> Span {
-        Span::new(self.lo, self.hi, SyntaxContext::root(), None)
     }
 }
 

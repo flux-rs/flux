@@ -5,6 +5,7 @@ use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::DefId;
 use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
+use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
     mir::{self as rustc_mir, ConstValue},
     traits::{ImplSource, ObligationCause},
@@ -58,7 +59,7 @@ impl UnsupportedReason {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Encodable, Decodable)]
 pub struct UnsupportedErr {
     pub descr: String,
     pub(crate) span: Option<Span>,

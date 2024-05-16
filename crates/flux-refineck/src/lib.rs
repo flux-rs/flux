@@ -205,8 +205,8 @@ mod errors {
         fn new(cond: &'static str, span: Span, espan: Option<ESpan>) -> RefineError {
             match espan {
                 Some(dst_span) => {
-                    let span_note = Some(ConditionSpanNote { span: dst_span.span() });
-                    let call_span_note = dst_span.base().map(|span| CallSpanNote { span });
+                    let span_note = Some(ConditionSpanNote { span: dst_span.span });
+                    let call_span_note = dst_span.base.map(|span| CallSpanNote { span });
                     RefineError { span, cond, span_note, call_span_note }
                 }
                 None => RefineError { span, cond, span_note: None, call_span_note: None },
