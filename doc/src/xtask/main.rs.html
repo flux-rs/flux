@@ -197,6 +197,18 @@
 <a href="#197" id="197">197</a>
 <a href="#198" id="198">198</a>
 <a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
     path::{Path, PathBuf},
@@ -207,6 +219,8 @@
 
 <span class="macro">xflags::xflags!</span> {
     cmd xtask {
+        optional --offline
+
         <span class="doccomment">/// Run regression tests
         </span>cmd test {
             <span class="doccomment">/// Only run tests containing `filter` as substring.
@@ -257,10 +271,15 @@
 
     <span class="kw">let </span>sh = Shell::new()<span class="question-mark">?</span>;
     sh.change_dir(project_root());
+
+    <span class="kw">let </span><span class="kw-2">mut </span>extra = <span class="macro">vec!</span>[];
+    <span class="kw">if </span>cmd.offline {
+        extra.push(<span class="string">"--offline"</span>);
+    }
     <span class="kw">match </span>cmd.subcommand {
         XtaskCmd::Test(args) =&gt; test(sh, args),
         XtaskCmd::Run(args) =&gt; run(sh, args),
-        XtaskCmd::Install(args) =&gt; install(<span class="kw-2">&amp;</span>sh, <span class="kw-2">&amp;</span>args),
+        XtaskCmd::Install(args) =&gt; install(<span class="kw-2">&amp;</span>sh, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>extra),
         XtaskCmd::Doc(args) =&gt; doc(sh, args),
         XtaskCmd::BuildSysroot(<span class="kw">_</span>) =&gt; build_sysroot(<span class="kw-2">&amp;</span>sh),
         XtaskCmd::Uninstall(<span class="kw">_</span>) =&gt; uninstall(<span class="kw-2">&amp;</span>sh),
@@ -316,36 +335,41 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">fn </span>install(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="macro">cmd!</span>(sh, <span class="string">"cargo install --path crates/flux-bin --force"</span>).run()<span class="question-mark">?</span>;
-    install_driver(sh, args)<span class="question-mark">?</span>;
-    install_libs(sh, args)<span class="question-mark">?</span>;
+<span class="kw">fn </span>install(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install, extra: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; anyhow::Result&lt;()&gt; {
+    <span class="macro">cmd!</span>(sh, <span class="string">"cargo install --path crates/flux-bin --force {extra...}"</span>).run()<span class="question-mark">?</span>;
+    install_driver(sh, args, extra)<span class="question-mark">?</span>;
+    install_libs(sh, args, extra)<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">fn </span>install_driver(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install) -&gt; anyhow::Result&lt;()&gt; {
+<span class="kw">fn </span>install_driver(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install, extra: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; anyhow::Result&lt;()&gt; {
     <span class="kw">let </span>out_dir = default_sysroot_dir();
     <span class="kw">if </span>args.is_release() {
-        <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -Zunstable-options --bin flux-driver --release --out-dir {out_dir}"</span>)
+        <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -Zunstable-options --bin flux-driver --release --out-dir {out_dir} {extra...}"</span>)
             .run()<span class="question-mark">?</span>;
     } <span class="kw">else </span>{
-        <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -Zunstable-options --bin flux-driver --out-dir {out_dir}"</span>).run()<span class="question-mark">?</span>;
+        <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -Zunstable-options --bin flux-driver --out-dir {out_dir} {extra...}"</span>)
+            .run()<span class="question-mark">?</span>;
     }
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">fn </span>install_libs(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install) -&gt; anyhow::Result&lt;()&gt; {
+<span class="kw">fn </span>install_libs(sh: <span class="kw-2">&amp;</span>Shell, args: <span class="kw-2">&amp;</span>Install, extra: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; anyhow::Result&lt;()&gt; {
     <span class="comment">// CODESYNC(build-sysroot, 5)
     </span><span class="kw">let </span>_env = sh.push_env(<span class="string">"FLUX_BUILD_SYSROOT"</span>, <span class="string">"1"</span>);
     <span class="macro">println!</span>(<span class="string">"$ export FLUX_BUILD_SYSROOT=1"</span>);
 
     <span class="kw">let </span>out_dir = default_sysroot_dir();
     <span class="kw">if </span>args.is_release() {
-        <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -Zunstable-options --release -p flux-rs --out-dir {out_dir}"</span>)
-            .run()<span class="question-mark">?</span>;
+        <span class="macro">cmd!</span>(
+            sh,
+            <span class="string">"cargo build -Zunstable-options --release -p flux-rs --out-dir {out_dir} {extra...}"
+        </span>)
+        .run()<span class="question-mark">?</span>;
     } <span class="kw">else </span>{
-        <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -Zunstable-options -p flux-rs --out-dir {out_dir}"</span>).run()<span class="question-mark">?</span>;
+        <span class="macro">cmd!</span>(sh, <span class="string">"cargo build -Zunstable-options -p flux-rs --out-dir {out_dir} {extra...}"</span>)
+            .run()<span class="question-mark">?</span>;
     }
     <span class="prelude-val">Ok</span>(())
 }

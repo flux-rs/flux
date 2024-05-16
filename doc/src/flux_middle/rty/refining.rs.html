@@ -432,9 +432,6 @@
 <a href="#432" id="432">432</a>
 <a href="#433" id="433">433</a>
 <a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
-<a href="#437" id="437">437</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
@@ -606,10 +603,7 @@
         <span class="prelude-val">Ok</span>(rty::ClauseKind::FnTrait(pred))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_trait_ref(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        trait_ref: <span class="kw-2">&amp;</span>rustc::ty::TraitRef,
-    ) -&gt; QueryResult&lt;rty::TraitRef&gt; {
+    <span class="kw">pub fn </span>refine_trait_ref(<span class="kw-2">&amp;</span><span class="self">self</span>, trait_ref: <span class="kw-2">&amp;</span>rustc::ty::TraitRef) -&gt; QueryResult&lt;rty::TraitRef&gt; {
         <span class="kw">let </span>trait_ref = rty::TraitRef {
             def_id: trait_ref.def_id,
             args: <span class="self">self</span>.refine_generic_args(trait_ref.def_id, <span class="kw-2">&amp;</span>trait_ref.args)<span class="question-mark">?</span>,

@@ -745,7 +745,7 @@
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(trait_ref)))
     }
 
-    <span class="kw">fn </span>lower_trait_ref(
+    <span class="kw">pub fn </span>lower_trait_ref(
         <span class="self">self</span>,
         trait_ref: rustc_middle::ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; QueryResult&lt;rustc::ty::TraitRef&gt; {

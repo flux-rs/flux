@@ -624,6 +624,15 @@
 <a href="#624" id="624">624</a>
 <a href="#625" id="625">625</a>
 <a href="#626" id="626">626</a>
+<a href="#627" id="627">627</a>
+<a href="#628" id="628">628</a>
+<a href="#629" id="629">629</a>
+<a href="#630" id="630">630</a>
+<a href="#631" id="631">631</a>
+<a href="#632" id="632">632</a>
+<a href="#633" id="633">633</a>
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
 </pre></div><pre class="rust"><code><span class="comment">// This code was adapted from
 // [Rust Analyzer](https://github.com/rust-analyzer/rust-analyzer/blob/9d33d05d85456c855b88a8bdf4ab44d97e32bd4a/crates/hir_def/src/intern.rs)
 // Rust Analyzer is distributed under the MIT License and the Apache License (Version 2.0), both reproduced below.
@@ -887,6 +896,15 @@
 }
 
 <span class="kw">pub type </span>List&lt;T&gt; = Interned&lt;[T]&gt;;
+
+<span class="kw">impl</span>&lt;T&gt; Default <span class="kw">for </span>List&lt;T&gt;
+<span class="kw">where
+    </span>[T]: Internable,
+{
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::from_arr([])
+    }
+}
 
 <span class="kw">impl</span>&lt;T: Internable&gt; Interned&lt;T&gt; {
     <span class="kw">pub fn </span>new(obj: T) -&gt; <span class="self">Self </span>{

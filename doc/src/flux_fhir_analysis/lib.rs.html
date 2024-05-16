@@ -476,9 +476,6 @@
 <a href="#476" id="476">476</a>
 <a href="#477" id="477">477</a>
 <a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_data_structures;
@@ -487,6 +484,7 @@
 <span class="kw">extern crate </span>rustc_hir;
 <span class="kw">extern crate </span>rustc_middle;
 <span class="kw">extern crate </span>rustc_span;
+<span class="kw">extern crate </span>rustc_trait_selection;
 <span class="kw">extern crate </span>rustc_type_ir;
 
 <span class="kw">mod </span>annot_check;
@@ -793,7 +791,8 @@
         DefKind::TyParam =&gt; {
             <span class="kw">match </span><span class="kw-2">&amp;</span>genv.get_generic_param(def_id)<span class="question-mark">?</span>.kind {
                 fhir::GenericParamKind::Type { default: <span class="prelude-val">Some</span>(ty) } =&gt; {
-                    <span class="kw">let </span>wfckresults = genv.check_wf(def_id)<span class="question-mark">?</span>;
+                    <span class="kw">let </span>parent = genv.tcx().local_parent(def_id);
+                    <span class="kw">let </span>wfckresults = genv.check_wf(parent)<span class="question-mark">?</span>;
                     conv::conv_ty(genv, ty, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
                 </span>}
                 k =&gt; <span class="macro">bug!</span>(<span class="string">"non-type def {k:?} {def_id:?}"</span>),
@@ -874,11 +873,6 @@
             wf::check_flux_item(genv, genv.map().get_flux_item(sym).unwrap())<span class="question-mark">?
         </span>}
         FluxLocalDefId::Rust(def_id) =&gt; {
-            <span class="kw">let </span>def_kind = genv.def_kind(def_id);
-            <span class="kw">if </span><span class="macro">matches!</span>(def_kind, DefKind::Closure | DefKind::TyParam) {
-                <span class="kw">let </span>parent = genv.tcx().local_parent(def_id);
-                <span class="kw">return </span>genv.check_wf(parent);
-            }
             <span class="kw">let </span>node = genv.desugar(def_id)<span class="question-mark">?</span>;
             <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
             annot_check::check_node(genv, <span class="kw-2">&amp;mut </span>wfckresults, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
