@@ -207,6 +207,7 @@ pub struct Specs {
     pub sort_decls: Vec<surface::SortDecl>,
     pub ty_aliases: UnordMap<OwnerId, Option<surface::TyAlias>>,
     pub ignores: UnordMap<LocalDefId, fhir::Ignored>,
+    pub trusted: UnordMap<LocalDefId, fhir::Trusted>,
     pub consts: FxHashSet<LocalDefId>,
     pub crate_config: Option<config::CrateConfig>,
     pub extern_specs: FxHashMap<DefId, LocalDefId>,

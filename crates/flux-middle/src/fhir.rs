@@ -41,7 +41,7 @@ pub use rustc_target::abi::VariantIdx;
 
 use crate::{global_env::GlobalEnv, pretty, rty::Constant};
 
-/// A boolean used to mark wether an item should be ignored or not
+/// A boolean used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Ignored {
     Yes,
@@ -53,6 +53,22 @@ impl Ignored {
         match self {
             Ignored::Yes => true,
             Ignored::No => false,
+        }
+    }
+}
+
+/// A boolean used to mark whether to mark wether code should be trusted.
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum Trusted {
+    Yes,
+    No,
+}
+
+impl Trusted {
+    pub fn to_bool(self) -> bool {
+        match self {
+            Trusted::Yes => true,
+            Trusted::No => false,
         }
     }
 }
@@ -465,7 +481,6 @@ pub struct FnDecl<'fhir> {
 
 #[derive(Clone, Copy)]
 pub struct FnSig<'fhir> {
-    pub trusted: bool,
     //// List of local qualifiers for this function
     pub qualifiers: &'fhir [SurfaceIdent],
     pub decl: &'fhir FnDecl<'fhir>,

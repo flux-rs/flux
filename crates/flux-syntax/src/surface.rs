@@ -225,7 +225,6 @@ pub struct TraitAssocReft {
 #[derive(Debug)]
 pub struct FnSpec {
     pub fn_sig: Option<FnSig>,
-    pub trusted: bool,
     pub qual_names: Option<QualNames>,
     /// Whether this function is an extern spec for some [DefId]
     pub extern_id: Option<DefId>,

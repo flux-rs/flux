@@ -64,7 +64,7 @@ pub fn check_fn(
     dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| {
         let span = genv.tcx().def_span(def_id);
 
-        if genv.map().is_trusted(def_id).with_span(span).emit(&genv)? {
+        if genv.trusted(def_id) {
             return Ok(());
         }
 

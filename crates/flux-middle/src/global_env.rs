@@ -3,7 +3,6 @@ use std::{alloc, ptr, rc::Rc, slice};
 use flux_common::{bug, result::ErrorEmitter};
 use flux_config::CrateConfig;
 use flux_errors::FluxSession;
-use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashSet;
 use rustc_hir::{
     def::DefKind,
@@ -15,7 +14,7 @@ pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
     cstore::CrateStoreDyn,
-    fhir::{self, FluxLocalDefId, Ignored, VariantIdx},
+    fhir::{self, FluxLocalDefId, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{self, normalize::SpecFuncDefns, refining::Refiner},
@@ -374,24 +373,35 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .copied()
     }
 
+    pub fn trusted(self, def_id: LocalDefId) -> bool {
+        self.traverse_parents(def_id, |did| self.collect_specs().trusted.get(&did))
+            .is_some_and(|trusted| trusted.to_bool())
+    }
+
     /// transitively follows the parent-chain to find the first containing item with an explicit
     /// `ignore` annotation and returns whether that item is ignored or not.
-    pub fn ignored(self, mut def_id: LocalDefId) -> bool {
+    pub fn ignored(self, def_id: LocalDefId) -> bool {
+        self.traverse_parents(def_id, |did| self.collect_specs().ignores.get(&did))
+            .is_some_and(|ignored| ignored.to_bool())
+    }
+
+    /// traverse the parent chain of a def_id until the first node for which `f` returns [`Some`].
+    fn traverse_parents<T>(
+        self,
+        mut def_id: LocalDefId,
+        f: impl Fn(LocalDefId) -> Option<T>,
+    ) -> Option<T> {
         loop {
-            if let Some(ignored) = self.ignores().get(&def_id) {
-                break ignored.to_bool();
+            if let Some(v) = f(def_id) {
+                break Some(v);
             }
 
             if let Some(parent) = self.tcx().opt_local_parent(def_id) {
                 def_id = parent;
             } else {
-                break false;
+                break None;
             }
         }
-    }
-
-    fn ignores(self) -> &'genv UnordMap<LocalDefId, Ignored> {
-        &self.collect_specs().ignores
     }
 
     pub fn crate_config(self) -> Option<CrateConfig> {
@@ -472,10 +482,6 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
 
     pub fn consts(self) -> impl Iterator<Item = fhir::ConstInfo> + 'genv {
         self.fhir.consts.values().copied()
-    }
-
-    pub fn is_trusted(self, def_id: LocalDefId) -> QueryResult<bool> {
-        Ok(self.node(def_id)?.fn_sig().unwrap().trusted)
     }
 
     pub fn fn_quals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [fhir::SurfaceIdent]> {

@@ -3,7 +3,11 @@ use std::collections::HashMap;
 use flux_common::{iter::IterExt, result::ResultExt};
 use flux_config::{self as config, CrateConfig};
 use flux_errors::FluxSession;
-use flux_middle::{fhir::Ignored, rustc::lowering::resolve_trait_ref_impl_id, Specs};
+use flux_middle::{
+    fhir::{Ignored, Trusted},
+    rustc::lowering::resolve_trait_ref_impl_id,
+    Specs,
+};
 use flux_syntax::{surface, ParseResult, ParseSess};
 use itertools::Itertools;
 use rustc_ast::{
@@ -101,7 +105,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
 
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Mod)?;
         self.report_dups(&attrs)?;
-        self.collect_ignore(&mut attrs, CRATE_DEF_ID);
+        self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
 
         self.specs.extend_items(attrs.items());
 
@@ -113,7 +117,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     fn parse_mod_spec(&mut self, def_id: LocalDefId, attrs: &[Attribute]) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Mod)?;
         self.report_dups(&attrs)?;
-        self.collect_ignore(&mut attrs, def_id);
+        self.collect_ignore_and_trusted(&mut attrs, def_id);
 
         self.specs.extend_items(attrs.items());
         Ok(())
@@ -122,7 +126,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     fn parse_const_spec(&mut self, def_id: LocalDefId, item: &Item, attrs: &[Attribute]) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Const)?;
         self.report_dups(&attrs)?;
-        self.collect_ignore(&mut attrs, def_id);
+        self.collect_ignore_and_trusted(&mut attrs, def_id);
 
         let Some(_ty) = attrs.const_sig() else {
             return Ok(());
@@ -141,7 +145,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Trait)?;
         self.report_dups(&attrs)?;
-        self.collect_ignore(&mut attrs, owner_id.def_id);
+        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
         let generics = attrs.generics();
         let assoc_refinements = attrs.trait_assoc_refts();
@@ -168,7 +172,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let def_kind = DefKind::Impl { of_trait: impl_.of_trait.is_some() };
         let mut attrs = self.parse_flux_attrs(attrs, def_kind)?;
         self.report_dups(&attrs)?;
-        self.collect_ignore(&mut attrs, owner_id.def_id);
+        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
         let generics = attrs.generics();
         let assoc_refinements = attrs.impl_assoc_refts();
@@ -204,7 +208,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Struct)?;
         self.report_dups(&attrs)?;
-        self.collect_ignore(&mut attrs, owner_id.def_id);
+        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
         let mut opaque = attrs.opaque();
 
@@ -278,7 +282,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, DefKind::Enum)?;
         self.report_dups(&attrs)?;
-        self.collect_ignore(&mut attrs, owner_id.def_id);
+        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
         let generics = attrs.generics();
 
@@ -346,9 +350,8 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     ) -> Result {
         let mut attrs = self.parse_flux_attrs(attrs, def_kind)?;
         self.report_dups(&attrs)?;
-        self.collect_ignore(&mut attrs, owner_id.def_id);
+        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
-        let mut trusted = attrs.trusted();
         let fn_sig = attrs.fn_sig();
         let qual_names: Option<surface::QualNames> = attrs.qual_names();
         let extern_id = if attrs.extern_spec() {
@@ -362,14 +365,13 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 .extern_specs
                 .insert(extern_def_id, owner_id.def_id);
             // We should never check an extern spec (it will infinitely recurse)
-            trusted = true;
             Some(extern_def_id)
         } else {
             None
         };
         self.specs
             .fn_sigs
-            .insert(owner_id, surface::FnSpec { fn_sig, trusted, qual_names, extern_id });
+            .insert(owner_id, surface::FnSpec { fn_sig, qual_names, extern_id });
         Ok(())
     }
 
@@ -472,8 +474,16 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                     _ => Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() }))?,
                 }
             }
+            ("trusted", AttrArgs::Empty) => FluxAttrKind::Trusted(Trusted::Yes),
+            ("trusted", AttrArgs::Delimited(dargs)) => {
+                let val = tts_to_string(&dargs.tokens);
+                match &val[..] {
+                    "yes" => FluxAttrKind::Trusted(Trusted::Yes),
+                    "no" => FluxAttrKind::Trusted(Trusted::No),
+                    _ => Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() }))?,
+                }
+            }
             ("opaque", AttrArgs::Empty) => FluxAttrKind::Opaque,
-            ("trusted", AttrArgs::Empty) => FluxAttrKind::Trusted,
             ("fake_impl", AttrArgs::Empty) => FluxAttrKind::FakeImpl,
             ("extern_spec", AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             _ => return Err(self.emit_err(errors::InvalidAttr { span: attr_item.span() })),
@@ -702,9 +712,12 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
-    fn collect_ignore(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) {
+    fn collect_ignore_and_trusted(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) {
         if let Some(ignored) = attrs.ignore() {
             self.specs.ignores.insert(def_id, ignored);
+        }
+        if let Some(trusted) = attrs.trusted() {
+            self.specs.trusted.insert(def_id, trusted);
         }
     }
 
@@ -728,7 +741,7 @@ struct FluxAttr {
 
 #[derive(Debug)]
 enum FluxAttrKind {
-    Trusted,
+    Trusted(Trusted),
     Opaque,
     FnSig(surface::FnSig),
     TraitAssocReft(surface::TraitAssocReft),
@@ -790,8 +803,8 @@ impl FluxAttrs {
             .map(|(name, attrs)| (*name, &attrs[1..]))
     }
 
-    fn trusted(&mut self) -> bool {
-        read_flag!(self, Trusted)
+    fn trusted(&mut self) -> Option<Trusted> {
+        read_attr!(self, Trusted)
     }
 
     fn ignore(&mut self) -> Option<Ignored> {
@@ -866,7 +879,7 @@ impl FluxAttrs {
 impl FluxAttrKind {
     fn name(&self) -> &'static str {
         match self {
-            FluxAttrKind::Trusted => attr_name!(Trusted),
+            FluxAttrKind::Trusted(_) => attr_name!(Trusted),
             FluxAttrKind::Opaque => attr_name!(Opaque),
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),
             FluxAttrKind::TraitAssocReft(_) => attr_name!(TraitAssocReft),
