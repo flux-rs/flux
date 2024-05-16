@@ -14,6 +14,7 @@ use rustc_hir::{
     def_id::{DefId, LocalDefId},
 };
 use rustc_infer::infer::TyCtxtInferExt;
+use rustc_macros::{Decodable, Encodable};
 use rustc_span::{Span, Symbol};
 use rustc_trait_selection::traits::NormalizeExt;
 
@@ -37,7 +38,7 @@ type Cache<K, V> = RefCell<UnordMap<K, V>>;
 
 pub type QueryResult<T = ()> = Result<T, QueryErr>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Encodable, Decodable)]
 pub enum QueryErr {
     Unsupported { def_id: DefId, err: UnsupportedErr },
     Ignored { def_id: DefId },
@@ -339,7 +340,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_sort_def_of)(genv, local_id)
             } else if let Some(adt_def) = genv.cstore().adt_def(def_id) {
-                Ok(adt_def.sort_def().clone())
+                adt_def.map(|it| it.sort_def().clone())
             } else {
                 Ok(rty::AdtSortDef::new(def_id, vec![], vec![]))
             }
@@ -361,7 +362,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_def)(genv, local_id)
             } else if let Some(adt_def) = genv.cstore().adt_def(def_id) {
-                Ok(adt_def.clone())
+                adt_def
             } else {
                 let adt_def = if let Some(extern_id) = extern_id {
                     lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(extern_id))
@@ -499,7 +500,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.type_of)(genv, local_id)
             } else if let Some(ty) = genv.cstore().type_of(def_id) {
-                Ok(ty.clone())
+                ty
             } else {
                 // If we're given a type parameter, provide the generics of the parent container.
                 let generics_def_id = match genv.def_kind(def_id) {
@@ -527,7 +528,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.variants_of)(genv, local_id)
             } else if let Some(variants) = genv.cstore().variants(def_id) {
-                Ok(variants.map(|variants| variants.map(List::from)))
+                variants.map(|variants| variants.map(|variants| variants.map(List::from)))
             } else {
                 let variants = genv
                     .tcx()
@@ -561,7 +562,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.fn_sig)(genv, local_id)
             } else if let Some(fn_sig) = genv.cstore().fn_sig(def_id) {
-                Ok(fn_sig)
+                fn_sig
             } else {
                 let fn_sig = genv.lower_fn_sig(def_id)?.skip_binder();
                 let fn_sig = Refiner::default(genv, &genv.generics_of(def_id)?)

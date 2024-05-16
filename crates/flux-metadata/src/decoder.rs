@@ -17,7 +17,7 @@ use rustc_serialize::{opaque::MemDecoder, Decodable, Decoder as _};
 use rustc_session::StableCrateId;
 use rustc_span::{
     def_id::{CrateNum, DefIndex},
-    SpanDecoder, Symbol,
+    BytePos, Span, SpanDecoder, StableSourceFileId, Symbol, SyntaxContext,
 };
 use rustc_type_ir::TyDecoder;
 
@@ -79,7 +79,18 @@ impl<'a, 'tcx> SpanDecoder for DecodeContext<'a, 'tcx> {
     }
 
     fn decode_span(&mut self) -> rustc_span::Span {
-        panic!("cannot decode `Span` with `DecodeContext`");
+        let sm = self.tcx.sess.source_map();
+        let pos = [(); 2].map(|_| {
+            let ssfi = StableSourceFileId::decode(self);
+            let rel_bp = BytePos::decode(self);
+            // See comment in 'encoder.rs'
+            //
+            // This should hopefully never fail,
+            // so maybe could be an `unwrap` instead?
+            sm.source_file_by_stable_id(ssfi)
+                .map_or(BytePos(0), |sf| sf.start_pos + rel_bp)
+        });
+        Span::new(pos[0], pos[1], SyntaxContext::root(), None)
     }
 
     fn decode_symbol(&mut self) -> rustc_span::Symbol {
