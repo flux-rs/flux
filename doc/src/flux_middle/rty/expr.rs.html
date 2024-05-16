@@ -1096,33 +1096,6 @@
 <a href="#1096" id="1096">1096</a>
 <a href="#1097" id="1097">1097</a>
 <a href="#1098" id="1098">1098</a>
-<a href="#1099" id="1099">1099</a>
-<a href="#1100" id="1100">1100</a>
-<a href="#1101" id="1101">1101</a>
-<a href="#1102" id="1102">1102</a>
-<a href="#1103" id="1103">1103</a>
-<a href="#1104" id="1104">1104</a>
-<a href="#1105" id="1105">1105</a>
-<a href="#1106" id="1106">1106</a>
-<a href="#1107" id="1107">1107</a>
-<a href="#1108" id="1108">1108</a>
-<a href="#1109" id="1109">1109</a>
-<a href="#1110" id="1110">1110</a>
-<a href="#1111" id="1111">1111</a>
-<a href="#1112" id="1112">1112</a>
-<a href="#1113" id="1113">1113</a>
-<a href="#1114" id="1114">1114</a>
-<a href="#1115" id="1115">1115</a>
-<a href="#1116" id="1116">1116</a>
-<a href="#1117" id="1117">1117</a>
-<a href="#1118" id="1118">1118</a>
-<a href="#1119" id="1119">1119</a>
-<a href="#1120" id="1120">1120</a>
-<a href="#1121" id="1121">1121</a>
-<a href="#1122" id="1122">1122</a>
-<a href="#1123" id="1123">1123</a>
-<a href="#1124" id="1124">1124</a>
-<a href="#1125" id="1125">1125</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1132,7 +1105,7 @@
 <span class="kw">use </span>rustc_index::newtype_index;
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 <span class="kw">use </span>rustc_middle::{mir::Local, ty::TyCtxt};
-<span class="kw">use </span>rustc_span::{BytePos, Span, Symbol, SyntaxContext};
+<span class="kw">use </span>rustc_span::{Span, Symbol};
 <span class="kw">use </span>rustc_target::abi::FieldIdx;
 <span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST};
 
@@ -1211,45 +1184,18 @@
 <span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 </span><span class="kw">pub struct </span>ESpan {
     <span class="doccomment">/// The top-level span information
-    </span>span: SpanData,
+    </span><span class="kw">pub </span>span: Span,
     <span class="doccomment">/// The span for the (base) call-site for def-expanded spans
-    </span>base: <span class="prelude-ty">Option</span>&lt;SpanData&gt;,
+    </span><span class="kw">pub </span>base: <span class="prelude-ty">Option</span>&lt;Span&gt;,
 }
 
 <span class="kw">impl </span>ESpan {
     <span class="kw">pub fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ span: SpanData::new(span), base: <span class="prelude-val">None </span>}
-    }
-
-    <span class="kw">pub fn </span>span(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Span {
-        <span class="self">self</span>.span.span()
-    }
-
-    <span class="kw">pub fn </span>base(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Span&gt; {
-        <span class="self">self</span>.base.as_ref().map(SpanData::span)
+        <span class="self">Self </span>{ span, base: <span class="prelude-val">None </span>}
     }
 
     <span class="kw">pub fn </span>with_base(<span class="kw-2">&amp;</span><span class="self">self</span>, espan: ESpan) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ span: <span class="self">self</span>.span, base: <span class="prelude-val">Some</span>(espan.span) }
-    }
-}
-
-<span class="comment">// NOTE: we make our own "version" of `rustc`'s SpanData as we cannot `TyEncode/Decode`
-// the original one...
-</span><span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
-</span><span class="kw">pub struct </span>SpanData {
-    <span class="kw">pub </span>lo: BytePos,
-    <span class="kw">pub </span>hi: BytePos,
-}
-
-<span class="kw">impl </span>SpanData {
-    <span class="kw">pub fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>data = span.data();
-        <span class="self">Self </span>{ lo: data.lo, hi: data.hi }
-    }
-
-    <span class="kw">pub fn </span>span(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Span {
-        Span::new(<span class="self">self</span>.lo, <span class="self">self</span>.hi, SyntaxContext::root(), <span class="prelude-val">None</span>)
     }
 }
 

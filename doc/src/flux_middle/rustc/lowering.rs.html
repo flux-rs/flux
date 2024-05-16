@@ -983,6 +983,7 @@
 <a href="#983" id="983">983</a>
 <a href="#984" id="984">984</a>
 <a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -990,6 +991,7 @@
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
+<span class="kw">use </span>rustc_macros::{Decodable, Encodable};
 <span class="kw">use </span>rustc_middle::{
     mir::{<span class="self">self </span><span class="kw">as </span>rustc_mir, ConstValue},
     traits::{ImplSource, ObligationCause},
@@ -1043,7 +1045,7 @@
     }
 }
 
-<span class="attr">#[derive(Debug, Clone)]
+<span class="attr">#[derive(Debug, Clone, Encodable, Decodable)]
 </span><span class="kw">pub struct </span>UnsupportedErr {
     <span class="kw">pub </span>descr: String,
     <span class="kw">pub</span>(<span class="kw">crate</span>) span: <span class="prelude-ty">Option</span>&lt;Span&gt;,

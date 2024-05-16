@@ -15,16 +15,16 @@
 <a href="#15" id="15">15</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::def_id::DefId;
 
-<span class="kw">use </span><span class="kw">crate</span>::rty;
+<span class="kw">use crate</span>::{queries::QueryResult, rty};
 
 <span class="kw">pub trait </span>CrateStore {
-    <span class="kw">fn </span>fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;;
-    <span class="kw">fn </span>adt_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>rty::AdtDef&gt;;
+    <span class="kw">fn </span>fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;&gt;;
+    <span class="kw">fn </span>adt_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;QueryResult&lt;rty::AdtDef&gt;&gt;;
     <span class="kw">fn </span>variants(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         def_id: DefId,
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;<span class="kw-2">&amp;</span>[rty::PolyVariant]&gt;&gt;&gt;;
-    <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;;
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;&gt;;
+    <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;&gt;;
 }
 
 <span class="kw">pub type </span>CrateStoreDyn = <span class="kw">dyn </span>CrateStore;

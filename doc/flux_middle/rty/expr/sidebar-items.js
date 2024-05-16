@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["AggregateKind","BinOp","Constant","ExprKind","FieldProj","HoleKind","Loc","UnOp","Var"],"macro":["impl_ops"],"mod":["pretty"],"struct":["AliasReft","BoundReft","ESpan","EarlyReftParam","ExprS","KVar","KVid","Lambda","Name","Path","SpanData"],"type":["Expr"]};
+window.SIDEBAR_ITEMS = {"enum":["AggregateKind","BinOp","Constant","ExprKind","FieldProj","HoleKind","Loc","UnOp","Var"],"macro":["impl_ops"],"mod":["pretty"],"struct":["AliasReft","BoundReft","ESpan","EarlyReftParam","ExprS","KVar","KVid","Lambda","Name","Path"],"type":["Expr"]};

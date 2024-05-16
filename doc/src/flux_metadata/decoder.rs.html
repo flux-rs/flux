@@ -173,6 +173,17 @@
 <a href="#173" id="173">173</a>
 <a href="#174" id="174">174</a>
 <a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     fs,
     io::{<span class="self">self</span>, Read},
@@ -192,7 +203,7 @@
 <span class="kw">use </span>rustc_session::StableCrateId;
 <span class="kw">use </span>rustc_span::{
     def_id::{CrateNum, DefIndex},
-    SpanDecoder, Symbol,
+    BytePos, Span, SpanDecoder, StableSourceFileId, Symbol, SyntaxContext,
 };
 <span class="kw">use </span>rustc_type_ir::TyDecoder;
 
@@ -254,7 +265,18 @@
     }
 
     <span class="kw">fn </span>decode_span(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_span::Span {
-        <span class="macro">panic!</span>(<span class="string">"cannot decode `Span` with `DecodeContext`"</span>);
+        <span class="kw">let </span>sm = <span class="self">self</span>.tcx.sess.source_map();
+        <span class="kw">let </span>pos = [(); <span class="number">2</span>].map(|<span class="kw">_</span>| {
+            <span class="kw">let </span>ssfi = StableSourceFileId::decode(<span class="self">self</span>);
+            <span class="kw">let </span>rel_bp = BytePos::decode(<span class="self">self</span>);
+            <span class="comment">// See comment in 'encoder.rs'
+            //
+            // This should hopefully never fail,
+            // so maybe could be an `unwrap` instead?
+            </span>sm.source_file_by_stable_id(ssfi)
+                .map_or(BytePos(<span class="number">0</span>), |sf| sf.start_pos + rel_bp)
+        });
+        Span::new(pos[<span class="number">0</span>], pos[<span class="number">1</span>], SyntaxContext::root(), <span class="prelude-val">None</span>)
     }
 
     <span class="kw">fn </span>decode_symbol(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_span::Symbol {

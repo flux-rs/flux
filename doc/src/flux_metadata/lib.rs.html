@@ -162,86 +162,6 @@
 <a href="#162" id="162">162</a>
 <a href="#163" id="163">163</a>
 <a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a>
-<a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a>
-<a href="#207" id="207">207</a>
-<a href="#208" id="208">208</a>
-<a href="#209" id="209">209</a>
-<a href="#210" id="210">210</a>
-<a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
-<a href="#215" id="215">215</a>
-<a href="#216" id="216">216</a>
-<a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
-<a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a>
-<a href="#231" id="231">231</a>
-<a href="#232" id="232">232</a>
-<a href="#233" id="233">233</a>
-<a href="#234" id="234">234</a>
-<a href="#235" id="235">235</a>
-<a href="#236" id="236">236</a>
-<a href="#237" id="237">237</a>
-<a href="#238" id="238">238</a>
-<a href="#239" id="239">239</a>
-<a href="#240" id="240">240</a>
-<a href="#241" id="241">241</a>
-<a href="#242" id="242">242</a>
-<a href="#243" id="243">243</a>
-<a href="#244" id="244">244</a>
 </pre></div><pre class="rust"><code><span class="attr">#![allow(incomplete_features)]
 #![feature(rustc_private, specialization, if_let_guard)]
 
@@ -266,10 +186,10 @@
 <span class="kw">use </span>decoder::decode_crate_metadata;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_macros::fluent_messages;
-<span class="kw">use </span>flux_middle::{cstore::CrateStore, global_env::GlobalEnv, intern::List, rty};
+<span class="kw">use </span>flux_middle::{cstore::CrateStore, global_env::GlobalEnv, queries::QueryResult, rty};
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def::DefKind;
-<span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
+<span class="kw">use </span>rustc_macros::{TyDecodable, TyEncodable};
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">use </span>rustc_session::{
     config::{OutFileName, OutputType},
@@ -290,16 +210,11 @@
 
 <span class="attr">#[derive(TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>CrateMetadata {
-    fn_sigs: FxHashMap&lt;DefIndex, rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;,
-    adts: FxHashMap&lt;DefIndex, AdtMetadata&gt;,
-    <span class="doccomment">/// For now it only store type of aliases
-    </span>type_of: FxHashMap&lt;DefIndex, rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;,
-}
-
-<span class="attr">#[derive(TyEncodable, TyDecodable)]
-</span><span class="kw">struct </span>AdtMetadata {
-    adt_def: rty::AdtDef,
-    variants: rty::Opaqueness&lt;rty::EarlyBinder&lt;List&lt;rty::PolyVariant&gt;&gt;&gt;,
+    fn_sigs: FxHashMap&lt;DefIndex, QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;&gt;,
+    adt_defs: FxHashMap&lt;DefIndex, QueryResult&lt;rty::AdtDef&gt;&gt;,
+    variants:
+        FxHashMap&lt;DefIndex, QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;&gt;,
+    type_of: FxHashMap&lt;DefIndex, QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;&gt;,
 }
 
 <span class="kw">impl </span>CStore {
@@ -315,14 +230,10 @@
             .collect();
         <span class="self">Self </span>{ meta }
     }
-
-    <span class="kw">fn </span>adt(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AdtMetadata&gt; {
-        <span class="self">self</span>.meta.get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?</span>.adts.get(<span class="kw-2">&amp;</span>def_id.index)
-    }
 }
 
 <span class="kw">impl </span>CrateStore <span class="kw">for </span>CStore {
-    <span class="kw">fn </span>fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
+    <span class="kw">fn </span>fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;&gt; {
         <span class="self">self</span>.meta
             .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
             </span>.fn_sigs
@@ -330,20 +241,31 @@
             .cloned()
     }
 
-    <span class="kw">fn </span>adt_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>rty::AdtDef&gt; {
-        <span class="self">self</span>.adt(def_id).map(|adt| <span class="kw-2">&amp;</span>adt.adt_def)
+    <span class="kw">fn </span>adt_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;QueryResult&lt;rty::AdtDef&gt;&gt; {
+        <span class="self">self</span>.meta
+            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
+            </span>.adt_defs
+            .get(<span class="kw-2">&amp;</span>def_id.index)
+            .cloned()
     }
 
     <span class="kw">fn </span>variants(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         def_id: DefId,
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;<span class="kw-2">&amp;</span>[rty::PolyVariant]&gt;&gt;&gt; {
-        <span class="self">self</span>.adt(def_id)
-            .map(|adt| adt.variants.as_ref().map(rty::EarlyBinder::as_deref))
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;&gt; {
+        <span class="self">self</span>.meta
+            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
+            </span>.variants
+            .get(<span class="kw-2">&amp;</span>def_id.index)
+            .cloned()
     }
 
-    <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>rty::EarlyBinder&lt;rty::TyCtor&gt;&gt; {
-        <span class="self">self</span>.meta.get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?</span>.type_of.get(<span class="kw-2">&amp;</span>def_id.index)
+    <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;&gt; {
+        <span class="self">self</span>.meta
+            .get(<span class="kw-2">&amp;</span>def_id.krate)<span class="question-mark">?
+            </span>.type_of
+            .get(<span class="kw-2">&amp;</span>def_id.index)
+            .cloned()
     }
 }
 
@@ -351,35 +273,30 @@
     <span class="kw">fn </span>new(genv: <span class="kw-2">&amp;</span>GlobalEnv) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>tcx = genv.tcx();
         <span class="kw">let </span><span class="kw-2">mut </span>fn_sigs = FxHashMap::default();
-        <span class="kw">let </span><span class="kw-2">mut </span>adts = FxHashMap::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>adt_defs = FxHashMap::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>variants = FxHashMap::default();
         <span class="kw">let </span><span class="kw-2">mut </span>type_of = FxHashMap::default();
 
         <span class="kw">for </span>local_id <span class="kw">in </span>tcx.iter_local_def_id() {
-            <span class="kw">if </span>genv.ignored(local_id) {
-                <span class="kw">continue</span>;
-            }
-
             <span class="kw">let </span>def_id = local_id.to_def_id();
             <span class="kw">let </span>def_kind = tcx.def_kind(local_id);
 
             <span class="kw">match </span>def_kind {
                 DefKind::Fn | DefKind::AssocFn =&gt; {
-                    fn_sigs.insert(def_id.index, genv.fn_sig(def_id).unwrap());
+                    fn_sigs.insert(def_id.index, genv.fn_sig(def_id));
                 }
                 DefKind::Enum | DefKind::Struct =&gt; {
-                    <span class="kw">let </span>adt_def = genv.adt_def(def_id).unwrap();
-                    <span class="kw">let </span>variants = genv.variants_of(def_id).unwrap();
-                    <span class="kw">let </span>meta = AdtMetadata { adt_def, variants };
-                    adts.insert(def_id.index, meta);
-                    type_of.insert(def_id.index, genv.type_of(def_id).unwrap());
+                    adt_defs.insert(def_id.index, genv.adt_def(def_id));
+                    variants.insert(def_id.index, genv.variants_of(def_id));
+                    type_of.insert(def_id.index, genv.type_of(def_id));
                 }
                 DefKind::TyAlias { .. } =&gt; {
-                    type_of.insert(def_id.index, genv.type_of(def_id).unwrap());
+                    type_of.insert(def_id.index, genv.type_of(def_id));
                 }
                 <span class="kw">_ </span>=&gt; {}
             }
         }
-        <span class="self">Self </span>{ fn_sigs, adts, type_of }
+        <span class="self">Self </span>{ fn_sigs, adt_defs, variants, type_of }
     }
 }
 
@@ -403,83 +320,6 @@
         .map(CanonicalizedPath::canonicalized)
         .find(|path| path.extension().unwrap_or_default() == OutputType::Metadata.extension())<span class="question-mark">?</span>;
     <span class="prelude-val">Some</span>(path.with_extension(<span class="string">"fluxmeta"</span>))
-}
-
-<span class="attr">#[derive(Encodable, Decodable, Copy, Clone)]
-</span><span class="kw">struct </span>SpanTag(u8);
-
-<span class="attr">#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-</span><span class="kw">enum </span>SpanKind {
-    Local = <span class="number">0b00</span>,
-    Foreign = <span class="number">0b01</span>,
-    Partial = <span class="number">0b10</span>,
-    <span class="comment">// Indicates the actual span contents are elsewhere.
-    // If this is the kind, then the span context bit represents whether it is a relative or
-    // absolute offset.
-    </span>Indirect = <span class="number">0b11</span>,
-}
-
-<span class="kw">impl </span>SpanTag {
-    <span class="kw">fn </span>new(kind: SpanKind, context: rustc_span::SyntaxContext, length: usize) -&gt; SpanTag {
-        <span class="kw">let </span><span class="kw-2">mut </span>data = <span class="number">0u8</span>;
-        data |= kind <span class="kw">as </span>u8;
-        <span class="kw">if </span>context.is_root() {
-            data |= <span class="number">0b100</span>;
-        }
-        <span class="kw">let </span>all_1s_len = (<span class="number">0xffu8 </span>&lt;&lt; <span class="number">3</span>) &gt;&gt; <span class="number">3</span>;
-        <span class="comment">// strictly less than - all 1s pattern is a sentinel for storage being out of band.
-        </span><span class="kw">if </span>length &lt; all_1s_len <span class="kw">as </span>usize {
-            data |= (length <span class="kw">as </span>u8) &lt;&lt; <span class="number">3</span>;
-        } <span class="kw">else </span>{
-            data |= all_1s_len &lt;&lt; <span class="number">3</span>;
-        }
-
-        SpanTag(data)
-    }
-
-    <span class="kw">fn </span>indirect(relative: bool, length_bytes: u8) -&gt; SpanTag {
-        <span class="kw">let </span><span class="kw-2">mut </span>tag = SpanTag(SpanKind::Indirect <span class="kw">as </span>u8);
-        <span class="kw">if </span>relative {
-            tag.<span class="number">0 </span>|= <span class="number">0b100</span>;
-        }
-        <span class="macro">assert!</span>(length_bytes &lt;= <span class="number">8</span>);
-        tag.<span class="number">0 </span>|= length_bytes &lt;&lt; <span class="number">3</span>;
-        tag
-    }
-
-    <span class="comment">// fn kind(self) -&gt; SpanKind {
-    //     let masked = self.0 &amp; 0b11;
-    //     match masked {
-    //         0b00 =&gt; SpanKind::Local,
-    //         0b01 =&gt; SpanKind::Foreign,
-    //         0b10 =&gt; SpanKind::Partial,
-    //         0b11 =&gt; SpanKind::Indirect,
-    //         _ =&gt; unreachable!(),
-    //     }
-    // }
-
-    // fn is_relative_offset(self) -&gt; bool {
-    //     debug_assert_eq!(self.kind(), SpanKind::Indirect);
-    //     self.0 &amp; 0b100 != 0
-    // }
-
-    </span><span class="kw">fn </span>context(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;rustc_span::SyntaxContext&gt; {
-        <span class="kw">if </span><span class="self">self</span>.<span class="number">0 </span>&amp; <span class="number">0b100 </span>!= <span class="number">0 </span>{
-            <span class="prelude-val">Some</span>(rustc_span::SyntaxContext::root())
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>}
-    }
-
-    <span class="kw">fn </span>length(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;rustc_span::BytePos&gt; {
-        <span class="kw">let </span>all_1s_len = (<span class="number">0xffu8 </span>&lt;&lt; <span class="number">3</span>) &gt;&gt; <span class="number">3</span>;
-        <span class="kw">let </span>len = <span class="self">self</span>.<span class="number">0 </span>&gt;&gt; <span class="number">3</span>;
-        <span class="kw">if </span>len != all_1s_len {
-            <span class="prelude-val">Some</span>(rustc_span::BytePos(u32::from(len)))
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>}
-    }
 }
 
 <span class="comment">// Tags for encoding Symbol's

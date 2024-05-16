@@ -694,6 +694,7 @@
 <a href="#694" id="694">694</a>
 <a href="#695" id="695">695</a>
 <a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -710,6 +711,7 @@
     def_id::{DefId, LocalDefId},
 };
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
+<span class="kw">use </span>rustc_macros::{Decodable, Encodable};
 <span class="kw">use </span>rustc_span::{Span, Symbol};
 <span class="kw">use </span>rustc_trait_selection::traits::NormalizeExt;
 
@@ -733,7 +735,7 @@
 
 <span class="kw">pub type </span>QueryResult&lt;T = ()&gt; = <span class="prelude-ty">Result</span>&lt;T, QueryErr&gt;;
 
-<span class="attr">#[derive(Debug, Clone)]
+<span class="attr">#[derive(Debug, Clone, Encodable, Decodable)]
 </span><span class="kw">pub enum </span>QueryErr {
     Unsupported { def_id: DefId, err: UnsupportedErr },
     Ignored { def_id: DefId },
@@ -1035,7 +1037,7 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.adt_sort_def_of)(genv, local_id)
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(adt_def) = genv.cstore().adt_def(def_id) {
-                <span class="prelude-val">Ok</span>(adt_def.sort_def().clone())
+                adt_def.map(|it| it.sort_def().clone())
             } <span class="kw">else </span>{
                 <span class="prelude-val">Ok</span>(rty::AdtSortDef::new(def_id, <span class="macro">vec!</span>[], <span class="macro">vec!</span>[]))
             }
@@ -1057,7 +1059,7 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.adt_def)(genv, local_id)
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(adt_def) = genv.cstore().adt_def(def_id) {
-                <span class="prelude-val">Ok</span>(adt_def.clone())
+                adt_def
             } <span class="kw">else </span>{
                 <span class="kw">let </span>adt_def = <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_id) = extern_id {
                     lowering::lower_adt_def(genv.tcx(), genv.tcx().adt_def(extern_id))
@@ -1195,7 +1197,7 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.type_of)(genv, local_id)
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(ty) = genv.cstore().type_of(def_id) {
-                <span class="prelude-val">Ok</span>(ty.clone())
+                ty
             } <span class="kw">else </span>{
                 <span class="comment">// If we're given a type parameter, provide the generics of the parent container.
                 </span><span class="kw">let </span>generics_def_id = <span class="kw">match </span>genv.def_kind(def_id) {
@@ -1223,7 +1225,7 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.variants_of)(genv, local_id)
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(variants) = genv.cstore().variants(def_id) {
-                <span class="prelude-val">Ok</span>(variants.map(|variants| variants.map(List::from)))
+                variants.map(|variants| variants.map(|variants| variants.map(List::from)))
             } <span class="kw">else </span>{
                 <span class="kw">let </span>variants = genv
                     .tcx()
@@ -1257,7 +1259,7 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.fn_sig)(genv, local_id)
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(fn_sig) = genv.cstore().fn_sig(def_id) {
-                <span class="prelude-val">Ok</span>(fn_sig)
+                fn_sig
             } <span class="kw">else </span>{
                 <span class="kw">let </span>fn_sig = genv.lower_fn_sig(def_id)<span class="question-mark">?</span>.skip_binder();
                 <span class="kw">let </span>fn_sig = Refiner::default(genv, <span class="kw-2">&amp;</span>genv.generics_of(def_id)<span class="question-mark">?</span>)
