@@ -122,7 +122,7 @@ impl AdtSortDef {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Generics {
     pub parent: Option<DefId>,
     pub parent_count: usize,

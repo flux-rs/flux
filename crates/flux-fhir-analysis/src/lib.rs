@@ -6,6 +6,7 @@ extern crate rustc_hash;
 extern crate rustc_hir;
 extern crate rustc_middle;
 extern crate rustc_span;
+extern crate rustc_trait_selection;
 extern crate rustc_type_ir;
 
 mod annot_check;
@@ -312,7 +313,8 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
         DefKind::TyParam => {
             match &genv.get_generic_param(def_id)?.kind {
                 fhir::GenericParamKind::Type { default: Some(ty) } => {
-                    let wfckresults = genv.check_wf(def_id)?;
+                    let parent = genv.tcx().local_parent(def_id);
+                    let wfckresults = genv.check_wf(parent)?;
                     conv::conv_ty(genv, ty, &wfckresults)?
                 }
                 k => bug!("non-type def {k:?} {def_id:?}"),
@@ -393,11 +395,6 @@ fn check_wf<'genv>(
             wf::check_flux_item(genv, genv.map().get_flux_item(sym).unwrap())?
         }
         FluxLocalDefId::Rust(def_id) => {
-            let def_kind = genv.def_kind(def_id);
-            if matches!(def_kind, DefKind::Closure | DefKind::TyParam) {
-                let parent = genv.tcx().local_parent(def_id);
-                return genv.check_wf(parent);
-            }
             let node = genv.desugar(def_id)?;
             let mut wfckresults = wf::check_node(genv, &node)?;
             annot_check::check_node(genv, &mut wfckresults, &node)?;

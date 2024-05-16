@@ -1,14 +1,24 @@
-trait MyTrait {
-    type Assoc;
+trait SuperTrait {
+    type AssocSuper;
+}
 
-    fn foo(self) -> <Self as MyTrait>::Assoc;
+trait MyTrait: SuperTrait {
+    type MyAssoc;
+
+    fn foo(x: Self::AssocSuper) -> Self::MyAssoc;
+}
+
+impl SuperTrait for i32 {
+    type AssocSuper = i32;
 }
 
 impl MyTrait for i32 {
-    type Assoc = i32;
+    type MyAssoc = i32;
 
-    // Test we can lift and convert `Self::Assoc`
-    fn foo(self) -> Self::Assoc {
-        self
+    // Test we can lift and convert `Self::MyAssoc`
+    fn foo(x: Self::AssocSuper) -> Self::MyAssoc {
+        x
     }
 }
+
+fn foo<T: MyTrait>(x: T::AssocSuper, y: T::MyAssoc) {}

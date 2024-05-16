@@ -169,10 +169,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         Ok(rty::ClauseKind::FnTrait(pred))
     }
 
-    pub(crate) fn refine_trait_ref(
-        &self,
-        trait_ref: &rustc::ty::TraitRef,
-    ) -> QueryResult<rty::TraitRef> {
+    pub fn refine_trait_ref(&self, trait_ref: &rustc::ty::TraitRef) -> QueryResult<rty::TraitRef> {
         let trait_ref = rty::TraitRef {
             def_id: trait_ref.def_id,
             args: self.refine_generic_args(trait_ref.def_id, &trait_ref.args)?,

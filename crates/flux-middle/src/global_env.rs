@@ -225,7 +225,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         Ok(Some(rty::EarlyBinder(trait_ref)))
     }
 
-    fn lower_trait_ref(
+    pub fn lower_trait_ref(
         self,
         trait_ref: rustc_middle::ty::TraitRef<'tcx>,
     ) -> QueryResult<rustc::ty::TraitRef> {
