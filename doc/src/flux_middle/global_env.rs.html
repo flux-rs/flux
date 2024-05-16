@@ -518,12 +518,17 @@
 <a href="#518" id="518">518</a>
 <a href="#519" id="519">519</a>
 <a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
 <span class="kw">use </span>flux_config::CrateConfig;
 <span class="kw">use </span>flux_errors::FluxSession;
-<span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
@@ -535,7 +540,7 @@
 
 <span class="kw">use crate</span>::{
     cstore::CrateStoreDyn,
-    fhir::{<span class="self">self</span>, FluxLocalDefId, Ignored, VariantIdx},
+    fhir::{<span class="self">self</span>, FluxLocalDefId, VariantIdx},
     intern::List,
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{<span class="self">self</span>, normalize::SpecFuncDefns, refining::Refiner},
@@ -894,24 +899,35 @@
             .copied()
     }
 
+    <span class="kw">pub fn </span>trusted(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
+        <span class="self">self</span>.traverse_parents(def_id, |did| <span class="self">self</span>.collect_specs().trusted.get(<span class="kw-2">&amp;</span>did))
+            .is_some_and(|trusted| trusted.to_bool())
+    }
+
     <span class="doccomment">/// transitively follows the parent-chain to find the first containing item with an explicit
     /// `ignore` annotation and returns whether that item is ignored or not.
-    </span><span class="kw">pub fn </span>ignored(<span class="self">self</span>, <span class="kw-2">mut </span>def_id: LocalDefId) -&gt; bool {
+    </span><span class="kw">pub fn </span>ignored(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
+        <span class="self">self</span>.traverse_parents(def_id, |did| <span class="self">self</span>.collect_specs().ignores.get(<span class="kw-2">&amp;</span>did))
+            .is_some_and(|ignored| ignored.to_bool())
+    }
+
+    <span class="doccomment">/// traverse the parent chain of a def_id until the first node for which `f` returns [`Some`].
+    </span><span class="kw">fn </span>traverse_parents&lt;T&gt;(
+        <span class="self">self</span>,
+        <span class="kw-2">mut </span>def_id: LocalDefId,
+        f: <span class="kw">impl </span>Fn(LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt;,
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt; {
         <span class="kw">loop </span>{
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(ignored) = <span class="self">self</span>.ignores().get(<span class="kw-2">&amp;</span>def_id) {
-                <span class="kw">break </span>ignored.to_bool();
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(v) = f(def_id) {
+                <span class="kw">break </span><span class="prelude-val">Some</span>(v);
             }
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(parent) = <span class="self">self</span>.tcx().opt_local_parent(def_id) {
                 def_id = parent;
             } <span class="kw">else </span>{
-                <span class="kw">break </span><span class="bool-val">false</span>;
+                <span class="kw">break </span><span class="prelude-val">None</span>;
             }
         }
-    }
-
-    <span class="kw">fn </span>ignores(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>UnordMap&lt;LocalDefId, Ignored&gt; {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.collect_specs().ignores
     }
 
     <span class="kw">pub fn </span>crate_config(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;CrateConfig&gt; {
@@ -992,10 +1008,6 @@
 
     <span class="kw">pub fn </span>consts(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = fhir::ConstInfo&gt; + <span class="lifetime">'genv </span>{
         <span class="self">self</span>.fhir.consts.values().copied()
-    }
-
-    <span class="kw">pub fn </span>is_trusted(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;bool&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.node(def_id)<span class="question-mark">?</span>.fn_sig().unwrap().trusted)
     }
 
     <span class="kw">pub fn </span>fn_quals_for(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::SurfaceIdent]&gt; {

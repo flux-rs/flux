@@ -1087,12 +1087,29 @@
 <a href="#1087" id="1087">1087</a>
 <a href="#1088" id="1088">1088</a>
 <a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a>
+<a href="#1101" id="1101">1101</a>
+<a href="#1102" id="1102">1102</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>flux_common::{iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, CrateConfig};
 <span class="kw">use </span>flux_errors::FluxSession;
-<span class="kw">use </span>flux_middle::{fhir::Ignored, rustc::lowering::resolve_trait_ref_impl_id, Specs};
+<span class="kw">use </span>flux_middle::{
+    fhir::{Ignored, Trusted},
+    rustc::lowering::resolve_trait_ref_impl_id,
+    Specs,
+};
 <span class="kw">use </span>flux_syntax::{surface, ParseResult, ParseSess};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_ast::{
@@ -1190,7 +1207,7 @@
 
         </span><span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, DefKind::Mod)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
-        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, CRATE_DEF_ID);
+        <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, CRATE_DEF_ID);
 
         <span class="self">self</span>.specs.extend_items(attrs.items());
 
@@ -1202,7 +1219,7 @@
     <span class="kw">fn </span>parse_mod_spec(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId, attrs: <span class="kw-2">&amp;</span>[Attribute]) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, DefKind::Mod)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
-        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, def_id);
+        <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, def_id);
 
         <span class="self">self</span>.specs.extend_items(attrs.items());
         <span class="prelude-val">Ok</span>(())
@@ -1211,7 +1228,7 @@
     <span class="kw">fn </span>parse_const_spec(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId, item: <span class="kw-2">&amp;</span>Item, attrs: <span class="kw-2">&amp;</span>[Attribute]) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, DefKind::Const)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
-        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, def_id);
+        <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, def_id);
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(_ty) = attrs.const_sig() <span class="kw">else </span>{
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
@@ -1230,7 +1247,7 @@
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, DefKind::Trait)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
-        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
+        <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
         <span class="kw">let </span>generics = attrs.generics();
         <span class="kw">let </span>assoc_refinements = attrs.trait_assoc_refts();
@@ -1257,7 +1274,7 @@
         <span class="kw">let </span>def_kind = DefKind::Impl { of_trait: impl_.of_trait.is_some() };
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, def_kind)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
-        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
+        <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
         <span class="kw">let </span>generics = attrs.generics();
         <span class="kw">let </span>assoc_refinements = attrs.impl_assoc_refts();
@@ -1293,7 +1310,7 @@
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, DefKind::Struct)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
-        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
+        <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
         <span class="kw">let </span><span class="kw-2">mut </span>opaque = attrs.opaque();
 
@@ -1367,7 +1384,7 @@
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, DefKind::Enum)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
-        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
+        <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
         <span class="kw">let </span>generics = attrs.generics();
 
@@ -1435,9 +1452,8 @@
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>attrs = <span class="self">self</span>.parse_flux_attrs(attrs, def_kind)<span class="question-mark">?</span>;
         <span class="self">self</span>.report_dups(<span class="kw-2">&amp;</span>attrs)<span class="question-mark">?</span>;
-        <span class="self">self</span>.collect_ignore(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
+        <span class="self">self</span>.collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span>attrs, owner_id.def_id);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>trusted = attrs.trusted();
         <span class="kw">let </span>fn_sig = attrs.fn_sig();
         <span class="kw">let </span>qual_names: <span class="prelude-ty">Option</span>&lt;surface::QualNames&gt; = attrs.qual_names();
         <span class="kw">let </span>extern_id = <span class="kw">if </span>attrs.extern_spec() {
@@ -1451,14 +1467,13 @@
                 .extern_specs
                 .insert(extern_def_id, owner_id.def_id);
             <span class="comment">// We should never check an extern spec (it will infinitely recurse)
-            </span>trusted = <span class="bool-val">true</span>;
-            <span class="prelude-val">Some</span>(extern_def_id)
+            </span><span class="prelude-val">Some</span>(extern_def_id)
         } <span class="kw">else </span>{
             <span class="prelude-val">None
         </span>};
         <span class="self">self</span>.specs
             .fn_sigs
-            .insert(owner_id, surface::FnSpec { fn_sig, trusted, qual_names, extern_id });
+            .insert(owner_id, surface::FnSpec { fn_sig, qual_names, extern_id });
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1561,8 +1576,16 @@
                     <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::InvalidAttr { span: attr_item.span() }))<span class="question-mark">?</span>,
                 }
             }
+            (<span class="string">"trusted"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Trusted(Trusted::Yes),
+            (<span class="string">"trusted"</span>, AttrArgs::Delimited(dargs)) =&gt; {
+                <span class="kw">let </span>val = tts_to_string(<span class="kw-2">&amp;</span>dargs.tokens);
+                <span class="kw">match </span><span class="kw-2">&amp;</span>val[..] {
+                    <span class="string">"yes" </span>=&gt; FluxAttrKind::Trusted(Trusted::Yes),
+                    <span class="string">"no" </span>=&gt; FluxAttrKind::Trusted(Trusted::No),
+                    <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::InvalidAttr { span: attr_item.span() }))<span class="question-mark">?</span>,
+                }
+            }
             (<span class="string">"opaque"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Opaque,
-            (<span class="string">"trusted"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::Trusted,
             (<span class="string">"fake_impl"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::FakeImpl,
             (<span class="string">"extern_spec"</span>, AttrArgs::Empty) =&gt; FluxAttrKind::ExternSpec,
             <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::InvalidAttr { span: attr_item.span() })),
@@ -1791,9 +1814,12 @@
         }
     }
 
-    <span class="kw">fn </span>collect_ignore(<span class="kw-2">&amp;mut </span><span class="self">self</span>, attrs: <span class="kw-2">&amp;mut </span>FluxAttrs, def_id: LocalDefId) {
+    <span class="kw">fn </span>collect_ignore_and_trusted(<span class="kw-2">&amp;mut </span><span class="self">self</span>, attrs: <span class="kw-2">&amp;mut </span>FluxAttrs, def_id: LocalDefId) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(ignored) = attrs.ignore() {
             <span class="self">self</span>.specs.ignores.insert(def_id, ignored);
+        }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(trusted) = attrs.trusted() {
+            <span class="self">self</span>.specs.trusted.insert(def_id, trusted);
         }
     }
 
@@ -1817,7 +1843,7 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">enum </span>FluxAttrKind {
-    Trusted,
+    Trusted(Trusted),
     Opaque,
     FnSig(surface::FnSig),
     TraitAssocReft(surface::TraitAssocReft),
@@ -1879,8 +1905,8 @@
             .map(|(name, attrs)| (<span class="kw-2">*</span>name, <span class="kw-2">&amp;</span>attrs[<span class="number">1</span>..]))
     }
 
-    <span class="kw">fn </span>trusted(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">read_flag!</span>(<span class="self">self</span>, Trusted)
+    <span class="kw">fn </span>trusted(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Trusted&gt; {
+        <span class="macro">read_attr!</span>(<span class="self">self</span>, Trusted)
     }
 
     <span class="kw">fn </span>ignore(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Ignored&gt; {
@@ -1955,7 +1981,7 @@
 <span class="kw">impl </span>FluxAttrKind {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
-            FluxAttrKind::Trusted =&gt; <span class="macro">attr_name!</span>(Trusted),
+            FluxAttrKind::Trusted(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Trusted),
             FluxAttrKind::Opaque =&gt; <span class="macro">attr_name!</span>(Opaque),
             FluxAttrKind::FnSig(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(FnSig),
             FluxAttrKind::TraitAssocReft(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(TraitAssocReft),

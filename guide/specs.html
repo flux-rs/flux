@@ -369,10 +369,11 @@ impl __FluxExternImplStructString {
 <p>Flux offers two attributes for controlling which parts of your code it analyzes: <code>#[flux::ignore]</code> and <code>#[flux::trusted]</code>.</p>
 <ul>
 <li><code>#[flux::ignore]</code>: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.</li>
-<li><code>#[flux::trusted]</code>: This attribute only applies to functions. When a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.</li>
+<li><code>#[flux::trusted]</code>: This attribute affects whether Flux checks the body of a function. If a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.</li>
 </ul>
 <p>The above means that an <em>ignored</em> function can only be called from ignored or trusted code, while a <em>trusted</em> function can also be called from analyzed code.</p>
-<p>The <code>#[flux::ignore]</code> attribute applies recursively. For instance, if a module is marked as <code>#[flux::ignore]</code>, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with <code>#[flux::ignore(no)]</code><sup class="footnote-reference"><a href="#ignore-shorthand">1</a></sup>, which will include all nested elements for analysis.</p>
+<p>Both attributes apply recursively. For instance, if a module is marked as <code>#[flux::ignore]</code>, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with <code>#[flux::ignore(no)]</code><sup class="footnote-reference"><a href="#ignore-shorthand">1</a></sup>, which will include all nested elements for analysis. Similarly,
+the action of <code>#[flux::trusted]</code> can be reverted using <code>#[flux::trusted(no)]</code>.</p>
 <p>Consider the following example:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -394,9 +395,9 @@ mod A {
 }
 <span class="boring">}</span></code></pre></pre>
 <p>In this scenario, functions <code>f2</code> and <code>f3</code> will be ignored, while <code>f1</code> will be analyzed.</p>
-<p>A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate and then selectively include specific sections for analysis.</p>
+<p>A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate (using the inner attribute <code>#![flux::ignore]</code> at the top of the crate) and then selectively include specific sections for analysis.</p>
 <div class="footnote-definition" id="ignore-shorthand"><sup class="footnote-definition-label">1</sup>
-<p><code>#[flux::ignore]</code> is shorthand for <code>#[flux::ignore(yes)]</code>.</p>
+<p><code>#[flux::ignore]</code> (resp. <code>#[flux::trusted]</code>) is shorthand for <code>#[flux::ignore(yes)]</code> (resp. <code>#[flux::trusted(yes)]</code>).</p>
 </div>
 
                     </main>

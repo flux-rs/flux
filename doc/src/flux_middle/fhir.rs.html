@@ -1423,6 +1423,21 @@
 <a href="#1423" id="1423">1423</a>
 <a href="#1424" id="1424">1424</a>
 <a href="#1425" id="1425">1425</a>
+<a href="#1426" id="1426">1426</a>
+<a href="#1427" id="1427">1427</a>
+<a href="#1428" id="1428">1428</a>
+<a href="#1429" id="1429">1429</a>
+<a href="#1430" id="1430">1430</a>
+<a href="#1431" id="1431">1431</a>
+<a href="#1432" id="1432">1432</a>
+<a href="#1433" id="1433">1433</a>
+<a href="#1434" id="1434">1434</a>
+<a href="#1435" id="1435">1435</a>
+<a href="#1436" id="1436">1436</a>
+<a href="#1437" id="1437">1437</a>
+<a href="#1438" id="1438">1438</a>
+<a href="#1439" id="1439">1439</a>
+<a href="#1440" id="1440">1440</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1466,7 +1481,7 @@
 
 <span class="kw">use crate</span>::{global_env::GlobalEnv, pretty, rty::Constant};
 
-<span class="doccomment">/// A boolean used to mark wether an item should be ignored or not
+<span class="doccomment">/// A boolean used to mark whether a piece of code is ignored.
 </span><span class="attr">#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 </span><span class="kw">pub enum </span>Ignored {
     Yes,
@@ -1478,6 +1493,22 @@
         <span class="kw">match </span><span class="self">self </span>{
             Ignored::Yes =&gt; <span class="bool-val">true</span>,
             Ignored::No =&gt; <span class="bool-val">false</span>,
+        }
+    }
+}
+
+<span class="doccomment">/// A boolean used to mark whether to mark wether code should be trusted.
+</span><span class="attr">#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+</span><span class="kw">pub enum </span>Trusted {
+    Yes,
+    No,
+}
+
+<span class="kw">impl </span>Trusted {
+    <span class="kw">pub fn </span>to_bool(<span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self </span>{
+            Trusted::Yes =&gt; <span class="bool-val">true</span>,
+            Trusted::No =&gt; <span class="bool-val">false</span>,
         }
     }
 }
@@ -1890,7 +1921,6 @@
 
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>FnSig&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>trusted: bool,
     <span class="comment">//// List of local qualifiers for this function
     </span><span class="kw">pub </span>qualifiers: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[SurfaceIdent],
     <span class="kw">pub </span>decl: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>FnDecl&lt;<span class="lifetime">'fhir</span>&gt;,
