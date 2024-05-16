@@ -8,6 +8,8 @@ use xshell::{cmd, Shell};
 
 xflags::xflags! {
     cmd xtask {
+        optional --offline
+
         /// Run regression tests
         cmd test {
             /// Only run tests containing `filter` as substring.
@@ -58,10 +60,15 @@ fn main() -> anyhow::Result<()> {
 
     let sh = Shell::new()?;
     sh.change_dir(project_root());
+
+    let mut extra = vec![];
+    if cmd.offline {
+        extra.push("--offline");
+    }
     match cmd.subcommand {
         XtaskCmd::Test(args) => test(sh, args),
         XtaskCmd::Run(args) => run(sh, args),
-        XtaskCmd::Install(args) => install(&sh, &args),
+        XtaskCmd::Install(args) => install(&sh, &args, &extra),
         XtaskCmd::Doc(args) => doc(sh, args),
         XtaskCmd::BuildSysroot(_) => build_sysroot(&sh),
         XtaskCmd::Uninstall(_) => uninstall(&sh),
@@ -117,36 +124,41 @@ fn run_inner(
     Ok(())
 }
 
-fn install(sh: &Shell, args: &Install) -> anyhow::Result<()> {
-    cmd!(sh, "cargo install --path crates/flux-bin --force").run()?;
-    install_driver(sh, args)?;
-    install_libs(sh, args)?;
+fn install(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()> {
+    cmd!(sh, "cargo install --path crates/flux-bin --force {extra...}").run()?;
+    install_driver(sh, args, extra)?;
+    install_libs(sh, args, extra)?;
 
     Ok(())
 }
 
-fn install_driver(sh: &Shell, args: &Install) -> anyhow::Result<()> {
+fn install_driver(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()> {
     let out_dir = default_sysroot_dir();
     if args.is_release() {
-        cmd!(sh, "cargo build -Zunstable-options --bin flux-driver --release --out-dir {out_dir}")
+        cmd!(sh, "cargo build -Zunstable-options --bin flux-driver --release --out-dir {out_dir} {extra...}")
             .run()?;
     } else {
-        cmd!(sh, "cargo build -Zunstable-options --bin flux-driver --out-dir {out_dir}").run()?;
+        cmd!(sh, "cargo build -Zunstable-options --bin flux-driver --out-dir {out_dir} {extra...}")
+            .run()?;
     }
     Ok(())
 }
 
-fn install_libs(sh: &Shell, args: &Install) -> anyhow::Result<()> {
+fn install_libs(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()> {
     // CODESYNC(build-sysroot, 5)
     let _env = sh.push_env("FLUX_BUILD_SYSROOT", "1");
     println!("$ export FLUX_BUILD_SYSROOT=1");
 
     let out_dir = default_sysroot_dir();
     if args.is_release() {
-        cmd!(sh, "cargo build -Zunstable-options --release -p flux-rs --out-dir {out_dir}")
-            .run()?;
+        cmd!(
+            sh,
+            "cargo build -Zunstable-options --release -p flux-rs --out-dir {out_dir} {extra...}"
+        )
+        .run()?;
     } else {
-        cmd!(sh, "cargo build -Zunstable-options -p flux-rs --out-dir {out_dir}").run()?;
+        cmd!(sh, "cargo build -Zunstable-options -p flux-rs --out-dir {out_dir} {extra...}")
+            .run()?;
     }
     Ok(())
 }
