@@ -188,6 +188,23 @@
 <a href="#188" id="188">188</a>
 <a href="#189" id="189">189</a>
 <a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
 
 <span class="kw">use </span>flux_middle::global_env::GlobalEnv;
@@ -203,7 +220,7 @@
 <span class="kw">use </span>rustc_span::{
     def_id::{CrateNum, DefIndex},
     hygiene::{ExpnIndex, HygieneEncodeContext},
-    ExpnId, Span, SpanEncoder, Symbol, SyntaxContext,
+    ExpnId, FileName, SourceFile, Span, SpanEncoder, StableSourceFileId, Symbol, SyntaxContext,
 };
 <span class="kw">use </span>rustc_type_ir::TyEncoder;
 
@@ -285,7 +302,8 @@
         <span class="kw">let </span>sm = <span class="self">self</span>.tcx.sess.source_map();
         <span class="kw">for </span>bp <span class="kw">in </span>[span.lo(), span.hi()] {
             <span class="kw">let </span>sf = sm.lookup_source_file(bp);
-            sf.stable_id.encode(<span class="self">self</span>);
+            <span class="kw">let </span>ssfi = stable_source_file_id_for_export(<span class="self">self</span>.tcx, <span class="kw-2">&amp;</span>sf);
+            ssfi.encode(<span class="self">self</span>);
             <span class="comment">// Not sure if this is the most stable way to encode a BytePos. If it fails
             // try finding a function in `SourceMap` or `SourceFile` instead. E.g. the
             // `bytepos_to_file_charpos` fn which returns `CharPos` (though there is
@@ -377,5 +395,21 @@
         emit_str(<span class="kw-2">&amp;</span>str);
         emit_raw_bytes(<span class="kw-2">&amp;</span>[u8]);
     }
+}
+
+<span class="kw">fn </span>stable_source_file_id_for_export(tcx: TyCtxt, sf: <span class="kw-2">&amp;</span>SourceFile) -&gt; StableSourceFileId {
+    <span class="kw">let </span>working_directory = <span class="kw-2">&amp;</span>tcx.sess.opts.working_dir;
+    <span class="kw">let </span>crate_stable_id = tcx.stable_crate_id(sf.cnum);
+    <span class="kw">let </span><span class="kw-2">mut </span>filename = sf.name.clone();
+    <span class="kw">if let </span>FileName::Real(original_file_name) = filename {
+        <span class="kw">let </span>adapted_file_name = tcx
+            .sess
+            .source_map()
+            .path_mapping()
+            .to_embeddable_absolute_path(original_file_name.clone(), working_directory);
+
+        filename = FileName::Real(adapted_file_name);
+    }
+    StableSourceFileId::from_filename_for_export(<span class="kw-2">&amp;</span>filename, crate_stable_id)
 }
 </code></pre></div></section></main></body></html>
