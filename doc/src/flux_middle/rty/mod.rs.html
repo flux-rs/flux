@@ -2087,6 +2087,12 @@
 <a href="#2087" id="2087">2087</a>
 <a href="#2088" id="2088">2088</a>
 <a href="#2089" id="2089">2089</a>
+<a href="#2090" id="2090">2090</a>
+<a href="#2091" id="2091">2091</a>
+<a href="#2092" id="2092">2092</a>
+<a href="#2093" id="2093">2093</a>
+<a href="#2094" id="2094">2094</a>
+<a href="#2095" id="2095">2095</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2281,6 +2287,12 @@
 </span><span class="kw">pub struct </span>TraitRef {
     <span class="kw">pub </span>def_id: DefId,
     <span class="kw">pub </span>args: GenericArgs,
+}
+
+<span class="kw">impl </span>TraitRef {
+    <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt; {
+        rustc_middle::ty::TraitRef::new(tcx, <span class="self">self</span>.def_id, <span class="self">self</span>.args.to_rustc(tcx))
+    }
 }
 
 <span class="attr">#[derive(PartialEq, Eq, Hash, Debug, Clone)]

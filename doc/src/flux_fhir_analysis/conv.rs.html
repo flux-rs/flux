@@ -1703,11 +1703,6 @@
 <a href="#1703" id="1703">1703</a>
 <a href="#1704" id="1704">1704</a>
 <a href="#1705" id="1705">1705</a>
-<a href="#1706" id="1706">1706</a>
-<a href="#1707" id="1707">1707</a>
-<a href="#1708" id="1708">1708</a>
-<a href="#1709" id="1709">1709</a>
-<a href="#1710" id="1710">1710</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2098,23 +2093,7 @@
                             <span class="kw-2">&amp;mut </span>clauses,
                         )<span class="question-mark">?</span>;
                     } <span class="kw">else </span>{
-                        <span class="kw">let </span>path = <span class="kw-2">&amp;</span>poly_trait_ref.trait_ref;
-                        <span class="kw">let </span>params = <span class="kw-2">&amp;</span>poly_trait_ref.bound_generic_params;
-                        <span class="self">self</span>.conv_trait_bound(
-                            env,
-                            <span class="kw-2">&amp;</span>bounded_ty,
-                            trait_id,
-                            path.last_segment().args,
-                            params,
-                            <span class="kw-2">&amp;mut </span>clauses,
-                        )<span class="question-mark">?</span>;
-                        <span class="self">self</span>.conv_type_bindings(
-                            env,
-                            <span class="kw-2">&amp;</span>bounded_ty,
-                            trait_id,
-                            path.last_segment().bindings,
-                            <span class="kw-2">&amp;mut </span>clauses,
-                        )<span class="question-mark">?</span>;
+                        <span class="self">self</span>.conv_poly_trait_ref(env, <span class="kw-2">&amp;</span>bounded_ty, poly_trait_ref, <span class="kw-2">&amp;mut </span>clauses)<span class="question-mark">?</span>;
                     }
                 }
                 <span class="comment">// Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
@@ -2126,25 +2105,64 @@
         <span class="prelude-val">Ok</span>(clauses)
     }
 
-    <span class="kw">fn </span>conv_trait_bound(
+    <span class="doccomment">/// Converts a `T: Trait&lt;T0, ..., A0 = S0, ...&gt;` bound
+    </span><span class="kw">fn </span>conv_poly_trait_ref(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         env: <span class="kw-2">&amp;mut </span>Env,
         bounded_ty: <span class="kw-2">&amp;</span>rty::Ty,
-        trait_id: DefId,
-        args: <span class="kw-2">&amp;</span>[fhir::GenericArg],
-        params: <span class="kw-2">&amp;</span>[fhir::GenericParam],
+        poly_trait_ref: <span class="kw-2">&amp;</span>fhir::PolyTraitRef,
         clauses: <span class="kw-2">&amp;mut </span>Vec&lt;rty::Clause&gt;,
     ) -&gt; QueryResult {
-        <span class="kw">let </span><span class="kw-2">mut </span>into = <span class="macro">vec!</span>[rty::GenericArg::Ty(bounded_ty.clone())];
-        <span class="self">self</span>.conv_generic_args_into(env, trait_id, args, <span class="kw-2">&amp;mut </span>into)<span class="question-mark">?</span>;
-        <span class="self">self</span>.fill_generic_args_defaults(trait_id, <span class="kw-2">&amp;mut </span>into)<span class="question-mark">?</span>;
-        <span class="kw">let </span>trait_ref = rty::TraitRef { def_id: trait_id, args: into.into() };
-        <span class="kw">let </span>pred = rty::TraitPredicate { trait_ref };
-        <span class="kw">let </span>vars = params
+        <span class="kw">let </span>trait_id = poly_trait_ref.trait_def_id();
+        <span class="kw">let </span>trait_segment = poly_trait_ref.trait_ref.last_segment();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[rty::GenericArg::Ty(bounded_ty.clone())];
+        <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment.args, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
+        <span class="self">self</span>.fill_generic_args_defaults(trait_id, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
+        <span class="kw">let </span>pred = rty::TraitPredicate { trait_ref: trait_ref.clone() };
+        <span class="kw">let </span>vars = poly_trait_ref
+            .bound_generic_params
             .iter()
             .map(|param| <span class="self">self</span>.conv_trait_bound_generic_param(param))
             .try_collect_vec()<span class="question-mark">?</span>;
         clauses.push(rty::Clause::new(List::from_vec(vars), rty::ClauseKind::Trait(pred)));
+
+        <span class="kw">for </span>binding <span class="kw">in </span>trait_segment.bindings {
+            <span class="self">self</span>.conv_type_binding(env, bounded_ty, <span class="kw-2">&amp;</span>trait_ref, binding, clauses)<span class="question-mark">?</span>;
+        }
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>conv_type_binding(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        env: <span class="kw-2">&amp;mut </span>Env,
+        bounded_ty: <span class="kw-2">&amp;</span>rty::Ty,
+        trait_ref: <span class="kw-2">&amp;</span>rty::TraitRef,
+        binding: <span class="kw-2">&amp;</span>fhir::TypeBinding,
+        clauses: <span class="kw-2">&amp;mut </span>Vec&lt;rty::Clause&gt;,
+    ) -&gt; QueryResult {
+        <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
+        <span class="kw">let </span>rustc_trait_ref = trait_ref.to_rustc(tcx);
+
+        <span class="kw">let </span>candidate = <span class="self">self</span>.probe_single_bound_for_assoc_item(
+            || traits::supertraits(tcx, ty::Binder::dummy(rustc_trait_ref)),
+            binding.ident,
+        )<span class="question-mark">?</span>;
+        <span class="kw">let </span>assoc_item = <span class="self">self
+            </span>.trait_defines_associated_item_named(candidate.def_id, AssocKind::Type, binding.ident)
+            .unwrap();
+
+        <span class="kw">let </span>args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
+        <span class="kw">let </span>refine_args = List::empty();
+        <span class="kw">let </span>alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args, refine_args };
+        <span class="kw">let </span>kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
+            projection_ty: alias_ty,
+            term: <span class="self">self</span>.conv_ty(env, <span class="kw-2">&amp;</span>binding.term)<span class="question-mark">?</span>,
+        });
+        clauses.push(rty::Clause::new(List::empty(), kind));
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -2196,34 +2214,6 @@
             .map(|param| <span class="self">self</span>.conv_trait_bound_generic_param(param))
             .try_collect_vec()<span class="question-mark">?</span>;
         clauses.push(rty::Clause::new(vars, rty::ClauseKind::FnTrait(pred)));
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>conv_type_bindings(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        env: <span class="kw-2">&amp;mut </span>Env,
-        bounded_ty: <span class="kw-2">&amp;</span>rty::Ty,
-        trait_def_id: DefId,
-        bindings: <span class="kw-2">&amp;</span>[fhir::TypeBinding],
-        clauses: <span class="kw-2">&amp;mut </span>Vec&lt;rty::Clause&gt;,
-    ) -&gt; QueryResult&lt;()&gt; {
-        <span class="kw">for </span>binding <span class="kw">in </span>bindings {
-            <span class="kw">let </span>assoc_item = <span class="self">self
-                </span>.trait_defines_associated_item_named(trait_def_id, AssocKind::Type, binding.ident)
-                .ok_or_else(|| {
-                    <span class="self">self</span>.genv
-                        .sess()
-                        .emit_err(errors::AssocTypeNotFound::new(binding.ident))
-                })<span class="question-mark">?</span>;
-            <span class="kw">let </span>args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
-            <span class="kw">let </span>refine_args = List::empty();
-            <span class="kw">let </span>alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args, refine_args };
-            <span class="kw">let </span>kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
-                projection_ty: alias_ty,
-                term: <span class="self">self</span>.conv_ty(env, <span class="kw-2">&amp;</span>binding.term)<span class="question-mark">?</span>,
-            });
-            clauses.push(rty::Clause::new(List::empty(), kind));
-        }
         <span class="prelude-val">Ok</span>(())
     }
 
