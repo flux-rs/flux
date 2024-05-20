@@ -477,10 +477,6 @@
 <a href="#477" id="477">477</a>
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
     FnSig, FuncSort, GenericArg, GenericBound, Generics, ImplAssocReft, ImplItem, ImplItemKind,
@@ -700,10 +696,6 @@
 <span class="kw">pub fn </span>walk_generic_bound&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, bound: <span class="kw-2">&amp;</span>GenericBound) {
     <span class="kw">match </span>bound {
         GenericBound::Trait(trait_ref, <span class="kw">_</span>) =&gt; vis.visit_poly_trait_ref(trait_ref),
-        GenericBound::LangItemTrait(<span class="kw">_</span>, args, bindings) =&gt; {
-            <span class="macro">walk_list!</span>(vis, visit_generic_arg, <span class="kw-2">*</span>args);
-            <span class="macro">walk_list!</span>(vis, visit_type_binding, <span class="kw-2">*</span>bindings);
-        }
     }
 }
 

@@ -1708,13 +1708,6 @@
 <a href="#1708" id="1708">1708</a>
 <a href="#1709" id="1709">1709</a>
 <a href="#1710" id="1710">1710</a>
-<a href="#1711" id="1711">1711</a>
-<a href="#1712" id="1712">1712</a>
-<a href="#1713" id="1713">1713</a>
-<a href="#1714" id="1714">1714</a>
-<a href="#1715" id="1715">1715</a>
-<a href="#1716" id="1716">1716</a>
-<a href="#1717" id="1717">1717</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2092,52 +2085,45 @@
     ) -&gt; QueryResult&lt;Vec&lt;rty::Clause&gt;&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>clauses = <span class="macro">vec!</span>[];
         <span class="kw">for </span>bound <span class="kw">in </span>bounds {
-            <span class="self">self</span>.conv_generic_bound(env, <span class="kw-2">&amp;</span>bounded_ty, bound, <span class="kw-2">&amp;mut </span>clauses)<span class="question-mark">?</span>;
+            <span class="kw">match </span>bound {
+                fhir::GenericBound::Trait(poly_trait_ref, fhir::TraitBoundModifier::None) =&gt; {
+                    <span class="kw">let </span>trait_id = poly_trait_ref.trait_def_id();
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(closure_kind) = <span class="self">self</span>.genv.tcx().fn_trait_kind_from_def_id(trait_id)
+                    {
+                        <span class="self">self</span>.conv_fn_bound(
+                            env,
+                            <span class="kw-2">&amp;</span>bounded_ty,
+                            poly_trait_ref,
+                            closure_kind,
+                            <span class="kw-2">&amp;mut </span>clauses,
+                        )<span class="question-mark">?</span>;
+                    } <span class="kw">else </span>{
+                        <span class="kw">let </span>path = <span class="kw-2">&amp;</span>poly_trait_ref.trait_ref;
+                        <span class="kw">let </span>params = <span class="kw-2">&amp;</span>poly_trait_ref.bound_generic_params;
+                        <span class="self">self</span>.conv_trait_bound(
+                            env,
+                            <span class="kw-2">&amp;</span>bounded_ty,
+                            trait_id,
+                            path.last_segment().args,
+                            params,
+                            <span class="kw-2">&amp;mut </span>clauses,
+                        )<span class="question-mark">?</span>;
+                        <span class="self">self</span>.conv_type_bindings(
+                            env,
+                            <span class="kw-2">&amp;</span>bounded_ty,
+                            trait_id,
+                            path.last_segment().bindings,
+                            <span class="kw-2">&amp;mut </span>clauses,
+                        )<span class="question-mark">?</span>;
+                    }
+                }
+                <span class="comment">// Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
+                // relax the default which is `Sized` to not have the `Sized` bound, so we just skip
+                // it here.
+                </span>fhir::GenericBound::Trait(<span class="kw">_</span>, fhir::TraitBoundModifier::Maybe) =&gt; {}
+            }
         }
         <span class="prelude-val">Ok</span>(clauses)
-    }
-
-    <span class="kw">fn </span>conv_generic_bound(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        env: <span class="kw-2">&amp;mut </span>Env,
-        bounded_ty: <span class="kw-2">&amp;</span>rty::Ty,
-        bound: <span class="kw-2">&amp;</span>fhir::GenericBound,
-        clauses: <span class="kw-2">&amp;mut </span>Vec&lt;rty::Clause&gt;,
-    ) -&gt; QueryResult {
-        <span class="kw">match </span>bound {
-            fhir::GenericBound::Trait(trait_ref, fhir::TraitBoundModifier::None) =&gt; {
-                <span class="kw">let </span>trait_id = trait_ref.trait_def_id();
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(closure_kind) = <span class="self">self</span>.genv.tcx().fn_trait_kind_from_def_id(trait_id) {
-                    <span class="self">self</span>.conv_fn_bound(env, bounded_ty, trait_ref, closure_kind, clauses)
-                } <span class="kw">else </span>{
-                    <span class="kw">let </span>path = <span class="kw-2">&amp;</span>trait_ref.trait_ref;
-                    <span class="kw">let </span>params = <span class="kw-2">&amp;</span>trait_ref.bound_generic_params;
-                    <span class="self">self</span>.conv_trait_bound(
-                        env,
-                        bounded_ty,
-                        trait_id,
-                        path.last_segment().args,
-                        params,
-                        clauses,
-                    )<span class="question-mark">?</span>;
-                    <span class="self">self</span>.conv_type_bindings(
-                        env,
-                        bounded_ty,
-                        trait_id,
-                        path.last_segment().bindings,
-                        clauses,
-                    )
-                }
-            }
-            <span class="comment">// Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
-            // relax the default which is `Sized` to not have the `Sized` bound, so we just skip
-            // it here.
-            </span>fhir::GenericBound::Trait(<span class="kw">_</span>, fhir::TraitBoundModifier::Maybe) =&gt; <span class="prelude-val">Ok</span>(()),
-            fhir::GenericBound::LangItemTrait(lang_item, <span class="kw">_</span>, bindings) =&gt; {
-                <span class="kw">let </span>trait_def_id = <span class="self">self</span>.genv.tcx().require_lang_item(<span class="kw-2">*</span>lang_item, <span class="prelude-val">None</span>);
-                <span class="self">self</span>.conv_type_bindings(env, bounded_ty, trait_def_id, bindings, clauses)
-            }
-        }
     }
 
     <span class="kw">fn </span>conv_trait_bound(
