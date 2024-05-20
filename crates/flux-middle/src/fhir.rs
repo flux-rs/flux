@@ -30,7 +30,7 @@ pub use rustc_hir::PrimTy;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    ItemId, LangItem, OwnerId,
+    ItemId, OwnerId,
 };
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -309,7 +309,6 @@ pub type GenericBounds<'fhir> = &'fhir [GenericBound<'fhir>];
 #[derive(Debug, Clone, Copy)]
 pub enum GenericBound<'fhir> {
     Trait(PolyTraitRef<'fhir>, TraitBoundModifier),
-    LangItemTrait(LangItem, &'fhir [GenericArg<'fhir>], &'fhir [TypeBinding<'fhir>]),
 }
 
 #[derive(Debug, Clone, Copy)]

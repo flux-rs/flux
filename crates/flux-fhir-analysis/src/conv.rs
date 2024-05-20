@@ -375,52 +375,45 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     ) -> QueryResult<Vec<rty::Clause>> {
         let mut clauses = vec![];
         for bound in bounds {
-            self.conv_generic_bound(env, &bounded_ty, bound, &mut clauses)?;
+            match bound {
+                fhir::GenericBound::Trait(poly_trait_ref, fhir::TraitBoundModifier::None) => {
+                    let trait_id = poly_trait_ref.trait_def_id();
+                    if let Some(closure_kind) = self.genv.tcx().fn_trait_kind_from_def_id(trait_id)
+                    {
+                        self.conv_fn_bound(
+                            env,
+                            &bounded_ty,
+                            poly_trait_ref,
+                            closure_kind,
+                            &mut clauses,
+                        )?;
+                    } else {
+                        let path = &poly_trait_ref.trait_ref;
+                        let params = &poly_trait_ref.bound_generic_params;
+                        self.conv_trait_bound(
+                            env,
+                            &bounded_ty,
+                            trait_id,
+                            path.last_segment().args,
+                            params,
+                            &mut clauses,
+                        )?;
+                        self.conv_type_bindings(
+                            env,
+                            &bounded_ty,
+                            trait_id,
+                            path.last_segment().bindings,
+                            &mut clauses,
+                        )?;
+                    }
+                }
+                // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
+                // relax the default which is `Sized` to not have the `Sized` bound, so we just skip
+                // it here.
+                fhir::GenericBound::Trait(_, fhir::TraitBoundModifier::Maybe) => {}
+            }
         }
         Ok(clauses)
-    }
-
-    fn conv_generic_bound(
-        &self,
-        env: &mut Env,
-        bounded_ty: &rty::Ty,
-        bound: &fhir::GenericBound,
-        clauses: &mut Vec<rty::Clause>,
-    ) -> QueryResult {
-        match bound {
-            fhir::GenericBound::Trait(trait_ref, fhir::TraitBoundModifier::None) => {
-                let trait_id = trait_ref.trait_def_id();
-                if let Some(closure_kind) = self.genv.tcx().fn_trait_kind_from_def_id(trait_id) {
-                    self.conv_fn_bound(env, bounded_ty, trait_ref, closure_kind, clauses)
-                } else {
-                    let path = &trait_ref.trait_ref;
-                    let params = &trait_ref.bound_generic_params;
-                    self.conv_trait_bound(
-                        env,
-                        bounded_ty,
-                        trait_id,
-                        path.last_segment().args,
-                        params,
-                        clauses,
-                    )?;
-                    self.conv_type_bindings(
-                        env,
-                        bounded_ty,
-                        trait_id,
-                        path.last_segment().bindings,
-                        clauses,
-                    )
-                }
-            }
-            // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
-            // relax the default which is `Sized` to not have the `Sized` bound, so we just skip
-            // it here.
-            fhir::GenericBound::Trait(_, fhir::TraitBoundModifier::Maybe) => Ok(()),
-            fhir::GenericBound::LangItemTrait(lang_item, _, bindings) => {
-                let trait_def_id = self.genv.tcx().require_lang_item(*lang_item, None);
-                self.conv_type_bindings(env, bounded_ty, trait_def_id, bindings, clauses)
-            }
-        }
     }
 
     fn conv_trait_bound(

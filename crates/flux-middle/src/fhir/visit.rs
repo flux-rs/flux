@@ -217,10 +217,6 @@ pub fn walk_opaque_ty<V: Visitor>(vis: &mut V, opaque_ty: &OpaqueTy) {
 pub fn walk_generic_bound<V: Visitor>(vis: &mut V, bound: &GenericBound) {
     match bound {
         GenericBound::Trait(trait_ref, _) => vis.visit_poly_trait_ref(trait_ref),
-        GenericBound::LangItemTrait(_, args, bindings) => {
-            walk_list!(vis, visit_generic_arg, *args);
-            walk_list!(vis, visit_type_binding, *bindings);
-        }
     }
 }
 

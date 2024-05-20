@@ -16,9 +16,9 @@ use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{
     def_id::{DefId, LocalDefId},
-    sym::{self},
+    sym,
     symbol::kw,
-    Span, Symbol,
+    Span, Symbol, DUMMY_SP,
 };
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -696,15 +696,45 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let output = self.desugar_fn_ret_ty(returns)?;
         // Does this opaque type has any generics?
         let generics = self.as_lift_cx().lift_generics()?;
-        let bound = fhir::GenericBound::LangItemTrait(
-            hir::LangItem::Future,
-            &[],
-            self.genv.alloc_slice(&[fhir::TypeBinding {
-                ident: surface::Ident::with_dummy_span(sym::Output),
-                term: output,
-            }]),
+        let bound = fhir::GenericBound::Trait(
+            fhir::PolyTraitRef {
+                bound_generic_params: &[],
+                trait_ref: self.make_lang_item_path(
+                    hir::LangItem::Future,
+                    DUMMY_SP,
+                    &[],
+                    self.genv.alloc_slice(&[fhir::TypeBinding {
+                        ident: surface::Ident::with_dummy_span(sym::Output),
+                        term: output,
+                    }]),
+                ),
+            },
+            fhir::TraitBoundModifier::None,
         );
         Ok(fhir::OpaqueTy { generics, bounds: self.genv.alloc_slice(&[bound]) })
+    }
+
+    fn make_lang_item_path(
+        &mut self,
+        lang_item: hir::LangItem,
+        span: Span,
+        args: &'genv [fhir::GenericArg<'genv>],
+        bindings: &'genv [fhir::TypeBinding<'genv>],
+    ) -> fhir::Path<'genv> {
+        let def_id = self.genv.tcx().require_lang_item(lang_item, Some(span));
+        let def_kind = self.genv.def_kind(def_id);
+        let res = Res::Def(def_kind, def_id);
+        fhir::Path {
+            span,
+            res,
+            segments: self.genv.alloc_slice_fill_iter([fhir::PathSegment {
+                ident: surface::Ident::new(lang_item.name(), span),
+                res,
+                args,
+                bindings,
+            }]),
+            refine: &[],
+        }
     }
 
     fn desugar_fn_ret_ty(&mut self, returns: &surface::FnRetTy) -> Result<fhir::Ty<'genv>> {
