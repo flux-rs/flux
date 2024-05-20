@@ -22,3 +22,5 @@ impl MyTrait for i32 {
 }
 
 fn foo<T: MyTrait>(x: T::AssocSuper, y: T::MyAssoc) {}
+
+fn baz<T: MyTrait<AssocSuper = i32>>() {}

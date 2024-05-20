@@ -194,6 +194,12 @@ pub struct TraitRef {
     pub args: GenericArgs,
 }
 
+impl TraitRef {
+    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::TraitRef<'tcx> {
+        rustc_middle::ty::TraitRef::new(tcx, self.def_id, self.args.to_rustc(tcx))
+    }
+}
+
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct ProjectionPredicate {
     pub projection_ty: AliasTy,

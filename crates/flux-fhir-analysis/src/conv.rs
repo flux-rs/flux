@@ -388,23 +388,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                             &mut clauses,
                         )?;
                     } else {
-                        let path = &poly_trait_ref.trait_ref;
-                        let params = &poly_trait_ref.bound_generic_params;
-                        self.conv_trait_bound(
-                            env,
-                            &bounded_ty,
-                            trait_id,
-                            path.last_segment().args,
-                            params,
-                            &mut clauses,
-                        )?;
-                        self.conv_type_bindings(
-                            env,
-                            &bounded_ty,
-                            trait_id,
-                            path.last_segment().bindings,
-                            &mut clauses,
-                        )?;
+                        self.conv_poly_trait_ref(env, &bounded_ty, poly_trait_ref, &mut clauses)?;
                     }
                 }
                 // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
@@ -416,25 +400,64 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(clauses)
     }
 
-    fn conv_trait_bound(
+    /// Converts a `T: Trait<T0, ..., A0 = S0, ...>` bound
+    fn conv_poly_trait_ref(
         &self,
         env: &mut Env,
         bounded_ty: &rty::Ty,
-        trait_id: DefId,
-        args: &[fhir::GenericArg],
-        params: &[fhir::GenericParam],
+        poly_trait_ref: &fhir::PolyTraitRef,
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult {
-        let mut into = vec![rty::GenericArg::Ty(bounded_ty.clone())];
-        self.conv_generic_args_into(env, trait_id, args, &mut into)?;
-        self.fill_generic_args_defaults(trait_id, &mut into)?;
-        let trait_ref = rty::TraitRef { def_id: trait_id, args: into.into() };
-        let pred = rty::TraitPredicate { trait_ref };
-        let vars = params
+        let trait_id = poly_trait_ref.trait_def_id();
+        let trait_segment = poly_trait_ref.trait_ref.last_segment();
+
+        let mut args = vec![rty::GenericArg::Ty(bounded_ty.clone())];
+        self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
+        self.fill_generic_args_defaults(trait_id, &mut args)?;
+
+        let trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
+        let pred = rty::TraitPredicate { trait_ref: trait_ref.clone() };
+        let vars = poly_trait_ref
+            .bound_generic_params
             .iter()
             .map(|param| self.conv_trait_bound_generic_param(param))
             .try_collect_vec()?;
         clauses.push(rty::Clause::new(List::from_vec(vars), rty::ClauseKind::Trait(pred)));
+
+        for binding in trait_segment.bindings {
+            self.conv_type_binding(env, bounded_ty, &trait_ref, binding, clauses)?;
+        }
+
+        Ok(())
+    }
+
+    fn conv_type_binding(
+        &self,
+        env: &mut Env,
+        bounded_ty: &rty::Ty,
+        trait_ref: &rty::TraitRef,
+        binding: &fhir::TypeBinding,
+        clauses: &mut Vec<rty::Clause>,
+    ) -> QueryResult {
+        let tcx = self.genv.tcx();
+        let rustc_trait_ref = trait_ref.to_rustc(tcx);
+
+        let candidate = self.probe_single_bound_for_assoc_item(
+            || traits::supertraits(tcx, ty::Binder::dummy(rustc_trait_ref)),
+            binding.ident,
+        )?;
+        let assoc_item = self
+            .trait_defines_associated_item_named(candidate.def_id, AssocKind::Type, binding.ident)
+            .unwrap();
+
+        let args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
+        let refine_args = List::empty();
+        let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args, refine_args };
+        let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
+            projection_ty: alias_ty,
+            term: self.conv_ty(env, &binding.term)?,
+        });
+        clauses.push(rty::Clause::new(List::empty(), kind));
         Ok(())
     }
 
@@ -486,34 +509,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .map(|param| self.conv_trait_bound_generic_param(param))
             .try_collect_vec()?;
         clauses.push(rty::Clause::new(vars, rty::ClauseKind::FnTrait(pred)));
-        Ok(())
-    }
-
-    fn conv_type_bindings(
-        &self,
-        env: &mut Env,
-        bounded_ty: &rty::Ty,
-        trait_def_id: DefId,
-        bindings: &[fhir::TypeBinding],
-        clauses: &mut Vec<rty::Clause>,
-    ) -> QueryResult<()> {
-        for binding in bindings {
-            let assoc_item = self
-                .trait_defines_associated_item_named(trait_def_id, AssocKind::Type, binding.ident)
-                .ok_or_else(|| {
-                    self.genv
-                        .sess()
-                        .emit_err(errors::AssocTypeNotFound::new(binding.ident))
-                })?;
-            let args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
-            let refine_args = List::empty();
-            let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args, refine_args };
-            let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
-                projection_ty: alias_ty,
-                term: self.conv_ty(env, &binding.term)?,
-            });
-            clauses.push(rty::Clause::new(List::empty(), kind));
-        }
         Ok(())
     }
 
