@@ -54,7 +54,7 @@ fn scalar_to_bits<'tcx>(
         .layout_of(ParamEnv::empty().with_reveal_all_normalized(tcx).and(ty))
         .unwrap()
         .size;
-    scalar.to_bits(size).ok()
+    scalar.try_to_bits(size).ok()
 }
 
 fn scalar_to_int<'tcx>(
