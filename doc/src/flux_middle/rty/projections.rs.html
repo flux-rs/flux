@@ -355,8 +355,6 @@
 <a href="#355" id="355">355</a>
 <a href="#356" id="356">356</a>
 <a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="attr">#[allow(unused_imports)]
@@ -529,10 +527,9 @@
     }
 
     <span class="kw">fn </span>impl_id_of_alias_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, alias: <span class="kw-2">&amp;</span>AliasReft) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;DefId&gt;&gt; {
-        <span class="kw">let </span>trait_pred = Obligation::with_depth(
+        <span class="kw">let </span>trait_pred = Obligation::new(
             <span class="self">self</span>.tcx(),
             ObligationCause::dummy(),
-            <span class="number">5</span>,
             <span class="self">self</span>.rustc_param_env(),
             alias.to_rustc_trait_ref(<span class="self">self</span>.tcx()),
         );
@@ -548,10 +545,9 @@
         obligation: <span class="kw-2">&amp;</span>AliasTy,
         candidates: <span class="kw-2">&amp;mut </span>Vec&lt;Candidate&gt;,
     ) -&gt; QueryResult {
-        <span class="kw">let </span>trait_pred = Obligation::with_depth(
+        <span class="kw">let </span>trait_pred = Obligation::new(
             <span class="self">self</span>.tcx(),
             ObligationCause::dummy(),
-            <span class="number">5</span>,
             <span class="self">self</span>.rustc_param_env(),
             obligation.to_rustc(<span class="self">self</span>.tcx()).trait_ref(<span class="self">self</span>.tcx()),
         );
