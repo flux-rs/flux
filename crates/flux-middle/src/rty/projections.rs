@@ -170,10 +170,9 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
     }
 
     fn impl_id_of_alias_reft(&mut self, alias: &AliasReft) -> QueryResult<Option<DefId>> {
-        let trait_pred = Obligation::with_depth(
+        let trait_pred = Obligation::new(
             self.tcx(),
             ObligationCause::dummy(),
-            5,
             self.rustc_param_env(),
             alias.to_rustc_trait_ref(self.tcx()),
         );
@@ -189,10 +188,9 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
     ) -> QueryResult {
-        let trait_pred = Obligation::with_depth(
+        let trait_pred = Obligation::new(
             self.tcx(),
             ObligationCause::dummy(),
-            5,
             self.rustc_param_env(),
             obligation.to_rustc(self.tcx()).trait_ref(self.tcx()),
         );
