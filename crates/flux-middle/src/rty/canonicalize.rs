@@ -1,6 +1,6 @@
 //! A canonical type is a type where all [existentials] and [constraint predicates] are *hoisted* to
-//! the top level. For example, the canonical version of `(∃a. i32[a], ∃b. { i32[b] | b > 0})` is
-//! `∃a,b. { (i32[a], i32[b]) | b > 0}`.
+//! the top level. For example, the canonical version of `∃a. {∃b. i32[a + b] | b > 0}` is
+//! `∃a,b. {i32[a + b] | b > 0}`.
 //!
 //! Canonicalization can be *shallow* or *deep*, by this we mean that some type constructors
 //! introduce new "scopes" that limit the hoisting. For instance, we are not allowed (in general) to
@@ -8,13 +8,17 @@
 //! existential inside the `Vec` cannot be hoisted out. However, the type inside the generic argument
 //! can be canonizalized locally inside the scope of the generic argument. Shallow canonicalization
 //! stops when finding type constructors. In contrast, deep canonicalization also canonizalizes inside
-//! type constructors. Note that some type constructors like shared references or boxes are transparent
-//! to hoisting and do not introduce a new scope.
+//! type constructors.
+//!
+//! Note that existentials inside some type constructors like shared references, tuples or boxes can
+//! be hoisted soundly, e.g., the type `(∃a. i32[a], ∃b. i32[b])` is equivalent to
+//! `∃a,b. (i32[a], i32[b]). We don't do this hoisting by default, but the [`Hoister`] struct can be
+//! configured to do so.
 //!
 //! It's also important to note that canonizalization doesn't imply any form of semantic equality
 //! and it is just a best effort to facilitate syntactic manipulation. For example, the types
-//! `∃a,b. (i32[a], i32[b])` and `∃a,b. (i32[b], i32[a])` are semantically equal but both are in
-//! canonical form (in the current implementation).
+//! `∃a,b. (i32[a], i32[b])` and `∃a,b. (i32[b], i32[a])` are semantically equal but hoisting won't
+//! account for it.
 //!
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
@@ -29,12 +33,30 @@ use super::{
 use crate::intern::List;
 
 #[derive(Default)]
-pub struct ShallowHoister {
+pub struct Hoister {
     vars: Vec<BoundVariableKind>,
     preds: Vec<Expr>,
+    tuples: bool,
+    shr_refs: bool,
+    boxes: bool,
 }
 
-impl ShallowHoister {
+impl Hoister {
+    pub fn hoist_inside_shr_refs(mut self, shr_refs: bool) -> Self {
+        self.shr_refs = shr_refs;
+        self
+    }
+
+    pub fn hoist_inside_tuples(mut self, tuples: bool) -> Self {
+        self.tuples = tuples;
+        self
+    }
+
+    pub fn hoist_inside_boxes(mut self, boxes: bool) -> Self {
+        self.boxes = boxes;
+        self
+    }
+
     pub fn into_parts(self) -> (List<BoundVariableKind>, Vec<Expr>) {
         (List::from_vec(self.vars), self.preds)
     }
@@ -44,7 +66,7 @@ impl ShallowHoister {
     }
 }
 
-impl TypeFolder for ShallowHoister {
+impl TypeFolder for Hoister {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Indexed(bty, idx) => Ty::indexed(bty.fold_with(self), idx.clone()),
@@ -67,7 +89,7 @@ impl TypeFolder for ShallowHoister {
 
     fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
         match bty {
-            BaseTy::Adt(adt_def, args) if adt_def.is_box() => {
+            BaseTy::Adt(adt_def, args) if adt_def.is_box() && self.boxes => {
                 let (boxed, alloc) = box_args(args);
                 let args = List::from_arr([
                     GenericArg::Ty(boxed.fold_with(self)),
@@ -75,18 +97,20 @@ impl TypeFolder for ShallowHoister {
                 ]);
                 BaseTy::Adt(adt_def.clone(), args)
             }
-            BaseTy::Ref(re, ty, Mutability::Not) => {
+            BaseTy::Ref(re, ty, Mutability::Not) if self.shr_refs => {
                 BaseTy::Ref(*re, ty.fold_with(self), Mutability::Not)
             }
-            BaseTy::Tuple(tys) => BaseTy::Tuple(tys.fold_with(self)),
+            BaseTy::Tuple(tys) if self.tuples => BaseTy::Tuple(tys.fold_with(self)),
             _ => bty.clone(),
         }
     }
 }
 
 impl Ty {
+    /// Hoist existentials and predicates inside the type stopping when encountering the first
+    /// type constructor.
     pub fn shallow_canonicalize(&self) -> CanonicalTy {
-        let mut hoister = ShallowHoister::default();
+        let mut hoister = Hoister::default();
         let ty = hoister.hoist(self);
         let (vars, preds) = hoister.into_parts();
         let pred = Expr::and(preds);
