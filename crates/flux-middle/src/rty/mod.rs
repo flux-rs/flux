@@ -150,7 +150,7 @@ pub struct GenericParamDef {
     pub name: Symbol,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Copy, Debug, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
     Base,

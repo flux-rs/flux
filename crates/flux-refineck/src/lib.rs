@@ -44,6 +44,7 @@ use flux_config as config;
 use flux_macros::fluent_messages;
 use flux_middle::{
     global_env::GlobalEnv,
+    queries::QueryResult,
     rty::{self, ESpan},
 };
 use itertools::Itertools;
@@ -64,6 +65,8 @@ pub fn check_fn(
     dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| {
         let span = genv.tcx().def_span(def_id);
 
+        // Make sure we run convertion and report any errors even if the function is trusted.
+        force_conv(genv, def_id).emit(&genv)?;
         if genv.trusted(def_id) {
             return Ok(());
         }
@@ -109,6 +112,14 @@ pub fn check_fn(
             report_errors(genv, errors)
         }
     })
+}
+
+fn force_conv(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult {
+    genv.generics_of(def_id)?;
+    genv.refinement_generics_of(def_id)?;
+    genv.predicates_of(def_id)?;
+    genv.fn_sig(def_id)?;
+    Ok(())
 }
 
 fn call_error(genv: GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {

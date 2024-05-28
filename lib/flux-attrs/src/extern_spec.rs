@@ -138,10 +138,12 @@ impl ToTokens for ExternItemImpl {
                 // TODO: this is simpler but somehow fails, see note in [_extract_extern_def_id_from_extern_spec_impl_new]
                 // let fake_fn =
                 //     quote!(fn __flux_extern_impl_fake_method() where #self_ty : #trait_, {});
-                let fake_fn =
-                    quote!(fn __flux_extern_impl_fake_method<FluxFake : #trait_>(x: #self_ty) {});
-                quote!(#[flux::fake_impl]).to_tokens(tokens);
-                fake_fn.to_tokens(tokens);
+                quote!(
+                    #[flux_tool::fake_impl]
+                    #[flux_tool::ignore]
+                    fn __flux_extern_impl_fake_method<FluxFake : #trait_>(x: #self_ty) {}
+                )
+                .to_tokens(tokens);
             }
         });
     }

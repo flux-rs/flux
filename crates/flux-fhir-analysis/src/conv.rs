@@ -37,7 +37,7 @@ use rustc_middle::{
 };
 use rustc_span::{
     symbol::{kw, Ident},
-    ErrorGuaranteed, Span, Symbol,
+    ErrorGuaranteed, Span, Symbol, DUMMY_SP,
 };
 use rustc_trait_selection::traits;
 use rustc_type_ir::DebruijnIndex;
@@ -147,8 +147,9 @@ pub(crate) fn conv_generic_predicates<'genv>(
 
     let mut clauses = vec![];
     for pred in predicates {
+        let span = pred.bounded_ty.span;
         let bounded_ty = cx.conv_ty(env, &pred.bounded_ty)?;
-        for clause in cx.conv_generic_bounds(env, bounded_ty, pred.bounds)? {
+        for clause in cx.conv_generic_bounds(env, span, bounded_ty, pred.bounds)? {
             clauses.push(clause);
         }
     }
@@ -171,8 +172,9 @@ pub(crate) fn conv_opaque_ty<'genv>(
 
     let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
     let self_ty = rty::Ty::opaque(def_id, args, env.to_early_bound_vars());
+    // FIXME(nilehmann) use a good span here
     Ok(cx
-        .conv_generic_bounds(env, self_ty, opaque_ty.bounds)?
+        .conv_generic_bounds(env, DUMMY_SP, self_ty, opaque_ty.bounds)?
         .into_iter()
         .collect())
 }
@@ -370,6 +372,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_generic_bounds(
         &self,
         env: &mut Env,
+        bounded_ty_span: Span,
         bounded_ty: rty::Ty,
         bounds: fhir::GenericBounds,
     ) -> QueryResult<Vec<rty::Clause>> {
@@ -388,7 +391,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                             &mut clauses,
                         )?;
                     } else {
-                        self.conv_poly_trait_ref(env, &bounded_ty, poly_trait_ref, &mut clauses)?;
+                        self.conv_poly_trait_ref(
+                            env,
+                            bounded_ty_span,
+                            &bounded_ty,
+                            poly_trait_ref,
+                            &mut clauses,
+                        )?;
                     }
                 }
                 // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
@@ -404,14 +413,18 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_poly_trait_ref(
         &self,
         env: &mut Env,
+        bounded_ty_span: Span,
         bounded_ty: &rty::Ty,
         poly_trait_ref: &fhir::PolyTraitRef,
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult {
         let trait_id = poly_trait_ref.trait_def_id();
+        let generics = self.genv.generics_of(trait_id)?;
         let trait_segment = poly_trait_ref.trait_ref.last_segment();
 
-        let mut args = vec![rty::GenericArg::Ty(bounded_ty.clone())];
+        let self_param = generics.param_at(0, self.genv)?;
+        let mut args =
+            vec![self.ty_to_generic_arg(self_param.kind, bounded_ty_span, bounded_ty)?];
         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
         self.fill_generic_args_defaults(trait_id, &mut args)?;
 
@@ -666,11 +679,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         let generics = self.genv.generics_of(trait_id)?;
         let self_ty =
-            if let rty::GenericParamDefKind::Type { .. } = generics.param_at(0, self.genv)?.kind {
-                rty::GenericArg::Ty(self.conv_ty(env, alias.qself)?)
-            } else {
-                rty::GenericArg::Base(self.conv_generic_base(env, alias.qself)?)
-            };
+            self.conv_ty_to_generic_arg(env, generics.param_at(0, self.genv)?.kind, alias.qself)?;
         let mut generic_args = vec![self_ty];
         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut generic_args)?;
 
@@ -779,11 +788,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                         let trait_generics = self.genv.generics_of(trait_id)?;
                         let qself = qself.as_deref().unwrap();
                         let qself =
-                            if let rty::GenericParamDefKind::Base = trait_generics.params[0].kind {
-                                rty::GenericArg::Base(self.conv_generic_base(env, qself)?)
-                            } else {
-                                rty::GenericArg::Ty(self.conv_ty(env, qself)?)
-                            };
+                            self.conv_ty_to_generic_arg(env, trait_generics.params[0].kind, qself)?;
                         let mut args = vec![qself];
                         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
                         self.conv_generic_args_into(env, assoc_id, assoc_segment.args, &mut args)?;
@@ -1097,19 +1102,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let len = into.len();
         for (idx, arg) in args.iter().enumerate() {
             let param = generics.param_at(idx + len, self.genv)?;
-            match (arg, &param.kind) {
-                (fhir::GenericArg::Lifetime(lft), rty::GenericParamDefKind::Lifetime) => {
+            match arg {
+                fhir::GenericArg::Lifetime(lft) => {
                     into.push(rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft)));
                 }
-                (fhir::GenericArg::Type(ty), rty::GenericParamDefKind::Type { .. }) => {
-                    into.push(rty::GenericArg::Ty(self.conv_ty(env, ty)?));
-                }
-                (fhir::GenericArg::Type(ty), rty::GenericParamDefKind::Base) => {
-                    let ctor = self.conv_generic_base(env, ty)?;
-                    into.push(rty::GenericArg::Base(ctor));
-                }
-                _ => {
-                    bug!("unexpected param `{:?}` for arg `{arg:?}`", param.kind);
+                fhir::GenericArg::Type(ty) => {
+                    into.push(self.conv_ty_to_generic_arg(env, param.kind, ty)?);
                 }
             }
         }
@@ -1139,17 +1137,45 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(())
     }
 
-    fn conv_generic_base(&self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::SubsetTyCtor> {
-        let ctor = self
-            .conv_ty(env, ty)?
+    fn conv_ty_to_generic_arg(
+        &self,
+        env: &mut Env,
+        kind: rty::GenericParamDefKind,
+        ty: &fhir::Ty,
+    ) -> QueryResult<rty::GenericArg> {
+        let rty_ty = self.conv_ty(env, ty)?;
+        match kind {
+            rty::GenericParamDefKind::Type { .. } => Ok(rty::GenericArg::Ty(rty_ty)),
+            rty::GenericParamDefKind::Base => self.ty_to_base_generic(ty.span, &rty_ty),
+            _ => bug!("unexpected param kind `{kind:?}`"),
+        }
+    }
+
+    fn ty_to_generic_arg(
+        &self,
+        kind: rty::GenericParamDefKind,
+        ty_span: Span,
+        ty: &rty::Ty,
+    ) -> QueryResult<rty::GenericArg> {
+        match kind {
+            rty::GenericParamDefKind::Type { .. } => Ok(rty::GenericArg::Ty(ty.clone())),
+            rty::GenericParamDefKind::Base => self.ty_to_base_generic(ty_span, ty),
+            _ => bug!("unexpected param kind `{kind:?}`"),
+        }
+    }
+
+    /// Convert an [`rty::Ty`] into a [`rty::GenericArg::Base`] if possible or raise an error
+    /// if the type cannot be converted into a [`rty::SubsetTy`].
+    fn ty_to_base_generic(&self, ty_span: Span, ty: &rty::Ty) -> QueryResult<rty::GenericArg> {
+        let ctor = ty
             .shallow_canonicalize()
             .to_subset_ty_ctor()
             .ok_or_else(|| {
                 self.genv
                     .sess()
-                    .emit_err(errors::InvalidBaseInstance::new(ty))
+                    .emit_err(errors::InvalidBaseInstance::new(ty_span))
             })?;
-        Ok(ctor)
+        Ok(rty::GenericArg::Base(ctor))
     }
 
     fn resolve_param_sort(&self, param: &fhir::RefineParam) -> QueryResult<rty::Sort> {
@@ -1657,7 +1683,6 @@ fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use flux_middle::fhir;
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(Diagnostic)]
@@ -1691,15 +1716,14 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(fhir_analysis_invalid_base_instance, code = E0999)]
-    pub(super) struct InvalidBaseInstance<'fhir> {
+    pub(super) struct InvalidBaseInstance {
         #[primary_span]
         span: Span,
-        ty: &'fhir fhir::Ty<'fhir>,
     }
 
-    impl<'fhir> InvalidBaseInstance<'fhir> {
-        pub(super) fn new(ty: &'fhir fhir::Ty<'fhir>) -> Self {
-            Self { ty, span: ty.span }
+    impl InvalidBaseInstance {
+        pub(super) fn new(span: Span) -> Self {
+            Self { span }
         }
     }
 }
