@@ -193,7 +193,7 @@ fn assoc_refinement_def(
         .expect_item(impl_id)?
         .expect_impl()
         .find_assoc_reft(name)
-        .unwrap();
+        .unwrap_or_else(|| bug!("assoc reft `{name}` not found in impl `{impl_id:?}`"));
     let wfckresults = genv.check_wf(impl_id)?;
     Ok(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?))
 }
