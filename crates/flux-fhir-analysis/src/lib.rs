@@ -180,7 +180,7 @@ fn assoc_refinements_of(
             bug!("expected trait or impl");
         }
     };
-    Ok(rty::AssocRefinements { predicates })
+    Ok(rty::AssocRefinements { items: predicates })
 }
 
 fn assoc_refinement_def(
