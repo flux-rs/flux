@@ -141,7 +141,7 @@
     <span class="kw">let </span>impl_assoc_refts = genv.assoc_refinements_of(impl_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
     <span class="kw">let </span>trait_assoc_refts = genv.assoc_refinements_of(trait_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
-    <span class="kw">for </span>impl_assoc_reft <span class="kw">in </span><span class="kw-2">&amp;</span>impl_assoc_refts.predicates {
+    <span class="kw">for </span>impl_assoc_reft <span class="kw">in </span><span class="kw-2">&amp;</span>impl_assoc_refts.items {
         <span class="kw">let </span>name = impl_assoc_reft.name;
         <span class="kw">if </span>trait_assoc_refts.find(name).is_none() {
             <span class="kw">let </span>fhir_impl_assoc_reft = genv

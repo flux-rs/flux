@@ -242,6 +242,7 @@
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
 <a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
@@ -313,7 +314,9 @@
             <span class="kw">let </span>cstore = CStore::load(tcx, <span class="kw-2">&amp;</span>sess);
             <span class="kw">let </span>arena = fhir::Arena::new();
             GlobalEnv::enter(tcx, <span class="kw-2">&amp;</span>sess, Box::new(cstore), <span class="kw-2">&amp;</span>arena, providers, |genv| {
-                <span class="kw">let _ </span>= check_crate(genv);
+                <span class="kw">if </span>check_crate(genv).is_ok() {
+                    save_metadata(<span class="kw-2">&amp;</span>genv);
+                }
             });
             sess.finish_diagnostics();
         });
@@ -336,7 +339,6 @@
         ck.cache.save().unwrap_or(());
 
         <span class="macro">tracing::info!</span>(<span class="string">"Callbacks::check_crate"</span>);
-        save_metadata(<span class="kw-2">&amp;</span>genv);
 
         result
     })

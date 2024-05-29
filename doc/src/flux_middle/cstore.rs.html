@@ -13,18 +13,52 @@
 <a href="#13" id="13">13</a>
 <a href="#14" id="14">14</a>
 <a href="#15" id="15">15</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::def_id::DefId;
+<a href="#16" id="16">16</a>
+<a href="#17" id="17">17</a>
+<a href="#18" id="18">18</a>
+<a href="#19" id="19">19</a>
+<a href="#20" id="20">20</a>
+<a href="#21" id="21">21</a>
+<a href="#22" id="22">22</a>
+<a href="#23" id="23">23</a>
+<a href="#24" id="24">24</a>
+<a href="#25" id="25">25</a>
+<a href="#26" id="26">26</a>
+<a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a>
+<a href="#29" id="29">29</a>
+<a href="#30" id="30">30</a>
+<a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::{def_id::DefId, Symbol};
 
-<span class="kw">use crate</span>::{queries::QueryResult, rty};
+<span class="kw">use crate</span>::{intern::List, queries::QueryResult, rty};
+
+<span class="kw">pub type </span>OptResult&lt;T&gt; = <span class="prelude-ty">Option</span>&lt;QueryResult&lt;T&gt;&gt;;
 
 <span class="kw">pub trait </span>CrateStore {
-    <span class="kw">fn </span>fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;&gt;;
-    <span class="kw">fn </span>adt_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;QueryResult&lt;rty::AdtDef&gt;&gt;;
+    <span class="kw">fn </span>fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;;
+    <span class="kw">fn </span>adt_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::AdtDef&gt;;
+    <span class="kw">fn </span>generics_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::Generics&gt;;
+    <span class="kw">fn </span>refinement_generics_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::RefinementGenerics&gt;;
+    <span class="kw">fn </span>item_bounds(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt;;
+    <span class="kw">fn </span>predicates_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt;;
+    <span class="kw">fn </span>assoc_refinements_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::AssocRefinements&gt;;
+    <span class="kw">fn </span>assoc_refinements_def(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        def_id: DefId,
+        name: Symbol,
+    ) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;;
+    <span class="kw">fn </span>sort_of_assoc_reft(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        def_id: DefId,
+        name: Symbol,
+    ) -&gt; OptResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt;&gt;;
     <span class="kw">fn </span>variants(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         def_id: DefId,
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;&gt;;
-    <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;&gt;;
+    ) -&gt; OptResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;;
+    <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;;
 }
 
 <span class="kw">pub type </span>CrateStoreDyn = <span class="kw">dyn </span>CrateStore;

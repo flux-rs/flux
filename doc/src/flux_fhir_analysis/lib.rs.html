@@ -476,6 +476,8 @@
 <a href="#476" id="476">476</a>
 <a href="#477" id="477">477</a>
 <a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_data_structures;
@@ -658,7 +660,7 @@
             <span class="macro">bug!</span>(<span class="string">"expected trait or impl"</span>);
         }
     };
-    <span class="prelude-val">Ok</span>(rty::AssocRefinements { predicates })
+    <span class="prelude-val">Ok</span>(rty::AssocRefinements { items: predicates })
 }
 
 <span class="kw">fn </span>assoc_refinement_def(
@@ -671,7 +673,7 @@
         .expect_item(impl_id)<span class="question-mark">?
         </span>.expect_impl()
         .find_assoc_reft(name)
-        .unwrap();
+        .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"assoc reft `{name}` not found in impl `{impl_id:?}`"</span>));
     <span class="kw">let </span>wfckresults = genv.check_wf(impl_id)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>))
 }
@@ -898,6 +900,8 @@
             | DefKind::Enum
             | DefKind::Fn
             | DefKind::AssocFn
+            | DefKind::Trait
+            | DefKind::Impl { .. }
             | DefKind::OpaqueTy =&gt; {
                 <span class="kw">let _ </span>= genv.check_wf(def_id).emit(<span class="kw-2">&amp;</span>errors);
             }

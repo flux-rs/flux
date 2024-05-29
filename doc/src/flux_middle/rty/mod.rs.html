@@ -2217,27 +2217,27 @@
     }
 }
 
-<span class="attr">#[derive(Debug, Clone, Default)]
+<span class="attr">#[derive(Debug, Clone, Default, Encodable, Decodable)]
 </span><span class="kw">pub struct </span>Generics {
     <span class="kw">pub </span>parent: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
     <span class="kw">pub </span>parent_count: usize,
     <span class="kw">pub </span>params: List&lt;GenericParamDef&gt;,
 }
 
-<span class="attr">#[derive(Debug, Clone)]
+<span class="attr">#[derive(Debug, Clone, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>RefinementGenerics {
     <span class="kw">pub </span>parent: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
     <span class="kw">pub </span>parent_count: usize,
     <span class="kw">pub </span>params: List&lt;RefineParam&gt;,
 }
 
-<span class="attr">#[derive(PartialEq, Eq, Debug, Clone, Hash)]
+<span class="attr">#[derive(PartialEq, Eq, Debug, Clone, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>RefineParam {
     <span class="kw">pub </span>sort: Sort,
     <span class="kw">pub </span>mode: InferMode,
 }
 
-<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 </span><span class="kw">pub struct </span>GenericParamDef {
     <span class="kw">pub </span>kind: GenericParamDefKind,
     <span class="kw">pub </span>def_id: DefId,
@@ -2245,7 +2245,7 @@
     <span class="kw">pub </span>name: Symbol,
 }
 
-<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+<span class="attr">#[derive(Copy, Debug, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 </span><span class="kw">pub enum </span>GenericParamDefKind {
     Type { has_default: bool },
     Base,
@@ -2255,18 +2255,18 @@
 
 <span class="kw">pub const </span>SELF_PARAM_TY: ParamTy = ParamTy { index: <span class="number">0</span>, name: kw::SelfUpper };
 
-<span class="attr">#[derive(Debug, Clone)]
+<span class="attr">#[derive(Debug, Clone, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>GenericPredicates {
     <span class="kw">pub </span>parent: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
     <span class="kw">pub </span>predicates: List&lt;Clause&gt;,
 }
 
-<span class="attr">#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+<span class="attr">#[derive(Debug, PartialEq, Eq, Hash, Clone, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>Clause {
     kind: Binder&lt;ClauseKind&gt;,
 }
 
-<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>ClauseKind {
     FnTrait(FnTraitPredicate),
     Trait(TraitPredicate),
@@ -2278,12 +2278,12 @@
 
 <span class="kw">pub type </span>TypeOutlivesPredicate = OutlivesPredicate&lt;Ty, Region&gt;;
 
-<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>TraitPredicate {
     <span class="kw">pub </span>trait_ref: TraitRef,
 }
 
-<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>TraitRef {
     <span class="kw">pub </span>def_id: DefId,
     <span class="kw">pub </span>args: GenericArgs,
@@ -2295,13 +2295,13 @@
     }
 }
 
-<span class="attr">#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+<span class="attr">#[derive(PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>ProjectionPredicate {
     <span class="kw">pub </span>projection_ty: AliasTy,
     <span class="kw">pub </span>term: Ty,
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>FnTraitPredicate {
     <span class="kw">pub </span>self_ty: Ty,
     <span class="kw">pub </span>tupled_args: Ty,
@@ -2309,7 +2309,7 @@
     <span class="kw">pub </span>kind: ClosureKind,
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>CoroutineObligPredicate {
     <span class="kw">pub </span>def_id: DefId,
     <span class="kw">pub </span>resume_ty: Ty,
@@ -2317,24 +2317,24 @@
     <span class="kw">pub </span>output: Ty,
 }
 
-<span class="attr">#[derive(Debug, Clone)]
+<span class="attr">#[derive(Debug, Clone, Encodable, Decodable)]
 </span><span class="kw">pub struct </span>AssocRefinements {
-    <span class="kw">pub </span>predicates: List&lt;AssocRefinement&gt;,
+    <span class="kw">pub </span>items: List&lt;AssocRefinement&gt;,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>AssocRefinements {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ predicates: List::empty() }
+        <span class="self">Self </span>{ items: List::empty() }
     }
 }
 
 <span class="kw">impl </span>AssocRefinements {
     <span class="kw">pub fn </span>find(<span class="kw-2">&amp;</span><span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AssocRefinement&gt; {
-        <span class="self">self</span>.predicates.iter().find(|it| it.name == name)
+        <span class="self">self</span>.items.iter().find(|it| it.name == name)
     }
 }
 
-<span class="attr">#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+<span class="attr">#[derive(Debug, PartialEq, Eq, Hash, Clone, Encodable, Decodable)]
 </span><span class="kw">pub struct </span>AssocRefinement {
     <span class="doccomment">/// [`DefId`] of the container, i.e., the impl block or trait.
     </span><span class="kw">pub </span>container_def_id: DefId,

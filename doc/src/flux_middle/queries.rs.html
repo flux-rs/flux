@@ -695,6 +695,20 @@
 <a href="#695" id="695">695</a>
 <a href="#696" id="696">696</a>
 <a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -1076,6 +1090,8 @@
             <span class="kw">let </span>def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.generics_of)(genv, local_id)
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(generics) = genv.cstore().generics_of(def_id) {
+                generics
             } <span class="kw">else </span>{
                 <span class="kw">let </span>generics = genv.lower_generics_of(def_id)<span class="question-mark">?</span>;
                 refining::refine_generics(<span class="kw-2">&amp;</span>generics)
@@ -1092,6 +1108,8 @@
             <span class="kw">let </span>def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.refinement_generics_of)(genv, local_id)
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(refinement_generics) = genv.cstore().refinement_generics_of(def_id) {
+                refinement_generics
             } <span class="kw">else </span>{
                 <span class="kw">let </span>parent = genv.tcx().generics_of(def_id).parent;
                 <span class="prelude-val">Ok</span>(rty::RefinementGenerics { parent, parent_count: <span class="number">0</span>, params: List::empty() })
@@ -1109,6 +1127,8 @@
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.item_bounds)(genv, local_id)
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(bounds) = genv.cstore().item_bounds(def_id) {
+                bounds
             } <span class="kw">else </span>{
                 <span class="kw">let </span>bounds = genv.tcx().item_bounds(def_id).skip_binder();
                 <span class="kw">let </span>clauses = lowering::lower_item_bounds(genv.tcx(), bounds)
@@ -1132,6 +1152,8 @@
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.predicates_of)(genv, local_id)
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(predicates) = genv.cstore().predicates_of(def_id) {
+                predicates
             } <span class="kw">else </span>{
                 <span class="kw">let </span>predicates = genv.lower_predicates_of(def_id)<span class="question-mark">?</span>;
                 <span class="kw">let </span>predicates = Refiner::default(genv, <span class="kw-2">&amp;</span>genv.generics_of(def_id)<span class="question-mark">?</span>)
@@ -1150,6 +1172,8 @@
             <span class="kw">let </span>def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.assoc_refinements_of)(genv, local_id)
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(assocs) = genv.cstore().assoc_refinements_of(def_id) {
+                assocs
             } <span class="kw">else </span>{
                 <span class="prelude-val">Ok</span>(rty::AssocRefinements::default())
             }
@@ -1166,6 +1190,8 @@
             <span class="kw">let </span>impl_id = lookup_extern(genv, impl_id).unwrap_or(impl_id);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = impl_id.as_local() {
                 (<span class="self">self</span>.providers.assoc_refinement_def)(genv, local_id, name)
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(lam) = genv.cstore().assoc_refinements_def(impl_id, name) {
+                lam
             } <span class="kw">else </span>{
                 <span class="macro">todo!</span>(<span class="string">"implement for external crates"</span>)
             }
@@ -1182,6 +1208,8 @@
             <span class="kw">let </span>impl_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = impl_id.as_local() {
                 (<span class="self">self</span>.providers.sort_of_assoc_reft)(genv, local_id, name)
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(sort) = genv.cstore().sort_of_assoc_reft(def_id, name) {
+                sort
             } <span class="kw">else </span>{
                 <span class="macro">todo!</span>(<span class="string">"implement for external crates"</span>)
             }

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"trait":["CrateStore"],"type":["CrateStoreDyn"]};
+window.SIDEBAR_ITEMS = {"trait":["CrateStore"],"type":["CrateStoreDyn","OptResult"]};
