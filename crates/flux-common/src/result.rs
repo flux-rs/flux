@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
 
 pub trait ErrorEmitter {
@@ -30,6 +32,8 @@ impl ErrorCollector<ErrorGuaranteed> for Option<ErrorGuaranteed> {
 }
 
 pub trait ResultExt<T, E> {
+    fn into_control_flow(self) -> ControlFlow<E, T>;
+
     fn collect_err(self, collector: &mut impl ErrorCollector<E>);
 
     #[track_caller]
@@ -39,6 +43,13 @@ pub trait ResultExt<T, E> {
 }
 
 impl<T, E> ResultExt<T, E> for Result<T, E> {
+    fn into_control_flow(self) -> ControlFlow<E, T> {
+        match self {
+            Ok(v) => ControlFlow::Continue(v),
+            Err(e) => ControlFlow::Break(e),
+        }
+    }
+
     fn collect_err(self, collector: &mut impl ErrorCollector<E>) {
         if let Err(err) = self {
             collector.collect_err(err);
