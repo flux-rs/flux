@@ -56,6 +56,10 @@ pub(crate) struct Env {
 struct Layer {
     map: FxIndexMap<fhir::ParamId, Entry>,
     kind: LayerKind,
+    /// The number of regions bound in this layer. Since regions and refinements are both
+    /// bound with a [`rty::Binder`] we need to keep track of the number of bound regions
+    /// to skip them when assigning an index to refinement parameters.
+    bound_regions: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -69,9 +73,6 @@ struct Entry {
     infer_mode: rty::InferMode,
     name: Symbol,
     sort: rty::Sort,
-    /// The index of the entry in the layer skipping all [`Entry::Unit`] if [`Layer::filter_unit`]
-    /// is true
-    idx: u32,
 }
 
 #[derive(Debug)]
@@ -83,8 +84,18 @@ struct LookupResult<'a> {
 
 #[derive(Debug)]
 enum LookupResultKind<'a> {
-    LateBound { level: u32, entry: &'a Entry, kind: LayerKind },
-    EarlyParam { idx: u32, name: Symbol, sort: rty::Sort },
+    LateBound {
+        level: u32,
+        entry: &'a Entry,
+        kind: LayerKind,
+        /// The index of the entry in the layer (skipping bound regions).
+        idx: u32,
+    },
+    EarlyParam {
+        idx: u32,
+        name: Symbol,
+        sort: rty::Sort,
+    },
 }
 
 pub(crate) fn conv_adt_sort_def(
@@ -1368,30 +1379,24 @@ impl ConvCtxt<'_, '_, '_> {
 impl Layer {
     fn new(
         cx: &ConvCtxt,
-        late_bound_regions: u32,
+        bound_regions: u32,
         params: &[fhir::RefineParam],
         kind: LayerKind,
     ) -> QueryResult<Self> {
-        let mut idx = late_bound_regions;
         let map = params
             .iter()
             .map(|param| -> QueryResult<_> {
                 let sort = cx.resolve_param_sort(param)?;
                 let infer_mode = sort.infer_mode(param.kind);
-                let entry = Entry::new(idx, sort, infer_mode, param.name);
-                idx += 1;
+                let entry = Entry::new(sort, infer_mode, param.name);
                 Ok((param.id, entry))
             })
             .try_collect()?;
-        Ok(Self { map, kind })
+        Ok(Self { map, kind, bound_regions })
     }
 
-    fn list(
-        cx: &ConvCtxt,
-        late_bound_regions: u32,
-        params: &[fhir::RefineParam],
-    ) -> QueryResult<Self> {
-        Self::new(cx, late_bound_regions, params, LayerKind::List)
+    fn list(cx: &ConvCtxt, bound_regions: u32, params: &[fhir::RefineParam]) -> QueryResult<Self> {
+        Self::new(cx, bound_regions, params, LayerKind::List)
     }
 
     fn record(cx: &ConvCtxt, def_id: DefId, params: &[fhir::RefineParam]) -> QueryResult<Self> {
@@ -1399,9 +1404,11 @@ impl Layer {
     }
 
     fn get(&self, name: impl Borrow<fhir::ParamId>, level: u32) -> Option<LookupResultKind> {
+        let (idx, _, entry) = self.map.get_full(name.borrow())?;
         Some(LookupResultKind::LateBound {
             level,
-            entry: self.map.get(name.borrow())?,
+            entry,
+            idx: (idx as u32) + self.bound_regions,
             kind: self.kind,
         })
     }
@@ -1439,15 +1446,15 @@ impl Layer {
 }
 
 impl Entry {
-    fn new(idx: u32, sort: rty::Sort, infer_mode: fhir::InferMode, name: Symbol) -> Self {
-        Entry { infer_mode, name, sort, idx }
+    fn new(sort: rty::Sort, infer_mode: fhir::InferMode, name: Symbol) -> Self {
+        Entry { infer_mode, name, sort }
     }
 }
 
 impl LookupResult<'_> {
     fn to_expr(&self) -> rty::Expr {
         match &self.kind {
-            LookupResultKind::LateBound { level, entry: Entry { idx, name, .. }, kind } => {
+            LookupResultKind::LateBound { level, entry: Entry { name, .. }, kind, idx } => {
                 match *kind {
                     LayerKind::List => {
                         rty::Expr::late_bvar(
