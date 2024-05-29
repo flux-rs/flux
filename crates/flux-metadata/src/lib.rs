@@ -215,27 +215,30 @@ impl CrateMetadata {
                     }
                     data.assoc_refinements_of.insert(def_id.index, assocs);
                 }
-                DefKind::Impl { of_trait: true } => {
+                DefKind::Impl { of_trait } => {
                     data.generics_of
                         .insert(def_id.index, genv.generics_of(def_id));
                     data.predicates_of
                         .insert(def_id.index, genv.predicates_of(def_id));
                     data.refinement_generics_of
                         .insert(def_id.index, genv.refinement_generics_of(def_id));
-                    let assocs = genv.assoc_refinements_of(def_id);
-                    if let Ok(assocs) = &assocs {
-                        for assoc in &assocs.items {
-                            data.assoc_refinements_def.insert(
-                                (assoc.container_def_id.index, assoc.name),
-                                genv.assoc_refinement_def(assoc.container_def_id, assoc.name),
-                            );
-                            data.sort_of_assoc_reft.insert(
-                                (assoc.container_def_id.index, assoc.name),
-                                genv.sort_of_assoc_reft(assoc.container_def_id, assoc.name),
-                            );
+
+                    if of_trait {
+                        let assocs = genv.assoc_refinements_of(def_id);
+                        if let Ok(assocs) = &assocs {
+                            for assoc in &assocs.items {
+                                data.assoc_refinements_def.insert(
+                                    (assoc.container_def_id.index, assoc.name),
+                                    genv.assoc_refinement_def(assoc.container_def_id, assoc.name),
+                                );
+                                data.sort_of_assoc_reft.insert(
+                                    (assoc.container_def_id.index, assoc.name),
+                                    genv.sort_of_assoc_reft(assoc.container_def_id, assoc.name),
+                                );
+                            }
                         }
+                        data.assoc_refinements_of.insert(def_id.index, assocs);
                     }
-                    data.assoc_refinements_of.insert(def_id.index, assocs);
                 }
                 DefKind::Fn | DefKind::AssocFn => {
                     data.generics_of

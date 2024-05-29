@@ -1145,6 +1145,10 @@ impl CoroutineObligPredicate {
 }
 
 impl Generics {
+    pub fn count(&self) -> usize {
+        self.parent_count + self.params.len()
+    }
+
     pub fn param_at(&self, param_index: usize, genv: GlobalEnv) -> QueryResult<GenericParamDef> {
         if let Some(index) = param_index.checked_sub(self.parent_count) {
             Ok(self.params[index].clone())
