@@ -180,7 +180,7 @@ fn assoc_refinements_of(
             bug!("expected trait or impl");
         }
     };
-    Ok(rty::AssocRefinements { predicates })
+    Ok(rty::AssocRefinements { items: predicates })
 }
 
 fn assoc_refinement_def(
@@ -193,7 +193,7 @@ fn assoc_refinement_def(
         .expect_item(impl_id)?
         .expect_impl()
         .find_assoc_reft(name)
-        .unwrap();
+        .unwrap_or_else(|| bug!("assoc reft `{name}` not found in impl `{impl_id:?}`"));
     let wfckresults = genv.check_wf(impl_id)?;
     Ok(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?))
 }
@@ -420,6 +420,8 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             | DefKind::Enum
             | DefKind::Fn
             | DefKind::AssocFn
+            | DefKind::Trait
+            | DefKind::Impl { .. }
             | DefKind::OpaqueTy => {
                 let _ = genv.check_wf(def_id).emit(&errors);
             }

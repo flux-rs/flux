@@ -122,27 +122,27 @@ impl AdtSortDef {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Encodable, Decodable)]
 pub struct Generics {
     pub parent: Option<DefId>,
     pub parent_count: usize,
     pub params: List<GenericParamDef>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TyEncodable, TyDecodable)]
 pub struct RefinementGenerics {
     pub parent: Option<DefId>,
     pub parent_count: usize,
     pub params: List<RefineParam>,
 }
 
-#[derive(PartialEq, Eq, Debug, Clone, Hash)]
+#[derive(PartialEq, Eq, Debug, Clone, Hash, TyEncodable, TyDecodable)]
 pub struct RefineParam {
     pub sort: Sort,
     pub mode: InferMode,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub struct GenericParamDef {
     pub kind: GenericParamDefKind,
     pub def_id: DefId,
@@ -150,7 +150,7 @@ pub struct GenericParamDef {
     pub name: Symbol,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Debug, Clone, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
     Base,
@@ -160,18 +160,18 @@ pub enum GenericParamDefKind {
 
 pub const SELF_PARAM_TY: ParamTy = ParamTy { index: 0, name: kw::SelfUpper };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TyEncodable, TyDecodable)]
 pub struct GenericPredicates {
     pub parent: Option<DefId>,
     pub predicates: List<Clause>,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, TyEncodable, TyDecodable)]
 pub struct Clause {
     kind: Binder<ClauseKind>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ClauseKind {
     FnTrait(FnTraitPredicate),
     Trait(TraitPredicate),
@@ -183,12 +183,12 @@ pub enum ClauseKind {
 
 pub type TypeOutlivesPredicate = OutlivesPredicate<Ty, Region>;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct TraitPredicate {
     pub trait_ref: TraitRef,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct TraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
@@ -200,13 +200,13 @@ impl TraitRef {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable)]
 pub struct ProjectionPredicate {
     pub projection_ty: AliasTy,
     pub term: Ty,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct FnTraitPredicate {
     pub self_ty: Ty,
     pub tupled_args: Ty,
@@ -214,7 +214,7 @@ pub struct FnTraitPredicate {
     pub kind: ClosureKind,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct CoroutineObligPredicate {
     pub def_id: DefId,
     pub resume_ty: Ty,
@@ -222,24 +222,24 @@ pub struct CoroutineObligPredicate {
     pub output: Ty,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Encodable, Decodable)]
 pub struct AssocRefinements {
-    pub predicates: List<AssocRefinement>,
+    pub items: List<AssocRefinement>,
 }
 
 impl Default for AssocRefinements {
     fn default() -> Self {
-        Self { predicates: List::empty() }
+        Self { items: List::empty() }
     }
 }
 
 impl AssocRefinements {
     pub fn find(&self, name: Symbol) -> Option<&AssocRefinement> {
-        self.predicates.iter().find(|it| it.name == name)
+        self.items.iter().find(|it| it.name == name)
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Encodable, Decodable)]
 pub struct AssocRefinement {
     /// [`DefId`] of the container, i.e., the impl block or trait.
     pub container_def_id: DefId,
