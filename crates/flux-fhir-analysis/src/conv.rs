@@ -54,25 +54,30 @@ pub(crate) struct Env {
 
 #[derive(Debug, Clone)]
 struct Layer {
-    map: FxIndexMap<fhir::ParamId, Entry>,
+    map: FxIndexMap<fhir::ParamId, ParamEntry>,
     kind: LayerKind,
-    /// The number of regions bound in this layer. Since regions and refinements are both
-    /// bound with a [`rty::Binder`] we need to keep track of the number of bound regions
-    /// to skip them when assigning an index to refinement parameters.
-    bound_regions: u32,
 }
 
+/// Whether the list of parameters in a layer is converted into a list of bound variables or
+/// coalesced into a single parameter of [adt] sort.
+///
+/// [adt]: rty::SortCtor::Adt
 #[derive(Debug, Clone, Copy)]
 enum LayerKind {
-    List,
-    Record(DefId),
+    List {
+        /// The number of regions bound in this layer. Since regions and refinements are both
+        /// bound with a [`rty::Binder`] we need to keep track of the number of bound regions
+        /// to skip them when assigning an index to refinement parameters.
+        bound_regions: u32,
+    },
+    Coalesce(DefId),
 }
 
 #[derive(Debug, Clone)]
-struct Entry {
-    infer_mode: rty::InferMode,
+struct ParamEntry {
     name: Symbol,
     sort: rty::Sort,
+    mode: rty::InferMode,
 }
 
 #[derive(Debug)]
@@ -85,10 +90,10 @@ struct LookupResult<'a> {
 #[derive(Debug)]
 enum LookupResultKind<'a> {
     LateBound {
-        level: u32,
-        entry: &'a Entry,
+        debruijn: DebruijnIndex,
+        entry: &'a ParamEntry,
         kind: LayerKind,
-        /// The index of the entry in the layer (skipping bound regions).
+        /// The index of the entry in the layer.
         idx: u32,
     },
     EarlyParam {
@@ -131,7 +136,7 @@ pub(crate) fn expand_type_alias<'genv>(
     let cx = ConvCtxt::new(genv, wfckresults);
 
     let mut env = Env::new(genv, alias.generics.refinement_params, wfckresults)?;
-    env.push_layer(Layer::record(&cx, def_id, alias.params)?);
+    env.push_layer(Layer::coalesce(&cx, def_id, alias.params)?);
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
     Ok(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)?))
@@ -275,7 +280,7 @@ pub(crate) fn conv_invariants<'genv>(
 ) -> QueryResult<Vec<rty::Invariant>> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults)?;
-    env.push_layer(Layer::record(&cx, def_id.to_def_id(), params)?);
+    env.push_layer(Layer::coalesce(&cx, def_id.to_def_id(), params)?);
     cx.conv_invariants(&mut env, invariants)
 }
 
@@ -1221,8 +1226,8 @@ impl Env {
 
     fn lookup(&self, var: &fhir::PathExpr) -> LookupResult {
         let (_, id) = var.res.expect_param();
-        for (level, layer) in self.layers.iter().rev().enumerate() {
-            if let Some(kind) = layer.get(id, level as u32) {
+        for (i, layer) in self.layers.iter().rev().enumerate() {
+            if let Some(kind) = layer.get(id, DebruijnIndex::from_u32(i as u32)) {
                 return LookupResult { span: var.span, kind };
             }
         }
@@ -1377,54 +1382,48 @@ impl ConvCtxt<'_, '_, '_> {
 }
 
 impl Layer {
-    fn new(
-        cx: &ConvCtxt,
-        bound_regions: u32,
-        params: &[fhir::RefineParam],
-        kind: LayerKind,
-    ) -> QueryResult<Self> {
+    fn new(cx: &ConvCtxt, params: &[fhir::RefineParam], kind: LayerKind) -> QueryResult<Self> {
         let map = params
             .iter()
             .map(|param| -> QueryResult<_> {
                 let sort = cx.resolve_param_sort(param)?;
                 let infer_mode = sort.infer_mode(param.kind);
-                let entry = Entry::new(sort, infer_mode, param.name);
+                let entry = ParamEntry::new(sort, infer_mode, param.name);
                 Ok((param.id, entry))
             })
             .try_collect()?;
-        Ok(Self { map, kind, bound_regions })
+        Ok(Self { map, kind })
     }
 
     fn list(cx: &ConvCtxt, bound_regions: u32, params: &[fhir::RefineParam]) -> QueryResult<Self> {
-        Self::new(cx, bound_regions, params, LayerKind::List)
+        Self::new(cx, params, LayerKind::List { bound_regions })
     }
 
-    fn record(cx: &ConvCtxt, def_id: DefId, params: &[fhir::RefineParam]) -> QueryResult<Self> {
-        Self::new(cx, 0, params, LayerKind::Record(def_id))
+    fn coalesce(cx: &ConvCtxt, def_id: DefId, params: &[fhir::RefineParam]) -> QueryResult<Self> {
+        Self::new(cx, params, LayerKind::Coalesce(def_id))
     }
 
-    fn get(&self, name: impl Borrow<fhir::ParamId>, level: u32) -> Option<LookupResultKind> {
+    fn get(
+        &self,
+        name: impl Borrow<fhir::ParamId>,
+        debruijn: DebruijnIndex,
+    ) -> Option<LookupResultKind> {
         let (idx, _, entry) = self.map.get_full(name.borrow())?;
-        Some(LookupResultKind::LateBound {
-            level,
-            entry,
-            idx: (idx as u32) + self.bound_regions,
-            kind: self.kind,
-        })
+        Some(LookupResultKind::LateBound { debruijn, entry, idx: idx as u32, kind: self.kind })
     }
 
     fn into_bound_vars(self, genv: GlobalEnv) -> QueryResult<List<rty::BoundVariableKind>> {
         match self.kind {
-            LayerKind::List => {
+            LayerKind::List { .. } => {
                 Ok(self
                     .into_iter()
                     .map(|entry| {
                         let kind = rty::BoundReftKind::Named(entry.name);
-                        rty::BoundVariableKind::Refine(entry.sort, entry.infer_mode, kind)
+                        rty::BoundVariableKind::Refine(entry.sort, entry.mode, kind)
                     })
                     .collect())
             }
-            LayerKind::Record(def_id) => {
+            LayerKind::Coalesce(def_id) => {
                 let sort_def = genv.adt_sort_def_of(def_id)?;
                 let args = sort_def.identity_args();
                 let ctor = rty::SortCtor::Adt(sort_def);
@@ -1440,36 +1439,32 @@ impl Layer {
         self.clone().into_bound_vars(genv)
     }
 
-    fn into_iter(self) -> impl Iterator<Item = Entry> {
+    fn into_iter(self) -> impl Iterator<Item = ParamEntry> {
         self.map.into_values()
     }
 }
 
-impl Entry {
-    fn new(sort: rty::Sort, infer_mode: fhir::InferMode, name: Symbol) -> Self {
-        Entry { infer_mode, name, sort }
+impl ParamEntry {
+    fn new(sort: rty::Sort, mode: fhir::InferMode, name: Symbol) -> Self {
+        ParamEntry { name, sort, mode }
     }
 }
 
 impl LookupResult<'_> {
     fn to_expr(&self) -> rty::Expr {
         match &self.kind {
-            LookupResultKind::LateBound { level, entry: Entry { name, .. }, kind, idx } => {
+            LookupResultKind::LateBound { debruijn, entry: ParamEntry { name, .. }, kind, idx } => {
                 match *kind {
-                    LayerKind::List => {
+                    LayerKind::List { bound_regions } => {
                         rty::Expr::late_bvar(
-                            DebruijnIndex::from_u32(*level),
-                            *idx,
+                            *debruijn,
+                            bound_regions + *idx,
                             rty::BoundReftKind::Named(*name),
                         )
                     }
-                    LayerKind::Record(def_id) => {
+                    LayerKind::Coalesce(def_id) => {
                         rty::Expr::field_proj(
-                            rty::Expr::late_bvar(
-                                DebruijnIndex::from_u32(*level),
-                                0,
-                                rty::BoundReftKind::Annon,
-                            ),
+                            rty::Expr::late_bvar(*debruijn, 0, rty::BoundReftKind::Annon),
                             rty::FieldProj::Adt { def_id, field: *idx },
                             None,
                         )
@@ -1483,7 +1478,7 @@ impl LookupResult<'_> {
     fn is_adt(&self) -> Option<&AdtSortDef> {
         match &self.kind {
             LookupResultKind::LateBound {
-                entry: Entry { sort: rty::Sort::App(rty::SortCtor::Adt(sort_def), _), .. },
+                entry: ParamEntry { sort: rty::Sort::App(rty::SortCtor::Adt(sort_def), _), .. },
                 ..
             } => Some(sort_def),
             LookupResultKind::EarlyParam {
