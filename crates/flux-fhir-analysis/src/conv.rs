@@ -93,13 +93,14 @@ enum LookupResultKind<'a> {
         debruijn: DebruijnIndex,
         entry: &'a ParamEntry,
         kind: LayerKind,
-        /// The index of the entry in the layer.
+        /// The index of the parameter in the layer.
         idx: u32,
     },
     EarlyParam {
-        idx: u32,
         name: Symbol,
         sort: rty::Sort,
+        /// The index of the parameter.
+        idx: u32,
     },
 }
 
@@ -1227,7 +1228,14 @@ impl Env {
     fn lookup(&self, var: &fhir::PathExpr) -> LookupResult {
         let (_, id) = var.res.expect_param();
         for (i, layer) in self.layers.iter().rev().enumerate() {
-            if let Some(kind) = layer.get(id, DebruijnIndex::from_u32(i as u32)) {
+            if let Some((idx, entry)) = layer.get(id) {
+                let debruijn = DebruijnIndex::from_usize(i);
+                let kind = LookupResultKind::LateBound {
+                    debruijn,
+                    entry,
+                    idx: idx as u32,
+                    kind: layer.kind,
+                };
                 return LookupResult { span: var.span, kind };
             }
         }
@@ -1403,13 +1411,9 @@ impl Layer {
         Self::new(cx, params, LayerKind::Coalesce(def_id))
     }
 
-    fn get(
-        &self,
-        name: impl Borrow<fhir::ParamId>,
-        debruijn: DebruijnIndex,
-    ) -> Option<LookupResultKind> {
+    fn get(&self, name: impl Borrow<fhir::ParamId>) -> Option<(usize, &ParamEntry)> {
         let (idx, _, entry) = self.map.get_full(name.borrow())?;
-        Some(LookupResultKind::LateBound { debruijn, entry, idx: idx as u32, kind: self.kind })
+        Some((idx, entry))
     }
 
     fn into_bound_vars(self, genv: GlobalEnv) -> QueryResult<List<rty::BoundVariableKind>> {
