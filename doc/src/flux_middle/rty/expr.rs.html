@@ -1096,6 +1096,15 @@
 <a href="#1096" id="1096">1096</a>
 <a href="#1097" id="1097">1097</a>
 <a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a>
+<a href="#1101" id="1101">1101</a>
+<a href="#1102" id="1102">1102</a>
+<a href="#1103" id="1103">1103</a>
+<a href="#1104" id="1104">1104</a>
+<a href="#1105" id="1105">1105</a>
+<a href="#1106" id="1106">1106</a>
+<a href="#1107" id="1107">1107</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1115,7 +1124,9 @@
 };
 <span class="kw">use crate</span>::{
     fhir::SpecFuncKind,
+    global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
+    queries::QueryResult,
     rty::{
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         SortCtor,
@@ -1285,7 +1296,14 @@
 }
 
 <span class="kw">impl </span>FieldProj {
-    <span class="kw">pub fn </span>field(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
+    <span class="kw">pub fn </span>arity(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;usize&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            FieldProj::Tuple { arity, .. } =&gt; <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>arity),
+            FieldProj::Adt { def_id, .. } =&gt; <span class="prelude-val">Ok</span>(genv.adt_sort_def_of(<span class="kw-2">*</span>def_id)<span class="question-mark">?</span>.fields()),
+        }
+    }
+
+    <span class="kw">pub fn </span>field_idx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
         <span class="kw">match </span><span class="self">self </span>{
             FieldProj::Tuple { field, .. } | FieldProj::Adt { field, .. } =&gt; <span class="kw-2">*</span>field,
         }
@@ -1793,7 +1811,7 @@
     <span class="doccomment">/// Applies a projection to an expression and optimistically try to beta reduce it if possible.
     </span><span class="kw">pub fn </span>proj_and_reduce(<span class="kw-2">&amp;</span><span class="self">self</span>, proj: FieldProj) -&gt; Expr {
         <span class="kw">match </span><span class="self">self</span>.kind() {
-            ExprKind::Aggregate(<span class="kw">_</span>, flds) =&gt; flds[proj.field() <span class="kw">as </span>usize].clone(),
+            ExprKind::Aggregate(<span class="kw">_</span>, flds) =&gt; flds[proj.field_idx() <span class="kw">as </span>usize].clone(),
             <span class="kw">_ </span>=&gt; Expr::field_proj(<span class="self">self</span>.clone(), proj, <span class="prelude-val">None</span>),
         }
     }
@@ -2029,9 +2047,9 @@
                 }
                 ExprKind::FieldProj(e, proj) =&gt; {
                     <span class="kw">if </span>e.is_atom() {
-                        <span class="macro">w!</span>(<span class="string">"{:?}.{:?}"</span>, e, ^proj.field())
+                        <span class="macro">w!</span>(<span class="string">"{:?}.{:?}"</span>, e, ^proj.field_idx())
                     } <span class="kw">else </span>{
-                        <span class="macro">w!</span>(<span class="string">"({:?}).{:?}"</span>, e, ^proj.field())
+                        <span class="macro">w!</span>(<span class="string">"({:?}).{:?}"</span>, e, ^proj.field_idx())
                     }
                 }
                 ExprKind::Aggregate(AggregateKind::Tuple, flds) =&gt; {

@@ -377,7 +377,7 @@
             dbg::dump_item_info(genv.tcx(), def_id, <span class="string">"simp.fluxc"</span>, <span class="kw-2">&amp;</span>refine_tree).unwrap();
         }
         <span class="kw">let </span><span class="kw-2">mut </span>fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
-        fcx.collect_sorts(<span class="kw-2">&amp;</span>refine_tree);
+        fcx.collect_sorts(<span class="kw-2">&amp;</span>refine_tree).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
         <span class="kw">let </span>cstr = refine_tree.into_fixpoint(<span class="kw-2">&amp;mut </span>fcx).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
         <span class="kw">let </span>errors = fcx.check(cache, cstr, <span class="kw-2">&amp;</span>config).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 

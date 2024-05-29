@@ -1213,6 +1213,25 @@
 <a href="#1213" id="1213">1213</a>
 <a href="#1214" id="1214">1214</a>
 <a href="#1215" id="1215">1215</a>
+<a href="#1216" id="1216">1216</a>
+<a href="#1217" id="1217">1217</a>
+<a href="#1218" id="1218">1218</a>
+<a href="#1219" id="1219">1219</a>
+<a href="#1220" id="1220">1220</a>
+<a href="#1221" id="1221">1221</a>
+<a href="#1222" id="1222">1222</a>
+<a href="#1223" id="1223">1223</a>
+<a href="#1224" id="1224">1224</a>
+<a href="#1225" id="1225">1225</a>
+<a href="#1226" id="1226">1226</a>
+<a href="#1227" id="1227">1227</a>
+<a href="#1228" id="1228">1228</a>
+<a href="#1229" id="1229">1229</a>
+<a href="#1230" id="1230">1230</a>
+<a href="#1231" id="1231">1231</a>
+<a href="#1232" id="1232">1232</a>
+<a href="#1233" id="1233">1233</a>
+<a href="#1234" id="1234">1234</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter, ops::ControlFlow};
@@ -1223,6 +1242,7 @@
     dbg,
     index::{IndexGen, IndexVec},
     iter::IterExt,
+    result::ResultExt,
     span_bug,
 };
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -1231,7 +1251,7 @@
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     intern::List,
-    queries::QueryResult,
+    queries::{QueryErr, QueryResult},
     rty::{
         <span class="self">self</span>,
         fold::{TypeSuperVisitable, TypeVisitable, TypeVisitor},
@@ -1593,19 +1613,29 @@
     }
 
     <span class="doccomment">/// Collect all the sorts that need to be defined in fixpoint to encode `t`
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>collect_sorts&lt;T: TypeVisitable&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) {
-        <span class="kw">struct </span>Visitor&lt;<span class="lifetime">'a</span>&gt; {
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>collect_sorts&lt;T: TypeVisitable&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; QueryResult {
+        <span class="kw">struct </span>Visitor&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+            genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
             sorts: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>SortStore,
         }
-        <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>Visitor&lt;<span class="lifetime">'_</span>&gt; {
-            <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>rty::Expr) -&gt; ControlFlow&lt;!&gt; {
-                <span class="kw">if let </span>rty::ExprKind::Aggregate(<span class="kw">_</span>, flds) = expr.kind() {
-                    <span class="self">self</span>.sorts.declare_tuple(flds.len());
+        <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>Visitor&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+            <span class="kw">type </span>BreakTy = QueryErr;
+
+            <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>rty::Expr) -&gt; ControlFlow&lt;QueryErr&gt; {
+                <span class="kw">match </span>expr.kind() {
+                    rty::ExprKind::Aggregate(<span class="kw">_</span>, flds) =&gt; {
+                        <span class="self">self</span>.sorts.declare_tuple(flds.len());
+                    }
+                    rty::ExprKind::FieldProj(<span class="kw">_</span>, proj) =&gt; {
+                        <span class="kw">let </span>arity = proj.arity(<span class="self">self</span>.genv).into_control_flow()<span class="question-mark">?</span>;
+                        <span class="self">self</span>.sorts.declare_tuple(arity);
+                    }
+                    <span class="kw">_ </span>=&gt; (),
                 }
                 expr.super_visit_with(<span class="self">self</span>)
             }
 
-            <span class="kw">fn </span>visit_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; ControlFlow&lt;!&gt; {
+            <span class="kw">fn </span>visit_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; ControlFlow&lt;QueryErr&gt; {
                 <span class="kw">match </span>sort {
                     rty::Sort::Tuple(flds) =&gt; <span class="self">self</span>.sorts.declare_tuple(flds.len()),
                     rty::Sort::App(rty::SortCtor::Adt(sort_def), <span class="kw">_</span>) =&gt; {
@@ -1616,7 +1646,10 @@
                 sort.super_visit_with(<span class="self">self</span>)
             }
         }
-        t.visit_with(<span class="kw-2">&amp;mut </span>Visitor { sorts: <span class="kw-2">&amp;mut </span><span class="self">self</span>.sorts });
+        <span class="kw">match </span>t.visit_with(<span class="kw-2">&amp;mut </span>Visitor { genv: <span class="self">self</span>.genv, sorts: <span class="kw-2">&amp;mut </span><span class="self">self</span>.sorts }) {
+            ControlFlow::Continue(()) =&gt; <span class="prelude-val">Ok</span>(()),
+            ControlFlow::Break(err) =&gt; <span class="prelude-val">Err</span>(err),
+        }
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>with_name_map&lt;R&gt;(
@@ -2023,17 +2056,22 @@
         // user declared opaque sorts and type variable sorts as integers. Well-formedness should
         // ensure values of these sorts are properly used.
         </span>rty::Sort::App(rty::SortCtor::User { .. }, <span class="kw">_</span>) | rty::Sort::Param(<span class="kw">_</span>) =&gt; fixpoint::Sort::Int,
-        rty::Sort::App(ctor, sorts) =&gt; {
-            <span class="kw">let </span>ctor = <span class="kw">match </span>ctor {
-                rty::SortCtor::Set =&gt; fixpoint::SortCtor::Set,
-                rty::SortCtor::Map =&gt; fixpoint::SortCtor::Map,
-                rty::SortCtor::Adt(sort_def) =&gt; {
-                    fixpoint::SortCtor::Data(tuple_sort_name(sort_def.fields()))
-                }
-                rty::SortCtor::User { .. } =&gt; <span class="macro">unreachable!</span>(),
-            };
-            <span class="kw">let </span>sorts = sorts.iter().map(sort_to_fixpoint).collect_vec();
-            fixpoint::Sort::App(ctor, sorts)
+        rty::Sort::App(rty::SortCtor::Set, args) =&gt; {
+            <span class="kw">let </span>args = args.iter().map(sort_to_fixpoint).collect_vec();
+            fixpoint::Sort::App(fixpoint::SortCtor::Set, args)
+        }
+        rty::Sort::App(rty::SortCtor::Map, args) =&gt; {
+            <span class="kw">let </span>args = args.iter().map(sort_to_fixpoint).collect_vec();
+            fixpoint::Sort::App(fixpoint::SortCtor::Map, args)
+        }
+        rty::Sort::App(rty::SortCtor::Adt(sort_def), args) =&gt; {
+            <span class="kw">let </span>ctor = fixpoint::SortCtor::Data(tuple_sort_name(sort_def.fields()));
+            <span class="kw">let </span>args = sort_def
+                .sorts(args)
+                .iter()
+                .map(sort_to_fixpoint)
+                .collect_vec();
+            fixpoint::Sort::App(ctor, args)
         }
         rty::Sort::Tuple(sorts) =&gt; {
             <span class="kw">let </span>ctor = fixpoint::SortCtor::Data(tuple_sort_name(sorts.len()));
