@@ -1704,29 +1704,6 @@
 <a href="#1704" id="1704">1704</a>
 <a href="#1705" id="1705">1705</a>
 <a href="#1706" id="1706">1706</a>
-<a href="#1707" id="1707">1707</a>
-<a href="#1708" id="1708">1708</a>
-<a href="#1709" id="1709">1709</a>
-<a href="#1710" id="1710">1710</a>
-<a href="#1711" id="1711">1711</a>
-<a href="#1712" id="1712">1712</a>
-<a href="#1713" id="1713">1713</a>
-<a href="#1714" id="1714">1714</a>
-<a href="#1715" id="1715">1715</a>
-<a href="#1716" id="1716">1716</a>
-<a href="#1717" id="1717">1717</a>
-<a href="#1718" id="1718">1718</a>
-<a href="#1719" id="1719">1719</a>
-<a href="#1720" id="1720">1720</a>
-<a href="#1721" id="1721">1721</a>
-<a href="#1722" id="1722">1722</a>
-<a href="#1723" id="1723">1723</a>
-<a href="#1724" id="1724">1724</a>
-<a href="#1725" id="1725">1725</a>
-<a href="#1726" id="1726">1726</a>
-<a href="#1727" id="1727">1727</a>
-<a href="#1728" id="1728">1728</a>
-<a href="#1729" id="1729">1729</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -1783,31 +1760,30 @@
 
 <span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">struct </span>Layer {
-    map: FxIndexMap&lt;fhir::ParamId, Entry&gt;,
-    <span class="doccomment">/// Whether to skip variables bound to Unit in this layer.
-    </span>filter_unit: bool,
+    map: FxIndexMap&lt;fhir::ParamId, ParamEntry&gt;,
     kind: LayerKind,
 }
 
-<span class="attr">#[derive(Debug, Clone, Copy)]
+<span class="doccomment">/// Whether the list of parameters in a layer is converted into a list of bound variables or
+/// coalesced into a single parameter of [adt] sort.
+///
+/// [adt]: rty::SortCtor::Adt
+</span><span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">enum </span>LayerKind {
-    List,
-    Record(DefId),
+    List {
+        <span class="doccomment">/// The number of regions bound in this layer. Since regions and refinements are both
+        /// bound with a [`rty::Binder`] we need to keep track of the number of bound regions
+        /// to skip them when assigning an index to refinement parameters.
+        </span>bound_regions: u32,
+    },
+    Coalesce(DefId),
 }
 
 <span class="attr">#[derive(Debug, Clone)]
-</span><span class="kw">enum </span>Entry {
-    Sort {
-        infer_mode: rty::InferMode,
-        name: Symbol,
-        sort: rty::Sort,
-        <span class="doccomment">/// The index of the entry in the layer skipping all [`Entry::Unit`] if [`Layer::filter_unit`]
-        /// is true
-        </span>idx: u32,
-    },
-    <span class="doccomment">/// We track parameters of unit sort separately because we avoid creating bound variables for them
-    /// in function signatures.
-    </span>Unit(Symbol),
+</span><span class="kw">struct </span>ParamEntry {
+    name: Symbol,
+    sort: rty::Sort,
+    mode: rty::InferMode,
 }
 
 <span class="attr">#[derive(Debug)]
@@ -1819,8 +1795,19 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">enum </span>LookupResultKind&lt;<span class="lifetime">'a</span>&gt; {
-    LateBound { level: u32, entry: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Entry, kind: LayerKind },
-    EarlyParam { idx: u32, name: Symbol, sort: rty::Sort },
+    LateBound {
+        debruijn: DebruijnIndex,
+        entry: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>ParamEntry,
+        kind: LayerKind,
+        <span class="doccomment">/// The index of the parameter in the layer.
+        </span>idx: u32,
+    },
+    EarlyParam {
+        name: Symbol,
+        sort: rty::Sort,
+        <span class="doccomment">/// The index of the parameter.
+        </span>idx: u32,
+    },
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_adt_sort_def(
@@ -1856,7 +1843,7 @@
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
 
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, alias.generics.refinement_params, wfckresults)<span class="question-mark">?</span>;
-    env.push_layer(Layer::record(<span class="kw-2">&amp;</span>cx, def_id, alias.params)<span class="question-mark">?</span>);
+    env.push_layer(Layer::coalesce(<span class="kw-2">&amp;</span>cx, def_id, alias.params)<span class="question-mark">?</span>);
 
     <span class="kw">let </span>ty = cx.conv_ty(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>alias.ty)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>))
@@ -2000,7 +1987,7 @@
 ) -&gt; QueryResult&lt;Vec&lt;rty::Invariant&gt;&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
-    env.push_layer(Layer::record(<span class="kw-2">&amp;</span>cx, def_id.to_def_id(), params)<span class="question-mark">?</span>);
+    env.push_layer(Layer::coalesce(<span class="kw-2">&amp;</span>cx, def_id.to_def_id(), params)<span class="question-mark">?</span>);
     cx.conv_invariants(<span class="kw-2">&amp;mut </span>env, invariants)
 }
 
@@ -2012,7 +1999,7 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(body) = <span class="kw-2">&amp;</span>func.body {
         <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
         <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
-        env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, func.args, <span class="bool-val">false</span>)<span class="question-mark">?</span>);
+        env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, func.args)<span class="question-mark">?</span>);
         <span class="kw">let </span>expr = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, body)<span class="question-mark">?</span>;
         <span class="kw">let </span>expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>);
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::SpecFunc { name: func.name, expr }))
@@ -2028,7 +2015,7 @@
 ) -&gt; QueryResult&lt;rty::Qualifier&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
-    env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, qualifier.args, <span class="bool-val">false</span>)<span class="question-mark">?</span>);
+    env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, qualifier.args)<span class="question-mark">?</span>);
     <span class="kw">let </span>body = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>qualifier.expr)<span class="question-mark">?</span>;
     <span class="kw">let </span>body = rty::Binder::new(body, env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>);
     <span class="prelude-val">Ok</span>(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
@@ -2045,7 +2032,7 @@
     <span class="kw">let </span>late_bound_regions = refining::refine_bound_variables(<span class="kw-2">&amp;</span>genv.lower_late_bound_vars(def_id)<span class="question-mark">?</span>);
 
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, decl.generics.refinement_params, wfckresults)<span class="question-mark">?</span>;
-    env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, late_bound_regions.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[], <span class="bool-val">true</span>)<span class="question-mark">?</span>);
+    env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, late_bound_regions.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[])<span class="question-mark">?</span>);
 
     <span class="kw">let </span><span class="kw-2">mut </span>requires = <span class="macro">vec!</span>[];
     <span class="kw">for </span>constr <span class="kw">in </span>decl.requires {
@@ -2076,7 +2063,7 @@
 ) -&gt; QueryResult&lt;rty::Lambda&gt; {
     <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
     <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
-    env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, assoc_reft.params, <span class="bool-val">false</span>)<span class="question-mark">?</span>);
+    env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, assoc_reft.params)<span class="question-mark">?</span>);
     <span class="kw">let </span>expr = cx.conv_expr(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>assoc_reft.body)<span class="question-mark">?</span>;
     <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(genv)<span class="question-mark">?</span>;
     <span class="kw">let </span>output = conv_sort(genv, <span class="kw-2">&amp;</span>assoc_reft.output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)<span class="question-mark">?</span>;
@@ -2235,7 +2222,7 @@
         clauses: <span class="kw-2">&amp;mut </span>Vec&lt;rty::Clause&gt;,
     ) -&gt; QueryResult {
         <span class="kw">let </span>path = <span class="kw-2">&amp;</span>trait_ref.trait_ref;
-        <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, trait_ref.bound_generic_params.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[], <span class="bool-val">true</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, trait_ref.bound_generic_params.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[])<span class="question-mark">?</span>;
         env.push_layer(layer);
 
         <span class="kw">let </span>pred = rty::FnTraitPredicate {
@@ -2271,7 +2258,7 @@
         env: <span class="kw-2">&amp;mut </span>Env,
         output: <span class="kw-2">&amp;</span>fhir::FnOutput,
     ) -&gt; QueryResult&lt;rty::Binder&lt;rty::FnOutput&gt;&gt; {
-        env.push_layer(Layer::list(<span class="self">self</span>, <span class="number">0</span>, output.params, <span class="bool-val">true</span>)<span class="question-mark">?</span>);
+        env.push_layer(Layer::list(<span class="self">self</span>, <span class="number">0</span>, output.params)<span class="question-mark">?</span>);
 
         <span class="kw">let </span>ret = <span class="self">self</span>.conv_ty(env, <span class="kw-2">&amp;</span>output.ret)<span class="question-mark">?</span>;
         <span class="kw">let </span>ensures: List&lt;rty::Constraint&gt; = output
@@ -2309,7 +2296,7 @@
         <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
 
         <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
-        env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, variant.params, <span class="bool-val">true</span>)<span class="question-mark">?</span>);
+        env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, variant.params)<span class="question-mark">?</span>);
 
         <span class="kw">let </span>adt_def = genv.adt_def(adt_def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>fields = variant
@@ -2336,7 +2323,7 @@
     ) -&gt; QueryResult&lt;rty::Opaqueness&lt;rty::PolyVariant&gt;&gt; {
         <span class="kw">let </span>cx = ConvCtxt::new(genv, wfckresults);
         <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(genv, <span class="kw-2">&amp;</span>[], wfckresults)<span class="question-mark">?</span>;
-        env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, struct_def.params, <span class="bool-val">false</span>)<span class="question-mark">?</span>);
+        env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, <span class="number">0</span>, struct_def.params)<span class="question-mark">?</span>);
 
         <span class="kw">if let </span>fhir::StructKind::Transparent { fields } = <span class="kw-2">&amp;</span>struct_def.kind {
             <span class="kw">let </span>adt_def = genv.adt_def(adt_def_id)<span class="question-mark">?</span>;
@@ -2385,7 +2372,7 @@
                 <span class="kw">let </span>pred = <span class="kw">if </span>params.is_empty() {
                     <span class="self">self</span>.conv_expr(env, pred)<span class="question-mark">?
                 </span>} <span class="kw">else </span>{
-                    env.push_layer(Layer::list(<span class="self">self</span>, <span class="number">0</span>, params, <span class="bool-val">false</span>)<span class="question-mark">?</span>);
+                    env.push_layer(Layer::list(<span class="self">self</span>, <span class="number">0</span>, params)<span class="question-mark">?</span>);
                     <span class="kw">let </span>pred = <span class="self">self</span>.conv_expr(env, pred)<span class="question-mark">?</span>;
                     <span class="kw">let </span>sorts = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
                     rty::Expr::forall(rty::Binder::new(pred, sorts))
@@ -2443,7 +2430,7 @@
                 }
             }
             fhir::TyKind::Exists(params, ty) =&gt; {
-                <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, <span class="number">0</span>, params, <span class="bool-val">false</span>)<span class="question-mark">?</span>;
+                <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, <span class="number">0</span>, params)<span class="question-mark">?</span>;
                 env.push_layer(layer);
                 <span class="kw">let </span>ty = <span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>;
                 <span class="kw">let </span>sorts = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
@@ -2739,7 +2726,7 @@
         <span class="kw">match </span><span class="kw-2">&amp;</span>arg.kind {
             fhir::RefineArgKind::Expr(expr) =&gt; <span class="self">self</span>.conv_expr(env, expr),
             fhir::RefineArgKind::Abs(params, body) =&gt; {
-                <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, <span class="number">0</span>, params, <span class="bool-val">false</span>)<span class="question-mark">?</span>;
+                <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, <span class="number">0</span>, params)<span class="question-mark">?</span>;
 
                 env.push_layer(layer);
                 <span class="kw">let </span>pred = <span class="self">self</span>.conv_expr(env, body)<span class="question-mark">?</span>;
@@ -2946,8 +2933,15 @@
 
     <span class="kw">fn </span>lookup(<span class="kw-2">&amp;</span><span class="self">self</span>, var: <span class="kw-2">&amp;</span>fhir::PathExpr) -&gt; LookupResult {
         <span class="kw">let </span>(<span class="kw">_</span>, id) = var.res.expect_param();
-        <span class="kw">for </span>(level, layer) <span class="kw">in </span><span class="self">self</span>.layers.iter().rev().enumerate() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(kind) = layer.get(id, level <span class="kw">as </span>u32) {
+        <span class="kw">for </span>(i, layer) <span class="kw">in </span><span class="self">self</span>.layers.iter().rev().enumerate() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>((idx, entry)) = layer.get(id) {
+                <span class="kw">let </span>debruijn = DebruijnIndex::from_usize(i);
+                <span class="kw">let </span>kind = LookupResultKind::LateBound {
+                    debruijn,
+                    entry,
+                    idx: idx <span class="kw">as </span>u32,
+                    kind: layer.kind,
+                };
                 <span class="kw">return </span>LookupResult { span: var.span, kind };
             }
         }
@@ -3102,62 +3096,44 @@
 }
 
 <span class="kw">impl </span>Layer {
-    <span class="kw">fn </span>new(
-        cx: <span class="kw-2">&amp;</span>ConvCtxt,
-        late_bound_regions: u32,
-        params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
-        filter_unit: bool,
-        kind: LayerKind,
-    ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>idx = late_bound_regions;
+    <span class="kw">fn </span>new(cx: <span class="kw-2">&amp;</span>ConvCtxt, params: <span class="kw-2">&amp;</span>[fhir::RefineParam], kind: LayerKind) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>map = params
             .iter()
             .map(|param| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; {
                 <span class="kw">let </span>sort = cx.resolve_param_sort(param)<span class="question-mark">?</span>;
                 <span class="kw">let </span>infer_mode = sort.infer_mode(param.kind);
-                <span class="kw">let </span>entry = Entry::new(idx, sort, infer_mode, param.name);
-                <span class="kw">if </span>!filter_unit || !<span class="macro">matches!</span>(entry, Entry::Unit(<span class="kw">_</span>)) {
-                    idx += <span class="number">1</span>;
-                }
+                <span class="kw">let </span>entry = ParamEntry::new(sort, infer_mode, param.name);
                 <span class="prelude-val">Ok</span>((param.id, entry))
             })
             .try_collect()<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ map, filter_unit, kind })
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ map, kind })
     }
 
-    <span class="kw">fn </span>list(
-        cx: <span class="kw-2">&amp;</span>ConvCtxt,
-        late_bound_regions: u32,
-        params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
-        filter_unit: bool,
-    ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
-        <span class="self">Self</span>::new(cx, late_bound_regions, params, filter_unit, LayerKind::List)
+    <span class="kw">fn </span>list(cx: <span class="kw-2">&amp;</span>ConvCtxt, bound_regions: u32, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
+        <span class="self">Self</span>::new(cx, params, LayerKind::List { bound_regions })
     }
 
-    <span class="kw">fn </span>record(cx: <span class="kw-2">&amp;</span>ConvCtxt, def_id: DefId, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
-        <span class="self">Self</span>::new(cx, <span class="number">0</span>, params, <span class="bool-val">false</span>, LayerKind::Record(def_id))
+    <span class="kw">fn </span>coalesce(cx: <span class="kw-2">&amp;</span>ConvCtxt, def_id: DefId, params: <span class="kw-2">&amp;</span>[fhir::RefineParam]) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
+        <span class="self">Self</span>::new(cx, params, LayerKind::Coalesce(def_id))
     }
 
-    <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw">impl </span>Borrow&lt;fhir::ParamId&gt;, level: u32) -&gt; <span class="prelude-ty">Option</span>&lt;LookupResultKind&gt; {
-        <span class="prelude-val">Some</span>(LookupResultKind::LateBound {
-            level,
-            entry: <span class="self">self</span>.map.get(name.borrow())<span class="question-mark">?</span>,
-            kind: <span class="self">self</span>.kind,
-        })
+    <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw">impl </span>Borrow&lt;fhir::ParamId&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;(usize, <span class="kw-2">&amp;</span>ParamEntry)&gt; {
+        <span class="kw">let </span>(idx, <span class="kw">_</span>, entry) = <span class="self">self</span>.map.get_full(name.borrow())<span class="question-mark">?</span>;
+        <span class="prelude-val">Some</span>((idx, entry))
     }
 
     <span class="kw">fn </span>into_bound_vars(<span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;List&lt;rty::BoundVariableKind&gt;&gt; {
         <span class="kw">match </span><span class="self">self</span>.kind {
-            LayerKind::List =&gt; {
+            LayerKind::List { .. } =&gt; {
                 <span class="prelude-val">Ok</span>(<span class="self">self
                     </span>.into_iter()
-                    .map(|(sort, mode, name)| {
-                        <span class="kw">let </span>kind = rty::BoundReftKind::Named(name);
-                        rty::BoundVariableKind::Refine(sort, mode, kind)
+                    .map(|entry| {
+                        <span class="kw">let </span>kind = rty::BoundReftKind::Named(entry.name);
+                        rty::BoundVariableKind::Refine(entry.sort, entry.mode, kind)
                     })
                     .collect())
             }
-            LayerKind::Record(def_id) =&gt; {
+            LayerKind::Coalesce(def_id) =&gt; {
                 <span class="kw">let </span>sort_def = genv.adt_sort_def_of(def_id)<span class="question-mark">?</span>;
                 <span class="kw">let </span>args = sort_def.identity_args();
                 <span class="kw">let </span>ctor = rty::SortCtor::Adt(sort_def);
@@ -3173,60 +3149,38 @@
         <span class="self">self</span>.clone().into_bound_vars(genv)
     }
 
-    <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (rty::Sort, rty::InferMode, Symbol)&gt; {
-        <span class="self">self</span>.map.into_values().filter_map(<span class="kw">move </span>|entry| {
-            <span class="kw">match </span>entry {
-                Entry::Sort { infer_mode, sort, name, .. } =&gt; <span class="prelude-val">Some</span>((sort, infer_mode, name)),
-                Entry::Unit(name) =&gt; {
-                    <span class="kw">if </span><span class="self">self</span>.filter_unit {
-                        <span class="prelude-val">None
-                    </span>} <span class="kw">else </span>{
-                        <span class="kw">let </span>unit = rty::Sort::unit();
-                        <span class="kw">let </span>infer_mode = unit.default_infer_mode();
-                        <span class="prelude-val">Some</span>((unit, infer_mode, name))
-                    }
-                }
-            }
-        })
+    <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = ParamEntry&gt; {
+        <span class="self">self</span>.map.into_values()
     }
 }
 
-<span class="kw">impl </span>Entry {
-    <span class="kw">fn </span>new(idx: u32, sort: rty::Sort, infer_mode: fhir::InferMode, name: Symbol) -&gt; <span class="self">Self </span>{
-        <span class="kw">if </span>sort.is_unit() {
-            Entry::Unit(name)
-        } <span class="kw">else </span>{
-            Entry::Sort { sort, infer_mode, idx, name }
-        }
+<span class="kw">impl </span>ParamEntry {
+    <span class="kw">fn </span>new(sort: rty::Sort, mode: fhir::InferMode, name: Symbol) -&gt; <span class="self">Self </span>{
+        ParamEntry { name, sort, mode }
     }
 }
 
 <span class="kw">impl </span>LookupResult&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>to_expr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; rty::Expr {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            LookupResultKind::LateBound { level, entry: Entry::Sort { idx, name, .. }, kind } =&gt; {
+            LookupResultKind::LateBound { debruijn, entry: ParamEntry { name, .. }, kind, idx } =&gt; {
                 <span class="kw">match </span><span class="kw-2">*</span>kind {
-                    LayerKind::List =&gt; {
+                    LayerKind::List { bound_regions } =&gt; {
                         rty::Expr::late_bvar(
-                            DebruijnIndex::from_u32(<span class="kw-2">*</span>level),
-                            <span class="kw-2">*</span>idx,
+                            <span class="kw-2">*</span>debruijn,
+                            bound_regions + <span class="kw-2">*</span>idx,
                             rty::BoundReftKind::Named(<span class="kw-2">*</span>name),
                         )
                     }
-                    LayerKind::Record(def_id) =&gt; {
+                    LayerKind::Coalesce(def_id) =&gt; {
                         rty::Expr::field_proj(
-                            rty::Expr::late_bvar(
-                                DebruijnIndex::from_u32(<span class="kw-2">*</span>level),
-                                <span class="number">0</span>,
-                                rty::BoundReftKind::Annon,
-                            ),
+                            rty::Expr::late_bvar(<span class="kw-2">*</span>debruijn, <span class="number">0</span>, rty::BoundReftKind::Annon),
                             rty::FieldProj::Adt { def_id, field: <span class="kw-2">*</span>idx },
                             <span class="prelude-val">None</span>,
                         )
                     }
                 }
             }
-            LookupResultKind::LateBound { entry: Entry::Unit(<span class="kw">_</span>), .. } =&gt; rty::Expr::unit(),
             LookupResultKind::EarlyParam { idx, name, .. } =&gt; rty::Expr::early_param(<span class="kw-2">*</span>idx, <span class="kw-2">*</span>name),
         }
     }
@@ -3234,7 +3188,7 @@
     <span class="kw">fn </span>is_adt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AdtSortDef&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
             LookupResultKind::LateBound {
-                entry: Entry::Sort { sort: rty::Sort::App(rty::SortCtor::Adt(sort_def), <span class="kw">_</span>), .. },
+                entry: ParamEntry { sort: rty::Sort::App(rty::SortCtor::Adt(sort_def), <span class="kw">_</span>), .. },
                 ..
             } =&gt; <span class="prelude-val">Some</span>(sort_def),
             LookupResultKind::EarlyParam {
