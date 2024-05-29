@@ -2093,6 +2093,10 @@
 <a href="#2093" id="2093">2093</a>
 <a href="#2094" id="2094">2094</a>
 <a href="#2095" id="2095">2095</a>
+<a href="#2096" id="2096">2096</a>
+<a href="#2097" id="2097">2097</a>
+<a href="#2098" id="2098">2098</a>
+<a href="#2099" id="2099">2099</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -3240,6 +3244,10 @@
 }
 
 <span class="kw">impl </span>Generics {
+    <span class="kw">pub fn </span>count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.parent_count + <span class="self">self</span>.params.len()
+    }
+
     <span class="kw">pub fn </span>param_at(<span class="kw-2">&amp;</span><span class="self">self</span>, param_index: usize, genv: GlobalEnv) -&gt; QueryResult&lt;GenericParamDef&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = param_index.checked_sub(<span class="self">self</span>.parent_count) {
             <span class="prelude-val">Ok</span>(<span class="self">self</span>.params[index].clone())

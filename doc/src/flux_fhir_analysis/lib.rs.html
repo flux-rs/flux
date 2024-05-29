@@ -478,6 +478,10 @@
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_data_structures;
@@ -724,7 +728,7 @@
     <span class="kw">let </span>rustc_generics = genv.lower_generics_of(def_id)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>def_kind = genv.def_kind(def_id);
-    <span class="kw">match </span>def_kind {
+    <span class="kw">let </span>generics = <span class="kw">match </span>def_kind {
         DefKind::Impl { .. }
         | DefKind::Struct
         | DefKind::Enum
@@ -740,17 +744,21 @@
                 .get_generics(local_id)<span class="question-mark">?
                 </span>.unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"no generics for {:?}"</span>, def_id));
             <span class="kw">let </span>extern_id = genv.map().extern_id_of(local_id)<span class="question-mark">?</span>;
-            conv::conv_generics(genv, <span class="kw-2">&amp;</span>rustc_generics, generics, extern_id, is_trait)
-        }
+            conv::conv_generics(genv, <span class="kw-2">&amp;</span>rustc_generics, generics, extern_id, is_trait)<span class="question-mark">?
+        </span>}
         DefKind::Closure =&gt; {
-            <span class="prelude-val">Ok</span>(rty::Generics {
+            rty::Generics {
                 params: List::empty(),
                 parent: rustc_generics.parent(),
                 parent_count: rustc_generics.parent_count(),
-            })
+            }
         }
         kind =&gt; <span class="macro">bug!</span>(<span class="string">"generics_of called on `{def_id:?}` with kind `{kind:?}`"</span>),
+    };
+    <span class="kw">if </span>config::dump_rty() {
+        dbg::dump_item_info(genv.tcx(), local_id, <span class="string">"generics.rty"</span>, <span class="kw-2">&amp;</span>generics).unwrap();
     }
+    <span class="prelude-val">Ok</span>(generics)
 }
 
 <span class="kw">fn </span>refinement_generics_of(
