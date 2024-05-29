@@ -522,6 +522,18 @@
 <a href="#522" id="522">522</a>
 <a href="#523" id="523">523</a>
 <a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
 </pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
@@ -883,10 +895,22 @@
         <span class="kw">let </span><span class="kw-2">mut </span>vis = IsRefinedVisitor { is_refined: <span class="bool-val">false </span>};
         <span class="kw">impl </span>visit::Visitor <span class="kw">for </span>IsRefinedVisitor {
             <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) {
-                <span class="kw">if </span>!<span class="macro">matches!</span>(ty.kind, TyKind::Base(<span class="kw">_</span>) | TyKind::Hole) {
-                    <span class="self">self</span>.is_refined = <span class="bool-val">true</span>;
+                <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
+                    TyKind::Tuple(<span class="kw">_</span>)
+                    | TyKind::Ref(<span class="kw">_</span>, <span class="kw">_</span>)
+                    | TyKind::Array(<span class="kw">_</span>, <span class="kw">_</span>)
+                    | TyKind::ImplTrait(<span class="kw">_</span>, <span class="kw">_</span>)
+                    | TyKind::Hole
+                    | TyKind::Base(<span class="kw">_</span>) =&gt; {
+                        visit::walk_ty(<span class="self">self</span>, ty);
+                    }
+                    TyKind::Indexed { .. }
+                    | TyKind::Exists { .. }
+                    | TyKind::GeneralExists { .. }
+                    | TyKind::Constr(..) =&gt; {
+                        <span class="self">self</span>.is_refined = <span class="bool-val">true</span>;
+                    }
                 }
-                visit::walk_ty(<span class="self">self</span>, ty);
             }
         }
         vis.visit_ty(<span class="self">self</span>);
