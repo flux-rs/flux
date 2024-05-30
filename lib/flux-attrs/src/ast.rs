@@ -107,6 +107,12 @@ impl Parse for ItemTrait {
 impl ToTokens for ItemTrait {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         tokens.append_all(outer(&self.attrs));
+        #[cfg(flux_sysroot)]
+        for item in &self.items {
+            if let TraitItem::Reft(reft) = item {
+                reft.flux_tool_attr().to_tokens(tokens);
+            }
+        }
         self.vis.to_tokens(tokens);
         self.unsafety.to_tokens(tokens);
         self.trait_token.to_tokens(tokens);
@@ -134,6 +140,9 @@ pub enum TraitItem {
 
     /// An associated type within the definition of a trait.
     Type(syn::TraitItemType),
+
+    /// An associated refinements within the definition of a trait.
+    Reft(TraitItemReft),
 }
 
 impl Parse for TraitItem {
@@ -182,6 +191,8 @@ impl Parse for TraitItem {
             }
         } else if lookahead.peek(Token![type]) {
             parse_trait_item_type(input)
+        } else if lookahead.peek(kw::reft) {
+            input.parse().map(TraitItem::Reft)
         } else {
             Err(lookahead.error())
         }?;
@@ -194,6 +205,7 @@ impl Parse for TraitItem {
             TraitItem::Const(item) => &mut item.attrs,
             TraitItem::Fn(item) => &mut item.attrs,
             TraitItem::Type(item) => &mut item.attrs,
+            TraitItem::Reft(item) => &mut item.attrs,
         };
         attrs.append(item_attrs);
         *item_attrs = attrs;
@@ -207,6 +219,7 @@ impl ToTokens for TraitItem {
             TraitItem::Const(item) => item.to_tokens(tokens),
             TraitItem::Fn(item) => item.to_tokens(tokens),
             TraitItem::Type(item) => item.to_tokens(tokens),
+            TraitItem::Reft(_) => {}
         }
     }
 }
@@ -253,6 +266,65 @@ impl ToTokens for TraitItemFn {
             #rust_sig #default #semi_token
         }
         .to_tokens(tokens);
+    }
+}
+
+#[derive(Debug)]
+#[cfg_attr(not(flux_sysroot), allow(dead_code))]
+pub struct TraitItemReft {
+    /// This is not actually used
+    pub attrs: Vec<Attribute>,
+    pub reft_token: kw::reft,
+    pub name: Ident,
+    pub paren_token: token::Paren,
+    pub params: TokenStream,
+    pub returns: TokenStream,
+    pub semi_token: Token![;],
+}
+
+impl TraitItemReft {
+    #[cfg(flux_sysroot)]
+    fn flux_tool_attr(&self) -> TokenStream {
+        quote! {
+            #[flux_tool::assoc(#self)]
+        }
+    }
+}
+
+impl Parse for TraitItemReft {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let reft_token: kw::reft = input.parse()?;
+        let name: Ident = input.parse()?;
+        let content;
+        let paren_token = parenthesized!(content in input);
+        let params = content.parse()?;
+        let mut returns = TokenStream::new();
+        while !input.peek(Token![;]) {
+            returns.append(TokenTree::parse(input)?);
+        }
+        let semi_token: Token![;] = input.parse()?;
+        Ok(TraitItemReft {
+            attrs: vec![],
+            reft_token,
+            name,
+            paren_token,
+            params,
+            returns,
+            semi_token,
+        })
+    }
+}
+
+#[cfg(flux_sysroot)]
+impl ToTokens for TraitItemReft {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let TraitItemReft { reft_token, name, paren_token, params, returns, .. } = self;
+        quote_spanned!(reft_token.span=> fn).to_tokens(tokens);
+        name.to_tokens(tokens);
+        paren_token.surround(tokens, |tokens| {
+            params.to_tokens(tokens);
+        });
+        returns.to_tokens(tokens);
     }
 }
 
@@ -571,6 +643,7 @@ pub struct ItemImpl {
 pub enum ImplItem {
     Fn(ImplItemFn),
     Type(syn::ImplItemType),
+    Reft(ImplItemReft),
 }
 
 #[derive(Debug)]
@@ -589,6 +662,58 @@ impl Parse for ImplItemFn {
             sig: input.parse()?,
             block: input.parse()?,
         })
+    }
+}
+
+#[derive(Debug)]
+#[cfg_attr(not(flux_sysroot), allow(dead_code))]
+pub struct ImplItemReft {
+    /// This is not actually used
+    pub attrs: Vec<Attribute>,
+    pub reft_token: kw::reft,
+    pub name: Ident,
+    pub paren_token: token::Paren,
+    pub params: TokenStream,
+    pub returns: TokenStream,
+    pub block: Block,
+}
+
+impl ImplItemReft {
+    #[cfg(flux_sysroot)]
+    fn flux_tool_attr(&self) -> TokenStream {
+        quote! {
+            #[flux_tool::assoc(#self)]
+        }
+    }
+}
+
+impl Parse for ImplItemReft {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let reft_token: kw::reft = input.parse()?;
+        let name: Ident = input.parse()?;
+        let content;
+        let paren_token = parenthesized!(content in input);
+        let params = content.parse()?;
+        let mut returns = TokenStream::new();
+        while !input.peek(token::Brace) {
+            returns.append(TokenTree::parse(input)?);
+        }
+        let block: Block = input.parse()?;
+        Ok(ImplItemReft { attrs: vec![], reft_token, name, paren_token, params, returns, block })
+    }
+}
+
+#[cfg(flux_sysroot)]
+impl ToTokens for ImplItemReft {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let ImplItemReft { reft_token, name, paren_token, params, returns, block, .. } = self;
+        quote_spanned!(reft_token.span=> fn).to_tokens(tokens);
+        name.to_tokens(tokens);
+        paren_token.surround(tokens, |tokens| {
+            params.to_tokens(tokens);
+        });
+        returns.to_tokens(tokens);
+        block.to_tokens(tokens);
     }
 }
 
@@ -1457,7 +1582,8 @@ impl ImplItem {
     fn replace_attrs(&mut self, new: Vec<Attribute>) -> Vec<Attribute> {
         match self {
             ImplItem::Fn(ImplItemFn { attrs, .. })
-            | ImplItem::Type(syn::ImplItemType { attrs, .. }) => mem::replace(attrs, new),
+            | ImplItem::Type(syn::ImplItemType { attrs, .. })
+            | ImplItem::Reft(ImplItemReft { attrs, .. }) => mem::replace(attrs, new),
         }
     }
 }
@@ -1473,6 +1599,8 @@ impl Parse for ImplItem {
             ImplItem::Fn(input.parse()?)
         } else if lookahead.peek(Token![type]) {
             ImplItem::Type(input.parse()?)
+        } else if lookahead.peek(kw::reft) {
+            ImplItem::Reft(input.parse()?)
         } else {
             return Err(lookahead.error());
         };
@@ -1838,6 +1966,7 @@ mod kw {
     syn::custom_keyword!(by);
     syn::custom_keyword!(base);
     syn::custom_keyword!(bitvec);
+    syn::custom_keyword!(reft);
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -2174,6 +2303,12 @@ impl IndexParams {
 impl ToTokens for ItemImpl {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         tokens.append_all(&self.attrs);
+        #[cfg(flux_sysroot)]
+        for item in &self.items {
+            if let ImplItem::Reft(reft) = item {
+                reft.flux_tool_attr().to_tokens(tokens);
+            }
+        }
         self.impl_token.to_tokens(tokens);
         self.generics.to_tokens(tokens, Mode::Rust);
         if let Some((trait_, for_token)) = &self.trait_ {
@@ -2192,6 +2327,7 @@ impl ToTokens for ImplItem {
         match self {
             ImplItem::Fn(impl_item_fn) => impl_item_fn.to_tokens(tokens),
             ImplItem::Type(impl_item_ty) => impl_item_ty.to_tokens(tokens),
+            ImplItem::Reft(_) => {}
         }
     }
 }
