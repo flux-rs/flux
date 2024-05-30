@@ -11,7 +11,7 @@ use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
-    fhir::{self, ExprRes, FhirId, FluxOwnerId, SurfaceIdent},
+    fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
@@ -539,7 +539,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         &self,
         trait_def_id: DefId,
         assoc_kind: AssocKind,
-        assoc_name: SurfaceIdent,
+        assoc_name: Ident,
     ) -> Option<&AssocItem> {
         self.genv
             .tcx()
@@ -1499,7 +1499,7 @@ impl LookupResult<'_> {
             .unwrap_or_else(|| span_bug!(self.span, "expected path, found `{:?}`", self.to_expr()))
     }
 
-    fn get_field(&self, fld: SurfaceIdent) -> rty::Expr {
+    fn get_field(&self, fld: Ident) -> rty::Expr {
         if let Some(sort_def) = self.is_adt() {
             let def_id = sort_def.did();
             let i = sort_def

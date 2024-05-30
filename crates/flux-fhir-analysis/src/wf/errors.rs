@@ -1,10 +1,7 @@
 use flux_errors::E0999;
 use flux_macros::Diagnostic;
-use flux_middle::{
-    fhir::{self, SurfaceIdent},
-    rty,
-};
-use rustc_span::{Span, Symbol};
+use flux_middle::{fhir, rty};
+use rustc_span::{symbol::Ident, Span, Symbol};
 
 #[derive(Diagnostic)]
 #[diag(fhir_analysis_sort_mismatch, code = E0999)]
@@ -162,11 +159,11 @@ pub(super) struct FieldNotFound {
     #[primary_span]
     span: Span,
     sort: rty::Sort,
-    fld: SurfaceIdent,
+    fld: Ident,
 }
 
 impl FieldNotFound {
-    pub(super) fn new(sort: rty::Sort, fld: SurfaceIdent) -> Self {
+    pub(super) fn new(sort: rty::Sort, fld: Ident) -> Self {
         Self { span: fld.span, sort, fld }
     }
 }
@@ -180,7 +177,7 @@ pub(super) struct InvalidPrimitiveDotAccess<'a> {
 }
 
 impl<'a> InvalidPrimitiveDotAccess<'a> {
-    pub(super) fn new(sort: &'a rty::Sort, fld: SurfaceIdent) -> Self {
+    pub(super) fn new(sort: &'a rty::Sort, fld: Ident) -> Self {
         Self { sort, span: fld.span }
     }
 }

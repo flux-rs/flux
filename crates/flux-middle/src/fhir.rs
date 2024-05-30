@@ -36,7 +36,7 @@ use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 pub use rustc_middle::mir::Mutability;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
-use rustc_span::{Span, Symbol};
+use rustc_span::{symbol::Ident, Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
 use crate::{global_env::GlobalEnv, pretty, rty::Constant};
@@ -481,7 +481,7 @@ pub struct FnDecl<'fhir> {
 #[derive(Clone, Copy)]
 pub struct FnSig<'fhir> {
     //// List of local qualifiers for this function
-    pub qualifiers: &'fhir [SurfaceIdent],
+    pub qualifiers: &'fhir [Ident],
     pub decl: &'fhir FnDecl<'fhir>,
 }
 
@@ -650,7 +650,7 @@ impl<'fhir> Path<'fhir> {
 
 #[derive(Clone, Copy)]
 pub struct PathSegment<'fhir> {
-    pub ident: SurfaceIdent,
+    pub ident: Ident,
     pub res: Res,
     pub args: &'fhir [GenericArg<'fhir>],
     pub bindings: &'fhir [TypeBinding<'fhir>],
@@ -658,7 +658,7 @@ pub struct PathSegment<'fhir> {
 
 #[derive(Clone, Copy)]
 pub struct TypeBinding<'fhir> {
-    pub ident: SurfaceIdent,
+    pub ident: Ident,
     pub term: Ty<'fhir>,
 }
 
@@ -799,7 +799,7 @@ pub enum Sort<'fhir> {
 #[derive(Clone, Copy)]
 pub struct SortPath<'fhir> {
     pub res: SortRes,
-    pub segment: SurfaceIdent,
+    pub segment: Ident,
     pub args: &'fhir [Sort<'fhir>],
 }
 
@@ -840,7 +840,7 @@ pub struct Expr<'fhir> {
 #[derive(Clone, Copy)]
 pub enum ExprKind<'fhir> {
     Var(PathExpr<'fhir>, Option<ParamKind>),
-    Dot(PathExpr<'fhir>, SurfaceIdent),
+    Dot(PathExpr<'fhir>, Ident),
     Literal(Lit),
     BinaryOp(BinOp, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     UnaryOp(UnOp, &'fhir Expr<'fhir>),
@@ -855,8 +855,6 @@ pub enum Lit {
     Real(i128),
     Bool(bool),
 }
-
-pub type SurfaceIdent = rustc_span::symbol::Ident;
 
 #[derive(Clone, Copy, Debug)]
 pub enum ExprRes<Id = ParamId> {
@@ -886,7 +884,7 @@ impl<Id> ExprRes<Id> {
 
 #[derive(Clone, Copy)]
 pub struct PathExpr<'fhir> {
-    pub segments: &'fhir [SurfaceIdent],
+    pub segments: &'fhir [Ident],
     pub res: ExprRes,
     pub fhir_id: FhirId,
     pub span: Span,

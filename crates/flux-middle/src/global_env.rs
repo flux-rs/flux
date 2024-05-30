@@ -484,7 +484,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         self.fhir.consts.values().copied()
     }
 
-    pub fn fn_quals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [fhir::SurfaceIdent]> {
+    pub fn fn_quals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [Ident]> {
         // This is called on adts when checking invariants
         if let Some(fn_sig) = self.node(def_id)?.fn_sig() {
             Ok(fn_sig.qualifiers)
