@@ -790,6 +790,44 @@ impl Parse for Generics {
     }
 }
 
+fn opt_parse_where_clause_in_signature(input: ParseStream) -> Result<Option<syn::WhereClause>> {
+    if input.peek(Token![where]) {
+        parse_where_clause_in_signature(input).map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
+fn parse_where_clause_in_signature(input: ParseStream) -> Result<syn::WhereClause> {
+    Ok(syn::WhereClause {
+        where_token: input.parse()?,
+        predicates: {
+            let mut predicates = Punctuated::new();
+            loop {
+                if input.is_empty()
+                    || input.peek(token::Brace)
+                    || input.peek(Token![,])
+                    || input.peek(Token![;])
+                    || input.peek(Token![:]) && !input.peek(Token![::])
+                    || input.peek(Token![=])
+                    || input.peek(kw::requires)
+                    || input.peek(kw::ensures)
+                {
+                    break;
+                }
+                let value = input.parse()?;
+                predicates.push_value(value);
+                if !input.peek(Token![,]) {
+                    break;
+                }
+                let punct = input.parse()?;
+                predicates.push_punct(punct);
+            }
+            predicates
+        },
+    })
+}
+
 impl Parse for GenericParam {
     fn parse(input: ParseStream) -> Result<Self> {
         let attrs = input.call(Attribute::parse_outer)?;
@@ -1236,7 +1274,7 @@ impl Parse for Signature {
         let paren_token = parenthesized!(content in input);
         let inputs = content.parse_terminated(FnArg::parse, Token![,])?;
         let output = input.parse()?;
-        generics.where_clause = input.parse()?;
+        generics.where_clause = opt_parse_where_clause_in_signature(input)?;
         let requires = parse_requires(input)?;
         let ensures = parse_ensures(input)?;
         Ok(Signature { fn_token, ident, generics, paren_token, inputs, output, requires, ensures })
@@ -1250,11 +1288,7 @@ fn parse_requires(input: ParseStream) -> Result<Option<Requires>> {
 
     let requires_token = input.parse()?;
     let mut constraint = TokenStream::new();
-    while !(input.is_empty()
-        || input.peek(kw::ensures)
-        || input.peek(token::Brace)
-        || input.peek(Token![,]))
-    {
+    while !(input.is_empty() || input.peek(kw::ensures) || input.peek(token::Brace)) {
         let tt: TokenTree = input.parse()?;
         constraint.append(tt);
     }
