@@ -167,8 +167,8 @@ pub trait Visitor: Sized {
         walk_expr(self, expr);
     }
 
-    fn visit_alias_pred(&mut self, alias_pred: &AliasReft) {
-        walk_alias_pred(self, alias_pred);
+    fn visit_alias_reft(&mut self, alias_reft: &AliasReft) {
+        walk_alias_reft(self, alias_reft);
     }
 
     fn visit_literal(&mut self, _lit: &Lit) {}
@@ -448,7 +448,7 @@ pub fn walk_refine_arg<V: Visitor>(vis: &mut V, arg: &RefineArg) {
     }
 }
 
-pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias: &AliasReft) {
+pub fn walk_alias_reft<V: Visitor>(vis: &mut V, alias: &AliasReft) {
     vis.visit_ty(alias.qself);
     vis.visit_path(&alias.path);
 }
@@ -468,8 +468,8 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         ExprKind::App(_func, args) => {
             walk_list!(vis, visit_expr, args);
         }
-        ExprKind::Alias(alias_pred, args) => {
-            vis.visit_alias_pred(&alias_pred);
+        ExprKind::Alias(alias_reft, args) => {
+            vis.visit_alias_reft(&alias_reft);
             walk_list!(vis, visit_expr, args);
         }
         ExprKind::IfThenElse(e1, e2, e3) => {

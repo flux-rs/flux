@@ -361,7 +361,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             == def_id
     }
 
-    pub fn extern_id_of(self, def_id: DefId) -> QueryResult<Option<DefId>> {
+    fn extern_id_of(self, def_id: DefId) -> QueryResult<Option<DefId>> {
         let Some(local_id) = def_id.as_local() else { return Ok(None) };
         self.map().extern_id_of(local_id)
     }
