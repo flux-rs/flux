@@ -887,7 +887,7 @@
             == def_id
     }
 
-    <span class="kw">pub fn </span>extern_id_of(<span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;DefId&gt;&gt; {
+    <span class="kw">fn </span>extern_id_of(<span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;DefId&gt;&gt; {
         <span class="kw">let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
         <span class="self">self</span>.map().extern_id_of(local_id)
     }

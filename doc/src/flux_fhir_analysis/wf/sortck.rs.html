@@ -724,7 +724,7 @@
 
 <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub </span>genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    params: UnordMap&lt;fhir::ParamId, (rty::Sort, fhir::ParamKind)&gt;,
+    <span class="kw">pub </span>params: UnordMap&lt;fhir::ParamId, (rty::Sort, fhir::ParamKind)&gt;,
     <span class="kw">pub</span>(<span class="kw">super</span>) sort_unification_table: InPlaceUnificationTable&lt;rty::SortVid&gt;,
     num_unification_table: InPlaceUnificationTable&lt;rty::NumVid&gt;,
     <span class="kw">pub </span>wfckresults: WfckResults&lt;<span class="lifetime">'genv</span>&gt;,

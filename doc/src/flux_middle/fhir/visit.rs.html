@@ -648,8 +648,8 @@
         walk_expr(<span class="self">self</span>, expr);
     }
 
-    <span class="kw">fn </span>visit_alias_pred(<span class="kw-2">&amp;mut </span><span class="self">self</span>, alias_pred: <span class="kw-2">&amp;</span>AliasReft) {
-        walk_alias_pred(<span class="self">self</span>, alias_pred);
+    <span class="kw">fn </span>visit_alias_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, alias_reft: <span class="kw-2">&amp;</span>AliasReft) {
+        walk_alias_reft(<span class="self">self</span>, alias_reft);
     }
 
     <span class="kw">fn </span>visit_literal(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _lit: <span class="kw-2">&amp;</span>Lit) {}
@@ -929,7 +929,7 @@
     }
 }
 
-<span class="kw">pub fn </span>walk_alias_pred&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, alias: <span class="kw-2">&amp;</span>AliasReft) {
+<span class="kw">pub fn </span>walk_alias_reft&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, alias: <span class="kw-2">&amp;</span>AliasReft) {
     vis.visit_ty(alias.qself);
     vis.visit_path(<span class="kw-2">&amp;</span>alias.path);
 }
@@ -949,8 +949,8 @@
         ExprKind::App(_func, args) =&gt; {
             <span class="macro">walk_list!</span>(vis, visit_expr, args);
         }
-        ExprKind::Alias(alias_pred, args) =&gt; {
-            vis.visit_alias_pred(<span class="kw-2">&amp;</span>alias_pred);
+        ExprKind::Alias(alias_reft, args) =&gt; {
+            vis.visit_alias_reft(<span class="kw-2">&amp;</span>alias_reft);
             <span class="macro">walk_list!</span>(vis, visit_expr, args);
         }
         ExprKind::IfThenElse(e1, e2, e3) =&gt; {

@@ -1700,10 +1700,6 @@
 <a href="#1700" id="1700">1700</a>
 <a href="#1701" id="1701">1701</a>
 <a href="#1702" id="1702">1702</a>
-<a href="#1703" id="1703">1703</a>
-<a href="#1704" id="1704">1704</a>
-<a href="#1705" id="1705">1705</a>
-<a href="#1706" id="1706">1706</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2386,8 +2382,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         env: <span class="kw-2">&amp;mut </span>Env,
         alias: <span class="kw-2">&amp;</span>fhir::AliasReft,
-        func_args: <span class="kw-2">&amp;</span>[fhir::Expr],
-    ) -&gt; QueryResult&lt;rty::Expr&gt; {
+    ) -&gt; QueryResult&lt;rty::AliasReft&gt; {
         <span class="kw">let </span>fhir::Res::Def(DefKind::Trait, trait_id) = alias.path.res <span class="kw">else </span>{
             <span class="macro">bug!</span>(<span class="string">"expected trait"</span>)
         };
@@ -2399,15 +2394,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>generic_args = <span class="macro">vec!</span>[self_ty];
         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment.args, <span class="kw-2">&amp;mut </span>generic_args)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>func_args = func_args
-            .iter()
-            .map(|arg| <span class="self">self</span>.conv_expr(env, arg))
-            .try_collect()<span class="question-mark">?</span>;
-
-        <span class="kw">let </span>alias_reft =
-            rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
-
-        <span class="prelude-val">Ok</span>(rty::Expr::alias(alias_reft, func_args))
+        <span class="prelude-val">Ok</span>(rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) })
     }
 
     <span class="kw">fn </span>conv_ty(<span class="kw-2">&amp;</span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, ty: <span class="kw-2">&amp;</span>fhir::Ty) -&gt; QueryResult&lt;rty::Ty&gt; {
@@ -3004,9 +2991,14 @@
             fhir::ExprKind::App(func, args) =&gt; {
                 rty::Expr::app(<span class="self">self</span>.conv_func(env, func), <span class="self">self</span>.conv_exprs(env, args)<span class="question-mark">?</span>, espan)
             }
-            fhir::ExprKind::Alias(alias, func_args) =&gt; {
-                <span class="self">self</span>.conv_alias_reft(env, alias, func_args)<span class="question-mark">?
-            </span>}
+            fhir::ExprKind::Alias(alias, args) =&gt; {
+                <span class="kw">let </span>args = args
+                    .iter()
+                    .map(|arg| <span class="self">self</span>.conv_expr(env, arg))
+                    .try_collect()<span class="question-mark">?</span>;
+                <span class="kw">let </span>alias = <span class="self">self</span>.conv_alias_reft(env, alias)<span class="question-mark">?</span>;
+                rty::Expr::alias(alias, args)
+            }
             fhir::ExprKind::IfThenElse(p, e1, e2) =&gt; {
                 rty::Expr::ite(
                     <span class="self">self</span>.conv_expr(env, p)<span class="question-mark">?</span>,
