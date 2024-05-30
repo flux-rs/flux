@@ -1139,7 +1139,7 @@ impl Parse for ItemImpl {
         let content;
         let attrs = input.call(Attribute::parse_outer)?;
         let impl_token = input.parse()?;
-        let generics = input.parse()?;
+        let mut generics: Generics = input.parse()?;
 
         let mut first_ty = input.parse()?;
 
@@ -1168,6 +1168,7 @@ impl Parse for ItemImpl {
             trait_ = None;
             self_ty = first_ty;
         }
+        generics.where_clause = input.parse()?;
         Ok(ItemImpl {
             attrs,
             impl_token,
@@ -1930,6 +1931,7 @@ impl ToTokens for ItemImpl {
             for_token.to_tokens(tokens);
         }
         self.self_ty.to_tokens(tokens);
+        self.generics.where_clause.to_tokens(tokens);
         self.brace_token
             .surround(tokens, |tokens| tokens.append_all(&self.items));
     }
