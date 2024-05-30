@@ -1717,7 +1717,7 @@
 
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, span_bug};
 <span class="kw">use </span>flux_middle::{
-    fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId, SurfaceIdent},
+    fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
@@ -2245,7 +2245,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         trait_def_id: DefId,
         assoc_kind: AssocKind,
-        assoc_name: SurfaceIdent,
+        assoc_name: Ident,
     ) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>AssocItem&gt; {
         <span class="self">self</span>.genv
             .tcx()
@@ -3205,7 +3205,7 @@
             .unwrap_or_else(|| <span class="macro">span_bug!</span>(<span class="self">self</span>.span, <span class="string">"expected path, found `{:?}`"</span>, <span class="self">self</span>.to_expr()))
     }
 
-    <span class="kw">fn </span>get_field(<span class="kw-2">&amp;</span><span class="self">self</span>, fld: SurfaceIdent) -&gt; rty::Expr {
+    <span class="kw">fn </span>get_field(<span class="kw-2">&amp;</span><span class="self">self</span>, fld: Ident) -&gt; rty::Expr {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(sort_def) = <span class="self">self</span>.is_adt() {
             <span class="kw">let </span>def_id = sort_def.did();
             <span class="kw">let </span>i = sort_def

@@ -698,10 +698,6 @@
 <a href="#698" id="698">698</a>
 <a href="#699" id="699">699</a>
 <a href="#700" id="700">700</a>
-<a href="#701" id="701">701</a>
-<a href="#702" id="702">702</a>
-<a href="#703" id="703">703</a>
-<a href="#704" id="704">704</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
@@ -719,7 +715,7 @@
 <span class="kw">use </span>itertools::izip;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_errors::Diagnostic;
-<span class="kw">use </span>rustc_span::{def_id::DefId, Span};
+<span class="kw">use </span>rustc_span::{def_id::DefId, symbol::Ident, Span};
 
 <span class="kw">use </span><span class="kw">super</span>::errors;
 <span class="kw">use crate</span>::{compare_impl_item::errors::InvalidAssocReft, conv};
@@ -1332,11 +1328,7 @@
         <span class="self">self</span>.emit_err(errors::SortMismatch::new(span, expected, found))
     }
 
-    <span class="kw">fn </span>emit_field_not_found(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        sort: <span class="kw-2">&amp;</span>rty::Sort,
-        field: fhir::SurfaceIdent,
-    ) -&gt; ErrorGuaranteed {
+    <span class="kw">fn </span>emit_field_not_found(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort, field: Ident) -&gt; ErrorGuaranteed {
         <span class="self">self</span>.emit_err(errors::FieldNotFound::new(sort.clone(), field))
     }
 

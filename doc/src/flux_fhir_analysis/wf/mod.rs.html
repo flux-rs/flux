@@ -307,7 +307,7 @@
 };
 <span class="kw">use </span>flux_errors::{Errors, FluxSession};
 <span class="kw">use </span>flux_middle::{
-    fhir::{<span class="self">self</span>, visit::Visitor, FluxOwnerId, SurfaceIdent},
+    fhir::{<span class="self">self</span>, visit::Visitor, FluxOwnerId},
     global_env::GlobalEnv,
     rty::{<span class="self">self</span>, WfckResults},
 };
@@ -315,7 +315,7 @@
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir::def::DefKind;
-<span class="kw">use </span>rustc_span::Symbol;
+<span class="kw">use </span>rustc_span::{symbol::Ident, Symbol};
 
 <span class="kw">use </span><span class="self">self</span>::sortck::{ImplicitParamInferer, InferCtxt};
 <span class="kw">use </span><span class="kw">crate</span>::conv::{<span class="self">self</span>, bug_on_infer_sort};
@@ -394,7 +394,7 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_fn_quals(
     sess: <span class="kw-2">&amp;</span>FluxSession,
     qualifiers: <span class="kw-2">&amp;</span>UnordSet&lt;Symbol&gt;,
-    fn_quals: <span class="kw-2">&amp;</span>[SurfaceIdent],
+    fn_quals: <span class="kw-2">&amp;</span>[Ident],
 ) -&gt; <span class="prelude-ty">Result </span>{
     <span class="kw">for </span>qual <span class="kw">in </span>fn_quals {
         <span class="kw">if </span>!qualifiers.contains(<span class="kw-2">&amp;</span>qual.name) {

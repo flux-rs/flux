@@ -239,16 +239,10 @@
 <a href="#239" id="239">239</a>
 <a href="#240" id="240">240</a>
 <a href="#241" id="241">241</a>
-<a href="#242" id="242">242</a>
-<a href="#243" id="243">243</a>
-<a href="#244" id="244">244</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_errors::E0999;
 <span class="kw">use </span>flux_macros::Diagnostic;
-<span class="kw">use </span>flux_middle::{
-    fhir::{<span class="self">self</span>, SurfaceIdent},
-    rty,
-};
-<span class="kw">use </span>rustc_span::{Span, Symbol};
+<span class="kw">use </span>flux_middle::{fhir, rty};
+<span class="kw">use </span>rustc_span::{symbol::Ident, Span, Symbol};
 
 <span class="attr">#[derive(Diagnostic)]
 #[diag(fhir_analysis_sort_mismatch, code = E0999)]
@@ -406,11 +400,11 @@
     <span class="attr">#[primary_span]
     </span>span: Span,
     sort: rty::Sort,
-    fld: SurfaceIdent,
+    fld: Ident,
 }
 
 <span class="kw">impl </span>FieldNotFound {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(sort: rty::Sort, fld: SurfaceIdent) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(sort: rty::Sort, fld: Ident) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ span: fld.span, sort, fld }
     }
 }
@@ -424,7 +418,7 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; InvalidPrimitiveDotAccess&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(sort: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rty::Sort, fld: SurfaceIdent) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(sort: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rty::Sort, fld: Ident) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ sort, span: fld.span }
     }
 }

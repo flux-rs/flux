@@ -1435,8 +1435,6 @@
 <a href="#1435" id="1435">1435</a>
 <a href="#1436" id="1436">1436</a>
 <a href="#1437" id="1437">1437</a>
-<a href="#1438" id="1438">1438</a>
-<a href="#1439" id="1439">1439</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1475,7 +1473,7 @@
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 <span class="kw">pub use </span>rustc_middle::mir::Mutability;
 <span class="kw">use </span>rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
-<span class="kw">use </span>rustc_span::{Span, Symbol};
+<span class="kw">use </span>rustc_span::{symbol::Ident, Span, Symbol};
 <span class="kw">pub use </span>rustc_target::abi::VariantIdx;
 
 <span class="kw">use crate</span>::{global_env::GlobalEnv, pretty, rty::Constant};
@@ -1920,7 +1918,7 @@
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>FnSig&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="comment">//// List of local qualifiers for this function
-    </span><span class="kw">pub </span>qualifiers: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[SurfaceIdent],
+    </span><span class="kw">pub </span>qualifiers: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Ident],
     <span class="kw">pub </span>decl: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>FnDecl&lt;<span class="lifetime">'fhir</span>&gt;,
 }
 
@@ -2089,7 +2087,7 @@
 
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>PathSegment&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>ident: SurfaceIdent,
+    <span class="kw">pub </span>ident: Ident,
     <span class="kw">pub </span>res: Res,
     <span class="kw">pub </span>args: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[GenericArg&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>bindings: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[TypeBinding&lt;<span class="lifetime">'fhir</span>&gt;],
@@ -2097,7 +2095,7 @@
 
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>TypeBinding&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>ident: SurfaceIdent,
+    <span class="kw">pub </span>ident: Ident,
     <span class="kw">pub </span>term: Ty&lt;<span class="lifetime">'fhir</span>&gt;,
 }
 
@@ -2238,7 +2236,7 @@
 </span><span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>SortPath&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>res: SortRes,
-    <span class="kw">pub </span>segment: SurfaceIdent,
+    <span class="kw">pub </span>segment: Ident,
     <span class="kw">pub </span>args: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Sort&lt;<span class="lifetime">'fhir</span>&gt;],
 }
 
@@ -2279,7 +2277,7 @@
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub enum </span>ExprKind&lt;<span class="lifetime">'fhir</span>&gt; {
     Var(PathExpr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="prelude-ty">Option</span>&lt;ParamKind&gt;),
-    Dot(PathExpr&lt;<span class="lifetime">'fhir</span>&gt;, SurfaceIdent),
+    Dot(PathExpr&lt;<span class="lifetime">'fhir</span>&gt;, Ident),
     Literal(Lit),
     BinaryOp(BinOp, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;),
     UnaryOp(UnOp, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Expr&lt;<span class="lifetime">'fhir</span>&gt;),
@@ -2294,8 +2292,6 @@
     Real(i128),
     Bool(bool),
 }
-
-<span class="kw">pub type </span>SurfaceIdent = rustc_span::symbol::Ident;
 
 <span class="attr">#[derive(Clone, Copy, Debug)]
 </span><span class="kw">pub enum </span>ExprRes&lt;Id = ParamId&gt; {
@@ -2325,7 +2321,7 @@
 
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>PathExpr&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>segments: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[SurfaceIdent],
+    <span class="kw">pub </span>segments: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Ident],
     <span class="kw">pub </span>res: ExprRes,
     <span class="kw">pub </span>fhir_id: FhirId,
     <span class="kw">pub </span>span: Span,

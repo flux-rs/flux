@@ -1010,7 +1010,7 @@
         <span class="self">self</span>.fhir.consts.values().copied()
     }
 
-    <span class="kw">pub fn </span>fn_quals_for(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::SurfaceIdent]&gt; {
+    <span class="kw">pub fn </span>fn_quals_for(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[Ident]&gt; {
         <span class="comment">// This is called on adts when checking invariants
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="self">self</span>.node(def_id)<span class="question-mark">?</span>.fn_sig() {
             <span class="prelude-val">Ok</span>(fn_sig.qualifiers)
