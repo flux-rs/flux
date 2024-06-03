@@ -2390,7 +2390,7 @@
 
         <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(trait_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>self_ty =
-            <span class="self">self</span>.conv_ty_to_generic_arg(env, generics.param_at(<span class="number">0</span>, <span class="self">self</span>.genv)<span class="question-mark">?</span>.kind, alias.qself)<span class="question-mark">?</span>;
+            <span class="self">self</span>.conv_ty_to_generic_arg(env, <span class="kw-2">&amp;</span>generics.param_at(<span class="number">0</span>, <span class="self">self</span>.genv)<span class="question-mark">?</span>, alias.qself)<span class="question-mark">?</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>generic_args = <span class="macro">vec!</span>[self_ty];
         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment.args, <span class="kw-2">&amp;mut </span>generic_args)<span class="question-mark">?</span>;
 
@@ -2491,7 +2491,7 @@
                         <span class="kw">let </span>trait_generics = <span class="self">self</span>.genv.generics_of(trait_id)<span class="question-mark">?</span>;
                         <span class="kw">let </span>qself = qself.as_deref().unwrap();
                         <span class="kw">let </span>qself =
-                            <span class="self">self</span>.conv_ty_to_generic_arg(env, trait_generics.params[<span class="number">0</span>].kind, qself)<span class="question-mark">?</span>;
+                            <span class="self">self</span>.conv_ty_to_generic_arg(env, <span class="kw-2">&amp;</span>trait_generics.params[<span class="number">0</span>], qself)<span class="question-mark">?</span>;
                         <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[qself];
                         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment.args, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
                         <span class="self">self</span>.conv_generic_args_into(env, assoc_id, assoc_segment.args, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
@@ -2810,7 +2810,7 @@
                     into.push(rty::GenericArg::Lifetime(<span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft)));
                 }
                 fhir::GenericArg::Type(ty) =&gt; {
-                    into.push(<span class="self">self</span>.conv_ty_to_generic_arg(env, param.kind, ty)<span class="question-mark">?</span>);
+                    into.push(<span class="self">self</span>.conv_ty_to_generic_arg(env, <span class="kw-2">&amp;</span>param, ty)<span class="question-mark">?</span>);
                 }
             }
         }
@@ -2843,14 +2843,14 @@
     <span class="kw">fn </span>conv_ty_to_generic_arg(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         env: <span class="kw-2">&amp;mut </span>Env,
-        kind: rty::GenericParamDefKind,
+        param: <span class="kw-2">&amp;</span>rty::GenericParamDef,
         ty: <span class="kw-2">&amp;</span>fhir::Ty,
     ) -&gt; QueryResult&lt;rty::GenericArg&gt; {
         <span class="kw">let </span>rty_ty = <span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>;
-        <span class="kw">match </span>kind {
+        <span class="kw">match </span><span class="kw-2">&amp;</span>param.kind {
             rty::GenericParamDefKind::Type { .. } =&gt; <span class="prelude-val">Ok</span>(rty::GenericArg::Ty(rty_ty)),
             rty::GenericParamDefKind::Base =&gt; <span class="self">self</span>.ty_to_base_generic(ty.span, <span class="kw-2">&amp;</span>rty_ty),
-            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"unexpected param kind `{kind:?}`"</span>),
+            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"unexpected param `{param:?}`"</span>),
         }
     }
 
