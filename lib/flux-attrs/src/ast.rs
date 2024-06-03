@@ -6,7 +6,7 @@ use syn::{
     braced, bracketed,
     ext::IdentExt,
     parenthesized,
-    parse::{discouraged::Speculative, Parse, ParseBuffer, ParseStream, Peek},
+    parse::{discouraged::Speculative, Parse, ParseStream, Peek},
     punctuated::Punctuated,
     token::{self, Mut, Paren},
     Attribute, Ident, Result, Token, Visibility,
@@ -279,6 +279,7 @@ pub struct TraitItemReft {
     pub paren_token: token::Paren,
     pub params: TokenStream,
     pub returns: TokenStream,
+    #[allow(dead_code)]
     pub semi_token: Token![;],
 }
 
@@ -2742,6 +2743,7 @@ fn peek_signature(input: ParseStream) -> bool {
 
 struct FlexibleItemType {
     vis: Visibility,
+    #[allow(dead_code)]
     defaultness: Option<Token![default]>,
     type_token: Token![type],
     ident: Ident,
@@ -2753,10 +2755,12 @@ struct FlexibleItemType {
 }
 
 enum TypeDefaultness {
+    #[allow(dead_code)]
     Optional,
     Disallowed,
 }
 
+#[allow(dead_code)]
 enum WhereClauseLocation {
     // type Ty<T> where T: 'static = T;
     BeforeEq,
@@ -2847,6 +2851,7 @@ impl FlexibleItemType {
         }
     }
 }
+
 fn parse_trait_item_type(input: ParseStream) -> Result<TraitItem> {
     let FlexibleItemType {
         vis,

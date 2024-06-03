@@ -12,7 +12,7 @@
       "patterns": [
         {
           "name": "keyword.other.flux",
-          "match": "\\bstrg|requires|ensures|refined by\\b"
+          "match": "\\bstrg|requires|ensures|refined by|forall|reft\\b"
         }
       ]
     }

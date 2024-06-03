@@ -688,7 +688,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         let generics = self.genv.generics_of(trait_id)?;
         let self_ty =
-            self.conv_ty_to_generic_arg(env, generics.param_at(0, self.genv)?.kind, alias.qself)?;
+            self.conv_ty_to_generic_arg(env, &generics.param_at(0, self.genv)?, alias.qself)?;
         let mut generic_args = vec![self_ty];
         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut generic_args)?;
 
@@ -789,7 +789,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                         let trait_generics = self.genv.generics_of(trait_id)?;
                         let qself = qself.as_deref().unwrap();
                         let qself =
-                            self.conv_ty_to_generic_arg(env, trait_generics.params[0].kind, qself)?;
+                            self.conv_ty_to_generic_arg(env, &trait_generics.params[0], qself)?;
                         let mut args = vec![qself];
                         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
                         self.conv_generic_args_into(env, assoc_id, assoc_segment.args, &mut args)?;
@@ -1108,7 +1108,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     into.push(rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft)));
                 }
                 fhir::GenericArg::Type(ty) => {
-                    into.push(self.conv_ty_to_generic_arg(env, param.kind, ty)?);
+                    into.push(self.conv_ty_to_generic_arg(env, &param, ty)?);
                 }
             }
         }
@@ -1141,14 +1141,14 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_ty_to_generic_arg(
         &self,
         env: &mut Env,
-        kind: rty::GenericParamDefKind,
+        param: &rty::GenericParamDef,
         ty: &fhir::Ty,
     ) -> QueryResult<rty::GenericArg> {
         let rty_ty = self.conv_ty(env, ty)?;
-        match kind {
+        match &param.kind {
             rty::GenericParamDefKind::Type { .. } => Ok(rty::GenericArg::Ty(rty_ty)),
             rty::GenericParamDefKind::Base => self.ty_to_base_generic(ty.span, &rty_ty),
-            _ => bug!("unexpected param kind `{kind:?}`"),
+            _ => bug!("unexpected param `{param:?}`"),
         }
     }
 
