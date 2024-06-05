@@ -731,6 +731,58 @@
 <a href="#731" id="731">731</a>
 <a href="#732" id="732">732</a>
 <a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
 </pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>std::collections::hash_map::Entry;
@@ -751,10 +803,11 @@
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hash::FxHashMap;
-<span class="kw">use </span>rustc_hir <span class="kw">as </span>hir;
+<span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, ParamName, PrimTy};
 <span class="kw">use </span>rustc_middle::{metadata::ModChild, ty::TyCtxt};
 <span class="kw">use </span>rustc_span::{
     def_id::{CrateNum, DefId},
+    symbol::kw,
     Span, Symbol,
 };
 
@@ -869,42 +922,84 @@
     }
 
     <span class="kw">fn </span>visit_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::Item&lt;<span class="lifetime">'tcx</span>&gt;) {
+        <span class="self">self</span>.push_rib();
         <span class="kw">match </span>item.kind {
-            ItemKind::Trait(..) =&gt; {
+            ItemKind::Trait(<span class="kw">_</span>, <span class="kw">_</span>, generics, ..) =&gt; {
+                <span class="self">self</span>.define_generics(generics);
+                <span class="self">self</span>.define_res_in_type_ns(
+                    kw::SelfUpper,
+                    hir::def::Res::SelfTyParam { trait_: item.owner_id.to_def_id() },
+                );
                 <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_trait(item.owner_id));
             }
-            ItemKind::Impl(..) =&gt; {
+            ItemKind::Impl(impl_) =&gt; {
+                <span class="self">self</span>.define_generics(impl_.generics);
+                <span class="self">self</span>.define_res_in_type_ns(
+                    kw::SelfUpper,
+                    hir::def::Res::SelfTyAlias {
+                        alias_to: item.owner_id.to_def_id(),
+                        forbid_generic: <span class="bool-val">false</span>,
+                        is_trait_impl: impl_.of_trait.is_some(),
+                    },
+                );
                 <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_impl(item.owner_id));
             }
-            ItemKind::TyAlias(..) =&gt; {
+            ItemKind::TyAlias(<span class="kw">_</span>, generics) =&gt; {
+                <span class="self">self</span>.define_generics(generics);
                 <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_type_alias(item.owner_id));
             }
-            ItemKind::Enum(..) =&gt; {
+            ItemKind::Enum(.., generics) =&gt; {
+                <span class="self">self</span>.define_generics(generics);
+                <span class="self">self</span>.define_res_in_type_ns(
+                    kw::SelfUpper,
+                    hir::def::Res::SelfTyAlias {
+                        alias_to: item.owner_id.to_def_id(),
+                        forbid_generic: <span class="bool-val">false</span>,
+                        is_trait_impl: <span class="bool-val">false</span>,
+                    },
+                );
                 <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_enum_def(item.owner_id));
             }
-            ItemKind::Struct(..) =&gt; {
+            ItemKind::Struct(.., generics) =&gt; {
+                <span class="self">self</span>.define_generics(generics);
+                <span class="self">self</span>.define_res_in_type_ns(
+                    kw::SelfUpper,
+                    hir::def::Res::SelfTyAlias {
+                        alias_to: item.owner_id.to_def_id(),
+                        forbid_generic: <span class="bool-val">false</span>,
+                        is_trait_impl: <span class="bool-val">false</span>,
+                    },
+                );
                 <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_struct_def(item.owner_id));
             }
-            ItemKind::Fn(..) =&gt; {
+            ItemKind::Fn(<span class="kw">_</span>, generics, <span class="kw">_</span>) =&gt; {
+                <span class="self">self</span>.define_generics(generics);
                 <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_fn_sig(item.owner_id));
             }
             <span class="kw">_ </span>=&gt; {}
         }
         hir::intravisit::walk_item(<span class="self">self</span>, item);
+        <span class="self">self</span>.pop_rib();
     }
 
     <span class="kw">fn </span>visit_impl_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::ImplItem&lt;<span class="lifetime">'tcx</span>&gt;) {
+        <span class="self">self</span>.push_rib();
+        <span class="self">self</span>.define_generics(impl_item.generics);
         <span class="kw">if let </span>hir::ImplItemKind::Fn(..) = impl_item.kind {
             <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_fn_sig(impl_item.owner_id));
         }
         hir::intravisit::walk_impl_item(<span class="self">self</span>, impl_item);
+        <span class="self">self</span>.pop_rib();
     }
 
     <span class="kw">fn </span>visit_trait_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::TraitItem&lt;<span class="lifetime">'tcx</span>&gt;) {
+        <span class="self">self</span>.push_rib();
+        <span class="self">self</span>.define_generics(trait_item.generics);
         <span class="kw">if let </span>hir::TraitItemKind::Fn(..) = trait_item.kind {
             <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_fn_sig(trait_item.owner_id));
         }
         hir::intravisit::walk_trait_item(<span class="self">self</span>, trait_item);
+        <span class="self">self</span>.pop_rib();
     }
 }
 
@@ -932,7 +1027,7 @@
             genv,
             output: ResolverOutput::default(),
             specs,
-            ribs: <span class="macro">vec!</span>[],
+            ribs: <span class="macro">vec!</span>[builtin_types()],
             extern_crates,
             err: <span class="prelude-val">None</span>,
             func_decls: Default::default(),
@@ -940,6 +1035,7 @@
             consts: Default::default(),
         }
     }
+
     <span class="kw">fn </span>collect_flux_global_items(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">for </span>sort_decl <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.specs.sort_decls {
             <span class="self">self</span>.sort_decls.insert(
@@ -980,6 +1076,17 @@
 
     <span class="kw">fn </span>pop_rib(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.ribs.pop();
+    }
+
+    <span class="kw">fn </span>define_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, generics: <span class="kw-2">&amp;</span>hir::Generics) {
+        <span class="kw">for </span>param <span class="kw">in </span>generics.params {
+            <span class="kw">if let </span>ParamName::Plain(name) = param.name {
+                <span class="self">self</span>.define_res_in_type_ns(
+                    name.name,
+                    hir::def::Res::Def(DefKind::TyParam, param.def_id.to_def_id()),
+                );
+            }
+        }
     }
 
     <span class="kw">fn </span>resolve_qualifier(<span class="kw-2">&amp;mut </span><span class="self">self</span>, qualifier: <span class="kw-2">&amp;</span>surface::Qualifier) -&gt; <span class="prelude-ty">Result </span>{
@@ -1048,27 +1155,15 @@
                 <span class="self">self</span>.resolve_ident(segment.ident)<span class="question-mark">?
             </span>};
 
-            <span class="kw">let </span>hir::def::Res::Def(def_kind, res_def_id) = res <span class="kw">else </span>{
+            <span class="kw">let </span>res = Res::try_from(res).ok()<span class="question-mark">?</span>;
+
+            <span class="kw">if let </span>Res::Def(DefKind::Mod, module_id) = res {
+                module = <span class="prelude-val">Some</span>(module_id);
+            } <span class="kw">else if </span>i &lt; path.segments.len() - <span class="number">1 </span>{
                 <span class="kw">return </span><span class="prelude-val">None</span>;
-            };
-
-            <span class="self">self</span>.output
-                .path_res_map
-                .insert(segment.node_id, Res::Def(def_kind, res_def_id));
-
-            <span class="kw">match </span>def_kind {
-                DefKind::Struct | DefKind::Enum | DefKind::Trait =&gt; {
-                    <span class="kw">if </span>i &lt; path.segments.len() - <span class="number">1 </span>{
-                        <span class="kw">return </span><span class="prelude-val">None</span>;
-                    }
-                }
-                DefKind::Mod =&gt; {
-                    module = <span class="prelude-val">Some</span>(res_def_id);
-                }
-                <span class="kw">_ </span>=&gt; {
-                    <span class="kw">return </span><span class="prelude-val">None</span>;
-                }
             }
+
+            <span class="self">self</span>.output.path_res_map.insert(segment.node_id, res);
         }
         <span class="prelude-val">Some</span>(())
     }
@@ -1421,6 +1516,15 @@
     <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>hir::Path&lt;<span class="lifetime">'tcx</span>&gt;, _id: hir::HirId) {
         <span class="self">self</span>.table.insert_hir_path(path);
         hir::intravisit::walk_path(<span class="self">self</span>, path);
+    }
+}
+
+<span class="kw">fn </span>builtin_types() -&gt; Rib {
+    Rib {
+        type_ns_bindings: PrimTy::ALL
+            .into_iter()
+            .map(|pty| (pty.name(), hir::def::Res::PrimTy(pty)))
+            .collect(),
     }
 }
 
