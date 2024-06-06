@@ -2,7 +2,7 @@ mod place_ty;
 
 use std::{iter, ops::ControlFlow};
 
-use flux_common::{dbg::debug_assert_eq3, tracked_span_bug};
+use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug};
 use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
@@ -329,6 +329,7 @@ impl BasicBlockEnvShape {
             | TyKind::Uninit
             | TyKind::Param(_)
             | TyKind::Constr(_, _) => ty.clone(),
+            TyKind::StrgRef(..) => bug!("unexpected strong reference inside function"),
         }
     }
 

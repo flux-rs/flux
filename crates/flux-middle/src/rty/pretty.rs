@@ -240,6 +240,7 @@ impl Pretty for TyS {
                 })
             }
             TyKind::Uninit => w!("uninit"),
+            TyKind::StrgRef(re, loc, ty) => w!("&{:?} strg <{:?}: {:?}>", re, loc, ty),
             TyKind::Ptr(pk, loc) => w!("ptr({:?}, {:?})", pk, loc),
             TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.did(), ^place),
             TyKind::Constr(pred, ty) => {

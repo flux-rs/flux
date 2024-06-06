@@ -792,6 +792,10 @@ impl TypeSuperVisitable for Ty {
                 idxs.visit_with(visitor)
             }
             TyKind::Exists(exists) => exists.visit_with(visitor),
+            TyKind::StrgRef(_, path, ty) => {
+                path.to_expr().visit_with(visitor)?;
+                ty.visit_with(visitor)
+            }
             TyKind::Ptr(_, path) => path.to_expr().visit_with(visitor),
             TyKind::Constr(pred, ty) => {
                 pred.visit_with(visitor)?;
@@ -821,6 +825,17 @@ impl TypeSuperFoldable for Ty {
                 Ty::indexed(bty.try_fold_with(folder)?, idxs.try_fold_with(folder)?)
             }
             TyKind::Exists(exists) => TyKind::Exists(exists.try_fold_with(folder)?).intern(),
+            TyKind::StrgRef(re, path, ty) => {
+                Ty::strg_ref(
+                    re.try_fold_with(folder)?,
+                    path.to_expr()
+                        .try_fold_with(folder)?
+                        .normalize(&Default::default())
+                        .to_path()
+                        .expect("type folding produced an invalid path"),
+                    ty.try_fold_with(folder)?,
+                )
+            }
             TyKind::Ptr(pk, path) => {
                 let pk = match pk {
                     PtrKind::Mut(re) => PtrKind::Mut(re.try_fold_with(folder)?),

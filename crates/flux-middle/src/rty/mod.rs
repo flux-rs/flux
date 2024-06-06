@@ -599,6 +599,10 @@ impl Ty {
         Self::alias(AliasKind::Projection, alias_ty)
     }
 
+    pub fn strg_ref(re: Region, path: Path, ty: Ty) -> Ty {
+        TyKind::StrgRef(re, path, ty).intern()
+    }
+
     pub fn ptr(pk: impl Into<PtrKind>, path: impl Into<Path>) -> Ty {
         TyKind::Ptr(pk.into(), path.into()).intern()
     }
@@ -732,6 +736,14 @@ impl Ty {
             TyKind::Alias(kind, alias_ty) => {
                 rustc_middle::ty::Ty::new_alias(tcx, kind.to_rustc(), alias_ty.to_rustc(tcx))
             }
+            TyKind::StrgRef(re, _, ty) => {
+                rustc_middle::ty::Ty::new_ref(
+                    tcx,
+                    re.to_rustc(tcx),
+                    ty.to_rustc(tcx),
+                    Mutability::Mut,
+                )
+            }
             TyKind::Uninit
             | TyKind::Ptr(_, _)
             | TyKind::Discr(_, _)
@@ -803,6 +815,7 @@ pub enum TyKind {
     Exists(Binder<Ty>),
     Constr(Expr, Ty),
     Uninit,
+    StrgRef(Region, Path, Ty),
     Ptr(PtrKind, Path),
     /// This is a bit of a hack. We use this type internally to represent the result of
     /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information

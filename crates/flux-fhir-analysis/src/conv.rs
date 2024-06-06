@@ -726,8 +726,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 }
             }
             fhir::TyKind::StrgRef(lft, loc, ty) => {
-                let region = self.conv_lifetime(env, *lft);
-                Ok(rty::Ty::ptr(rty::PtrKind::Mut(region), env.lookup(loc).to_path()))
+                let re = self.conv_lifetime(env, *lft);
+                let ty = self.conv_ty(env, ty)?;
+                Ok(rty::Ty::strg_ref(re, env.lookup(loc).to_path(), ty))
             }
             fhir::TyKind::Ref(lft, fhir::MutTy { ty, mutbl }) => {
                 let region = self.conv_lifetime(env, *lft);
