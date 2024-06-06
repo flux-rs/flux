@@ -174,9 +174,10 @@ impl fhir::visit::Visitor for ParamUsesChecker<'_, '_, '_> {
 
     fn visit_ty(&mut self, ty: &fhir::Ty) {
         match &ty.kind {
-            fhir::TyKind::Ptr(_, loc) => {
+            fhir::TyKind::StrgRef(_, loc, ty) => {
                 let (_, id) = loc.res.expect_param();
                 self.xi.insert(id, ());
+                self.visit_ty(ty);
             }
             fhir::TyKind::Exists(params, ty) => {
                 self.visit_ty(ty);

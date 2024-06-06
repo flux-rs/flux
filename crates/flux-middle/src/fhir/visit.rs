@@ -351,9 +351,10 @@ pub fn walk_ty<V: Visitor>(vis: &mut V, ty: &Ty) {
             vis.visit_expr(&pred);
             vis.visit_ty(ty);
         }
-        TyKind::Ptr(lft, loc) => {
+        TyKind::StrgRef(lft, loc, ty) => {
             vis.visit_lifetime(&lft);
             vis.visit_path_expr(&loc);
+            vis.visit_ty(ty);
         }
         TyKind::Ref(lft, mty) => {
             vis.visit_lifetime(&lft);

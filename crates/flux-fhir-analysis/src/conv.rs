@@ -725,7 +725,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     Ok(rty::Ty::exists(rty::Binder::new(ty, sorts)))
                 }
             }
-            fhir::TyKind::Ptr(lft, loc) => {
+            fhir::TyKind::StrgRef(lft, loc, ty) => {
                 let region = self.conv_lifetime(env, *lft);
                 Ok(rty::Ty::ptr(rty::PtrKind::Mut(region), env.lookup(loc).to_path()))
             }

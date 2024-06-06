@@ -234,12 +234,16 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
                 fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, _),
                 fhir::TyKind::BaseTy(expected_bty),
             ) => self.zip_bty(&bty, &expected_bty),
-            (fhir::TyKind::Ptr(lft, loc), fhir::TyKind::Ref(expected_lft, expected_mut_ty)) => {
+            (
+                fhir::TyKind::StrgRef(lft, loc, ty),
+                fhir::TyKind::Ref(expected_lft, expected_mut_ty),
+            ) => {
                 if expected_mut_ty.mutbl.is_mut() {
                     let ExprRes::Param(_, id) = loc.res else {
                         span_bug!(loc.span, "unexpected path in loc position")
                     };
                     self.zip_lifetime(lft, expected_lft);
+                    self.zip_ty(ty, expected_mut_ty.ty)?;
                     self.locs.insert(id, *expected_mut_ty.ty);
                     Ok(())
                 } else {

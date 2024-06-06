@@ -508,9 +508,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             }
 
             // Bail out if there's an error in the arguments to avoid confusing error messages
-            let args = try_alloc_slice!(self.genv, &fn_sig.args, |arg| {
-                self.desugar_fun_arg(arg, &mut requires)
-            })?;
+            let args = try_alloc_slice!(self.genv, &fn_sig.args, |arg| self.desugar_fun_arg(arg))?;
 
             let output = self.desugar_fn_output(fn_sig.asyncness, &fn_sig.output)?;
 
@@ -609,11 +607,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn desugar_fun_arg(
-        &mut self,
-        arg: &surface::Arg,
-        requires: &mut Vec<fhir::Constraint<'genv>>,
-    ) -> Result<fhir::Ty<'genv>> {
+    fn desugar_fun_arg(&mut self, arg: &surface::Arg) -> Result<fhir::Ty<'genv>> {
         match arg {
             surface::Arg::Constr(bind, path, pred, node_id) => {
                 let bty = self.desugar_path_to_bty(None, path)?;
@@ -640,8 +634,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                     span: loc.span,
                 };
                 let ty = self.desugar_ty(ty)?;
-                requires.push(fhir::Constraint::Type(path, ty));
-                let kind = fhir::TyKind::Ptr(self.mk_lft_hole(), path);
+                let kind = fhir::TyKind::StrgRef(self.mk_lft_hole(), path, self.genv.alloc(ty));
                 Ok(fhir::Ty { kind, span })
             }
             surface::Arg::Ty(bind, ty, node_id) => {

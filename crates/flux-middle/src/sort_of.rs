@@ -107,7 +107,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             | fhir::TyKind::Array(_, _)
             | fhir::TyKind::Never => Ok(Some(rty::Sort::unit())),
             fhir::TyKind::Hole(_)
-            | fhir::TyKind::Ptr(_, _)
+            | fhir::TyKind::StrgRef(..)
             | fhir::TyKind::OpaqueDef(_, _, _, _) => Ok(None),
         }
     }

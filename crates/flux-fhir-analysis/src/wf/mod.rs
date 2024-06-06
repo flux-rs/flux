@@ -230,8 +230,9 @@ impl fhir::visit::Visitor for Wf<'_, '_, '_> {
                 }
                 self.visit_bty(bty);
             }
-            fhir::TyKind::Ptr(_, loc) => {
+            fhir::TyKind::StrgRef(_, loc, ty) => {
                 self.infcx.check_loc(loc).collect_err(&mut self.errors);
+                self.visit_ty(ty);
             }
             fhir::TyKind::Constr(pred, ty) => {
                 self.visit_ty(ty);
