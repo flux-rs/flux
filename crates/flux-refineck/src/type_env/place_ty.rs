@@ -430,6 +430,10 @@ impl<'a, 'rcx, 'genv, 'tcx> Unfolder<'a, 'rcx, 'genv, 'tcx> {
                 let loc = self.unfold_box(deref_ty, alloc);
                 Ok(Ty::ptr(PtrKind::Box, Path::from(loc)))
             }
+        } else if let TyKind::StrgRef(re, path, deref_ty) = ty.kind() {
+            assert!(self.in_ref.is_none());
+            self.unfold_strg_ref(path, deref_ty);
+            Ok(Ty::ptr(PtrKind::Mut(*re), path.clone()))
         } else if ty.is_struct() {
             let ty = self.unpack(ty);
             let ty = self.downcast(&ty, FIRST_VARIANT)?;
@@ -443,6 +447,10 @@ impl<'a, 'rcx, 'genv, 'tcx> Unfolder<'a, 'rcx, 'genv, 'tcx> {
 
     fn deref(&mut self, ty: &Ty) -> CheckerResult<Ty> {
         let ty = match ty.kind() {
+            TyKind::StrgRef(re, path, ty) => {
+                self.unfold_strg_ref(path, ty);
+                Ty::ptr(PtrKind::Mut(*re), path.clone())
+            }
             TyKind::Ptr(pk, path) => {
                 self.change_root(path);
                 Ty::ptr(*pk, path.clone())
@@ -469,6 +477,14 @@ impl<'a, 'rcx, 'genv, 'tcx> Unfolder<'a, 'rcx, 'genv, 'tcx> {
             _ => tracked_span_bug!("invalid deref of `{ty:?}`"),
         };
         Ok(ty)
+    }
+
+    fn unfold_strg_ref(&mut self, path: &Path, ty: &Ty) {
+        let loc = path.to_loc().unwrap();
+        let mut place = self.cursor.to_place();
+        place.projection.push(PlaceElem::Deref);
+        self.insertions
+            .push((loc, place, Binding { kind: LocKind::Universal, ty: ty.clone() }));
     }
 
     fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {
