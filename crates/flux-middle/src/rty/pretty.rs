@@ -301,13 +301,6 @@ impl Pretty for PtrKind {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
         match self {
-            PtrKind::Shr(re) => {
-                w!("shr")?;
-                if !cx.hide_regions {
-                    w!("[{:?}]", re)?;
-                }
-                Ok(())
-            }
             PtrKind::Mut(re) => {
                 w!("mut")?;
                 if !cx.hide_regions {

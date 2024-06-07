@@ -134,9 +134,9 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             .iter()
             .map(|ty| {
                 match ty.kind() {
-                    TyKind::Ptr(PtrKind::Shr(region), path) => {
+                    TyKind::Ptr(PtrKind::Mut(region), path) => {
                         let ty = env.get(path);
-                        rty::Ty::mk_ref(*region, ty, Mutability::Not)
+                        rty::Ty::mk_ref(*region, ty, Mutability::Mut)
                     }
                     _ => ty.clone(),
                 }

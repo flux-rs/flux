@@ -51,8 +51,7 @@ impl RegionSubst {
             (TyKind::Indexed(bty, _), _) => {
                 self.infer_from_bty(bty, ty2);
             }
-            (TyKind::Ptr(PtrKind::Shr(r1), _), ty::TyKind::Ref(r2, _, Mutability::Not))
-            | (TyKind::Ptr(PtrKind::Mut(r1), _), ty::TyKind::Ref(r2, _, Mutability::Mut)) => {
+            (TyKind::Ptr(PtrKind::Mut(r1), _), ty::TyKind::Ref(r2, _, Mutability::Mut)) => {
                 self.infer_from_region(*r1, *r2);
             }
             _ => {}

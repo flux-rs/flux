@@ -108,7 +108,7 @@ impl TypeEnv<'_> {
     ) -> Result<Ty> {
         let result = self.bindings.lookup_unfolding(genv, rcx, place)?;
         if result.is_strg && mutbl == Mutability::Mut {
-            Ok(Ty::ptr(PtrKind::from_ref(re, mutbl), result.path()))
+            Ok(Ty::ptr(PtrKind::Mut(re), result.path()))
         } else {
             Ok(Ty::mk_ref(re, result.ty, mutbl))
         }

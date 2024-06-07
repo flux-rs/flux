@@ -819,7 +819,6 @@ pub enum TyKind {
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum PtrKind {
-    Shr(Region),
     Mut(Region),
     Box,
 }
@@ -1684,15 +1683,6 @@ impl EarlyBinder<PolyVariant> {
                 FnSig::new(vec![], variant.fields.clone(), output)
             })
         })
-    }
-}
-
-impl PtrKind {
-    pub fn from_ref(r: Region, m: Mutability) -> Self {
-        match m {
-            Mutability::Not => PtrKind::Shr(r),
-            Mutability::Mut => PtrKind::Mut(r),
-        }
     }
 }
 
