@@ -1105,6 +1105,15 @@
 <a href="#1105" id="1105">1105</a>
 <a href="#1106" id="1106">1106</a>
 <a href="#1107" id="1107">1107</a>
+<a href="#1108" id="1108">1108</a>
+<a href="#1109" id="1109">1109</a>
+<a href="#1110" id="1110">1110</a>
+<a href="#1111" id="1111">1111</a>
+<a href="#1112" id="1112">1112</a>
+<a href="#1113" id="1113">1113</a>
+<a href="#1114" id="1114">1114</a>
+<a href="#1115" id="1115">1115</a>
+<a href="#1116" id="1116">1116</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1285,8 +1294,17 @@
 
 <span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 </span><span class="kw">pub enum </span>AggregateKind {
-    Tuple,
+    Tuple(usize),
     Adt(DefId),
+}
+
+<span class="kw">impl </span>AggregateKind {
+    <span class="kw">pub fn </span>to_proj(<span class="self">self</span>, field: u32) -&gt; FieldProj {
+        <span class="kw">match </span><span class="self">self </span>{
+            AggregateKind::Tuple(arity) =&gt; FieldProj::Tuple { arity, field },
+            AggregateKind::Adt(def_id) =&gt; FieldProj::Adt { def_id, field },
+        }
+    }
 }
 
 <span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
@@ -1533,7 +1551,7 @@
     }
 
     <span class="kw">pub fn </span>tuple(flds: List&lt;Expr&gt;) -&gt; Expr {
-        Expr::aggregate(AggregateKind::Tuple, flds)
+        Expr::aggregate(AggregateKind::Tuple(flds.len()), flds)
     }
 
     <span class="kw">pub fn </span>adt(def_id: DefId, flds: List&lt;Expr&gt;) -&gt; Expr {
@@ -2052,7 +2070,7 @@
                         <span class="macro">w!</span>(<span class="string">"({:?}).{:?}"</span>, e, ^proj.field_idx())
                     }
                 }
-                ExprKind::Aggregate(AggregateKind::Tuple, flds) =&gt; {
+                ExprKind::Aggregate(AggregateKind::Tuple(<span class="kw">_</span>), flds) =&gt; {
                     <span class="kw">if let </span>[e] = <span class="kw-2">&amp;</span>flds[..] {
                         <span class="macro">w!</span>(<span class="string">"({:?},)"</span>, e)
                     } <span class="kw">else </span>{
