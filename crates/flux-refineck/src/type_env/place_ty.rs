@@ -1,4 +1,4 @@
-use std::{clone::Clone, fmt, iter, ops::ControlFlow};
+use std::{clone::Clone, fmt, ops::ControlFlow};
 
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_middle::{

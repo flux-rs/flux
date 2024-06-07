@@ -8,9 +8,9 @@ use flux_middle::{
         self,
         evars::{EVarCxId, EVarSol},
         fold::TypeFoldable,
-        AliasTy, BaseTy, BinOp, Binder, Constraint, CoroutineObligPredicate, ESpan, EVarGen,
-        EarlyBinder, Expr, ExprKind, FnOutput, GenericArg, HoleKind, InferMode, Lambda, Mutability,
-        Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
+        AliasTy, BaseTy, Binder, Constraint, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder,
+        Expr, ExprKind, FnOutput, GenericArg, HoleKind, InferMode, Lambda, Mutability, Path,
+        PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -688,10 +688,21 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         match (e1.kind(), e2.kind()) {
             (ExprKind::Aggregate(kind1, flds1), ExprKind::Aggregate(kind2, flds2)) => {
                 debug_assert_eq!(kind1, kind2);
-                debug_assert_eq!(flds1.len(), flds2.len());
-
                 for (e1, e2) in iter::zip(flds1, flds2) {
                     self.idx_eq(rcx, e1, e2);
+                }
+            }
+            (_, ExprKind::Aggregate(kind2, flds2)) => {
+                for (f, e2) in flds2.iter().enumerate() {
+                    let e1 = e1.proj_and_reduce(kind2.to_proj(f as u32));
+                    self.idx_eq(rcx, &e1, e2);
+                }
+            }
+            (ExprKind::Aggregate(kind1, flds1), _) => {
+                self.unify_exprs(e1, e2);
+                for (f, e1) in flds1.iter().enumerate() {
+                    let e2 = e2.proj_and_reduce(kind1.to_proj(f as u32));
+                    self.idx_eq(rcx, e1, &e2);
                 }
             }
             (ExprKind::Abs(p1), ExprKind::Abs(p2)) => {
