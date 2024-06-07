@@ -953,9 +953,9 @@
             .iter()
             .map(|ty| {
                 <span class="kw">match </span>ty.kind() {
-                    TyKind::Ptr(PtrKind::Shr(region), path) =&gt; {
+                    TyKind::Ptr(PtrKind::Mut(region), path) =&gt; {
                         <span class="kw">let </span>ty = env.get(path);
-                        rty::Ty::mk_ref(<span class="kw-2">*</span>region, ty, Mutability::Not)
+                        rty::Ty::mk_ref(<span class="kw-2">*</span>region, ty, Mutability::Mut)
                     }
                     <span class="kw">_ </span>=&gt; ty.clone(),
                 }

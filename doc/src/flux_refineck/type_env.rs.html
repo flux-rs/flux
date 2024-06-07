@@ -805,7 +805,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
         <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(genv, rcx, place)<span class="question-mark">?</span>;
         <span class="kw">if </span>result.is_strg &amp;&amp; mutbl == Mutability::Mut {
-            <span class="prelude-val">Ok</span>(Ty::ptr(PtrKind::from_ref(re, mutbl), result.path()))
+            <span class="prelude-val">Ok</span>(Ty::ptr(PtrKind::Mut(re), result.path()))
         } <span class="kw">else </span>{
             <span class="prelude-val">Ok</span>(Ty::mk_ref(re, result.ty, mutbl))
         }

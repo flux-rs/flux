@@ -450,13 +450,6 @@
 <a href="#450" id="450">450</a>
 <a href="#451" id="451">451</a>
 <a href="#452" id="452">452</a>
-<a href="#453" id="453">453</a>
-<a href="#454" id="454">454</a>
-<a href="#455" id="455">455</a>
-<a href="#456" id="456">456</a>
-<a href="#457" id="457">457</a>
-<a href="#458" id="458">458</a>
-<a href="#459" id="459">459</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -760,13 +753,6 @@
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span><span class="self">self </span>{
-            PtrKind::Shr(re) =&gt; {
-                <span class="macro">w!</span>(<span class="string">"shr"</span>)<span class="question-mark">?</span>;
-                <span class="kw">if </span>!cx.hide_regions {
-                    <span class="macro">w!</span>(<span class="string">"[{:?}]"</span>, re)<span class="question-mark">?</span>;
-                }
-                <span class="prelude-val">Ok</span>(())
-            }
             PtrKind::Mut(re) =&gt; {
                 <span class="macro">w!</span>(<span class="string">"mut"</span>)<span class="question-mark">?</span>;
                 <span class="kw">if </span>!cx.hide_regions {

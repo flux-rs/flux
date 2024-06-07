@@ -2087,16 +2087,6 @@
 <a href="#2087" id="2087">2087</a>
 <a href="#2088" id="2088">2088</a>
 <a href="#2089" id="2089">2089</a>
-<a href="#2090" id="2090">2090</a>
-<a href="#2091" id="2091">2091</a>
-<a href="#2092" id="2092">2092</a>
-<a href="#2093" id="2093">2093</a>
-<a href="#2094" id="2094">2094</a>
-<a href="#2095" id="2095">2095</a>
-<a href="#2096" id="2096">2096</a>
-<a href="#2097" id="2097">2097</a>
-<a href="#2098" id="2098">2098</a>
-<a href="#2099" id="2099">2099</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2918,7 +2908,6 @@
 
 <span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>PtrKind {
-    Shr(Region),
     Mut(Region),
     Box,
 }
@@ -3783,15 +3772,6 @@
                 FnSig::new(<span class="macro">vec!</span>[], variant.fields.clone(), output)
             })
         })
-    }
-}
-
-<span class="kw">impl </span>PtrKind {
-    <span class="kw">pub fn </span>from_ref(r: Region, m: Mutability) -&gt; <span class="self">Self </span>{
-        <span class="kw">match </span>m {
-            Mutability::Not =&gt; PtrKind::Shr(r),
-            Mutability::Mut =&gt; PtrKind::Mut(r),
-        }
     }
 }
 
