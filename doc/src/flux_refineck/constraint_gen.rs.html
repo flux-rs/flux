@@ -1530,7 +1530,7 @@
             <span class="kw">_ </span>=&gt; {
                 <span class="self">self</span>.unify_exprs(e1, e2);
                 <span class="kw">let </span>span = e2.span();
-                rcx.check_pred(<span class="kw-2">&amp;</span>Expr::binary_op(BinOp::Eq, e1, e2, span), <span class="self">self</span>.tag);
+                rcx.check_pred(<span class="kw-2">&amp;</span>Expr::eq_at(e1, e2, span), <span class="self">self</span>.tag);
             }
         }
     }

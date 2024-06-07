@@ -949,6 +949,11 @@
 <a href="#949" id="949">949</a>
 <a href="#950" id="950">950</a>
 <a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, iter, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -1729,7 +1734,11 @@
     args: <span class="kw-2">&amp;</span>[GenericArg],
     idx: <span class="kw-2">&amp;</span>Expr,
 ) -&gt; CheckerResult&lt;Vec&lt;Ty&gt;&gt; {
-    <span class="kw">let </span>(.., flds) = idx.expect_adt();
+    <span class="kw">let </span>flds = adt
+        .sort_def()
+        .projections()
+        .map(|proj| idx.proj_and_reduce(proj))
+        .collect_vec();
     <span class="prelude-val">Ok</span>(struct_variant(genv, adt.did())<span class="question-mark">?
         </span>.instantiate(args, <span class="kw-2">&amp;</span>[])
         .replace_bound_refts(<span class="kw-2">&amp;</span>flds)
@@ -1768,15 +1777,16 @@
         .instantiate(args, <span class="kw-2">&amp;</span>[])
         .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| rcx.define_vars(sort));
 
-    <span class="kw">let </span>(.., exprs1) = idx1.expect_adt();
-    <span class="kw">let </span>(.., exprs2) = variant_def.idx.expect_adt();
-    <span class="macro">debug_assert_eq!</span>(exprs1.len(), exprs2.len());
-    <span class="kw">let </span>constr = Expr::and(iter::zip(<span class="kw-2">&amp;</span>exprs1, <span class="kw-2">&amp;</span>exprs2).filter_map(|(e1, e2)| {
-        <span class="kw">if </span>!e1.is_abs() &amp;&amp; !e2.is_abs() {
-            <span class="prelude-val">Some</span>(Expr::eq(e1, e2))
-        } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>}
+    <span class="comment">// FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there
+    // are currently two problems.
+    // 1. The encoded fixpoint constraint won't parse if it has nested expressions inside data constructors.
+    // 2. We could expand the equality during encoding, but that would require annotating the sort
+    // of the equality operator, which will be cumbersome because we create equalities in some places where
+    // the sort is not readily available.
+    </span><span class="kw">let </span>constr = Expr::and(adt.sort_def().projections().map(|proj| {
+        <span class="kw">let </span>e1 = idx1.proj_and_reduce(proj);
+        <span class="kw">let </span>e2 = variant_def.idx.proj_and_reduce(proj);
+        Expr::eq(e1, e2)
     }));
     rcx.assume_pred(<span class="kw-2">&amp;</span>constr);
 

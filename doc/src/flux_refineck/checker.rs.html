@@ -1585,7 +1585,7 @@
     intern::List,
     queries::QueryResult,
     rty::{
-        <span class="self">self</span>, fold::TypeFoldable, refining::Refiner, BaseTy, BinOp, Binder, Bool, Constraint,
+        <span class="self">self</span>, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, Constraint,
         CoroutineObligPredicate, EarlyBinder, Expr, Float, FnOutput, FnSig, FnTraitPredicate,
         GenericArg, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref, Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
@@ -2211,7 +2211,7 @@
                     }
                 }
                 TyKind::Indexed(bty @ (BaseTy::Int(<span class="kw">_</span>) | BaseTy::Uint(<span class="kw">_</span>)), idx) =&gt; {
-                    Expr::binary_op(BinOp::Eq, idx.clone(), Expr::from_bits(bty, bits), <span class="prelude-val">None</span>)
+                    Expr::eq(idx.clone(), Expr::from_bits(bty, bits))
                 }
                 <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected discr_ty {:?}"</span>, discr_ty),
             }
