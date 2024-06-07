@@ -701,7 +701,7 @@ impl Expr {
         go(sort, &mut f)
     }
 
-    /// Applies a projection to an expression and optimistically try to beta reduce it if possible.
+    /// Apply a projection to an expression and optimistically try to beta reduce it.
     pub fn proj_and_reduce(&self, proj: FieldProj) -> Expr {
         match self.kind() {
             ExprKind::Aggregate(_, flds) => flds[proj.field_idx() as usize].clone(),
@@ -1027,7 +1027,7 @@ mod pretty {
             define_scoped!(cx, f);
             match self {
                 Var::LateBound(debruijn, var) => cx.fmt_bound_reft(*debruijn, *var, f),
-                Var::EarlyParam(var) => w!("{}", ^var.name),
+                Var::EarlyParam(var) => w!("{}#{}", ^var.name, ^var.index),
                 Var::Free(name) => w!("{:?}", ^name),
                 Var::EVar(evar) => w!("{:?}", evar),
             }

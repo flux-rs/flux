@@ -7,8 +7,8 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
-        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Loc, Mutability, Path, PtrKind, Ref,
-        Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
+        AdtDef, BaseTy, Binder, EarlyBinder, Expr, FieldProj, GenericArg, Loc, Mutability, Path,
+        PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
     rustc::mir::{FieldIdx, Place, PlaceElem},
 };
@@ -778,7 +778,11 @@ fn downcast_struct(
     args: &[GenericArg],
     idx: &Expr,
 ) -> CheckerResult<Vec<Ty>> {
-    let (.., flds) = idx.expect_adt();
+    let flds = adt
+        .sort_def()
+        .projections()
+        .map(|proj| idx.proj_and_reduce(proj))
+        .collect_vec();
     Ok(struct_variant(genv, adt.did())?
         .instantiate(args, &[])
         .replace_bound_refts(&flds)
@@ -817,10 +821,9 @@ fn downcast_enum(
         .instantiate(args, &[])
         .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
-    let (.., exprs1) = idx1.expect_adt();
-    let (.., exprs2) = variant_def.idx.expect_adt();
-    debug_assert_eq!(exprs1.len(), exprs2.len());
-    let constr = Expr::and(iter::zip(&exprs1, &exprs2).filter_map(|(e1, e2)| {
+    let constr = Expr::and(adt.sort_def().projections().filter_map(|proj| {
+        let e1 = idx1.proj_and_reduce(proj);
+        let e2 = variant_def.idx.proj_and_reduce(proj);
         if !e1.is_abs() && !e2.is_abs() {
             Some(Expr::eq(e1, e2))
         } else {

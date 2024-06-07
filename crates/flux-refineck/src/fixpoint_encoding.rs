@@ -124,7 +124,7 @@ pub mod fixpoint {
     #[derive(Hash, Debug, Copy, Clone)]
     pub enum Var {
         Underscore,
-        ReftGeneric(usize),
+        ReftGeneric(u32),
         Global(GlobalVar),
         Local(LocalVar),
         TupleCtor {
@@ -297,18 +297,22 @@ impl Env {
         self.layers.pop().unwrap()
     }
 
-    fn get_var(&self, var: &rty::Var, dbg_span: Span) -> fixpoint::LocalVar {
+    fn var_to_fixpoint(&self, var: &rty::Var, dbg_span: Span) -> fixpoint::Var {
         match var {
             rty::Var::Free(name) => {
-                self.get_fvar(*name)
-                    .unwrap_or_else(|| span_bug!(dbg_span, "no entry found for name: `{name:?}`"))
+                fixpoint::Var::Local(
+                    self.get_fvar(*name).unwrap_or_else(|| {
+                        span_bug!(dbg_span, "no entry found for name: `{name:?}`")
+                    }),
+                )
             }
             rty::Var::LateBound(debruijn, var) => {
-                self.get_late_bvar(*debruijn, var.index).unwrap_or_else(|| {
-                    span_bug!(dbg_span, "no entry found for late bound var: `{var:?}`")
-                })
+                fixpoint::Var::Local(self.get_late_bvar(*debruijn, var.index).unwrap_or_else(
+                    || span_bug!(dbg_span, "no entry found for late bound var: `{var:?}`"),
+                ))
             }
-            rty::Var::EarlyParam(_) | rty::Var::EVar(_) => {
+            rty::Var::EarlyParam(erp) => fixpoint::Var::ReftGeneric(erp.index),
+            rty::Var::EVar(_) => {
                 span_bug!(dbg_span, "unexpected var: `{var:?}`")
             }
         }
@@ -645,9 +649,7 @@ where
         let kvids = self.kcx.encode(kvar.kvid, decl);
 
         let all_args = iter::zip(&kvar.args, &decl.sorts)
-            .map(|(arg, sort)| -> QueryResult<_> {
-                Ok(fixpoint::Var::Local(self.ecx.imm(arg, sort, &mut self.env, bindings)?))
-            })
+            .map(|(arg, sort)| self.ecx.imm(arg, sort, &mut self.env, bindings))
             .try_collect_vec()?;
 
         // Fixpoint doesn't support kvars without arguments, which we do generate sometimes. To get
@@ -874,7 +876,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
     fn expr_to_fixpoint(&mut self, expr: &rty::Expr, env: &Env) -> QueryResult<fixpoint::Expr> {
         let e = match expr.kind() {
-            rty::ExprKind::Var(var) => fixpoint::Expr::Var(env.get_var(var, self.dbg_span).into()),
+            rty::ExprKind::Var(var) => {
+                fixpoint::Expr::Var(env.var_to_fixpoint(var, self.dbg_span).into())
+            }
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, env)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, env)?,
@@ -1111,7 +1115,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
     fn func_to_fixpoint(&mut self, func: &rty::Expr, env: &Env) -> fixpoint::Var {
         match func.kind() {
-            rty::ExprKind::Var(var) => env.get_var(var, self.dbg_span).into(),
+            rty::ExprKind::Var(var) => env.var_to_fixpoint(var, self.dbg_span).into(),
             rty::ExprKind::GlobalFunc(_, SpecFuncKind::Thy(sym)) => fixpoint::Var::Itf(*sym),
             rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) => {
                 let cinfo = self.const_map.get(&Key::Uif(*sym)).unwrap_or_else(|| {
@@ -1137,9 +1141,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         sort: &rty::Sort,
         env: &mut Env,
         bindings: &mut Vec<fixpoint::Bind>,
-    ) -> QueryResult<fixpoint::LocalVar> {
+    ) -> QueryResult<fixpoint::Var> {
         match arg.kind() {
-            rty::ExprKind::Var(var) => Ok(env.get_var(var, self.dbg_span)),
+            rty::ExprKind::Var(var) => Ok(env.var_to_fixpoint(var, self.dbg_span)),
             _ => {
                 let fresh = env.fresh_name();
                 let pred = fixpoint::Expr::eq(
@@ -1151,7 +1155,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     sort: sort_to_fixpoint(sort),
                     pred: fixpoint::Pred::Expr(pred),
                 });
-                Ok(fresh)
+                Ok(fixpoint::Var::Local(fresh))
             }
         }
     }

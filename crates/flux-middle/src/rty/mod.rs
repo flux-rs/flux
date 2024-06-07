@@ -18,8 +18,8 @@ use std::{borrow::Cow, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{
-    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, Expr, ExprKind, FieldProj,
-    HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
+    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EarlyReftParam, Expr, ExprKind,
+    FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
 use flux_common::bug;
 use itertools::Itertools;
@@ -94,6 +94,10 @@ impl AdtSortDef {
 
     pub fn fields(&self) -> usize {
         self.0.sorts.len()
+    }
+
+    pub fn projections(&self) -> impl Iterator<Item = FieldProj> + '_ {
+        (0..self.fields()).map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
     }
 
     pub fn field_sort(&self, args: &[Sort], name: Symbol) -> Option<Sort> {
@@ -1253,6 +1257,14 @@ impl Sort {
         matches!(self, Self::Bool)
     }
 
+    /// Returns `true` if the sort is [`Loc`].
+    ///
+    /// [`Loc`]: Sort::Loc
+    #[must_use]
+    pub fn is_loc(&self) -> bool {
+        matches!(self, Self::Loc)
+    }
+
     pub fn is_numeric(&self) -> bool {
         matches!(self, Self::Int | Self::Real)
     }
@@ -1460,13 +1472,14 @@ impl<T: TypeFoldable> EarlyBinder<T> {
             .into_ok()
     }
 
-    pub fn instantiate_identity(self, refine_args: &[Expr]) -> T {
+    pub fn instantiate_identity(self) -> T {
         self.0
-            .try_fold_with(&mut subst::GenericsSubstFolder::new(
-                subst::IdentitySubstDelegate,
-                refine_args,
-            ))
-            .into_ok()
+        // self.0
+        //     .try_fold_with(&mut subst::GenericsSubstFolder::new(
+        //         subst::IdentitySubstDelegate,
+        //         refine_args,
+        //     ))
+        //     .into_ok()
     }
 }
 
@@ -1513,7 +1526,7 @@ impl EarlyBinder<GenericPredicates> {
                 .predicates
                 .iter()
                 .cloned()
-                .map(|p| EarlyBinder(p).instantiate_identity(refine_args)),
+                .map(|p| EarlyBinder(p).instantiate_identity()),
         );
         Ok(())
     }

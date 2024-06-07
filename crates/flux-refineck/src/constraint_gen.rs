@@ -641,7 +641,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
             let bounds = self
                 .genv
                 .item_bounds(alias_ty.def_id)?
-                .instantiate_identity(self.refparams);
+                .instantiate_identity();
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind() {
                     let ty1 = self.project_bty(ty, pred.projection_ty.def_id)?;

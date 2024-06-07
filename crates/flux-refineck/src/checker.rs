@@ -95,11 +95,7 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
     ) -> Result<Self> {
         let span = genv.tcx().def_span(def_id);
 
-        let refine_params = genv
-            .refinement_generics_of(def_id)
-            .with_span(span)?
-            .collect_all_params(genv, |param| rcx.define_vars(&param.sort))
-            .with_span(span)?;
+        let refine_params = List::empty();
 
         Ok(Self { refine_params, ghost_stmts, mode, config })
     }
@@ -259,7 +255,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
         let poly_sig = poly_sig
-            .instantiate_identity(&inherited.refine_params)
+            .instantiate_identity()
             .normalize_projections(genv, &body.infcx, def_id.to_def_id(), &inherited.refine_params)
             .with_span(span)?;
 

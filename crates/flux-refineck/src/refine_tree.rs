@@ -18,11 +18,12 @@ use flux_middle::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
             TypeVisitor,
         },
-        BaseTy, Expr, GenericArg, Mutability, Name, RefineParam, RefinementGenerics, Sort, Ty,
-        TyKind, Var,
+        BaseTy, EarlyReftParam, Expr, GenericArg, Mutability, Name, RefineParam,
+        RefinementGenerics, Sort, Ty, TyKind, Var,
     },
 };
 use itertools::Itertools;
+use rustc_span::{sym, symbol::kw};
 
 use crate::{
     constraint_gen::Tag,
@@ -102,9 +103,15 @@ pub(crate) struct Scope {
 
 impl Scope {
     pub(crate) fn iter(&self) -> impl Iterator<Item = (Var, Sort)> + '_ {
-        self.fvars
-            .iter_enumerated()
-            .map(|(name, sort)| (Var::Free(name), sort.clone()))
+        itertools::chain(
+            self.reftgenerics.iter().enumerate().map(|(i, param)| {
+                let var = EarlyReftParam { index: i as u32, name: kw::Underscore };
+                (Var::EarlyParam(var), param.sort.clone())
+            }),
+            self.fvars
+                .iter_enumerated()
+                .map(|(name, sort)| (Var::Free(name), sort.clone())),
+        )
     }
 
     /// Whether `t` has any free variables not in this scope
@@ -431,7 +438,7 @@ impl Snapshot {
     /// [`scope`]: Scope
     pub(crate) fn scope(&self) -> Option<Scope> {
         let mut parents = ParentsIter::new(self.ptr.upgrade()?);
-        let mut fvars = IndexVec::new();
+        let mut fvars = Vec::new();
         let reftgenerics = loop {
             let ptr = parents.next().unwrap();
             let node = ptr.borrow();
@@ -445,7 +452,8 @@ impl Snapshot {
                 _ => {}
             }
         };
-        Some(Scope { reftgenerics, fvars })
+        fvars.reverse();
+        Some(Scope { reftgenerics, fvars: IndexVec::from_raw(fvars) })
     }
 }
 
@@ -564,11 +572,15 @@ impl Node {
                 let bindings = reftgenerics
                     .iter()
                     .enumerate()
-                    .map(|(i, param)| {
-                        fixpoint::Bind {
-                            name: fixpoint::Var::ReftGeneric(i),
-                            sort: sort_to_fixpoint(&param.sort),
-                            pred: fixpoint::Pred::TRUE,
+                    .filter_map(|(i, param)| {
+                        if param.sort.is_loc() {
+                            None
+                        } else {
+                            Some(fixpoint::Bind {
+                                name: fixpoint::Var::ReftGeneric(i as u32),
+                                sort: sort_to_fixpoint(&param.sort),
+                                pred: fixpoint::Pred::TRUE,
+                            })
                         }
                     })
                     .collect_vec();
