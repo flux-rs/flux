@@ -96,6 +96,10 @@ impl AdtSortDef {
         self.0.sorts.len()
     }
 
+    pub fn projections(&self) -> impl Iterator<Item = FieldProj> + '_ {
+        (0..self.fields()).map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
+    }
+
     pub fn field_sort(&self, args: &[Sort], name: Symbol) -> Option<Sort> {
         let idx = self.field_index(name)?;
         Some(self.0.sorts[idx].fold_with(&mut SortSubst::new(args)))
