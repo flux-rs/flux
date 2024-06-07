@@ -124,6 +124,7 @@ pub mod fixpoint {
     #[derive(Hash, Debug, Copy, Clone)]
     pub enum Var {
         Underscore,
+        ReftGeneric(usize),
         Global(GlobalVar),
         Local(LocalVar),
         TupleCtor {
@@ -161,6 +162,7 @@ pub mod fixpoint {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 Var::Global(v) => write!(f, "c{}", v.as_u32()),
+                Var::ReftGeneric(i) => write!(f, "g{i}"),
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
                 Var::TupleCtor { arity } => write!(f, "mktuple{arity}"),
                 Var::TupleProj { arity, field } => write!(f, "tuple{arity}${field}"),
@@ -337,21 +339,11 @@ struct ConstInfo {
     val: Option<Constant>,
 }
 
-/// An alias for additional bindings introduced when ANF-ing index expressions
-/// in the course of encoding into fixpoint.
-pub type Bindings = Vec<(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)>;
-
-pub fn stitch(bindings: Bindings, c: fixpoint::Constraint) -> fixpoint::Constraint {
-    bindings.into_iter().rev().fold(c, |c, (name, sort, e)| {
-        fixpoint::Constraint::ForAll(
-            fixpoint::Bind {
-                name: fixpoint::Var::Local(name),
-                sort,
-                pred: fixpoint::Pred::Expr(e),
-            },
-            Box::new(c),
-        )
-    })
+pub fn stitch(bindings: Vec<fixpoint::Bind>, c: fixpoint::Constraint) -> fixpoint::Constraint {
+    bindings
+        .into_iter()
+        .rev()
+        .fold(c, |c, bind| fixpoint::Constraint::ForAll(bind, Box::new(c)))
 }
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
@@ -581,7 +573,13 @@ where
                 let vars = self.env.pop_layer();
 
                 let bindings = iter::zip(vars, &pred.vars().to_sort_list())
-                    .map(|(var, sort)| (var, sort_to_fixpoint(sort), fixpoint::Expr::TRUE))
+                    .map(|(var, sort)| {
+                        fixpoint::Bind {
+                            name: fixpoint::Var::Local(var),
+                            sort: sort_to_fixpoint(sort),
+                            pred: fixpoint::Pred::TRUE,
+                        }
+                    })
                     .collect_vec();
 
                 Ok(stitch(bindings, cstr))
@@ -601,7 +599,7 @@ where
     pub fn assumption_to_fixpoint(
         &mut self,
         pred: &rty::Expr,
-    ) -> QueryResult<(Bindings, fixpoint::Pred)> {
+    ) -> QueryResult<(Vec<fixpoint::Bind>, fixpoint::Pred)> {
         let mut bindings = vec![];
         let mut preds = vec![];
         self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds)?;
@@ -612,7 +610,7 @@ where
     fn assumption_to_fixpoint_aux(
         &mut self,
         expr: &rty::Expr,
-        bindings: &mut Bindings,
+        bindings: &mut Vec<fixpoint::Bind>,
         preds: &mut Vec<fixpoint::Pred>,
     ) -> QueryResult {
         match expr.kind() {
@@ -641,7 +639,7 @@ where
     fn kvar_to_fixpoint(
         &mut self,
         kvar: &rty::KVar,
-        bindings: &mut Bindings,
+        bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Pred> {
         let decl = self.kvars.get(kvar.kvid);
         let kvids = self.kcx.encode(kvar.kvid, decl);
@@ -658,11 +656,14 @@ where
         if all_args.is_empty() {
             let fresh = self.env.fresh_name();
             let var = fixpoint::Var::Local(fresh);
-            bindings.push((
-                fresh,
-                fixpoint::Sort::Int,
-                fixpoint::Expr::eq(fixpoint::Expr::Var(var), fixpoint::Expr::ZERO),
-            ));
+            bindings.push(fixpoint::Bind {
+                name: fixpoint::Var::Local(fresh),
+                sort: fixpoint::Sort::Int,
+                pred: fixpoint::Pred::Expr(fixpoint::Expr::eq(
+                    fixpoint::Expr::Var(var),
+                    fixpoint::Expr::ZERO,
+                )),
+            });
             return Ok(fixpoint::Pred::KVar(kvids[0], vec![var]));
         }
 
@@ -762,9 +763,7 @@ impl KVarStore {
                     (rty::Var::LateBound(debruijn, var), sort)
                 })
             }),
-            scope
-                .iter()
-                .map(|(name, sort)| (rty::Var::Free(name), sort)),
+            scope,
         );
         self.fresh_inner(binders.last().unwrap().len(), args, encoding)
     }
@@ -1137,7 +1136,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         arg: &rty::Expr,
         sort: &rty::Sort,
         env: &mut Env,
-        bindings: &mut Vec<(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)>,
+        bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::LocalVar> {
         match arg.kind() {
             rty::ExprKind::Var(var) => Ok(env.get_var(var, self.dbg_span)),
@@ -1147,7 +1146,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     fixpoint::Expr::Var(fresh.into()),
                     self.expr_to_fixpoint(arg, env)?,
                 );
-                bindings.push((fresh, sort_to_fixpoint(sort), pred));
+                bindings.push(fixpoint::Bind {
+                    name: fixpoint::Var::Local(fresh),
+                    sort: sort_to_fixpoint(sort),
+                    pred: fixpoint::Pred::Expr(pred),
+                });
                 Ok(fresh)
             }
         }

@@ -185,7 +185,13 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
     ) -> Result<ShapeResult> {
         dbg::shape_mode_span!(genv.tcx(), def_id).in_scope(|| {
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
-            let mut refine_tree = RefineTree::new();
+            let span = genv.tcx().def_span(def_id);
+            let reftgenerics = genv
+                .refinement_generics_of(def_id)
+                .with_span(span)?
+                .collect_all_params(genv, |param| param)
+                .with_span(span)?;
+            let mut refine_tree = RefineTree::new(reftgenerics);
             let mut rcx = refine_tree.refine_ctxt_at_root();
             let inherited = Inherited::new(genv, &mut rcx, def_id, &mut mode, ghost_stmts, config)?;
             Checker::run(
@@ -193,7 +199,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
                 rcx.as_subtree(),
                 def_id,
                 inherited,
-                genv.fn_sig(def_id).with_span(genv.tcx().def_span(def_id))?,
+                genv.fn_sig(def_id).with_span(span)?,
             )?;
 
             Ok(ShapeResult(mode.bb_envs))
@@ -209,17 +215,27 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore)> {
-        let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx().def_span(def_id))?;
-
+        let span = genv.tcx().def_span(def_id);
         let mut kvars = fixpoint_encoding::KVarStore::new();
-        let mut refine_tree = RefineTree::new();
+        let reftgenerics = genv
+            .refinement_generics_of(def_id)
+            .with_span(span)?
+            .collect_all_params(genv, |param| param)
+            .with_span(span)?;
+        let mut refine_tree = RefineTree::new(reftgenerics);
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             let mut mode = RefineMode { bb_envs, kvars };
             let mut rcx = refine_tree.refine_ctxt_at_root();
             let inherited = Inherited::new(genv, &mut rcx, def_id, &mut mode, ghost_stmts, config)?;
-            Checker::run(genv, rcx.as_subtree(), def_id, inherited, fn_sig)?;
+            Checker::run(
+                genv,
+                rcx.as_subtree(),
+                def_id,
+                inherited,
+                genv.fn_sig(def_id).with_span(span)?,
+            )?;
 
             Ok((refine_tree, mode.kvars))
         })

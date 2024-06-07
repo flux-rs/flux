@@ -11,7 +11,6 @@
     min_specialization,
     never_type,
     rustc_private,
-    type_alias_impl_trait,
     unwrap_infallible
 )]
 

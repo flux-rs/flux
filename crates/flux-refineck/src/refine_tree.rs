@@ -9,6 +9,7 @@ use flux_common::{
     iter::IterExt,
 };
 use flux_middle::{
+    intern::List,
     queries::QueryResult,
     rty::{
         box_args,
@@ -17,7 +18,8 @@ use flux_middle::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
             TypeVisitor,
         },
-        BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind,
+        BaseTy, Expr, GenericArg, Mutability, Name, RefineParam, RefinementGenerics, Sort, Ty,
+        TyKind, Var,
     },
 };
 use itertools::Itertools;
@@ -91,10 +93,42 @@ pub(crate) struct Snapshot {
     ptr: WeakNodePtr,
 }
 
-/// A ist of refinement variables and their sorts.
+/// The list of refinement variables (and their sorts) available at a particular point in the program.
 #[derive(PartialEq, Eq)]
 pub(crate) struct Scope {
-    bindings: IndexVec<Name, Sort>,
+    reftgenerics: List<RefineParam>,
+    fvars: IndexVec<Name, Sort>,
+}
+
+impl Scope {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (Var, Sort)> + '_ {
+        self.fvars
+            .iter_enumerated()
+            .map(|(name, sort)| (Var::Free(name), sort.clone()))
+    }
+
+    /// Whether `t` has any free variables not in this scope
+    pub(crate) fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
+        !self.contains_all(t.fvars())
+    }
+
+    fn contains_all(&self, iter: impl IntoIterator<Item = Name>) -> bool {
+        iter.into_iter().all(|name| self.contains(name))
+    }
+
+    fn contains(&self, name: Name) -> bool {
+        name.index() < self.fvars.len()
+    }
+}
+
+impl IntoIterator for &Scope {
+    type Item = (Var, Sort);
+
+    type IntoIter = impl Iterator<Item = Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
 }
 
 struct Node {
@@ -112,7 +146,7 @@ struct NodePtr(Rc<RefCell<Node>>);
 struct WeakNodePtr(Weak<RefCell<Node>>);
 
 enum NodeKind {
-    Conj,
+    Root(List<RefineParam>),
     Comment(String),
     ForAll(Name, Sort),
     Assumption(Expr),
@@ -121,8 +155,13 @@ enum NodeKind {
 }
 
 impl RefineTree {
-    pub(crate) fn new() -> RefineTree {
-        let root = Node { kind: NodeKind::Conj, nbindings: 0, parent: None, children: vec![] };
+    pub(crate) fn new(reftgenerics: List<RefineParam>) -> RefineTree {
+        let root = Node {
+            kind: NodeKind::Root(reftgenerics),
+            nbindings: 0,
+            parent: None,
+            children: vec![],
+        };
         let root = NodePtr(Rc::new(RefCell::new(root)));
         RefineTree { root }
     }
@@ -391,42 +430,22 @@ impl Snapshot {
     ///
     /// [`scope`]: Scope
     pub(crate) fn scope(&self) -> Option<Scope> {
-        let parents = ParentsIter::new(self.ptr.upgrade()?);
-        let bindings = parents
-            .filter_map(|node| {
-                let node = node.borrow();
-                if let NodeKind::ForAll(_, sort) = &node.kind {
-                    Some(sort.clone())
-                } else {
-                    None
+        let mut parents = ParentsIter::new(self.ptr.upgrade()?);
+        let mut fvars = IndexVec::new();
+        let reftgenerics = loop {
+            let ptr = parents.next().unwrap();
+            let node = ptr.borrow();
+            match &node.kind {
+                NodeKind::Root(reftgenerics) => {
+                    break reftgenerics.clone();
                 }
-            })
-            .collect_vec()
-            .into_iter()
-            .rev()
-            .collect();
-        Some(Scope { bindings })
-    }
-}
-
-impl Scope {
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
-        self.bindings
-            .iter_enumerated()
-            .map(|(name, sort)| (name, sort.clone()))
-    }
-
-    /// Whether `t` has any free variables not in this scope
-    pub(crate) fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
-        !self.contains_all(t.fvars())
-    }
-
-    fn contains_all(&self, iter: impl IntoIterator<Item = Name>) -> bool {
-        iter.into_iter().all(|name| self.contains(name))
-    }
-
-    fn contains(&self, name: Name) -> bool {
-        name.index() < self.bindings.len()
+                NodeKind::ForAll(_, sort) => {
+                    fvars.push(sort.clone());
+                }
+                _ => {}
+            }
+        };
+        Some(Scope { reftgenerics, fvars })
     }
 }
 
@@ -474,7 +493,7 @@ impl std::ops::Index<Name> for Scope {
     type Output = Sort;
 
     fn index(&self, name: Name) -> &Self::Output {
-        &self.bindings[name]
+        &self.fvars[name]
     }
 }
 
@@ -511,7 +530,7 @@ impl Node {
                     })
                     .for_each(drop);
             }
-            NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(..) => {
+            NodeKind::Comment(_) | NodeKind::Root(..) | NodeKind::ForAll(..) => {
                 self.children
                     .extract_if(|child| matches!(&child.borrow().kind, NodeKind::True))
                     .for_each(drop);
@@ -535,13 +554,27 @@ impl Node {
             NodeKind::Head(pred, _) => {
                 *pred = pred.replace_evars(sol);
             }
-            NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(..) | NodeKind::True => {}
+            NodeKind::Comment(_) | NodeKind::Root(..) | NodeKind::ForAll(..) | NodeKind::True => {}
         }
     }
 
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<Option<fixpoint::Constraint>> {
         let cstr = match &self.kind {
-            NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(_, Sort::Loc) => {
+            NodeKind::Root(reftgenerics) => {
+                let bindings = reftgenerics
+                    .iter()
+                    .enumerate()
+                    .map(|(i, param)| {
+                        fixpoint::Bind {
+                            name: fixpoint::Var::ReftGeneric(i),
+                            sort: sort_to_fixpoint(&param.sort),
+                            pred: fixpoint::Pred::TRUE,
+                        }
+                    })
+                    .collect_vec();
+                children_to_fixpoint(cx, &self.children)?.map(|children| stitch(bindings, children))
+            }
+            NodeKind::Comment(_) | NodeKind::ForAll(_, Sort::Loc) => {
                 children_to_fixpoint(cx, &self.children)?
             }
             NodeKind::ForAll(name, sort) => {
@@ -648,7 +681,12 @@ impl TypeVisitable for NodePtr {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         let node = self.borrow();
         match &node.kind {
-            NodeKind::Conj | NodeKind::Comment(_) | NodeKind::True => {}
+            NodeKind::Root(reftgenerics) => {
+                for param in reftgenerics.iter() {
+                    param.sort.visit_with(visitor)?;
+                }
+            }
+            NodeKind::Comment(_) | NodeKind::True => {}
             NodeKind::Assumption(pred) | NodeKind::Head(pred, _) => pred.visit_with(visitor)?,
             NodeKind::ForAll(_, sort) => sort.visit_with(visitor)?,
         }
@@ -687,24 +725,6 @@ mod pretty {
         go(ptr, vec![])
     }
 
-    fn flatten_conjs(nodes: &[NodePtr]) -> Vec<NodePtr> {
-        fn go(ptr: &NodePtr, children: &mut Vec<NodePtr>) {
-            let node = ptr.borrow();
-            if let NodeKind::Conj = node.kind {
-                for child in &node.children {
-                    go(child, children);
-                }
-            } else {
-                children.push(NodePtr::clone(ptr));
-            }
-        }
-        let mut children = vec![];
-        for ptr in nodes {
-            go(ptr, &mut children);
-        }
-        children
-    }
-
     fn preds_chain(ptr: &NodePtr) -> (Vec<Expr>, Vec<NodePtr>) {
         fn go(ptr: &NodePtr, mut preds: Vec<Expr>) -> (Vec<Expr>, Vec<NodePtr>) {
             let node = ptr.borrow();
@@ -741,13 +761,18 @@ mod pretty {
             define_scoped!(cx, f);
             let node = self.borrow();
             match &node.kind {
+                NodeKind::Root(reftgenerics) => {
+                    w!(
+                        "<{}>",
+                        ^reftgenerics.iter().format_with(", ", |param, f| {
+                            f(&format_args_cx!("{:?}", &param.sort))
+                        })
+                    )?;
+                    fmt_children(&node.children, cx, f)
+                }
                 NodeKind::Comment(comment) => {
                     w!("@ {}", ^comment)?;
                     w!(PadAdapter::wrap_fmt(f, 2), "\n{:?}", join!("\n", &node.children))
-                }
-                NodeKind::Conj => {
-                    let nodes = flatten_conjs(slice::from_ref(self));
-                    w!("{:?}", join!("\n", nodes))
                 }
                 NodeKind::ForAll(name, sort) => {
                     let (bindings, children) = if cx.bindings_chain {
@@ -798,7 +823,6 @@ mod pretty {
     ) -> fmt::Result {
         let mut f = PadAdapter::wrap_fmt(f, 2);
         define_scoped!(cx, f);
-        let children = flatten_conjs(children);
         match &children[..] {
             [] => w!(" true"),
             [n] => {
@@ -851,7 +875,7 @@ mod pretty {
             write!(
                 f,
                 "[{}]",
-                self.bindings
+                self.fvars
                     .iter_enumerated()
                     .format_with(", ", |(name, sort), f| {
                         f(&format_args_cx!("{:?}: {:?}", ^name, sort))
