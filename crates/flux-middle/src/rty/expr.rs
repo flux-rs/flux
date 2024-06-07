@@ -178,8 +178,17 @@ pub enum ExprKind {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum AggregateKind {
-    Tuple,
+    Tuple(usize),
     Adt(DefId),
+}
+
+impl AggregateKind {
+    pub fn to_proj(self, field: u32) -> FieldProj {
+        match self {
+            AggregateKind::Tuple(arity) => FieldProj::Tuple { arity, field },
+            AggregateKind::Adt(def_id) => FieldProj::Adt { def_id, field },
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
@@ -426,7 +435,7 @@ impl Expr {
     }
 
     pub fn tuple(flds: List<Expr>) -> Expr {
-        Expr::aggregate(AggregateKind::Tuple, flds)
+        Expr::aggregate(AggregateKind::Tuple(flds.len()), flds)
     }
 
     pub fn adt(def_id: DefId, flds: List<Expr>) -> Expr {
@@ -945,7 +954,7 @@ mod pretty {
                         w!("({:?}).{:?}", e, ^proj.field_idx())
                     }
                 }
-                ExprKind::Aggregate(AggregateKind::Tuple, flds) => {
+                ExprKind::Aggregate(AggregateKind::Tuple(_), flds) => {
                     if let [e] = &flds[..] {
                         w!("({:?},)", e)
                     } else {

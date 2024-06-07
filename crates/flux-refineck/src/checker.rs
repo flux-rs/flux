@@ -7,7 +7,7 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{
-        self, fold::TypeFoldable, refining::Refiner, BaseTy, BinOp, Binder, Bool, Constraint,
+        self, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, Constraint,
         CoroutineObligPredicate, EarlyBinder, Expr, Float, FnOutput, FnSig, FnTraitPredicate,
         GenericArg, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref, Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
@@ -633,7 +633,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     }
                 }
                 TyKind::Indexed(bty @ (BaseTy::Int(_) | BaseTy::Uint(_)), idx) => {
-                    Expr::binary_op(BinOp::Eq, idx.clone(), Expr::from_bits(bty, bits), None)
+                    Expr::eq(idx.clone(), Expr::from_bits(bty, bits))
                 }
                 _ => tracked_span_bug!("unexpected discr_ty {:?}", discr_ty),
             }
