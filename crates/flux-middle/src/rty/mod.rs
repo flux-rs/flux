@@ -1516,7 +1516,7 @@ impl EarlyBinder<GenericPredicates> {
         genv: GlobalEnv,
         refine_args: &[Expr],
         predicates: &mut Vec<Clause>,
-    ) -> QueryResult<()> {
+    ) -> QueryResult {
         if let Some(def_id) = self.0.parent {
             genv.predicates_of(def_id)?
                 .instantiate_identity_into(genv, refine_args, predicates)?;
