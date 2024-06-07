@@ -1,4 +1,4 @@
-use std::{clone::Clone, fmt, iter, ops::ControlFlow};
+use std::{clone::Clone, fmt, ops::ControlFlow};
 
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_middle::{
@@ -7,8 +7,8 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
-        AdtDef, BaseTy, Binder, EarlyBinder, Expr, FieldProj, GenericArg, Loc, Mutability, Path,
-        PtrKind, Ref, Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
+        AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Loc, Mutability, Path, PtrKind, Ref,
+        Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
     rustc::mir::{FieldIdx, Place, PlaceElem},
 };
@@ -821,14 +821,16 @@ fn downcast_enum(
         .instantiate(args, &[])
         .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
-    let constr = Expr::and(adt.sort_def().projections().filter_map(|proj| {
+    // FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there
+    // are currently two problems.
+    // 1. The encoded fixpoint constraint won't parse if it has nested expressions inside data constructors.
+    // 2. We could expand the equality during encoding, but that would require annotating the sort
+    // of the equality operator, which will be cumbersome because we create equalities in some places where
+    // the sort is not readily available.
+    let constr = Expr::and(adt.sort_def().projections().map(|proj| {
         let e1 = idx1.proj_and_reduce(proj);
         let e2 = variant_def.idx.proj_and_reduce(proj);
-        if !e1.is_abs() && !e2.is_abs() {
-            Some(Expr::eq(e1, e2))
-        } else {
-            None
-        }
+        Expr::eq(e1, e2)
     }));
     rcx.assume_pred(&constr);
 
