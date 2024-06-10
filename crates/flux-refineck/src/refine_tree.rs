@@ -91,7 +91,7 @@ pub(crate) struct Snapshot {
     ptr: WeakNodePtr,
 }
 
-/// A ist of refinement variables and their sorts.
+/// A list of refinement variables and their sorts.
 #[derive(PartialEq, Eq)]
 pub(crate) struct Scope {
     bindings: IndexVec<Name, Sort>,
