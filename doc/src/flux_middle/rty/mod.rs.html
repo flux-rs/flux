@@ -2090,7 +2090,6 @@
 <a href="#2090" id="2090">2090</a>
 <a href="#2091" id="2091">2091</a>
 <a href="#2092" id="2092">2092</a>
-<a href="#2093" id="2093">2093</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2118,7 +2117,6 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">pub use </span>normalize::SpecFuncDefns;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_index::{newtype_index, IndexSlice};
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -4096,7 +4094,7 @@
     Project(DefId),
 }
 
-<span class="kw">pub type </span>ItemLocalMap&lt;T&gt; = FxHashMap&lt;fhir::ItemLocalId, T&gt;;
+<span class="kw">pub type </span>ItemLocalMap&lt;T&gt; = UnordMap&lt;fhir::ItemLocalId, T&gt;;
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>LocalTableInContext&lt;<span class="lifetime">'a</span>, T&gt; {
