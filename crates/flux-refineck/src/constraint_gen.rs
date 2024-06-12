@@ -348,7 +348,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             self.def_id,
             self.refparams,
             rcx,
-            &mut self.kvar_gen,
+            &mut *self.kvar_gen,
             Tag::new(reason, self.span),
         )
     }
@@ -797,18 +797,6 @@ where
 {
     fn fresh(&mut self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr {
         (self)(binders, kind)
-    }
-}
-
-impl<'a> KVarGen for &mut (dyn KVarGen + 'a) {
-    fn fresh(&mut self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr {
-        (**self).fresh(binders, kind)
-    }
-}
-
-impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
-    fn fresh(&mut self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr {
-        (**self).fresh(binders, kind)
     }
 }
 
