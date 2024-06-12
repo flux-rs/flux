@@ -1558,25 +1558,7 @@
 <a href="#1558" id="1558">1558</a>
 <a href="#1559" id="1559">1559</a>
 <a href="#1560" id="1560">1560</a>
-<a href="#1561" id="1561">1561</a>
-<a href="#1562" id="1562">1562</a>
-<a href="#1563" id="1563">1563</a>
-<a href="#1564" id="1564">1564</a>
-<a href="#1565" id="1565">1565</a>
-<a href="#1566" id="1566">1566</a>
-<a href="#1567" id="1567">1567</a>
-<a href="#1568" id="1568">1568</a>
-<a href="#1569" id="1569">1569</a>
-<a href="#1570" id="1570">1570</a>
-<a href="#1571" id="1571">1571</a>
-<a href="#1572" id="1572">1572</a>
-<a href="#1573" id="1573">1573</a>
-<a href="#1574" id="1574">1574</a>
-<a href="#1575" id="1575">1575</a>
-<a href="#1576" id="1576">1576</a>
-<a href="#1577" id="1577">1577</a>
-<a href="#1578" id="1578">1578</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
@@ -1682,18 +1664,6 @@
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ refine_params, ghost_stmts, mode, config })
     }
 
-    <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
-        rcx: <span class="kw-2">&amp;</span>RefineCtxt,
-        span: Span,
-    ) -&gt; ConstrGen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        <span class="self">self</span>.mode
-            .constr_gen(genv, infcx, def_id, <span class="kw-2">&amp;</span><span class="self">self</span>.refine_params, rcx, span)
-    }
-
     <span class="kw">fn </span>reborrow(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Inherited&lt;M&gt; {
         Inherited {
             refine_params: <span class="self">self</span>.refine_params.clone(),
@@ -1706,11 +1676,7 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">trait </span>Mode: Sized {
     <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
-        refparams: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Expr],
+        ck: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Checker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="self">Self</span>&gt;,
         rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         span: Span,
     ) -&gt; ConstrGen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;;
@@ -1738,7 +1704,7 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>RefineMode {
     bb_envs: FxHashMap&lt;LocalDefId, FxHashMap&lt;BasicBlock, BasicBlockEnv&gt;&gt;,
-    kvars: KVarStore,
+    kvars: RefCell&lt;KVarStore&gt;,
 }
 
 <span class="doccomment">/// The result of running the shape phase.
@@ -1794,12 +1760,12 @@
         <span class="kw">let </span>bb_envs = bb_env_shapes.into_bb_envs(<span class="kw-2">&amp;mut </span>kvars);
 
         <span class="macro">dbg::refine_mode_span!</span>(genv.tcx(), def_id, bb_envs).in_scope(|| {
-            <span class="kw">let </span><span class="kw-2">mut </span>mode = RefineMode { bb_envs, kvars };
+            <span class="kw">let </span><span class="kw-2">mut </span>mode = RefineMode { bb_envs, kvars: RefCell::new(kvars) };
             <span class="kw">let </span><span class="kw-2">mut </span>rcx = refine_tree.refine_ctxt_at_root();
             <span class="kw">let </span>inherited = Inherited::new(genv, <span class="kw-2">&amp;mut </span>rcx, def_id, <span class="kw-2">&amp;mut </span>mode, ghost_stmts, config)<span class="question-mark">?</span>;
             Checker::run(genv, rcx.as_subtree(), def_id, inherited, fn_sig)<span class="question-mark">?</span>;
 
-            <span class="prelude-val">Ok</span>((refine_tree, mode.kvars))
+            <span class="prelude-val">Ok</span>((refine_tree, mode.kvars.into_inner()))
         })
     }
 }
@@ -1994,8 +1960,7 @@
             TerminatorKind::Return =&gt; {
                 <span class="kw">let </span>span = last_stmt_span.unwrap_or(terminator_span);
                 <span class="kw">let </span>obligs = <span class="self">self
-                    </span>.inherited
-                    .constr_gen(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span><span class="self">self</span>.body.infcx, <span class="self">self</span>.def_id, rcx, span)
+                    </span>.constr_gen(rcx, span)
                     .check_ret(rcx, env, <span class="kw-2">&amp;</span><span class="self">self</span>.output)
                     .with_span(span)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_closure_obligs(rcx, obligs)<span class="question-mark">?</span>;
@@ -2292,8 +2257,7 @@
             <span class="kw">let </span>location = <span class="self">self</span>.body.terminator_loc(target);
             <span class="self">self</span>.check_ghost_statements_at(<span class="kw-2">&amp;mut </span>rcx, <span class="kw-2">&amp;mut </span>env, Point::Location(location), span)<span class="question-mark">?</span>;
             <span class="kw">let </span>obligs = <span class="self">self
-                </span>.inherited
-                .constr_gen(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span><span class="self">self</span>.body.infcx, <span class="self">self</span>.def_id, <span class="kw-2">&amp;</span>rcx, span)
+                </span>.constr_gen(<span class="kw-2">&amp;</span>rcx, span)
                 .check_ret(<span class="kw-2">&amp;mut </span>rcx, <span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span><span class="self">self</span>.output)
                 .with_span(span)<span class="question-mark">?</span>;
             <span class="self">self</span>.check_closure_obligs(<span class="kw-2">&amp;mut </span>rcx, obligs)<span class="question-mark">?</span>;
@@ -2657,9 +2621,8 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>constr_gen(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;</span>RefineCtxt, span: Span) -&gt; ConstrGen&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        <span class="self">self</span>.inherited
-            .constr_gen(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span><span class="self">self</span>.body.infcx, <span class="self">self</span>.def_id, rcx, span)
+    <span class="kw">fn </span>constr_gen(<span class="kw-2">&amp;</span><span class="self">self</span>, rcx: <span class="kw-2">&amp;</span>RefineCtxt, span: Span) -&gt; ConstrGen&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+        M::constr_gen(<span class="self">self</span>, rcx, span)
     }
 
     <span class="attr">#[track_caller]
@@ -2867,19 +2830,15 @@
 
 <span class="kw">impl </span>Mode <span class="kw">for </span>ShapeMode {
     <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
-        refparams: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Expr],
+        ck: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Checker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="self">Self</span>&gt;,
         _rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         span: Span,
     ) -&gt; ConstrGen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
         ConstrGen::new(
-            genv,
-            infcx,
-            def_id.into(),
-            refparams,
+            ck.genv,
+            <span class="kw-2">&amp;</span>ck.body.infcx,
+            ck.def_id.into(),
+            <span class="kw-2">&amp;</span>ck.inherited.refine_params,
             |<span class="kw">_</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], <span class="kw">_</span>| Expr::hole(HoleKind::Pred),
             span,
         )
@@ -2937,21 +2896,25 @@
 
 <span class="kw">impl </span>Mode <span class="kw">for </span>RefineMode {
     <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(
-        <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
-        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
-        refparams: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Expr],
+        ck: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Checker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="self">Self</span>&gt;,
         rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         span: Span,
     ) -&gt; ConstrGen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-        <span class="kw">let </span>scope = rcx.scope();
         ConstrGen::new(
-            genv,
-            infcx,
-            def_id.into(),
-            refparams,
-            <span class="kw">move </span>|sorts: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], encoding| <span class="self">self</span>.kvars.fresh(sorts, <span class="kw-2">&amp;</span>scope, encoding),
+            ck.genv,
+            <span class="kw-2">&amp;</span>ck.body.infcx,
+            ck.def_id.into(),
+            <span class="kw-2">&amp;</span>ck.inherited.refine_params,
+            {
+                <span class="kw">let </span>scope = rcx.scope();
+                <span class="kw">move </span>|sorts: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], encoding| {
+                    ck.inherited
+                        .mode
+                        .kvars
+                        .borrow_mut()
+                        .fresh(sorts, <span class="kw-2">&amp;</span>scope, encoding)
+                }
+            },
             span,
         )
     }
@@ -2985,6 +2948,7 @@
                 ck.inherited
                     .mode
                     .kvars
+                    .borrow_mut()
                     .fresh(sorts, bb_env.scope(), encoding)
             },
             terminator_span,
