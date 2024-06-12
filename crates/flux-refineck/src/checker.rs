@@ -1,4 +1,4 @@
-use std::{collections::hash_map::Entry, iter};
+use std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 use flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
 use flux_config as config;
@@ -104,18 +104,6 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
         Ok(Self { refine_params, ghost_stmts, mode, config })
     }
 
-    fn constr_gen<'a, 'genv, 'tcx>(
-        &'a mut self,
-        genv: GlobalEnv<'genv, 'tcx>,
-        infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
-        def_id: impl Into<DefId>,
-        rcx: &RefineCtxt,
-        span: Span,
-    ) -> ConstrGen<'a, 'genv, 'tcx> {
-        self.mode
-            .constr_gen(genv, infcx, def_id, &self.refine_params, rcx, span)
-    }
-
     fn reborrow(&mut self) -> Inherited<M> {
         Inherited {
             refine_params: self.refine_params.clone(),
@@ -128,11 +116,7 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
 
 pub(crate) trait Mode: Sized {
     fn constr_gen<'a, 'genv, 'tcx>(
-        &'a mut self,
-        genv: GlobalEnv<'genv, 'tcx>,
-        infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
-        def_id: impl Into<DefId>,
-        refparams: &'a [Expr],
+        ck: &'a Checker<'_, 'genv, 'tcx, Self>,
         rcx: &RefineCtxt,
         span: Span,
     ) -> ConstrGen<'a, 'genv, 'tcx>;
@@ -160,7 +144,7 @@ pub(crate) struct ShapeMode {
 
 pub(crate) struct RefineMode {
     bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>>,
-    kvars: KVarStore,
+    kvars: RefCell<KVarStore>,
 }
 
 /// The result of running the shape phase.
@@ -216,12 +200,12 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
-            let mut mode = RefineMode { bb_envs, kvars };
+            let mut mode = RefineMode { bb_envs, kvars: RefCell::new(kvars) };
             let mut rcx = refine_tree.refine_ctxt_at_root();
             let inherited = Inherited::new(genv, &mut rcx, def_id, &mut mode, ghost_stmts, config)?;
             Checker::run(genv, rcx.as_subtree(), def_id, inherited, fn_sig)?;
 
-            Ok((refine_tree, mode.kvars))
+            Ok((refine_tree, mode.kvars.into_inner()))
         })
     }
 }
@@ -416,8 +400,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             TerminatorKind::Return => {
                 let span = last_stmt_span.unwrap_or(terminator_span);
                 let obligs = self
-                    .inherited
-                    .constr_gen(self.genv, &self.body.infcx, self.def_id, rcx, span)
+                    .constr_gen(rcx, span)
                     .check_ret(rcx, env, &self.output)
                     .with_span(span)?;
                 self.check_closure_obligs(rcx, obligs)?;
@@ -714,8 +697,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let location = self.body.terminator_loc(target);
             self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
             let obligs = self
-                .inherited
-                .constr_gen(self.genv, &self.body.infcx, self.def_id, &rcx, span)
+                .constr_gen(&rcx, span)
                 .check_ret(&mut rcx, &mut env, &self.output)
                 .with_span(span)?;
             self.check_closure_obligs(&mut rcx, obligs)?;
@@ -1079,9 +1061,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(())
     }
 
-    fn constr_gen(&mut self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'genv, 'tcx> {
-        self.inherited
-            .constr_gen(self.genv, &self.body.infcx, self.def_id, rcx, span)
+    fn constr_gen(&self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'genv, 'tcx> {
+        M::constr_gen(self, rcx, span)
     }
 
     #[track_caller]
@@ -1289,19 +1270,15 @@ fn infer_under_mut_ref_hack(
 
 impl Mode for ShapeMode {
     fn constr_gen<'a, 'genv, 'tcx>(
-        &'a mut self,
-        genv: GlobalEnv<'genv, 'tcx>,
-        infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
-        def_id: impl Into<DefId>,
-        refparams: &'a [Expr],
+        ck: &'a Checker<'_, 'genv, 'tcx, Self>,
         _rcx: &RefineCtxt,
         span: Span,
     ) -> ConstrGen<'a, 'genv, 'tcx> {
         ConstrGen::new(
-            genv,
-            infcx,
-            def_id.into(),
-            refparams,
+            ck.genv,
+            &ck.body.infcx,
+            ck.def_id.into(),
+            &ck.inherited.refine_params,
             |_: &[_], _| Expr::hole(HoleKind::Pred),
             span,
         )
@@ -1359,21 +1336,25 @@ impl Mode for ShapeMode {
 
 impl Mode for RefineMode {
     fn constr_gen<'a, 'genv, 'tcx>(
-        &'a mut self,
-        genv: GlobalEnv<'genv, 'tcx>,
-        infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
-        def_id: impl Into<DefId>,
-        refparams: &'a [Expr],
+        ck: &'a Checker<'_, 'genv, 'tcx, Self>,
         rcx: &RefineCtxt,
         span: Span,
     ) -> ConstrGen<'a, 'genv, 'tcx> {
-        let scope = rcx.scope();
         ConstrGen::new(
-            genv,
-            infcx,
-            def_id.into(),
-            refparams,
-            move |sorts: &[_], encoding| self.kvars.fresh(sorts, &scope, encoding),
+            ck.genv,
+            &ck.body.infcx,
+            ck.def_id.into(),
+            &ck.inherited.refine_params,
+            {
+                let scope = rcx.scope();
+                move |sorts: &[_], encoding| {
+                    ck.inherited
+                        .mode
+                        .kvars
+                        .borrow_mut()
+                        .fresh(sorts, &scope, encoding)
+                }
+            },
             span,
         )
     }
@@ -1407,6 +1388,7 @@ impl Mode for RefineMode {
                 ck.inherited
                     .mode
                     .kvars
+                    .borrow_mut()
                     .fresh(sorts, bb_env.scope(), encoding)
             },
             terminator_span,
