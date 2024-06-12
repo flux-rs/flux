@@ -1269,16 +1269,16 @@ fn infer_under_mut_ref_hack(
 }
 
 impl Mode for ShapeMode {
-    fn constr_gen<'ck, 'genv, 'tcx>(
-        ck: &Checker<'ck, 'genv, 'tcx, Self>,
+    fn constr_gen<'a, 'genv, 'tcx>(
+        ck: &'a Checker<'_, 'genv, 'tcx, Self>,
         _rcx: &RefineCtxt,
         span: Span,
-    ) -> ConstrGen<'ck, 'genv, 'tcx> {
+    ) -> ConstrGen<'a, 'genv, 'tcx> {
         ConstrGen::new(
             ck.genv,
             &ck.body.infcx,
             ck.def_id.into(),
-            ck.inherited.refine_params.clone(),
+            &ck.inherited.refine_params,
             |_: &[_], _| Expr::hole(HoleKind::Pred),
             span,
         )
@@ -1344,7 +1344,7 @@ impl Mode for RefineMode {
             ck.genv,
             &ck.body.infcx,
             ck.def_id.into(),
-            ck.inherited.refine_params.clone(),
+            &ck.inherited.refine_params,
             {
                 let scope = rcx.scope();
                 move |sorts: &[_], encoding| {
@@ -1383,7 +1383,7 @@ impl Mode for RefineMode {
             ck.genv,
             &ck.body.infcx,
             ck.def_id.into(),
-            ck.inherited.refine_params.clone(),
+            &ck.inherited.refine_params,
             |sorts: &_, encoding| {
                 ck.inherited
                     .mode

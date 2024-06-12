@@ -35,7 +35,7 @@ pub struct ConstrGen<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
     def_id: DefId,
-    refparams: List<Expr>,
+    refparams: &'a [Expr],
     kvar_gen: Box<dyn KVarGen + 'a>,
     span: Span,
 }
@@ -98,7 +98,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         def_id: DefId,
-        refparams: List<Expr>,
+        refparams: &'a [Expr],
         kvar_gen: G,
         span: Span,
     ) -> Self
@@ -346,7 +346,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             self.genv,
             self.region_infcx,
             self.def_id,
-            &self.refparams,
+            self.refparams,
             rcx,
             &mut self.kvar_gen,
             Tag::new(reason, self.span),
