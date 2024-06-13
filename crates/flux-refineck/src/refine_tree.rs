@@ -91,10 +91,54 @@ pub(crate) struct Snapshot {
     ptr: WeakNodePtr,
 }
 
-/// A ist of refinement variables and their sorts.
+impl Snapshot {
+    /// Returns the [`scope`] at the snapshot if it is still valid or [`None`] otherwise.
+    ///
+    /// [`scope`]: Scope
+    pub(crate) fn scope(&self) -> Option<Scope> {
+        let parents = ParentsIter::new(self.ptr.upgrade()?);
+        let bindings = parents
+            .filter_map(|node| {
+                let node = node.borrow();
+                if let NodeKind::ForAll(_, sort) = &node.kind {
+                    Some(sort.clone())
+                } else {
+                    None
+                }
+            })
+            .collect_vec()
+            .into_iter()
+            .rev()
+            .collect();
+        Some(Scope { bindings })
+    }
+}
+
+/// A list of refinement variables and their sorts.
 #[derive(PartialEq, Eq)]
 pub(crate) struct Scope {
     bindings: IndexVec<Name, Sort>,
+}
+
+impl Scope {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
+        self.bindings
+            .iter_enumerated()
+            .map(|(name, sort)| (name, sort.clone()))
+    }
+
+    /// Whether `t` has any free variables not in this scope
+    pub(crate) fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
+        !self.contains_all(t.fvars())
+    }
+
+    fn contains_all(&self, iter: impl IntoIterator<Item = Name>) -> bool {
+        iter.into_iter().all(|name| self.contains(name))
+    }
+
+    fn contains(&self, name: Name) -> bool {
+        name.index() < self.bindings.len()
+    }
 }
 
 struct Node {
@@ -109,7 +153,48 @@ struct Node {
 
 #[derive(Clone)]
 struct NodePtr(Rc<RefCell<Node>>);
+
+impl NodePtr {
+    fn downgrade(this: &Self) -> WeakNodePtr {
+        WeakNodePtr(Rc::downgrade(&this.0))
+    }
+
+    fn push_guard(&mut self, pred: impl Into<Expr>) {
+        let pred = pred.into();
+        if !pred.is_trivially_true() {
+            *self = self.push_node(NodeKind::Assumption(pred));
+        }
+    }
+
+    fn name_gen(&self) -> IndexGen<Name> {
+        IndexGen::skipping(self.next_name_idx())
+    }
+
+    fn push_node(&mut self, kind: NodeKind) -> NodePtr {
+        debug_assert!(!matches!(self.borrow().kind, NodeKind::Head(..)));
+        let node = Node {
+            kind,
+            nbindings: self.next_name_idx(),
+            parent: Some(NodePtr::downgrade(self)),
+            children: vec![],
+        };
+        let node = NodePtr(Rc::new(RefCell::new(node)));
+        self.borrow_mut().children.push(NodePtr::clone(&node));
+        node
+    }
+
+    fn next_name_idx(&self) -> usize {
+        self.borrow().nbindings + usize::from(self.borrow().is_forall())
+    }
+}
+
 struct WeakNodePtr(Weak<RefCell<Node>>);
+
+impl WeakNodePtr {
+    fn upgrade(&self) -> Option<NodePtr> {
+        Some(NodePtr(self.0.upgrade()?))
+    }
+}
 
 enum NodeKind {
     Conj,
@@ -383,90 +468,6 @@ impl TypeFolder for Unpacker<'_, '_> {
             BaseTy::Tuple(_) => bty.super_fold_with(self),
             _ => bty.clone(),
         }
-    }
-}
-
-impl Snapshot {
-    /// Returns the [`scope`] at the snapshot if it is still valid or [`None`] otherwise.
-    ///
-    /// [`scope`]: Scope
-    pub(crate) fn scope(&self) -> Option<Scope> {
-        let parents = ParentsIter::new(self.ptr.upgrade()?);
-        let bindings = parents
-            .filter_map(|node| {
-                let node = node.borrow();
-                if let NodeKind::ForAll(_, sort) = &node.kind {
-                    Some(sort.clone())
-                } else {
-                    None
-                }
-            })
-            .collect_vec()
-            .into_iter()
-            .rev()
-            .collect();
-        Some(Scope { bindings })
-    }
-}
-
-impl Scope {
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
-        self.bindings
-            .iter_enumerated()
-            .map(|(name, sort)| (name, sort.clone()))
-    }
-
-    /// Whether `t` has any free variables not in this scope
-    pub(crate) fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
-        !self.contains_all(t.fvars())
-    }
-
-    fn contains_all(&self, iter: impl IntoIterator<Item = Name>) -> bool {
-        iter.into_iter().all(|name| self.contains(name))
-    }
-
-    fn contains(&self, name: Name) -> bool {
-        name.index() < self.bindings.len()
-    }
-}
-
-impl NodePtr {
-    fn downgrade(this: &Self) -> WeakNodePtr {
-        WeakNodePtr(Rc::downgrade(&this.0))
-    }
-
-    fn push_guard(&mut self, pred: impl Into<Expr>) {
-        let pred = pred.into();
-        if !pred.is_trivially_true() {
-            *self = self.push_node(NodeKind::Assumption(pred));
-        }
-    }
-
-    fn name_gen(&self) -> IndexGen<Name> {
-        IndexGen::skipping(self.next_name_idx())
-    }
-
-    fn push_node(&mut self, kind: NodeKind) -> NodePtr {
-        debug_assert!(!matches!(self.borrow().kind, NodeKind::Head(..)));
-        let node = Node {
-            kind,
-            nbindings: self.next_name_idx(),
-            parent: Some(NodePtr::downgrade(self)),
-            children: vec![],
-        };
-        let node = NodePtr(Rc::new(RefCell::new(node)));
-        self.borrow_mut().children.push(NodePtr::clone(&node));
-        node
-    }
-
-    fn next_name_idx(&self) -> usize {
-        self.borrow().nbindings + usize::from(self.borrow().is_forall())
-    }
-}
-
-impl WeakNodePtr {
-    fn upgrade(&self) -> Option<NodePtr> {
-        Some(NodePtr(self.0.upgrade()?))
     }
 }
 

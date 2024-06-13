@@ -25,7 +25,6 @@ use flux_common::bug;
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
-use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -2016,7 +2015,7 @@ pub enum Coercion {
     Project(DefId),
 }
 
-pub type ItemLocalMap<T> = FxHashMap<fhir::ItemLocalId, T>;
+pub type ItemLocalMap<T> = UnordMap<fhir::ItemLocalId, T>;
 
 #[derive(Debug)]
 pub struct LocalTableInContext<'a, T> {
