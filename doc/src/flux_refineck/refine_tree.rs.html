@@ -867,6 +867,7 @@
 <a href="#867" id="867">867</a>
 <a href="#868" id="868">868</a>
 <a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
@@ -960,10 +961,54 @@
     ptr: WeakNodePtr,
 }
 
+<span class="kw">impl </span>Snapshot {
+    <span class="doccomment">/// Returns the [`scope`] at the snapshot if it is still valid or [`None`] otherwise.
+    ///
+    /// [`scope`]: Scope
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>scope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Scope&gt; {
+        <span class="kw">let </span>parents = ParentsIter::new(<span class="self">self</span>.ptr.upgrade()<span class="question-mark">?</span>);
+        <span class="kw">let </span>bindings = parents
+            .filter_map(|node| {
+                <span class="kw">let </span>node = node.borrow();
+                <span class="kw">if let </span>NodeKind::ForAll(<span class="kw">_</span>, sort) = <span class="kw-2">&amp;</span>node.kind {
+                    <span class="prelude-val">Some</span>(sort.clone())
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">None
+                </span>}
+            })
+            .collect_vec()
+            .into_iter()
+            .rev()
+            .collect();
+        <span class="prelude-val">Some</span>(Scope { bindings })
+    }
+}
+
 <span class="doccomment">/// A list of refinement variables and their sorts.
 </span><span class="attr">#[derive(PartialEq, Eq)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Scope {
     bindings: IndexVec&lt;Name, Sort&gt;,
+}
+
+<span class="kw">impl </span>Scope {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (Name, Sort)&gt; + <span class="lifetime">'_ </span>{
+        <span class="self">self</span>.bindings
+            .iter_enumerated()
+            .map(|(name, sort)| (name, sort.clone()))
+    }
+
+    <span class="doccomment">/// Whether `t` has any free variables not in this scope
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>has_free_vars&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; bool {
+        !<span class="self">self</span>.contains_all(t.fvars())
+    }
+
+    <span class="kw">fn </span>contains_all(<span class="kw-2">&amp;</span><span class="self">self</span>, iter: <span class="kw">impl </span>IntoIterator&lt;Item = Name&gt;) -&gt; bool {
+        iter.into_iter().all(|name| <span class="self">self</span>.contains(name))
+    }
+
+    <span class="kw">fn </span>contains(<span class="kw-2">&amp;</span><span class="self">self</span>, name: Name) -&gt; bool {
+        name.index() &lt; <span class="self">self</span>.bindings.len()
+    }
 }
 
 <span class="kw">struct </span>Node {
@@ -978,7 +1023,48 @@
 
 <span class="attr">#[derive(Clone)]
 </span><span class="kw">struct </span>NodePtr(Rc&lt;RefCell&lt;Node&gt;&gt;);
+
+<span class="kw">impl </span>NodePtr {
+    <span class="kw">fn </span>downgrade(this: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; WeakNodePtr {
+        WeakNodePtr(Rc::downgrade(<span class="kw-2">&amp;</span>this.<span class="number">0</span>))
+    }
+
+    <span class="kw">fn </span>push_guard(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) {
+        <span class="kw">let </span>pred = pred.into();
+        <span class="kw">if </span>!pred.is_trivially_true() {
+            <span class="kw-2">*</span><span class="self">self </span>= <span class="self">self</span>.push_node(NodeKind::Assumption(pred));
+        }
+    }
+
+    <span class="kw">fn </span>name_gen(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; IndexGen&lt;Name&gt; {
+        IndexGen::skipping(<span class="self">self</span>.next_name_idx())
+    }
+
+    <span class="kw">fn </span>push_node(<span class="kw-2">&amp;mut </span><span class="self">self</span>, kind: NodeKind) -&gt; NodePtr {
+        <span class="macro">debug_assert!</span>(!<span class="macro">matches!</span>(<span class="self">self</span>.borrow().kind, NodeKind::Head(..)));
+        <span class="kw">let </span>node = Node {
+            kind,
+            nbindings: <span class="self">self</span>.next_name_idx(),
+            parent: <span class="prelude-val">Some</span>(NodePtr::downgrade(<span class="self">self</span>)),
+            children: <span class="macro">vec!</span>[],
+        };
+        <span class="kw">let </span>node = NodePtr(Rc::new(RefCell::new(node)));
+        <span class="self">self</span>.borrow_mut().children.push(NodePtr::clone(<span class="kw-2">&amp;</span>node));
+        node
+    }
+
+    <span class="kw">fn </span>next_name_idx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.borrow().nbindings + usize::from(<span class="self">self</span>.borrow().is_forall())
+    }
+}
+
 <span class="kw">struct </span>WeakNodePtr(Weak&lt;RefCell&lt;Node&gt;&gt;);
+
+<span class="kw">impl </span>WeakNodePtr {
+    <span class="kw">fn </span>upgrade(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;NodePtr&gt; {
+        <span class="prelude-val">Some</span>(NodePtr(<span class="self">self</span>.<span class="number">0</span>.upgrade()<span class="question-mark">?</span>))
+    }
+}
 
 <span class="kw">enum </span>NodeKind {
     Conj,
@@ -1252,90 +1338,6 @@
             BaseTy::Tuple(<span class="kw">_</span>) =&gt; bty.super_fold_with(<span class="self">self</span>),
             <span class="kw">_ </span>=&gt; bty.clone(),
         }
-    }
-}
-
-<span class="kw">impl </span>Snapshot {
-    <span class="doccomment">/// Returns the [`scope`] at the snapshot if it is still valid or [`None`] otherwise.
-    ///
-    /// [`scope`]: Scope
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>scope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Scope&gt; {
-        <span class="kw">let </span>parents = ParentsIter::new(<span class="self">self</span>.ptr.upgrade()<span class="question-mark">?</span>);
-        <span class="kw">let </span>bindings = parents
-            .filter_map(|node| {
-                <span class="kw">let </span>node = node.borrow();
-                <span class="kw">if let </span>NodeKind::ForAll(<span class="kw">_</span>, sort) = <span class="kw-2">&amp;</span>node.kind {
-                    <span class="prelude-val">Some</span>(sort.clone())
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">None
-                </span>}
-            })
-            .collect_vec()
-            .into_iter()
-            .rev()
-            .collect();
-        <span class="prelude-val">Some</span>(Scope { bindings })
-    }
-}
-
-<span class="kw">impl </span>Scope {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (Name, Sort)&gt; + <span class="lifetime">'_ </span>{
-        <span class="self">self</span>.bindings
-            .iter_enumerated()
-            .map(|(name, sort)| (name, sort.clone()))
-    }
-
-    <span class="doccomment">/// Whether `t` has any free variables not in this scope
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>has_free_vars&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; bool {
-        !<span class="self">self</span>.contains_all(t.fvars())
-    }
-
-    <span class="kw">fn </span>contains_all(<span class="kw-2">&amp;</span><span class="self">self</span>, iter: <span class="kw">impl </span>IntoIterator&lt;Item = Name&gt;) -&gt; bool {
-        iter.into_iter().all(|name| <span class="self">self</span>.contains(name))
-    }
-
-    <span class="kw">fn </span>contains(<span class="kw-2">&amp;</span><span class="self">self</span>, name: Name) -&gt; bool {
-        name.index() &lt; <span class="self">self</span>.bindings.len()
-    }
-}
-
-<span class="kw">impl </span>NodePtr {
-    <span class="kw">fn </span>downgrade(this: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; WeakNodePtr {
-        WeakNodePtr(Rc::downgrade(<span class="kw-2">&amp;</span>this.<span class="number">0</span>))
-    }
-
-    <span class="kw">fn </span>push_guard(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) {
-        <span class="kw">let </span>pred = pred.into();
-        <span class="kw">if </span>!pred.is_trivially_true() {
-            <span class="kw-2">*</span><span class="self">self </span>= <span class="self">self</span>.push_node(NodeKind::Assumption(pred));
-        }
-    }
-
-    <span class="kw">fn </span>name_gen(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; IndexGen&lt;Name&gt; {
-        IndexGen::skipping(<span class="self">self</span>.next_name_idx())
-    }
-
-    <span class="kw">fn </span>push_node(<span class="kw-2">&amp;mut </span><span class="self">self</span>, kind: NodeKind) -&gt; NodePtr {
-        <span class="macro">debug_assert!</span>(!<span class="macro">matches!</span>(<span class="self">self</span>.borrow().kind, NodeKind::Head(..)));
-        <span class="kw">let </span>node = Node {
-            kind,
-            nbindings: <span class="self">self</span>.next_name_idx(),
-            parent: <span class="prelude-val">Some</span>(NodePtr::downgrade(<span class="self">self</span>)),
-            children: <span class="macro">vec!</span>[],
-        };
-        <span class="kw">let </span>node = NodePtr(Rc::new(RefCell::new(node)));
-        <span class="self">self</span>.borrow_mut().children.push(NodePtr::clone(<span class="kw-2">&amp;</span>node));
-        node
-    }
-
-    <span class="kw">fn </span>next_name_idx(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.borrow().nbindings + usize::from(<span class="self">self</span>.borrow().is_forall())
-    }
-}
-
-<span class="kw">impl </span>WeakNodePtr {
-    <span class="kw">fn </span>upgrade(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;NodePtr&gt; {
-        <span class="prelude-val">Some</span>(NodePtr(<span class="self">self</span>.<span class="number">0</span>.upgrade()<span class="question-mark">?</span>))
     }
 }
 

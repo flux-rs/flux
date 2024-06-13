@@ -801,21 +801,6 @@
 <a href="#801" id="801">801</a>
 <a href="#802" id="802">802</a>
 <a href="#803" id="803">803</a>
-<a href="#804" id="804">804</a>
-<a href="#805" id="805">805</a>
-<a href="#806" id="806">806</a>
-<a href="#807" id="807">807</a>
-<a href="#808" id="808">808</a>
-<a href="#809" id="809">809</a>
-<a href="#810" id="810">810</a>
-<a href="#811" id="811">811</a>
-<a href="#812" id="812">812</a>
-<a href="#813" id="813">813</a>
-<a href="#814" id="814">814</a>
-<a href="#815" id="815">815</a>
-<a href="#816" id="816">816</a>
-<a href="#817" id="817">817</a>
-<a href="#818" id="818">818</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
@@ -823,17 +808,14 @@
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        <span class="self">self</span>,
-        evars::{EVarCxId, EVarSol},
-        fold::TypeFoldable,
-        AliasTy, BaseTy, Binder, Constraint, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder,
-        Expr, ExprKind, FnOutput, GenericArg, HoleKind, InferMode, Lambda, Mutability, Path,
-        PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
+        <span class="self">self</span>, evars::EVarSol, fold::TypeFoldable, AliasTy, BaseTy, Binder, Constraint,
+        CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder, Expr, ExprKind, FnOutput, GenericArg,
+        HoleKind, InferMode, Lambda, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort,
+        Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
-<span class="kw">use </span>rustc_data_structures::fx::FxIndexMap;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin::BoundRegion};
@@ -874,9 +856,8 @@
     def_id: DefId,
     refparams: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Expr],
     kvar_gen: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>(<span class="kw">dyn </span>KVarGen + <span class="lifetime">'a</span>),
-    evar_gen: EVarGen,
+    evar_gen: EVarGen&lt;Scope&gt;,
     tag: Tag,
-    scopes: FxIndexMap&lt;EVarCxId, Scope&gt;,
     obligs: Vec&lt;rty::Clause&gt;,
 }
 
@@ -1182,20 +1163,9 @@
         kvar_gen: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>(<span class="kw">dyn </span>KVarGen + <span class="lifetime">'a</span>),
         tag: Tag,
     ) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>evar_gen = EVarGen::new();
-        <span class="kw">let </span><span class="kw-2">mut </span>scopes = FxIndexMap::default();
-        scopes.insert(evar_gen.new_ctxt(), rcx.scope());
-        <span class="self">Self </span>{
-            genv,
-            region_infcx,
-            def_id,
-            refparams,
-            kvar_gen,
-            evar_gen,
-            tag,
-            scopes,
-            obligs: Vec::new(),
-        }
+        <span class="kw">let </span><span class="kw-2">mut </span>evar_gen = EVarGen::default();
+        evar_gen.enter_context(rcx.scope());
+        <span class="self">Self </span>{ genv, region_infcx, def_id, refparams, kvar_gen, evar_gen, tag, obligs: Vec::new() }
     }
 
     <span class="kw">fn </span>obligations(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;rty::Clause&gt; {
@@ -1207,11 +1177,11 @@
     }
 
     <span class="kw">fn </span>push_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;</span>RefineCtxt) {
-        <span class="self">self</span>.scopes.insert(<span class="self">self</span>.evar_gen.new_ctxt(), rcx.scope());
+        <span class="self">self</span>.evar_gen.enter_context(rcx.scope());
     }
 
     <span class="kw">fn </span>pop_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.scopes.pop();
+        <span class="self">self</span>.evar_gen.exit_context();
     }
 
     <span class="kw">fn </span>instantiate_refine_args(
@@ -1261,8 +1231,7 @@
     }
 
     <span class="kw">fn </span>fresh_evars(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
-        <span class="kw">let </span>cx = <span class="kw-2">*</span><span class="self">self</span>.scopes.last().unwrap().<span class="number">0</span>;
-        Expr::fold_sort(sort, |<span class="kw">_</span>| Expr::evar(<span class="self">self</span>.evar_gen.fresh_in_cx(cx)))
+        Expr::fold_sort(sort, |<span class="kw">_</span>| Expr::evar(<span class="self">self</span>.evar_gen.fresh_in_current()))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_pred(<span class="kw-2">&amp;</span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) {
@@ -1555,15 +1524,16 @@
 
     <span class="kw">fn </span>unify_exprs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, e1: <span class="kw-2">&amp;</span>Expr, e2: <span class="kw-2">&amp;</span>Expr) {
         <span class="kw">if let </span>ExprKind::Var(Var::EVar(evar)) = e2.kind()
-            &amp;&amp; <span class="kw">let </span>scope = <span class="kw-2">&amp;</span><span class="self">self</span>.scopes[<span class="kw-2">&amp;</span>evar.cx()]
+            &amp;&amp; <span class="kw">let </span>scope = <span class="kw-2">&amp;</span><span class="self">self</span>.evar_gen.data(evar.cx())
             &amp;&amp; !scope.has_free_vars(e1)
         {
             <span class="self">self</span>.evar_gen.unify(<span class="kw-2">*</span>evar, e1, <span class="bool-val">false</span>);
         }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>solve(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;EVarSol&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.evar_gen.solve()<span class="question-mark">?</span>)
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>solve(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;EVarSol&gt; {
+        <span class="self">self</span>.evar_gen.exit_context();
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.evar_gen.try_solve_pending()<span class="question-mark">?</span>)
     }
 }
 
