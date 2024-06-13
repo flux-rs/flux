@@ -156,12 +156,9 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     "`impl Trait` in argument position not supported",
                 ))
             }
-            hir::GenericParamKind::Const { .. } => {
-                return self.emit_err(errors::UnsupportedHir::new(
-                    self.genv.tcx(),
-                    param.def_id,
-                    "const generics are not supported",
-                ))
+            hir::GenericParamKind::Const { ty, is_host_effect, .. } => {
+                let ty = self.lift_ty(ty)?;
+                fhir::GenericParamKind::Const { ty, is_host_effect }
             }
         };
         Ok(fhir::GenericParam { def_id: param.def_id, kind })
@@ -497,7 +494,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     Ok(fhir::GenericArg::Type(self.genv.alloc(ty)))
                 }
                 hir::GenericArg::Const(_) => {
-                    self.emit_unsupported("const generics are not supported")
+                    self.emit_unsupported("const generics are not supported (2)")
                 }
                 hir::GenericArg::Infer(_) => {
                     bug!("unexpected inference generic argument");
@@ -533,7 +530,8 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             // FIXME(nilehmann) we shouldn't panic here
             Ok(fhir::ArrayLen { val: array_len.get().try_into().unwrap(), span: lit.span })
         } else {
-            self.emit_unsupported("only interger literals are supported for array lengths")
+            println!("TRACE: lift_array_len {:#?}", body);
+            self.emit_unsupported("only integer literals are supported for array lengths")
         }
     }
 
@@ -568,7 +566,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     Ok(fhir::GenericArg::Lifetime(lft))
                 }
                 hir::GenericParamKind::Const { .. } => {
-                    self.emit_unsupported("const generics are not supported")
+                    self.emit_unsupported("const generics are not supported (3)")
                 }
             }
         })

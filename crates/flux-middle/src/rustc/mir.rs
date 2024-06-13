@@ -271,6 +271,11 @@ pub enum PlaceElem {
     Index(Local),
 }
 
+pub struct ParamConst {
+    pub index: u32,
+    pub name: Symbol,
+}
+
 pub enum Constant {
     Int(i128, IntTy),
     Uint(u128, UintTy),
@@ -281,6 +286,7 @@ pub enum Constant {
     /// We only support opaque chars, so no data stored here for now
     Char,
     Unit,
+    Param(ParamConst, Ty),
     /// General catch-all for constants of a given Ty
     Opaque(Ty),
 }
@@ -719,6 +725,12 @@ impl fmt::Debug for Operand {
     }
 }
 
+impl fmt::Debug for ParamConst {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}/(#{})", self.name, self.index)
+    }
+}
+
 impl fmt::Debug for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -730,6 +742,7 @@ impl fmt::Debug for Constant {
             Constant::Str => write!(f, "\"<opaque str>\""),
             Constant::Char => write!(f, "\"<opaque char>\""),
             Constant::Opaque(ty) => write!(f, "<opaque {:?}>", ty),
+            Constant::Param(p, _) => write!(f, "{:?}", p),
         }
     }
 }

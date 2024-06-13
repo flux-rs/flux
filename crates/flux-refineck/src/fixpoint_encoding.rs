@@ -297,6 +297,7 @@ impl Env {
     fn get_var(&self, var: &rty::Var, dbg_span: Span) -> fixpoint::LocalVar {
         match var {
             rty::Var::Free(name) => {
+                println!("TRACE: get_var (0): {var:#?}");
                 self.get_fvar(*name)
                     .unwrap_or_else(|| span_bug!(dbg_span, "no entry found for name: `{name:?}`"))
             }
@@ -305,11 +306,15 @@ impl Env {
                     span_bug!(dbg_span, "no entry found for late bound var: `{var:?}`")
                 })
             }
-            rty::Var::EarlyParam(_) | rty::Var::EVar(_) => {
+            rty::Var::EarlyParam(_) | rty::Var::EVar(_) | rty::Var::ConstGeneric(_) => {
                 span_bug!(dbg_span, "unexpected var: `{var:?}`")
             }
         }
     }
+
+    // fn get_const_param(&self, param: rty::expr::ConstParam) -> Option<fixpoint::LocalVar> {
+    //     todo!() // self.fvars.get(&param.name).copied()
+    // }
 
     fn get_fvar(&self, name: rty::Name) -> Option<fixpoint::LocalVar> {
         self.fvars.get(&name).copied()

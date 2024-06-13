@@ -50,6 +50,7 @@ pub struct ConvCtxt<'a, 'genv, 'tcx> {
 pub(crate) struct Env {
     layers: Vec<Layer>,
     early_bound: FxIndexMap<fhir::ParamId, (Symbol, rty::Sort)>,
+    const_generics: FxIndexMap<u32, (Symbol, rty::Sort)>,
 }
 
 #[derive(Debug, Clone)]
@@ -126,7 +127,7 @@ pub(crate) fn expand_type_alias<'genv>(
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
-    let mut env = Env::new(genv, alias.generics.refinement_params, wfckresults)?;
+    let mut env = Env::new(genv, alias.generics.refinement_params, &[], wfckresults)?;
     env.push_layer(Layer::record(&cx, def_id, alias.params)?);
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
@@ -143,7 +144,7 @@ pub(crate) fn conv_generic_predicates<'genv>(
 
     let refparams = &genv.map().get_generics(def_id)?.unwrap().refinement_params;
 
-    let env = &mut Env::new(genv, refparams, wfckresults)?;
+    let env = &mut Env::new(genv, refparams, &[], wfckresults)?;
 
     let mut clauses = vec![];
     for pred in predicates {
@@ -167,7 +168,7 @@ pub(crate) fn conv_opaque_ty<'genv>(
     let refparams = &genv.map().get_generics(parent)?.unwrap().refinement_params;
     let parent_wfckresults = genv.check_wf(parent)?;
 
-    let env = &mut Env::new(genv, refparams, &parent_wfckresults)?;
+    let env = &mut Env::new(genv, refparams, &[], &parent_wfckresults)?;
 
     let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
     let self_ty = rty::Ty::opaque(def_id, args, env.to_early_bound_vars());
@@ -254,7 +255,7 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
         }
         fhir::GenericParamKind::Base => rty::GenericParamDefKind::Base,
         fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
-        fhir::GenericParamKind::Const { is_host_effect: _ } => {
+        fhir::GenericParamKind::Const { is_host_effect: _, .. } => {
             rty::GenericParamDefKind::Const { has_default: false }
         }
     }
@@ -268,7 +269,7 @@ pub(crate) fn conv_invariants<'genv>(
     wfckresults: &WfckResults<'genv>,
 ) -> QueryResult<Vec<rty::Invariant>> {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let mut env = Env::new(genv, &[], wfckresults)?;
+    let mut env = Env::new(genv, &[], &[], wfckresults)?;
     env.push_layer(Layer::record(&cx, def_id.to_def_id(), params)?);
     cx.conv_invariants(&mut env, invariants)
 }
@@ -280,7 +281,7 @@ pub(crate) fn conv_defn<'genv>(
 ) -> QueryResult<Option<rty::SpecFunc>> {
     if let Some(body) = &func.body {
         let cx = ConvCtxt::new(genv, wfckresults);
-        let mut env = Env::new(genv, &[], wfckresults)?;
+        let mut env = Env::new(genv, &[], &[], wfckresults)?;
         env.push_layer(Layer::list(&cx, 0, func.args, false)?);
         let expr = cx.conv_expr(&mut env, body)?;
         let expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv)?);
@@ -296,7 +297,7 @@ pub(crate) fn conv_qualifier<'genv>(
     wfckresults: &WfckResults<'genv>,
 ) -> QueryResult<rty::Qualifier> {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let mut env = Env::new(genv, &[], wfckresults)?;
+    let mut env = Env::new(genv, &[], &[], wfckresults)?;
     env.push_layer(Layer::list(&cx, 0, qualifier.args, false)?);
     let body = cx.conv_expr(&mut env, &qualifier.expr)?;
     let body = rty::Binder::new(body, env.pop_layer().into_bound_vars(genv)?);
@@ -313,7 +314,10 @@ pub(crate) fn conv_fn_decl<'genv>(
 
     let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
 
-    let mut env = Env::new(genv, decl.generics.refinement_params, wfckresults)?;
+    println!("TRACE: conv_fn_decl generics = {:?}, output = {:?}", decl.generics, decl.output);
+
+    let mut env =
+        Env::new(genv, decl.generics.refinement_params, decl.generics.params, wfckresults)?;
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[], true)?);
 
     let mut requires = vec![];
@@ -344,7 +348,7 @@ pub(crate) fn conv_assoc_reft_def<'genv>(
     wfckresults: &WfckResults<'genv>,
 ) -> QueryResult<rty::Lambda> {
     let cx = ConvCtxt::new(genv, wfckresults);
-    let mut env = Env::new(genv, &[], wfckresults)?;
+    let mut env = Env::new(genv, &[], &[], wfckresults)?;
     env.push_layer(Layer::list(&cx, 0, assoc_reft.params, false)?);
     let expr = cx.conv_expr(&mut env, &assoc_reft.body)?;
     let inputs = env.pop_layer().into_bound_vars(genv)?;
@@ -357,7 +361,7 @@ pub(crate) fn conv_ty<'genv>(
     ty: &fhir::Ty,
     wfckresults: &WfckResults<'genv>,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
-    let mut env = Env::new(genv, &[], wfckresults)?;
+    let mut env = Env::new(genv, &[], &[], wfckresults)?;
     let ty = ConvCtxt::new(genv, wfckresults).conv_ty(&mut env, ty)?;
     Ok(rty::Binder::new(ty, List::empty()))
 }
@@ -566,7 +570,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     ) -> QueryResult<rty::PolyVariant> {
         let cx = ConvCtxt::new(genv, wfckresults);
 
-        let mut env = Env::new(genv, &[], wfckresults)?;
+        let mut env = Env::new(genv, &[], &[], wfckresults)?;
         env.push_layer(Layer::list(&cx, 0, variant.params, true)?);
 
         let adt_def = genv.adt_def(adt_def_id)?;
@@ -593,7 +597,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         wfckresults: &WfckResults<'genv>,
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
         let cx = ConvCtxt::new(genv, wfckresults);
-        let mut env = Env::new(genv, &[], wfckresults)?;
+        let mut env = Env::new(genv, &[], &[], wfckresults)?;
         env.push_layer(Layer::list(&cx, 0, struct_def.params, false)?);
 
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
@@ -1161,6 +1165,7 @@ impl Env {
     pub(crate) fn new(
         genv: GlobalEnv,
         early_bound: &[fhir::RefineParam],
+        generic_params: &[fhir::GenericParam],
         wfckresults: &WfckResults,
     ) -> QueryResult<Self> {
         let early_bound = early_bound
@@ -1170,7 +1175,11 @@ impl Env {
                 Ok((param.id, (param.name, sort)))
             })
             .try_collect()?;
-        Ok(Self { layers: vec![], early_bound })
+        // let const_generics = generic_params
+        //     .iter()
+        //     .filter_map(|param| todo!())
+        //     .try_collect()?;
+        Ok(Self { layers: vec![], early_bound, const_generics: Default::default() })
     }
 
     fn depth(&self) -> usize {
@@ -1197,6 +1206,7 @@ impl Env {
             }
         }
         if let Some((idx, _, (name, sort))) = self.early_bound.get_full(&id) {
+            println!("TRACE: lookup {var:?} found {idx:?} / {name:?} / {sort:?}");
             LookupResult {
                 span: var.span,
                 kind: LookupResultKind::EarlyParam {
@@ -1229,9 +1239,11 @@ impl ConvCtxt<'_, '_, '_> {
         let espan = Some(ESpan::new(expr.span));
         let expr = match &expr.kind {
             fhir::ExprKind::Var(var, _) => {
+                println!("var: {:#?}", var.res);
                 match var.res {
                     ExprRes::Param(..) => env.lookup(var).to_expr(),
                     ExprRes::Const(def_id) => rty::Expr::const_def_id(def_id, espan),
+                    ExprRes::ConstGeneric(param) => rty::Expr::const_generic(param, espan),
                     ExprRes::NumConst(num) => {
                         rty::Expr::constant_at(rty::Constant::from(num), espan)
                     }

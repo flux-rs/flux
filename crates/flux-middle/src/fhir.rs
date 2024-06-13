@@ -92,7 +92,7 @@ pub enum GenericParamKind<'fhir> {
     Type { default: Option<Ty<'fhir>> },
     Base,
     Lifetime,
-    Const { is_host_effect: bool },
+    Const { ty: Ty<'fhir>, is_host_effect: bool },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -859,9 +859,17 @@ pub enum Lit {
 pub type SurfaceIdent = rustc_span::symbol::Ident;
 
 #[derive(Clone, Copy, Debug)]
+pub struct ConstParam {
+    pub def_id: DefId,
+    pub index: u32,
+    pub name: Symbol,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum ExprRes<Id = ParamId> {
     Param(ParamKind, Id),
     Const(DefId),
+    ConstGeneric(ConstParam),
     NumConst(i128),
     GlobalFunc(SpecFuncKind, Symbol),
 }

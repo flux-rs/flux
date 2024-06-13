@@ -67,13 +67,12 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         self.sort_of_self_ty(alias_to, self_ty)
     }
 
-    fn sort_of_generic_param(self, def_id: LocalDefId) -> QueryResult<Option<rty::Sort>> {
+    pub fn sort_of_generic_param(self, def_id: LocalDefId) -> QueryResult<Option<rty::Sort>> {
         let param = self.get_generic_param(def_id)?;
         let sort = match &param.kind {
             fhir::GenericParamKind::Base => Some(rty::Sort::Param(self.def_id_to_param_ty(def_id))),
-            fhir::GenericParamKind::Const { .. }
-            | fhir::GenericParamKind::Type { .. }
-            | fhir::GenericParamKind::Lifetime => None,
+            fhir::GenericParamKind::Const { ty, .. } => self.sort_of_ty(&ty)?,
+            fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
         };
         Ok(sort)
     }

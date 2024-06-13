@@ -230,6 +230,12 @@ pub struct EarlyReftParam {
     pub name: Symbol,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+pub struct ConstParam {
+    pub index: u32,
+    pub name: Symbol,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable, Debug)]
 pub struct BoundReft {
     pub index: u32,
@@ -242,6 +248,7 @@ pub enum Var {
     LateBound(DebruijnIndex, BoundReft),
     EarlyParam(EarlyReftParam),
     EVar(EVar),
+    ConstGeneric(ConstParam),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
@@ -410,6 +417,11 @@ impl Expr {
 
     pub fn const_def_id(c: DefId, espan: Option<ESpan>) -> Expr {
         ExprKind::ConstDefId(c).intern_at(espan)
+    }
+
+    pub fn const_generic(param: crate::fhir::ConstParam, espan: Option<ESpan>) -> Expr {
+        let param = ConstParam { index: param.index, name: param.name };
+        ExprKind::Var(Var::ConstGeneric(param)).intern_at(espan)
     }
 
     pub fn aggregate(kind: AggregateKind, flds: List<Expr>) -> Expr {
@@ -1021,6 +1033,7 @@ mod pretty {
                 Var::EarlyParam(var) => w!("{}", ^var.name),
                 Var::Free(name) => w!("{:?}", ^name),
                 Var::EVar(evar) => w!("{:?}", evar),
+                Var::ConstGeneric(param) => w!("{}", ^param.name),
             }
         }
     }

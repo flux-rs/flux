@@ -1449,6 +1449,7 @@ where
 
 impl<T: TypeFoldable> EarlyBinder<T> {
     pub fn instantiate(self, args: &[GenericArg], refine_args: &[Expr]) -> T {
+        println!("TRACE: instantiate {refine_args:#?}");
         self.0
             .try_fold_with(&mut subst::GenericsSubstFolder::new(
                 subst::GenericArgsDelegate(args),

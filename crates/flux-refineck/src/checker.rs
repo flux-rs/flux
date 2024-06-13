@@ -9,8 +9,8 @@ use flux_middle::{
     rty::{
         self, fold::TypeFoldable, refining::Refiner, BaseTy, BinOp, Binder, Bool, Constraint,
         CoroutineObligPredicate, EarlyBinder, Expr, Float, FnOutput, FnSig, FnTraitPredicate,
-        GenericArg, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref, Region::ReStatic,
-        Ty, TyKind, Uint, UintTy, VariantIdx,
+        GenericArg, GenericParamDefKind, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig,
+        Ref, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -242,7 +242,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let poly_sig = poly_sig
+        let poly_sig: Binder<FnSig> = poly_sig
             .instantiate_identity(&inherited.refine_params)
             .normalize_projections(genv, &body.infcx, def_id.to_def_id(), &inherited.refine_params)
             .with_span(span)?;
@@ -257,7 +257,24 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             |sort, _| rcx.define_vars(sort),
         );
 
+        // TODO:CONSTGEN:1: generate name `a0` using rcx.define_vars(sort)
+        // let const_generics = from the fn_sig?
+        // let const_generic_env = Map<N -> usize[a0]>
+        // let mut const_gen_env = FxHashMap::default();
+        for generic_param in &generics.params {
+            if let GenericParamDefKind::Const { .. } = generic_param.kind {
+                let sort = genv.sort_of_generic_param(generic_param.def_id.expect_local());
+                println!("TRACE:CONSTGEN:2: {generic_param:?} {sort:?}");
+                // let sort = c.sort();
+                // let name = rcx.define_vars(sort);
+                // const_gen_env.insert(c, name);
+            }
+        }
+        todo!("HEREHEREHEREHEREHERE");
+        // println!("TRACE:CONSTGEN:1: {const_gen_env:?}");
+
         let env = init_env(&mut rcx, &body, &fn_sig, inherited.config);
+        println!("TRACE: run ({def_id:?}): fn_sig = {fn_sig:?}, env = {env:?}");
 
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
@@ -1029,7 +1046,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Constant::Unit => Ok(Ty::unit()),
             Constant::Str => Ok(Ty::mk_ref(ReStatic, Ty::str(), Mutability::Not)),
             Constant::Char => Ok(Ty::char()),
-            Constant::Opaque(ty) => {
+            Constant::Param(_, ty) | Constant::Opaque(ty) => {
                 self.genv
                     .refine_default(&self.generics, ty)
                     .with_span(self.body.span())
