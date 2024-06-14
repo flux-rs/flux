@@ -200,6 +200,12 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
         self.check_output_locs(decl);
     }
 
+    fn visit_requires(&mut self, requires: &fhir::Requires<'genv>) {
+        self.infcx
+            .check_expr(&requires.pred, &rty::Sort::Bool)
+            .collect_err(&mut self.errors);
+    }
+
     fn visit_constraint(&mut self, constraint: &fhir::Constraint<'genv>) {
         match constraint {
             fhir::Constraint::Type(loc, ty) => {

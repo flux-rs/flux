@@ -467,7 +467,7 @@ pub struct VariantRet<'fhir> {
 pub struct FnDecl<'fhir> {
     pub generics: Generics<'fhir>,
     /// example: vec![(0 <= n), (l: i32)]
-    pub requires: &'fhir [Constraint<'fhir>],
+    pub requires: &'fhir [Requires<'fhir>],
     /// example: vec![(x: StrRef(l))]
     pub inputs: &'fhir [Ty<'fhir>],
     pub output: FnOutput<'fhir>,
@@ -476,6 +476,14 @@ pub struct FnDecl<'fhir> {
     ///
     /// [lifted]: lift::LiftCtxt::lift_fn_decl
     pub lifted: bool,
+}
+
+/// A predicate required to hold before calling a function.
+#[derive(Clone, Copy)]
+pub struct Requires<'fhir> {
+    /// An (optional) list of universally quanitified parameters
+    pub params: &'fhir [RefineParam<'fhir>],
+    pub pred: Expr<'fhir>,
 }
 
 #[derive(Clone, Copy)]
@@ -1168,6 +1176,21 @@ impl fmt::Debug for FnOutput<'_> {
         }
 
         Ok(())
+    }
+}
+
+impl fmt::Debug for Requires<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !self.params.is_empty() {
+            write!(
+                f,
+                "forall {}.",
+                self.params.iter().format_with(",", |param, f| {
+                    f(&format_args!("{}:{:?}", param.name, param.sort))
+                })
+            )?;
+        }
+        write!(f, "{:?}", self.pred)
     }
 }
 

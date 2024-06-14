@@ -192,7 +192,6 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
             return Err(self.emit_err(errors::FunArgCountMismatch::new(fn_decl, expected_fn_sig)));
         }
         self.zip_tys(fn_decl.inputs, expected_fn_sig.inputs)?;
-        self.zip_constraints(fn_decl.requires)?;
 
         self.zip_ty(&fn_decl.output.ret, &expected_fn_sig.output.ret)?;
         self.zip_constraints(fn_decl.output.ensures)

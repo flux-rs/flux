@@ -504,7 +504,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             for surface_requires in &fn_sig.requires {
                 let params = self.desugar_refine_params(&surface_requires.params);
                 let pred = self.desugar_expr(&surface_requires.pred)?;
-                requires.push(fhir::Constraint::Pred(params, pred));
+                requires.push(fhir::Requires { params, pred });
             }
 
             // Bail out if there's an error in the arguments to avoid confusing error messages

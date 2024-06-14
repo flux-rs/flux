@@ -2,9 +2,9 @@ use super::{
     AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
     FnSig, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem,
     ImplItemKind, Item, ItemKind, Lifetime, Lit, Node, OpaqueTy, Path, PathExpr, PathSegment,
-    PolyFuncSort, PolyTraitRef, QPath, RefineArg, RefineArgKind, RefineParam, Sort, SortPath,
-    StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, TypeBinding,
-    VariantDef, VariantRet, WhereBoundPredicate,
+    PolyFuncSort, PolyTraitRef, QPath, RefineArg, RefineArgKind, RefineParam, Requires, Sort,
+    SortPath, StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind,
+    TypeBinding, VariantDef, VariantRet, WhereBoundPredicate,
 };
 use crate::fhir::StructKind;
 
@@ -103,6 +103,10 @@ pub trait Visitor<'v>: Sized {
 
     fn visit_refine_param(&mut self, param: &RefineParam<'v>) {
         walk_refine_param(self, param);
+    }
+
+    fn visit_requires(&mut self, requires: &Requires<'v>) {
+        walk_requires(self, requires);
     }
 
     fn visit_constraint(&mut self, constraint: &Constraint<'v>) {
@@ -301,13 +305,18 @@ pub fn walk_fn_sig<'v, V: Visitor<'v>>(vis: &mut V, sig: &FnSig<'v>) {
 
 pub fn walk_fn_decl<'v, V: Visitor<'v>>(vis: &mut V, decl: &FnDecl<'v>) {
     vis.visit_generics(&decl.generics);
-    walk_list!(vis, visit_constraint, decl.requires);
+    walk_list!(vis, visit_requires, decl.requires);
     walk_list!(vis, visit_ty, decl.inputs);
     vis.visit_fn_output(&decl.output);
 }
 
 pub fn walk_refine_param<'v, V: Visitor<'v>>(vis: &mut V, param: &RefineParam<'v>) {
     vis.visit_sort(&param.sort);
+}
+
+pub fn walk_requires<'v, V: Visitor<'v>>(vis: &mut V, requires: &Requires<'v>) {
+    walk_list!(vis, visit_refine_param, requires.params);
+    vis.visit_expr(&requires.pred);
 }
 
 pub fn walk_constraint<'v, V: Visitor<'v>>(vis: &mut V, constraint: &Constraint<'v>) {

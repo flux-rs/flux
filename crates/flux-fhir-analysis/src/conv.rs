@@ -329,8 +329,8 @@ pub(crate) fn conv_fn_decl<'genv>(
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[])?);
 
     let mut requires = vec![];
-    for constr in decl.requires {
-        requires.push(cx.conv_constr(&mut env, constr)?);
+    for req in decl.requires {
+        requires.push(cx.conv_requires(&mut env, req)?);
     }
 
     let mut args = vec![];
@@ -646,6 +646,22 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         } else {
             Ok(rty::Opaqueness::Opaque)
         }
+    }
+
+    fn conv_requires(
+        &self,
+        env: &mut Env,
+        requires: &fhir::Requires,
+    ) -> QueryResult<rty::Constraint> {
+        let pred = if requires.params.is_empty() {
+            self.conv_expr(env, &requires.pred)?
+        } else {
+            env.push_layer(Layer::list(self, 0, requires.params)?);
+            let pred = self.conv_expr(env, &requires.pred)?;
+            let sorts = env.pop_layer().into_bound_vars(self.genv)?;
+            rty::Expr::forall(rty::Binder::new(pred, sorts))
+        };
+        Ok(rty::Constraint::Pred(pred))
     }
 
     fn conv_constr(
