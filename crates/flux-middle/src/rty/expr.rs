@@ -251,6 +251,7 @@ pub struct EarlyReftParam {
     pub name: Symbol,
 }
 
+// TODO: should use ParamConst but cannot due to `Encodable` requirement...
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub struct ConstParam {
     pub index: u32,
