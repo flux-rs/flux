@@ -14,8 +14,8 @@ use super::{
     normalize::{Normalizer, SpecFuncDefns},
     projections,
     subst::EVarSubstFolder,
-    AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
-    CoroutineObligPredicate, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
+    AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind,
+    CoroutineObligPredicate, Ensures, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
     ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, SubsetTy, TraitPredicate,
     TraitRef, Ty, TyKind,
@@ -738,35 +738,34 @@ impl TypeFoldable for FnOutput {
     }
 }
 
-impl TypeVisitable for Constraint {
+impl TypeVisitable for Ensures {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
-            Constraint::Type(path, ty, _) => {
+            Ensures::Type(path, ty) => {
                 path.to_expr().visit_with(visitor)?;
                 ty.visit_with(visitor)
             }
-            Constraint::Pred(e) => e.visit_with(visitor),
+            Ensures::Pred(e) => e.visit_with(visitor),
         }
     }
 }
 
-impl TypeFoldable for Constraint {
+impl TypeFoldable for Ensures {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let c = match self {
-            Constraint::Type(path, ty, local) => {
+            Ensures::Type(path, ty) => {
                 let path_expr = path
                     .to_expr()
                     .try_fold_with(folder)?
                     .normalize(&Default::default());
-                Constraint::Type(
+                Ensures::Type(
                     path_expr.to_path().unwrap_or_else(|| {
                         bug!("invalid path `{path_expr:?}` produced when folding `{self:?}`",)
                     }),
                     ty.try_fold_with(folder)?,
-                    *local,
                 )
             }
-            Constraint::Pred(e) => Constraint::Pred(e.try_fold_with(folder)?),
+            Ensures::Pred(e) => Ensures::Pred(e.try_fold_with(folder)?),
         };
         Ok(c)
     }

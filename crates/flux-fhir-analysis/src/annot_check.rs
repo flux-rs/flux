@@ -194,12 +194,12 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
         self.zip_tys(fn_decl.inputs, expected_fn_sig.inputs)?;
 
         self.zip_ty(&fn_decl.output.ret, &expected_fn_sig.output.ret)?;
-        self.zip_constraints(fn_decl.output.ensures)
+        self.zip_ensures(fn_decl.output.ensures)
     }
 
-    fn zip_constraints(&mut self, constrs: &[fhir::Constraint]) -> Result<(), ErrorGuaranteed> {
-        constrs.iter().try_for_each_exhaust(|constr| {
-            if let fhir::Constraint::Type(loc, ty) = constr {
+    fn zip_ensures(&mut self, ensures: &[fhir::Ensures]) -> Result<(), ErrorGuaranteed> {
+        ensures.iter().try_for_each_exhaust(|ensures| {
+            if let fhir::Ensures::Type(loc, ty) = ensures {
                 let ExprRes::Param(_, id) = loc.res else {
                     span_bug!(loc.span, "unexpected path in loc position")
                 };

@@ -176,13 +176,13 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         });
     }
 
-    fn visit_fn_input(&mut self, arg: &surface::FnInput, idx: usize) {
+    fn visit_fn_input(&mut self, arg: &surface::FnInput) {
         match arg {
             surface::FnInput::Constr(bind, _, _, node_id) => {
                 self.on_implicit_param(*bind, fhir::ParamKind::Colon, *node_id);
             }
             surface::FnInput::StrgRef(loc, _, node_id) => {
-                self.on_implicit_param(*loc, fhir::ParamKind::Loc(idx), *node_id);
+                self.on_implicit_param(*loc, fhir::ParamKind::Loc, *node_id);
             }
             surface::FnInput::Ty(bind, ty, node_id) => {
                 if let &Some(bind) = bind {
@@ -837,7 +837,7 @@ impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
                 (matches!(scope_kind, ScopeKind::FnOutput), surface::BindKind::Pound)
             }
             fhir::ParamKind::Colon
-            | fhir::ParamKind::Loc(_)
+            | fhir::ParamKind::Loc
             | fhir::ParamKind::Error
             | fhir::ParamKind::Explicit => return,
         };

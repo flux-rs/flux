@@ -7,10 +7,10 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{
-        self, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, Constraint,
-        CoroutineObligPredicate, EarlyBinder, Expr, Float, FnOutput, FnSig, FnTraitPredicate,
-        GenericArg, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref, Region::ReStatic,
-        Ty, TyKind, Uint, UintTy, VariantIdx,
+        self, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, CoroutineObligPredicate,
+        EarlyBinder, Ensures, Expr, Float, FnOutput, FnSig, FnTraitPredicate, GenericArg, Generics,
+        HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref, Region::ReStatic, Ty, TyKind, Uint,
+        UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -512,14 +512,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let output = output.replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
-        for constr in &output.ensures {
-            match constr {
-                Constraint::Type(path, updated_ty, _) => {
+        for ensures in &output.ensures {
+            match ensures {
+                Ensures::Type(path, updated_ty) => {
                     let updated_ty = rcx.unpack(updated_ty);
                     rcx.assume_invariants(&updated_ty, self.check_overflow());
                     env.update_path(path, updated_ty);
                 }
-                Constraint::Pred(e) => rcx.assume_pred(e),
+                Ensures::Pred(e) => rcx.assume_pred(e),
             }
         }
 

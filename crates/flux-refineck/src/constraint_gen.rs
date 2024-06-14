@@ -5,10 +5,9 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        self, evars::EVarSol, fold::TypeFoldable, AliasTy, BaseTy, Binder, Constraint,
-        CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder, Expr, ExprKind, FnOutput, GenericArg,
-        HoleKind, InferMode, Lambda, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort,
-        Ty, TyKind, Var,
+        self, evars::EVarSol, fold::TypeFoldable, AliasTy, BaseTy, Binder, CoroutineObligPredicate,
+        ESpan, EVarGen, EarlyBinder, Ensures, Expr, ExprKind, FnOutput, GenericArg, HoleKind,
+        InferMode, Lambda, Mutability, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -254,7 +253,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
 
         infcx.subtyping(rcx, &ret_place_ty, &output.ret)?;
         for constraint in &output.ensures {
-            infcx.check_constraint(rcx, env, constraint)?;
+            infcx.check_ensures(rcx, env, constraint)?;
         }
 
         let obligs = infcx.obligations();
@@ -426,27 +425,19 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         rcx.check_pred(pred, self.tag);
     }
 
-    fn check_type_constr(
+    fn check_ensures(
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        path: &Path,
-        ty: &Ty,
-    ) -> Result {
-        let actual_ty = env.get(path);
-        self.subtyping(rcx, &actual_ty, ty)
-    }
-
-    fn check_constraint(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        env: &mut TypeEnv,
-        constraint: &Constraint,
+        ensures: &Ensures,
     ) -> Result {
         let rcx = &mut rcx.branch();
-        match constraint {
-            Constraint::Type(path, ty, _) => self.check_type_constr(rcx, env, path, ty),
-            Constraint::Pred(e) => {
+        match ensures {
+            Ensures::Type(path, ty) => {
+                let actual_ty = env.get(path);
+                self.subtyping(rcx, &actual_ty, ty)
+            }
+            Ensures::Pred(e) => {
                 rcx.check_pred(e, self.tag);
                 Ok(())
             }

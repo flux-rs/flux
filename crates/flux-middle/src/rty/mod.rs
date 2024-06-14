@@ -60,7 +60,7 @@ use crate::{
     rty::subst::SortSubst,
     rustc::{
         self,
-        mir::{Local, Place},
+        mir::Place,
         ty::{ConstKind, VariantDef},
     },
 };
@@ -525,19 +525,12 @@ pub struct FnSig {
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct FnOutput {
     pub ret: Ty,
-    pub ensures: List<Constraint>,
+    pub ensures: List<Ensures>,
 }
 
-pub type Constraints = List<Constraint>;
-
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
-pub enum Constraint {
-    Type(
-        Path,
-        Ty,
-        /// The local of the argument corresponding to the constraint.
-        Local,
-    ),
+pub enum Ensures {
+    Type(Path, Ty),
     Pred(Expr),
 }
 
@@ -1569,7 +1562,7 @@ impl FnSig {
 }
 
 impl FnOutput {
-    pub fn new(ret: Ty, ensures: impl Into<List<Constraint>>) -> Self {
+    pub fn new(ret: Ty, ensures: impl Into<List<Ensures>>) -> Self {
         Self { ret, ensures: ensures.into() }
     }
 }
@@ -1943,7 +1936,7 @@ impl_internable!(AdtDefData, AdtSortDefData, TyS);
 impl_slice_internable!(
     Ty,
     GenericArg,
-    Constraint,
+    Ensures,
     InferMode,
     Sort,
     GenericParamDef,

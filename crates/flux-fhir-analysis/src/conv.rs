@@ -32,7 +32,6 @@ use rustc_hir::{
 };
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
-    mir::Local,
     ty::{self, AssocItem, AssocKind, BoundVar},
 };
 use rustc_span::{
@@ -555,10 +554,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         env.push_layer(Layer::list(self, 0, output.params)?);
 
         let ret = self.conv_ty(env, &output.ret)?;
-        let ensures: List<rty::Constraint> = output
+        let ensures: List<rty::Ensures> = output
             .ensures
             .iter()
-            .map(|constr| self.conv_constr(env, constr))
+            .map(|ens| self.conv_ensures(env, ens))
             .try_collect()?;
         let output = rty::FnOutput::new(ret, ensures);
 
@@ -659,21 +658,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_constr(
-        &self,
-        env: &mut Env,
-        constr: &fhir::Constraint,
-    ) -> QueryResult<rty::Constraint> {
-        match constr {
-            fhir::Constraint::Type(loc, ty) => {
-                let (idx, _) = loc.res.expect_loc_param();
-                Ok(rty::Constraint::Type(
-                    env.lookup(loc).to_path(),
-                    self.conv_ty(env, ty)?,
-                    Local::from_usize(idx + 1),
-                ))
+    fn conv_ensures(&self, env: &mut Env, ensures: &fhir::Ensures) -> QueryResult<rty::Ensures> {
+        match ensures {
+            fhir::Ensures::Type(loc, ty) => {
+                Ok(rty::Ensures::Type(env.lookup(loc).to_path(), self.conv_ty(env, ty)?))
             }
-            fhir::Constraint::Pred(params, pred) => {
+            fhir::Ensures::Pred(params, pred) => {
                 let pred = if params.is_empty() {
                     self.conv_expr(env, pred)?
                 } else {
@@ -682,7 +672,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     let sorts = env.pop_layer().into_bound_vars(self.genv)?;
                     rty::Expr::forall(rty::Binder::new(pred, sorts))
                 };
-                Ok(rty::Constraint::Pred(pred))
+                Ok(rty::Ensures::Pred(pred))
             }
         }
     }

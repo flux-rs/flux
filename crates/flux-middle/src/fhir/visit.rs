@@ -1,5 +1,5 @@
 use super::{
-    AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
+    AliasReft, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
     FnSig, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem,
     ImplItemKind, Item, ItemKind, Lifetime, Lit, Node, OpaqueTy, Path, PathExpr, PathSegment,
     PolyFuncSort, PolyTraitRef, QPath, RefineArg, RefineArgKind, RefineParam, Requires, Sort,
@@ -109,8 +109,8 @@ pub trait Visitor<'v>: Sized {
         walk_requires(self, requires);
     }
 
-    fn visit_constraint(&mut self, constraint: &Constraint<'v>) {
-        walk_constraint(self, constraint);
+    fn visit_ensures(&mut self, ensures: &Ensures<'v>) {
+        walk_ensures(self, ensures);
     }
 
     fn visit_fn_output(&mut self, output: &FnOutput<'v>) {
@@ -319,13 +319,13 @@ pub fn walk_requires<'v, V: Visitor<'v>>(vis: &mut V, requires: &Requires<'v>) {
     vis.visit_expr(&requires.pred);
 }
 
-pub fn walk_constraint<'v, V: Visitor<'v>>(vis: &mut V, constraint: &Constraint<'v>) {
+pub fn walk_ensures<'v, V: Visitor<'v>>(vis: &mut V, constraint: &Ensures<'v>) {
     match constraint {
-        Constraint::Type(loc, ty) => {
+        Ensures::Type(loc, ty) => {
             vis.visit_path_expr(loc);
             vis.visit_ty(ty);
         }
-        Constraint::Pred(params, pred) => {
+        Ensures::Pred(params, pred) => {
             walk_list!(vis, visit_refine_param, *params);
             vis.visit_expr(pred);
         }
@@ -335,7 +335,7 @@ pub fn walk_constraint<'v, V: Visitor<'v>>(vis: &mut V, constraint: &Constraint<
 pub fn walk_fn_output<'v, V: Visitor<'v>>(vis: &mut V, output: &FnOutput<'v>) {
     walk_list!(vis, visit_refine_param, output.params);
     vis.visit_ty(&output.ret);
-    walk_list!(vis, visit_constraint, output.ensures);
+    walk_list!(vis, visit_ensures, output.ensures);
 }
 
 pub fn walk_generic_arg<'v, V: Visitor<'v>>(vis: &mut V, arg: &GenericArg<'v>) {

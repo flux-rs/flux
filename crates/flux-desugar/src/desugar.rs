@@ -588,7 +588,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::FnOutput { params, ret: ret?, ensures })
     }
 
-    fn desugar_constraint(&mut self, cstr: &surface::Ensures) -> Result<fhir::Constraint<'genv>> {
+    fn desugar_constraint(&mut self, cstr: &surface::Ensures) -> Result<fhir::Ensures<'genv>> {
         match cstr {
             surface::Ensures::Type(loc, ty, node_id) => {
                 let res = self.desugar_loc(*loc, *node_id)?;
@@ -599,11 +599,11 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                     span: loc.span,
                 };
                 let ty = self.desugar_ty(ty)?;
-                Ok(fhir::Constraint::Type(path, ty))
+                Ok(fhir::Ensures::Type(path, ty))
             }
             surface::Ensures::Pred(e) => {
                 let pred = self.desugar_expr(e)?;
-                Ok(fhir::Constraint::Pred(&[], pred))
+                Ok(fhir::Ensures::Pred(&[], pred))
             }
         }
     }
@@ -828,7 +828,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
     #[track_caller]
     fn desugar_loc(&self, ident: surface::Ident, node_id: NodeId) -> Result<ExprRes> {
         let res = self.resolver_output().path_expr_res_map[&node_id];
-        if let ExprRes::Param(fhir::ParamKind::Loc(_), _) = res {
+        if let ExprRes::Param(fhir::ParamKind::Loc, _) = res {
             Ok(res)
         } else {
             let span = ident.span;

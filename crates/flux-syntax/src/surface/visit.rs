@@ -107,11 +107,7 @@ pub trait Visitor: Sized {
         walk_generics(self, generics);
     }
 
-    fn visit_fun_inputs(&mut self, inputs: &[FnInput]) {
-        walk_fun_inputs(self, inputs);
-    }
-
-    fn visit_fn_input(&mut self, input: &FnInput, _idx: usize) {
+    fn visit_fn_input(&mut self, input: &FnInput) {
         walk_fn_input(self, input);
     }
 
@@ -312,7 +308,7 @@ pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
         walk_list!(vis, visit_refine_param, &requires.params);
         vis.visit_expr(&requires.pred);
     }
-    vis.visit_fun_inputs(&fn_sig.inputs);
+    walk_list!(vis, visit_fn_input, &fn_sig.inputs);
     vis.visit_fn_output(&fn_sig.output);
 }
 
@@ -324,12 +320,6 @@ pub fn walk_fn_output<V: Visitor>(vis: &mut V, fn_output: &FnOutput) {
 pub fn walk_generics<V: Visitor>(vis: &mut V, generics: &Generics) {
     walk_list!(vis, visit_generic_param, &generics.params);
     walk_list!(vis, visit_where_predicate, &generics.predicates);
-}
-
-pub fn walk_fun_inputs<V: Visitor>(vis: &mut V, args: &[FnInput]) {
-    for (idx, arg) in args.iter().enumerate() {
-        vis.visit_fn_input(arg, idx);
-    }
 }
 
 pub fn walk_fn_input<V: Visitor>(vis: &mut V, arg: &FnInput) {

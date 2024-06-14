@@ -190,12 +190,12 @@ impl Pretty for FnOutput {
     }
 }
 
-impl Pretty for Constraint {
+impl Pretty for Ensures {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
         match self {
-            Constraint::Type(loc, ty, _) => w!("{:?}: {:?}", ^loc, ty),
-            Constraint::Pred(e) => w!("{:?}", e),
+            Ensures::Type(loc, ty) => w!("{:?}: {:?}", ^loc, ty),
+            Ensures::Pred(e) => w!("{:?}", e),
         }
     }
 }
@@ -439,7 +439,7 @@ impl Pretty for DebruijnIndex {
 }
 
 impl_debug_with_default_cx!(
-    Constraint,
+    Ensures,
     Sort,
     TyS => "ty",
     BaseTy,
