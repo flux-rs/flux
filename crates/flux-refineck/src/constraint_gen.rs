@@ -183,11 +183,9 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             List::empty()
         };
 
-        // Check requires predicates and collect type constraints
-        for constr in fn_sig.requires() {
-            if let Constraint::Pred(pred) = constr {
-                infcx.check_pred(rcx, pred);
-            }
+        // Check requires predicates
+        for requires in fn_sig.requires() {
+            infcx.check_pred(rcx, requires);
         }
 
         // Check arguments

@@ -333,9 +333,9 @@ pub(crate) fn conv_fn_decl<'genv>(
         requires.push(cx.conv_requires(&mut env, req)?);
     }
 
-    let mut args = vec![];
+    let mut inputs = vec![];
     for ty in decl.inputs {
-        args.push(cx.conv_ty(&mut env, ty)?);
+        inputs.push(cx.conv_ty(&mut env, ty)?);
     }
 
     let output = cx.conv_fn_output(&mut env, &decl.output)?;
@@ -346,7 +346,7 @@ pub(crate) fn conv_fn_decl<'genv>(
         .cloned()
         .collect();
 
-    let res = rty::PolyFnSig::new(rty::FnSig::new(requires, args, output), vars);
+    let res = rty::PolyFnSig::new(rty::FnSig::new(requires.into(), inputs.into(), output), vars);
     Ok(rty::EarlyBinder(res))
 }
 
@@ -648,20 +648,15 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_requires(
-        &self,
-        env: &mut Env,
-        requires: &fhir::Requires,
-    ) -> QueryResult<rty::Constraint> {
-        let pred = if requires.params.is_empty() {
-            self.conv_expr(env, &requires.pred)?
+    fn conv_requires(&self, env: &mut Env, requires: &fhir::Requires) -> QueryResult<rty::Expr> {
+        if requires.params.is_empty() {
+            self.conv_expr(env, &requires.pred)
         } else {
             env.push_layer(Layer::list(self, 0, requires.params)?);
             let pred = self.conv_expr(env, &requires.pred)?;
             let sorts = env.pop_layer().into_bound_vars(self.genv)?;
-            rty::Expr::forall(rty::Binder::new(pred, sorts))
-        };
-        Ok(rty::Constraint::Pred(pred))
+            Ok(rty::Expr::forall(rty::Binder::new(pred, sorts)))
+        }
     }
 
     fn conv_constr(

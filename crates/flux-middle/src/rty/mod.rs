@@ -517,7 +517,7 @@ pub type PolyFnSig = Binder<FnSig>;
 
 #[derive(Clone, TyEncodable, TyDecodable)]
 pub struct FnSig {
-    requires: List<Constraint>,
+    requires: List<Expr>,
     inputs: List<Ty>,
     output: Binder<FnOutput>,
 }
@@ -1133,10 +1133,10 @@ impl FnTraitPredicate {
         };
         let inputs = std::iter::once(env_ty)
             .chain(self.tupled_args.expect_tuple().iter().cloned())
-            .collect_vec();
+            .collect();
 
         let fn_sig = FnSig::new(
-            vec![],
+            List::empty(),
             inputs,
             Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
         );
@@ -1152,10 +1152,10 @@ impl CoroutineObligPredicate {
         let resume_ty = &self.resume_ty;
         let env_ty = Ty::coroutine(self.def_id, resume_ty.clone(), self.upvar_tys.clone());
 
-        let inputs = vec![env_ty, resume_ty.clone()];
+        let inputs = List::from_arr([env_ty, resume_ty.clone()]);
         let output = Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
-        PolyFnSig::new(FnSig::new(vec![], inputs, output), List::from(vars))
+        PolyFnSig::new(FnSig::new(List::empty(), inputs, output), List::from(vars))
     }
 }
 
@@ -1551,15 +1551,11 @@ impl VariantSig {
 }
 
 impl FnSig {
-    pub fn new(
-        requires: impl Into<List<Constraint>>,
-        args: impl Into<List<Ty>>,
-        output: Binder<FnOutput>,
-    ) -> Self {
-        FnSig { requires: requires.into(), inputs: args.into(), output }
+    pub fn new(requires: List<Expr>, inputs: List<Ty>, output: Binder<FnOutput>) -> Self {
+        FnSig { requires, inputs, output }
     }
 
-    pub fn requires(&self) -> &Constraints {
+    pub fn requires(&self) -> &[Expr] {
         &self.requires
     }
 
@@ -1696,7 +1692,7 @@ impl EarlyBinder<PolyVariant> {
             poly_variant.as_ref().map(|variant| {
                 let ret = variant.ret().shift_in_escaping(1);
                 let output = Binder::new(FnOutput::new(ret, vec![]), List::empty());
-                FnSig::new(vec![], variant.fields.clone(), output)
+                FnSig::new(List::empty(), variant.fields.clone(), output)
             })
         })
     }
