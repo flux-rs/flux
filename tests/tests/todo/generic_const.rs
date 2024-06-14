@@ -10,10 +10,18 @@ pub fn test02<const N: usize>(arr: &[i32; N]) -> i32 {
     }
 }
 
-pub fn from_array<const N: usize>(items: [i32; N]) -> Vec<i32> {
-    items.to_vec()
+#[flux::trusted]
+#[flux::sig(fn(items:_) -> usize[N])]
+pub fn array_len<const N: usize>(items: &[i32; N]) -> usize {
+    items.len()
 }
 
-// fn test03() -> Vec<i32> {
-//     from_array([1, 2, 3])
-// }
+#[flux::sig(fn() -> usize[3])]
+fn test03() -> usize {
+    array_len(&[1, 2, 3])
+}
+
+#[flux::sig(fn() -> usize[3])]
+fn test03_bad() -> usize {
+    array_len(&[1, 2]) //~ ERROR refinement type
+}

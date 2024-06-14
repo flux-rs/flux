@@ -841,7 +841,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .with_span(source_span)?;
 
         let idx = match ty.kind() {
-            TyKind::Indexed(BaseTy::Array(_, len), _) => self.index_of_const(env, &len),
+            TyKind::Indexed(BaseTy::Array(_, len), _) => self.index_of_const(env, len),
             TyKind::Indexed(BaseTy::Slice(_), idx) => idx.clone(),
             _ => tracked_span_bug!("expected array or slice type"),
         };

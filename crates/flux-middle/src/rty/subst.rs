@@ -257,6 +257,7 @@ pub trait GenericsSubstDelegate {
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty;
     fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor;
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region;
+    fn const_for_param(&mut self, param: &Const) -> Const;
 }
 
 /// The identity substitution used when checking the body of a (polymorphic) function. For example,
@@ -284,6 +285,10 @@ impl GenericsSubstDelegate for IdentitySubstDelegate {
 
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region {
         ReEarlyBound(ebr)
+    }
+
+    fn const_for_param(&mut self, param: &Const) -> Const {
+        param.clone()
     }
 }
 
@@ -320,6 +325,19 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
             Some(GenericArg::Lifetime(re)) => *re,
             Some(arg) => bug!("expected region for generic parameter, found `{arg:?}`"),
             None => bug!("region parameter out of range"),
+        }
+    }
+
+    fn const_for_param(&mut self, param: &Const) -> Const {
+        match &param.kind {
+            ConstKind::Value(_) => param.clone(),
+            ConstKind::Param(param_const) => {
+                match self.0.get(param_const.index as usize) {
+                    Some(GenericArg::Const(konst)) => konst.clone(),
+                    Some(arg) => bug!("expected const for generic parameter, found `{arg:?}`"),
+                    None => bug!("type parameter out of range"),
+                }
+            }
         }
     }
 }
@@ -362,6 +380,10 @@ where
 
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region {
         bug!("unexpected region param {ebr:?}");
+    }
+
+    fn const_for_param(&mut self, param: &Const) -> Const {
+        bug!("unexpected const param {param:?}");
     }
 }
 
@@ -451,6 +473,18 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
             ExprKind::Var(Var::ConstGeneric(var)) => Ok(self.expr_for_param_const(var.index)),
             _ => expr.try_super_fold_with(self),
         }
+    }
+
+    fn try_fold_const(&mut self, c: &Const) -> Result<Const, D::Error> {
+        Ok(self.delegate.const_for_param(c))
+        // match c.kind {
+        //     ConstKind::Param(param) => {
+        //         let kind =
+
+        //         Ok(Const { kind, ty: c.ty.clone() })
+        //     }
+        //     _ => c.try_super_fold_with(self),
+        // }
     }
 }
 

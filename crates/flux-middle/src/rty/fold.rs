@@ -25,6 +25,7 @@ use crate::{
     intern::{Internable, List},
     queries::QueryResult,
     rty::{expr::HoleKind, Var, VariantSig},
+    rustc::ty::Const,
 };
 
 pub trait TypeVisitor: Sized {
@@ -53,6 +54,10 @@ pub trait TypeVisitor: Sized {
     fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<Self::BreakTy> {
         bty.super_visit_with(self)
     }
+
+    // fn visit_const(&mut self, c: &Const) -> ControlFlow<Self::BreakTy> {
+    //     c.super_visit_with(self)
+    // }
 }
 
 pub trait FallibleTypeFolder: Sized {
@@ -83,6 +88,10 @@ pub trait FallibleTypeFolder: Sized {
 
     fn try_fold_region(&mut self, re: &Region) -> Result<Region, Self::Error> {
         Ok(*re)
+    }
+
+    fn try_fold_const(&mut self, c: &Const) -> Result<Const, Self::Error> {
+        c.try_super_fold_with(self)
     }
 
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
@@ -865,6 +874,32 @@ impl TypeVisitable for Region {
         ControlFlow::Continue(())
     }
 }
+impl TypeSuperFoldable for Const {
+    fn try_super_fold_with<F: FallibleTypeFolder>(
+        &self,
+        _folder: &mut F,
+    ) -> Result<Self, F::Error> {
+        Ok(self.clone())
+    }
+}
+
+// impl TypeSuperVisitable for Const {
+//     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+//         ControlFlow::Continue(())
+//     }
+// }
+
+impl TypeVisitable for Const {
+    fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        ControlFlow::Continue(())
+    }
+}
+
+impl TypeFoldable for Const {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        folder.try_fold_const(self)
+    }
+}
 
 impl TypeFoldable for Region {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
@@ -920,7 +955,9 @@ impl TypeSuperFoldable for BaseTy {
                 BaseTy::Ref(re.try_fold_with(folder)?, ty.try_fold_with(folder)?, *mutbl)
             }
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.try_fold_with(folder)?),
-            BaseTy::Array(ty, c) => BaseTy::Array(ty.try_fold_with(folder)?, c.clone()),
+            BaseTy::Array(ty, c) => {
+                BaseTy::Array(ty.try_fold_with(folder)?, c.try_fold_with(folder)?)
+            }
             BaseTy::Int(_)
             | BaseTy::Param(_)
             | BaseTy::Uint(_)

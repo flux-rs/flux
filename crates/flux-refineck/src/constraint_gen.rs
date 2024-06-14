@@ -194,7 +194,6 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         // Generate fresh inference variables for refinement arguments
         let refine_args = infcx.instantiate_refine_args(genv, callee_def_id)?;
 
-        // println!("TRACE: check_fn_call: generic_args = {generic_args:?}");
         let const_generic_args = Self::call_const_generic_args(&tcx, env, &generic_args);
 
         // Instantiate function signature and normalize it
