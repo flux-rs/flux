@@ -273,7 +273,6 @@ fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generi
             kind => bug!("generics_of called on `{def_id:?}` with kind `{kind:?}`"),
         }
     };
-    println!("TRACE: generics_of: {local_id:?} = {res:?}");
     res
 }
 

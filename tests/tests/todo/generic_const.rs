@@ -10,29 +10,29 @@
 //     N
 // }
 
-#[flux::sig(fn(x:A) -> usize[N])]
-pub fn test002<A, const N: usize>(x: A) -> usize {
-    N
+#[flux::sig(fn(x:A) -> usize[N+2])]
+pub fn test002<A, const N: usize>(_x: A) -> usize {
+    N + 2
 }
 
-// #[flux::sig(fn() -> usize{v: N < v})]
-// pub fn test003<N: usize>() -> usize {
-//     N + 1
-// }
+#[flux::sig(fn() -> usize[5])]
+pub fn test002_client() -> usize {
+    test002::<bool, 3>(true)
+}
 
-// #[flux::sig(fn(x:i32) -> i32{v:x < v})]
-// pub fn inc(x: i32) -> i32 {
-//     x + 1
-// }
+#[flux::sig(fn(x:A) -> usize{v:N < v})]
+pub fn test003<A, const N: usize>(_x: A) -> usize {
+    N + 2
+}
 
-// #[flux::sig(fn(ptr: &i32[@n]) -> usize{v: 10 < v})]
-// pub fn test003<const N: usize>(_zink: &i32) -> usize {
-//     if 10 < N {
-//         N
-//     } else {
-//         15
-//     }
-// }
+#[flux::sig(fn(&i32) -> usize{v: 10 < v})]
+pub fn test004<const N: usize>(_zink: &i32) -> usize {
+    if 10 < N {
+        N
+    } else {
+        15
+    }
+}
 
 // pub fn test01<const N: usize>(arr: &[i32; N]) -> i32 {
 //     arr[0] //~ ERROR refinement type

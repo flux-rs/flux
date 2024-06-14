@@ -575,14 +575,13 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 Some(Constant::Str)
             }
             (Const::Ty(c), _) => {
-                println!("TRACE: blergh0: {c:#?}");
                 match c.kind() {
                     rustc_ty::ConstKind::Value(rustc_ty::ValTree::Leaf(scalar)) => {
                         scalar_int_to_constant(tcx, scalar, c.ty())
                     }
                     rustc_ty::ConstKind::Param(param_const) => {
                         let ty = lower_ty(tcx, ty)?;
-                        let param_const = crate::rustc::mir::ParamConst {
+                        let param_const = crate::rustc::mir::ConstParam {
                             name: param_const.name,
                             index: param_const.index,
                         };
@@ -599,10 +598,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             (_, TyKind::Tuple(tys)) if tys.is_empty() => return Ok(Constant::Unit),
             (_, _) => Some(Constant::Opaque(lower_ty(tcx, ty)?)),
         }
-        .ok_or_else(|| {
-            println!("TRACE: blergh: val = {val:#?}, ty = {ty:#?}");
-            UnsupportedReason::new(format!("unsupported constant `{constant:?}`"))
-        })
+        .ok_or_else(|| UnsupportedReason::new(format!("unsupported constant `{constant:?}`")))
     }
 
     fn lower_assert_msg(&self, msg: &rustc_mir::AssertMessage) -> Option<AssertKind> {

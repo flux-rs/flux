@@ -502,7 +502,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         sort_res: UnordMap<Symbol, fhir::SortRes>,
         const_generics: UnordMap<Symbol, (crate::DefId, u32)>,
     ) -> Self {
-        println!("TRACE: SortResolver::new {const_generics:?}");
         let errors = Errors::new(resolver.genv.sess());
         Self {
             resolver,

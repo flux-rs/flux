@@ -10,11 +10,11 @@ use flux_middle::{
         canonicalize::Hoister,
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        subst::RegionSubst,
+        subst::{ConstGenericArgs, RegionSubst},
         BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Lambda, Mutability,
         Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
-    rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
+    rustc::mir::{BasicBlock, ConstParam, Local, LocalDecls, Place, PlaceElem},
 };
 use itertools::{izip, Itertools};
 use rustc_middle::ty::TyCtxt;
@@ -36,6 +36,7 @@ type Result<T = ()> = std::result::Result<T, CheckerErrKind>;
 pub struct TypeEnv<'a> {
     bindings: PlacesTree,
     local_decls: &'a LocalDecls,
+    const_generic_args: ConstGenericArgs,
 }
 
 pub struct BasicBlockEnvShape {
@@ -55,8 +56,16 @@ struct BasicBlockEnvData {
 }
 
 impl TypeEnv<'_> {
-    pub fn new(local_decls: &LocalDecls) -> TypeEnv {
-        TypeEnv { bindings: PlacesTree::default(), local_decls }
+    pub fn new(local_decls: &LocalDecls, const_generic_args: ConstGenericArgs) -> TypeEnv {
+        TypeEnv { bindings: PlacesTree::default(), local_decls, const_generic_args }
+    }
+
+    pub fn const_generic_args(&self) -> ConstGenericArgs {
+        self.const_generic_args.clone()
+    }
+
+    pub fn index_of_const_param(&self, const_param: &ConstParam) -> Expr {
+        self.const_generic_args.lookup(const_param.index)
     }
 
     pub fn alloc_universal_loc(&mut self, loc: Loc, place: Place, ty: Ty) {
@@ -291,8 +300,12 @@ impl TypeEnv<'_> {
 }
 
 impl BasicBlockEnvShape {
-    pub fn enter<'a>(&self, local_decls: &'a LocalDecls) -> TypeEnv<'a> {
-        TypeEnv { bindings: self.bindings.clone(), local_decls }
+    pub fn enter<'a>(
+        &self,
+        local_decls: &'a LocalDecls,
+        const_generic_args: ConstGenericArgs,
+    ) -> TypeEnv<'a> {
+        TypeEnv { bindings: self.bindings.clone(), local_decls, const_generic_args }
     }
 
     fn new(scope: Scope, env: TypeEnv) -> Result<BasicBlockEnvShape> {
@@ -619,6 +632,7 @@ impl BasicBlockEnv {
         &self,
         rcx: &mut RefineCtxt,
         local_decls: &'a LocalDecls,
+        const_generic_args: ConstGenericArgs,
     ) -> TypeEnv<'a> {
         let data = self
             .data
@@ -626,7 +640,7 @@ impl BasicBlockEnv {
         for constr in &data.constrs {
             rcx.assume_pred(constr);
         }
-        TypeEnv { bindings: data.bindings, local_decls }
+        TypeEnv { bindings: data.bindings, local_decls, const_generic_args }
     }
 
     pub(crate) fn scope(&self) -> &Scope {

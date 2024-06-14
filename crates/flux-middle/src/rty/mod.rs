@@ -1450,7 +1450,6 @@ where
 
 impl<T: TypeFoldable> EarlyBinder<T> {
     pub fn instantiate(self, args: &[GenericArg], refine_args: &[Expr]) -> T {
-        println!("TRACE: instantiate {refine_args:#?}");
         self.0
             .try_fold_with(&mut subst::GenericsSubstFolder::new(
                 subst::GenericArgsDelegate(args),
@@ -1742,6 +1741,15 @@ impl TyS {
             tys
         } else {
             bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_base(&self) -> BaseTy {
+        match self.kind() {
+            TyKind::Indexed(base_ty, _) => base_ty.clone(),
+            TyKind::Exists(bty) => bty.clone().skip_binder().expect_base(),
+            _ => bug!("expected indexed type"),
         }
     }
 }

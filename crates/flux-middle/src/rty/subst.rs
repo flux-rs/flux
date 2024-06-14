@@ -365,15 +365,20 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct ConstGenericArgs(FxHashMap<u32, Expr>);
 
 impl ConstGenericArgs {
     pub fn empty() -> Self {
         Self(FxHashMap::default())
     }
+
     pub fn insert(&mut self, index: u32, expr: Expr) {
         self.0.insert(index, expr);
+    }
+
+    pub fn lookup(&self, index: u32) -> Expr {
+        self.0.get(&index).unwrap().clone()
     }
 }
 
@@ -441,10 +446,10 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
     }
 
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, D::Error> {
-        if let ExprKind::Var(Var::EarlyParam(var)) = expr.kind() {
-            Ok(self.expr_for_param(var.index))
-        } else {
-            expr.try_super_fold_with(self)
+        match expr.kind() {
+            ExprKind::Var(Var::EarlyParam(var)) => Ok(self.expr_for_param(var.index)),
+            ExprKind::Var(Var::ConstGeneric(var)) => Ok(self.expr_for_const_param(var.index)),
+            _ => expr.try_super_fold_with(self),
         }
     }
 }
@@ -452,6 +457,9 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
 impl<D> GenericsSubstFolder<'_, D> {
     fn expr_for_param(&self, idx: u32) -> Expr {
         self.refinement_args[idx as usize].shift_in_escaping(self.current_index.as_u32())
+    }
+    fn expr_for_const_param(&self, idx: u32) -> Expr {
+        self.const_generic_args.0[&idx].clone()
     }
 }
 

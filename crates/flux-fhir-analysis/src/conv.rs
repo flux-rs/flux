@@ -315,8 +315,6 @@ pub(crate) fn conv_fn_decl<'genv>(
 
     let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
 
-    println!("TRACE: conv_fn_decl generics = {:?}, output = {:?}", decl.generics, decl.output);
-
     let mut env =
         Env::new(genv, decl.generics.refinement_params, decl.generics.params, wfckresults)?;
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[], true)?);
@@ -1210,7 +1208,6 @@ impl Env {
             }
         }
         if let Some((idx, _, (name, sort))) = self.early_bound.get_full(&id) {
-            println!("TRACE: lookup {var:?} found {idx:?} / {name:?} / {sort:?}");
             LookupResult {
                 span: var.span,
                 kind: LookupResultKind::EarlyParam {
@@ -1243,7 +1240,6 @@ impl ConvCtxt<'_, '_, '_> {
         let espan = Some(ESpan::new(expr.span));
         let expr = match &expr.kind {
             fhir::ExprKind::Var(var, _) => {
-                println!("var: {:#?}", var.res);
                 match var.res {
                     ExprRes::Param(..) => env.lookup(var).to_expr(),
                     ExprRes::Const(def_id) => rty::Expr::const_def_id(def_id, espan),

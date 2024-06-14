@@ -297,7 +297,6 @@ impl Env {
     fn get_var(&self, var: &rty::Var, dbg_span: Span) -> fixpoint::LocalVar {
         match var {
             rty::Var::Free(name) => {
-                println!("TRACE: get_var (0): {var:#?}");
                 self.get_fvar(*name)
                     .unwrap_or_else(|| span_bug!(dbg_span, "no entry found for name: `{name:?}`"))
             }
