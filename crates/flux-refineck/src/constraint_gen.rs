@@ -155,14 +155,23 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             if let GenericArg::Const(c) = arg {
                 let expr = match c.kind {
                     flux_middle::rustc::ty::ConstKind::Param(p) => {
-                        env.const_generic_args().lookup(p.index)
+                        Some(env.const_generic_args().lookup(p.index))
                     }
                     flux_middle::rustc::ty::ConstKind::Value(value) => {
-                        let value = value.try_to_target_usize(*tcx).unwrap() as u128;
-                        Expr::constant(rty::Constant::from(value))
+                        match value.try_to_target_usize(*tcx) {
+                            Ok(value) => {
+                                let value = value as u128;
+                                Some(Expr::constant(rty::Constant::from(value)))
+                            }
+                            _ => None, // bug!("unexpected const value: {:?}", value),
+                        }
+                        // let value = value.try_to_target_usize(*tcx).unwrap() as u128;
+                        // Expr::constant(rty::Constant::from(value))
                     }
                 };
-                const_generic_args.insert(i as u32, expr);
+                if let Some(expr) = expr {
+                    const_generic_args.insert(i as u32, expr);
+                }
             }
         }
         const_generic_args

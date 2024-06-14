@@ -246,9 +246,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let mut const_generic_args = ConstGenericArgs::empty();
         for generic_param in &generics.params {
             if let GenericParamDefKind::Const { .. } = generic_param.kind
-                && let Some(sort) = genv
-                    .sort_of_generic_param(generic_param.def_id.expect_local())
-                    .with_span(span)?
+                && let Some(local_def_id) = generic_param.def_id.as_local()
+                && let Some(sort) = genv.sort_of_generic_param(local_def_id).with_span(span)?
             {
                 let generic_expr = rcx.define_vars(&sort);
                 const_generic_args.insert(generic_param.index, generic_expr);
