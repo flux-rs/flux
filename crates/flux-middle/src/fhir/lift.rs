@@ -528,7 +528,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             && let LitKind::Int(array_len, _) = lit.node
         {
             // FIXME(nilehmann) we shouldn't panic here
-            Ok(fhir::ArrayLen { val: array_len.get().try_into().unwrap(), span: lit.span })
+            Ok(fhir::ArrayLen::lit(array_len.get().try_into().unwrap(), lit.span))
         } else {
             println!("TRACE: lift_array_len {:#?}", body);
             self.emit_unsupported("only integer literals are supported for array lengths")

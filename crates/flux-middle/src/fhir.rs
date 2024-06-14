@@ -550,8 +550,22 @@ pub enum Lifetime {
 
 #[derive(Clone, Copy)]
 pub struct ArrayLen {
-    pub val: usize,
+    pub kind: ArrayLenKind,
     pub span: Span,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum ArrayLenKind {
+    /// The length of the array is a constant
+    Lit(usize),
+    /// The length of the array is a type parameter
+    ConstParam(ConstParam),
+}
+
+impl ArrayLen {
+    pub fn lit(n: usize, span: Span) -> Self {
+        Self { kind: ArrayLenKind::Lit(n), span }
+    }
 }
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -856,7 +870,7 @@ pub enum Lit {
     Bool(bool),
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct ConstParam {
     pub def_id: DefId,
     pub index: u32,
@@ -1251,7 +1265,16 @@ impl fmt::Debug for Lifetime {
 
 impl fmt::Debug for ArrayLen {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "_")
+        write!(f, "{:?}", self.kind)
+    }
+}
+
+impl fmt::Debug for ArrayLenKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ArrayLenKind::Lit(n) => write!(f, "{n}"),
+            ArrayLenKind::ConstParam(p) => write!(f, "{}", p.name),
+        }
     }
 }
 

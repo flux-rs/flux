@@ -2,6 +2,7 @@ use std::iter;
 
 use flux_common::{bug, tracked_span_bug};
 use flux_middle::{
+    fhir::ArrayLenKind,
     global_env::GlobalEnv,
     intern::List,
     rty::{
@@ -158,10 +159,8 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
                                 let value = value as u128;
                                 Some(Expr::constant(rty::Constant::from(value)))
                             }
-                            _ => None, // bug!("unexpected const value: {:?}", value),
+                            _ => None,
                         }
-                        // let value = value.try_to_target_usize(*tcx).unwrap() as u128;
-                        // Expr::constant(rty::Constant::from(value))
                     }
                 };
                 if let Some(expr) = expr {
@@ -366,7 +365,8 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         }
         rcx.replace_evars(&infcx.solve()?);
 
-        Ok(Ty::array(arr_ty, rty::Const::from_array_len(self.genv.tcx(), args.len())))
+        let len = ArrayLenKind::Lit(args.len());
+        Ok(Ty::array(arr_ty, rty::Const::from_array_len(self.genv.tcx(), len)))
     }
 
     pub(crate) fn infcx(

@@ -22,6 +22,7 @@ use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 
 use self::subst::Subst;
 use crate::{
+    fhir::ArrayLenKind,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     pretty::def_id_to_string,
 };
@@ -200,10 +201,17 @@ pub struct Const {
 }
 
 impl Const {
-    pub fn from_array_len(tcx: TyCtxt, len: usize) -> Const {
-        Const {
-            kind: ConstKind::Value(ScalarInt::try_from_target_usize(len as u128, tcx).unwrap()),
-            ty: Ty::mk_uint(UintTy::Usize),
+    pub fn from_array_len(tcx: TyCtxt, len: ArrayLenKind) -> Const {
+        match len {
+            ArrayLenKind::Lit(len) => {
+                Const {
+                    kind: ConstKind::Value(
+                        ScalarInt::try_from_target_usize(len as u128, tcx).unwrap(),
+                    ),
+                    ty: Ty::mk_uint(UintTy::Usize),
+                }
+            }
+            ArrayLenKind::ConstParam(_) => todo!(),
         }
     }
 }
