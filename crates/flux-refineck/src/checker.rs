@@ -19,7 +19,7 @@ use flux_middle::{
             Location, Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
             TerminatorKind, RETURN_PLACE, START_BLOCK,
         },
-        ty::{self, ConstKind},
+        ty::{self, Const, ConstKind},
     },
 };
 use itertools::Itertools;
@@ -801,7 +801,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Rvalue::Len(place) => self.check_len(rcx, env, stmt_span, place),
             Rvalue::Cast(kind, op, to) => {
                 let from = self.check_operand(rcx, env, stmt_span, op)?;
-                self.check_cast(*kind, &from, to)
+                self.check_cast(env, *kind, &from, to)
             }
         }
     }
@@ -819,6 +819,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(tys)
     }
 
+    fn index_of_const(&self, env: &TypeEnv, const_: &Const) -> Expr {
+        match &const_.kind {
+            ConstKind::Value(value) => {
+                let value = value.try_to_target_usize(self.genv.tcx()).unwrap() as u128;
+                Expr::constant(rty::Constant::from(value))
+            }
+            ConstKind::Param(param_const) => env.index_of_param_const(param_const),
+        }
+    }
+
     fn check_len(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -831,17 +841,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .with_span(source_span)?;
 
         let idx = match ty.kind() {
-            TyKind::Indexed(BaseTy::Array(_, len), _) => {
-                match &len.kind {
-                    ConstKind::Value(value) => {
-                        let value = value.try_to_target_usize(self.genv.tcx()).unwrap() as u128;
-                        Expr::constant(rty::Constant::from(value))
-                    }
-                    ConstKind::Param(_param_const) => {
-                        tracked_span_bug!("unexpected array length")
-                    }
-                }
-            }
+            TyKind::Indexed(BaseTy::Array(_, len), _) => self.index_of_const(env, &len),
             TyKind::Indexed(BaseTy::Slice(_), idx) => idx.clone(),
             _ => tracked_span_bug!("expected array or slice type"),
         };
@@ -926,7 +926,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
-    fn check_cast(&self, kind: CastKind, from: &Ty, to: &rustc::ty::Ty) -> Result<Ty> {
+    fn check_cast(
+        &self,
+        env: &TypeEnv,
+        kind: CastKind,
+        from: &Ty,
+        to: &rustc::ty::Ty,
+    ) -> Result<Ty> {
         use rustc::ty::TyKind as RustTy;
         let ty = match kind {
             CastKind::IntToInt => {
@@ -952,14 +958,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             CastKind::Pointer(mir::PointerCast::Unsize) => {
                 if let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::Array(src_arr_ty, src_n), _) = src_ty.kind()
-                    && let ConstKind::Value(src_n) = &src_n.kind
+                    // && let ConstKind::Value(src_n) = &src_n.kind
                     && let rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
                     && let rustc::ty::TyKind::Slice(_) = dst_ty.kind()
                     && src_mut == dst_mut
                 {
-                    let v = src_n.try_to_target_usize(self.genv.tcx()).unwrap() as u128;
-                    let expr = Expr::constant(rty::Constant::from(v));
-                    let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), expr);
+                    // let v = src_n.try_to_target_usize(self.genv.tcx()).unwrap() as u128;
+                    // let idx = Expr::constant(rty::Constant::from(v));
+                    let idx = self.index_of_const(env, src_n);
+                    let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), idx);
                     Ty::mk_ref(*dst_re, dst_slice, *dst_mut)
                 } else {
                     tracked_span_bug!("unsupported Unsize cast")
