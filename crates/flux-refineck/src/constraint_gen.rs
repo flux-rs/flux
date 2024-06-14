@@ -5,13 +5,10 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        self,
-        evars::{EVarCxId, EVarSol},
-        fold::TypeFoldable,
-        subst::ConstGenericArgs,
-        AliasTy, BaseTy, BinOp, Binder, Constraint, CoroutineObligPredicate, ESpan, EVarGen,
-        EarlyBinder, Expr, ExprKind, FnOutput, GenericArg, HoleKind, InferMode, Lambda, Mutability,
-        Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
+        self, evars::EVarSol, fold::TypeFoldable, subst::ConstGenericArgs, AliasTy, BaseTy, Binder,
+        Constraint, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder, Expr, ExprKind, FnOutput,
+        GenericArg, HoleKind, InferMode, Lambda, Mutability, Path, PolyFnSig, PolyVariant, PtrKind,
+        Ref, Sort, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };

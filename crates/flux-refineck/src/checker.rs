@@ -7,9 +7,9 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{
-        self, fold::TypeFoldable, refining::Refiner, subst::ConstGenericArgs, BaseTy, BinOp,
-        Binder, Bool, Constraint, CoroutineObligPredicate, EarlyBinder, Expr, Float, FnOutput,
-        FnSig, FnTraitPredicate, GenericArg, GenericParamDefKind, Generics, HoleKind, Int, IntTy,
+        self, fold::TypeFoldable, refining::Refiner, subst::ConstGenericArgs, BaseTy, Binder, Bool,
+        Constraint, CoroutineObligPredicate, EarlyBinder, Expr, Float, FnOutput, FnSig,
+        FnTraitPredicate, GenericArg, GenericParamDefKind, Generics, HoleKind, Int, IntTy,
         Mutability, PolyFnSig, Ref, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{

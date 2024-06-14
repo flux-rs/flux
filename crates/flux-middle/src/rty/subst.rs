@@ -1,6 +1,7 @@
 use std::{cmp::Ordering, collections::hash_map};
 
 use flux_common::bug;
+use rustc_hash::FxHashMap;
 use rustc_middle::ty::RegionVid;
 use rustc_type_ir::DebruijnIndex;
 
