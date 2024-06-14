@@ -469,7 +469,7 @@ pub struct FnDecl<'fhir> {
     /// example: vec![(0 <= n), (l: i32)]
     pub requires: &'fhir [Constraint<'fhir>],
     /// example: vec![(x: StrRef(l))]
-    pub args: &'fhir [Ty<'fhir>],
+    pub inputs: &'fhir [Ty<'fhir>],
     pub output: FnOutput<'fhir>,
     pub span: Span,
     /// Whether the sig was [lifted] from a hir signature
@@ -1147,7 +1147,7 @@ impl fmt::Debug for FnDecl<'_> {
         if !self.requires.is_empty() {
             write!(f, "[{:?}] ", self.requires.iter().format(", "))?;
         }
-        write!(f, "fn({:?}) -> {:?}", self.args.iter().format(", "), self.output)
+        write!(f, "fn({:?}) -> {:?}", self.inputs.iter().format(", "), self.output)
     }
 }
 

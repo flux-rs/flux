@@ -508,7 +508,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             }
 
             // Bail out if there's an error in the arguments to avoid confusing error messages
-            let args = try_alloc_slice!(self.genv, &fn_sig.args, |arg| self.desugar_fun_arg(arg))?;
+            let inputs =
+                try_alloc_slice!(self.genv, &fn_sig.inputs, |arg| self.desugar_fn_input(arg))?;
 
             let output = self.desugar_fn_output(fn_sig.asyncness, &fn_sig.output)?;
 
@@ -517,7 +518,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             let decl = fhir::FnDecl {
                 generics,
                 requires: self.genv.alloc_slice(&requires),
-                args,
+                inputs,
                 output,
                 span: fn_sig.span,
                 lifted: false,
@@ -607,9 +608,9 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn desugar_fun_arg(&mut self, arg: &surface::Arg) -> Result<fhir::Ty<'genv>> {
-        match arg {
-            surface::Arg::Constr(bind, path, pred, node_id) => {
+    fn desugar_fn_input(&mut self, input: &surface::FnInput) -> Result<fhir::Ty<'genv>> {
+        match input {
+            surface::FnInput::Constr(bind, path, pred, node_id) => {
                 let bty = self.desugar_path_to_bty(None, path)?;
 
                 let pred = self.desugar_expr(pred)?;
@@ -624,7 +625,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 let kind = fhir::TyKind::Constr(pred, self.genv.alloc(ty));
                 Ok(fhir::Ty { kind, span })
             }
-            surface::Arg::StrgRef(loc, ty, node_id) => {
+            surface::FnInput::StrgRef(loc, ty, node_id) => {
                 let span = loc.span;
                 let (id, kind) = self.resolve_implicit_param(*node_id).unwrap();
                 let path = fhir::PathExpr {
@@ -641,7 +642,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 );
                 Ok(fhir::Ty { kind, span })
             }
-            surface::Arg::Ty(bind, ty, node_id) => {
+            surface::FnInput::Ty(bind, ty, node_id) => {
                 if let Some(bind) = bind
                     && let surface::TyKind::Base(bty) = &ty.kind
                 {

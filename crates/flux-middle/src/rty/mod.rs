@@ -518,7 +518,7 @@ pub type PolyFnSig = Binder<FnSig>;
 #[derive(Clone, TyEncodable, TyDecodable)]
 pub struct FnSig {
     requires: List<Constraint>,
-    args: List<Ty>,
+    inputs: List<Ty>,
     output: Binder<FnOutput>,
 }
 
@@ -1556,15 +1556,15 @@ impl FnSig {
         args: impl Into<List<Ty>>,
         output: Binder<FnOutput>,
     ) -> Self {
-        FnSig { requires: requires.into(), args: args.into(), output }
+        FnSig { requires: requires.into(), inputs: args.into(), output }
     }
 
     pub fn requires(&self) -> &Constraints {
         &self.requires
     }
 
-    pub fn args(&self) -> &[Ty] {
-        &self.args
+    pub fn inputs(&self) -> &[Ty] {
+        &self.inputs
     }
 
     pub fn output(&self) -> &Binder<FnOutput> {

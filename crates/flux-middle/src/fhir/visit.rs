@@ -302,7 +302,7 @@ pub fn walk_fn_sig<'v, V: Visitor<'v>>(vis: &mut V, sig: &FnSig<'v>) {
 pub fn walk_fn_decl<'v, V: Visitor<'v>>(vis: &mut V, decl: &FnDecl<'v>) {
     vis.visit_generics(&decl.generics);
     walk_list!(vis, visit_constraint, decl.requires);
-    walk_list!(vis, visit_ty, decl.args);
+    walk_list!(vis, visit_ty, decl.inputs);
     vis.visit_fn_output(&decl.output);
 }
 

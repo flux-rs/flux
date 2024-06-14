@@ -136,7 +136,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
             }
         }
 
-        for ty in fn_decl.args {
+        for ty in fn_decl.inputs {
             if let fhir::TyKind::StrgRef(_, loc, _) = ty.kind
                 && let (_, id) = loc.res.expect_param()
                 && !output_locs.contains(&id)

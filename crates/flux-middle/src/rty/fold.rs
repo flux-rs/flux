@@ -709,7 +709,7 @@ impl TypeVisitable for FnSig {
         self.requires
             .iter()
             .try_for_each(|constr| constr.visit_with(visitor))?;
-        self.args
+        self.inputs
             .iter()
             .try_for_each(|arg| arg.visit_with(visitor))?;
         self.output.visit_with(visitor)
@@ -719,7 +719,7 @@ impl TypeVisitable for FnSig {
 impl TypeFoldable for FnSig {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let requires = self.requires.try_fold_with(folder)?;
-        let args = self.args.try_fold_with(folder)?;
+        let args = self.inputs.try_fold_with(folder)?;
         let output = self.output.try_fold_with(folder)?;
         Ok(FnSig::new(requires, args, output))
     }

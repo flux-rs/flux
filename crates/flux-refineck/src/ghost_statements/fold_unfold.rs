@@ -260,7 +260,7 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
 
         if let Some(fn_sig) = fn_sig {
             let fn_sig = fn_sig.as_ref().skip_binder().as_ref().skip_binder();
-            for (local, ty) in iter::zip(self.body.args_iter(), fn_sig.args()) {
+            for (local, ty) in iter::zip(self.body.args_iter(), fn_sig.inputs()) {
                 if let rty::TyKind::StrgRef(..) = ty.kind() {
                     M::projection(
                         &mut self,

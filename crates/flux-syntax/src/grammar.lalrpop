@@ -232,7 +232,7 @@ pub FnSig: surface::FnSig = {
     <asyncness:Async>
     "fn"
     <mut generics:GenericsWithAngleBrackets>
-    "(" <args:Args> ")"
+    "(" <inputs:FnInputs> ")"
     <ret_lo:@L> <ret_hi:@R>
     <returns:("->" <Ty>)?>
     <requires:("requires" <Comma1<Requires>>)?>
@@ -254,7 +254,7 @@ pub FnSig: surface::FnSig = {
         surface::FnSig {
             asyncness,
             generics,
-            args,
+            inputs,
             requires: requires.unwrap_or_default(),
             output,
             span: cx.map_span(lo, hi),
@@ -317,7 +317,7 @@ Fields: Vec<surface::Ty> = {
     "{" <Comma<Ty>> "}",
 }
 
-Args    = <Comma<Arg>>;
+FnInputs = <Comma<FnInput>>;
 Predicates = <Comma<WhereBoundPredicate>>;
 
 Requires: surface::Requires = {
@@ -348,11 +348,11 @@ GenericBounds: surface::GenericBounds = {
     <bound:Path> => vec![surface::TraitRef { path: bound } ]
 }
 
-Arg: surface::Arg = {
-    <bind:Ident> ":" "&" "strg" <ty:Ty>              => surface::Arg::StrgRef(<>, cx.next_node_id()),
-    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}" => surface::Arg::Constr(<>, cx.next_node_id()),
-    <bind:Ident> ":" <ty:Ty>                         => surface::Arg::Ty(Some(bind), ty, cx.next_node_id()),
-    <ty:Ty>                                          => surface::Arg::Ty(None, <>, cx.next_node_id()),
+FnInput: surface::FnInput = {
+    <bind:Ident> ":" "&" "strg" <ty:Ty>              => surface::FnInput::StrgRef(<>, cx.next_node_id()),
+    <bind:Ident> ":" <path:Path> "{" <pred:Expr> "}" => surface::FnInput::Constr(<>, cx.next_node_id()),
+    <bind:Ident> ":" <ty:Ty>                         => surface::FnInput::Ty(Some(bind), ty, cx.next_node_id()),
+    <ty:Ty>                                          => surface::FnInput::Ty(None, <>, cx.next_node_id()),
 }
 
 pub Ty: surface::Ty = {

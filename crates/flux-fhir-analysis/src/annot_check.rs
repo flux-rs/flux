@@ -188,10 +188,10 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
         fn_decl: &fhir::FnDecl,
         expected_fn_sig: &fhir::FnDecl<'genv>,
     ) -> Result<(), ErrorGuaranteed> {
-        if fn_decl.args.len() != expected_fn_sig.args.len() {
+        if fn_decl.inputs.len() != expected_fn_sig.inputs.len() {
             return Err(self.emit_err(errors::FunArgCountMismatch::new(fn_decl, expected_fn_sig)));
         }
-        self.zip_tys(fn_decl.args, expected_fn_sig.args)?;
+        self.zip_tys(fn_decl.inputs, expected_fn_sig.inputs)?;
         self.zip_constraints(fn_decl.requires)?;
 
         self.zip_ty(&fn_decl.output.ret, &expected_fn_sig.output.ret)?;
@@ -516,9 +516,9 @@ mod errors {
         pub(super) fn new(decl: &fhir::FnDecl, expected_decl: &fhir::FnDecl) -> Self {
             Self {
                 span: decl.span,
-                args: decl.args.len(),
+                args: decl.inputs.len(),
                 expected_span: expected_decl.span,
-                expected_args: expected_decl.args.len(),
+                expected_args: expected_decl.inputs.len(),
             }
         }
     }

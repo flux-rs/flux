@@ -201,7 +201,7 @@ impl<'a, 'tcx> rustc_mir_dataflow::AnalysisDomain<'tcx> for PointsToAnalysis<'a>
         // We never have late bounds locs.
         if let Some(fn_sig) = self.fn_sig {
             let fn_sig = fn_sig.as_ref().skip_binder().as_ref().skip_binder();
-            for (local, ty) in iter::zip(body.args_iter(), fn_sig.args()) {
+            for (local, ty) in iter::zip(body.args_iter(), fn_sig.inputs()) {
                 if let rty::TyKind::Ptr(_, path) = ty.kind() {
                     let loc = FlatSet::Elem(path.to_loc().unwrap());
                     state.flood_with(mir::PlaceRef { local, projection: &[] }, self.map, loc);

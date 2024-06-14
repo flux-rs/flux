@@ -247,7 +247,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
         //    to the `resume_arg` place..."
         let resume_ty = if genv.tcx().is_coroutine(def_id.to_def_id()) {
-            Some(fn_sig.args()[1].clone())
+            Some(fn_sig.inputs()[1].clone())
         } else {
             None
         };
@@ -1129,7 +1129,7 @@ fn init_env<'a>(
         }
     }
 
-    for (local, ty) in body.args_iter().zip(fn_sig.args()) {
+    for (local, ty) in body.args_iter().zip(fn_sig.inputs()) {
         let ty = rcx.unpack(ty);
         rcx.assume_invariants(&ty, config.check_overflow);
         env.alloc_with_ty(local, ty);
@@ -1274,18 +1274,26 @@ fn infer_under_mut_ref_hack(
     actuals: &[Ty],
     fn_sig: EarlyBinder<&PolyFnSig>,
 ) -> Vec<Ty> {
-    iter::zip(actuals, fn_sig.as_ref().skip_binder().as_ref().skip_binder().args())
-        .map(|(actual, formal)| {
-            if let (Ref!(.., Mutability::Mut), Ref!(_, ty, Mutability::Mut)) =
-                (actual.kind(), formal.kind())
-                && let TyKind::Indexed(..) = ty.kind()
-            {
-                rcx.unpacker().unpack_inside_mut_ref(true).unpack(actual)
-            } else {
-                actual.clone()
-            }
-        })
-        .collect()
+    iter::zip(
+        actuals,
+        fn_sig
+            .as_ref()
+            .skip_binder()
+            .as_ref()
+            .skip_binder()
+            .inputs(),
+    )
+    .map(|(actual, formal)| {
+        if let (Ref!(.., Mutability::Mut), Ref!(_, ty, Mutability::Mut)) =
+            (actual.kind(), formal.kind())
+            && let TyKind::Indexed(..) = ty.kind()
+        {
+            rcx.unpacker().unpack_inside_mut_ref(true).unpack(actual)
+        } else {
+            actual.clone()
+        }
+    })
+    .collect()
 }
 
 impl Mode for ShapeMode {

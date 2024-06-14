@@ -334,7 +334,7 @@ pub(crate) fn conv_fn_decl<'genv>(
     }
 
     let mut args = vec![];
-    for ty in decl.args {
+    for ty in decl.inputs {
         args.push(cx.conv_ty(&mut env, ty)?);
     }
 

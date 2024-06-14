@@ -156,7 +156,7 @@ impl Pretty for FnSig {
         if !self.requires.is_empty() {
             w!("[{:?}] ", join!(", ", &self.requires))?;
         }
-        w!("{:?}) -> {:?}", join!(", ", &self.args), &self.output)?;
+        w!("{:?}) -> {:?}", join!(", ", &self.inputs), &self.output)?;
 
         Ok(())
     }

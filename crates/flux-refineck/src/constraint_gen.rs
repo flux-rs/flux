@@ -191,7 +191,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         }
 
         // Check arguments
-        for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
+        for (actual, formal) in iter::zip(actuals, fn_sig.inputs()) {
             let (formal, pred) = formal.unconstr();
             infcx.check_pred(rcx, &pred);
             // TODO(pack-closure): Generalize/refactor to reuse for mutable closures
