@@ -581,19 +581,10 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                     }
                     rustc_ty::ConstKind::Param(param_const) => {
                         let ty = lower_ty(tcx, ty)?;
-                        // let param_const = crate::rustc::mir::ConstParam {
-                        //     name: param_const.name,
-                        //     index: param_const.index,
-                        // };
                         Some(Constant::Param(param_const, ty))
                     }
                     _ => None,
                 }
-                // if let rustc_ty::ConstKind::Value(rustc_ty::ValTree::Leaf(scalar)) = c.kind() {
-                //     scalar_int_to_constant(tcx, scalar, c.ty())
-                // } else {
-                //     None
-                // }
             }
             (_, TyKind::Tuple(tys)) if tys.is_empty() => return Ok(Constant::Unit),
             (_, _) => Some(Constant::Opaque(lower_ty(tcx, ty)?)),

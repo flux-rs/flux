@@ -271,12 +271,6 @@ pub enum PlaceElem {
     Index(Local),
 }
 
-// // TODO: replace with plain rust ParamConst!
-// pub struct ConstParam {
-//     pub index: u32,
-//     pub name: Symbol,
-// }
-
 pub enum Constant {
     Int(i128, IntTy),
     Uint(u128, UintTy),
@@ -725,12 +719,6 @@ impl fmt::Debug for Operand {
         }
     }
 }
-
-// impl fmt::Debug for ConstParam {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         write!(f, "{}/(#{})", self.name, self.index)
-//     }
-// }
 
 impl fmt::Debug for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

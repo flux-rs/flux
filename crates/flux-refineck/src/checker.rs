@@ -1026,8 +1026,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Constant::Unit => Ok(Ty::unit()),
             Constant::Str => Ok(Ty::mk_ref(ReStatic, Ty::str(), Mutability::Not)),
             Constant::Char => Ok(Ty::char()),
-            Constant::Param(const_param, ty) => {
-                let idx = env.index_of_param_const(const_param);
+            Constant::Param(param_const, ty) => {
+                let idx = env.index_of_param_const(param_const);
                 let ty = self
                     .genv
                     .refine_default(&self.generics, ty)

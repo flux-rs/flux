@@ -562,7 +562,6 @@ pub enum ArrayLenKind {
     /// The length of the array is a constant
     Lit(usize),
     /// The length of the array is a type parameter
-    // ConstParam(DefId),
     ParamConst(ParamConst),
 }
 
@@ -876,18 +875,6 @@ pub enum Lit {
     Real(i128),
     Bool(bool),
 }
-
-// #[derive(PartialEq, Eq, Clone, Copy, Debug)]
-// pub struct ConstParam {
-//     pub index: u32,
-//     pub name: Symbol,
-// }
-
-// impl Into<ParamConst> for ConstParam {
-//     fn into(self) -> ParamConst {
-//         ParamConst::new(self.index, self.name)
-//     }
-// }
 
 #[derive(Clone, Copy, Debug)]
 pub enum ExprRes<Id = ParamId> {
