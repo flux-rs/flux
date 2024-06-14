@@ -35,7 +35,10 @@ use rustc_hir::{
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 pub use rustc_middle::mir::Mutability;
-use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
+use rustc_middle::{
+    middle::resolve_bound_vars::ResolvedArg,
+    ty::{ParamConst, TyCtxt},
+};
 use rustc_span::{symbol::Ident, Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
@@ -559,12 +562,16 @@ pub enum ArrayLenKind {
     /// The length of the array is a constant
     Lit(usize),
     /// The length of the array is a type parameter
+    // ConstParam(DefId),
     ConstParam(ConstParam),
 }
 
 impl ArrayLen {
     pub fn lit(n: usize, span: Span) -> Self {
         Self { kind: ArrayLenKind::Lit(n), span }
+    }
+    pub fn param(const_param: ConstParam, span: Span) -> Self {
+        Self { kind: ArrayLenKind::ConstParam(const_param), span }
     }
 }
 
@@ -872,9 +879,14 @@ pub enum Lit {
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct ConstParam {
-    pub def_id: DefId,
     pub index: u32,
     pub name: Symbol,
+}
+
+impl Into<ParamConst> for ConstParam {
+    fn into(self) -> ParamConst {
+        ParamConst::new(self.index, self.name)
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1273,7 +1285,7 @@ impl fmt::Debug for ArrayLenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ArrayLenKind::Lit(n) => write!(f, "{n}"),
-            ArrayLenKind::ConstParam(p) => write!(f, "{}", p.name),
+            ArrayLenKind::ConstParam(p) => write!(f, "{:?}", p),
         }
     }
 }

@@ -10,8 +10,12 @@ use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::middle::resolve_bound_vars::ResolvedArg;
 
-use super::{FhirId, FluxOwnerId};
-use crate::{fhir, global_env::GlobalEnv, try_alloc_slice};
+use super::{ConstParam, FhirId, FluxOwnerId};
+use crate::{
+    fhir::{self},
+    global_env::GlobalEnv,
+    try_alloc_slice,
+};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -519,7 +523,17 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         })
     }
 
-    fn lift_array_len(&self, len: hir::ArrayLen) -> Result<fhir::ArrayLen> {
+    fn mk_const_param(&self, def_id: rustc_span::def_id::DefId) -> ConstParam {
+        let generics = self.genv.tcx().generics_of(self.owner.def_id);
+        for param in &generics.params {
+            if param.def_id == def_id {
+                return ConstParam { index: param.index, /* def_id, */ name: param.name };
+            }
+        }
+        bug!("Cannot find generic corresponding to ConstParam {def_id:?}")
+    }
+
+    fn lift_array_len(&mut self, len: hir::ArrayLen) -> Result<fhir::ArrayLen> {
         let body = match len {
             hir::ArrayLen::Body(anon_const) => self.genv.hir().body(anon_const.body),
             hir::ArrayLen::Infer(_) => bug!("unexpected `ArrayLen::Infer`"),
@@ -527,10 +541,13 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         if let hir::ExprKind::Lit(lit) = &body.value.kind
             && let LitKind::Int(array_len, _) = lit.node
         {
-            // FIXME(nilehmann) we shouldn't panic here
             Ok(fhir::ArrayLen::lit(array_len.get().try_into().unwrap(), lit.span))
+        } else if let hir::ExprKind::Path(hir::QPath::Resolved(_, path)) = &body.value.kind
+            && let hir::def::Res::Def(DefKind::ConstParam, def_id) = path.res
+        {
+            let const_param = self.mk_const_param(def_id);
+            Ok(fhir::ArrayLen::param(const_param, path.span))
         } else {
-            println!("TRACE: lift_array_len {:#?}", body);
             self.emit_unsupported("only integer literals are supported for array lengths")
         }
     }

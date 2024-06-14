@@ -202,17 +202,14 @@ pub struct Const {
 
 impl Const {
     pub fn from_array_len(tcx: TyCtxt, len: ArrayLenKind) -> Const {
-        match len {
+        let kind = match len {
             ArrayLenKind::Lit(len) => {
-                Const {
-                    kind: ConstKind::Value(
-                        ScalarInt::try_from_target_usize(len as u128, tcx).unwrap(),
-                    ),
-                    ty: Ty::mk_uint(UintTy::Usize),
-                }
+                ConstKind::Value(ScalarInt::try_from_target_usize(len as u128, tcx).unwrap())
             }
-            ArrayLenKind::ConstParam(_) => todo!(),
-        }
+
+            ArrayLenKind::ConstParam(const_param) => ConstKind::Param(const_param.into()),
+        };
+        Const { kind, ty: Ty::mk_uint(UintTy::Usize) }
     }
 }
 

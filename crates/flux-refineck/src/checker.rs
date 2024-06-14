@@ -832,11 +832,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let idx = match ty.kind() {
             TyKind::Indexed(BaseTy::Array(_, len), _) => {
-                if let ConstKind::Value(value) = &len.kind {
-                    let value = value.try_to_target_usize(self.genv.tcx()).unwrap() as u128;
-                    Expr::constant(rty::Constant::from(value))
-                } else {
-                    tracked_span_bug!("unexpected array length")
+                match &len.kind {
+                    ConstKind::Value(value) => {
+                        let value = value.try_to_target_usize(self.genv.tcx()).unwrap() as u128;
+                        Expr::constant(rty::Constant::from(value))
+                    }
+                    ConstKind::Param(param_const) => {
+                        tracked_span_bug!("unexpected array length")
+                    }
                 }
             }
             TyKind::Indexed(BaseTy::Slice(_), idx) => idx.clone(),

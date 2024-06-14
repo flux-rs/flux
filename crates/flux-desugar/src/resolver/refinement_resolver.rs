@@ -576,9 +576,11 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 .insert(node_id, ExprRes::GlobalFunc(*decl, ident.name));
             return;
         }
-        if let Some((def_id, index)) = self.const_generics.get(&ident.name) {
-            let const_param =
-                crate::fhir::ConstParam { def_id: *def_id, name: ident.name, index: *index };
+        if let Some((_def_id, index)) = self.const_generics.get(&ident.name) {
+            let const_param = crate::fhir::ConstParam {
+                /* def_id: *def_id, */ name: ident.name,
+                index: *index,
+            };
             self.path_res_map
                 .insert(node_id, ExprRes::ConstGeneric(const_param));
             return;
