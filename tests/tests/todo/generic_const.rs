@@ -10,8 +10,8 @@
 //     N
 // }
 
-#[flux::sig(fn() -> usize[N])]
-pub fn test002<const N: usize>() -> usize {
+#[flux::sig(fn(x:A) -> usize[N])]
+pub fn test002<A, const N: usize>(x: A) -> usize {
     N
 }
 

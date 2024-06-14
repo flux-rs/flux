@@ -19,6 +19,7 @@ use flux_middle::{
         self,
         fold::TypeFoldable,
         refining::{self, Refiner},
+        subst::ConstGenericArgs,
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
     rustc,
@@ -1058,7 +1059,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
             fhir::Res::SelfTyAlias { alias_to, .. } => {
-                return Ok(self.genv.type_of(*alias_to)?.instantiate_identity(&[]));
+                return Ok(self
+                    .genv
+                    .type_of(*alias_to)?
+                    .instantiate_identity(&[], &ConstGenericArgs::empty()));
             }
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
                 let generics = self.conv_generic_args(env, *def_id, path.last_segment().args)?;

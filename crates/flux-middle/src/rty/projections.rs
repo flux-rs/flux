@@ -12,6 +12,7 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
+    subst::ConstGenericArgs,
     AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Expr, ExprKind, GenericArg,
     ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
 };
@@ -34,10 +35,13 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         infcx: &'cx InferCtxt<'tcx>,
         callsite_def_id: DefId,
         refine_params: &[Expr],
+        const_generic_args: &ConstGenericArgs,
     ) -> QueryResult<Self> {
-        let param_env = genv
-            .predicates_of(callsite_def_id)?
-            .instantiate_identity(genv, refine_params)?;
+        let param_env = genv.predicates_of(callsite_def_id)?.instantiate_identity(
+            genv,
+            refine_params,
+            const_generic_args,
+        )?;
         let selcx = SelectionContext::new(infcx);
         Ok(Normalizer { genv, selcx, def_id: callsite_def_id, param_env })
     }

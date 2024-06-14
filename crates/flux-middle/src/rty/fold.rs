@@ -13,7 +13,7 @@ use super::{
     evars::EVarSol,
     normalize::{Normalizer, SpecFuncDefns},
     projections,
-    subst::EVarSubstFolder,
+    subst::{ConstGenericArgs, EVarSubstFolder},
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
     CoroutineObligPredicate, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
@@ -231,8 +231,13 @@ pub trait TypeFoldable: TypeVisitable {
         callsite_def_id: DefId,
         refine_params: &[Expr],
     ) -> QueryResult<Self> {
-        let mut normalizer =
-            projections::Normalizer::new(genv, infcx, callsite_def_id, refine_params)?;
+        let mut normalizer = projections::Normalizer::new(
+            genv,
+            infcx,
+            callsite_def_id,
+            refine_params,
+            &ConstGenericArgs::empty(),
+        )?;
         self.try_fold_with(&mut normalizer)
     }
 

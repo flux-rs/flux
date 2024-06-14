@@ -40,6 +40,7 @@ pub use rustc_middle::{
 use rustc_span::{symbol::kw, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 pub use rustc_type_ir::INNERMOST;
+use subst::ConstGenericArgs;
 pub use SortInfer::*;
 
 use self::{
@@ -1454,15 +1455,21 @@ impl<T: TypeFoldable> EarlyBinder<T> {
             .try_fold_with(&mut subst::GenericsSubstFolder::new(
                 subst::GenericArgsDelegate(args),
                 refine_args,
+                &ConstGenericArgs::empty(),
             ))
             .into_ok()
     }
 
-    pub fn instantiate_identity(self, refine_args: &[Expr]) -> T {
+    pub fn instantiate_identity(
+        self,
+        refine_args: &[Expr],
+        const_generic_args: &ConstGenericArgs,
+    ) -> T {
         self.0
             .try_fold_with(&mut subst::GenericsSubstFolder::new(
                 subst::IdentitySubstDelegate,
                 refine_args,
+                &const_generic_args,
             ))
             .into_ok()
     }
@@ -1477,6 +1484,7 @@ impl EarlyBinder<FuncSort> {
         self.0.try_fold_with(&mut subst::GenericsSubstFolder::new(
             subst::GenericsSubstForSort { sort_for_param },
             &[],
+            &ConstGenericArgs::empty(),
         ))
     }
 }
@@ -1490,9 +1498,10 @@ impl EarlyBinder<GenericPredicates> {
         self,
         genv: GlobalEnv,
         refine_args: &[Expr],
+        const_generic_args: &ConstGenericArgs,
     ) -> QueryResult<Vec<Clause>> {
         let mut predicates = vec![];
-        self.instantiate_identity_into(genv, refine_args, &mut predicates)?;
+        self.instantiate_identity_into(genv, refine_args, const_generic_args, &mut predicates)?;
         Ok(predicates)
     }
 
@@ -1500,18 +1509,23 @@ impl EarlyBinder<GenericPredicates> {
         self,
         genv: GlobalEnv,
         refine_args: &[Expr],
+        const_generic_args: &ConstGenericArgs,
         predicates: &mut Vec<Clause>,
     ) -> QueryResult<()> {
         if let Some(def_id) = self.0.parent {
-            genv.predicates_of(def_id)?
-                .instantiate_identity_into(genv, refine_args, predicates)?;
+            genv.predicates_of(def_id)?.instantiate_identity_into(
+                genv,
+                refine_args,
+                const_generic_args,
+                predicates,
+            )?;
         }
         predicates.extend(
             self.0
                 .predicates
                 .iter()
                 .cloned()
-                .map(|p| EarlyBinder(p).instantiate_identity(refine_args)),
+                .map(|p| EarlyBinder(p).instantiate_identity(refine_args, const_generic_args)),
         );
         Ok(())
     }

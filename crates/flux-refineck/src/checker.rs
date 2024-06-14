@@ -7,10 +7,10 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{
-        self, fold::TypeFoldable, refining::Refiner, BaseTy, BinOp, Binder, Bool, Constraint,
-        CoroutineObligPredicate, EarlyBinder, Expr, Float, FnOutput, FnSig, FnTraitPredicate,
-        GenericArg, GenericParamDefKind, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig,
-        Ref, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
+        self, fold::TypeFoldable, refining::Refiner, subst::ConstGenericArgs, BaseTy, BinOp,
+        Binder, Bool, Constraint, CoroutineObligPredicate, EarlyBinder, Expr, Float, FnOutput,
+        FnSig, FnTraitPredicate, GenericArg, GenericParamDefKind, Generics, HoleKind, Int, IntTy,
+        Mutability, PolyFnSig, Ref, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -242,8 +242,25 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
+        // TODO:CONSTGEN:1: generate name `a0` using rcx.define_vars(sort)
+        // let const_generics = from the fn_sig?
+        // let const_generic_env = Map<N -> usize[a0]>
+        let mut const_generic_args = ConstGenericArgs::empty();
+        for generic_param in &generics.params {
+            if let GenericParamDefKind::Const { .. } = generic_param.kind
+                && let Some(sort) = genv
+                    .sort_of_generic_param(generic_param.def_id.expect_local())
+                    .with_span(span)?
+            {
+                println!("TRACE:CONSTGEN:2: {generic_param:?} {sort:?}");
+                let generic_expr = rcx.define_vars(&sort);
+                const_generic_args.insert(generic_param.index, generic_expr);
+            }
+        }
+        println!("TRACE:CONSTGEN:1: {const_generic_args:?}");
+        todo!("HEREHERE:STEP2: extend the GenericSubstFolder to use the const_generic_args");
         let poly_sig: Binder<FnSig> = poly_sig
-            .instantiate_identity(&inherited.refine_params)
+            .instantiate_identity(&inherited.refine_params, &const_generic_args)
             .normalize_projections(genv, &body.infcx, def_id.to_def_id(), &inherited.refine_params)
             .with_span(span)?;
 
@@ -256,22 +273,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             },
             |sort, _| rcx.define_vars(sort),
         );
-
-        // TODO:CONSTGEN:1: generate name `a0` using rcx.define_vars(sort)
-        // let const_generics = from the fn_sig?
-        // let const_generic_env = Map<N -> usize[a0]>
-        // let mut const_gen_env = FxHashMap::default();
-        for generic_param in &generics.params {
-            if let GenericParamDefKind::Const { .. } = generic_param.kind {
-                let sort = genv.sort_of_generic_param(generic_param.def_id.expect_local());
-                println!("TRACE:CONSTGEN:2: {generic_param:?} {sort:?}");
-                // let sort = c.sort();
-                // let name = rcx.define_vars(sort);
-                // const_gen_env.insert(c, name);
-            }
-        }
-        todo!("HEREHEREHEREHEREHERE");
-        // println!("TRACE:CONSTGEN:1: {const_gen_env:?}");
 
         let env = init_env(&mut rcx, &body, &fn_sig, inherited.config);
         println!("TRACE: run ({def_id:?}): fn_sig = {fn_sig:?}, env = {env:?}");

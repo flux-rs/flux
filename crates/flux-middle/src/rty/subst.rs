@@ -247,6 +247,7 @@ pub(crate) struct GenericsSubstFolder<'a, D> {
     current_index: DebruijnIndex,
     delegate: D,
     refinement_args: &'a [Expr],
+    const_generic_args: &'a ConstGenericArgs,
 }
 
 pub trait GenericsSubstDelegate {
@@ -364,9 +365,25 @@ where
     }
 }
 
+#[derive(Debug)]
+pub struct ConstGenericArgs(FxHashMap<u32, Expr>);
+
+impl ConstGenericArgs {
+    pub fn empty() -> Self {
+        Self(FxHashMap::default())
+    }
+    pub fn insert(&mut self, index: u32, expr: Expr) {
+        self.0.insert(index, expr);
+    }
+}
+
 impl<'a, D> GenericsSubstFolder<'a, D> {
-    pub(crate) fn new(delegate: D, refine: &'a [Expr]) -> Self {
-        Self { current_index: INNERMOST, delegate, refinement_args: refine }
+    pub(crate) fn new(
+        delegate: D,
+        refine: &'a [Expr],
+        const_generic_args: &'a ConstGenericArgs,
+    ) -> Self {
+        Self { current_index: INNERMOST, delegate, refinement_args: refine, const_generic_args }
     }
 }
 

@@ -1,5 +1,5 @@
 use flux_common::result::ResultExt;
-use flux_middle::{global_env::GlobalEnv, pretty};
+use flux_middle::{global_env::GlobalEnv, pretty, rty::subst::ConstGenericArgs};
 use rustc_span::{
     def_id::{DefId, LocalDefId},
     ErrorGuaranteed, Symbol,
@@ -53,7 +53,7 @@ fn check_assoc_reft(genv: GlobalEnv, impl_id: LocalDefId, trait_id: DefId, name:
         .impl_trait_ref(impl_id.to_def_id())
         .emit(&genv)?
         .unwrap()
-        .instantiate_identity(&[]);
+        .instantiate_identity(&[], &ConstGenericArgs::empty());
 
     let Some(impl_sort) = genv.sort_of_assoc_reft(impl_id, name).emit(genv.sess())? else {
         return Err(genv.sess().emit_err(errors::InvalidAssocReft::new(
@@ -63,7 +63,7 @@ fn check_assoc_reft(genv: GlobalEnv, impl_id: LocalDefId, trait_id: DefId, name:
         )));
     };
 
-    let impl_sort = impl_sort.instantiate_identity(&[]);
+    let impl_sort = impl_sort.instantiate_identity(&[], &ConstGenericArgs::empty());
 
     let Some(trait_sort) = genv.sort_of_assoc_reft(trait_id, name).emit(genv.sess())? else {
         return Err(genv.sess().emit_err(errors::InvalidAssocReft::new(
