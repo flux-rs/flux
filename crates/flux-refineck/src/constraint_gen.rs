@@ -13,7 +13,6 @@ use flux_middle::{
     rustc::mir::{BasicBlock, Place},
 };
 use itertools::{izip, Itertools};
-use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin::BoundRegion};
 use rustc_middle::ty::Variance;
@@ -163,7 +162,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         let refine_args = infcx.instantiate_refine_args(genv, callee_def_id)?;
 
         // Instantiate function signature and normalize it
-        let inst_fn_sig = fn_sig
+        let fn_sig = fn_sig
             .instantiate(&generic_args, &refine_args)
             .replace_bound_vars(
                 |br| {
@@ -185,28 +184,22 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         };
 
         // Check requires predicates and collect type constraints
-        let mut requires = FxHashMap::default();
-        for constr in inst_fn_sig.requires() {
-            match constr {
-                Constraint::Type(path, ty, _) => {
-                    requires.insert(path.clone(), ty);
-                }
-                Constraint::Pred(pred) => {
-                    infcx.check_pred(rcx, pred);
-                }
+        for constr in fn_sig.requires() {
+            if let Constraint::Pred(pred) = constr {
+                infcx.check_pred(rcx, pred);
             }
         }
 
         // Check arguments
-        for (actual, formal) in iter::zip(actuals, inst_fn_sig.args()) {
+        for (actual, formal) in iter::zip(actuals, fn_sig.args()) {
             let (formal, pred) = formal.unconstr();
             infcx.check_pred(rcx, &pred);
             // TODO(pack-closure): Generalize/refactor to reuse for mutable closures
             match (actual.kind(), formal.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::Ptr(PtrKind::Mut(_), path2)) => {
-                    let bound = requires[path2];
+                (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
+                    let ty1 = env.get(path1);
                     infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
-                    infcx.check_type_constr(rcx, env, path1, bound)?;
+                    infcx.subtyping(rcx, &ty1, ty2)?;
                 }
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
                     let ty = env.block_with(genv, path, bound.clone())?;
@@ -243,7 +236,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         let evars_sol = infcx.solve()?;
         env.replace_evars(&evars_sol);
         rcx.replace_evars(&evars_sol);
-        let output = inst_fn_sig.output().replace_evars(&evars_sol);
+        let output = fn_sig.output().replace_evars(&evars_sol);
 
         Ok((output, Obligations::new(obligs, snapshot)))
     }

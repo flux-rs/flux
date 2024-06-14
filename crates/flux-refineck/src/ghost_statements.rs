@@ -17,7 +17,7 @@ use flux_middle::{
 };
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_middle::{mir::Location, ty::TyCtxt};
 
 pub(crate) struct GhostStatements {
@@ -58,8 +58,12 @@ impl GhostStatements {
 
         let mut stmts = Self { at_location: LocationMap::default(), at_edge: EdgeMap::default() };
 
-        fold_unfold::add_ghost_statements(&mut stmts, genv, &body)?;
-        points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), def_id)?;
+        // We have fn_sig for function items, but not for closures or generators.
+        let fn_sig =
+            if genv.def_kind(def_id) == DefKind::Fn { Some(genv.fn_sig(def_id)?) } else { None };
+
+        fold_unfold::add_ghost_statements(&mut stmts, genv, &body, fn_sig.as_ref())?;
+        points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
         stmts.add_unblocks(&body);
 
         if config::dump_mir() {

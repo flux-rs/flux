@@ -9,9 +9,8 @@ use flux_middle::{
     rty,
     rustc::{
         mir::{
-            BasicBlock, Body, FieldIdx, Local, LocalKind, Location, Operand, Place, PlaceElem,
-            Rvalue, Statement, StatementKind, Terminator, TerminatorKind, VariantIdx,
-            FIRST_VARIANT,
+            BasicBlock, Body, FieldIdx, Local, Location, Operand, Place, PlaceElem, Rvalue,
+            Statement, StatementKind, Terminator, TerminatorKind, VariantIdx, FIRST_VARIANT,
         },
         ty::{AdtDef, GenericArgs, Ty, TyKind},
     },
@@ -33,11 +32,12 @@ pub(crate) fn add_ghost_statements<'tcx>(
     stmts: &mut GhostStatements,
     genv: GlobalEnv<'_, 'tcx>,
     body: &Body<'tcx>,
+    fn_sig: Option<&rty::EarlyBinder<rty::PolyFnSig>>,
 ) -> QueryResult {
     let mut bb_envs = FxHashMap::default();
-    FoldUnfoldAnalysis::new(genv, body, &mut bb_envs, Infer).run()?;
+    FoldUnfoldAnalysis::new(genv, body, &mut bb_envs, Infer).run(fn_sig)?;
 
-    FoldUnfoldAnalysis::new(genv, body, &mut bb_envs, Elaboration { stmts }).run()
+    FoldUnfoldAnalysis::new(genv, body, &mut bb_envs, Elaboration { stmts }).run(fn_sig)
 }
 
 #[derive(Clone)]
@@ -259,21 +259,20 @@ enum PlaceNode {
 }
 
 impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
-    fn run(mut self) -> QueryResult {
+    fn run(mut self, fn_sig: Option<&rty::EarlyBinder<rty::PolyFnSig>>) -> QueryResult {
         let mut env = Env::new(self.body);
-        let fn_sig = self
-            .genv
-            .fn_sig(self.body.def_id())?
-            .skip_binder()
-            .skip_binder();
-        for (local, ty) in iter::zip(self.body.args_iter(), fn_sig.args()) {
-            if let rty::TyKind::StrgRef(..) = ty.kind() {
-                M::projection(
-                    &mut self,
-                    &mut env,
-                    &Place::new(local, vec![PlaceElem::Deref]),
-                    ProjKind::Other,
-                )?;
+
+        if let Some(fn_sig) = fn_sig {
+            let fn_sig = fn_sig.as_ref().skip_binder().as_ref().skip_binder();
+            for (local, ty) in iter::zip(self.body.args_iter(), fn_sig.args()) {
+                if let rty::TyKind::StrgRef(..) = ty.kind() {
+                    M::projection(
+                        &mut self,
+                        &mut env,
+                        &Place::new(local, vec![PlaceElem::Deref]),
+                        ProjKind::Other,
+                    )?;
+                }
             }
         }
         self.goto(START_BLOCK, START_BLOCK, env)?;
