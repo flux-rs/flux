@@ -1,5 +1,5 @@
 pub fn test01<const N: usize>(arr: &[i32; N]) -> i32 {
-    arr[0] //~ ERROR refinement type
+    arr[0] //~ ERROR assertion might fail
 }
 
 pub fn test02<const N: usize>(arr: &[i32; N]) -> i32 {
