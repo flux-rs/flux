@@ -359,10 +359,22 @@ impl Ty {
         let mut vis = IsRefinedVisitor { is_refined: false };
         impl visit::Visitor for IsRefinedVisitor {
             fn visit_ty(&mut self, ty: &Ty) {
-                if !matches!(ty.kind, TyKind::Base(_) | TyKind::Hole) {
-                    self.is_refined = true;
+                match &ty.kind {
+                    TyKind::Tuple(_)
+                    | TyKind::Ref(_, _)
+                    | TyKind::Array(_, _)
+                    | TyKind::ImplTrait(_, _)
+                    | TyKind::Hole
+                    | TyKind::Base(_) => {
+                        visit::walk_ty(self, ty);
+                    }
+                    TyKind::Indexed { .. }
+                    | TyKind::Exists { .. }
+                    | TyKind::GeneralExists { .. }
+                    | TyKind::Constr(..) => {
+                        self.is_refined = true;
+                    }
                 }
-                visit::walk_ty(self, ty);
             }
         }
         vis.visit_ty(self);

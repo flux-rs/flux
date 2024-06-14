@@ -15,7 +15,7 @@ use flux_middle::{
 use itertools::izip;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
-use rustc_span::{def_id::DefId, Span};
+use rustc_span::{def_id::DefId, symbol::Ident, Span};
 
 use super::errors;
 use crate::{compare_impl_item::errors::InvalidAssocReft, conv};
@@ -24,7 +24,7 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(super) struct InferCtxt<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
-    params: UnordMap<fhir::ParamId, (rty::Sort, fhir::ParamKind)>,
+    pub params: UnordMap<fhir::ParamId, (rty::Sort, fhir::ParamKind)>,
     pub(super) sort_unification_table: InPlaceUnificationTable<rty::SortVid>,
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
     pub wfckresults: WfckResults<'genv>,
@@ -629,11 +629,7 @@ impl InferCtxt<'_, '_> {
         self.emit_err(errors::SortMismatch::new(span, expected, found))
     }
 
-    fn emit_field_not_found(
-        &mut self,
-        sort: &rty::Sort,
-        field: fhir::SurfaceIdent,
-    ) -> ErrorGuaranteed {
+    fn emit_field_not_found(&mut self, sort: &rty::Sort, field: Ident) -> ErrorGuaranteed {
         self.emit_err(errors::FieldNotFound::new(sort.clone(), field))
     }
 

@@ -17,7 +17,9 @@ use super::{
 };
 use crate::{
     fhir::SpecFuncKind,
+    global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
+    queries::QueryResult,
     rty::{
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         SortCtor,
@@ -176,8 +178,17 @@ pub enum ExprKind {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum AggregateKind {
-    Tuple,
+    Tuple(usize),
     Adt(DefId),
+}
+
+impl AggregateKind {
+    pub fn to_proj(self, field: u32) -> FieldProj {
+        match self {
+            AggregateKind::Tuple(arity) => FieldProj::Tuple { arity, field },
+            AggregateKind::Adt(def_id) => FieldProj::Adt { def_id, field },
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
@@ -187,7 +198,14 @@ pub enum FieldProj {
 }
 
 impl FieldProj {
-    pub fn field(&self) -> u32 {
+    pub fn arity(&self, genv: GlobalEnv) -> QueryResult<usize> {
+        match self {
+            FieldProj::Tuple { arity, .. } => Ok(*arity),
+            FieldProj::Adt { def_id, .. } => Ok(genv.adt_sort_def_of(*def_id)?.fields()),
+        }
+    }
+
+    pub fn field_idx(&self) -> u32 {
         match self {
             FieldProj::Tuple { field, .. } | FieldProj::Adt { field, .. } => *field,
         }
@@ -429,7 +447,7 @@ impl Expr {
     }
 
     pub fn tuple(flds: List<Expr>) -> Expr {
-        Expr::aggregate(AggregateKind::Tuple, flds)
+        Expr::aggregate(AggregateKind::Tuple(flds.len()), flds)
     }
 
     pub fn adt(def_id: DefId, flds: List<Expr>) -> Expr {
@@ -707,7 +725,7 @@ impl Expr {
     /// Applies a projection to an expression and optimistically try to beta reduce it if possible.
     pub fn proj_and_reduce(&self, proj: FieldProj) -> Expr {
         match self.kind() {
-            ExprKind::Aggregate(_, flds) => flds[proj.field() as usize].clone(),
+            ExprKind::Aggregate(_, flds) => flds[proj.field_idx() as usize].clone(),
             _ => Expr::field_proj(self.clone(), proj, None),
         }
     }
@@ -943,12 +961,12 @@ mod pretty {
                 }
                 ExprKind::FieldProj(e, proj) => {
                     if e.is_atom() {
-                        w!("{:?}.{:?}", e, ^proj.field())
+                        w!("{:?}.{:?}", e, ^proj.field_idx())
                     } else {
-                        w!("({:?}).{:?}", e, ^proj.field())
+                        w!("({:?}).{:?}", e, ^proj.field_idx())
                     }
                 }
-                ExprKind::Aggregate(AggregateKind::Tuple, flds) => {
+                ExprKind::Aggregate(AggregateKind::Tuple(_), flds) => {
                     if let [e] = &flds[..] {
                         w!("({:?},)", e)
                     } else {

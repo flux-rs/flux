@@ -16,7 +16,6 @@ use flux_middle::{
     rustc::mir::{BasicBlock, Place},
 };
 use itertools::{izip, Itertools};
-use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin::BoundRegion};
@@ -57,9 +56,8 @@ pub(crate) struct InferCtxt<'a, 'genv, 'tcx> {
     def_id: DefId,
     refparams: &'a [Expr],
     kvar_gen: &'a mut (dyn KVarGen + 'a),
-    evar_gen: EVarGen,
+    evar_gen: EVarGen<Scope>,
     tag: Tag,
-    scopes: FxIndexMap<EVarCxId, Scope>,
     obligs: Vec<rty::Clause>,
 }
 
@@ -135,9 +133,9 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             .iter()
             .map(|ty| {
                 match ty.kind() {
-                    TyKind::Ptr(PtrKind::Shr(region), path) => {
+                    TyKind::Ptr(PtrKind::Mut(region), path) => {
                         let ty = env.get(path);
-                        rty::Ty::mk_ref(*region, ty, Mutability::Not)
+                        rty::Ty::mk_ref(*region, ty, Mutability::Mut)
                     }
                     _ => ty.clone(),
                 }
@@ -385,7 +383,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             self.def_id,
             self.refparams,
             rcx,
-            &mut self.kvar_gen,
+            &mut *self.kvar_gen,
             Tag::new(reason, self.span),
         )
     }
@@ -401,20 +399,9 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         kvar_gen: &'a mut (dyn KVarGen + 'a),
         tag: Tag,
     ) -> Self {
-        let mut evar_gen = EVarGen::new();
-        let mut scopes = FxIndexMap::default();
-        scopes.insert(evar_gen.new_ctxt(), rcx.scope());
-        Self {
-            genv,
-            region_infcx,
-            def_id,
-            refparams,
-            kvar_gen,
-            evar_gen,
-            tag,
-            scopes,
-            obligs: Vec::new(),
-        }
+        let mut evar_gen = EVarGen::default();
+        evar_gen.enter_context(rcx.scope());
+        Self { genv, region_infcx, def_id, refparams, kvar_gen, evar_gen, tag, obligs: Vec::new() }
     }
 
     fn obligations(&self) -> Vec<rty::Clause> {
@@ -426,11 +413,11 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
     }
 
     fn push_scope(&mut self, rcx: &RefineCtxt) {
-        self.scopes.insert(self.evar_gen.new_ctxt(), rcx.scope());
+        self.evar_gen.enter_context(rcx.scope());
     }
 
     fn pop_scope(&mut self) {
-        self.scopes.pop();
+        self.evar_gen.exit_context();
     }
 
     fn instantiate_refine_args(
@@ -480,8 +467,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
     }
 
     fn fresh_evars(&mut self, sort: &Sort) -> Expr {
-        let cx = *self.scopes.last().unwrap().0;
-        Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_cx(cx)))
+        Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_current()))
     }
 
     pub(crate) fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
@@ -725,10 +711,21 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         match (e1.kind(), e2.kind()) {
             (ExprKind::Aggregate(kind1, flds1), ExprKind::Aggregate(kind2, flds2)) => {
                 debug_assert_eq!(kind1, kind2);
-                debug_assert_eq!(flds1.len(), flds2.len());
-
                 for (e1, e2) in iter::zip(flds1, flds2) {
                     self.idx_eq(rcx, e1, e2);
+                }
+            }
+            (_, ExprKind::Aggregate(kind2, flds2)) => {
+                for (f, e2) in flds2.iter().enumerate() {
+                    let e1 = e1.proj_and_reduce(kind2.to_proj(f as u32));
+                    self.idx_eq(rcx, &e1, e2);
+                }
+            }
+            (ExprKind::Aggregate(kind1, flds1), _) => {
+                self.unify_exprs(e1, e2);
+                for (f, e1) in flds1.iter().enumerate() {
+                    let e2 = e2.proj_and_reduce(kind1.to_proj(f as u32));
+                    self.idx_eq(rcx, e1, &e2);
                 }
             }
             (ExprKind::Abs(p1), ExprKind::Abs(p2)) => {
@@ -748,7 +745,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
             _ => {
                 self.unify_exprs(e1, e2);
                 let span = e2.span();
-                rcx.check_pred(&Expr::binary_op(BinOp::Eq, e1, e2, span), self.tag);
+                rcx.check_pred(&Expr::eq_at(e1, e2, span), self.tag);
             }
         }
     }
@@ -763,15 +760,16 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
 
     fn unify_exprs(&mut self, e1: &Expr, e2: &Expr) {
         if let ExprKind::Var(Var::EVar(evar)) = e2.kind()
-            && let scope = &self.scopes[&evar.cx()]
+            && let scope = &self.evar_gen.data(evar.cx())
             && !scope.has_free_vars(e1)
         {
             self.evar_gen.unify(*evar, e1, false);
         }
     }
 
-    pub(crate) fn solve(self) -> Result<EVarSol> {
-        Ok(self.evar_gen.solve()?)
+    pub(crate) fn solve(mut self) -> Result<EVarSol> {
+        self.evar_gen.exit_context();
+        Ok(self.evar_gen.try_solve_pending()?)
     }
 }
 
@@ -824,18 +822,6 @@ where
 {
     fn fresh(&mut self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr {
         (self)(binders, kind)
-    }
-}
-
-impl<'a> KVarGen for &mut (dyn KVarGen + 'a) {
-    fn fresh(&mut self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr {
-        (**self).fresh(binders, kind)
-    }
-}
-
-impl<'a> KVarGen for Box<dyn KVarGen + 'a> {
-    fn fresh(&mut self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr {
-        (**self).fresh(binders, kind)
     }
 }
 

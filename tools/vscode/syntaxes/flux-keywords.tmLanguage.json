@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-  "name": "Flux FKeywords",
+  "name": "Flux Keywords",
   "injectionSelector": "L:source.rust",
   "patterns": [
     {
@@ -12,7 +12,7 @@
       "patterns": [
         {
           "name": "keyword.other.flux",
-          "match": "\\bstrg|requires|ensures|refined by\\b"
+          "match": "\\bstrg|requires|ensures|refined by|forall|reft\\b"
         }
       ]
     }

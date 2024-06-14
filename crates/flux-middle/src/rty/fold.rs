@@ -828,7 +828,6 @@ impl TypeSuperFoldable for Ty {
             TyKind::Exists(exists) => TyKind::Exists(exists.try_fold_with(folder)?).intern(),
             TyKind::Ptr(pk, path) => {
                 let pk = match pk {
-                    PtrKind::Shr(re) => PtrKind::Shr(re.try_fold_with(folder)?),
                     PtrKind::Mut(re) => PtrKind::Mut(re.try_fold_with(folder)?),
                     PtrKind::Box => PtrKind::Box,
                 };
