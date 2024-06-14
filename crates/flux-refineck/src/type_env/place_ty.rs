@@ -481,10 +481,14 @@ impl<'a, 'rcx, 'genv, 'tcx> Unfolder<'a, 'rcx, 'genv, 'tcx> {
 
     fn unfold_strg_ref(&mut self, path: &Path, ty: &Ty) {
         let loc = path.to_loc().unwrap();
+        let kind = match loc {
+            Loc::Local(_) => LocKind::Local,
+            Loc::Var(_) => LocKind::Universal,
+        };
         let mut place = self.cursor.to_place();
         place.projection.push(PlaceElem::Deref);
         self.insertions
-            .push((loc, place, Binding { kind: LocKind::Universal, ty: ty.clone() }));
+            .push((loc, place, Binding { kind, ty: ty.clone() }));
     }
 
     fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {
