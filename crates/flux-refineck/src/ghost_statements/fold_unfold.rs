@@ -15,7 +15,7 @@ use flux_middle::{
         ty::{AdtDef, GenericArgs, Ty, TyKind},
     },
 };
-use itertools::Itertools;
+use itertools::{repeat_n, Itertools};
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
@@ -118,7 +118,7 @@ struct FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
     visited: BitSet<BasicBlock>,
     queue: WorkQueue<'a>,
     discriminants: UnordMap<Place, Place>,
-    location: Location,
+    point: Point,
     mode: M,
 }
 
@@ -134,12 +134,11 @@ trait Mode: Sized {
 
     fn goto_join_point(
         analysis: &mut FoldUnfoldAnalysis<Self>,
-        from: BasicBlock,
         target: BasicBlock,
         env: Env,
     ) -> QueryResult<bool>;
 
-    fn ret(analysis: &mut FoldUnfoldAnalysis<Self>, bb: BasicBlock, env: Env);
+    fn ret(analysis: &mut FoldUnfoldAnalysis<Self>, env: &Env);
 }
 
 struct Infer;
@@ -181,7 +180,6 @@ impl Mode for Infer {
 
     fn goto_join_point(
         analysis: &mut FoldUnfoldAnalysis<Self>,
-        _from: BasicBlock,
         target: BasicBlock,
         env: Env,
     ) -> QueryResult<bool> {
@@ -195,7 +193,7 @@ impl Mode for Infer {
         Ok(modified)
     }
 
-    fn ret(_: &mut FoldUnfoldAnalysis<Self>, _: BasicBlock, _: Env) {}
+    fn ret(_: &mut FoldUnfoldAnalysis<Self>, _: &Env) {}
 }
 
 impl Mode for Elaboration<'_> {
@@ -207,12 +205,13 @@ impl Mode for Elaboration<'_> {
         place: &Place,
         kind: ProjKind,
     ) -> QueryResult {
-        let point = Point::Location(analysis.location);
         match env.projection(analysis.genv, place)? {
             ProjResult::None => {}
             ProjResult::Fold => {
                 let place = place.clone();
-                analysis.mode.insert_at(point, GhostStatement::Fold(place));
+                analysis
+                    .mode
+                    .insert_at(analysis.point, GhostStatement::Fold(place));
             }
             ProjResult::Unfold => {
                 let projection = match kind {
@@ -222,7 +221,7 @@ impl Mode for Elaboration<'_> {
                 let place = Place::new(place.local, projection);
                 analysis
                     .mode
-                    .insert_at(point, GhostStatement::Unfold(place));
+                    .insert_at(analysis.point, GhostStatement::Unfold(place));
             }
         }
         Ok(())
@@ -230,21 +229,18 @@ impl Mode for Elaboration<'_> {
 
     fn goto_join_point(
         analysis: &mut FoldUnfoldAnalysis<Self>,
-        from: BasicBlock,
         target: BasicBlock,
         env: Env,
     ) -> QueryResult<bool> {
-        let point = Point::Edge(from, target);
         env.collect_fold_unfolds_at_goto(
             &analysis.bb_envs[&target],
-            &mut analysis.mode.stmts.at(point),
+            &mut analysis.mode.stmts.at(analysis.point),
         );
         Ok(!analysis.visited.contains(target))
     }
 
-    fn ret(analysis: &mut FoldUnfoldAnalysis<Self>, bb: BasicBlock, env: Env) {
-        let point = Point::Location(analysis.body.terminator_loc(bb));
-        env.collect_folds_at_ret(analysis.body, &mut analysis.mode.stmts.at(point));
+    fn ret(analysis: &mut FoldUnfoldAnalysis<Self>, env: &Env) {
+        env.collect_folds_at_ret(analysis.body, &mut analysis.mode.stmts.at(analysis.point));
     }
 }
 
@@ -275,7 +271,7 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                 }
             }
         }
-        self.goto(START_BLOCK, START_BLOCK, env)?;
+        self.goto(START_BLOCK, env)?;
         while let Some(bb) = self.queue.pop() {
             self.basic_block(bb, self.bb_envs[&bb].clone())?;
         }
@@ -286,12 +282,16 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
         self.visited.insert(bb);
         let data = &self.body.basic_blocks[bb];
         for (statement_index, stmt) in data.statements.iter().enumerate() {
-            self.location = Location { block: bb, statement_index };
+            self.point = Point::BeforeLocation(Location { block: bb, statement_index });
             self.statement(stmt, &mut env)?;
         }
         if let Some(terminator) = &data.terminator {
-            self.location = Location { block: bb, statement_index: data.statements.len() };
-            self.terminator(terminator, env)?;
+            self.point = Point::BeforeLocation(self.body.terminator_loc(bb));
+            let successors = self.terminator(terminator, env)?;
+            for (env, target) in successors {
+                self.point = Point::Edge(bb, target);
+                self.goto(target, env)?;
+            }
         }
         Ok(())
     }
@@ -344,11 +344,15 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
         Ok(())
     }
 
-    fn terminator(&mut self, terminator: &Terminator, mut env: Env) -> QueryResult {
-        let bb = self.location.block;
+    fn terminator(
+        &mut self,
+        terminator: &Terminator,
+        mut env: Env,
+    ) -> QueryResult<Vec<(Env, BasicBlock)>> {
+        let mut successors = vec![];
         match &terminator.kind {
             TerminatorKind::Return => {
-                M::ret(self, bb, env);
+                M::ret(self, &env);
             }
             TerminatorKind::Call { args, destination, target, .. } => {
                 for arg in args {
@@ -356,7 +360,7 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                 }
                 M::projection(self, &mut env, destination, ProjKind::Other)?;
                 if let Some(target) = target {
-                    self.goto(bb, *target, env)?;
+                    successors.push((env, *target));
                 }
             }
             TerminatorKind::SwitchInt { discr, targets } => {
@@ -384,50 +388,51 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                         // unfold points.
                         let mut env = env.clone();
                         env.downcast(self.genv, &place, variant_idx)?;
-                        self.goto(bb, target, env)?;
+                        successors.push((env, target));
                     }
                     if remaining.len() == 1 {
                         let (_, variant_idx) = remaining.into_iter().next().unwrap();
                         env.downcast(self.genv, &place, variant_idx)?;
                     }
-                    self.goto(bb, targets.otherwise(), env)?;
+                    successors.push((env, targets.otherwise()));
                 } else {
-                    for target in targets.all_targets() {
-                        self.goto(bb, *target, env.clone())?;
+                    let n = targets.all_targets().len();
+                    for (env, target) in iter::zip(repeat_n(env, n), targets.all_targets()) {
+                        successors.push((env, *target));
                     }
                 }
             }
             TerminatorKind::Goto { target } => {
-                self.goto(bb, *target, env)?;
+                successors.push((env, *target));
             }
             TerminatorKind::Yield { resume, resume_arg, .. } => {
                 M::projection(self, &mut env, resume_arg, ProjKind::Other)?;
-                self.goto(bb, *resume, env)?;
+                successors.push((env, *resume));
             }
             TerminatorKind::Drop { place, target, .. } => {
                 M::projection(self, &mut env, place, ProjKind::Other)?;
-                self.goto(bb, *target, env)?;
+                successors.push((env, *target));
             }
             TerminatorKind::Assert { cond, target, .. } => {
                 self.operand(cond, &mut env)?;
-                self.goto(bb, *target, env)?;
+                successors.push((env, *target));
             }
             TerminatorKind::FalseEdge { real_target, .. } => {
-                self.goto(bb, *real_target, env)?;
+                successors.push((env, *real_target));
             }
             TerminatorKind::FalseUnwind { real_target, .. } => {
-                self.goto(bb, *real_target, env)?;
+                successors.push((env, *real_target));
             }
             TerminatorKind::Unreachable
             | TerminatorKind::UnwindResume
             | TerminatorKind::CoroutineDrop => {}
         }
-        Ok(())
+        Ok(successors)
     }
 
-    fn goto(&mut self, from: BasicBlock, target: BasicBlock, env: Env) -> QueryResult {
+    fn goto(&mut self, target: BasicBlock, env: Env) -> QueryResult {
         if self.body.is_join_point(target) {
-            if M::goto_join_point(self, from, target, env)? {
+            if M::goto_join_point(self, target, env)? {
                 self.queue.insert(target);
             }
             Ok(())
@@ -449,7 +454,7 @@ impl<'a, 'genv, 'tcx, M> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
             body,
             bb_envs,
             discriminants: Default::default(),
-            location: Location::START,
+            point: Point::FunEntry,
             visited: BitSet::new_empty(body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),
             mode,

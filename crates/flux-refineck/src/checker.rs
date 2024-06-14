@@ -241,7 +241,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             |sort, _| rcx.define_vars(sort),
         );
 
-        let env = init_env(&mut rcx, &body, &fn_sig, inherited.config);
+        let mut env = init_env(&mut rcx, &body, &fn_sig, inherited.config);
 
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
@@ -263,7 +263,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),
         };
-        ck.check_goto(rcx, env, START_BLOCK, body.span(), START_BLOCK)?;
+        ck.check_ghost_statements_at(&mut rcx, &mut env, Point::FunEntry, body.span())?;
+        ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
             if ck.visited.contains(bb) {
                 let snapshot = ck.snapshot_at_dominator(bb);
@@ -295,7 +296,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let mut location = Location { block: bb, statement_index: 0 };
         for stmt in &data.statements {
             let span = stmt.source_info.span;
-            self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
+            self.check_ghost_statements_at(
+                &mut rcx,
+                &mut env,
+                Point::BeforeLocation(location),
+                span,
+            )?;
             bug::track_span(span, || {
                 dbg::statement!("start", stmt, rcx, env);
                 self.check_statement(&mut rcx, &mut env, stmt)?;
@@ -310,7 +316,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         if let Some(terminator) = &data.terminator {
             let span = terminator.source_info.span;
-            self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
+            self.check_ghost_statements_at(
+                &mut rcx,
+                &mut env,
+                Point::BeforeLocation(location),
+                span,
+            )?;
             bug::track_span(span, || {
                 dbg::terminator!("start", terminator, rcx, env);
                 let successors =
@@ -679,7 +690,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         .with_span(terminator_span)?;
                 }
             }
-            self.check_goto(rcx, env, from, terminator_span, target)?;
+            self.check_ghost_statements_at(
+                &mut rcx,
+                &mut env,
+                Point::Edge(from, target),
+                terminator_span,
+            )?;
+            self.check_goto(rcx, env, terminator_span, target)?;
         }
         Ok(())
     }
@@ -688,14 +705,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         mut rcx: RefineCtxt,
         mut env: TypeEnv,
-        from: BasicBlock,
         span: Span,
         target: BasicBlock,
     ) -> Result {
-        self.check_ghost_statements_at(&mut rcx, &mut env, Point::Edge(from, target), span)?;
         if self.is_exit_block(target) {
             let location = self.body.terminator_loc(target);
-            self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
+            self.check_ghost_statements_at(
+                &mut rcx,
+                &mut env,
+                Point::BeforeLocation(location),
+                span,
+            )?;
             let obligs = self
                 .constr_gen(&rcx, span)
                 .check_ret(&mut rcx, &mut env, &self.output)

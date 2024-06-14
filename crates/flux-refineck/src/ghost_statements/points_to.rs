@@ -295,7 +295,7 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
         _statement: &'mir mir::Statement<'tcx>,
         location: mir::Location,
     ) {
-        let point = Point::Location(location);
+        let point = Point::BeforeLocation(location);
         for (place_idx, old_value) in &mut self.before_state {
             let new_value = state.get_idx(*place_idx, self.map);
             if let (FlatSet::Elem(_), FlatSet::Top) = (&old_value, &new_value) {

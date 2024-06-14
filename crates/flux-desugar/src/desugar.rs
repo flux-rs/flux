@@ -634,7 +634,11 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                     span: loc.span,
                 };
                 let ty = self.desugar_ty(ty)?;
-                let kind = fhir::TyKind::StrgRef(self.mk_lft_hole(), path, self.genv.alloc(ty));
+                let kind = fhir::TyKind::StrgRef(
+                    self.mk_lft_hole(),
+                    self.genv.alloc(path),
+                    self.genv.alloc(ty),
+                );
                 Ok(fhir::Ty { kind, span })
             }
             surface::Arg::Ty(bind, ty, node_id) => {
