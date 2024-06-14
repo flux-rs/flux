@@ -71,7 +71,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let param = self.get_generic_param(def_id)?;
         let sort = match &param.kind {
             fhir::GenericParamKind::Base => Some(rty::Sort::Param(self.def_id_to_param_ty(def_id))),
-            fhir::GenericParamKind::Const { ty, .. } => self.sort_of_ty(&ty)?,
+            fhir::GenericParamKind::Const { ty, .. } => self.sort_of_ty(ty)?,
             fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime => None,
         };
         Ok(sort)

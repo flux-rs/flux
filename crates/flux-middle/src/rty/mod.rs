@@ -1479,7 +1479,7 @@ impl<T: TypeFoldable> EarlyBinder<T> {
             .try_fold_with(&mut subst::GenericsSubstFolder::new(
                 subst::IdentitySubstDelegate,
                 refine_args,
-                &const_generic_args,
+                const_generic_args,
             ))
             .into_ok()
     }
