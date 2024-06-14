@@ -7,6 +7,7 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
+        subst::ConstGenericArgs,
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Loc, Mutability, Path, PtrKind, Ref,
         Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
@@ -780,7 +781,7 @@ fn downcast_struct(
 ) -> CheckerResult<Vec<Ty>> {
     let (.., flds) = idx.expect_adt();
     Ok(struct_variant(genv, adt.did())?
-        .instantiate(args, &[])
+        .instantiate(args, &[], &ConstGenericArgs::empty())
         .replace_bound_refts(&flds)
         .fields
         .to_vec())
@@ -814,7 +815,7 @@ fn downcast_enum(
     let variant_def = genv
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
-        .instantiate(args, &[])
+        .instantiate(args, &[], &ConstGenericArgs::empty())
         .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
     let (.., exprs1) = idx1.expect_adt();

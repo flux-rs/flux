@@ -145,6 +145,29 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             .collect()
     }
 
+    fn call_const_generic_args(
+        tcx: &rustc_middle::ty::TyCtxt,
+        env: &TypeEnv,
+        generic_args: &[GenericArg],
+    ) -> ConstGenericArgs {
+        let mut const_generic_args = ConstGenericArgs::empty();
+        for (i, arg) in generic_args.iter().enumerate() {
+            if let GenericArg::Const(c) = arg {
+                let expr = match c.kind {
+                    flux_middle::rustc::ty::ConstKind::Param(p) => {
+                        env.const_generic_args().lookup(p.index)
+                    }
+                    flux_middle::rustc::ty::ConstKind::Value(value) => {
+                        let value = value.try_to_target_usize(*tcx).unwrap() as u128;
+                        Expr::constant(rty::Constant::from(value))
+                    }
+                };
+                const_generic_args.insert(i as u32, expr);
+            }
+        }
+        const_generic_args
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn check_fn_call(
         &mut self,
@@ -158,6 +181,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         let genv = self.genv;
         let span = self.span;
 
+        let tcx = self.genv.tcx();
         let mut infcx = self.infcx(rcx, ConstrReason::Call);
         let snapshot = rcx.snapshot();
 
@@ -167,9 +191,12 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         // Generate fresh inference variables for refinement arguments
         let refine_args = infcx.instantiate_refine_args(genv, callee_def_id)?;
 
+        // println!("TRACE: check_fn_call: generic_args = {generic_args:?}");
+        let const_generic_args = Self::call_const_generic_args(&tcx, env, &generic_args);
+
         // Instantiate function signature and normalize it
         let inst_fn_sig = fn_sig
-            .instantiate(&generic_args, &refine_args)
+            .instantiate(&generic_args, &refine_args, &const_generic_args)
             .replace_bound_vars(
                 |br| {
                     let re = infcx.region_infcx.next_region_var(BoundRegion(
@@ -293,7 +320,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         let generic_args = infcx.instantiate_generic_args(generic_args);
 
         let variant = variant
-            .instantiate(&generic_args, &[])
+            .instantiate(&generic_args, &[], &ConstGenericArgs::empty())
             .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
 
         // Check arguments
@@ -775,10 +802,11 @@ fn mk_obligations(
     args: &[GenericArg],
     refine_args: &[Expr],
 ) -> Result<List<rty::Clause>> {
-    Ok(genv
-        .predicates_of(did)?
-        .predicates()
-        .instantiate(args, refine_args))
+    Ok(genv.predicates_of(did)?.predicates().instantiate(
+        args,
+        refine_args,
+        &ConstGenericArgs::empty(),
+    ))
 }
 
 impl<F> KVarGen for F

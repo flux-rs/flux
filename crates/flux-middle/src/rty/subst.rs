@@ -459,7 +459,10 @@ impl<D> GenericsSubstFolder<'_, D> {
         self.refinement_args[idx as usize].shift_in_escaping(self.current_index.as_u32())
     }
     fn expr_for_const_param(&self, idx: u32) -> Expr {
-        self.const_generic_args.0[&idx].clone()
+        match self.const_generic_args.0.get(&idx) {
+            Some(expr) => expr.clone(),
+            None => bug!("missing const generic argument for index {idx}"),
+        }
     }
 }
 
