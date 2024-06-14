@@ -379,6 +379,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.generics_of)(genv, local_id)
+            } else if let Some(generics) = genv.cstore().generics_of(def_id) {
+                generics
             } else {
                 let generics = genv.lower_generics_of(def_id)?;
                 refining::refine_generics(&generics)
@@ -395,6 +397,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.refinement_generics_of)(genv, local_id)
+            } else if let Some(refinement_generics) = genv.cstore().refinement_generics_of(def_id) {
+                refinement_generics
             } else {
                 let parent = genv.tcx().generics_of(def_id).parent;
                 Ok(rty::RefinementGenerics { parent, parent_count: 0, params: List::empty() })
@@ -412,6 +416,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.item_bounds)(genv, local_id)
+            } else if let Some(bounds) = genv.cstore().item_bounds(def_id) {
+                bounds
             } else {
                 let bounds = genv.tcx().item_bounds(def_id).skip_binder();
                 let clauses = lowering::lower_item_bounds(genv.tcx(), bounds)
@@ -435,6 +441,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.predicates_of)(genv, local_id)
+            } else if let Some(predicates) = genv.cstore().predicates_of(def_id) {
+                predicates
             } else {
                 let predicates = genv.lower_predicates_of(def_id)?;
                 let predicates = Refiner::default(genv, &genv.generics_of(def_id)?)
@@ -453,6 +461,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.assoc_refinements_of)(genv, local_id)
+            } else if let Some(assocs) = genv.cstore().assoc_refinements_of(def_id) {
+                assocs
             } else {
                 Ok(rty::AssocRefinements::default())
             }
@@ -469,6 +479,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let impl_id = lookup_extern(genv, impl_id).unwrap_or(impl_id);
             if let Some(local_id) = impl_id.as_local() {
                 (self.providers.assoc_refinement_def)(genv, local_id, name)
+            } else if let Some(lam) = genv.cstore().assoc_refinements_def(impl_id, name) {
+                lam
             } else {
                 todo!("implement for external crates")
             }
@@ -485,6 +497,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let impl_id = lookup_extern(genv, def_id).unwrap_or(def_id);
             if let Some(local_id) = impl_id.as_local() {
                 (self.providers.sort_of_assoc_reft)(genv, local_id, name)
+            } else if let Some(sort) = genv.cstore().sort_of_assoc_reft(def_id, name) {
+                sort
             } else {
                 todo!("implement for external crates")
             }

@@ -8,6 +8,7 @@ use flux_common::{
     dbg,
     index::{IndexGen, IndexVec},
     iter::IterExt,
+    result::ResultExt,
     span_bug,
 };
 use flux_config as config;
@@ -16,7 +17,7 @@ use flux_middle::{
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     intern::List,
-    queries::QueryResult,
+    queries::{QueryErr, QueryResult},
     rty::{
         self,
         fold::{TypeSuperVisitable, TypeVisitable, TypeVisitor},
@@ -378,19 +379,29 @@ where
     }
 
     /// Collect all the sorts that need to be defined in fixpoint to encode `t`
-    pub(crate) fn collect_sorts<T: TypeVisitable>(&mut self, t: &T) {
-        struct Visitor<'a> {
+    pub(crate) fn collect_sorts<T: TypeVisitable>(&mut self, t: &T) -> QueryResult {
+        struct Visitor<'a, 'genv, 'tcx> {
+            genv: GlobalEnv<'genv, 'tcx>,
             sorts: &'a mut SortStore,
         }
-        impl TypeVisitor for Visitor<'_> {
-            fn visit_expr(&mut self, expr: &rty::Expr) -> ControlFlow<!> {
-                if let rty::ExprKind::Aggregate(_, flds) = expr.kind() {
-                    self.sorts.declare_tuple(flds.len());
+        impl TypeVisitor for Visitor<'_, '_, '_> {
+            type BreakTy = QueryErr;
+
+            fn visit_expr(&mut self, expr: &rty::Expr) -> ControlFlow<QueryErr> {
+                match expr.kind() {
+                    rty::ExprKind::Aggregate(_, flds) => {
+                        self.sorts.declare_tuple(flds.len());
+                    }
+                    rty::ExprKind::FieldProj(_, proj) => {
+                        let arity = proj.arity(self.genv).into_control_flow()?;
+                        self.sorts.declare_tuple(arity);
+                    }
+                    _ => (),
                 }
                 expr.super_visit_with(self)
             }
 
-            fn visit_sort(&mut self, sort: &rty::Sort) -> ControlFlow<!> {
+            fn visit_sort(&mut self, sort: &rty::Sort) -> ControlFlow<QueryErr> {
                 match sort {
                     rty::Sort::Tuple(flds) => self.sorts.declare_tuple(flds.len()),
                     rty::Sort::App(rty::SortCtor::Adt(sort_def), _) => {
@@ -401,7 +412,10 @@ where
                 sort.super_visit_with(self)
             }
         }
-        t.visit_with(&mut Visitor { sorts: &mut self.sorts });
+        match t.visit_with(&mut Visitor { genv: self.genv, sorts: &mut self.sorts }) {
+            ControlFlow::Continue(()) => Ok(()),
+            ControlFlow::Break(err) => Err(err),
+        }
     }
 
     pub(crate) fn with_name_map<R>(
@@ -808,17 +822,22 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         // user declared opaque sorts and type variable sorts as integers. Well-formedness should
         // ensure values of these sorts are properly used.
         rty::Sort::App(rty::SortCtor::User { .. }, _) | rty::Sort::Param(_) => fixpoint::Sort::Int,
-        rty::Sort::App(ctor, sorts) => {
-            let ctor = match ctor {
-                rty::SortCtor::Set => fixpoint::SortCtor::Set,
-                rty::SortCtor::Map => fixpoint::SortCtor::Map,
-                rty::SortCtor::Adt(sort_def) => {
-                    fixpoint::SortCtor::Data(tuple_sort_name(sort_def.fields()))
-                }
-                rty::SortCtor::User { .. } => unreachable!(),
-            };
-            let sorts = sorts.iter().map(sort_to_fixpoint).collect_vec();
-            fixpoint::Sort::App(ctor, sorts)
+        rty::Sort::App(rty::SortCtor::Set, args) => {
+            let args = args.iter().map(sort_to_fixpoint).collect_vec();
+            fixpoint::Sort::App(fixpoint::SortCtor::Set, args)
+        }
+        rty::Sort::App(rty::SortCtor::Map, args) => {
+            let args = args.iter().map(sort_to_fixpoint).collect_vec();
+            fixpoint::Sort::App(fixpoint::SortCtor::Map, args)
+        }
+        rty::Sort::App(rty::SortCtor::Adt(sort_def), args) => {
+            let ctor = fixpoint::SortCtor::Data(tuple_sort_name(sort_def.fields()));
+            let args = sort_def
+                .sorts(args)
+                .iter()
+                .map(sort_to_fixpoint)
+                .collect_vec();
+            fixpoint::Sort::App(ctor, args)
         }
         rty::Sort::Tuple(sorts) => {
             let ctor = fixpoint::SortCtor::Data(tuple_sort_name(sorts.len()));

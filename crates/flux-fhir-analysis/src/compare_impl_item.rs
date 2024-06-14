@@ -13,7 +13,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result 
     let impl_assoc_refts = genv.assoc_refinements_of(impl_id).emit(&genv)?;
     let trait_assoc_refts = genv.assoc_refinements_of(trait_id).emit(&genv)?;
 
-    for impl_assoc_reft in &impl_assoc_refts.predicates {
+    for impl_assoc_reft in &impl_assoc_refts.items {
         let name = impl_assoc_reft.name;
         if trait_assoc_refts.find(name).is_none() {
             let fhir_impl_assoc_reft = genv

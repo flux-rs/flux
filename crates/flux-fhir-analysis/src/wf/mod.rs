@@ -14,7 +14,7 @@ use flux_common::{
 };
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
-    fhir::{self, visit::Visitor, FluxOwnerId, SurfaceIdent},
+    fhir::{self, visit::Visitor, FluxOwnerId},
     global_env::GlobalEnv,
     rty::{self, WfckResults},
 };
@@ -22,7 +22,7 @@ use rustc_data_structures::unord::UnordSet;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashSet;
 use rustc_hir::def::DefKind;
-use rustc_span::Symbol;
+use rustc_span::{symbol::Ident, Symbol};
 
 use self::sortck::{ImplicitParamInferer, InferCtxt};
 use crate::conv::{self, bug_on_infer_sort};
@@ -101,7 +101,7 @@ fn resolve_params(infcx: &mut InferCtxt, node: &fhir::Node) -> Result {
 pub(crate) fn check_fn_quals(
     sess: &FluxSession,
     qualifiers: &UnordSet<Symbol>,
-    fn_quals: &[SurfaceIdent],
+    fn_quals: &[Ident],
 ) -> Result {
     for qual in fn_quals {
         if !qualifiers.contains(&qual.name) {

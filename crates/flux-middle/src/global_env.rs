@@ -361,7 +361,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             == def_id
     }
 
-    pub fn extern_id_of(self, def_id: DefId) -> QueryResult<Option<DefId>> {
+    fn extern_id_of(self, def_id: DefId) -> QueryResult<Option<DefId>> {
         let Some(local_id) = def_id.as_local() else { return Ok(None) };
         self.map().extern_id_of(local_id)
     }
@@ -484,7 +484,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         self.fhir.consts.values().copied()
     }
 
-    pub fn fn_quals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [fhir::SurfaceIdent]> {
+    pub fn fn_quals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [Ident]> {
         // This is called on adts when checking invariants
         if let Some(fn_sig) = self.node(def_id)?.fn_sig() {
             Ok(fn_sig.qualifiers)

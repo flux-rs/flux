@@ -1,4 +1,4 @@
-use std::{clone::Clone, fmt, iter, ops::ControlFlow};
+use std::{clone::Clone, fmt, ops::ControlFlow};
 
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_middle::{
@@ -778,7 +778,11 @@ fn downcast_struct(
     args: &[GenericArg],
     idx: &Expr,
 ) -> CheckerResult<Vec<Ty>> {
-    let (.., flds) = idx.expect_adt();
+    let flds = adt
+        .sort_def()
+        .projections()
+        .map(|proj| idx.proj_and_reduce(proj))
+        .collect_vec();
     Ok(struct_variant(genv, adt.did())?
         .instantiate(args, &[])
         .replace_bound_refts(&flds)
@@ -817,15 +821,16 @@ fn downcast_enum(
         .instantiate(args, &[])
         .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
-    let (.., exprs1) = idx1.expect_adt();
-    let (.., exprs2) = variant_def.idx.expect_adt();
-    debug_assert_eq!(exprs1.len(), exprs2.len());
-    let constr = Expr::and(iter::zip(&exprs1, &exprs2).filter_map(|(e1, e2)| {
-        if !e1.is_abs() && !e2.is_abs() {
-            Some(Expr::eq(e1, e2))
-        } else {
-            None
-        }
+    // FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there
+    // are currently two problems.
+    // 1. The encoded fixpoint constraint won't parse if it has nested expressions inside data constructors.
+    // 2. We could expand the equality during encoding, but that would require annotating the sort
+    // of the equality operator, which will be cumbersome because we create equalities in some places where
+    // the sort is not readily available.
+    let constr = Expr::and(adt.sort_def().projections().map(|proj| {
+        let e1 = idx1.proj_and_reduce(proj);
+        let e2 = variant_def.idx.proj_and_reduce(proj);
+        Expr::eq(e1, e2)
     }));
     rcx.assume_pred(&constr);
 

@@ -721,6 +721,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         }
     }
 
+    #[track_caller]
     fn emit_err(&mut self, err: impl Diagnostic<'a>) -> ErrorGuaranteed {
         let e = self.sess.emit_err(err);
         self.error_guaranteed = Some(e);

@@ -11,7 +11,7 @@ use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
-    fhir::{self, ExprRes, FhirId, FluxOwnerId, SurfaceIdent},
+    fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     intern::List,
     queries::QueryResult,
@@ -37,7 +37,7 @@ use rustc_middle::{
 };
 use rustc_span::{
     symbol::{kw, Ident},
-    ErrorGuaranteed, Span, Symbol,
+    ErrorGuaranteed, Span, Symbol, DUMMY_SP,
 };
 use rustc_trait_selection::traits;
 use rustc_type_ir::DebruijnIndex;
@@ -54,31 +54,30 @@ pub(crate) struct Env {
 
 #[derive(Debug, Clone)]
 struct Layer {
-    map: FxIndexMap<fhir::ParamId, Entry>,
-    /// Whether to skip variables bound to Unit in this layer.
-    filter_unit: bool,
+    map: FxIndexMap<fhir::ParamId, ParamEntry>,
     kind: LayerKind,
 }
 
+/// Whether the list of parameters in a layer is converted into a list of bound variables or
+/// coalesced into a single parameter of [adt] sort.
+///
+/// [adt]: rty::SortCtor::Adt
 #[derive(Debug, Clone, Copy)]
 enum LayerKind {
-    List,
-    Record(DefId),
+    List {
+        /// The number of regions bound in this layer. Since regions and refinements are both
+        /// bound with a [`rty::Binder`] we need to keep track of the number of bound regions
+        /// to skip them when assigning an index to refinement parameters.
+        bound_regions: u32,
+    },
+    Coalesce(DefId),
 }
 
 #[derive(Debug, Clone)]
-enum Entry {
-    Sort {
-        infer_mode: rty::InferMode,
-        name: Symbol,
-        sort: rty::Sort,
-        /// The index of the entry in the layer skipping all [`Entry::Unit`] if [`Layer::filter_unit`]
-        /// is true
-        idx: u32,
-    },
-    /// We track parameters of unit sort separately because we avoid creating bound variables for them
-    /// in function signatures.
-    Unit(Symbol),
+struct ParamEntry {
+    name: Symbol,
+    sort: rty::Sort,
+    mode: rty::InferMode,
 }
 
 #[derive(Debug)]
@@ -90,8 +89,19 @@ struct LookupResult<'a> {
 
 #[derive(Debug)]
 enum LookupResultKind<'a> {
-    LateBound { level: u32, entry: &'a Entry, kind: LayerKind },
-    EarlyParam { idx: u32, name: Symbol, sort: rty::Sort },
+    LateBound {
+        debruijn: DebruijnIndex,
+        entry: &'a ParamEntry,
+        kind: LayerKind,
+        /// The index of the parameter in the layer.
+        idx: u32,
+    },
+    EarlyParam {
+        name: Symbol,
+        sort: rty::Sort,
+        /// The index of the parameter.
+        idx: u32,
+    },
 }
 
 pub(crate) fn conv_adt_sort_def(
@@ -127,7 +137,7 @@ pub(crate) fn expand_type_alias<'genv>(
     let cx = ConvCtxt::new(genv, wfckresults);
 
     let mut env = Env::new(genv, alias.generics.refinement_params, wfckresults)?;
-    env.push_layer(Layer::record(&cx, def_id, alias.params)?);
+    env.push_layer(Layer::coalesce(&cx, def_id, alias.params)?);
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
     Ok(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)?))
@@ -147,8 +157,9 @@ pub(crate) fn conv_generic_predicates<'genv>(
 
     let mut clauses = vec![];
     for pred in predicates {
+        let span = pred.bounded_ty.span;
         let bounded_ty = cx.conv_ty(env, &pred.bounded_ty)?;
-        for clause in cx.conv_generic_bounds(env, bounded_ty, pred.bounds)? {
+        for clause in cx.conv_generic_bounds(env, span, bounded_ty, pred.bounds)? {
             clauses.push(clause);
         }
     }
@@ -171,8 +182,9 @@ pub(crate) fn conv_opaque_ty<'genv>(
 
     let args = rty::GenericArgs::identity_for_item(genv, def_id)?;
     let self_ty = rty::Ty::opaque(def_id, args, env.to_early_bound_vars());
+    // FIXME(nilehmann) use a good span here
     Ok(cx
-        .conv_generic_bounds(env, self_ty, opaque_ty.bounds)?
+        .conv_generic_bounds(env, DUMMY_SP, self_ty, opaque_ty.bounds)?
         .into_iter()
         .collect())
 }
@@ -269,7 +281,7 @@ pub(crate) fn conv_invariants<'genv>(
 ) -> QueryResult<Vec<rty::Invariant>> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults)?;
-    env.push_layer(Layer::record(&cx, def_id.to_def_id(), params)?);
+    env.push_layer(Layer::coalesce(&cx, def_id.to_def_id(), params)?);
     cx.conv_invariants(&mut env, invariants)
 }
 
@@ -281,7 +293,7 @@ pub(crate) fn conv_defn<'genv>(
     if let Some(body) = &func.body {
         let cx = ConvCtxt::new(genv, wfckresults);
         let mut env = Env::new(genv, &[], wfckresults)?;
-        env.push_layer(Layer::list(&cx, 0, func.args, false)?);
+        env.push_layer(Layer::list(&cx, 0, func.args)?);
         let expr = cx.conv_expr(&mut env, body)?;
         let expr = rty::Binder::new(expr, env.pop_layer().into_bound_vars(genv)?);
         Ok(Some(rty::SpecFunc { name: func.name, expr }))
@@ -297,7 +309,7 @@ pub(crate) fn conv_qualifier<'genv>(
 ) -> QueryResult<rty::Qualifier> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults)?;
-    env.push_layer(Layer::list(&cx, 0, qualifier.args, false)?);
+    env.push_layer(Layer::list(&cx, 0, qualifier.args)?);
     let body = cx.conv_expr(&mut env, &qualifier.expr)?;
     let body = rty::Binder::new(body, env.pop_layer().into_bound_vars(genv)?);
     Ok(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
@@ -314,7 +326,7 @@ pub(crate) fn conv_fn_decl<'genv>(
     let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
 
     let mut env = Env::new(genv, decl.generics.refinement_params, wfckresults)?;
-    env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[], true)?);
+    env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[])?);
 
     let mut requires = vec![];
     for constr in decl.requires {
@@ -345,7 +357,7 @@ pub(crate) fn conv_assoc_reft_def<'genv>(
 ) -> QueryResult<rty::Lambda> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults)?;
-    env.push_layer(Layer::list(&cx, 0, assoc_reft.params, false)?);
+    env.push_layer(Layer::list(&cx, 0, assoc_reft.params)?);
     let expr = cx.conv_expr(&mut env, &assoc_reft.body)?;
     let inputs = env.pop_layer().into_bound_vars(genv)?;
     let output = conv_sort(genv, &assoc_reft.output, &mut bug_on_infer_sort)?;
@@ -370,6 +382,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_generic_bounds(
         &self,
         env: &mut Env,
+        bounded_ty_span: Span,
         bounded_ty: rty::Ty,
         bounds: fhir::GenericBounds,
     ) -> QueryResult<Vec<rty::Clause>> {
@@ -388,7 +401,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                             &mut clauses,
                         )?;
                     } else {
-                        self.conv_poly_trait_ref(env, &bounded_ty, poly_trait_ref, &mut clauses)?;
+                        self.conv_poly_trait_ref(
+                            env,
+                            bounded_ty_span,
+                            &bounded_ty,
+                            poly_trait_ref,
+                            &mut clauses,
+                        )?;
                     }
                 }
                 // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
@@ -404,14 +423,18 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_poly_trait_ref(
         &self,
         env: &mut Env,
+        bounded_ty_span: Span,
         bounded_ty: &rty::Ty,
         poly_trait_ref: &fhir::PolyTraitRef,
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult {
         let trait_id = poly_trait_ref.trait_def_id();
+        let generics = self.genv.generics_of(trait_id)?;
         let trait_segment = poly_trait_ref.trait_ref.last_segment();
 
-        let mut args = vec![rty::GenericArg::Ty(bounded_ty.clone())];
+        let self_param = generics.param_at(0, self.genv)?;
+        let mut args =
+            vec![self.ty_to_generic_arg(self_param.kind, bounded_ty_span, bounded_ty)?];
         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
         self.fill_generic_args_defaults(trait_id, &mut args)?;
 
@@ -493,7 +516,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult {
         let path = &trait_ref.trait_ref;
-        let layer = Layer::list(self, trait_ref.bound_generic_params.len() as u32, &[], true)?;
+        let layer = Layer::list(self, trait_ref.bound_generic_params.len() as u32, &[])?;
         env.push_layer(layer);
 
         let pred = rty::FnTraitPredicate {
@@ -516,7 +539,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         &self,
         trait_def_id: DefId,
         assoc_kind: AssocKind,
-        assoc_name: SurfaceIdent,
+        assoc_name: Ident,
     ) -> Option<&AssocItem> {
         self.genv
             .tcx()
@@ -529,7 +552,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         env: &mut Env,
         output: &fhir::FnOutput,
     ) -> QueryResult<rty::Binder<rty::FnOutput>> {
-        env.push_layer(Layer::list(self, 0, output.params, true)?);
+        env.push_layer(Layer::list(self, 0, output.params)?);
 
         let ret = self.conv_ty(env, &output.ret)?;
         let ensures: List<rty::Constraint> = output
@@ -567,7 +590,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let cx = ConvCtxt::new(genv, wfckresults);
 
         let mut env = Env::new(genv, &[], wfckresults)?;
-        env.push_layer(Layer::list(&cx, 0, variant.params, true)?);
+        env.push_layer(Layer::list(&cx, 0, variant.params)?);
 
         let adt_def = genv.adt_def(adt_def_id)?;
         let fields = variant
@@ -594,7 +617,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
         let cx = ConvCtxt::new(genv, wfckresults);
         let mut env = Env::new(genv, &[], wfckresults)?;
-        env.push_layer(Layer::list(&cx, 0, struct_def.params, false)?);
+        env.push_layer(Layer::list(&cx, 0, struct_def.params)?);
 
         if let fhir::StructKind::Transparent { fields } = &struct_def.kind {
             let adt_def = genv.adt_def(adt_def_id)?;
@@ -643,7 +666,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 let pred = if params.is_empty() {
                     self.conv_expr(env, pred)?
                 } else {
-                    env.push_layer(Layer::list(self, 0, params, false)?);
+                    env.push_layer(Layer::list(self, 0, params)?);
                     let pred = self.conv_expr(env, pred)?;
                     let sorts = env.pop_layer().into_bound_vars(self.genv)?;
                     rty::Expr::forall(rty::Binder::new(pred, sorts))
@@ -657,8 +680,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         &self,
         env: &mut Env,
         alias: &fhir::AliasReft,
-        func_args: &[fhir::Expr],
-    ) -> QueryResult<rty::Expr> {
+    ) -> QueryResult<rty::AliasReft> {
         let fhir::Res::Def(DefKind::Trait, trait_id) = alias.path.res else {
             bug!("expected trait")
         };
@@ -666,23 +688,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
         let generics = self.genv.generics_of(trait_id)?;
         let self_ty =
-            if let rty::GenericParamDefKind::Type { .. } = generics.param_at(0, self.genv)?.kind {
-                rty::GenericArg::Ty(self.conv_ty(env, alias.qself)?)
-            } else {
-                rty::GenericArg::Base(self.conv_generic_base(env, alias.qself)?)
-            };
+            self.conv_ty_to_generic_arg(env, &generics.param_at(0, self.genv)?, alias.qself)?;
         let mut generic_args = vec![self_ty];
         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut generic_args)?;
 
-        let func_args = func_args
-            .iter()
-            .map(|arg| self.conv_expr(env, arg))
-            .try_collect()?;
-
-        let alias_reft =
-            rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
-
-        Ok(rty::Expr::alias(alias_reft, func_args))
+        Ok(rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) })
     }
 
     fn conv_ty(&self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
@@ -705,7 +715,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 }
             }
             fhir::TyKind::Exists(params, ty) => {
-                let layer = Layer::list(self, 0, params, false)?;
+                let layer = Layer::list(self, 0, params)?;
                 env.push_layer(layer);
                 let ty = self.conv_ty(env, ty)?;
                 let sorts = env.pop_layer().into_bound_vars(self.genv)?;
@@ -779,11 +789,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                         let trait_generics = self.genv.generics_of(trait_id)?;
                         let qself = qself.as_deref().unwrap();
                         let qself =
-                            if let rty::GenericParamDefKind::Base = trait_generics.params[0].kind {
-                                rty::GenericArg::Base(self.conv_generic_base(env, qself)?)
-                            } else {
-                                rty::GenericArg::Ty(self.conv_ty(env, qself)?)
-                            };
+                            self.conv_ty_to_generic_arg(env, &trait_generics.params[0], qself)?;
                         let mut args = vec![qself];
                         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
                         self.conv_generic_args_into(env, assoc_id, assoc_segment.args, &mut args)?;
@@ -1005,7 +1011,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         match &arg.kind {
             fhir::RefineArgKind::Expr(expr) => self.conv_expr(env, expr),
             fhir::RefineArgKind::Abs(params, body) => {
-                let layer = Layer::list(self, 0, params, false)?;
+                let layer = Layer::list(self, 0, params)?;
 
                 env.push_layer(layer);
                 let pred = self.conv_expr(env, body)?;
@@ -1097,19 +1103,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let len = into.len();
         for (idx, arg) in args.iter().enumerate() {
             let param = generics.param_at(idx + len, self.genv)?;
-            match (arg, &param.kind) {
-                (fhir::GenericArg::Lifetime(lft), rty::GenericParamDefKind::Lifetime) => {
+            match arg {
+                fhir::GenericArg::Lifetime(lft) => {
                     into.push(rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft)));
                 }
-                (fhir::GenericArg::Type(ty), rty::GenericParamDefKind::Type { .. }) => {
-                    into.push(rty::GenericArg::Ty(self.conv_ty(env, ty)?));
-                }
-                (fhir::GenericArg::Type(ty), rty::GenericParamDefKind::Base) => {
-                    let ctor = self.conv_generic_base(env, ty)?;
-                    into.push(rty::GenericArg::Base(ctor));
-                }
-                _ => {
-                    bug!("unexpected param `{:?}` for arg `{arg:?}`", param.kind);
+                fhir::GenericArg::Type(ty) => {
+                    into.push(self.conv_ty_to_generic_arg(env, &param, ty)?);
                 }
             }
         }
@@ -1139,17 +1138,45 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(())
     }
 
-    fn conv_generic_base(&self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::SubsetTyCtor> {
-        let ctor = self
-            .conv_ty(env, ty)?
+    fn conv_ty_to_generic_arg(
+        &self,
+        env: &mut Env,
+        param: &rty::GenericParamDef,
+        ty: &fhir::Ty,
+    ) -> QueryResult<rty::GenericArg> {
+        let rty_ty = self.conv_ty(env, ty)?;
+        match &param.kind {
+            rty::GenericParamDefKind::Type { .. } => Ok(rty::GenericArg::Ty(rty_ty)),
+            rty::GenericParamDefKind::Base => self.ty_to_base_generic(ty.span, &rty_ty),
+            _ => bug!("unexpected param `{param:?}`"),
+        }
+    }
+
+    fn ty_to_generic_arg(
+        &self,
+        kind: rty::GenericParamDefKind,
+        ty_span: Span,
+        ty: &rty::Ty,
+    ) -> QueryResult<rty::GenericArg> {
+        match kind {
+            rty::GenericParamDefKind::Type { .. } => Ok(rty::GenericArg::Ty(ty.clone())),
+            rty::GenericParamDefKind::Base => self.ty_to_base_generic(ty_span, ty),
+            _ => bug!("unexpected param kind `{kind:?}`"),
+        }
+    }
+
+    /// Convert an [`rty::Ty`] into a [`rty::GenericArg::Base`] if possible or raise an error
+    /// if the type cannot be converted into a [`rty::SubsetTy`].
+    fn ty_to_base_generic(&self, ty_span: Span, ty: &rty::Ty) -> QueryResult<rty::GenericArg> {
+        let ctor = ty
             .shallow_canonicalize()
             .to_subset_ty_ctor()
             .ok_or_else(|| {
                 self.genv
                     .sess()
-                    .emit_err(errors::InvalidBaseInstance::new(ty))
+                    .emit_err(errors::InvalidBaseInstance::new(ty_span))
             })?;
-        Ok(ctor)
+        Ok(rty::GenericArg::Base(ctor))
     }
 
     fn resolve_param_sort(&self, param: &fhir::RefineParam) -> QueryResult<rty::Sort> {
@@ -1191,8 +1218,15 @@ impl Env {
 
     fn lookup(&self, var: &fhir::PathExpr) -> LookupResult {
         let (_, id) = var.res.expect_param();
-        for (level, layer) in self.layers.iter().rev().enumerate() {
-            if let Some(kind) = layer.get(id, level as u32) {
+        for (i, layer) in self.layers.iter().rev().enumerate() {
+            if let Some((idx, entry)) = layer.get(id) {
+                let debruijn = DebruijnIndex::from_usize(i);
+                let kind = LookupResultKind::LateBound {
+                    debruijn,
+                    entry,
+                    idx: idx as u32,
+                    kind: layer.kind,
+                };
                 return LookupResult { span: var.span, kind };
             }
         }
@@ -1255,8 +1289,13 @@ impl ConvCtxt<'_, '_, '_> {
             fhir::ExprKind::App(func, args) => {
                 rty::Expr::app(self.conv_func(env, func), self.conv_exprs(env, args)?, espan)
             }
-            fhir::ExprKind::Alias(alias, func_args) => {
-                self.conv_alias_reft(env, alias, func_args)?
+            fhir::ExprKind::Alias(alias, args) => {
+                let args = args
+                    .iter()
+                    .map(|arg| self.conv_expr(env, arg))
+                    .try_collect()?;
+                let alias = self.conv_alias_reft(env, alias)?;
+                rty::Expr::alias(alias, args)
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 rty::Expr::ite(
@@ -1347,62 +1386,44 @@ impl ConvCtxt<'_, '_, '_> {
 }
 
 impl Layer {
-    fn new(
-        cx: &ConvCtxt,
-        late_bound_regions: u32,
-        params: &[fhir::RefineParam],
-        filter_unit: bool,
-        kind: LayerKind,
-    ) -> QueryResult<Self> {
-        let mut idx = late_bound_regions;
+    fn new(cx: &ConvCtxt, params: &[fhir::RefineParam], kind: LayerKind) -> QueryResult<Self> {
         let map = params
             .iter()
             .map(|param| -> QueryResult<_> {
                 let sort = cx.resolve_param_sort(param)?;
                 let infer_mode = sort.infer_mode(param.kind);
-                let entry = Entry::new(idx, sort, infer_mode, param.name);
-                if !filter_unit || !matches!(entry, Entry::Unit(_)) {
-                    idx += 1;
-                }
+                let entry = ParamEntry::new(sort, infer_mode, param.name);
                 Ok((param.id, entry))
             })
             .try_collect()?;
-        Ok(Self { map, filter_unit, kind })
+        Ok(Self { map, kind })
     }
 
-    fn list(
-        cx: &ConvCtxt,
-        late_bound_regions: u32,
-        params: &[fhir::RefineParam],
-        filter_unit: bool,
-    ) -> QueryResult<Self> {
-        Self::new(cx, late_bound_regions, params, filter_unit, LayerKind::List)
+    fn list(cx: &ConvCtxt, bound_regions: u32, params: &[fhir::RefineParam]) -> QueryResult<Self> {
+        Self::new(cx, params, LayerKind::List { bound_regions })
     }
 
-    fn record(cx: &ConvCtxt, def_id: DefId, params: &[fhir::RefineParam]) -> QueryResult<Self> {
-        Self::new(cx, 0, params, false, LayerKind::Record(def_id))
+    fn coalesce(cx: &ConvCtxt, def_id: DefId, params: &[fhir::RefineParam]) -> QueryResult<Self> {
+        Self::new(cx, params, LayerKind::Coalesce(def_id))
     }
 
-    fn get(&self, name: impl Borrow<fhir::ParamId>, level: u32) -> Option<LookupResultKind> {
-        Some(LookupResultKind::LateBound {
-            level,
-            entry: self.map.get(name.borrow())?,
-            kind: self.kind,
-        })
+    fn get(&self, name: impl Borrow<fhir::ParamId>) -> Option<(usize, &ParamEntry)> {
+        let (idx, _, entry) = self.map.get_full(name.borrow())?;
+        Some((idx, entry))
     }
 
     fn into_bound_vars(self, genv: GlobalEnv) -> QueryResult<List<rty::BoundVariableKind>> {
         match self.kind {
-            LayerKind::List => {
+            LayerKind::List { .. } => {
                 Ok(self
                     .into_iter()
-                    .map(|(sort, mode, name)| {
-                        let kind = rty::BoundReftKind::Named(name);
-                        rty::BoundVariableKind::Refine(sort, mode, kind)
+                    .map(|entry| {
+                        let kind = rty::BoundReftKind::Named(entry.name);
+                        rty::BoundVariableKind::Refine(entry.sort, entry.mode, kind)
                     })
                     .collect())
             }
-            LayerKind::Record(def_id) => {
+            LayerKind::Coalesce(def_id) => {
                 let sort_def = genv.adt_sort_def_of(def_id)?;
                 let args = sort_def.identity_args();
                 let ctor = rty::SortCtor::Adt(sort_def);
@@ -1418,60 +1439,38 @@ impl Layer {
         self.clone().into_bound_vars(genv)
     }
 
-    fn into_iter(self) -> impl Iterator<Item = (rty::Sort, rty::InferMode, Symbol)> {
-        self.map.into_values().filter_map(move |entry| {
-            match entry {
-                Entry::Sort { infer_mode, sort, name, .. } => Some((sort, infer_mode, name)),
-                Entry::Unit(name) => {
-                    if self.filter_unit {
-                        None
-                    } else {
-                        let unit = rty::Sort::unit();
-                        let infer_mode = unit.default_infer_mode();
-                        Some((unit, infer_mode, name))
-                    }
-                }
-            }
-        })
+    fn into_iter(self) -> impl Iterator<Item = ParamEntry> {
+        self.map.into_values()
     }
 }
 
-impl Entry {
-    fn new(idx: u32, sort: rty::Sort, infer_mode: fhir::InferMode, name: Symbol) -> Self {
-        if sort.is_unit() {
-            Entry::Unit(name)
-        } else {
-            Entry::Sort { sort, infer_mode, idx, name }
-        }
+impl ParamEntry {
+    fn new(sort: rty::Sort, mode: fhir::InferMode, name: Symbol) -> Self {
+        ParamEntry { name, sort, mode }
     }
 }
 
 impl LookupResult<'_> {
     fn to_expr(&self) -> rty::Expr {
         match &self.kind {
-            LookupResultKind::LateBound { level, entry: Entry::Sort { idx, name, .. }, kind } => {
+            LookupResultKind::LateBound { debruijn, entry: ParamEntry { name, .. }, kind, idx } => {
                 match *kind {
-                    LayerKind::List => {
+                    LayerKind::List { bound_regions } => {
                         rty::Expr::late_bvar(
-                            DebruijnIndex::from_u32(*level),
-                            *idx,
+                            *debruijn,
+                            bound_regions + *idx,
                             rty::BoundReftKind::Named(*name),
                         )
                     }
-                    LayerKind::Record(def_id) => {
+                    LayerKind::Coalesce(def_id) => {
                         rty::Expr::field_proj(
-                            rty::Expr::late_bvar(
-                                DebruijnIndex::from_u32(*level),
-                                0,
-                                rty::BoundReftKind::Annon,
-                            ),
+                            rty::Expr::late_bvar(*debruijn, 0, rty::BoundReftKind::Annon),
                             rty::FieldProj::Adt { def_id, field: *idx },
                             None,
                         )
                     }
                 }
             }
-            LookupResultKind::LateBound { entry: Entry::Unit(_), .. } => rty::Expr::unit(),
             LookupResultKind::EarlyParam { idx, name, .. } => rty::Expr::early_param(*idx, *name),
         }
     }
@@ -1479,7 +1478,7 @@ impl LookupResult<'_> {
     fn is_adt(&self) -> Option<&AdtSortDef> {
         match &self.kind {
             LookupResultKind::LateBound {
-                entry: Entry::Sort { sort: rty::Sort::App(rty::SortCtor::Adt(sort_def), _), .. },
+                entry: ParamEntry { sort: rty::Sort::App(rty::SortCtor::Adt(sort_def), _), .. },
                 ..
             } => Some(sort_def),
             LookupResultKind::EarlyParam {
@@ -1496,7 +1495,7 @@ impl LookupResult<'_> {
             .unwrap_or_else(|| span_bug!(self.span, "expected path, found `{:?}`", self.to_expr()))
     }
 
-    fn get_field(&self, fld: SurfaceIdent) -> rty::Expr {
+    fn get_field(&self, fld: Ident) -> rty::Expr {
         if let Some(sort_def) = self.is_adt() {
             let def_id = sort_def.did();
             let i = sort_def
@@ -1657,7 +1656,6 @@ fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use flux_middle::fhir;
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(Diagnostic)]
@@ -1691,15 +1689,14 @@ mod errors {
 
     #[derive(Diagnostic)]
     #[diag(fhir_analysis_invalid_base_instance, code = E0999)]
-    pub(super) struct InvalidBaseInstance<'fhir> {
+    pub(super) struct InvalidBaseInstance {
         #[primary_span]
         span: Span,
-        ty: &'fhir fhir::Ty<'fhir>,
     }
 
-    impl<'fhir> InvalidBaseInstance<'fhir> {
-        pub(super) fn new(ty: &'fhir fhir::Ty<'fhir>) -> Self {
-            Self { ty, span: ty.span }
+    impl InvalidBaseInstance {
+        pub(super) fn new(span: Span) -> Self {
+            Self { span }
         }
     }
 }

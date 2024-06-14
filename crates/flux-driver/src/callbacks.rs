@@ -69,7 +69,9 @@ impl FluxCallbacks {
             let cstore = CStore::load(tcx, &sess);
             let arena = fhir::Arena::new();
             GlobalEnv::enter(tcx, &sess, Box::new(cstore), &arena, providers, |genv| {
-                let _ = check_crate(genv);
+                if check_crate(genv).is_ok() {
+                    save_metadata(&genv);
+                }
             });
             sess.finish_diagnostics();
         });
@@ -92,7 +94,6 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         ck.cache.save().unwrap_or(());
 
         tracing::info!("Callbacks::check_crate");
-        save_metadata(&genv);
 
         result
     })

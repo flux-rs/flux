@@ -180,7 +180,7 @@ fn assoc_refinements_of(
             bug!("expected trait or impl");
         }
     };
-    Ok(rty::AssocRefinements { predicates })
+    Ok(rty::AssocRefinements { items: predicates })
 }
 
 fn assoc_refinement_def(
@@ -193,7 +193,7 @@ fn assoc_refinement_def(
         .expect_item(impl_id)?
         .expect_impl()
         .find_assoc_reft(name)
-        .unwrap();
+        .unwrap_or_else(|| bug!("assoc reft `{name}` not found in impl `{impl_id:?}`"));
     let wfckresults = genv.check_wf(impl_id)?;
     Ok(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?))
 }
@@ -244,7 +244,7 @@ fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generi
     let rustc_generics = genv.lower_generics_of(def_id)?;
 
     let def_kind = genv.def_kind(def_id);
-    match def_kind {
+    let generics = match def_kind {
         DefKind::Impl { .. }
         | DefKind::Struct
         | DefKind::Enum
@@ -260,17 +260,21 @@ fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generi
                 .get_generics(local_id)?
                 .unwrap_or_else(|| bug!("no generics for {:?}", def_id));
             let extern_id = genv.map().extern_id_of(local_id)?;
-            conv::conv_generics(genv, &rustc_generics, generics, extern_id, is_trait)
+            conv::conv_generics(genv, &rustc_generics, generics, extern_id, is_trait)?
         }
         DefKind::Closure => {
-            Ok(rty::Generics {
+            rty::Generics {
                 params: List::empty(),
                 parent: rustc_generics.parent(),
                 parent_count: rustc_generics.parent_count(),
-            })
+            }
         }
         kind => bug!("generics_of called on `{def_id:?}` with kind `{kind:?}`"),
+    };
+    if config::dump_rty() {
+        dbg::dump_item_info(genv.tcx(), local_id, "generics.rty", &generics).unwrap();
     }
+    Ok(generics)
 }
 
 fn refinement_generics_of(
@@ -420,6 +424,8 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             | DefKind::Enum
             | DefKind::Fn
             | DefKind::AssocFn
+            | DefKind::Trait
+            | DefKind::Impl { .. }
             | DefKind::OpaqueTy => {
                 let _ = genv.check_wf(def_id).emit(&errors);
             }
