@@ -16,7 +16,7 @@ use rustc_data_structures::{
 };
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, def::DefKind, OwnerId};
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::ty::{ParamConst, TyCtxt};
 use rustc_span::{sym, symbol::kw, ErrorGuaranteed, Symbol};
 
 use super::CrateResolver;
@@ -577,10 +577,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             return;
         }
         if let Some((_def_id, index)) = self.const_generics.get(&ident.name) {
-            let const_param = crate::fhir::ConstParam {
-                /* def_id: *def_id, */ name: ident.name,
-                index: *index,
-            };
+            let const_param = ParamConst::new(*index, ident.name);
             self.path_res_map
                 .insert(node_id, ExprRes::ConstGeneric(const_param));
             return;

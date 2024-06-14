@@ -16,7 +16,7 @@ use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
     mir::{self, MutBorrowKind},
-    ty::{FloatTy, IntTy, TyCtxt, UintTy},
+    ty::{FloatTy, IntTy, ParamConst, TyCtxt, UintTy},
 };
 pub use rustc_middle::{
     mir::{
@@ -271,10 +271,11 @@ pub enum PlaceElem {
     Index(Local),
 }
 
-pub struct ConstParam {
-    pub index: u32,
-    pub name: Symbol,
-}
+// // TODO: replace with plain rust ParamConst!
+// pub struct ConstParam {
+//     pub index: u32,
+//     pub name: Symbol,
+// }
 
 pub enum Constant {
     Int(i128, IntTy),
@@ -286,7 +287,7 @@ pub enum Constant {
     /// We only support opaque chars, so no data stored here for now
     Char,
     Unit,
-    Param(ConstParam, Ty),
+    Param(ParamConst, Ty),
     /// General catch-all for constants of a given Ty
     Opaque(Ty),
 }
@@ -725,11 +726,11 @@ impl fmt::Debug for Operand {
     }
 }
 
-impl fmt::Debug for ConstParam {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}/(#{})", self.name, self.index)
-    }
-}
+// impl fmt::Debug for ConstParam {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         write!(f, "{}/(#{})", self.name, self.index)
+//     }
+// }
 
 impl fmt::Debug for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

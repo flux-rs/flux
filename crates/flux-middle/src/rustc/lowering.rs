@@ -581,10 +581,10 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                     }
                     rustc_ty::ConstKind::Param(param_const) => {
                         let ty = lower_ty(tcx, ty)?;
-                        let param_const = crate::rustc::mir::ConstParam {
-                            name: param_const.name,
-                            index: param_const.index,
-                        };
+                        // let param_const = crate::rustc::mir::ConstParam {
+                        //     name: param_const.name,
+                        //     index: param_const.index,
+                        // };
                         Some(Constant::Param(param_const, ty))
                     }
                     _ => None,

@@ -207,7 +207,7 @@ impl Const {
                 ConstKind::Value(ScalarInt::try_from_target_usize(len as u128, tcx).unwrap())
             }
 
-            ArrayLenKind::ConstParam(const_param) => ConstKind::Param(const_param.into()),
+            ArrayLenKind::ParamConst(const_param) => ConstKind::Param(const_param.into()),
         };
         Const { kind, ty: Ty::mk_uint(UintTy::Usize) }
     }

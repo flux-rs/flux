@@ -8,9 +8,9 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
 use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
-use rustc_middle::middle::resolve_bound_vars::ResolvedArg;
+use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::ParamConst};
 
-use super::{ConstParam, FhirId, FluxOwnerId};
+use super::{FhirId, FluxOwnerId};
 use crate::{
     fhir::{self},
     global_env::GlobalEnv,
@@ -523,11 +523,11 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         })
     }
 
-    fn mk_const_param(&self, def_id: rustc_span::def_id::DefId) -> ConstParam {
+    fn mk_param_const(&self, def_id: rustc_span::def_id::DefId) -> ParamConst {
         let generics = self.genv.tcx().generics_of(self.owner.def_id);
         for param in &generics.params {
             if param.def_id == def_id {
-                return ConstParam { index: param.index, /* def_id, */ name: param.name };
+                return ParamConst::new(param.index, param.name);
             }
         }
         bug!("Cannot find generic corresponding to ConstParam {def_id:?}")
@@ -545,8 +545,8 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         } else if let hir::ExprKind::Path(hir::QPath::Resolved(_, path)) = &body.value.kind
             && let hir::def::Res::Def(DefKind::ConstParam, def_id) = path.res
         {
-            let const_param = self.mk_const_param(def_id);
-            Ok(fhir::ArrayLen::param(const_param, path.span))
+            let param_const = self.mk_param_const(def_id);
+            Ok(fhir::ArrayLen::param(param_const, path.span))
         } else {
             self.emit_unsupported("only integer literals are supported for array lengths")
         }

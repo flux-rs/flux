@@ -563,15 +563,15 @@ pub enum ArrayLenKind {
     Lit(usize),
     /// The length of the array is a type parameter
     // ConstParam(DefId),
-    ConstParam(ConstParam),
+    ParamConst(ParamConst),
 }
 
 impl ArrayLen {
     pub fn lit(n: usize, span: Span) -> Self {
         Self { kind: ArrayLenKind::Lit(n), span }
     }
-    pub fn param(const_param: ConstParam, span: Span) -> Self {
-        Self { kind: ArrayLenKind::ConstParam(const_param), span }
+    pub fn param(param_const: ParamConst, span: Span) -> Self {
+        Self { kind: ArrayLenKind::ParamConst(param_const), span }
     }
 }
 
@@ -877,23 +877,23 @@ pub enum Lit {
     Bool(bool),
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub struct ConstParam {
-    pub index: u32,
-    pub name: Symbol,
-}
+// #[derive(PartialEq, Eq, Clone, Copy, Debug)]
+// pub struct ConstParam {
+//     pub index: u32,
+//     pub name: Symbol,
+// }
 
-impl Into<ParamConst> for ConstParam {
-    fn into(self) -> ParamConst {
-        ParamConst::new(self.index, self.name)
-    }
-}
+// impl Into<ParamConst> for ConstParam {
+//     fn into(self) -> ParamConst {
+//         ParamConst::new(self.index, self.name)
+//     }
+// }
 
 #[derive(Clone, Copy, Debug)]
 pub enum ExprRes<Id = ParamId> {
     Param(ParamKind, Id),
     Const(DefId),
-    ConstGeneric(ConstParam),
+    ConstGeneric(ParamConst),
     NumConst(i128),
     GlobalFunc(SpecFuncKind, Symbol),
 }
@@ -1285,7 +1285,7 @@ impl fmt::Debug for ArrayLenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ArrayLenKind::Lit(n) => write!(f, "{n}"),
-            ArrayLenKind::ConstParam(p) => write!(f, "{:?}", p),
+            ArrayLenKind::ParamConst(p) => write!(f, "{:?}", p),
         }
     }
 }

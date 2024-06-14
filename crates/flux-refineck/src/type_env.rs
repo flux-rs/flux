@@ -14,10 +14,10 @@ use flux_middle::{
         BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Lambda, Mutability,
         Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
-    rustc::mir::{BasicBlock, ConstParam, Local, LocalDecls, Place, PlaceElem},
+    rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
 use itertools::{izip, Itertools};
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::ty::{ParamConst, TyCtxt};
 
 use self::place_ty::{LocKind, PlacesTree};
 use super::rty::{Loc, Sort};
@@ -64,8 +64,8 @@ impl TypeEnv<'_> {
         self.const_generic_args.clone()
     }
 
-    pub fn index_of_const_param(&self, const_param: &ConstParam) -> Expr {
-        self.const_generic_args.lookup(const_param.index)
+    pub fn index_of_param_const(&self, param_const: &ParamConst) -> Expr {
+        self.const_generic_args.lookup(param_const.index)
     }
 
     pub fn alloc_universal_loc(&mut self, loc: Loc, place: Place, ty: Ty) {

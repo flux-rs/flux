@@ -837,7 +837,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         let value = value.try_to_target_usize(self.genv.tcx()).unwrap() as u128;
                         Expr::constant(rty::Constant::from(value))
                     }
-                    ConstKind::Param(param_const) => {
+                    ConstKind::Param(_param_const) => {
                         tracked_span_bug!("unexpected array length")
                     }
                 }
@@ -1027,7 +1027,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Constant::Str => Ok(Ty::mk_ref(ReStatic, Ty::str(), Mutability::Not)),
             Constant::Char => Ok(Ty::char()),
             Constant::Param(const_param, ty) => {
-                let idx = env.index_of_const_param(const_param);
+                let idx = env.index_of_param_const(const_param);
                 let ty = self
                     .genv
                     .refine_default(&self.generics, ty)

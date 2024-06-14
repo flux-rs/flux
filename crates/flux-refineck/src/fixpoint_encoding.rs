@@ -312,10 +312,6 @@ impl Env {
         }
     }
 
-    // fn get_const_param(&self, param: rty::expr::ConstParam) -> Option<fixpoint::LocalVar> {
-    //     todo!() // self.fvars.get(&param.name).copied()
-    // }
-
     fn get_fvar(&self, name: rty::Name) -> Option<fixpoint::LocalVar> {
         self.fvars.get(&name).copied()
     }

@@ -6,7 +6,10 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::{mir::Local, ty::TyCtxt};
+use rustc_middle::{
+    mir::Local,
+    ty::{ParamConst, TyCtxt},
+};
 use rustc_span::{Span, Symbol};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
@@ -437,7 +440,7 @@ impl Expr {
         ExprKind::ConstDefId(c).intern_at(espan)
     }
 
-    pub fn const_generic(param: crate::fhir::ConstParam, espan: Option<ESpan>) -> Expr {
+    pub fn const_generic(param: ParamConst, espan: Option<ESpan>) -> Expr {
         let param = ConstParam { index: param.index, name: param.name };
         ExprKind::Var(Var::ConstGeneric(param)).intern_at(espan)
     }
