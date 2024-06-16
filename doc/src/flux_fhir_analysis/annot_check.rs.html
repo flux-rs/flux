@@ -593,6 +593,9 @@
 <a href="#593" id="593">593</a>
 <a href="#594" id="594">594</a>
 <a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check if an [`fhir`] annotation is a valid refinement of the corresponding rust declaration.
 //!
 //! To check if an [`fhir`] is valid, we first [`lift`] the `hir` declaration into [`fhir`] and then
@@ -783,19 +786,18 @@
         fn_decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
         expected_fn_sig: <span class="kw-2">&amp;</span>fhir::FnDecl&lt;<span class="lifetime">'genv</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">if </span>fn_decl.args.len() != expected_fn_sig.args.len() {
+        <span class="kw">if </span>fn_decl.inputs.len() != expected_fn_sig.inputs.len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::FunArgCountMismatch::new(fn_decl, expected_fn_sig)));
         }
-        <span class="self">self</span>.zip_tys(fn_decl.args, expected_fn_sig.args)<span class="question-mark">?</span>;
-        <span class="self">self</span>.zip_constraints(fn_decl.requires)<span class="question-mark">?</span>;
+        <span class="self">self</span>.zip_tys(fn_decl.inputs, expected_fn_sig.inputs)<span class="question-mark">?</span>;
 
         <span class="self">self</span>.zip_ty(<span class="kw-2">&amp;</span>fn_decl.output.ret, <span class="kw-2">&amp;</span>expected_fn_sig.output.ret)<span class="question-mark">?</span>;
-        <span class="self">self</span>.zip_constraints(fn_decl.output.ensures)
+        <span class="self">self</span>.zip_ensures(fn_decl.output.ensures)
     }
 
-    <span class="kw">fn </span>zip_constraints(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constrs: <span class="kw-2">&amp;</span>[fhir::Constraint]) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        constrs.iter().try_for_each_exhaust(|constr| {
-            <span class="kw">if let </span>fhir::Constraint::Type(loc, ty) = constr {
+    <span class="kw">fn </span>zip_ensures(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ensures: <span class="kw-2">&amp;</span>[fhir::Ensures]) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+        ensures.iter().try_for_each_exhaust(|ensures| {
+            <span class="kw">if let </span>fhir::Ensures::Type(loc, ty) = ensures {
                 <span class="kw">let </span>ExprRes::Param(<span class="kw">_</span>, id) = loc.res <span class="kw">else </span>{
                     <span class="macro">span_bug!</span>(loc.span, <span class="string">"unexpected path in loc position"</span>)
                 };
@@ -829,12 +831,16 @@
                 fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, <span class="kw">_</span>),
                 fhir::TyKind::BaseTy(expected_bty),
             ) =&gt; <span class="self">self</span>.zip_bty(<span class="kw-2">&amp;</span>bty, <span class="kw-2">&amp;</span>expected_bty),
-            (fhir::TyKind::Ptr(lft, loc), fhir::TyKind::Ref(expected_lft, expected_mut_ty)) =&gt; {
+            (
+                fhir::TyKind::StrgRef(lft, loc, ty),
+                fhir::TyKind::Ref(expected_lft, expected_mut_ty),
+            ) =&gt; {
                 <span class="kw">if </span>expected_mut_ty.mutbl.is_mut() {
                     <span class="kw">let </span>ExprRes::Param(<span class="kw">_</span>, id) = loc.res <span class="kw">else </span>{
                         <span class="macro">span_bug!</span>(loc.span, <span class="string">"unexpected path in loc position"</span>)
                     };
                     <span class="self">self</span>.zip_lifetime(lft, expected_lft);
+                    <span class="self">self</span>.zip_ty(ty, expected_mut_ty.ty)<span class="question-mark">?</span>;
                     <span class="self">self</span>.locs.insert(id, <span class="kw-2">*</span>expected_mut_ty.ty);
                     <span class="prelude-val">Ok</span>(())
                 } <span class="kw">else </span>{
@@ -1107,9 +1113,9 @@
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(decl: <span class="kw-2">&amp;</span>fhir::FnDecl, expected_decl: <span class="kw-2">&amp;</span>fhir::FnDecl) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{
                 span: decl.span,
-                args: decl.args.len(),
+                args: decl.inputs.len(),
                 expected_span: expected_decl.span,
-                expected_args: expected_decl.args.len(),
+                expected_args: expected_decl.inputs.len(),
             }
         }
     }

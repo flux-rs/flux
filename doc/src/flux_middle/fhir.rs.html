@@ -1435,6 +1435,9 @@
 <a href="#1435" id="1435">1435</a>
 <a href="#1436" id="1436">1436</a>
 <a href="#1437" id="1437">1437</a>
+<a href="#1438" id="1438">1438</a>
+<a href="#1439" id="1439">1439</a>
+<a href="#1440" id="1440">1440</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1904,15 +1907,23 @@
 </span><span class="kw">pub struct </span>FnDecl&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>generics: Generics&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="doccomment">/// example: vec![(0 &lt;= n), (l: i32)]
-    </span><span class="kw">pub </span>requires: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Constraint&lt;<span class="lifetime">'fhir</span>&gt;],
+    </span><span class="kw">pub </span>requires: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Requires&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="doccomment">/// example: vec![(x: StrRef(l))]
-    </span><span class="kw">pub </span>args: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Ty&lt;<span class="lifetime">'fhir</span>&gt;],
+    </span><span class="kw">pub </span>inputs: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Ty&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>output: FnOutput&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>span: Span,
     <span class="doccomment">/// Whether the sig was [lifted] from a hir signature
     ///
     /// [lifted]: lift::LiftCtxt::lift_fn_decl
     </span><span class="kw">pub </span>lifted: bool,
+}
+
+<span class="doccomment">/// A predicate required to hold before calling a function.
+</span><span class="attr">#[derive(Clone, Copy)]
+</span><span class="kw">pub struct </span>Requires&lt;<span class="lifetime">'fhir</span>&gt; {
+    <span class="doccomment">/// An (optional) list of universally quanitified parameters
+    </span><span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
+    <span class="kw">pub </span>pred: Expr&lt;<span class="lifetime">'fhir</span>&gt;,
 }
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -1926,15 +1937,15 @@
 </span><span class="kw">pub struct </span>FnOutput&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>ret: Ty&lt;<span class="lifetime">'fhir</span>&gt;,
-    <span class="kw">pub </span>ensures: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Constraint&lt;<span class="lifetime">'fhir</span>&gt;],
+    <span class="kw">pub </span>ensures: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Ensures&lt;<span class="lifetime">'fhir</span>&gt;],
 }
 
 <span class="attr">#[derive(Clone, Copy)]
-</span><span class="kw">pub enum </span>Constraint&lt;<span class="lifetime">'fhir</span>&gt; {
+</span><span class="kw">pub enum </span>Ensures&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="doccomment">/// A type constraint on a location
     </span>Type(PathExpr&lt;<span class="lifetime">'fhir</span>&gt;, Ty&lt;<span class="lifetime">'fhir</span>&gt;),
-    <span class="doccomment">/// A predicate that needs to hold under an (optional) list of universally quantified parameters
-    </span>Pred(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;], Expr&lt;<span class="lifetime">'fhir</span>&gt;),
+    <span class="doccomment">/// A predicate that needs to hold on function exit
+    </span>Pred(Expr&lt;<span class="lifetime">'fhir</span>&gt;),
 }
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -1959,7 +1970,7 @@
     <span class="doccomment">/// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 &lt;= a}`
     </span>Constr(Expr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;),
-    Ptr(Lifetime, PathExpr&lt;<span class="lifetime">'fhir</span>&gt;),
+    StrgRef(Lifetime, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>PathExpr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;),
     Ref(Lifetime, MutTy&lt;<span class="lifetime">'fhir</span>&gt;),
     Tuple(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[Ty&lt;<span class="lifetime">'fhir</span>&gt;]),
     Array(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;, ArrayLen),
@@ -2138,9 +2149,8 @@
     </span>Pound,
     <span class="doccomment">/// An implicitly scoped parameter declared with `x: T` syntax.
     </span>Colon,
-    <span class="doccomment">/// A location declared with `x: &amp;strg T` syntax, the `usize` is the position in the list of
-    /// arguments.
-    </span>Loc(usize),
+    <span class="doccomment">/// A location declared with `x: &amp;strg T` syntax.
+    </span>Loc,
     <span class="doccomment">/// A parameter introduced with `x: T` syntax that we know *syntactically* is always and error
     /// to used inside a refinement. For example, consider the following:
     /// ```ignore
@@ -2160,7 +2170,7 @@
     }
 
     <span class="kw">pub fn </span>is_loc(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, ParamKind::Loc(<span class="kw">_</span>))
+        <span class="macro">matches!</span>(<span class="self">self</span>, ParamKind::Loc)
     }
 }
 
@@ -2307,14 +2317,6 @@
             (kind, id)
         } <span class="kw">else </span>{
             <span class="macro">bug!</span>(<span class="string">"expected param"</span>)
-        }
-    }
-
-    <span class="kw">pub fn </span>expect_loc_param(<span class="self">self</span>) -&gt; (usize, Id) {
-        <span class="kw">if let </span>ExprRes::Param(ParamKind::Loc(idx), id) = <span class="self">self </span>{
-            (idx, id)
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected loc"</span>)
         }
     }
 }
@@ -2584,7 +2586,7 @@
         <span class="kw">if </span>!<span class="self">self</span>.requires.is_empty() {
             <span class="macro">write!</span>(f, <span class="string">"[{:?}] "</span>, <span class="self">self</span>.requires.iter().format(<span class="string">", "</span>))<span class="question-mark">?</span>;
         }
-        <span class="macro">write!</span>(f, <span class="string">"fn({:?}) -&gt; {:?}"</span>, <span class="self">self</span>.args.iter().format(<span class="string">", "</span>), <span class="self">self</span>.output)
+        <span class="macro">write!</span>(f, <span class="string">"fn({:?}) -&gt; {:?}"</span>, <span class="self">self</span>.inputs.iter().format(<span class="string">", "</span>), <span class="self">self</span>.output)
     }
 }
 
@@ -2608,22 +2610,26 @@
     }
 }
 
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Constraint&lt;<span class="lifetime">'_</span>&gt; {
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Requires&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">if </span>!<span class="self">self</span>.params.is_empty() {
+            <span class="macro">write!</span>(
+                f,
+                <span class="string">"forall {}."</span>,
+                <span class="self">self</span>.params.iter().format_with(<span class="string">","</span>, |param, f| {
+                    f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"{}:{:?}"</span>, param.name, param.sort))
+                })
+            )<span class="question-mark">?</span>;
+        }
+        <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, <span class="self">self</span>.pred)
+    }
+}
+
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Ensures&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            Constraint::Type(loc, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{loc:?}: {ty:?}"</span>),
-            Constraint::Pred(params, e) =&gt; {
-                <span class="kw">if </span>!params.is_empty() {
-                    <span class="macro">write!</span>(
-                        f,
-                        <span class="string">"forall {}."</span>,
-                        params.iter().format_with(<span class="string">","</span>, |param, f| {
-                            f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"{}:{:?}"</span>, param.name, param.sort))
-                        })
-                    )<span class="question-mark">?</span>;
-                }
-                <span class="macro">write!</span>(f, <span class="string">"{e:?}"</span>)
-            }
+            Ensures::Type(loc, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{loc:?}: {ty:?}"</span>),
+            Ensures::Pred(e) =&gt; <span class="macro">write!</span>(f, <span class="string">"{e:?}"</span>),
         }
     }
 }
@@ -2648,7 +2654,7 @@
                     <span class="macro">write!</span>(f, <span class="string">". {ty:?}}}"</span>)
                 }
             }
-            TyKind::Ptr(lft, loc) =&gt; <span class="macro">write!</span>(f, <span class="string">"ptr&lt;{lft:?}, {loc:?}&gt;"</span>),
+            TyKind::StrgRef(lft, loc, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"&amp;{lft:?} strg &lt;{loc:?}: {ty:?}&gt;"</span>),
             TyKind::Ref(lft, mut_ty) =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">"&amp;{lft:?} {}{:?}"</span>, mut_ty.mutbl.prefix_str(), mut_ty.ty)
             }

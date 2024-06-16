@@ -291,6 +291,13 @@
 <a href="#291" id="291">291</a>
 <a href="#292" id="292">292</a>
 <a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
@@ -347,7 +354,7 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_node&lt;<span class="lifetime">'genv</span>&gt;(
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-    node: <span class="kw-2">&amp;</span>fhir::Node,
+    node: <span class="kw-2">&amp;</span>fhir::Node&lt;<span class="lifetime">'genv</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&lt;<span class="lifetime">'genv</span>&gt;&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, node.owner_id().into());
 
@@ -411,7 +418,7 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Wf&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">fn </span>check(infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, node: <span class="kw-2">&amp;</span>fhir::Node) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>check(infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, node: <span class="kw-2">&amp;</span>fhir::Node&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>errors = Errors::new(infcx.genv.sess());
         <span class="kw">let </span><span class="kw-2">mut </span>vis = Wf { infcx, errors };
         vis.visit_node(node);
@@ -420,8 +427,8 @@
 
     <span class="kw">fn </span>check_output_locs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fn_decl: <span class="kw-2">&amp;</span>fhir::FnDecl) {
         <span class="kw">let </span><span class="kw-2">mut </span>output_locs = FxHashSet::default();
-        <span class="kw">for </span>constr <span class="kw">in </span>fn_decl.output.ensures {
-            <span class="kw">if let </span>fhir::Constraint::Type(loc, ..) = constr
+        <span class="kw">for </span>ens <span class="kw">in </span>fn_decl.output.ensures {
+            <span class="kw">if let </span>fhir::Ensures::Type(loc, ..) = ens
                 &amp;&amp; <span class="kw">let </span>(<span class="kw">_</span>, id) = loc.res.expect_param()
                 &amp;&amp; !output_locs.insert(id)
             {
@@ -429,8 +436,8 @@
             }
         }
 
-        <span class="kw">for </span>constr <span class="kw">in </span>fn_decl.requires {
-            <span class="kw">if let </span>fhir::Constraint::Type(loc, ..) = constr
+        <span class="kw">for </span>ty <span class="kw">in </span>fn_decl.inputs {
+            <span class="kw">if let </span>fhir::TyKind::StrgRef(<span class="kw">_</span>, loc, <span class="kw">_</span>) = ty.kind
                 &amp;&amp; <span class="kw">let </span>(<span class="kw">_</span>, id) = loc.res.expect_param()
                 &amp;&amp; !output_locs.contains(<span class="kw-2">&amp;</span>id)
             {
@@ -440,7 +447,7 @@
     }
 }
 
-<span class="kw">impl </span>fhir::visit::Visitor <span class="kw">for </span>Wf&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>&gt; fhir::visit::Visitor&lt;<span class="lifetime">'genv</span>&gt; <span class="kw">for </span>Wf&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>visit_impl_assoc_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assoc_reft: <span class="kw-2">&amp;</span>fhir::ImplAssocReft) {
         <span class="kw">let </span><span class="prelude-val">Ok</span>(output) =
             conv::conv_sort(<span class="self">self</span>.infcx.genv, <span class="kw-2">&amp;</span>assoc_reft.output, <span class="kw-2">&amp;mut </span>bug_on_infer_sort)
@@ -453,7 +460,7 @@
             .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
     }
 
-    <span class="kw">fn </span>visit_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, struct_def: <span class="kw-2">&amp;</span>fhir::StructDef) {
+    <span class="kw">fn </span>visit_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, struct_def: <span class="kw-2">&amp;</span>fhir::StructDef&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="kw">for </span>invariant <span class="kw">in </span>struct_def.invariants {
             <span class="self">self</span>.infcx
                 .check_expr(invariant, <span class="kw-2">&amp;</span>rty::Sort::Bool)
@@ -462,7 +469,7 @@
         fhir::visit::walk_struct_def(<span class="self">self</span>, struct_def);
     }
 
-    <span class="kw">fn </span>visit_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, enum_def: <span class="kw-2">&amp;</span>fhir::EnumDef) {
+    <span class="kw">fn </span>visit_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, enum_def: <span class="kw-2">&amp;</span>fhir::EnumDef&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="kw">for </span>invariant <span class="kw">in </span>enum_def.invariants {
             <span class="self">self</span>.infcx
                 .check_expr(invariant, <span class="kw-2">&amp;</span>rty::Sort::Bool)
@@ -488,18 +495,24 @@
             .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
     }
 
-    <span class="kw">fn </span>visit_fn_decl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, decl: <span class="kw-2">&amp;</span>fhir::FnDecl) {
+    <span class="kw">fn </span>visit_fn_decl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, decl: <span class="kw-2">&amp;</span>fhir::FnDecl&lt;<span class="lifetime">'genv</span>&gt;) {
         fhir::visit::walk_fn_decl(<span class="self">self</span>, decl);
         <span class="self">self</span>.check_output_locs(decl);
     }
 
-    <span class="kw">fn </span>visit_constraint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constraint: <span class="kw-2">&amp;</span>fhir::Constraint) {
-        <span class="kw">match </span>constraint {
-            fhir::Constraint::Type(loc, ty) =&gt; {
+    <span class="kw">fn </span>visit_requires(<span class="kw-2">&amp;mut </span><span class="self">self</span>, requires: <span class="kw-2">&amp;</span>fhir::Requires&lt;<span class="lifetime">'genv</span>&gt;) {
+        <span class="self">self</span>.infcx
+            .check_expr(<span class="kw-2">&amp;</span>requires.pred, <span class="kw-2">&amp;</span>rty::Sort::Bool)
+            .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
+    }
+
+    <span class="kw">fn </span>visit_ensures(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ensures: <span class="kw-2">&amp;</span>fhir::Ensures&lt;<span class="lifetime">'genv</span>&gt;) {
+        <span class="kw">match </span>ensures {
+            fhir::Ensures::Type(loc, ty) =&gt; {
                 <span class="self">self</span>.infcx.check_loc(loc).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
                 <span class="self">self</span>.visit_ty(ty);
             }
-            fhir::Constraint::Pred(<span class="kw">_</span>, pred) =&gt; {
+            fhir::Ensures::Pred(pred) =&gt; {
                 <span class="self">self</span>.infcx
                     .check_expr(pred, <span class="kw-2">&amp;</span>rty::Sort::Bool)
                     .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
@@ -507,7 +520,7 @@
         }
     }
 
-    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty) {
+    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
             fhir::TyKind::Indexed(bty, idx) =&gt; {
                 <span class="kw">let </span><span class="prelude-val">Ok</span>(sort_of_bty) = <span class="self">self</span>.infcx.genv.sort_of_bty(bty).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.errors) <span class="kw">else </span>{
@@ -523,8 +536,9 @@
                 }
                 <span class="self">self</span>.visit_bty(bty);
             }
-            fhir::TyKind::Ptr(<span class="kw">_</span>, loc) =&gt; {
+            fhir::TyKind::StrgRef(<span class="kw">_</span>, loc, ty) =&gt; {
                 <span class="self">self</span>.infcx.check_loc(loc).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.errors);
+                <span class="self">self</span>.visit_ty(ty);
             }
             fhir::TyKind::Constr(pred, ty) =&gt; {
                 <span class="self">self</span>.visit_ty(ty);
@@ -536,7 +550,7 @@
         }
     }
 
-    <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::Path) {
+    <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::Path&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="kw">if let </span>fhir::Res::Def(DefKind::TyAlias, def_id) = path.res {
             <span class="kw">let </span><span class="prelude-val">Some</span>(generics) = <span class="self">self
                 </span>.infcx
@@ -572,7 +586,7 @@
         err: <span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt;,
     }
 
-    <span class="kw">impl</span>&lt;F&gt; fhir::visit::Visitor <span class="kw">for </span>RefineParamVisitor&lt;F&gt;
+    <span class="kw">impl</span>&lt;F&gt; fhir::visit::Visitor&lt;<span class="lifetime">'_</span>&gt; <span class="kw">for </span>RefineParamVisitor&lt;F&gt;
     <span class="kw">where
         </span>F: FnMut(<span class="kw-2">&amp;</span>fhir::RefineParam) -&gt; <span class="prelude-ty">Result</span>,
     {

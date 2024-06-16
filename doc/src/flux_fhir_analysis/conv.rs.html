@@ -1692,14 +1692,6 @@
 <a href="#1692" id="1692">1692</a>
 <a href="#1693" id="1693">1693</a>
 <a href="#1694" id="1694">1694</a>
-<a href="#1695" id="1695">1695</a>
-<a href="#1696" id="1696">1696</a>
-<a href="#1697" id="1697">1697</a>
-<a href="#1698" id="1698">1698</a>
-<a href="#1699" id="1699">1699</a>
-<a href="#1700" id="1700">1700</a>
-<a href="#1701" id="1701">1701</a>
-<a href="#1702" id="1702">1702</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -1734,7 +1726,6 @@
 };
 <span class="kw">use </span>rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
-    mir::Local,
     ty::{<span class="self">self</span>, AssocItem, AssocKind, BoundVar},
 };
 <span class="kw">use </span>rustc_span::{
@@ -2031,13 +2022,13 @@
     env.push_layer(Layer::list(<span class="kw-2">&amp;</span>cx, late_bound_regions.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[])<span class="question-mark">?</span>);
 
     <span class="kw">let </span><span class="kw-2">mut </span>requires = <span class="macro">vec!</span>[];
-    <span class="kw">for </span>constr <span class="kw">in </span>decl.requires {
-        requires.push(cx.conv_constr(<span class="kw-2">&amp;mut </span>env, constr)<span class="question-mark">?</span>);
+    <span class="kw">for </span>req <span class="kw">in </span>decl.requires {
+        requires.push(cx.conv_requires(<span class="kw-2">&amp;mut </span>env, req)<span class="question-mark">?</span>);
     }
 
-    <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[];
-    <span class="kw">for </span>ty <span class="kw">in </span>decl.args {
-        args.push(cx.conv_ty(<span class="kw-2">&amp;mut </span>env, ty)<span class="question-mark">?</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>inputs = <span class="macro">vec!</span>[];
+    <span class="kw">for </span>ty <span class="kw">in </span>decl.inputs {
+        inputs.push(cx.conv_ty(<span class="kw-2">&amp;mut </span>env, ty)<span class="question-mark">?</span>);
     }
 
     <span class="kw">let </span>output = cx.conv_fn_output(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>decl.output)<span class="question-mark">?</span>;
@@ -2048,7 +2039,7 @@
         .cloned()
         .collect();
 
-    <span class="kw">let </span>res = rty::PolyFnSig::new(rty::FnSig::new(requires, args, output), vars);
+    <span class="kw">let </span>res = rty::PolyFnSig::new(rty::FnSig::new(requires.into(), inputs.into(), output), vars);
     <span class="prelude-val">Ok</span>(rty::EarlyBinder(res))
 }
 
@@ -2257,10 +2248,10 @@
         env.push_layer(Layer::list(<span class="self">self</span>, <span class="number">0</span>, output.params)<span class="question-mark">?</span>);
 
         <span class="kw">let </span>ret = <span class="self">self</span>.conv_ty(env, <span class="kw-2">&amp;</span>output.ret)<span class="question-mark">?</span>;
-        <span class="kw">let </span>ensures: List&lt;rty::Constraint&gt; = output
+        <span class="kw">let </span>ensures: List&lt;rty::Ensures&gt; = output
             .ensures
             .iter()
-            .map(|constr| <span class="self">self</span>.conv_constr(env, constr))
+            .map(|ens| <span class="self">self</span>.conv_ensures(env, ens))
             .try_collect()<span class="question-mark">?</span>;
         <span class="kw">let </span>output = rty::FnOutput::new(ret, ensures);
 
@@ -2350,31 +2341,23 @@
         }
     }
 
-    <span class="kw">fn </span>conv_constr(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        env: <span class="kw-2">&amp;mut </span>Env,
-        constr: <span class="kw-2">&amp;</span>fhir::Constraint,
-    ) -&gt; QueryResult&lt;rty::Constraint&gt; {
-        <span class="kw">match </span>constr {
-            fhir::Constraint::Type(loc, ty) =&gt; {
-                <span class="kw">let </span>(idx, <span class="kw">_</span>) = loc.res.expect_loc_param();
-                <span class="prelude-val">Ok</span>(rty::Constraint::Type(
-                    env.lookup(loc).to_path(),
-                    <span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>,
-                    Local::from_usize(idx + <span class="number">1</span>),
-                ))
+    <span class="kw">fn </span>conv_requires(<span class="kw-2">&amp;</span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, requires: <span class="kw-2">&amp;</span>fhir::Requires) -&gt; QueryResult&lt;rty::Expr&gt; {
+        <span class="kw">if </span>requires.params.is_empty() {
+            <span class="self">self</span>.conv_expr(env, <span class="kw-2">&amp;</span>requires.pred)
+        } <span class="kw">else </span>{
+            env.push_layer(Layer::list(<span class="self">self</span>, <span class="number">0</span>, requires.params)<span class="question-mark">?</span>);
+            <span class="kw">let </span>pred = <span class="self">self</span>.conv_expr(env, <span class="kw-2">&amp;</span>requires.pred)<span class="question-mark">?</span>;
+            <span class="kw">let </span>sorts = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
+            <span class="prelude-val">Ok</span>(rty::Expr::forall(rty::Binder::new(pred, sorts)))
+        }
+    }
+
+    <span class="kw">fn </span>conv_ensures(<span class="kw-2">&amp;</span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, ensures: <span class="kw-2">&amp;</span>fhir::Ensures) -&gt; QueryResult&lt;rty::Ensures&gt; {
+        <span class="kw">match </span>ensures {
+            fhir::Ensures::Type(loc, ty) =&gt; {
+                <span class="prelude-val">Ok</span>(rty::Ensures::Type(env.lookup(loc).to_path(), <span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>))
             }
-            fhir::Constraint::Pred(params, pred) =&gt; {
-                <span class="kw">let </span>pred = <span class="kw">if </span>params.is_empty() {
-                    <span class="self">self</span>.conv_expr(env, pred)<span class="question-mark">?
-                </span>} <span class="kw">else </span>{
-                    env.push_layer(Layer::list(<span class="self">self</span>, <span class="number">0</span>, params)<span class="question-mark">?</span>);
-                    <span class="kw">let </span>pred = <span class="self">self</span>.conv_expr(env, pred)<span class="question-mark">?</span>;
-                    <span class="kw">let </span>sorts = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
-                    rty::Expr::forall(rty::Binder::new(pred, sorts))
-                };
-                <span class="prelude-val">Ok</span>(rty::Constraint::Pred(pred))
-            }
+            fhir::Ensures::Pred(pred) =&gt; <span class="prelude-val">Ok</span>(rty::Ensures::Pred(<span class="self">self</span>.conv_expr(env, pred)<span class="question-mark">?</span>)),
         }
     }
 
@@ -2427,9 +2410,10 @@
                     <span class="prelude-val">Ok</span>(rty::Ty::exists(rty::Binder::new(ty, sorts)))
                 }
             }
-            fhir::TyKind::Ptr(lft, loc) =&gt; {
-                <span class="kw">let </span>region = <span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft);
-                <span class="prelude-val">Ok</span>(rty::Ty::ptr(rty::PtrKind::Mut(region), env.lookup(loc).to_path()))
+            fhir::TyKind::StrgRef(lft, loc, ty) =&gt; {
+                <span class="kw">let </span>re = <span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft);
+                <span class="kw">let </span>ty = <span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(rty::Ty::strg_ref(re, env.lookup(loc).to_path(), ty))
             }
             fhir::TyKind::Ref(lft, fhir::MutTy { ty, mutbl }) =&gt; {
                 <span class="kw">let </span>region = <span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft);

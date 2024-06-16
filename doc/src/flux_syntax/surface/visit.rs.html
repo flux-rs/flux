@@ -498,21 +498,11 @@
 <a href="#498" id="498">498</a>
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
-<a href="#501" id="501">501</a>
-<a href="#502" id="502">502</a>
-<a href="#503" id="503">503</a>
-<a href="#504" id="504">504</a>
-<a href="#505" id="505">505</a>
-<a href="#506" id="506">506</a>
-<a href="#507" id="507">507</a>
-<a href="#508" id="508">508</a>
-<a href="#509" id="509">509</a>
-<a href="#510" id="510">510</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
 
 <span class="kw">use super</span>::{
-    AliasReft, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Ensures, EnumDef, Expr,
-    ExprKind, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, GenericParamKind,
+    AliasReft, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind,
+    FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, GenericParamKind,
     Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathExpr, PathSegment, Qualifier, RefineArg,
     RefineParam, RefinedBy, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef,
     Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
@@ -617,12 +607,8 @@
         walk_generics(<span class="self">self</span>, generics);
     }
 
-    <span class="kw">fn </span>visit_fun_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[Arg]) {
-        walk_fun_args(<span class="self">self</span>, args);
-    }
-
-    <span class="kw">fn </span>visit_fun_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>Arg, _idx: usize) {
-        walk_fun_arg(<span class="self">self</span>, arg);
+    <span class="kw">fn </span>visit_fn_input(<span class="kw-2">&amp;mut </span><span class="self">self</span>, input: <span class="kw-2">&amp;</span>FnInput) {
+        walk_fn_input(<span class="self">self</span>, input);
     }
 
     <span class="kw">fn </span>visit_fn_ret_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fn_ret_ty: <span class="kw-2">&amp;</span>FnRetTy) {
@@ -822,7 +808,7 @@
         <span class="macro">walk_list!</span>(vis, visit_refine_param, <span class="kw-2">&amp;</span>requires.params);
         vis.visit_expr(<span class="kw-2">&amp;</span>requires.pred);
     }
-    vis.visit_fun_args(<span class="kw-2">&amp;</span>fn_sig.args);
+    <span class="macro">walk_list!</span>(vis, visit_fn_input, <span class="kw-2">&amp;</span>fn_sig.inputs);
     vis.visit_fn_output(<span class="kw-2">&amp;</span>fn_sig.output);
 }
 
@@ -836,24 +822,18 @@
     <span class="macro">walk_list!</span>(vis, visit_where_predicate, <span class="kw-2">&amp;</span>generics.predicates);
 }
 
-<span class="kw">pub fn </span>walk_fun_args&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, args: <span class="kw-2">&amp;</span>[Arg]) {
-    <span class="kw">for </span>(idx, arg) <span class="kw">in </span>args.iter().enumerate() {
-        vis.visit_fun_arg(arg, idx);
-    }
-}
-
-<span class="kw">pub fn </span>walk_fun_arg&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, arg: <span class="kw-2">&amp;</span>Arg) {
+<span class="kw">pub fn </span>walk_fn_input&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, arg: <span class="kw-2">&amp;</span>FnInput) {
     <span class="kw">match </span>arg {
-        Arg::Constr(bind, path, pred, _node_id) =&gt; {
+        FnInput::Constr(bind, path, pred, _node_id) =&gt; {
             vis.visit_ident(<span class="kw-2">*</span>bind);
             vis.visit_path(path);
             vis.visit_expr(pred);
         }
-        Arg::StrgRef(bind, ty, _node_id) =&gt; {
+        FnInput::StrgRef(bind, ty, _node_id) =&gt; {
             vis.visit_ident(<span class="kw-2">*</span>bind);
             vis.visit_ty(ty);
         }
-        Arg::Ty(bind, ty, _node_id) =&gt; {
+        FnInput::Ty(bind, ty, _node_id) =&gt; {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind {
                 vis.visit_ident(<span class="kw-2">*</span>bind);
             }

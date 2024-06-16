@@ -1124,15 +1124,15 @@
         });
     }
 
-    <span class="kw">fn </span>visit_fun_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>surface::Arg, idx: usize) {
+    <span class="kw">fn </span>visit_fn_input(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>surface::FnInput) {
         <span class="kw">match </span>arg {
-            surface::Arg::Constr(bind, <span class="kw">_</span>, <span class="kw">_</span>, node_id) =&gt; {
+            surface::FnInput::Constr(bind, <span class="kw">_</span>, <span class="kw">_</span>, node_id) =&gt; {
                 <span class="self">self</span>.on_implicit_param(<span class="kw-2">*</span>bind, fhir::ParamKind::Colon, <span class="kw-2">*</span>node_id);
             }
-            surface::Arg::StrgRef(loc, <span class="kw">_</span>, node_id) =&gt; {
-                <span class="self">self</span>.on_implicit_param(<span class="kw-2">*</span>loc, fhir::ParamKind::Loc(idx), <span class="kw-2">*</span>node_id);
+            surface::FnInput::StrgRef(loc, <span class="kw">_</span>, node_id) =&gt; {
+                <span class="self">self</span>.on_implicit_param(<span class="kw-2">*</span>loc, fhir::ParamKind::Loc, <span class="kw-2">*</span>node_id);
             }
-            surface::Arg::Ty(bind, ty, node_id) =&gt; {
+            surface::FnInput::Ty(bind, ty, node_id) =&gt; {
                 <span class="kw">if let </span><span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(bind) = bind {
                     <span class="kw">let </span>param_kind = <span class="kw">if let </span>surface::TyKind::Base(<span class="kw">_</span>) = <span class="kw-2">&amp;</span>ty.kind {
                         fhir::ParamKind::Colon
@@ -1143,7 +1143,7 @@
                 }
             }
         }
-        surface::visit::walk_fun_arg(<span class="self">self</span>, arg);
+        surface::visit::walk_fn_input(<span class="self">self</span>, arg);
     }
 
     <span class="kw">fn </span>visit_ensures(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constraint: <span class="kw-2">&amp;</span>surface::Ensures) {
@@ -1785,7 +1785,7 @@
                 (<span class="macro">matches!</span>(scope_kind, ScopeKind::FnOutput), surface::BindKind::Pound)
             }
             fhir::ParamKind::Colon
-            | fhir::ParamKind::Loc(<span class="kw">_</span>)
+            | fhir::ParamKind::Loc
             | fhir::ParamKind::Error
             | fhir::ParamKind::Explicit =&gt; <span class="kw">return</span>,
         };

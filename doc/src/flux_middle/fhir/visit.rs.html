@@ -479,13 +479,22 @@
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
 <a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
-    AliasReft, BaseTy, BaseTyKind, Constraint, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
+    AliasReft, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
     FnSig, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem,
     ImplItemKind, Item, ItemKind, Lifetime, Lit, Node, OpaqueTy, Path, PathExpr, PathSegment,
-    PolyFuncSort, PolyTraitRef, QPath, RefineArg, RefineArgKind, RefineParam, Sort, SortPath,
-    StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, TypeBinding,
-    VariantDef, VariantRet, WhereBoundPredicate,
+    PolyFuncSort, PolyTraitRef, QPath, RefineArg, RefineArgKind, RefineParam, Requires, Sort,
+    SortPath, StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind,
+    TypeBinding, VariantDef, VariantRet, WhereBoundPredicate,
 };
 <span class="kw">use </span><span class="kw">crate</span>::fhir::StructKind;
 
@@ -501,168 +510,172 @@
     }
 }
 
-<span class="kw">pub trait </span>Visitor: Sized {
-    <span class="kw">fn </span>visit_node(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span>Node) {
+<span class="kw">pub trait </span>Visitor&lt;<span class="lifetime">'v</span>&gt;: Sized {
+    <span class="kw">fn </span>visit_node(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span>Node&lt;<span class="lifetime">'v</span>&gt;) {
         walk_node(<span class="self">self</span>, node);
     }
 
-    <span class="kw">fn </span>visit_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span>Item) {
+    <span class="kw">fn </span>visit_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span>Item&lt;<span class="lifetime">'v</span>&gt;) {
         walk_item(<span class="self">self</span>, item);
     }
 
-    <span class="kw">fn </span>visit_trait_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_item: <span class="kw-2">&amp;</span>TraitItem) {
+    <span class="kw">fn </span>visit_trait_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_item: <span class="kw-2">&amp;</span>TraitItem&lt;<span class="lifetime">'v</span>&gt;) {
         walk_trait_item(<span class="self">self</span>, trait_item);
     }
 
-    <span class="kw">fn </span>visit_impl_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_item: <span class="kw-2">&amp;</span>ImplItem) {
+    <span class="kw">fn </span>visit_impl_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_item: <span class="kw-2">&amp;</span>ImplItem&lt;<span class="lifetime">'v</span>&gt;) {
         walk_impl_item(<span class="self">self</span>, impl_item);
     }
 
-    <span class="kw">fn </span>visit_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, generics: <span class="kw-2">&amp;</span>Generics) {
+    <span class="kw">fn </span>visit_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, generics: <span class="kw-2">&amp;</span>Generics&lt;<span class="lifetime">'v</span>&gt;) {
         walk_generics(<span class="self">self</span>, generics);
     }
 
-    <span class="kw">fn </span>visit_where_predicate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, predicate: <span class="kw-2">&amp;</span>WhereBoundPredicate) {
+    <span class="kw">fn </span>visit_where_predicate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, predicate: <span class="kw-2">&amp;</span>WhereBoundPredicate&lt;<span class="lifetime">'v</span>&gt;) {
         walk_where_predicate(<span class="self">self</span>, predicate);
     }
 
-    <span class="kw">fn </span>visit_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_: <span class="kw-2">&amp;</span>Impl) {
+    <span class="kw">fn </span>visit_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_: <span class="kw-2">&amp;</span>Impl&lt;<span class="lifetime">'v</span>&gt;) {
         walk_impl(<span class="self">self</span>, impl_);
     }
 
-    <span class="kw">fn </span>visit_impl_assoc_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assoc_reft: <span class="kw-2">&amp;</span>ImplAssocReft) {
+    <span class="kw">fn </span>visit_impl_assoc_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assoc_reft: <span class="kw-2">&amp;</span>ImplAssocReft&lt;<span class="lifetime">'v</span>&gt;) {
         walk_impl_assoc_reft(<span class="self">self</span>, assoc_reft);
     }
 
-    <span class="kw">fn </span>visit_trait_assoc_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assoc_reft: <span class="kw-2">&amp;</span>TraitAssocReft) {
+    <span class="kw">fn </span>visit_trait_assoc_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assoc_reft: <span class="kw-2">&amp;</span>TraitAssocReft&lt;<span class="lifetime">'v</span>&gt;) {
         walk_trait_assoc_reft(<span class="self">self</span>, assoc_reft);
     }
 
-    <span class="kw">fn </span>visit_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, struct_def: <span class="kw-2">&amp;</span>StructDef) {
+    <span class="kw">fn </span>visit_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, struct_def: <span class="kw-2">&amp;</span>StructDef&lt;<span class="lifetime">'v</span>&gt;) {
         walk_struct_def(<span class="self">self</span>, struct_def);
     }
 
-    <span class="kw">fn </span>visit_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, enum_def: <span class="kw-2">&amp;</span>EnumDef) {
+    <span class="kw">fn </span>visit_enum_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, enum_def: <span class="kw-2">&amp;</span>EnumDef&lt;<span class="lifetime">'v</span>&gt;) {
         walk_enum_def(<span class="self">self</span>, enum_def);
     }
 
-    <span class="kw">fn </span>visit_variant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, variant: <span class="kw-2">&amp;</span>VariantDef) {
+    <span class="kw">fn </span>visit_variant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, variant: <span class="kw-2">&amp;</span>VariantDef&lt;<span class="lifetime">'v</span>&gt;) {
         walk_variant(<span class="self">self</span>, variant);
     }
 
-    <span class="kw">fn </span>visit_field_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, field: <span class="kw-2">&amp;</span>FieldDef) {
+    <span class="kw">fn </span>visit_field_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, field: <span class="kw-2">&amp;</span>FieldDef&lt;<span class="lifetime">'v</span>&gt;) {
         walk_field_def(<span class="self">self</span>, field);
     }
 
-    <span class="kw">fn </span>visit_variant_ret(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ret: <span class="kw-2">&amp;</span>VariantRet) {
+    <span class="kw">fn </span>visit_variant_ret(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ret: <span class="kw-2">&amp;</span>VariantRet&lt;<span class="lifetime">'v</span>&gt;) {
         walk_variant_ret(<span class="self">self</span>, ret);
     }
 
-    <span class="kw">fn </span>visit_ty_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty_alias: <span class="kw-2">&amp;</span>TyAlias) {
+    <span class="kw">fn </span>visit_ty_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty_alias: <span class="kw-2">&amp;</span>TyAlias&lt;<span class="lifetime">'v</span>&gt;) {
         walk_ty_alias(<span class="self">self</span>, ty_alias);
     }
 
-    <span class="kw">fn </span>visit_opaque_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, opaque_ty: <span class="kw-2">&amp;</span>OpaqueTy) {
+    <span class="kw">fn </span>visit_opaque_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, opaque_ty: <span class="kw-2">&amp;</span>OpaqueTy&lt;<span class="lifetime">'v</span>&gt;) {
         walk_opaque_ty(<span class="self">self</span>, opaque_ty);
     }
 
-    <span class="kw">fn </span>visit_generic_bound(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bound: <span class="kw-2">&amp;</span>GenericBound) {
+    <span class="kw">fn </span>visit_generic_bound(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bound: <span class="kw-2">&amp;</span>GenericBound&lt;<span class="lifetime">'v</span>&gt;) {
         walk_generic_bound(<span class="self">self</span>, bound);
     }
 
-    <span class="kw">fn </span>visit_poly_trait_ref(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_ref: <span class="kw-2">&amp;</span>PolyTraitRef) {
+    <span class="kw">fn </span>visit_poly_trait_ref(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_ref: <span class="kw-2">&amp;</span>PolyTraitRef&lt;<span class="lifetime">'v</span>&gt;) {
         walk_poly_trait_ref(<span class="self">self</span>, trait_ref);
     }
 
-    <span class="kw">fn </span>visit_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sig: <span class="kw-2">&amp;</span>FnSig) {
+    <span class="kw">fn </span>visit_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sig: <span class="kw-2">&amp;</span>FnSig&lt;<span class="lifetime">'v</span>&gt;) {
         walk_fn_sig(<span class="self">self</span>, sig);
     }
 
-    <span class="kw">fn </span>visit_fn_decl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, decl: <span class="kw-2">&amp;</span>FnDecl) {
+    <span class="kw">fn </span>visit_fn_decl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, decl: <span class="kw-2">&amp;</span>FnDecl&lt;<span class="lifetime">'v</span>&gt;) {
         walk_fn_decl(<span class="self">self</span>, decl);
     }
 
-    <span class="kw">fn </span>visit_refine_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>RefineParam) {
+    <span class="kw">fn </span>visit_refine_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>RefineParam&lt;<span class="lifetime">'v</span>&gt;) {
         walk_refine_param(<span class="self">self</span>, param);
     }
 
-    <span class="kw">fn </span>visit_constraint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constraint: <span class="kw-2">&amp;</span>Constraint) {
-        walk_constraint(<span class="self">self</span>, constraint);
+    <span class="kw">fn </span>visit_requires(<span class="kw-2">&amp;mut </span><span class="self">self</span>, requires: <span class="kw-2">&amp;</span>Requires&lt;<span class="lifetime">'v</span>&gt;) {
+        walk_requires(<span class="self">self</span>, requires);
     }
 
-    <span class="kw">fn </span>visit_fn_output(<span class="kw-2">&amp;mut </span><span class="self">self</span>, output: <span class="kw-2">&amp;</span>FnOutput) {
+    <span class="kw">fn </span>visit_ensures(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ensures: <span class="kw-2">&amp;</span>Ensures&lt;<span class="lifetime">'v</span>&gt;) {
+        walk_ensures(<span class="self">self</span>, ensures);
+    }
+
+    <span class="kw">fn </span>visit_fn_output(<span class="kw-2">&amp;mut </span><span class="self">self</span>, output: <span class="kw-2">&amp;</span>FnOutput&lt;<span class="lifetime">'v</span>&gt;) {
         walk_fn_output(<span class="self">self</span>, output);
     }
 
-    <span class="kw">fn </span>visit_generic_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>GenericArg) {
+    <span class="kw">fn </span>visit_generic_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>GenericArg&lt;<span class="lifetime">'v</span>&gt;) {
         walk_generic_arg(<span class="self">self</span>, arg);
     }
 
     <span class="kw">fn </span>visit_lifetime(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _lft: <span class="kw-2">&amp;</span>Lifetime) {}
 
-    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) {
+    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty&lt;<span class="lifetime">'v</span>&gt;) {
         walk_ty(<span class="self">self</span>, ty);
     }
 
-    <span class="kw">fn </span>visit_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) {
+    <span class="kw">fn </span>visit_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy&lt;<span class="lifetime">'v</span>&gt;) {
         walk_bty(<span class="self">self</span>, bty);
     }
 
-    <span class="kw">fn </span>visit_qpath(<span class="kw-2">&amp;mut </span><span class="self">self</span>, qpath: <span class="kw-2">&amp;</span>QPath) {
+    <span class="kw">fn </span>visit_qpath(<span class="kw-2">&amp;mut </span><span class="self">self</span>, qpath: <span class="kw-2">&amp;</span>QPath&lt;<span class="lifetime">'v</span>&gt;) {
         walk_qpath(<span class="self">self</span>, qpath);
     }
 
-    <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) {
+    <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path&lt;<span class="lifetime">'v</span>&gt;) {
         walk_path(<span class="self">self</span>, path);
     }
 
-    <span class="kw">fn </span>visit_path_segment(<span class="kw-2">&amp;mut </span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>PathSegment) {
+    <span class="kw">fn </span>visit_path_segment(<span class="kw-2">&amp;mut </span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>PathSegment&lt;<span class="lifetime">'v</span>&gt;) {
         walk_path_segment(<span class="self">self</span>, segment);
     }
 
-    <span class="kw">fn </span>visit_type_binding(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binding: <span class="kw-2">&amp;</span>TypeBinding) {
+    <span class="kw">fn </span>visit_type_binding(<span class="kw-2">&amp;mut </span><span class="self">self</span>, binding: <span class="kw-2">&amp;</span>TypeBinding&lt;<span class="lifetime">'v</span>&gt;) {
         walk_type_binding(<span class="self">self</span>, binding);
     }
 
-    <span class="kw">fn </span>visit_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) {
+    <span class="kw">fn </span>visit_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort&lt;<span class="lifetime">'v</span>&gt;) {
         walk_sort(<span class="self">self</span>, sort);
     }
 
-    <span class="kw">fn </span>visit_sort_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>SortPath) {
+    <span class="kw">fn </span>visit_sort_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>SortPath&lt;<span class="lifetime">'v</span>&gt;) {
         walk_sort_path(<span class="self">self</span>, path);
     }
 
-    <span class="kw">fn </span>visit_poly_func_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>PolyFuncSort) {
+    <span class="kw">fn </span>visit_poly_func_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>PolyFuncSort&lt;<span class="lifetime">'v</span>&gt;) {
         walk_poly_func_sort(<span class="self">self</span>, func);
     }
 
-    <span class="kw">fn </span>visit_func_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>FuncSort) {
+    <span class="kw">fn </span>visit_func_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>FuncSort&lt;<span class="lifetime">'v</span>&gt;) {
         walk_func_sort(<span class="self">self</span>, func);
     }
 
-    <span class="kw">fn </span>visit_refine_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>RefineArg) {
+    <span class="kw">fn </span>visit_refine_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>RefineArg&lt;<span class="lifetime">'v</span>&gt;) {
         walk_refine_arg(<span class="self">self</span>, arg);
     }
 
-    <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) {
+    <span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr&lt;<span class="lifetime">'v</span>&gt;) {
         walk_expr(<span class="self">self</span>, expr);
     }
 
-    <span class="kw">fn </span>visit_alias_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, alias_reft: <span class="kw-2">&amp;</span>AliasReft) {
+    <span class="kw">fn </span>visit_alias_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, alias_reft: <span class="kw-2">&amp;</span>AliasReft&lt;<span class="lifetime">'v</span>&gt;) {
         walk_alias_reft(<span class="self">self</span>, alias_reft);
     }
 
     <span class="kw">fn </span>visit_literal(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _lit: <span class="kw-2">&amp;</span>Lit) {}
 
-    <span class="kw">fn </span>visit_path_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _path: <span class="kw-2">&amp;</span>PathExpr) {}
+    <span class="kw">fn </span>visit_path_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _path: <span class="kw-2">&amp;</span>PathExpr&lt;<span class="lifetime">'v</span>&gt;) {}
 }
 
-<span class="kw">pub fn </span>walk_impl&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, impl_: <span class="kw-2">&amp;</span>Impl) {
+<span class="kw">pub fn </span>walk_impl&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, impl_: <span class="kw-2">&amp;</span>Impl&lt;<span class="lifetime">'v</span>&gt;) {
     vis.visit_generics(<span class="kw-2">&amp;</span>impl_.generics);
     <span class="macro">walk_list!</span>(vis, visit_impl_assoc_reft, impl_.assoc_refinements);
 }
 
-<span class="kw">pub fn </span>walk_struct_def&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, struct_def: <span class="kw-2">&amp;</span>StructDef) {
+<span class="kw">pub fn </span>walk_struct_def&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, struct_def: <span class="kw-2">&amp;</span>StructDef&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="macro">walk_list!</span>(vis, visit_refine_param, struct_def.params);
     <span class="macro">walk_list!</span>(vis, visit_expr, struct_def.invariants);
     <span class="kw">if let </span>StructKind::Transparent { fields } = struct_def.kind {
@@ -670,51 +683,51 @@
     }
 }
 
-<span class="kw">pub fn </span>walk_enum_def&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, enum_def: <span class="kw-2">&amp;</span>EnumDef) {
+<span class="kw">pub fn </span>walk_enum_def&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, enum_def: <span class="kw-2">&amp;</span>EnumDef&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="macro">walk_list!</span>(vis, visit_refine_param, enum_def.params);
     <span class="macro">walk_list!</span>(vis, visit_variant, enum_def.variants);
     <span class="macro">walk_list!</span>(vis, visit_expr, enum_def.invariants);
 }
 
-<span class="kw">pub fn </span>walk_variant&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, variant: <span class="kw-2">&amp;</span>VariantDef) {
+<span class="kw">pub fn </span>walk_variant&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, variant: <span class="kw-2">&amp;</span>VariantDef&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="macro">walk_list!</span>(vis, visit_refine_param, variant.params);
     <span class="macro">walk_list!</span>(vis, visit_field_def, variant.fields);
     vis.visit_variant_ret(<span class="kw-2">&amp;</span>variant.ret);
 }
 
-<span class="kw">pub fn </span>walk_field_def&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, field: <span class="kw-2">&amp;</span>FieldDef) {
+<span class="kw">pub fn </span>walk_field_def&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, field: <span class="kw-2">&amp;</span>FieldDef&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">let </span>FieldDef { def_id: <span class="kw">_</span>, ty, lifted: <span class="kw">_ </span>} = field;
     vis.visit_ty(ty);
 }
 
-<span class="kw">pub fn </span>walk_variant_ret&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, ret: <span class="kw-2">&amp;</span>VariantRet) {
+<span class="kw">pub fn </span>walk_variant_ret&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, ret: <span class="kw-2">&amp;</span>VariantRet&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">let </span>VariantRet { bty, idx } = ret;
     vis.visit_bty(bty);
     vis.visit_refine_arg(idx);
 }
 
-<span class="kw">pub fn </span>walk_ty_alias&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, ty_alias: <span class="kw-2">&amp;</span>TyAlias) {
+<span class="kw">pub fn </span>walk_ty_alias&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, ty_alias: <span class="kw-2">&amp;</span>TyAlias&lt;<span class="lifetime">'v</span>&gt;) {
     vis.visit_generics(<span class="kw-2">&amp;</span>ty_alias.generics);
     vis.visit_ty(<span class="kw-2">&amp;</span>ty_alias.ty);
     <span class="macro">walk_list!</span>(vis, visit_refine_param, ty_alias.params);
 }
 
-<span class="kw">pub fn </span>walk_opaque_ty&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, opaque_ty: <span class="kw-2">&amp;</span>OpaqueTy) {
+<span class="kw">pub fn </span>walk_opaque_ty&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, opaque_ty: <span class="kw-2">&amp;</span>OpaqueTy&lt;<span class="lifetime">'v</span>&gt;) {
     vis.visit_generics(<span class="kw-2">&amp;</span>opaque_ty.generics);
     <span class="macro">walk_list!</span>(vis, visit_generic_bound, opaque_ty.bounds);
 }
 
-<span class="kw">pub fn </span>walk_generic_bound&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, bound: <span class="kw-2">&amp;</span>GenericBound) {
+<span class="kw">pub fn </span>walk_generic_bound&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, bound: <span class="kw-2">&amp;</span>GenericBound&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">match </span>bound {
         GenericBound::Trait(trait_ref, <span class="kw">_</span>) =&gt; vis.visit_poly_trait_ref(trait_ref),
     }
 }
 
-<span class="kw">pub fn </span>walk_poly_trait_ref&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, trait_ref: <span class="kw-2">&amp;</span>PolyTraitRef) {
+<span class="kw">pub fn </span>walk_poly_trait_ref&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, trait_ref: <span class="kw-2">&amp;</span>PolyTraitRef&lt;<span class="lifetime">'v</span>&gt;) {
     vis.visit_path(<span class="kw-2">&amp;</span>trait_ref.trait_ref);
 }
 
-<span class="kw">pub fn </span>walk_node&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, node: <span class="kw-2">&amp;</span>Node) {
+<span class="kw">pub fn </span>walk_node&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, node: <span class="kw-2">&amp;</span>Node&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">match </span>node {
         Node::Item(item) =&gt; vis.visit_item(item),
         Node::TraitItem(trait_item) =&gt; vis.visit_trait_item(trait_item),
@@ -722,7 +735,7 @@
     }
 }
 
-<span class="kw">pub fn </span>walk_item&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, item: <span class="kw-2">&amp;</span>Item) {
+<span class="kw">pub fn </span>walk_item&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, item: <span class="kw-2">&amp;</span>Item&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
         ItemKind::Enum(enum_def) =&gt; vis.visit_enum_def(enum_def),
         ItemKind::Struct(struct_def) =&gt; vis.visit_struct_def(struct_def),
@@ -737,7 +750,7 @@
     }
 }
 
-<span class="kw">pub fn </span>walk_trait_item&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, trait_item: <span class="kw-2">&amp;</span>TraitItem) {
+<span class="kw">pub fn </span>walk_trait_item&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, trait_item: <span class="kw-2">&amp;</span>TraitItem&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">match </span><span class="kw-2">&amp;</span>trait_item.kind {
         TraitItemKind::Fn(fn_sig) =&gt; vis.visit_fn_sig(fn_sig),
         TraitItemKind::Type(assoc_type) =&gt; {
@@ -746,7 +759,7 @@
     }
 }
 
-<span class="kw">pub fn </span>walk_impl_item&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, impl_item: <span class="kw-2">&amp;</span>ImplItem) {
+<span class="kw">pub fn </span>walk_impl_item&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, impl_item: <span class="kw-2">&amp;</span>ImplItem&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">match </span><span class="kw-2">&amp;</span>impl_item.kind {
         ImplItemKind::Fn(fn_sig) =&gt; vis.visit_fn_sig(fn_sig),
         ImplItemKind::Type(assoc_type) =&gt; {
@@ -755,69 +768,73 @@
     }
 }
 
-<span class="kw">pub fn </span>walk_trait_assoc_reft&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, assoc_reft: <span class="kw-2">&amp;</span>TraitAssocReft) {
+<span class="kw">pub fn </span>walk_trait_assoc_reft&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, assoc_reft: <span class="kw-2">&amp;</span>TraitAssocReft&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="macro">walk_list!</span>(vis, visit_refine_param, assoc_reft.params);
     vis.visit_sort(<span class="kw-2">&amp;</span>assoc_reft.output);
 }
 
-<span class="kw">pub fn </span>walk_impl_assoc_reft&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, assoc_reft: <span class="kw-2">&amp;</span>ImplAssocReft) {
+<span class="kw">pub fn </span>walk_impl_assoc_reft&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, assoc_reft: <span class="kw-2">&amp;</span>ImplAssocReft&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="macro">walk_list!</span>(vis, visit_refine_param, assoc_reft.params);
     vis.visit_sort(<span class="kw-2">&amp;</span>assoc_reft.output);
     vis.visit_expr(<span class="kw-2">&amp;</span>assoc_reft.body);
 }
 
-<span class="kw">pub fn </span>walk_generics&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, generics: <span class="kw-2">&amp;</span>Generics) {
+<span class="kw">pub fn </span>walk_generics&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, generics: <span class="kw-2">&amp;</span>Generics&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="macro">walk_list!</span>(vis, visit_refine_param, generics.refinement_params);
     <span class="macro">walk_list!</span>(vis, visit_where_predicate, generics.predicates);
 }
 
-<span class="kw">pub fn </span>walk_where_predicate&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, predicate: <span class="kw-2">&amp;</span>WhereBoundPredicate) {
+<span class="kw">pub fn </span>walk_where_predicate&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, predicate: <span class="kw-2">&amp;</span>WhereBoundPredicate&lt;<span class="lifetime">'v</span>&gt;) {
     vis.visit_ty(<span class="kw-2">&amp;</span>predicate.bounded_ty);
     <span class="macro">walk_list!</span>(vis, visit_generic_bound, predicate.bounds);
 }
 
-<span class="kw">pub fn </span>walk_fn_sig&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, sig: <span class="kw-2">&amp;</span>FnSig) {
+<span class="kw">pub fn </span>walk_fn_sig&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, sig: <span class="kw-2">&amp;</span>FnSig&lt;<span class="lifetime">'v</span>&gt;) {
     vis.visit_fn_decl(sig.decl);
 }
 
-<span class="kw">pub fn </span>walk_fn_decl&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, decl: <span class="kw-2">&amp;</span>FnDecl) {
+<span class="kw">pub fn </span>walk_fn_decl&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, decl: <span class="kw-2">&amp;</span>FnDecl&lt;<span class="lifetime">'v</span>&gt;) {
     vis.visit_generics(<span class="kw-2">&amp;</span>decl.generics);
-    <span class="macro">walk_list!</span>(vis, visit_constraint, decl.requires);
-    <span class="macro">walk_list!</span>(vis, visit_ty, decl.args);
+    <span class="macro">walk_list!</span>(vis, visit_requires, decl.requires);
+    <span class="macro">walk_list!</span>(vis, visit_ty, decl.inputs);
     vis.visit_fn_output(<span class="kw-2">&amp;</span>decl.output);
 }
 
-<span class="kw">pub fn </span>walk_refine_param&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, param: <span class="kw-2">&amp;</span>RefineParam) {
+<span class="kw">pub fn </span>walk_refine_param&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, param: <span class="kw-2">&amp;</span>RefineParam&lt;<span class="lifetime">'v</span>&gt;) {
     vis.visit_sort(<span class="kw-2">&amp;</span>param.sort);
 }
 
-<span class="kw">pub fn </span>walk_constraint&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, constraint: <span class="kw-2">&amp;</span>Constraint) {
+<span class="kw">pub fn </span>walk_requires&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, requires: <span class="kw-2">&amp;</span>Requires&lt;<span class="lifetime">'v</span>&gt;) {
+    <span class="macro">walk_list!</span>(vis, visit_refine_param, requires.params);
+    vis.visit_expr(<span class="kw-2">&amp;</span>requires.pred);
+}
+
+<span class="kw">pub fn </span>walk_ensures&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, constraint: <span class="kw-2">&amp;</span>Ensures&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">match </span>constraint {
-        Constraint::Type(loc, ty) =&gt; {
+        Ensures::Type(loc, ty) =&gt; {
             vis.visit_path_expr(loc);
             vis.visit_ty(ty);
         }
-        Constraint::Pred(params, pred) =&gt; {
-            <span class="macro">walk_list!</span>(vis, visit_refine_param, <span class="kw-2">*</span>params);
+        Ensures::Pred(pred) =&gt; {
             vis.visit_expr(pred);
         }
     }
 }
 
-<span class="kw">pub fn </span>walk_fn_output&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, output: <span class="kw-2">&amp;</span>FnOutput) {
+<span class="kw">pub fn </span>walk_fn_output&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, output: <span class="kw-2">&amp;</span>FnOutput&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="macro">walk_list!</span>(vis, visit_refine_param, output.params);
     vis.visit_ty(<span class="kw-2">&amp;</span>output.ret);
-    <span class="macro">walk_list!</span>(vis, visit_constraint, output.ensures);
+    <span class="macro">walk_list!</span>(vis, visit_ensures, output.ensures);
 }
 
-<span class="kw">pub fn </span>walk_generic_arg&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, arg: <span class="kw-2">&amp;</span>GenericArg) {
+<span class="kw">pub fn </span>walk_generic_arg&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, arg: <span class="kw-2">&amp;</span>GenericArg&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">match </span>arg {
         GenericArg::Lifetime(lft) =&gt; vis.visit_lifetime(lft),
         GenericArg::Type(ty) =&gt; vis.visit_ty(ty),
     }
 }
 
-<span class="kw">pub fn </span>walk_ty&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, ty: <span class="kw-2">&amp;</span>Ty) {
+<span class="kw">pub fn </span>walk_ty&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, ty: <span class="kw-2">&amp;</span>Ty&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">match </span>ty.kind {
         TyKind::BaseTy(bty) =&gt; vis.visit_bty(<span class="kw-2">&amp;</span>bty),
         TyKind::Indexed(bty, idx) =&gt; {
@@ -832,9 +849,10 @@
             vis.visit_expr(<span class="kw-2">&amp;</span>pred);
             vis.visit_ty(ty);
         }
-        TyKind::Ptr(lft, loc) =&gt; {
+        TyKind::StrgRef(lft, loc, ty) =&gt; {
             vis.visit_lifetime(<span class="kw-2">&amp;</span>lft);
-            vis.visit_path_expr(<span class="kw-2">&amp;</span>loc);
+            vis.visit_path_expr(loc);
+            vis.visit_ty(ty);
         }
         TyKind::Ref(lft, mty) =&gt; {
             vis.visit_lifetime(<span class="kw-2">&amp;</span>lft);
@@ -858,14 +876,14 @@
     }
 }
 
-<span class="kw">pub fn </span>walk_bty&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, bty: <span class="kw-2">&amp;</span>BaseTy) {
+<span class="kw">pub fn </span>walk_bty&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, bty: <span class="kw-2">&amp;</span>BaseTy&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
         BaseTyKind::Path(path) =&gt; vis.visit_qpath(path),
         BaseTyKind::Slice(ty) =&gt; vis.visit_ty(ty),
     }
 }
 
-<span class="kw">pub fn </span>walk_qpath&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, qpath: <span class="kw-2">&amp;</span>QPath) {
+<span class="kw">pub fn </span>walk_qpath&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, qpath: <span class="kw-2">&amp;</span>QPath&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">match </span>qpath {
         QPath::Resolved(qself, path) =&gt; {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(self_ty) = qself {
@@ -880,22 +898,22 @@
     }
 }
 
-<span class="kw">pub fn </span>walk_path&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, path: <span class="kw-2">&amp;</span>Path) {
+<span class="kw">pub fn </span>walk_path&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, path: <span class="kw-2">&amp;</span>Path&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="macro">walk_list!</span>(vis, visit_path_segment, path.segments);
     <span class="macro">walk_list!</span>(vis, visit_refine_arg, path.refine);
 }
 
-<span class="kw">pub fn </span>walk_path_segment&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>PathSegment) {
+<span class="kw">pub fn </span>walk_path_segment&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>PathSegment&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="macro">walk_list!</span>(vis, visit_generic_arg, segment.args);
     <span class="macro">walk_list!</span>(vis, visit_type_binding, segment.bindings);
 }
 
-<span class="kw">pub fn </span>walk_type_binding&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, binding: <span class="kw-2">&amp;</span>TypeBinding) {
+<span class="kw">pub fn </span>walk_type_binding&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, binding: <span class="kw-2">&amp;</span>TypeBinding&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">let </span>TypeBinding { ident: <span class="kw">_</span>, term } = binding;
     vis.visit_ty(term);
 }
 
-<span class="kw">pub fn </span>walk_sort&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, sort: <span class="kw-2">&amp;</span>Sort) {
+<span class="kw">pub fn </span>walk_sort&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, sort: <span class="kw-2">&amp;</span>Sort&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">match </span>sort {
         Sort::Path(path) =&gt; vis.visit_sort_path(path),
         Sort::Func(func) =&gt; vis.visit_poly_func_sort(func),
@@ -903,20 +921,20 @@
     }
 }
 
-<span class="kw">pub fn </span>walk_sort_path&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, path: <span class="kw-2">&amp;</span>SortPath) {
+<span class="kw">pub fn </span>walk_sort_path&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, path: <span class="kw-2">&amp;</span>SortPath&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="macro">walk_list!</span>(vis, visit_sort, path.args);
 }
 
-<span class="kw">pub fn </span>walk_poly_func_sort&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, func: <span class="kw-2">&amp;</span>PolyFuncSort) {
+<span class="kw">pub fn </span>walk_poly_func_sort&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, func: <span class="kw-2">&amp;</span>PolyFuncSort&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">let </span>PolyFuncSort { params: <span class="kw">_</span>, fsort } = func;
     vis.visit_func_sort(fsort);
 }
 
-<span class="kw">pub fn </span>walk_func_sort&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, func: <span class="kw-2">&amp;</span>FuncSort) {
+<span class="kw">pub fn </span>walk_func_sort&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, func: <span class="kw-2">&amp;</span>FuncSort&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="macro">walk_list!</span>(vis, visit_sort, func.inputs_and_output);
 }
 
-<span class="kw">pub fn </span>walk_refine_arg&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, arg: <span class="kw-2">&amp;</span>RefineArg) {
+<span class="kw">pub fn </span>walk_refine_arg&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, arg: <span class="kw-2">&amp;</span>RefineArg&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">match </span>arg.kind {
         RefineArgKind::Expr(expr) =&gt; vis.visit_expr(<span class="kw-2">&amp;</span>expr),
         RefineArgKind::Abs(params, body) =&gt; {
@@ -929,12 +947,12 @@
     }
 }
 
-<span class="kw">pub fn </span>walk_alias_reft&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, alias: <span class="kw-2">&amp;</span>AliasReft) {
+<span class="kw">pub fn </span>walk_alias_reft&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, alias: <span class="kw-2">&amp;</span>AliasReft&lt;<span class="lifetime">'v</span>&gt;) {
     vis.visit_ty(alias.qself);
     vis.visit_path(<span class="kw-2">&amp;</span>alias.path);
 }
 
-<span class="kw">pub fn </span>walk_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, expr: <span class="kw-2">&amp;</span>Expr) {
+<span class="kw">pub fn </span>walk_expr&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, expr: <span class="kw-2">&amp;</span>Expr&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">match </span>expr.kind {
         ExprKind::Var(path, <span class="kw">_</span>) =&gt; vis.visit_path_expr(<span class="kw-2">&amp;</span>path),
         ExprKind::Dot(path, _fld) =&gt; {

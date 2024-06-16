@@ -206,9 +206,6 @@
 <a href="#206" id="206">206</a>
 <a href="#207" id="207">207</a>
 <a href="#208" id="208">208</a>
-<a href="#209" id="209">209</a>
-<a href="#210" id="210">210</a>
-<a href="#211" id="211">211</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Code to check whether refinement parameters are used in allowed positions.
 //!
 //! The correct usage of a parameter depends on whether its infer mode is [evar] or [kvar].
@@ -236,7 +233,7 @@
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check(infcx: <span class="kw-2">&amp;</span>InferCtxt, node: <span class="kw-2">&amp;</span>fhir::Node) -&gt; <span class="prelude-ty">Result </span>{
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check&lt;<span class="lifetime">'genv</span>&gt;(infcx: <span class="kw-2">&amp;</span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;, node: <span class="kw-2">&amp;</span>fhir::Node&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
     ParamUsesChecker::new(infcx).run(|ck| ck.visit_node(node))
 }
 
@@ -259,7 +256,7 @@
         <span class="self">Self </span>{ infcx, xi: Default::default(), errors: Errors::new(infcx.genv.sess()) }
     }
 
-    <span class="kw">fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>ParamUsesChecker)) -&gt; <span class="prelude-ty">Result </span>{
+    <span class="kw">fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>)) -&gt; <span class="prelude-ty">Result </span>{
         f(<span class="kw-2">&amp;mut </span><span class="self">self</span>);
         <span class="self">self</span>.errors.into_result()
     }
@@ -325,33 +322,33 @@
     }
 }
 
-<span class="kw">impl </span>fhir::visit::Visitor <span class="kw">for </span>ParamUsesChecker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
-    <span class="kw">fn </span>visit_ty_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty_alias: <span class="kw-2">&amp;</span>fhir::TyAlias) {
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>&gt; fhir::visit::Visitor&lt;<span class="lifetime">'genv</span>&gt; <span class="kw">for </span>ParamUsesChecker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt; {
+    <span class="kw">fn </span>visit_ty_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty_alias: <span class="kw-2">&amp;</span>fhir::TyAlias&lt;<span class="lifetime">'genv</span>&gt;) {
         fhir::visit::walk_ty_alias(<span class="self">self</span>, ty_alias);
         <span class="self">self</span>.check_params_are_value_determined(ty_alias.params);
     }
 
-    <span class="kw">fn </span>visit_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, struct_def: <span class="kw-2">&amp;</span>fhir::StructDef) {
+    <span class="kw">fn </span>visit_struct_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, struct_def: <span class="kw-2">&amp;</span>fhir::StructDef&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="kw">if let </span>fhir::StructKind::Transparent { fields } = struct_def.kind {
             <span class="macro">walk_list!</span>(<span class="self">self</span>, visit_field_def, fields);
             <span class="self">self</span>.check_params_are_value_determined(struct_def.params);
         }
     }
 
-    <span class="kw">fn </span>visit_variant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, variant: <span class="kw-2">&amp;</span>fhir::VariantDef) {
+    <span class="kw">fn </span>visit_variant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, variant: <span class="kw-2">&amp;</span>fhir::VariantDef&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="kw">let </span>snapshot = <span class="self">self</span>.xi.snapshot();
         fhir::visit::walk_variant(<span class="self">self</span>, variant);
         <span class="self">self</span>.check_params_are_value_determined(variant.params);
         <span class="self">self</span>.xi.rollback_to(snapshot);
     }
 
-    <span class="kw">fn </span>visit_variant_ret(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ret: <span class="kw-2">&amp;</span>fhir::VariantRet) {
+    <span class="kw">fn </span>visit_variant_ret(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ret: <span class="kw-2">&amp;</span>fhir::VariantRet&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="kw">let </span>snapshot = <span class="self">self</span>.xi.snapshot();
         fhir::visit::walk_variant_ret(<span class="self">self</span>, ret);
         <span class="self">self</span>.xi.rollback_to(snapshot);
     }
 
-    <span class="kw">fn </span>visit_refine_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>fhir::RefineArg) {
+    <span class="kw">fn </span>visit_refine_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>fhir::RefineArg&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="kw">match </span>arg.kind {
             fhir::RefineArgKind::Expr(expr) =&gt; {
                 <span class="kw">if let </span>fhir::ExprKind::Var(var, <span class="kw">_</span>) = <span class="kw-2">&amp;</span>expr.kind {
@@ -369,25 +366,26 @@
         }
     }
 
-    <span class="kw">fn </span>visit_fn_decl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, decl: <span class="kw-2">&amp;</span>fhir::FnDecl) {
+    <span class="kw">fn </span>visit_fn_decl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, decl: <span class="kw-2">&amp;</span>fhir::FnDecl&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="kw">let </span>snapshot = <span class="self">self</span>.xi.snapshot();
         fhir::visit::walk_fn_decl(<span class="self">self</span>, decl);
         <span class="self">self</span>.check_params_are_value_determined(decl.generics.refinement_params);
         <span class="self">self</span>.xi.rollback_to(snapshot);
     }
 
-    <span class="kw">fn </span>visit_fn_output(<span class="kw-2">&amp;mut </span><span class="self">self</span>, output: <span class="kw-2">&amp;</span>fhir::FnOutput) {
+    <span class="kw">fn </span>visit_fn_output(<span class="kw-2">&amp;mut </span><span class="self">self</span>, output: <span class="kw-2">&amp;</span>fhir::FnOutput&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="kw">let </span>snapshot = <span class="self">self</span>.xi.snapshot();
         fhir::visit::walk_fn_output(<span class="self">self</span>, output);
         <span class="self">self</span>.check_params_are_value_determined(output.params);
         <span class="self">self</span>.xi.rollback_to(snapshot);
     }
 
-    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty) {
+    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
-            fhir::TyKind::Ptr(<span class="kw">_</span>, loc) =&gt; {
+            fhir::TyKind::StrgRef(<span class="kw">_</span>, loc, ty) =&gt; {
                 <span class="kw">let </span>(<span class="kw">_</span>, id) = loc.res.expect_param();
                 <span class="self">self</span>.xi.insert(id, ());
+                <span class="self">self</span>.visit_ty(ty);
             }
             fhir::TyKind::Exists(params, ty) =&gt; {
                 <span class="self">self</span>.visit_ty(ty);
@@ -403,11 +401,7 @@
         <span class="self">self</span>.check_func_params_uses(expr, <span class="bool-val">true</span>);
     }
 
-    <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>fhir::Path) {
-        fhir::visit::walk_path(<span class="self">self</span>, path);
-    }
-
-    <span class="kw">fn </span>visit_path_segment(<span class="kw-2">&amp;mut </span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>fhir::PathSegment) {
+    <span class="kw">fn </span>visit_path_segment(<span class="kw-2">&amp;mut </span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>fhir::PathSegment&lt;<span class="lifetime">'genv</span>&gt;) {
         <span class="kw">let </span>is_box = <span class="self">self</span>.infcx.genv.is_box(segment.res);
 
         <span class="kw">for </span>(i, arg) <span class="kw">in </span>segment.args.iter().enumerate() {

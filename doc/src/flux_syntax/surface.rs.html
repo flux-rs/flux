@@ -773,7 +773,7 @@
     <span class="doccomment">/// example: `requires n &gt; 0`
     </span><span class="kw">pub </span>requires: Vec&lt;Requires&gt;,
     <span class="doccomment">/// example: `i32&lt;@n&gt;`
-    </span><span class="kw">pub </span>args: Vec&lt;Arg&gt;,
+    </span><span class="kw">pub </span>inputs: Vec&lt;FnInput&gt;,
     <span class="kw">pub </span>output: FnOutput,
     <span class="doccomment">/// source span
     </span><span class="kw">pub </span>span: Span,
@@ -831,7 +831,7 @@
 }
 
 <span class="attr">#[derive(Debug)]
-</span><span class="kw">pub enum </span>Arg {
+</span><span class="kw">pub enum </span>FnInput {
     <span class="doccomment">/// example `a: i32{a &gt; 0}`
     </span>Constr(Ident, Path, Expr, NodeId),
     <span class="doccomment">/// example `v: &amp;strg i32`

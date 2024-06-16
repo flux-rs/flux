@@ -435,7 +435,7 @@
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
-</span><span class="kw">use </span>flux_common::{bug, iter::IterExt};
+</span><span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_middle::ty::{ClosureKind, ParamTy};
@@ -646,14 +646,14 @@
         fn_sig: <span class="kw-2">&amp;</span>rustc::ty::PolyFnSig,
     ) -&gt; QueryResult&lt;rty::PolyFnSig&gt; {
         <span class="self">self</span>.refine_binders(fn_sig, |fn_sig| {
-            <span class="kw">let </span>args = fn_sig
+            <span class="kw">let </span>inputs = fn_sig
                 .inputs()
                 .iter()
                 .map(|ty| <span class="self">self</span>.refine_ty(ty))
-                .try_collect_vec()<span class="question-mark">?</span>;
+                .try_collect()<span class="question-mark">?</span>;
             <span class="kw">let </span>ret = <span class="self">self</span>.refine_ty(fn_sig.output())<span class="question-mark">?</span>.shift_in_escaping(<span class="number">1</span>);
             <span class="kw">let </span>output = rty::Binder::new(rty::FnOutput::new(ret, <span class="macro">vec!</span>[]), List::empty());
-            <span class="prelude-val">Ok</span>(rty::FnSig::new(<span class="macro">vec!</span>[], args, output))
+            <span class="prelude-val">Ok</span>(rty::FnSig::new(List::empty(), inputs, output))
         })
     }
 

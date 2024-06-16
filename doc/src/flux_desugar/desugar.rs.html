@@ -1410,9 +1410,6 @@
 <a href="#1410" id="1410">1410</a>
 <a href="#1411" id="1411">1411</a>
 <a href="#1412" id="1412">1412</a>
-<a href="#1413" id="1413">1413</a>
-<a href="#1414" id="1414">1414</a>
-<a href="#1415" id="1415">1415</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -1919,13 +1916,12 @@
             <span class="kw">for </span>surface_requires <span class="kw">in </span><span class="kw-2">&amp;</span>fn_sig.requires {
                 <span class="kw">let </span>params = <span class="self">self</span>.desugar_refine_params(<span class="kw-2">&amp;</span>surface_requires.params);
                 <span class="kw">let </span>pred = <span class="self">self</span>.desugar_expr(<span class="kw-2">&amp;</span>surface_requires.pred)<span class="question-mark">?</span>;
-                requires.push(fhir::Constraint::Pred(params, pred));
+                requires.push(fhir::Requires { params, pred });
             }
 
             <span class="comment">// Bail out if there's an error in the arguments to avoid confusing error messages
-            </span><span class="kw">let </span>args = <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>fn_sig.args, |arg| {
-                <span class="self">self</span>.desugar_fun_arg(arg, <span class="kw-2">&amp;mut </span>requires)
-            })<span class="question-mark">?</span>;
+            </span><span class="kw">let </span>inputs =
+                <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>fn_sig.inputs, |arg| <span class="self">self</span>.desugar_fn_input(arg))<span class="question-mark">?</span>;
 
             <span class="kw">let </span>output = <span class="self">self</span>.desugar_fn_output(fn_sig.asyncness, <span class="kw-2">&amp;</span>fn_sig.output)<span class="question-mark">?</span>;
 
@@ -1934,7 +1930,7 @@
             <span class="kw">let </span>decl = fhir::FnDecl {
                 generics,
                 requires: <span class="self">self</span>.genv.alloc_slice(<span class="kw-2">&amp;</span>requires),
-                args,
+                inputs,
                 output,
                 span: fn_sig.span,
                 lifted: <span class="bool-val">false</span>,
@@ -1995,8 +1991,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::FnOutput&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>ret = <span class="self">self</span>.desugar_asyncness(asyncness, <span class="kw-2">&amp;</span>output.returns);
 
-        <span class="kw">let </span>ensures =
-            <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>output.ensures, |cstr| <span class="self">self</span>.desugar_constraint(cstr))<span class="question-mark">?</span>;
+        <span class="kw">let </span>ensures = <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>output.ensures, |it| <span class="self">self</span>.desugar_ensures(it))<span class="question-mark">?</span>;
 
         <span class="kw">let </span>params = <span class="self">self
             </span>.genv
@@ -2004,7 +1999,7 @@
         <span class="prelude-val">Ok</span>(fhir::FnOutput { params, ret: ret<span class="question-mark">?</span>, ensures })
     }
 
-    <span class="kw">fn </span>desugar_constraint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cstr: <span class="kw-2">&amp;</span>surface::Ensures) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Constraint&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+    <span class="kw">fn </span>desugar_ensures(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cstr: <span class="kw-2">&amp;</span>surface::Ensures) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ensures&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">match </span>cstr {
             surface::Ensures::Type(loc, ty, node_id) =&gt; {
                 <span class="kw">let </span>res = <span class="self">self</span>.desugar_loc(<span class="kw-2">*</span>loc, <span class="kw-2">*</span>node_id)<span class="question-mark">?</span>;
@@ -2015,22 +2010,18 @@
                     span: loc.span,
                 };
                 <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(ty)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(fhir::Constraint::Type(path, ty))
+                <span class="prelude-val">Ok</span>(fhir::Ensures::Type(path, ty))
             }
             surface::Ensures::Pred(e) =&gt; {
                 <span class="kw">let </span>pred = <span class="self">self</span>.desugar_expr(e)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(fhir::Constraint::Pred(<span class="kw-2">&amp;</span>[], pred))
+                <span class="prelude-val">Ok</span>(fhir::Ensures::Pred(pred))
             }
         }
     }
 
-    <span class="kw">fn </span>desugar_fun_arg(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        arg: <span class="kw-2">&amp;</span>surface::Arg,
-        requires: <span class="kw-2">&amp;mut </span>Vec&lt;fhir::Constraint&lt;<span class="lifetime">'genv</span>&gt;&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">match </span>arg {
-            surface::Arg::Constr(bind, path, pred, node_id) =&gt; {
+    <span class="kw">fn </span>desugar_fn_input(<span class="kw-2">&amp;mut </span><span class="self">self</span>, input: <span class="kw-2">&amp;</span>surface::FnInput) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+        <span class="kw">match </span>input {
+            surface::FnInput::Constr(bind, path, pred, node_id) =&gt; {
                 <span class="kw">let </span>bty = <span class="self">self</span>.desugar_path_to_bty(<span class="prelude-val">None</span>, path)<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>pred = <span class="self">self</span>.desugar_expr(pred)<span class="question-mark">?</span>;
@@ -2045,7 +2036,7 @@
                 <span class="kw">let </span>kind = fhir::TyKind::Constr(pred, <span class="self">self</span>.genv.alloc(ty));
                 <span class="prelude-val">Ok</span>(fhir::Ty { kind, span })
             }
-            surface::Arg::StrgRef(loc, ty, node_id) =&gt; {
+            surface::FnInput::StrgRef(loc, ty, node_id) =&gt; {
                 <span class="kw">let </span>span = loc.span;
                 <span class="kw">let </span>(id, kind) = <span class="self">self</span>.resolve_implicit_param(<span class="kw-2">*</span>node_id).unwrap();
                 <span class="kw">let </span>path = fhir::PathExpr {
@@ -2055,11 +2046,14 @@
                     span: loc.span,
                 };
                 <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(ty)<span class="question-mark">?</span>;
-                requires.push(fhir::Constraint::Type(path, ty));
-                <span class="kw">let </span>kind = fhir::TyKind::Ptr(<span class="self">self</span>.mk_lft_hole(), path);
+                <span class="kw">let </span>kind = fhir::TyKind::StrgRef(
+                    <span class="self">self</span>.mk_lft_hole(),
+                    <span class="self">self</span>.genv.alloc(path),
+                    <span class="self">self</span>.genv.alloc(ty),
+                );
                 <span class="prelude-val">Ok</span>(fhir::Ty { kind, span })
             }
-            surface::Arg::Ty(bind, ty, node_id) =&gt; {
+            surface::FnInput::Ty(bind, ty, node_id) =&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(bind) = bind
                     &amp;&amp; <span class="kw">let </span>surface::TyKind::Base(bty) = <span class="kw-2">&amp;</span>ty.kind
                 {
@@ -2245,7 +2239,7 @@
     <span class="attr">#[track_caller]
     </span><span class="kw">fn </span>desugar_loc(<span class="kw-2">&amp;</span><span class="self">self</span>, ident: surface::Ident, node_id: NodeId) -&gt; <span class="prelude-ty">Result</span>&lt;ExprRes&gt; {
         <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().path_expr_res_map[<span class="kw-2">&amp;</span>node_id];
-        <span class="kw">if let </span>ExprRes::Param(fhir::ParamKind::Loc(<span class="kw">_</span>), <span class="kw">_</span>) = res {
+        <span class="kw">if let </span>ExprRes::Param(fhir::ParamKind::Loc, <span class="kw">_</span>) = res {
             <span class="prelude-val">Ok</span>(res)
         } <span class="kw">else </span>{
             <span class="kw">let </span>span = ident.span;

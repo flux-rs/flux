@@ -692,14 +692,11 @@
 <a href="#692" id="692">692</a>
 <a href="#693" id="693">693</a>
 <a href="#694" id="694">694</a>
-<a href="#695" id="695">695</a>
-<a href="#696" id="696">696</a>
-<a href="#697" id="697">697</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
 
-<span class="kw">use </span>flux_common::{dbg::debug_assert_eq3, tracked_span_bug};
+<span class="kw">use </span>flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug};
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     intern::List,
@@ -717,7 +714,7 @@
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 
 <span class="kw">use </span><span class="self">self</span>::place_ty::{LocKind, PlacesTree};
-<span class="kw">use </span><span class="kw">super</span>::rty::{Loc, Sort};
+<span class="kw">use </span><span class="kw">super</span>::rty::Sort;
 <span class="kw">use crate</span>::{
     checker::errors::CheckerErrKind,
     constraint_gen::{ConstrGen, ConstrReason},
@@ -754,10 +751,6 @@
 <span class="kw">impl </span>TypeEnv&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">pub fn </span>new(local_decls: <span class="kw-2">&amp;</span>LocalDecls) -&gt; TypeEnv {
         TypeEnv { bindings: PlacesTree::default(), local_decls }
-    }
-
-    <span class="kw">pub fn </span>alloc_universal_loc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, loc: Loc, place: Place, ty: Ty) {
-        <span class="self">self</span>.bindings.insert(loc, place, LocKind::Universal, ty);
     }
 
     <span class="kw">pub fn </span>alloc_with_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local: Local, ty: Ty) {
@@ -1026,6 +1019,7 @@
             | TyKind::Uninit
             | TyKind::Param(<span class="kw">_</span>)
             | TyKind::Constr(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; ty.clone(),
+            TyKind::StrgRef(..) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected strong reference inside function"</span>),
         }
     }
 

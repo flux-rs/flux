@@ -783,24 +783,6 @@
 <a href="#783" id="783">783</a>
 <a href="#784" id="784">784</a>
 <a href="#785" id="785">785</a>
-<a href="#786" id="786">786</a>
-<a href="#787" id="787">787</a>
-<a href="#788" id="788">788</a>
-<a href="#789" id="789">789</a>
-<a href="#790" id="790">790</a>
-<a href="#791" id="791">791</a>
-<a href="#792" id="792">792</a>
-<a href="#793" id="793">793</a>
-<a href="#794" id="794">794</a>
-<a href="#795" id="795">795</a>
-<a href="#796" id="796">796</a>
-<a href="#797" id="797">797</a>
-<a href="#798" id="798">798</a>
-<a href="#799" id="799">799</a>
-<a href="#800" id="800">800</a>
-<a href="#801" id="801">801</a>
-<a href="#802" id="802">802</a>
-<a href="#803" id="803">803</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
@@ -808,15 +790,13 @@
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        <span class="self">self</span>, evars::EVarSol, fold::TypeFoldable, AliasTy, BaseTy, Binder, Constraint,
-        CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder, Expr, ExprKind, FnOutput, GenericArg,
-        HoleKind, InferMode, Lambda, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort,
-        Ty, TyKind, Var,
+        <span class="self">self</span>, evars::EVarSol, fold::TypeFoldable, AliasTy, BaseTy, Binder, CoroutineObligPredicate,
+        ESpan, EVarGen, EarlyBinder, Ensures, Expr, ExprKind, FnOutput, GenericArg, HoleKind,
+        InferMode, Lambda, Mutability, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
 <span class="kw">use </span>itertools::{izip, Itertools};
-<span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin::BoundRegion};
 <span class="kw">use </span>rustc_middle::ty::Variance;
@@ -966,7 +946,7 @@
         </span><span class="kw">let </span>refine_args = infcx.instantiate_refine_args(genv, callee_def_id)<span class="question-mark">?</span>;
 
         <span class="comment">// Instantiate function signature and normalize it
-        </span><span class="kw">let </span>inst_fn_sig = fn_sig
+        </span><span class="kw">let </span>fn_sig = fn_sig
             .instantiate(<span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)
             .replace_bound_vars(
                 |br| {
@@ -987,29 +967,21 @@
             List::empty()
         };
 
-        <span class="comment">// Check requires predicates and collect type constraints
-        </span><span class="kw">let </span><span class="kw-2">mut </span>requires = FxHashMap::default();
-        <span class="kw">for </span>constr <span class="kw">in </span>inst_fn_sig.requires() {
-            <span class="kw">match </span>constr {
-                Constraint::Type(path, ty, <span class="kw">_</span>) =&gt; {
-                    requires.insert(path.clone(), ty);
-                }
-                Constraint::Pred(pred) =&gt; {
-                    infcx.check_pred(rcx, pred);
-                }
-            }
+        <span class="comment">// Check requires predicates
+        </span><span class="kw">for </span>requires <span class="kw">in </span>fn_sig.requires() {
+            infcx.check_pred(rcx, requires);
         }
 
         <span class="comment">// Check arguments
-        </span><span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(actuals, inst_fn_sig.args()) {
+        </span><span class="kw">for </span>(actual, formal) <span class="kw">in </span>iter::zip(actuals, fn_sig.inputs()) {
             <span class="kw">let </span>(formal, pred) = formal.unconstr();
             infcx.check_pred(rcx, <span class="kw-2">&amp;</span>pred);
             <span class="comment">// TODO(pack-closure): Generalize/refactor to reuse for mutable closures
             </span><span class="kw">match </span>(actual.kind(), formal.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path1), TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path2)) =&gt; {
-                    <span class="kw">let </span>bound = requires[path2];
+                (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path1), TyKind::StrgRef(<span class="kw">_</span>, path2, ty2)) =&gt; {
+                    <span class="kw">let </span>ty1 = env.get(path1);
                     infcx.unify_exprs(<span class="kw-2">&amp;</span>path1.to_expr(), <span class="kw-2">&amp;</span>path2.to_expr());
-                    infcx.check_type_constr(rcx, env, path1, bound)<span class="question-mark">?</span>;
+                    infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ty1, ty2)<span class="question-mark">?</span>;
                 }
                 (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path), <span class="macro">Ref!</span>(<span class="kw">_</span>, bound, Mutability::Mut)) =&gt; {
                     <span class="kw">let </span>ty = env.block_with(genv, path, bound.clone())<span class="question-mark">?</span>;
@@ -1046,7 +1018,7 @@
         </span><span class="kw">let </span>evars_sol = infcx.solve()<span class="question-mark">?</span>;
         env.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
         rcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
-        <span class="kw">let </span>output = inst_fn_sig.output().replace_evars(<span class="kw-2">&amp;</span>evars_sol);
+        <span class="kw">let </span>output = fn_sig.output().replace_evars(<span class="kw-2">&amp;</span>evars_sol);
 
         <span class="prelude-val">Ok</span>((output, Obligations::new(obligs, snapshot)))
     }
@@ -1066,7 +1038,7 @@
 
         infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ret_place_ty, <span class="kw-2">&amp;</span>output.ret)<span class="question-mark">?</span>;
         <span class="kw">for </span>constraint <span class="kw">in </span><span class="kw-2">&amp;</span>output.ensures {
-            infcx.check_constraint(rcx, env, constraint)<span class="question-mark">?</span>;
+            infcx.check_ensures(rcx, env, constraint)<span class="question-mark">?</span>;
         }
 
         <span class="kw">let </span>obligs = infcx.obligations();
@@ -1238,27 +1210,19 @@
         rcx.check_pred(pred, <span class="self">self</span>.tag);
     }
 
-    <span class="kw">fn </span>check_type_constr(
+    <span class="kw">fn </span>check_ensures(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
-        path: <span class="kw-2">&amp;</span>Path,
-        ty: <span class="kw-2">&amp;</span>Ty,
-    ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span>actual_ty = env.get(path);
-        <span class="self">self</span>.subtyping(rcx, <span class="kw-2">&amp;</span>actual_ty, ty)
-    }
-
-    <span class="kw">fn </span>check_constraint(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
-        env: <span class="kw-2">&amp;mut </span>TypeEnv,
-        constraint: <span class="kw-2">&amp;</span>Constraint,
+        ensures: <span class="kw-2">&amp;</span>Ensures,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>rcx = <span class="kw-2">&amp;mut </span>rcx.branch();
-        <span class="kw">match </span>constraint {
-            Constraint::Type(path, ty, <span class="kw">_</span>) =&gt; <span class="self">self</span>.check_type_constr(rcx, env, path, ty),
-            Constraint::Pred(e) =&gt; {
+        <span class="kw">match </span>ensures {
+            Ensures::Type(path, ty) =&gt; {
+                <span class="kw">let </span>actual_ty = env.get(path);
+                <span class="self">self</span>.subtyping(rcx, <span class="kw-2">&amp;</span>actual_ty, ty)
+            }
+            Ensures::Pred(e) =&gt; {
                 rcx.check_pred(e, <span class="self">self</span>.tag);
                 <span class="prelude-val">Ok</span>(())
             }

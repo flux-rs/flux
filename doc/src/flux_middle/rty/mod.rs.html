@@ -2090,6 +2090,8 @@
 <a href="#2090" id="2090">2090</a>
 <a href="#2091" id="2091">2091</a>
 <a href="#2092" id="2092">2092</a>
+<a href="#2093" id="2093">2093</a>
+<a href="#2094" id="2094">2094</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2152,7 +2154,7 @@
     rty::subst::SortSubst,
     rustc::{
         <span class="self">self</span>,
-        mir::{Local, Place},
+        mir::Place,
         ty::{ConstKind, VariantDef},
     },
 };
@@ -2609,27 +2611,20 @@
 
 <span class="attr">#[derive(Clone, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>FnSig {
-    requires: List&lt;Constraint&gt;,
-    args: List&lt;Ty&gt;,
+    requires: List&lt;Expr&gt;,
+    inputs: List&lt;Ty&gt;,
     output: Binder&lt;FnOutput&gt;,
 }
 
 <span class="attr">#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>FnOutput {
     <span class="kw">pub </span>ret: Ty,
-    <span class="kw">pub </span>ensures: List&lt;Constraint&gt;,
+    <span class="kw">pub </span>ensures: List&lt;Ensures&gt;,
 }
 
-<span class="kw">pub type </span>Constraints = List&lt;Constraint&gt;;
-
 <span class="attr">#[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
-</span><span class="kw">pub enum </span>Constraint {
-    Type(
-        Path,
-        Ty,
-        <span class="doccomment">/// The local of the argument corresponding to the constraint.
-        </span>Local,
-    ),
+</span><span class="kw">pub enum </span>Ensures {
+    Type(Path, Ty),
     Pred(Expr),
 }
 
@@ -2692,6 +2687,10 @@
 
     <span class="kw">pub fn </span>projection(alias_ty: AliasTy) -&gt; Ty {
         <span class="self">Self</span>::alias(AliasKind::Projection, alias_ty)
+    }
+
+    <span class="kw">pub fn </span>strg_ref(re: Region, path: Path, ty: Ty) -&gt; Ty {
+        TyKind::StrgRef(re, path, ty).intern()
     }
 
     <span class="kw">pub fn </span>ptr(pk: <span class="kw">impl </span>Into&lt;PtrKind&gt;, path: <span class="kw">impl </span>Into&lt;Path&gt;) -&gt; Ty {
@@ -2827,6 +2826,14 @@
             TyKind::Alias(kind, alias_ty) =&gt; {
                 rustc_middle::ty::Ty::new_alias(tcx, kind.to_rustc(), alias_ty.to_rustc(tcx))
             }
+            TyKind::StrgRef(re, <span class="kw">_</span>, ty) =&gt; {
+                rustc_middle::ty::Ty::new_ref(
+                    tcx,
+                    re.to_rustc(tcx),
+                    ty.to_rustc(tcx),
+                    Mutability::Mut,
+                )
+            }
             TyKind::Uninit
             | TyKind::Ptr(<span class="kw">_</span>, <span class="kw">_</span>)
             | TyKind::Discr(<span class="kw">_</span>, <span class="kw">_</span>)
@@ -2898,6 +2905,7 @@
     Exists(Binder&lt;Ty&gt;),
     Constr(Expr, Ty),
     Uninit,
+    StrgRef(Region, Path, Ty),
     Ptr(PtrKind, Path),
     <span class="doccomment">/// This is a bit of a hack. We use this type internally to represent the result of
     /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information
@@ -3212,10 +3220,10 @@
         };
         <span class="kw">let </span>inputs = std::iter::once(env_ty)
             .chain(<span class="self">self</span>.tupled_args.expect_tuple().iter().cloned())
-            .collect_vec();
+            .collect();
 
         <span class="kw">let </span>fn_sig = FnSig::new(
-            <span class="macro">vec!</span>[],
+            List::empty(),
             inputs,
             Binder::new(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty()),
         );
@@ -3231,10 +3239,10 @@
         <span class="kw">let </span>resume_ty = <span class="kw-2">&amp;</span><span class="self">self</span>.resume_ty;
         <span class="kw">let </span>env_ty = Ty::coroutine(<span class="self">self</span>.def_id, resume_ty.clone(), <span class="self">self</span>.upvar_tys.clone());
 
-        <span class="kw">let </span>inputs = <span class="macro">vec!</span>[env_ty, resume_ty.clone()];
+        <span class="kw">let </span>inputs = List::from_arr([env_ty, resume_ty.clone()]);
         <span class="kw">let </span>output = Binder::new(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty());
 
-        PolyFnSig::new(FnSig::new(<span class="macro">vec!</span>[], inputs, output), List::from(vars))
+        PolyFnSig::new(FnSig::new(List::empty(), inputs, output), List::from(vars))
     }
 }
 
@@ -3630,20 +3638,16 @@
 }
 
 <span class="kw">impl </span>FnSig {
-    <span class="kw">pub fn </span>new(
-        requires: <span class="kw">impl </span>Into&lt;List&lt;Constraint&gt;&gt;,
-        args: <span class="kw">impl </span>Into&lt;List&lt;Ty&gt;&gt;,
-        output: Binder&lt;FnOutput&gt;,
-    ) -&gt; <span class="self">Self </span>{
-        FnSig { requires: requires.into(), args: args.into(), output }
+    <span class="kw">pub fn </span>new(requires: List&lt;Expr&gt;, inputs: List&lt;Ty&gt;, output: Binder&lt;FnOutput&gt;) -&gt; <span class="self">Self </span>{
+        FnSig { requires, inputs, output }
     }
 
-    <span class="kw">pub fn </span>requires(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Constraints {
+    <span class="kw">pub fn </span>requires(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Expr] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.requires
     }
 
-    <span class="kw">pub fn </span>args(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Ty] {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.args
+    <span class="kw">pub fn </span>inputs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Ty] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.inputs
     }
 
     <span class="kw">pub fn </span>output(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Binder&lt;FnOutput&gt; {
@@ -3652,7 +3656,7 @@
 }
 
 <span class="kw">impl </span>FnOutput {
-    <span class="kw">pub fn </span>new(ret: Ty, ensures: <span class="kw">impl </span>Into&lt;List&lt;Constraint&gt;&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(ret: Ty, ensures: <span class="kw">impl </span>Into&lt;List&lt;Ensures&gt;&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ ret, ensures: ensures.into() }
     }
 }
@@ -3775,7 +3779,7 @@
             poly_variant.as_ref().map(|variant| {
                 <span class="kw">let </span>ret = variant.ret().shift_in_escaping(<span class="number">1</span>);
                 <span class="kw">let </span>output = Binder::new(FnOutput::new(ret, <span class="macro">vec!</span>[]), List::empty());
-                FnSig::new(<span class="macro">vec!</span>[], variant.fields.clone(), output)
+                FnSig::new(List::empty(), variant.fields.clone(), output)
             })
         })
     }
@@ -4026,7 +4030,7 @@
 <span class="macro">impl_slice_internable!</span>(
     Ty,
     GenericArg,
-    Constraint,
+    Ensures,
     InferMode,
     Sort,
     GenericParamDef,

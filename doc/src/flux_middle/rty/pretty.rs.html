@@ -450,6 +450,7 @@
 <a href="#450" id="450">450</a>
 <a href="#451" id="451">451</a>
 <a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -608,7 +609,7 @@
         <span class="kw">if </span>!<span class="self">self</span>.requires.is_empty() {
             <span class="macro">w!</span>(<span class="string">"[{:?}] "</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.requires))<span class="question-mark">?</span>;
         }
-        <span class="macro">w!</span>(<span class="string">"{:?}) -&gt; {:?}"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.args), <span class="kw-2">&amp;</span><span class="self">self</span>.output)<span class="question-mark">?</span>;
+        <span class="macro">w!</span>(<span class="string">"{:?}) -&gt; {:?}"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.inputs), <span class="kw-2">&amp;</span><span class="self">self</span>.output)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -642,12 +643,12 @@
     }
 }
 
-<span class="kw">impl </span>Pretty <span class="kw">for </span>Constraint {
+<span class="kw">impl </span>Pretty <span class="kw">for </span>Ensures {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
         <span class="kw">match </span><span class="self">self </span>{
-            Constraint::Type(loc, ty, <span class="kw">_</span>) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}: {:?}"</span>, ^loc, ty),
-            Constraint::Pred(e) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, e),
+            Ensures::Type(loc, ty) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}: {:?}"</span>, ^loc, ty),
+            Ensures::Pred(e) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, e),
         }
     }
 }
@@ -692,6 +693,7 @@
                 })
             }
             TyKind::Uninit =&gt; <span class="macro">w!</span>(<span class="string">"uninit"</span>),
+            TyKind::StrgRef(re, loc, ty) =&gt; <span class="macro">w!</span>(<span class="string">"&amp;{:?} strg &lt;{:?}: {:?}&gt;"</span>, re, loc, ty),
             TyKind::Ptr(pk, loc) =&gt; <span class="macro">w!</span>(<span class="string">"ptr({:?}, {:?})"</span>, pk, loc),
             TyKind::Discr(adt_def, place) =&gt; <span class="macro">w!</span>(<span class="string">"discr({:?}, {:?})"</span>, adt_def.did(), ^place),
             TyKind::Constr(pred, ty) =&gt; {
@@ -890,7 +892,7 @@
 }
 
 <span class="macro">impl_debug_with_default_cx!</span>(
-    Constraint,
+    Ensures,
     Sort,
     TyS =&gt; <span class="string">"ty"</span>,
     BaseTy,

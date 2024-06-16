@@ -842,11 +842,6 @@
 <a href="#842" id="842">842</a>
 <a href="#843" id="843">843</a>
 <a href="#844" id="844">844</a>
-<a href="#845" id="845">845</a>
-<a href="#846" id="846">846</a>
-<a href="#847" id="847">847</a>
-<a href="#848" id="848">848</a>
-<a href="#849" id="849">849</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements a points-to analysis for mutable references.
 //!
 //! We use the result of the analysis to insert ghost statements at the points where pointers (`ptr(l)`)
@@ -876,7 +871,6 @@
 };
 <span class="kw">use </span>rustc_data_structures::stack::ensure_sufficient_stack;
 <span class="kw">use </span>rustc_hash::FxHashMap;
-<span class="kw">use </span>rustc_hir::{def::DefKind, def_id::LocalDefId};
 <span class="kw">use </span>rustc_index::{bit_set::BitSet, IndexSlice, IndexVec};
 <span class="kw">use </span>rustc_middle::{
     mir::{<span class="self">self</span>, visit::Visitor, BasicBlock, TerminatorEdges},
@@ -895,15 +889,11 @@
     stmts: <span class="kw-2">&amp;mut </span>GhostStatements,
     genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
     body: <span class="kw-2">&amp;</span>mir::Body&lt;<span class="lifetime">'tcx</span>&gt;,
-    def_id: LocalDefId,
+    fn_sig: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;,
 ) -&gt; QueryResult {
     <span class="kw">let </span>map = Map::new(body);
 
     <span class="kw">let </span><span class="kw-2">mut </span>visitor = CollectPointerToBorrows::new(<span class="kw-2">&amp;</span>map, stmts);
-
-    <span class="comment">// We have fn_sig for function items, but not for closures or generators.
-    </span><span class="kw">let </span>fn_sig =
-        <span class="kw">if </span>genv.def_kind(def_id) == DefKind::Fn { <span class="prelude-val">Some</span>(genv.fn_sig(def_id)<span class="question-mark">?</span>) } <span class="kw">else </span>{ <span class="prelude-val">None </span>};
 
     PointsToAnalysis::new(<span class="kw-2">&amp;</span>map, fn_sig)
         .into_engine(genv.tcx(), body)
@@ -920,12 +910,12 @@
 /// combine it with the result of a definitely initialized analysis. See module level documentation
 /// for more details.
 </span><span class="kw">struct </span>PointsToAnalysis&lt;<span class="lifetime">'a</span>&gt; {
-    fn_sig: <span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;,
+    fn_sig: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;,
     map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Map,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; PointsToAnalysis&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="kw">fn </span>new(map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Map, fn_sig: <span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Map, fn_sig: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ fn_sig, map }
     }
 
@@ -1053,9 +1043,9 @@
         <span class="comment">// Since we are skipping the early binder, we are using the early bound variables as locs instead
         // of fresh names. This is fine because the loc is just used as a unique value for the analysis.
         // We never have late bounds locs.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="self">self</span>.fn_sig.as_ref() {
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="self">self</span>.fn_sig {
             <span class="kw">let </span>fn_sig = fn_sig.as_ref().skip_binder().as_ref().skip_binder();
-            <span class="kw">for </span>(local, ty) <span class="kw">in </span>iter::zip(body.args_iter(), fn_sig.args()) {
+            <span class="kw">for </span>(local, ty) <span class="kw">in </span>iter::zip(body.args_iter(), fn_sig.inputs()) {
                 <span class="kw">if let </span>rty::TyKind::Ptr(<span class="kw">_</span>, path) = ty.kind() {
                     <span class="kw">let </span>loc = FlatSet::Elem(path.to_loc().unwrap());
                     state.flood_with(mir::PlaceRef { local, projection: <span class="kw-2">&amp;</span>[] }, <span class="self">self</span>.map, loc);
@@ -1149,7 +1139,7 @@
         _statement: <span class="kw-2">&amp;</span><span class="lifetime">'mir </span>mir::Statement&lt;<span class="lifetime">'tcx</span>&gt;,
         location: mir::Location,
     ) {
-        <span class="kw">let </span>point = Point::Location(location);
+        <span class="kw">let </span>point = Point::BeforeLocation(location);
         <span class="kw">for </span>(place_idx, old_value) <span class="kw">in </span><span class="kw-2">&amp;mut </span><span class="self">self</span>.before_state {
             <span class="kw">let </span>new_value = state.get_idx(<span class="kw-2">*</span>place_idx, <span class="self">self</span>.map);
             <span class="kw">if let </span>(FlatSet::Elem(<span class="kw">_</span>), FlatSet::Top) = (<span class="kw-2">&amp;</span>old_value, <span class="kw-2">&amp;</span>new_value) {

@@ -1257,6 +1257,20 @@
 <a href="#1257" id="1257">1257</a>
 <a href="#1258" id="1258">1258</a>
 <a href="#1259" id="1259">1259</a>
+<a href="#1260" id="1260">1260</a>
+<a href="#1261" id="1261">1261</a>
+<a href="#1262" id="1262">1262</a>
+<a href="#1263" id="1263">1263</a>
+<a href="#1264" id="1264">1264</a>
+<a href="#1265" id="1265">1265</a>
+<a href="#1266" id="1266">1266</a>
+<a href="#1267" id="1267">1267</a>
+<a href="#1268" id="1268">1268</a>
+<a href="#1269" id="1269">1269</a>
+<a href="#1270" id="1270">1270</a>
+<a href="#1271" id="1271">1271</a>
+<a href="#1272" id="1272">1272</a>
+<a href="#1273" id="1273">1273</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1273,8 +1287,8 @@
     normalize::{Normalizer, SpecFuncDefns},
     projections,
     subst::EVarSubstFolder,
-    AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
-    CoroutineObligPredicate, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
+    AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind,
+    CoroutineObligPredicate, Ensures, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
     ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, SubsetTy, TraitPredicate,
     TraitRef, Ty, TyKind,
@@ -1968,7 +1982,7 @@
         <span class="self">self</span>.requires
             .iter()
             .try_for_each(|constr| constr.visit_with(visitor))<span class="question-mark">?</span>;
-        <span class="self">self</span>.args
+        <span class="self">self</span>.inputs
             .iter()
             .try_for_each(|arg| arg.visit_with(visitor))<span class="question-mark">?</span>;
         <span class="self">self</span>.output.visit_with(visitor)
@@ -1978,7 +1992,7 @@
 <span class="kw">impl </span>TypeFoldable <span class="kw">for </span>FnSig {
     <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
         <span class="kw">let </span>requires = <span class="self">self</span>.requires.try_fold_with(folder)<span class="question-mark">?</span>;
-        <span class="kw">let </span>args = <span class="self">self</span>.args.try_fold_with(folder)<span class="question-mark">?</span>;
+        <span class="kw">let </span>args = <span class="self">self</span>.inputs.try_fold_with(folder)<span class="question-mark">?</span>;
         <span class="kw">let </span>output = <span class="self">self</span>.output.try_fold_with(folder)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(FnSig::new(requires, args, output))
     }
@@ -1997,35 +2011,34 @@
     }
 }
 
-<span class="kw">impl </span>TypeVisitable <span class="kw">for </span>Constraint {
+<span class="kw">impl </span>TypeVisitable <span class="kw">for </span>Ensures {
     <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            Constraint::Type(path, ty, <span class="kw">_</span>) =&gt; {
+            Ensures::Type(path, ty) =&gt; {
                 path.to_expr().visit_with(visitor)<span class="question-mark">?</span>;
                 ty.visit_with(visitor)
             }
-            Constraint::Pred(e) =&gt; e.visit_with(visitor),
+            Ensures::Pred(e) =&gt; e.visit_with(visitor),
         }
     }
 }
 
-<span class="kw">impl </span>TypeFoldable <span class="kw">for </span>Constraint {
+<span class="kw">impl </span>TypeFoldable <span class="kw">for </span>Ensures {
     <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
         <span class="kw">let </span>c = <span class="kw">match </span><span class="self">self </span>{
-            Constraint::Type(path, ty, local) =&gt; {
+            Ensures::Type(path, ty) =&gt; {
                 <span class="kw">let </span>path_expr = path
                     .to_expr()
                     .try_fold_with(folder)<span class="question-mark">?
                     </span>.normalize(<span class="kw-2">&amp;</span>Default::default());
-                Constraint::Type(
+                Ensures::Type(
                     path_expr.to_path().unwrap_or_else(|| {
                         <span class="macro">bug!</span>(<span class="string">"invalid path `{path_expr:?}` produced when folding `{self:?}`"</span>,)
                     }),
                     ty.try_fold_with(folder)<span class="question-mark">?</span>,
-                    <span class="kw-2">*</span>local,
                 )
             }
-            Constraint::Pred(e) =&gt; Constraint::Pred(e.try_fold_with(folder)<span class="question-mark">?</span>),
+            Ensures::Pred(e) =&gt; Ensures::Pred(e.try_fold_with(folder)<span class="question-mark">?</span>),
         };
         <span class="prelude-val">Ok</span>(c)
     }
@@ -2051,6 +2064,10 @@
                 idxs.visit_with(visitor)
             }
             TyKind::Exists(exists) =&gt; exists.visit_with(visitor),
+            TyKind::StrgRef(<span class="kw">_</span>, path, ty) =&gt; {
+                path.to_expr().visit_with(visitor)<span class="question-mark">?</span>;
+                ty.visit_with(visitor)
+            }
             TyKind::Ptr(<span class="kw">_</span>, path) =&gt; path.to_expr().visit_with(visitor),
             TyKind::Constr(pred, ty) =&gt; {
                 pred.visit_with(visitor)<span class="question-mark">?</span>;
@@ -2080,6 +2097,17 @@
                 Ty::indexed(bty.try_fold_with(folder)<span class="question-mark">?</span>, idxs.try_fold_with(folder)<span class="question-mark">?</span>)
             }
             TyKind::Exists(exists) =&gt; TyKind::Exists(exists.try_fold_with(folder)<span class="question-mark">?</span>).intern(),
+            TyKind::StrgRef(re, path, ty) =&gt; {
+                Ty::strg_ref(
+                    re.try_fold_with(folder)<span class="question-mark">?</span>,
+                    path.to_expr()
+                        .try_fold_with(folder)<span class="question-mark">?
+                        </span>.normalize(<span class="kw-2">&amp;</span>Default::default())
+                        .to_path()
+                        .expect(<span class="string">"type folding produced an invalid path"</span>),
+                    ty.try_fold_with(folder)<span class="question-mark">?</span>,
+                )
+            }
             TyKind::Ptr(pk, path) =&gt; {
                 <span class="kw">let </span>pk = <span class="kw">match </span>pk {
                     PtrKind::Mut(re) =&gt; PtrKind::Mut(re.try_fold_with(folder)<span class="question-mark">?</span>),

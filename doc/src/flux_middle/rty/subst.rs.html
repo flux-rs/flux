@@ -456,6 +456,11 @@
 <a href="#456" id="456">456</a>
 <a href="#457" id="457">457</a>
 <a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cmp::Ordering, collections::hash_map};
 
 <span class="kw">use </span>flux_common::bug;
@@ -509,7 +514,12 @@
             (TyKind::Indexed(bty, <span class="kw">_</span>), <span class="kw">_</span>) =&gt; {
                 <span class="self">self</span>.infer_from_bty(bty, ty2);
             }
-            (TyKind::Ptr(PtrKind::Mut(r1), <span class="kw">_</span>), ty::TyKind::Ref(r2, <span class="kw">_</span>, Mutability::Mut)) =&gt; {
+            (TyKind::Ptr(PtrKind::Mut(r1), <span class="kw">_</span>), ty::TyKind::Ref(r2, <span class="kw">_</span>, mutbl)) =&gt; {
+                <span class="macro">debug_assert!</span>(mutbl.is_mut());
+                <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>r1, <span class="kw-2">*</span>r2);
+            }
+            (TyKind::StrgRef(r1, ..), ty::TyKind::Ref(r2, <span class="kw">_</span>, mutbl)) =&gt; {
+                <span class="macro">debug_assert!</span>(mutbl.is_mut());
                 <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>r1, <span class="kw-2">*</span>r2);
             }
             <span class="kw">_ </span>=&gt; {}
