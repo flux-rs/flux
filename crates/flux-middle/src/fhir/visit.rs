@@ -325,8 +325,7 @@ pub fn walk_ensures<'v, V: Visitor<'v>>(vis: &mut V, constraint: &Ensures<'v>) {
             vis.visit_path_expr(loc);
             vis.visit_ty(ty);
         }
-        Ensures::Pred(params, pred) => {
-            walk_list!(vis, visit_refine_param, *params);
+        Ensures::Pred(pred) => {
             vis.visit_expr(pred);
         }
     }

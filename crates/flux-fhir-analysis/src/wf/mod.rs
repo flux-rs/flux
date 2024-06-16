@@ -127,8 +127,8 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
 
     fn check_output_locs(&mut self, fn_decl: &fhir::FnDecl) {
         let mut output_locs = FxHashSet::default();
-        for constr in fn_decl.output.ensures {
-            if let fhir::Ensures::Type(loc, ..) = constr
+        for ens in fn_decl.output.ensures {
+            if let fhir::Ensures::Type(loc, ..) = ens
                 && let (_, id) = loc.res.expect_param()
                 && !output_locs.insert(id)
             {
@@ -212,7 +212,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
                 self.infcx.check_loc(loc).collect_err(&mut self.errors);
                 self.visit_ty(ty);
             }
-            fhir::Ensures::Pred(_, pred) => {
+            fhir::Ensures::Pred(pred) => {
                 self.infcx
                     .check_expr(pred, &rty::Sort::Bool)
                     .collect_err(&mut self.errors);

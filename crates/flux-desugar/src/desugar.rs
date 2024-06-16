@@ -579,8 +579,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> Result<fhir::FnOutput<'genv>> {
         let ret = self.desugar_asyncness(asyncness, &output.returns);
 
-        let ensures =
-            try_alloc_slice!(self.genv, &output.ensures, |cstr| self.desugar_constraint(cstr))?;
+        let ensures = try_alloc_slice!(self.genv, &output.ensures, |it| self.desugar_ensures(it))?;
 
         let params = self
             .genv
@@ -588,7 +587,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::FnOutput { params, ret: ret?, ensures })
     }
 
-    fn desugar_constraint(&mut self, cstr: &surface::Ensures) -> Result<fhir::Ensures<'genv>> {
+    fn desugar_ensures(&mut self, cstr: &surface::Ensures) -> Result<fhir::Ensures<'genv>> {
         match cstr {
             surface::Ensures::Type(loc, ty, node_id) => {
                 let res = self.desugar_loc(*loc, *node_id)?;
@@ -603,7 +602,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             }
             surface::Ensures::Pred(e) => {
                 let pred = self.desugar_expr(e)?;
-                Ok(fhir::Ensures::Pred(&[], pred))
+                Ok(fhir::Ensures::Pred(pred))
             }
         }
     }

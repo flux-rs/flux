@@ -663,17 +663,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::Ensures::Type(loc, ty) => {
                 Ok(rty::Ensures::Type(env.lookup(loc).to_path(), self.conv_ty(env, ty)?))
             }
-            fhir::Ensures::Pred(params, pred) => {
-                let pred = if params.is_empty() {
-                    self.conv_expr(env, pred)?
-                } else {
-                    env.push_layer(Layer::list(self, 0, params)?);
-                    let pred = self.conv_expr(env, pred)?;
-                    let sorts = env.pop_layer().into_bound_vars(self.genv)?;
-                    rty::Expr::forall(rty::Binder::new(pred, sorts))
-                };
-                Ok(rty::Ensures::Pred(pred))
-            }
+            fhir::Ensures::Pred(pred) => Ok(rty::Ensures::Pred(self.conv_expr(env, pred)?)),
         }
     }
 

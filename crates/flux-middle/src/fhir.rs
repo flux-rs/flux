@@ -504,8 +504,8 @@ pub struct FnOutput<'fhir> {
 pub enum Ensures<'fhir> {
     /// A type constraint on a location
     Type(PathExpr<'fhir>, Ty<'fhir>),
-    /// A predicate that needs to hold under an (optional) list of universally quantified parameters
-    Pred(&'fhir [RefineParam<'fhir>], Expr<'fhir>),
+    /// A predicate that needs to hold on function exit
+    Pred(Expr<'fhir>),
 }
 
 #[derive(Clone, Copy)]
@@ -1189,18 +1189,7 @@ impl fmt::Debug for Ensures<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Ensures::Type(loc, ty) => write!(f, "{loc:?}: {ty:?}"),
-            Ensures::Pred(params, e) => {
-                if !params.is_empty() {
-                    write!(
-                        f,
-                        "forall {}.",
-                        params.iter().format_with(",", |param, f| {
-                            f(&format_args!("{}:{:?}", param.name, param.sort))
-                        })
-                    )?;
-                }
-                write!(f, "{e:?}")
-            }
+            Ensures::Pred(e) => write!(f, "{e:?}"),
         }
     }
 }
