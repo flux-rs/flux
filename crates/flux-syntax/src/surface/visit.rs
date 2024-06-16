@@ -1,8 +1,8 @@
 use rustc_span::symbol::Ident;
 
 use super::{
-    AliasReft, Arg, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Ensures, EnumDef, Expr,
-    ExprKind, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, GenericParamKind,
+    AliasReft, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind,
+    FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, GenericParamKind,
     Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathExpr, PathSegment, Qualifier, RefineArg,
     RefineParam, RefinedBy, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef,
     Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
@@ -107,12 +107,8 @@ pub trait Visitor: Sized {
         walk_generics(self, generics);
     }
 
-    fn visit_fun_args(&mut self, args: &[Arg]) {
-        walk_fun_args(self, args);
-    }
-
-    fn visit_fun_arg(&mut self, arg: &Arg, _idx: usize) {
-        walk_fun_arg(self, arg);
+    fn visit_fn_input(&mut self, input: &FnInput) {
+        walk_fn_input(self, input);
     }
 
     fn visit_fn_ret_ty(&mut self, fn_ret_ty: &FnRetTy) {
@@ -312,7 +308,7 @@ pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
         walk_list!(vis, visit_refine_param, &requires.params);
         vis.visit_expr(&requires.pred);
     }
-    vis.visit_fun_args(&fn_sig.args);
+    walk_list!(vis, visit_fn_input, &fn_sig.inputs);
     vis.visit_fn_output(&fn_sig.output);
 }
 
@@ -326,24 +322,18 @@ pub fn walk_generics<V: Visitor>(vis: &mut V, generics: &Generics) {
     walk_list!(vis, visit_where_predicate, &generics.predicates);
 }
 
-pub fn walk_fun_args<V: Visitor>(vis: &mut V, args: &[Arg]) {
-    for (idx, arg) in args.iter().enumerate() {
-        vis.visit_fun_arg(arg, idx);
-    }
-}
-
-pub fn walk_fun_arg<V: Visitor>(vis: &mut V, arg: &Arg) {
+pub fn walk_fn_input<V: Visitor>(vis: &mut V, arg: &FnInput) {
     match arg {
-        Arg::Constr(bind, path, pred, _node_id) => {
+        FnInput::Constr(bind, path, pred, _node_id) => {
             vis.visit_ident(*bind);
             vis.visit_path(path);
             vis.visit_expr(pred);
         }
-        Arg::StrgRef(bind, ty, _node_id) => {
+        FnInput::StrgRef(bind, ty, _node_id) => {
             vis.visit_ident(*bind);
             vis.visit_ty(ty);
         }
-        Arg::Ty(bind, ty, _node_id) => {
+        FnInput::Ty(bind, ty, _node_id) => {
             if let Some(bind) = bind {
                 vis.visit_ident(*bind);
             }

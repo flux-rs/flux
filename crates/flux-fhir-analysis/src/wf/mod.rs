@@ -54,7 +54,7 @@ pub(crate) fn check_flux_item<'genv>(
 
 pub(crate) fn check_node<'genv>(
     genv: GlobalEnv<'genv, '_>,
-    node: &fhir::Node,
+    node: &fhir::Node<'genv>,
 ) -> Result<WfckResults<'genv>> {
     let mut infcx = InferCtxt::new(genv, node.owner_id().into());
 
@@ -118,7 +118,7 @@ struct Wf<'a, 'genv, 'tcx> {
 }
 
 impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
-    fn check(infcx: &'a mut InferCtxt<'genv, 'tcx>, node: &fhir::Node) -> Result {
+    fn check(infcx: &'a mut InferCtxt<'genv, 'tcx>, node: &fhir::Node<'genv>) -> Result {
         let errors = Errors::new(infcx.genv.sess());
         let mut vis = Wf { infcx, errors };
         vis.visit_node(node);
@@ -127,8 +127,8 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
 
     fn check_output_locs(&mut self, fn_decl: &fhir::FnDecl) {
         let mut output_locs = FxHashSet::default();
-        for constr in fn_decl.output.ensures {
-            if let fhir::Constraint::Type(loc, ..) = constr
+        for ens in fn_decl.output.ensures {
+            if let fhir::Ensures::Type(loc, ..) = ens
                 && let (_, id) = loc.res.expect_param()
                 && !output_locs.insert(id)
             {
@@ -136,8 +136,8 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
             }
         }
 
-        for constr in fn_decl.requires {
-            if let fhir::Constraint::Type(loc, ..) = constr
+        for ty in fn_decl.inputs {
+            if let fhir::TyKind::StrgRef(_, loc, _) = ty.kind
                 && let (_, id) = loc.res.expect_param()
                 && !output_locs.contains(&id)
             {
@@ -147,7 +147,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
     }
 }
 
-impl fhir::visit::Visitor for Wf<'_, '_, '_> {
+impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     fn visit_impl_assoc_reft(&mut self, assoc_reft: &fhir::ImplAssocReft) {
         let Ok(output) =
             conv::conv_sort(self.infcx.genv, &assoc_reft.output, &mut bug_on_infer_sort)
@@ -160,7 +160,7 @@ impl fhir::visit::Visitor for Wf<'_, '_, '_> {
             .collect_err(&mut self.errors);
     }
 
-    fn visit_struct_def(&mut self, struct_def: &fhir::StructDef) {
+    fn visit_struct_def(&mut self, struct_def: &fhir::StructDef<'genv>) {
         for invariant in struct_def.invariants {
             self.infcx
                 .check_expr(invariant, &rty::Sort::Bool)
@@ -169,7 +169,7 @@ impl fhir::visit::Visitor for Wf<'_, '_, '_> {
         fhir::visit::walk_struct_def(self, struct_def);
     }
 
-    fn visit_enum_def(&mut self, enum_def: &fhir::EnumDef) {
+    fn visit_enum_def(&mut self, enum_def: &fhir::EnumDef<'genv>) {
         for invariant in enum_def.invariants {
             self.infcx
                 .check_expr(invariant, &rty::Sort::Bool)
@@ -195,18 +195,24 @@ impl fhir::visit::Visitor for Wf<'_, '_, '_> {
             .collect_err(&mut self.errors);
     }
 
-    fn visit_fn_decl(&mut self, decl: &fhir::FnDecl) {
+    fn visit_fn_decl(&mut self, decl: &fhir::FnDecl<'genv>) {
         fhir::visit::walk_fn_decl(self, decl);
         self.check_output_locs(decl);
     }
 
-    fn visit_constraint(&mut self, constraint: &fhir::Constraint) {
-        match constraint {
-            fhir::Constraint::Type(loc, ty) => {
+    fn visit_requires(&mut self, requires: &fhir::Requires<'genv>) {
+        self.infcx
+            .check_expr(&requires.pred, &rty::Sort::Bool)
+            .collect_err(&mut self.errors);
+    }
+
+    fn visit_ensures(&mut self, ensures: &fhir::Ensures<'genv>) {
+        match ensures {
+            fhir::Ensures::Type(loc, ty) => {
                 self.infcx.check_loc(loc).collect_err(&mut self.errors);
                 self.visit_ty(ty);
             }
-            fhir::Constraint::Pred(_, pred) => {
+            fhir::Ensures::Pred(pred) => {
                 self.infcx
                     .check_expr(pred, &rty::Sort::Bool)
                     .collect_err(&mut self.errors);
@@ -214,7 +220,7 @@ impl fhir::visit::Visitor for Wf<'_, '_, '_> {
         }
     }
 
-    fn visit_ty(&mut self, ty: &fhir::Ty) {
+    fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         match &ty.kind {
             fhir::TyKind::Indexed(bty, idx) => {
                 let Ok(sort_of_bty) = self.infcx.genv.sort_of_bty(bty).emit(&self.errors) else {
@@ -230,8 +236,9 @@ impl fhir::visit::Visitor for Wf<'_, '_, '_> {
                 }
                 self.visit_bty(bty);
             }
-            fhir::TyKind::Ptr(_, loc) => {
+            fhir::TyKind::StrgRef(_, loc, ty) => {
                 self.infcx.check_loc(loc).collect_err(&mut self.errors);
+                self.visit_ty(ty);
             }
             fhir::TyKind::Constr(pred, ty) => {
                 self.visit_ty(ty);
@@ -243,7 +250,7 @@ impl fhir::visit::Visitor for Wf<'_, '_, '_> {
         }
     }
 
-    fn visit_path(&mut self, path: &fhir::Path) {
+    fn visit_path(&mut self, path: &fhir::Path<'genv>) {
         if let fhir::Res::Def(DefKind::TyAlias, def_id) = path.res {
             let Some(generics) = self
                 .infcx
@@ -279,7 +286,7 @@ fn visit_refine_params(node: &fhir::Node, f: impl FnMut(&fhir::RefineParam) -> R
         err: Option<ErrorGuaranteed>,
     }
 
-    impl<F> fhir::visit::Visitor for RefineParamVisitor<F>
+    impl<F> fhir::visit::Visitor<'_> for RefineParamVisitor<F>
     where
         F: FnMut(&fhir::RefineParam) -> Result,
     {

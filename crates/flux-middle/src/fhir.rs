@@ -467,15 +467,23 @@ pub struct VariantRet<'fhir> {
 pub struct FnDecl<'fhir> {
     pub generics: Generics<'fhir>,
     /// example: vec![(0 <= n), (l: i32)]
-    pub requires: &'fhir [Constraint<'fhir>],
+    pub requires: &'fhir [Requires<'fhir>],
     /// example: vec![(x: StrRef(l))]
-    pub args: &'fhir [Ty<'fhir>],
+    pub inputs: &'fhir [Ty<'fhir>],
     pub output: FnOutput<'fhir>,
     pub span: Span,
     /// Whether the sig was [lifted] from a hir signature
     ///
     /// [lifted]: lift::LiftCtxt::lift_fn_decl
     pub lifted: bool,
+}
+
+/// A predicate required to hold before calling a function.
+#[derive(Clone, Copy)]
+pub struct Requires<'fhir> {
+    /// An (optional) list of universally quanitified parameters
+    pub params: &'fhir [RefineParam<'fhir>],
+    pub pred: Expr<'fhir>,
 }
 
 #[derive(Clone, Copy)]
@@ -489,15 +497,15 @@ pub struct FnSig<'fhir> {
 pub struct FnOutput<'fhir> {
     pub params: &'fhir [RefineParam<'fhir>],
     pub ret: Ty<'fhir>,
-    pub ensures: &'fhir [Constraint<'fhir>],
+    pub ensures: &'fhir [Ensures<'fhir>],
 }
 
 #[derive(Clone, Copy)]
-pub enum Constraint<'fhir> {
+pub enum Ensures<'fhir> {
     /// A type constraint on a location
     Type(PathExpr<'fhir>, Ty<'fhir>),
-    /// A predicate that needs to hold under an (optional) list of universally quantified parameters
-    Pred(&'fhir [RefineParam<'fhir>], Expr<'fhir>),
+    /// A predicate that needs to hold on function exit
+    Pred(Expr<'fhir>),
 }
 
 #[derive(Clone, Copy)]
@@ -522,7 +530,7 @@ pub enum TyKind<'fhir> {
     /// Constrained types `{T | p}` are like existentials but without binders, and are useful
     /// for specifying constraints on indexed values e.g. `{i32[@a] | 0 <= a}`
     Constr(Expr<'fhir>, &'fhir Ty<'fhir>),
-    Ptr(Lifetime, PathExpr<'fhir>),
+    StrgRef(Lifetime, &'fhir PathExpr<'fhir>, &'fhir Ty<'fhir>),
     Ref(Lifetime, MutTy<'fhir>),
     Tuple(&'fhir [Ty<'fhir>]),
     Array(&'fhir Ty<'fhir>, ArrayLen),
@@ -701,9 +709,8 @@ pub enum ParamKind {
     Pound,
     /// An implicitly scoped parameter declared with `x: T` syntax.
     Colon,
-    /// A location declared with `x: &strg T` syntax, the `usize` is the position in the list of
-    /// arguments.
-    Loc(usize),
+    /// A location declared with `x: &strg T` syntax.
+    Loc,
     /// A parameter introduced with `x: T` syntax that we know *syntactically* is always and error
     /// to used inside a refinement. For example, consider the following:
     /// ```ignore
@@ -723,7 +730,7 @@ impl ParamKind {
     }
 
     pub fn is_loc(&self) -> bool {
-        matches!(self, ParamKind::Loc(_))
+        matches!(self, ParamKind::Loc)
     }
 }
 
@@ -870,14 +877,6 @@ impl<Id> ExprRes<Id> {
             (kind, id)
         } else {
             bug!("expected param")
-        }
-    }
-
-    pub fn expect_loc_param(self) -> (usize, Id) {
-        if let ExprRes::Param(ParamKind::Loc(idx), id) = self {
-            (idx, id)
-        } else {
-            bug!("expected loc")
         }
     }
 }
@@ -1147,7 +1146,7 @@ impl fmt::Debug for FnDecl<'_> {
         if !self.requires.is_empty() {
             write!(f, "[{:?}] ", self.requires.iter().format(", "))?;
         }
-        write!(f, "fn({:?}) -> {:?}", self.args.iter().format(", "), self.output)
+        write!(f, "fn({:?}) -> {:?}", self.inputs.iter().format(", "), self.output)
     }
 }
 
@@ -1171,22 +1170,26 @@ impl fmt::Debug for FnOutput<'_> {
     }
 }
 
-impl fmt::Debug for Constraint<'_> {
+impl fmt::Debug for Requires<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !self.params.is_empty() {
+            write!(
+                f,
+                "forall {}.",
+                self.params.iter().format_with(",", |param, f| {
+                    f(&format_args!("{}:{:?}", param.name, param.sort))
+                })
+            )?;
+        }
+        write!(f, "{:?}", self.pred)
+    }
+}
+
+impl fmt::Debug for Ensures<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constraint::Type(loc, ty) => write!(f, "{loc:?}: {ty:?}"),
-            Constraint::Pred(params, e) => {
-                if !params.is_empty() {
-                    write!(
-                        f,
-                        "forall {}.",
-                        params.iter().format_with(",", |param, f| {
-                            f(&format_args!("{}:{:?}", param.name, param.sort))
-                        })
-                    )?;
-                }
-                write!(f, "{e:?}")
-            }
+            Ensures::Type(loc, ty) => write!(f, "{loc:?}: {ty:?}"),
+            Ensures::Pred(e) => write!(f, "{e:?}"),
         }
     }
 }
@@ -1211,7 +1214,7 @@ impl fmt::Debug for Ty<'_> {
                     write!(f, ". {ty:?}}}")
                 }
             }
-            TyKind::Ptr(lft, loc) => write!(f, "ptr<{lft:?}, {loc:?}>"),
+            TyKind::StrgRef(lft, loc, ty) => write!(f, "&{lft:?} strg <{loc:?}: {ty:?}>"),
             TyKind::Ref(lft, mut_ty) => {
                 write!(f, "&{lft:?} {}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
             }

@@ -25,7 +25,7 @@ use super::{
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) fn check(infcx: &InferCtxt, node: &fhir::Node) -> Result {
+pub(crate) fn check<'genv>(infcx: &InferCtxt<'genv, '_>, node: &fhir::Node<'genv>) -> Result {
     ParamUsesChecker::new(infcx).run(|ck| ck.visit_node(node))
 }
 
@@ -48,7 +48,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
         Self { infcx, xi: Default::default(), errors: Errors::new(infcx.genv.sess()) }
     }
 
-    fn run(mut self, f: impl FnOnce(&mut ParamUsesChecker)) -> Result {
+    fn run(mut self, f: impl FnOnce(&mut Self)) -> Result {
         f(&mut self);
         self.errors.into_result()
     }
@@ -114,33 +114,33 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
     }
 }
 
-impl fhir::visit::Visitor for ParamUsesChecker<'_, '_, '_> {
-    fn visit_ty_alias(&mut self, ty_alias: &fhir::TyAlias) {
+impl<'genv> fhir::visit::Visitor<'genv> for ParamUsesChecker<'_, 'genv, '_> {
+    fn visit_ty_alias(&mut self, ty_alias: &fhir::TyAlias<'genv>) {
         fhir::visit::walk_ty_alias(self, ty_alias);
         self.check_params_are_value_determined(ty_alias.params);
     }
 
-    fn visit_struct_def(&mut self, struct_def: &fhir::StructDef) {
+    fn visit_struct_def(&mut self, struct_def: &fhir::StructDef<'genv>) {
         if let fhir::StructKind::Transparent { fields } = struct_def.kind {
             walk_list!(self, visit_field_def, fields);
             self.check_params_are_value_determined(struct_def.params);
         }
     }
 
-    fn visit_variant(&mut self, variant: &fhir::VariantDef) {
+    fn visit_variant(&mut self, variant: &fhir::VariantDef<'genv>) {
         let snapshot = self.xi.snapshot();
         fhir::visit::walk_variant(self, variant);
         self.check_params_are_value_determined(variant.params);
         self.xi.rollback_to(snapshot);
     }
 
-    fn visit_variant_ret(&mut self, ret: &fhir::VariantRet) {
+    fn visit_variant_ret(&mut self, ret: &fhir::VariantRet<'genv>) {
         let snapshot = self.xi.snapshot();
         fhir::visit::walk_variant_ret(self, ret);
         self.xi.rollback_to(snapshot);
     }
 
-    fn visit_refine_arg(&mut self, arg: &fhir::RefineArg) {
+    fn visit_refine_arg(&mut self, arg: &fhir::RefineArg<'genv>) {
         match arg.kind {
             fhir::RefineArgKind::Expr(expr) => {
                 if let fhir::ExprKind::Var(var, _) = &expr.kind {
@@ -158,25 +158,26 @@ impl fhir::visit::Visitor for ParamUsesChecker<'_, '_, '_> {
         }
     }
 
-    fn visit_fn_decl(&mut self, decl: &fhir::FnDecl) {
+    fn visit_fn_decl(&mut self, decl: &fhir::FnDecl<'genv>) {
         let snapshot = self.xi.snapshot();
         fhir::visit::walk_fn_decl(self, decl);
         self.check_params_are_value_determined(decl.generics.refinement_params);
         self.xi.rollback_to(snapshot);
     }
 
-    fn visit_fn_output(&mut self, output: &fhir::FnOutput) {
+    fn visit_fn_output(&mut self, output: &fhir::FnOutput<'genv>) {
         let snapshot = self.xi.snapshot();
         fhir::visit::walk_fn_output(self, output);
         self.check_params_are_value_determined(output.params);
         self.xi.rollback_to(snapshot);
     }
 
-    fn visit_ty(&mut self, ty: &fhir::Ty) {
+    fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         match &ty.kind {
-            fhir::TyKind::Ptr(_, loc) => {
+            fhir::TyKind::StrgRef(_, loc, ty) => {
                 let (_, id) = loc.res.expect_param();
                 self.xi.insert(id, ());
+                self.visit_ty(ty);
             }
             fhir::TyKind::Exists(params, ty) => {
                 self.visit_ty(ty);
@@ -192,11 +193,7 @@ impl fhir::visit::Visitor for ParamUsesChecker<'_, '_, '_> {
         self.check_func_params_uses(expr, true);
     }
 
-    fn visit_path(&mut self, path: &fhir::Path) {
-        fhir::visit::walk_path(self, path);
-    }
-
-    fn visit_path_segment(&mut self, segment: &fhir::PathSegment) {
+    fn visit_path_segment(&mut self, segment: &fhir::PathSegment<'genv>) {
         let is_box = self.infcx.genv.is_box(segment.res);
 
         for (i, arg) in segment.args.iter().enumerate() {

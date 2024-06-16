@@ -2,7 +2,7 @@ mod place_ty;
 
 use std::{iter, ops::ControlFlow};
 
-use flux_common::{dbg::debug_assert_eq3, tracked_span_bug};
+use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug};
 use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
@@ -20,7 +20,7 @@ use itertools::{izip, Itertools};
 use rustc_middle::ty::TyCtxt;
 
 use self::place_ty::{LocKind, PlacesTree};
-use super::rty::{Loc, Sort};
+use super::rty::Sort;
 use crate::{
     checker::errors::CheckerErrKind,
     constraint_gen::{ConstrGen, ConstrReason},
@@ -57,10 +57,6 @@ struct BasicBlockEnvData {
 impl TypeEnv<'_> {
     pub fn new(local_decls: &LocalDecls) -> TypeEnv {
         TypeEnv { bindings: PlacesTree::default(), local_decls }
-    }
-
-    pub fn alloc_universal_loc(&mut self, loc: Loc, place: Place, ty: Ty) {
-        self.bindings.insert(loc, place, LocKind::Universal, ty);
     }
 
     pub fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
@@ -329,6 +325,7 @@ impl BasicBlockEnvShape {
             | TyKind::Uninit
             | TyKind::Param(_)
             | TyKind::Constr(_, _) => ty.clone(),
+            TyKind::StrgRef(..) => bug!("unexpected strong reference inside function"),
         }
     }
 

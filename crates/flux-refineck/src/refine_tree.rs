@@ -440,6 +440,7 @@ impl TypeFolder for Unpacker<'_, '_> {
                 self.rcx.assume_pred(pred.clone());
                 ty.fold_with(self)
             }
+            TyKind::StrgRef(re, path, ty) => Ty::strg_ref(*re, path.clone(), ty.fold_with(self)),
             TyKind::Downcast(..) if !self.shallow => ty.super_fold_with(self),
             _ => ty.clone(),
         }

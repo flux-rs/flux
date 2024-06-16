@@ -17,29 +17,14 @@ use flux_middle::{
 };
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::{FxHashMap, FxHashSet};
-use rustc_hir::def_id::LocalDefId;
-use rustc_middle::{mir::Location, ty::TyCtxt};
-
-pub(crate) struct GhostStatements {
-    at_location: LocationMap,
-    at_edge: EdgeMap,
-}
+use rustc_hir::{def::DefKind, def_id::LocalDefId};
+use rustc_middle::{
+    mir::{Location, START_BLOCK},
+    ty::TyCtxt,
+};
 
 type LocationMap = FxHashMap<Location, Vec<GhostStatement>>;
 type EdgeMap = FxHashMap<BasicBlock, FxHashMap<BasicBlock, Vec<GhostStatement>>>;
-
-pub(crate) enum GhostStatement {
-    Fold(Place),
-    Unfold(Place),
-    Unblock(Place),
-    PtrToBorrow(Place),
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub(crate) enum Point {
-    Location(Location),
-    Edge(BasicBlock, BasicBlock),
-}
 
 pub(crate) fn compute_ghost_statements(
     genv: GlobalEnv,
@@ -52,14 +37,49 @@ pub(crate) fn compute_ghost_statements(
     Ok(data)
 }
 
+pub(crate) enum GhostStatement {
+    Fold(Place),
+    Unfold(Place),
+    Unblock(Place),
+    PtrToBorrow(Place),
+}
+
+impl fmt::Debug for GhostStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GhostStatement::Fold(place) => write!(f, "fold({place:?})"),
+            GhostStatement::Unfold(place) => write!(f, "unfold({place:?})"),
+            GhostStatement::Unblock(place) => write!(f, "unblock({place:?})"),
+            GhostStatement::PtrToBorrow(place) => write!(f, "ptr_to_borrow({place:?})"),
+        }
+    }
+}
+
+pub(crate) struct GhostStatements {
+    at_start: Vec<GhostStatement>,
+    at_location: LocationMap,
+    at_edge: EdgeMap,
+}
+
 impl GhostStatements {
     fn new(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Self> {
         let body = genv.mir(def_id)?;
 
-        let mut stmts = Self { at_location: LocationMap::default(), at_edge: EdgeMap::default() };
+        let mut stmts = Self {
+            at_start: Default::default(),
+            at_location: LocationMap::default(),
+            at_edge: EdgeMap::default(),
+        };
 
-        fold_unfold::add_ghost_statements(&mut stmts, genv, &body)?;
-        points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), def_id)?;
+        // We have fn_sig for function items, but not for closures or generators.
+        let fn_sig = if genv.def_kind(def_id) == DefKind::Closure {
+            None
+        } else {
+            Some(genv.fn_sig(def_id)?)
+        };
+
+        fold_unfold::add_ghost_statements(&mut stmts, genv, &body, fn_sig.as_ref())?;
+        points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
         stmts.add_unblocks(&body);
 
         if config::dump_mir() {
@@ -87,7 +107,10 @@ impl GhostStatements {
 
     fn extend_at(&mut self, point: Point, stmts: impl IntoIterator<Item = GhostStatement>) {
         match point {
-            Point::Location(location) => {
+            Point::FunEntry => {
+                self.at_start.extend(stmts);
+            }
+            Point::BeforeLocation(location) => {
                 self.at_location.entry(location).or_default().extend(stmts);
             }
             Point::Edge(from, to) => {
@@ -107,7 +130,10 @@ impl GhostStatements {
 
     pub(crate) fn statements_at(&self, point: Point) -> impl Iterator<Item = &GhostStatement> {
         match point {
-            Point::Location(location) => self.at_location.get(&location).into_iter().flatten(),
+            Point::FunEntry => Some(&self.at_start).into_iter().flatten(),
+            Point::BeforeLocation(location) => {
+                self.at_location.get(&location).into_iter().flatten()
+            }
             Point::Edge(from, to) => {
                 self.at_edge
                     .get(&from)
@@ -130,8 +156,13 @@ impl GhostStatements {
             body.inner(),
             &mut |pass, w| {
                 match pass {
+                    PassWhere::BeforeBlock(bb) if bb == START_BLOCK => {
+                        for stmt in &self.at_start {
+                            writeln!(w, "    {stmt:?};")?;
+                        }
+                    }
                     PassWhere::BeforeLocation(location) => {
-                        for stmt in self.statements_at(Point::Location(location)) {
+                        for stmt in self.statements_at(Point::BeforeLocation(location)) {
                             writeln!(w, "        {stmt:?};")?;
                         }
                     }
@@ -155,6 +186,19 @@ impl GhostStatements {
             w,
         )
     }
+}
+
+/// A point in the control flow graph where ghost statements can be inserted.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub(crate) enum Point {
+    /// The entry of the function before the first basic block. This is not the same as the first
+    /// location in the first basic block because, for some functions, the first basic block can have
+    /// incoming edges, and we want to execute ghost statements only once.
+    FunEntry,
+    /// The point before a location in a basic block.
+    BeforeLocation(Location),
+    /// An edge between two basic blocks.
+    Edge(BasicBlock, BasicBlock),
 }
 
 struct StatementsAt<'a> {
@@ -196,15 +240,4 @@ fn all_nested_bodies(tcx: TyCtxt, def_id: LocalDefId) -> impl Iterator<Item = Lo
     let mut finder = ClosureFinder { hir, closures: FxHashSet::default() };
     hir::intravisit::Visitor::visit_expr(&mut finder, body_expr);
     finder.closures.into_iter().chain(iter::once(def_id))
-}
-
-impl fmt::Debug for GhostStatement {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            GhostStatement::Fold(place) => write!(f, "fold({place:?})"),
-            GhostStatement::Unfold(place) => write!(f, "unfold({place:?})"),
-            GhostStatement::Unblock(place) => write!(f, "unblock({place:?})"),
-            GhostStatement::PtrToBorrow(place) => write!(f, "ptr_to_borrow({place:?})"),
-        }
-    }
 }
