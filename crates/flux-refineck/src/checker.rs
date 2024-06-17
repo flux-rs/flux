@@ -8,7 +8,7 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         self, fold::TypeFoldable, refining::Refiner, subst::ConstGenericArgs, BaseTy, Binder, Bool,
-        Constraint, CoroutineObligPredicate, EarlyBinder, Expr, Float, FnOutput, FnSig,
+        Constraint, CoroutineObligPredicate, EarlyBinder, Ensures, Expr, Float, FnOutput, FnSig,
         FnTraitPredicate, GenericArg, GenericParamDefKind, Generics, HoleKind, Int, IntTy,
         Mutability, PolyFnSig, Ref, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
@@ -16,8 +16,8 @@ use flux_middle::{
         self,
         mir::{
             self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-            Location, Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
-            TerminatorKind, RETURN_PLACE, START_BLOCK,
+            Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+            RETURN_PLACE, START_BLOCK,
         },
         ty::{self, Const, ConstKind},
     },
@@ -252,13 +252,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             },
             |sort, _| rcx.define_vars(sort),
         );
-        let env = init_env(&mut rcx, &body, &fn_sig, const_generic_args, inherited.config);
+
+        let mut env = init_env(&mut rcx, &body, &fn_sig, const_generic_args, inherited.config);
 
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
         //    to the `resume_arg` place..."
         let resume_ty = if genv.tcx().is_coroutine(def_id.to_def_id()) {
-            Some(fn_sig.args()[1].clone())
+            Some(fn_sig.inputs()[1].clone())
         } else {
             None
         };
@@ -274,8 +275,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),
         };
+
         let const_generic_args = env.const_generic_args();
-        ck.check_goto(rcx, env, START_BLOCK, body.span(), START_BLOCK)?;
+        ck.check_ghost_statements_at(&mut rcx, &mut env, Point::FunEntry, body.span())?;
+        ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
             if ck.visited.contains(bb) {
                 let snapshot = ck.snapshot_at_dominator(bb);
@@ -307,7 +310,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let mut location = Location { block: bb, statement_index: 0 };
         for stmt in &data.statements {
             let span = stmt.source_info.span;
-            self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
+            self.check_ghost_statements_at(
+                &mut rcx,
+                &mut env,
+                Point::BeforeLocation(location),
+                span,
+            )?;
             bug::track_span(span, || {
                 dbg::statement!("start", stmt, rcx, env);
                 self.check_statement(&mut rcx, &mut env, stmt)?;
@@ -322,7 +330,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         if let Some(terminator) = &data.terminator {
             let span = terminator.source_info.span;
-            self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
+            self.check_ghost_statements_at(
+                &mut rcx,
+                &mut env,
+                Point::BeforeLocation(location),
+                span,
+            )?;
             bug::track_span(span, || {
                 dbg::terminator!("start", terminator, rcx, env);
                 let successors =
@@ -513,14 +526,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let output = output.replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
-        for constr in &output.ensures {
-            match constr {
-                Constraint::Type(path, updated_ty, _) => {
-                    let updated_ty = rcx.unpack(updated_ty);
+        for ensures in &output.ensures {
+            match ensures {
+                Ensures::Type(path, updated_ty) => {
+                    let updated_ty = rcx.unpack(&updated_ty);
                     rcx.assume_invariants(&updated_ty, self.check_overflow());
-                    env.update_path(path, updated_ty);
+                    env.update_path(&path, updated_ty);
                 }
-                Constraint::Pred(e) => rcx.assume_pred(e),
+                Ensures::Pred(e) => rcx.assume_pred(e),
             }
         }
 
@@ -691,7 +704,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         .with_span(terminator_span)?;
                 }
             }
-            self.check_goto(rcx, env, from, terminator_span, target)?;
+            self.check_ghost_statements_at(
+                &mut rcx,
+                &mut env,
+                Point::Edge(from, target),
+                terminator_span,
+            )?;
+            self.check_goto(rcx, env, terminator_span, target)?;
         }
         Ok(())
     }
@@ -700,14 +719,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         mut rcx: RefineCtxt,
         mut env: TypeEnv,
-        from: BasicBlock,
         span: Span,
         target: BasicBlock,
     ) -> Result {
-        self.check_ghost_statements_at(&mut rcx, &mut env, Point::Edge(from, target), span)?;
         if self.is_exit_block(target) {
             let location = self.body.terminator_loc(target);
-            self.check_ghost_statements_at(&mut rcx, &mut env, Point::Location(location), span)?;
+            self.check_ghost_statements_at(
+                &mut rcx,
+                &mut env,
+                Point::BeforeLocation(location),
+                span,
+            )?;
             let obligs = self
                 .constr_gen(&rcx, span)
                 .check_ret(&mut rcx, &mut env, &self.output)
@@ -1127,21 +1149,11 @@ fn init_env<'a>(
 ) -> TypeEnv<'a> {
     let mut env = TypeEnv::new(&body.local_decls, const_generic_args);
 
-    for constr in fn_sig.requires() {
-        match constr {
-            rty::Constraint::Type(path, ty, local) => {
-                let loc = path.to_loc().unwrap();
-                let ty = rcx.unpack(ty);
-                rcx.assume_invariants(&ty, config.check_overflow);
-                env.alloc_universal_loc(loc, Place::new(*local, vec![PlaceElem::Deref]), ty);
-            }
-            rty::Constraint::Pred(e) => {
-                rcx.assume_pred(e);
-            }
-        }
+    for requires in fn_sig.requires() {
+        rcx.assume_pred(requires);
     }
 
-    for (local, ty) in body.args_iter().zip(fn_sig.args()) {
+    for (local, ty) in body.args_iter().zip(fn_sig.inputs()) {
         let ty = rcx.unpack(ty);
         rcx.assume_invariants(&ty, config.check_overflow);
         env.alloc_with_ty(local, ty);
@@ -1286,18 +1298,26 @@ fn infer_under_mut_ref_hack(
     actuals: &[Ty],
     fn_sig: EarlyBinder<&PolyFnSig>,
 ) -> Vec<Ty> {
-    iter::zip(actuals, fn_sig.as_ref().skip_binder().as_ref().skip_binder().args())
-        .map(|(actual, formal)| {
-            if let (Ref!(.., Mutability::Mut), Ref!(_, ty, Mutability::Mut)) =
-                (actual.kind(), formal.kind())
-                && let TyKind::Indexed(..) = ty.kind()
-            {
-                rcx.unpacker().unpack_inside_mut_ref(true).unpack(actual)
-            } else {
-                actual.clone()
-            }
-        })
-        .collect()
+    iter::zip(
+        actuals,
+        fn_sig
+            .as_ref()
+            .skip_binder()
+            .as_ref()
+            .skip_binder()
+            .inputs(),
+    )
+    .map(|(actual, formal)| {
+        if let (Ref!(.., Mutability::Mut), Ref!(_, ty, Mutability::Mut)) =
+            (actual.kind(), formal.kind())
+            && let TyKind::Indexed(..) = ty.kind()
+        {
+            rcx.unpacker().unpack_inside_mut_ref(true).unpack(actual)
+        } else {
+            actual.clone()
+        }
+    })
+    .collect()
 }
 
 impl Mode for ShapeMode {

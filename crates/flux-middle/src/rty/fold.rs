@@ -15,7 +15,7 @@ use super::{
     projections,
     subst::{ConstGenericArgs, EVarSubstFolder},
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Constraint,
-    CoroutineObligPredicate, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
+    CoroutineObligPredicate, Ensures, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
     ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, SubsetTy, TraitPredicate,
     TraitRef, Ty, TyKind,
@@ -723,7 +723,7 @@ impl TypeVisitable for FnSig {
         self.requires
             .iter()
             .try_for_each(|constr| constr.visit_with(visitor))?;
-        self.args
+        self.inputs
             .iter()
             .try_for_each(|arg| arg.visit_with(visitor))?;
         self.output.visit_with(visitor)
@@ -733,7 +733,7 @@ impl TypeVisitable for FnSig {
 impl TypeFoldable for FnSig {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let requires = self.requires.try_fold_with(folder)?;
-        let args = self.args.try_fold_with(folder)?;
+        let args = self.inputs.try_fold_with(folder)?;
         let output = self.output.try_fold_with(folder)?;
         Ok(FnSig::new(requires, args, output))
     }
@@ -752,35 +752,34 @@ impl TypeFoldable for FnOutput {
     }
 }
 
-impl TypeVisitable for Constraint {
+impl TypeVisitable for Ensures {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
-            Constraint::Type(path, ty, _) => {
+            Ensures::Type(path, ty) => {
                 path.to_expr().visit_with(visitor)?;
                 ty.visit_with(visitor)
             }
-            Constraint::Pred(e) => e.visit_with(visitor),
+            Ensures::Pred(e) => e.visit_with(visitor),
         }
     }
 }
 
-impl TypeFoldable for Constraint {
+impl TypeFoldable for Ensures {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let c = match self {
-            Constraint::Type(path, ty, local) => {
+            Ensures::Type(path, ty) => {
                 let path_expr = path
                     .to_expr()
                     .try_fold_with(folder)?
                     .normalize(&Default::default());
-                Constraint::Type(
+                Ensures::Type(
                     path_expr.to_path().unwrap_or_else(|| {
                         bug!("invalid path `{path_expr:?}` produced when folding `{self:?}`",)
                     }),
                     ty.try_fold_with(folder)?,
-                    *local,
                 )
             }
-            Constraint::Pred(e) => Constraint::Pred(e.try_fold_with(folder)?),
+            Ensures::Pred(e) => Ensures::Pred(e.try_fold_with(folder)?),
         };
         Ok(c)
     }
@@ -806,6 +805,10 @@ impl TypeSuperVisitable for Ty {
                 idxs.visit_with(visitor)
             }
             TyKind::Exists(exists) => exists.visit_with(visitor),
+            TyKind::StrgRef(_, path, ty) => {
+                path.to_expr().visit_with(visitor)?;
+                ty.visit_with(visitor)
+            }
             TyKind::Ptr(_, path) => path.to_expr().visit_with(visitor),
             TyKind::Constr(pred, ty) => {
                 pred.visit_with(visitor)?;
@@ -835,6 +838,17 @@ impl TypeSuperFoldable for Ty {
                 Ty::indexed(bty.try_fold_with(folder)?, idxs.try_fold_with(folder)?)
             }
             TyKind::Exists(exists) => TyKind::Exists(exists.try_fold_with(folder)?).intern(),
+            TyKind::StrgRef(re, path, ty) => {
+                Ty::strg_ref(
+                    re.try_fold_with(folder)?,
+                    path.to_expr()
+                        .try_fold_with(folder)?
+                        .normalize(&Default::default())
+                        .to_path()
+                        .expect("type folding produced an invalid path"),
+                    ty.try_fold_with(folder)?,
+                )
+            }
             TyKind::Ptr(pk, path) => {
                 let pk = match pk {
                     PtrKind::Mut(re) => PtrKind::Mut(re.try_fold_with(folder)?),

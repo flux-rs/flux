@@ -188,19 +188,18 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
         fn_decl: &fhir::FnDecl,
         expected_fn_sig: &fhir::FnDecl<'genv>,
     ) -> Result<(), ErrorGuaranteed> {
-        if fn_decl.args.len() != expected_fn_sig.args.len() {
+        if fn_decl.inputs.len() != expected_fn_sig.inputs.len() {
             return Err(self.emit_err(errors::FunArgCountMismatch::new(fn_decl, expected_fn_sig)));
         }
-        self.zip_tys(fn_decl.args, expected_fn_sig.args)?;
-        self.zip_constraints(fn_decl.requires)?;
+        self.zip_tys(fn_decl.inputs, expected_fn_sig.inputs)?;
 
         self.zip_ty(&fn_decl.output.ret, &expected_fn_sig.output.ret)?;
-        self.zip_constraints(fn_decl.output.ensures)
+        self.zip_ensures(fn_decl.output.ensures)
     }
 
-    fn zip_constraints(&mut self, constrs: &[fhir::Constraint]) -> Result<(), ErrorGuaranteed> {
-        constrs.iter().try_for_each_exhaust(|constr| {
-            if let fhir::Constraint::Type(loc, ty) = constr {
+    fn zip_ensures(&mut self, ensures: &[fhir::Ensures]) -> Result<(), ErrorGuaranteed> {
+        ensures.iter().try_for_each_exhaust(|ensures| {
+            if let fhir::Ensures::Type(loc, ty) = ensures {
                 let ExprRes::Param(_, id) = loc.res else {
                     span_bug!(loc.span, "unexpected path in loc position")
                 };
@@ -234,12 +233,16 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
                 fhir::TyKind::BaseTy(bty) | fhir::TyKind::Indexed(bty, _),
                 fhir::TyKind::BaseTy(expected_bty),
             ) => self.zip_bty(&bty, &expected_bty),
-            (fhir::TyKind::Ptr(lft, loc), fhir::TyKind::Ref(expected_lft, expected_mut_ty)) => {
+            (
+                fhir::TyKind::StrgRef(lft, loc, ty),
+                fhir::TyKind::Ref(expected_lft, expected_mut_ty),
+            ) => {
                 if expected_mut_ty.mutbl.is_mut() {
                     let ExprRes::Param(_, id) = loc.res else {
                         span_bug!(loc.span, "unexpected path in loc position")
                     };
                     self.zip_lifetime(lft, expected_lft);
+                    self.zip_ty(ty, expected_mut_ty.ty)?;
                     self.locs.insert(id, *expected_mut_ty.ty);
                     Ok(())
                 } else {
@@ -512,9 +515,9 @@ mod errors {
         pub(super) fn new(decl: &fhir::FnDecl, expected_decl: &fhir::FnDecl) -> Self {
             Self {
                 span: decl.span,
-                args: decl.args.len(),
+                args: decl.inputs.len(),
                 expected_span: expected_decl.span,
-                expected_args: expected_decl.args.len(),
+                expected_args: expected_decl.inputs.len(),
             }
         }
     }

@@ -551,7 +551,7 @@ pub(crate) struct ImplicitParamInferer<'a, 'genv, 'tcx> {
 }
 
 impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
-    pub(crate) fn infer(infcx: &'a mut InferCtxt<'genv, 'tcx>, node: &fhir::Node) -> Result {
+    pub(crate) fn infer(infcx: &'a mut InferCtxt<'genv, 'tcx>, node: &fhir::Node<'genv>) -> Result {
         let errors = Errors::new(infcx.genv.sess());
         let mut vis = Self { infcx, errors };
         vis.visit_node(node);
@@ -596,8 +596,8 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
     }
 }
 
-impl fhir::visit::Visitor for ImplicitParamInferer<'_, '_, '_> {
-    fn visit_ty(&mut self, ty: &fhir::Ty) {
+impl<'genv> fhir::visit::Visitor<'genv> for ImplicitParamInferer<'_, 'genv, '_> {
+    fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
             let Ok(sort_of_bty) = self.infcx.genv.sort_of_bty(bty).emit(&self.errors) else {
                 return;

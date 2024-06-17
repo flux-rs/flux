@@ -254,7 +254,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             .expect("item does not have a `FnDecl`");
 
         let generics = self.lift_generics()?;
-        let args = try_alloc_slice!(self.genv, &fn_sig.decl.inputs, |ty| self.lift_ty(ty))?;
+        let inputs = try_alloc_slice!(self.genv, &fn_sig.decl.inputs, |ty| self.lift_ty(ty))?;
 
         let output = fhir::FnOutput {
             params: &[],
@@ -262,7 +262,14 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             ret: self.lift_fn_ret_ty(&fn_sig.decl.output)?,
         };
 
-        Ok(fhir::FnDecl { generics, requires: &[], args, output, span: fn_sig.span, lifted: true })
+        Ok(fhir::FnDecl {
+            generics,
+            requires: &[],
+            inputs,
+            output,
+            span: fn_sig.span,
+            lifted: true,
+        })
     }
 
     fn lift_fn_ret_ty(&mut self, ret_ty: &hir::FnRetTy) -> Result<fhir::Ty<'genv>> {

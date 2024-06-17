@@ -61,7 +61,7 @@ use crate::{
     rty::subst::SortSubst,
     rustc::{
         self,
-        mir::{Local, Place},
+        mir::Place,
         ty::{ConstKind, VariantDef},
     },
 };
@@ -518,27 +518,20 @@ pub type PolyFnSig = Binder<FnSig>;
 
 #[derive(Clone, TyEncodable, TyDecodable)]
 pub struct FnSig {
-    requires: List<Constraint>,
-    args: List<Ty>,
+    requires: List<Expr>,
+    inputs: List<Ty>,
     output: Binder<FnOutput>,
 }
 
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct FnOutput {
     pub ret: Ty,
-    pub ensures: List<Constraint>,
+    pub ensures: List<Ensures>,
 }
 
-pub type Constraints = List<Constraint>;
-
 #[derive(Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
-pub enum Constraint {
-    Type(
-        Path,
-        Ty,
-        /// The local of the argument corresponding to the constraint.
-        Local,
-    ),
+pub enum Ensures {
+    Type(Path, Ty),
     Pred(Expr),
 }
 
@@ -601,6 +594,10 @@ impl Ty {
 
     pub fn projection(alias_ty: AliasTy) -> Ty {
         Self::alias(AliasKind::Projection, alias_ty)
+    }
+
+    pub fn strg_ref(re: Region, path: Path, ty: Ty) -> Ty {
+        TyKind::StrgRef(re, path, ty).intern()
     }
 
     pub fn ptr(pk: impl Into<PtrKind>, path: impl Into<Path>) -> Ty {
@@ -736,6 +733,14 @@ impl Ty {
             TyKind::Alias(kind, alias_ty) => {
                 rustc_middle::ty::Ty::new_alias(tcx, kind.to_rustc(), alias_ty.to_rustc(tcx))
             }
+            TyKind::StrgRef(re, _, ty) => {
+                rustc_middle::ty::Ty::new_ref(
+                    tcx,
+                    re.to_rustc(tcx),
+                    ty.to_rustc(tcx),
+                    Mutability::Mut,
+                )
+            }
             TyKind::Uninit
             | TyKind::Ptr(_, _)
             | TyKind::Discr(_, _)
@@ -807,6 +812,7 @@ pub enum TyKind {
     Exists(Binder<Ty>),
     Constr(Expr, Ty),
     Uninit,
+    StrgRef(Region, Path, Ty),
     Ptr(PtrKind, Path),
     /// This is a bit of a hack. We use this type internally to represent the result of
     /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information
@@ -1121,10 +1127,10 @@ impl FnTraitPredicate {
         };
         let inputs = std::iter::once(env_ty)
             .chain(self.tupled_args.expect_tuple().iter().cloned())
-            .collect_vec();
+            .collect();
 
         let fn_sig = FnSig::new(
-            vec![],
+            List::empty(),
             inputs,
             Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
         );
@@ -1140,10 +1146,10 @@ impl CoroutineObligPredicate {
         let resume_ty = &self.resume_ty;
         let env_ty = Ty::coroutine(self.def_id, resume_ty.clone(), self.upvar_tys.clone());
 
-        let inputs = vec![env_ty, resume_ty.clone()];
+        let inputs = List::from_arr([env_ty, resume_ty.clone()]);
         let output = Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
-        PolyFnSig::new(FnSig::new(vec![], inputs, output), List::from(vars))
+        PolyFnSig::new(FnSig::new(List::empty(), inputs, output), List::from(vars))
     }
 }
 
@@ -1557,20 +1563,16 @@ impl VariantSig {
 }
 
 impl FnSig {
-    pub fn new(
-        requires: impl Into<List<Constraint>>,
-        args: impl Into<List<Ty>>,
-        output: Binder<FnOutput>,
-    ) -> Self {
-        FnSig { requires: requires.into(), args: args.into(), output }
+    pub fn new(requires: List<Expr>, inputs: List<Ty>, output: Binder<FnOutput>) -> Self {
+        FnSig { requires, inputs, output }
     }
 
-    pub fn requires(&self) -> &Constraints {
+    pub fn requires(&self) -> &[Expr] {
         &self.requires
     }
 
-    pub fn args(&self) -> &[Ty] {
-        &self.args
+    pub fn inputs(&self) -> &[Ty] {
+        &self.inputs
     }
 
     pub fn output(&self) -> &Binder<FnOutput> {
@@ -1579,7 +1581,7 @@ impl FnSig {
 }
 
 impl FnOutput {
-    pub fn new(ret: Ty, ensures: impl Into<List<Constraint>>) -> Self {
+    pub fn new(ret: Ty, ensures: impl Into<List<Ensures>>) -> Self {
         Self { ret, ensures: ensures.into() }
     }
 }
@@ -1702,7 +1704,7 @@ impl EarlyBinder<PolyVariant> {
             poly_variant.as_ref().map(|variant| {
                 let ret = variant.ret().shift_in_escaping(1);
                 let output = Binder::new(FnOutput::new(ret, vec![]), List::empty());
-                FnSig::new(vec![], variant.fields.clone(), output)
+                FnSig::new(List::empty(), variant.fields.clone(), output)
             })
         })
     }
@@ -1962,7 +1964,7 @@ impl_internable!(AdtDefData, AdtSortDefData, TyS);
 impl_slice_internable!(
     Ty,
     GenericArg,
-    Constraint,
+    Ensures,
     InferMode,
     Sort,
     GenericParamDef,

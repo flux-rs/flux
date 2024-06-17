@@ -27,7 +27,6 @@ use flux_middle::{
 };
 use rustc_data_structures::stack::ensure_sufficient_stack;
 use rustc_hash::FxHashMap;
-use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_index::{bit_set::BitSet, IndexSlice, IndexVec};
 use rustc_middle::{
     mir::{self, visit::Visitor, BasicBlock, TerminatorEdges},
@@ -46,15 +45,11 @@ pub(crate) fn add_ghost_statements<'tcx>(
     stmts: &mut GhostStatements,
     genv: GlobalEnv<'_, 'tcx>,
     body: &mir::Body<'tcx>,
-    def_id: LocalDefId,
+    fn_sig: Option<&rty::EarlyBinder<rty::PolyFnSig>>,
 ) -> QueryResult {
     let map = Map::new(body);
 
     let mut visitor = CollectPointerToBorrows::new(&map, stmts);
-
-    // We have fn_sig for function items, but not for closures or generators.
-    let fn_sig =
-        if genv.def_kind(def_id) == DefKind::Fn { Some(genv.fn_sig(def_id)?) } else { None };
 
     PointsToAnalysis::new(&map, fn_sig)
         .into_engine(genv.tcx(), body)
@@ -71,12 +66,12 @@ type Results<'a, 'tcx> = rustc_mir_dataflow::Results<'tcx, PointsToAnalysis<'a>>
 /// combine it with the result of a definitely initialized analysis. See module level documentation
 /// for more details.
 struct PointsToAnalysis<'a> {
-    fn_sig: Option<rty::EarlyBinder<rty::PolyFnSig>>,
+    fn_sig: Option<&'a rty::EarlyBinder<rty::PolyFnSig>>,
     map: &'a Map,
 }
 
 impl<'a> PointsToAnalysis<'a> {
-    fn new(map: &'a Map, fn_sig: Option<rty::EarlyBinder<rty::PolyFnSig>>) -> Self {
+    fn new(map: &'a Map, fn_sig: Option<&'a rty::EarlyBinder<rty::PolyFnSig>>) -> Self {
         Self { fn_sig, map }
     }
 
@@ -204,9 +199,9 @@ impl<'a, 'tcx> rustc_mir_dataflow::AnalysisDomain<'tcx> for PointsToAnalysis<'a>
         // Since we are skipping the early binder, we are using the early bound variables as locs instead
         // of fresh names. This is fine because the loc is just used as a unique value for the analysis.
         // We never have late bounds locs.
-        if let Some(fn_sig) = self.fn_sig.as_ref() {
+        if let Some(fn_sig) = self.fn_sig {
             let fn_sig = fn_sig.as_ref().skip_binder().as_ref().skip_binder();
-            for (local, ty) in iter::zip(body.args_iter(), fn_sig.args()) {
+            for (local, ty) in iter::zip(body.args_iter(), fn_sig.inputs()) {
                 if let rty::TyKind::Ptr(_, path) = ty.kind() {
                     let loc = FlatSet::Elem(path.to_loc().unwrap());
                     state.flood_with(mir::PlaceRef { local, projection: &[] }, self.map, loc);
@@ -300,7 +295,7 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
         _statement: &'mir mir::Statement<'tcx>,
         location: mir::Location,
     ) {
-        let point = Point::Location(location);
+        let point = Point::BeforeLocation(location);
         for (place_idx, old_value) in &mut self.before_state {
             let new_value = state.get_idx(*place_idx, self.map);
             if let (FlatSet::Elem(_), FlatSet::Top) = (&old_value, &new_value) {

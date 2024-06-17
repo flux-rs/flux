@@ -504,13 +504,12 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             for surface_requires in &fn_sig.requires {
                 let params = self.desugar_refine_params(&surface_requires.params);
                 let pred = self.desugar_expr(&surface_requires.pred)?;
-                requires.push(fhir::Constraint::Pred(params, pred));
+                requires.push(fhir::Requires { params, pred });
             }
 
             // Bail out if there's an error in the arguments to avoid confusing error messages
-            let args = try_alloc_slice!(self.genv, &fn_sig.args, |arg| {
-                self.desugar_fun_arg(arg, &mut requires)
-            })?;
+            let inputs =
+                try_alloc_slice!(self.genv, &fn_sig.inputs, |arg| self.desugar_fn_input(arg))?;
 
             let output = self.desugar_fn_output(fn_sig.asyncness, &fn_sig.output)?;
 
@@ -519,7 +518,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             let decl = fhir::FnDecl {
                 generics,
                 requires: self.genv.alloc_slice(&requires),
-                args,
+                inputs,
                 output,
                 span: fn_sig.span,
                 lifted: false,
@@ -580,8 +579,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> Result<fhir::FnOutput<'genv>> {
         let ret = self.desugar_asyncness(asyncness, &output.returns);
 
-        let ensures =
-            try_alloc_slice!(self.genv, &output.ensures, |cstr| self.desugar_constraint(cstr))?;
+        let ensures = try_alloc_slice!(self.genv, &output.ensures, |it| self.desugar_ensures(it))?;
 
         let params = self
             .genv
@@ -589,7 +587,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok(fhir::FnOutput { params, ret: ret?, ensures })
     }
 
-    fn desugar_constraint(&mut self, cstr: &surface::Ensures) -> Result<fhir::Constraint<'genv>> {
+    fn desugar_ensures(&mut self, cstr: &surface::Ensures) -> Result<fhir::Ensures<'genv>> {
         match cstr {
             surface::Ensures::Type(loc, ty, node_id) => {
                 let res = self.desugar_loc(*loc, *node_id)?;
@@ -600,22 +598,18 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                     span: loc.span,
                 };
                 let ty = self.desugar_ty(ty)?;
-                Ok(fhir::Constraint::Type(path, ty))
+                Ok(fhir::Ensures::Type(path, ty))
             }
             surface::Ensures::Pred(e) => {
                 let pred = self.desugar_expr(e)?;
-                Ok(fhir::Constraint::Pred(&[], pred))
+                Ok(fhir::Ensures::Pred(pred))
             }
         }
     }
 
-    fn desugar_fun_arg(
-        &mut self,
-        arg: &surface::Arg,
-        requires: &mut Vec<fhir::Constraint<'genv>>,
-    ) -> Result<fhir::Ty<'genv>> {
-        match arg {
-            surface::Arg::Constr(bind, path, pred, node_id) => {
+    fn desugar_fn_input(&mut self, input: &surface::FnInput) -> Result<fhir::Ty<'genv>> {
+        match input {
+            surface::FnInput::Constr(bind, path, pred, node_id) => {
                 let bty = self.desugar_path_to_bty(None, path)?;
 
                 let pred = self.desugar_expr(pred)?;
@@ -630,7 +624,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 let kind = fhir::TyKind::Constr(pred, self.genv.alloc(ty));
                 Ok(fhir::Ty { kind, span })
             }
-            surface::Arg::StrgRef(loc, ty, node_id) => {
+            surface::FnInput::StrgRef(loc, ty, node_id) => {
                 let span = loc.span;
                 let (id, kind) = self.resolve_implicit_param(*node_id).unwrap();
                 let path = fhir::PathExpr {
@@ -640,11 +634,14 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                     span: loc.span,
                 };
                 let ty = self.desugar_ty(ty)?;
-                requires.push(fhir::Constraint::Type(path, ty));
-                let kind = fhir::TyKind::Ptr(self.mk_lft_hole(), path);
+                let kind = fhir::TyKind::StrgRef(
+                    self.mk_lft_hole(),
+                    self.genv.alloc(path),
+                    self.genv.alloc(ty),
+                );
                 Ok(fhir::Ty { kind, span })
             }
-            surface::Arg::Ty(bind, ty, node_id) => {
+            surface::FnInput::Ty(bind, ty, node_id) => {
                 if let Some(bind) = bind
                     && let surface::TyKind::Base(bty) = &ty.kind
                 {
@@ -830,7 +827,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
     #[track_caller]
     fn desugar_loc(&self, ident: surface::Ident, node_id: NodeId) -> Result<ExprRes> {
         let res = self.resolver_output().path_expr_res_map[&node_id];
-        if let ExprRes::Param(fhir::ParamKind::Loc(_), _) = res {
+        if let ExprRes::Param(fhir::ParamKind::Loc, _) = res {
             Ok(res)
         } else {
             let span = ident.span;
