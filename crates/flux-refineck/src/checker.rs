@@ -8,7 +8,7 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         self, fold::TypeFoldable, refining::Refiner, subst::ConstGenericArgs, BaseTy, Binder, Bool,
-        Constraint, CoroutineObligPredicate, EarlyBinder, Ensures, Expr, Float, FnOutput, FnSig,
+        CoroutineObligPredicate, EarlyBinder, Ensures, Expr, Float, FnOutput, FnSig,
         FnTraitPredicate, GenericArg, GenericParamDefKind, Generics, HoleKind, Int, IntTy,
         Mutability, PolyFnSig, Ref, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
@@ -529,9 +529,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         for ensures in &output.ensures {
             match ensures {
                 Ensures::Type(path, updated_ty) => {
-                    let updated_ty = rcx.unpack(&updated_ty);
+                    let updated_ty = rcx.unpack(updated_ty);
                     rcx.assume_invariants(&updated_ty, self.check_overflow());
-                    env.update_path(&path, updated_ty);
+                    env.update_path(path, updated_ty);
                 }
                 Ensures::Pred(e) => rcx.assume_pred(e),
             }

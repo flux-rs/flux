@@ -7,9 +7,9 @@ use flux_middle::{
     intern::List,
     rty::{
         self, evars::EVarSol, fold::TypeFoldable, subst::ConstGenericArgs, AliasTy, BaseTy, Binder,
-        Constraint, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder, Ensures, Expr, ExprKind,
-        FnOutput, GenericArg, HoleKind, InferMode, Lambda, Mutability, Path, PolyFnSig,
-        PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
+        CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder, Ensures, Expr, ExprKind, FnOutput,
+        GenericArg, HoleKind, InferMode, Lambda, Mutability, PolyFnSig, PolyVariant, PtrKind, Ref,
+        Sort, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
