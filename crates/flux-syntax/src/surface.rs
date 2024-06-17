@@ -237,7 +237,7 @@ pub struct FnSig {
     /// example: `requires n > 0`
     pub requires: Vec<Requires>,
     /// example: `i32<@n>`
-    pub args: Vec<Arg>,
+    pub inputs: Vec<FnInput>,
     pub output: FnOutput,
     /// source span
     pub span: Span,
@@ -295,7 +295,7 @@ pub struct TraitRef {
 }
 
 #[derive(Debug)]
-pub enum Arg {
+pub enum FnInput {
     /// example `a: i32{a > 0}`
     Constr(Ident, Path, Expr, NodeId),
     /// example `v: &strg i32`

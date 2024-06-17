@@ -1,7 +1,7 @@
 //! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
-use flux_common::{bug, iter::IterExt};
+use flux_common::bug;
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::{ClosureKind, ParamTy};
@@ -212,14 +212,14 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         fn_sig: &rustc::ty::PolyFnSig,
     ) -> QueryResult<rty::PolyFnSig> {
         self.refine_binders(fn_sig, |fn_sig| {
-            let args = fn_sig
+            let inputs = fn_sig
                 .inputs()
                 .iter()
                 .map(|ty| self.refine_ty(ty))
-                .try_collect_vec()?;
+                .try_collect()?;
             let ret = self.refine_ty(fn_sig.output())?.shift_in_escaping(1);
             let output = rty::Binder::new(rty::FnOutput::new(ret, vec![]), List::empty());
-            Ok(rty::FnSig::new(vec![], args, output))
+            Ok(rty::FnSig::new(List::empty(), inputs, output))
         })
     }
 

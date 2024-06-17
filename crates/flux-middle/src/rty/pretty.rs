@@ -156,7 +156,7 @@ impl Pretty for FnSig {
         if !self.requires.is_empty() {
             w!("[{:?}] ", join!(", ", &self.requires))?;
         }
-        w!("{:?}) -> {:?}", join!(", ", &self.args), &self.output)?;
+        w!("{:?}) -> {:?}", join!(", ", &self.inputs), &self.output)?;
 
         Ok(())
     }
@@ -190,12 +190,12 @@ impl Pretty for FnOutput {
     }
 }
 
-impl Pretty for Constraint {
+impl Pretty for Ensures {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
         match self {
-            Constraint::Type(loc, ty, _) => w!("{:?}: {:?}", ^loc, ty),
-            Constraint::Pred(e) => w!("{:?}", e),
+            Ensures::Type(loc, ty) => w!("{:?}: {:?}", ^loc, ty),
+            Ensures::Pred(e) => w!("{:?}", e),
         }
     }
 }
@@ -240,6 +240,7 @@ impl Pretty for TyS {
                 })
             }
             TyKind::Uninit => w!("uninit"),
+            TyKind::StrgRef(re, loc, ty) => w!("&{:?} strg <{:?}: {:?}>", re, loc, ty),
             TyKind::Ptr(pk, loc) => w!("ptr({:?}, {:?})", pk, loc),
             TyKind::Discr(adt_def, place) => w!("discr({:?}, {:?})", adt_def.did(), ^place),
             TyKind::Constr(pred, ty) => {
@@ -438,7 +439,7 @@ impl Pretty for DebruijnIndex {
 }
 
 impl_debug_with_default_cx!(
-    Constraint,
+    Ensures,
     Sort,
     TyS => "ty",
     BaseTy,

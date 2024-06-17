@@ -32,7 +32,6 @@ use rustc_hir::{
 };
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
-    mir::Local,
     ty::{self, AssocItem, AssocKind, BoundVar},
 };
 use rustc_span::{
@@ -329,13 +328,13 @@ pub(crate) fn conv_fn_decl<'genv>(
     env.push_layer(Layer::list(&cx, late_bound_regions.len() as u32, &[])?);
 
     let mut requires = vec![];
-    for constr in decl.requires {
-        requires.push(cx.conv_constr(&mut env, constr)?);
+    for req in decl.requires {
+        requires.push(cx.conv_requires(&mut env, req)?);
     }
 
-    let mut args = vec![];
-    for ty in decl.args {
-        args.push(cx.conv_ty(&mut env, ty)?);
+    let mut inputs = vec![];
+    for ty in decl.inputs {
+        inputs.push(cx.conv_ty(&mut env, ty)?);
     }
 
     let output = cx.conv_fn_output(&mut env, &decl.output)?;
@@ -346,7 +345,7 @@ pub(crate) fn conv_fn_decl<'genv>(
         .cloned()
         .collect();
 
-    let res = rty::PolyFnSig::new(rty::FnSig::new(requires, args, output), vars);
+    let res = rty::PolyFnSig::new(rty::FnSig::new(requires.into(), inputs.into(), output), vars);
     Ok(rty::EarlyBinder(res))
 }
 
@@ -555,10 +554,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         env.push_layer(Layer::list(self, 0, output.params)?);
 
         let ret = self.conv_ty(env, &output.ret)?;
-        let ensures: List<rty::Constraint> = output
+        let ensures: List<rty::Ensures> = output
             .ensures
             .iter()
-            .map(|constr| self.conv_constr(env, constr))
+            .map(|ens| self.conv_ensures(env, ens))
             .try_collect()?;
         let output = rty::FnOutput::new(ret, ensures);
 
@@ -648,31 +647,23 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_constr(
-        &self,
-        env: &mut Env,
-        constr: &fhir::Constraint,
-    ) -> QueryResult<rty::Constraint> {
-        match constr {
-            fhir::Constraint::Type(loc, ty) => {
-                let (idx, _) = loc.res.expect_loc_param();
-                Ok(rty::Constraint::Type(
-                    env.lookup(loc).to_path(),
-                    self.conv_ty(env, ty)?,
-                    Local::from_usize(idx + 1),
-                ))
+    fn conv_requires(&self, env: &mut Env, requires: &fhir::Requires) -> QueryResult<rty::Expr> {
+        if requires.params.is_empty() {
+            self.conv_expr(env, &requires.pred)
+        } else {
+            env.push_layer(Layer::list(self, 0, requires.params)?);
+            let pred = self.conv_expr(env, &requires.pred)?;
+            let sorts = env.pop_layer().into_bound_vars(self.genv)?;
+            Ok(rty::Expr::forall(rty::Binder::new(pred, sorts)))
+        }
+    }
+
+    fn conv_ensures(&self, env: &mut Env, ensures: &fhir::Ensures) -> QueryResult<rty::Ensures> {
+        match ensures {
+            fhir::Ensures::Type(loc, ty) => {
+                Ok(rty::Ensures::Type(env.lookup(loc).to_path(), self.conv_ty(env, ty)?))
             }
-            fhir::Constraint::Pred(params, pred) => {
-                let pred = if params.is_empty() {
-                    self.conv_expr(env, pred)?
-                } else {
-                    env.push_layer(Layer::list(self, 0, params)?);
-                    let pred = self.conv_expr(env, pred)?;
-                    let sorts = env.pop_layer().into_bound_vars(self.genv)?;
-                    rty::Expr::forall(rty::Binder::new(pred, sorts))
-                };
-                Ok(rty::Constraint::Pred(pred))
-            }
+            fhir::Ensures::Pred(pred) => Ok(rty::Ensures::Pred(self.conv_expr(env, pred)?)),
         }
     }
 
@@ -725,9 +716,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     Ok(rty::Ty::exists(rty::Binder::new(ty, sorts)))
                 }
             }
-            fhir::TyKind::Ptr(lft, loc) => {
-                let region = self.conv_lifetime(env, *lft);
-                Ok(rty::Ty::ptr(rty::PtrKind::Mut(region), env.lookup(loc).to_path()))
+            fhir::TyKind::StrgRef(lft, loc, ty) => {
+                let re = self.conv_lifetime(env, *lft);
+                let ty = self.conv_ty(env, ty)?;
+                Ok(rty::Ty::strg_ref(re, env.lookup(loc).to_path(), ty))
             }
             fhir::TyKind::Ref(lft, fhir::MutTy { ty, mutbl }) => {
                 let region = self.conv_lifetime(env, *lft);

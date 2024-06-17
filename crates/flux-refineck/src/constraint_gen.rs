@@ -5,15 +5,13 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        self, evars::EVarSol, fold::TypeFoldable, AliasTy, BaseTy, Binder, Constraint,
-        CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder, Expr, ExprKind, FnOutput, GenericArg,
-        HoleKind, InferMode, Lambda, Mutability, Path, PolyFnSig, PolyVariant, PtrKind, Ref, Sort,
-        Ty, TyKind, Var,
+        self, evars::EVarSol, fold::TypeFoldable, AliasTy, BaseTy, Binder, CoroutineObligPredicate,
+        ESpan, EVarGen, EarlyBinder, Ensures, Expr, ExprKind, FnOutput, GenericArg, HoleKind,
+        InferMode, Lambda, Mutability, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
 use itertools::{izip, Itertools};
-use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin::BoundRegion};
 use rustc_middle::ty::Variance;
@@ -163,7 +161,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         let refine_args = infcx.instantiate_refine_args(genv, callee_def_id)?;
 
         // Instantiate function signature and normalize it
-        let inst_fn_sig = fn_sig
+        let fn_sig = fn_sig
             .instantiate(&generic_args, &refine_args)
             .replace_bound_vars(
                 |br| {
@@ -184,29 +182,21 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             List::empty()
         };
 
-        // Check requires predicates and collect type constraints
-        let mut requires = FxHashMap::default();
-        for constr in inst_fn_sig.requires() {
-            match constr {
-                Constraint::Type(path, ty, _) => {
-                    requires.insert(path.clone(), ty);
-                }
-                Constraint::Pred(pred) => {
-                    infcx.check_pred(rcx, pred);
-                }
-            }
+        // Check requires predicates
+        for requires in fn_sig.requires() {
+            infcx.check_pred(rcx, requires);
         }
 
         // Check arguments
-        for (actual, formal) in iter::zip(actuals, inst_fn_sig.args()) {
+        for (actual, formal) in iter::zip(actuals, fn_sig.inputs()) {
             let (formal, pred) = formal.unconstr();
             infcx.check_pred(rcx, &pred);
             // TODO(pack-closure): Generalize/refactor to reuse for mutable closures
             match (actual.kind(), formal.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::Ptr(PtrKind::Mut(_), path2)) => {
-                    let bound = requires[path2];
+                (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
+                    let ty1 = env.get(path1);
                     infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
-                    infcx.check_type_constr(rcx, env, path1, bound)?;
+                    infcx.subtyping(rcx, &ty1, ty2)?;
                 }
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
                     let ty = env.block_with(genv, path, bound.clone())?;
@@ -243,7 +233,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         let evars_sol = infcx.solve()?;
         env.replace_evars(&evars_sol);
         rcx.replace_evars(&evars_sol);
-        let output = inst_fn_sig.output().replace_evars(&evars_sol);
+        let output = fn_sig.output().replace_evars(&evars_sol);
 
         Ok((output, Obligations::new(obligs, snapshot)))
     }
@@ -263,7 +253,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
 
         infcx.subtyping(rcx, &ret_place_ty, &output.ret)?;
         for constraint in &output.ensures {
-            infcx.check_constraint(rcx, env, constraint)?;
+            infcx.check_ensures(rcx, env, constraint)?;
         }
 
         let obligs = infcx.obligations();
@@ -435,27 +425,19 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         rcx.check_pred(pred, self.tag);
     }
 
-    fn check_type_constr(
+    fn check_ensures(
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        path: &Path,
-        ty: &Ty,
-    ) -> Result {
-        let actual_ty = env.get(path);
-        self.subtyping(rcx, &actual_ty, ty)
-    }
-
-    fn check_constraint(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        env: &mut TypeEnv,
-        constraint: &Constraint,
+        ensures: &Ensures,
     ) -> Result {
         let rcx = &mut rcx.branch();
-        match constraint {
-            Constraint::Type(path, ty, _) => self.check_type_constr(rcx, env, path, ty),
-            Constraint::Pred(e) => {
+        match ensures {
+            Ensures::Type(path, ty) => {
+                let actual_ty = env.get(path);
+                self.subtyping(rcx, &actual_ty, ty)
+            }
+            Ensures::Pred(e) => {
                 rcx.check_pred(e, self.tag);
                 Ok(())
             }
