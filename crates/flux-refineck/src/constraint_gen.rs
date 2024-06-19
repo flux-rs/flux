@@ -6,10 +6,9 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        self, evars::EVarSol, fold::TypeFoldable, subst::ConstGenericArgs, AliasTy, BaseTy, Binder,
-        CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder, Ensures, Expr, ExprKind, FnOutput,
-        GenericArg, HoleKind, InferMode, Lambda, Mutability, PolyFnSig, PolyVariant, PtrKind, Ref,
-        Sort, Ty, TyKind, Var,
+        self, evars::EVarSol, fold::TypeFoldable, AliasTy, BaseTy, Binder, CoroutineObligPredicate,
+        ESpan, EVarGen, EarlyBinder, Ensures, Expr, ExprKind, FnOutput, GenericArg, HoleKind,
+        InferMode, Lambda, Mutability, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
     },
     rustc::mir::{BasicBlock, Place},
 };
@@ -140,35 +139,35 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             .collect()
     }
 
-    fn call_const_generic_args(
-        tcx: &rustc_middle::ty::TyCtxt,
-        env: &TypeEnv,
-        generic_args: &[GenericArg],
-    ) -> ConstGenericArgs {
-        let mut const_generic_args = ConstGenericArgs::empty();
-        for (i, arg) in generic_args.iter().enumerate() {
-            if let GenericArg::Const(c) = arg {
-                let expr = match c.kind {
-                    flux_middle::rustc::ty::ConstKind::Param(p) => {
-                        Some(env.const_generic_args().lookup(p.index))
-                    }
-                    flux_middle::rustc::ty::ConstKind::Value(value) => {
-                        match value.try_to_target_usize(*tcx) {
-                            Ok(value) => {
-                                let value = value as u128;
-                                Some(Expr::constant(rty::Constant::from(value)))
-                            }
-                            _ => None,
-                        }
-                    }
-                };
-                if let Some(expr) = expr {
-                    const_generic_args.insert(i as u32, expr);
-                }
-            }
-        }
-        const_generic_args
-    }
+    // TODO:CUT fn call_const_generic_args(
+    // TODO:CUT     tcx: &rustc_middle::ty::TyCtxt,
+    // TODO:CUT     env: &TypeEnv,
+    // TODO:CUT     generic_args: &[GenericArg],
+    // TODO:CUT ) -> ConstGenericArgs {
+    // TODO:CUT     let mut const_generic_args = ConstGenericArgs::empty();
+    // TODO:CUT     for (i, arg) in generic_args.iter().enumerate() {
+    // TODO:CUT         if let GenericArg::Const(c) = arg {
+    // TODO:CUT             let expr = match c.kind {
+    // TODO:CUT                 flux_middle::rustc::ty::ConstKind::Param(p) => {
+    // TODO:CUT                     Some(env.const_generic_args().lookup(p.index))
+    // TODO:CUT                 }
+    // TODO:CUT                 flux_middle::rustc::ty::ConstKind::Value(value) => {
+    // TODO:CUT                     match value.try_to_target_usize(*tcx) {
+    // TODO:CUT                         Ok(value) => {
+    // TODO:CUT                             let value = value as u128;
+    // TODO:CUT                             Some(Expr::constant(rty::Constant::from(value)))
+    // TODO:CUT                         }
+    // TODO:CUT                         _ => None,
+    // TODO:CUT                     }
+    // TODO:CUT                 }
+    // TODO:CUT             };
+    // TODO:CUT             if let Some(expr) = expr {
+    // TODO:CUT                 const_generic_args.insert(i as u32, expr);
+    // TODO:CUT             }
+    // TODO:CUT         }
+    // TODO:CUT     }
+    // TODO:CUT     const_generic_args
+    // TODO:CUT }
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn check_fn_call(
@@ -183,7 +182,6 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         let genv = self.genv;
         let span = self.span;
 
-        let tcx = self.genv.tcx();
         let mut infcx = self.infcx(rcx, ConstrReason::Call);
         let snapshot = rcx.snapshot();
 
@@ -192,8 +190,6 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
 
         // Generate fresh inference variables for refinement arguments
         let refine_args = infcx.instantiate_refine_args(genv, callee_def_id)?;
-
-        let const_generic_args = Self::call_const_generic_args(&tcx, env, &generic_args);
 
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig

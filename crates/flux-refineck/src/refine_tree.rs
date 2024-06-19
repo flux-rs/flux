@@ -9,6 +9,7 @@ use flux_common::{
     iter::IterExt,
 };
 use flux_middle::{
+    intern::List,
     queries::QueryResult,
     rty::{
         box_args,
@@ -21,6 +22,7 @@ use flux_middle::{
     },
 };
 use itertools::Itertools;
+use rustc_middle::ty::ParamConst;
 
 use crate::{
     constraint_gen::Tag,
@@ -120,7 +122,7 @@ impl Snapshot {
 #[derive(PartialEq, Eq)]
 pub(crate) struct Scope {
     bindings: IndexVec<Name, Sort>,
-    // TODO:CONSTGENERICS: reftgenerics: List<(ConstParam, Sort)>,
+    reftgenerics: List<(ParamConst, Sort)>,
 }
 
 impl Scope {
@@ -201,7 +203,7 @@ impl WeakNodePtr {
 }
 
 enum NodeKind {
-    Conj, // TODO:CONSTGENERIC: Root(List<(ConstParam, Sort)>)
+    Root(List<(ParamConst, Sort)>),
     Comment(String),
     ForAll(Name, Sort),
     Assumption(Expr),
@@ -210,9 +212,14 @@ enum NodeKind {
 }
 
 impl RefineTree {
-    pub(crate) fn new() -> RefineTree {
+    pub(crate) fn new(const_params: List<(ParamConst, Sort)>) -> RefineTree {
         // TODO:CONSTGENERIC: Root(List<(ConstParam, Sort)>)
-        let root = Node { kind: NodeKind::Conj, nbindings: 0, parent: None, children: vec![] };
+        let root = Node {
+            kind: NodeKind::Root(const_params),
+            nbindings: 0,
+            parent: None,
+            children: vec![],
+        };
         let root = NodePtr(Rc::new(RefCell::new(root)));
         RefineTree { root }
     }
@@ -518,7 +525,7 @@ impl Node {
                     })
                     .for_each(drop);
             }
-            NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(..) => {
+            NodeKind::Comment(_) | NodeKind::Root(_) | NodeKind::ForAll(..) => {
                 self.children
                     .extract_if(|child| matches!(&child.borrow().kind, NodeKind::True))
                     .for_each(drop);
@@ -542,13 +549,13 @@ impl Node {
             NodeKind::Head(pred, _) => {
                 *pred = pred.replace_evars(sol);
             }
-            NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(..) | NodeKind::True => {}
+            NodeKind::Comment(_) | NodeKind::Root(_) | NodeKind::ForAll(..) | NodeKind::True => {}
         }
     }
 
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<Option<fixpoint::Constraint>> {
         let cstr = match &self.kind {
-            NodeKind::Comment(_) | NodeKind::Conj | NodeKind::ForAll(_, Sort::Loc) => {
+            NodeKind::Comment(_) | NodeKind::Root | NodeKind::ForAll(_, Sort::Loc) => {
                 children_to_fixpoint(cx, &self.children)?
             }
             NodeKind::ForAll(name, sort) => {
@@ -655,7 +662,7 @@ impl TypeVisitable for NodePtr {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         let node = self.borrow();
         match &node.kind {
-            NodeKind::Conj | NodeKind::Comment(_) | NodeKind::True => {}
+            NodeKind::Root | NodeKind::Comment(_) | NodeKind::True => {}
             NodeKind::Assumption(pred) | NodeKind::Head(pred, _) => pred.visit_with(visitor)?,
             NodeKind::ForAll(_, sort) => sort.visit_with(visitor)?,
         }
@@ -697,7 +704,7 @@ mod pretty {
     fn flatten_conjs(nodes: &[NodePtr]) -> Vec<NodePtr> {
         fn go(ptr: &NodePtr, children: &mut Vec<NodePtr>) {
             let node = ptr.borrow();
-            if let NodeKind::Conj = node.kind {
+            if let NodeKind::Root = node.kind {
                 for child in &node.children {
                     go(child, children);
                 }
@@ -752,7 +759,7 @@ mod pretty {
                     w!("@ {}", ^comment)?;
                     w!(PadAdapter::wrap_fmt(f, 2), "\n{:?}", join!("\n", &node.children))
                 }
-                NodeKind::Conj => {
+                NodeKind::Root => {
                     let nodes = flatten_conjs(slice::from_ref(self));
                     w!("{:?}", join!("\n", nodes))
                 }

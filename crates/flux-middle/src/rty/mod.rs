@@ -1955,6 +1955,7 @@ impl_slice_internable!(
     BoundVariableKind,
     RefineParam,
     AssocRefinement,
+    (ParamConst, Sort)
 );
 
 #[macro_export]

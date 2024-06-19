@@ -251,12 +251,12 @@ pub struct EarlyReftParam {
     pub name: Symbol,
 }
 
-// TODO: should use ParamConst but cannot due to `Encodable` requirement...
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
-pub struct ConstParam {
-    pub index: u32,
-    pub name: Symbol,
-}
+// // TODO: should use ParamConst but cannot due to `Encodable` requirement...
+// #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+// pub struct ConstParam {
+//     pub index: u32,
+//     pub name: Symbol,
+// }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable, Debug)]
 pub struct BoundReft {
@@ -264,22 +264,22 @@ pub struct BoundReft {
     pub kind: BoundReftKind,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
 pub enum Var {
     Free(Name),
     LateBound(DebruijnIndex, BoundReft),
     EarlyParam(EarlyReftParam),
     EVar(EVar),
-    ConstGeneric(ConstParam),
+    ConstGeneric(ParamConst),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
 pub struct Path {
     pub loc: Loc,
     projection: List<FieldIdx>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
 pub enum Loc {
     Local(Local),
     Var(Var),
@@ -442,7 +442,6 @@ impl Expr {
     }
 
     pub fn const_generic(param: ParamConst, espan: Option<ESpan>) -> Expr {
-        let param = ConstParam { index: param.index, name: param.name };
         ExprKind::Var(Var::ConstGeneric(param)).intern_at(espan)
     }
 

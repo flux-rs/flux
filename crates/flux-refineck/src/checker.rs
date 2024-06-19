@@ -7,10 +7,10 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{
-        self, fold::TypeFoldable, refining::Refiner, subst::ConstGenericArgs, BaseTy, Binder, Bool,
-        CoroutineObligPredicate, EarlyBinder, Ensures, Expr, Float, FnOutput, FnSig,
-        FnTraitPredicate, GenericArg, GenericParamDefKind, Generics, HoleKind, Int, IntTy,
-        Mutability, PolyFnSig, Ref, Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
+        self, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, CoroutineObligPredicate,
+        EarlyBinder, Ensures, Expr, Float, FnOutput, FnSig, FnTraitPredicate, GenericArg,
+        GenericParamDefKind, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref,
+        Region::ReStatic, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -33,7 +33,7 @@ use rustc_index::bit_set::BitSet;
 use rustc_infer::infer::NllRegionVariableOrigin;
 use rustc_middle::{
     mir::{SourceInfo, SwitchTargets},
-    ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
+    ty::{ParamConst, TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
 };
 use rustc_span::{sym, Span};
 
@@ -125,7 +125,6 @@ pub(crate) trait Mode: Sized {
         ck: &mut Checker<'ck, '_, '_, Self>,
         rcx: &mut RefineCtxt,
         bb: BasicBlock,
-        const_generic_args: &ConstGenericArgs,
     ) -> TypeEnv<'ck>;
 
     fn check_goto_join_point(
@@ -170,7 +169,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
     ) -> Result<ShapeResult> {
         dbg::shape_mode_span!(genv.tcx(), def_id).in_scope(|| {
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
-            let mut refine_tree = RefineTree::new();
+            let mut refine_tree = RefineTree::new(List::default());
             let mut rcx = refine_tree.refine_ctxt_at_root();
             let inherited = Inherited::new(genv, &mut rcx, def_id, &mut mode, ghost_stmts, config)?;
             Checker::run(
@@ -186,6 +185,25 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
     }
 }
 
+fn const_params(
+    genv: GlobalEnv,
+    def_id: LocalDefId,
+    span: Span,
+) -> Result<List<(ParamConst, Sort)>> {
+    let generics = genv.generics_of(def_id).with_span(span)?;
+    let mut res = vec![];
+    for generic_param in &generics.params {
+        if let GenericParamDefKind::Const { .. } = generic_param.kind
+            && let Some(local_def_id) = generic_param.def_id.as_local()
+            && let Some(sort) = genv.sort_of_generic_param(local_def_id).with_span(span)?
+        {
+            let param_const = ParamConst { name: generic_param.name, index: generic_param.index };
+            res.push((param_const, sort));
+        }
+    }
+    Ok(List::from_vec(res))
+}
+
 impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
     pub(crate) fn run_in_refine_mode(
         genv: GlobalEnv<'genv, 'tcx>,
@@ -194,10 +212,12 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore)> {
-        let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx().def_span(def_id))?;
+        let span = genv.tcx().def_span(def_id);
+        let fn_sig = genv.fn_sig(def_id).with_span(span)?;
 
         let mut kvars = fixpoint_encoding::KVarStore::new();
-        let mut refine_tree = RefineTree::new();
+        let const_params = const_params(genv, def_id, span)?;
+        let mut refine_tree = RefineTree::new(const_params);
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
@@ -227,17 +247,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let mut const_generic_args = ConstGenericArgs::empty();
-        for generic_param in &generics.params {
-            if let GenericParamDefKind::Const { .. } = generic_param.kind
-                && let Some(local_def_id) = generic_param.def_id.as_local()
-                && let Some(sort) = genv.sort_of_generic_param(local_def_id).with_span(span)?
-            {
-                let generic_expr = rcx.define_vars(&sort);
-                const_generic_args.insert(generic_param.index, generic_expr);
-            }
-        }
-
         let poly_sig: Binder<FnSig> = poly_sig
             .instantiate_identity(&inherited.refine_params)
             .normalize_projections(genv, &body.infcx, def_id.to_def_id(), &inherited.refine_params)
@@ -253,7 +262,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             |sort, _| rcx.define_vars(sort),
         );
 
-        let mut env = init_env(&mut rcx, &body, &fn_sig, const_generic_args, inherited.config);
+        let mut env = init_env(&mut rcx, &body, &fn_sig, inherited.config);
 
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
@@ -276,7 +285,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),
         };
 
-        let const_generic_args = env.const_generic_args();
         ck.check_ghost_statements_at(&mut rcx, &mut env, Point::FunEntry, body.span())?;
         ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -288,7 +296,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
             let snapshot = ck.snapshot_at_dominator(bb);
             let mut rcx = refine_tree.refine_ctxt_at(snapshot).unwrap();
-            let mut env = M::enter_basic_block(&mut ck, &mut rcx, bb, &const_generic_args);
+            let mut env = M::enter_basic_block(&mut ck, &mut rcx, bb);
             env.unpack(&mut rcx, ck.config().check_overflow);
             ck.check_basic_block(rcx, env, bb)?;
         }
@@ -1144,10 +1152,9 @@ fn init_env<'a>(
     rcx: &mut RefineCtxt,
     body: &'a Body,
     fn_sig: &FnSig,
-    const_generic_args: ConstGenericArgs,
     config: CheckerConfig,
 ) -> TypeEnv<'a> {
-    let mut env = TypeEnv::new(&body.local_decls, const_generic_args);
+    let mut env = TypeEnv::new(&body.local_decls);
 
     for requires in fn_sig.requires() {
         rcx.assume_pred(requires);
@@ -1340,10 +1347,8 @@ impl Mode for ShapeMode {
         ck: &mut Checker<'a, '_, '_, ShapeMode>,
         _rcx: &mut RefineCtxt,
         bb: BasicBlock,
-        const_generic_args: &ConstGenericArgs,
     ) -> TypeEnv<'a> {
-        ck.inherited.mode.bb_envs[&ck.def_id][&bb]
-            .enter(&ck.body.local_decls, const_generic_args.clone())
+        ck.inherited.mode.bb_envs[&ck.def_id][&bb].enter(&ck.body.local_decls)
     }
 
     fn check_goto_join_point(
@@ -1417,13 +1422,8 @@ impl Mode for RefineMode {
         ck: &mut Checker<'ck, '_, '_, RefineMode>,
         rcx: &mut RefineCtxt,
         bb: BasicBlock,
-        const_generic_args: &ConstGenericArgs,
     ) -> TypeEnv<'ck> {
-        ck.inherited.mode.bb_envs[&ck.def_id][&bb].enter(
-            rcx,
-            &ck.body.local_decls,
-            const_generic_args.clone(),
-        )
+        ck.inherited.mode.bb_envs[&ck.def_id][&bb].enter(rcx, &ck.body.local_decls)
     }
 
     fn check_goto_join_point(

@@ -10,7 +10,7 @@ use flux_middle::{
         canonicalize::Hoister,
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        subst::{ConstGenericArgs, RegionSubst},
+        subst::RegionSubst,
         BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Lambda, Mutability,
         Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
@@ -36,7 +36,6 @@ type Result<T = ()> = std::result::Result<T, CheckerErrKind>;
 pub struct TypeEnv<'a> {
     bindings: PlacesTree,
     local_decls: &'a LocalDecls,
-    const_generic_args: ConstGenericArgs,
 }
 
 pub struct BasicBlockEnvShape {
@@ -56,16 +55,12 @@ struct BasicBlockEnvData {
 }
 
 impl TypeEnv<'_> {
-    pub fn new(local_decls: &LocalDecls, const_generic_args: ConstGenericArgs) -> TypeEnv {
-        TypeEnv { bindings: PlacesTree::default(), local_decls, const_generic_args }
-    }
-
-    pub fn const_generic_args(&self) -> ConstGenericArgs {
-        self.const_generic_args.clone()
+    pub fn new(local_decls: &LocalDecls) -> TypeEnv {
+        TypeEnv { bindings: PlacesTree::default(), local_decls }
     }
 
     pub fn index_of_param_const(&self, param_const: &ParamConst) -> Expr {
-        self.const_generic_args.lookup(param_const.index)
+        Expr::const_generic(*param_const, None)
     }
 
     pub fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
@@ -296,12 +291,8 @@ impl TypeEnv<'_> {
 }
 
 impl BasicBlockEnvShape {
-    pub fn enter<'a>(
-        &self,
-        local_decls: &'a LocalDecls,
-        const_generic_args: ConstGenericArgs,
-    ) -> TypeEnv<'a> {
-        TypeEnv { bindings: self.bindings.clone(), local_decls, const_generic_args }
+    pub fn enter<'a>(&self, local_decls: &'a LocalDecls) -> TypeEnv<'a> {
+        TypeEnv { bindings: self.bindings.clone(), local_decls }
     }
 
     fn new(scope: Scope, env: TypeEnv) -> Result<BasicBlockEnvShape> {
@@ -629,7 +620,6 @@ impl BasicBlockEnv {
         &self,
         rcx: &mut RefineCtxt,
         local_decls: &'a LocalDecls,
-        const_generic_args: ConstGenericArgs,
     ) -> TypeEnv<'a> {
         let data = self
             .data
@@ -637,7 +627,7 @@ impl BasicBlockEnv {
         for constr in &data.constrs {
             rcx.assume_pred(constr);
         }
-        TypeEnv { bindings: data.bindings, local_decls, const_generic_args }
+        TypeEnv { bindings: data.bindings, local_decls }
     }
 
     pub(crate) fn scope(&self) -> &Scope {

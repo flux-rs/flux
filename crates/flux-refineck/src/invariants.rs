@@ -1,11 +1,7 @@
 use flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::ErrorGuaranteed;
-use flux_middle::{
-    fhir,
-    global_env::GlobalEnv,
-    rty::{self},
-};
+use flux_middle::{fhir, global_env::GlobalEnv, intern::List, rty};
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::{Span, DUMMY_SP};
 
@@ -43,7 +39,7 @@ fn check_invariant(
     invariant: &rty::Invariant,
     checker_config: CheckerConfig,
 ) -> Result<(), ErrorGuaranteed> {
-    let mut refine_tree = RefineTree::new();
+    let mut refine_tree = RefineTree::new(List::empty());
 
     for variant_idx in adt_def.variants().indices() {
         let mut rcx = refine_tree.refine_ctxt_at_root();
