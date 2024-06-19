@@ -239,7 +239,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
 
         let poly_sig: Binder<FnSig> = poly_sig
-            .instantiate_identity(&inherited.refine_params, &const_generic_args)
+            .instantiate_identity(&inherited.refine_params)
             .normalize_projections(genv, &body.infcx, def_id.to_def_id(), &inherited.refine_params)
             .with_span(span)?;
 

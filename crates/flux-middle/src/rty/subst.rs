@@ -252,7 +252,6 @@ pub(crate) struct GenericsSubstFolder<'a, D> {
     current_index: DebruijnIndex,
     delegate: D,
     refinement_args: &'a [Expr],
-    const_generic_args: &'a ConstGenericArgs,
 }
 
 pub trait GenericsSubstDelegate {
@@ -410,12 +409,8 @@ impl ConstGenericArgs {
 }
 
 impl<'a, D> GenericsSubstFolder<'a, D> {
-    pub(crate) fn new(
-        delegate: D,
-        refine: &'a [Expr],
-        const_generic_args: &'a ConstGenericArgs,
-    ) -> Self {
-        Self { current_index: INNERMOST, delegate, refinement_args: refine, const_generic_args }
+    pub(crate) fn new(delegate: D, refine: &'a [Expr]) -> Self {
+        Self { current_index: INNERMOST, delegate, refinement_args: refine }
     }
 }
 
@@ -475,7 +470,6 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, D::Error> {
         match expr.kind() {
             ExprKind::Var(Var::EarlyParam(var)) => Ok(self.expr_for_param(var.index)),
-            ExprKind::Var(Var::ConstGeneric(var)) => Ok(self.expr_for_param_const(var.index)),
             _ => expr.try_super_fold_with(self),
         }
     }
@@ -496,12 +490,6 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
 impl<D> GenericsSubstFolder<'_, D> {
     fn expr_for_param(&self, idx: u32) -> Expr {
         self.refinement_args[idx as usize].shift_in_escaping(self.current_index.as_u32())
-    }
-    fn expr_for_param_const(&self, idx: u32) -> Expr {
-        match self.const_generic_args.0.get(&idx) {
-            Some(expr) => expr.clone(),
-            None => bug!("missing const generic argument for index {idx}"),
-        }
     }
 }
 

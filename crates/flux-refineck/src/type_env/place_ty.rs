@@ -7,7 +7,6 @@ use flux_middle::{
     rty::{
         box_args,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
-        subst::ConstGenericArgs,
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Loc, Mutability, Path, PtrKind, Ref,
         Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
@@ -805,7 +804,7 @@ fn downcast_struct(
         .map(|proj| idx.proj_and_reduce(proj))
         .collect_vec();
     Ok(struct_variant(genv, adt.did())?
-        .instantiate(args, &[], &ConstGenericArgs::empty())
+        .instantiate(args, &[])
         .replace_bound_refts(&flds)
         .fields
         .to_vec())
@@ -839,7 +838,7 @@ fn downcast_enum(
     let variant_def = genv
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
-        .instantiate(args, &[], &ConstGenericArgs::empty())
+        .instantiate(args, &[])
         .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
     // FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there

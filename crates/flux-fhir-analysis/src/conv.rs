@@ -19,7 +19,6 @@ use flux_middle::{
         self,
         fold::TypeFoldable,
         refining::{self, Refiner},
-        subst::ConstGenericArgs,
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
     rustc,
@@ -1053,10 +1052,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::Res::SelfTyParam { .. } => rty::BaseTy::Param(rty::SELF_PARAM_TY),
             fhir::Res::SelfTyAlias { alias_to, .. } => {
-                return Ok(self
-                    .genv
-                    .type_of(*alias_to)?
-                    .instantiate_identity(&[], &ConstGenericArgs::empty()));
+                return Ok(self.genv.type_of(*alias_to)?.instantiate_identity(&[]));
             }
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
                 let generics = self.conv_generic_args(env, *def_id, path.last_segment().args)?;
@@ -1065,11 +1061,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
                     .try_collect_vec()?;
-                return Ok(self.genv.type_of(*def_id)?.instantiate(
-                    &generics,
-                    &refine,
-                    &ConstGenericArgs::empty(),
-                ));
+                return Ok(self.genv.type_of(*def_id)?.instantiate(&generics, &refine));
             }
             fhir::Res::Def(..) | fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
@@ -1127,7 +1119,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 let ty = self
                     .genv
                     .type_of(param.def_id)?
-                    .instantiate(into, &[], &ConstGenericArgs::empty())
+                    .instantiate(into, &[])
                     .to_ty();
                 into.push(rty::GenericArg::Ty(ty));
             } else {

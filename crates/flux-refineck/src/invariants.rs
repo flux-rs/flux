@@ -4,7 +4,7 @@ use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     fhir,
     global_env::GlobalEnv,
-    rty::{self, subst::ConstGenericArgs},
+    rty::{self},
 };
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::{Span, DUMMY_SP};
@@ -52,7 +52,7 @@ fn check_invariant(
             .variant_sig(adt_def.did(), variant_idx)
             .emit(&genv)?
             .expect("cannot check opaque structs")
-            .instantiate_identity(&[], &ConstGenericArgs::empty())
+            .instantiate_identity(&[])
             .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
         for ty in variant.fields() {
