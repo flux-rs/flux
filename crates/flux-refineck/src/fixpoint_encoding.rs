@@ -137,6 +137,7 @@ pub mod fixpoint {
         /// Interpreted theory function. This can be an arbitrary string, thus we are assuming the
         /// name is different than the display implementation for the other variants.
         Itf(Symbol),
+        // TODO:CONSTGENERIC: ConstGeneric(ConstParam),
     }
 
     impl From<GlobalVar> for Var {

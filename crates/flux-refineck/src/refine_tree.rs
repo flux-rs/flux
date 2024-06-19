@@ -96,6 +96,8 @@ impl Snapshot {
     ///
     /// [`scope`]: Scope
     pub(crate) fn scope(&self) -> Option<Scope> {
+        // TODO:CONSTGENERIC: Root(List<(ConstParam, Sort)>)
+
         let parents = ParentsIter::new(self.ptr.upgrade()?);
         let bindings = parents
             .filter_map(|node| {
@@ -118,9 +120,11 @@ impl Snapshot {
 #[derive(PartialEq, Eq)]
 pub(crate) struct Scope {
     bindings: IndexVec<Name, Sort>,
+    // TODO:CONSTGENERICS: reftgenerics: List<(ConstParam, Sort)>,
 }
 
 impl Scope {
+    // TODO:CONSTGENERICS: reftgenerics: List<(Var, Sort)>, (Name -> Var::Free, ConstParam -> Var::ConstGeneric)
     pub(crate) fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
         self.bindings
             .iter_enumerated()
@@ -197,7 +201,7 @@ impl WeakNodePtr {
 }
 
 enum NodeKind {
-    Conj,
+    Conj, // TODO:CONSTGENERIC: Root(List<(ConstParam, Sort)>)
     Comment(String),
     ForAll(Name, Sort),
     Assumption(Expr),
@@ -207,6 +211,7 @@ enum NodeKind {
 
 impl RefineTree {
     pub(crate) fn new() -> RefineTree {
+        // TODO:CONSTGENERIC: Root(List<(ConstParam, Sort)>)
         let root = Node { kind: NodeKind::Conj, nbindings: 0, parent: None, children: vec![] };
         let root = NodePtr(Rc::new(RefCell::new(root)));
         RefineTree { root }
