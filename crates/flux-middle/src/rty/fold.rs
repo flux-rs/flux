@@ -892,12 +892,6 @@ impl TypeSuperFoldable for Const {
     }
 }
 
-// impl TypeSuperVisitable for Const {
-//     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-//         ControlFlow::Continue(())
-//     }
-// }
-
 impl TypeVisitable for Const {
     fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy> {
         ControlFlow::Continue(())

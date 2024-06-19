@@ -18,7 +18,7 @@ use flux_middle::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
             TypeVisitor,
         },
-        BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind,
+        BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind, Var,
     },
 };
 use itertools::Itertools;
@@ -98,8 +98,6 @@ impl Snapshot {
     ///
     /// [`scope`]: Scope
     pub(crate) fn scope(&self) -> Option<Scope> {
-        // TODO:CONSTGENERIC: Root(List<(ConstParam, Sort)>)
-
         let parents = ParentsIter::new(self.ptr.upgrade()?);
         let bindings = parents
             .filter_map(|node| {
@@ -114,7 +112,16 @@ impl Snapshot {
             .into_iter()
             .rev()
             .collect();
-        Some(Scope { bindings })
+        let mut reftgenerics = vec![];
+        let parents = ParentsIter::new(self.ptr.upgrade()?);
+        for node in parents {
+            if let NodeKind::Root(consts) = &node.borrow().kind {
+                for (param_const, sort) in consts {
+                    reftgenerics.push((*param_const, sort.clone()));
+                }
+            }
+        }
+        Some(Scope { bindings, reftgenerics: List::from_vec(reftgenerics) })
     }
 }
 
@@ -126,11 +133,16 @@ pub(crate) struct Scope {
 }
 
 impl Scope {
-    // TODO:CONSTGENERICS: reftgenerics: List<(Var, Sort)>, (Name -> Var::Free, ConstParam -> Var::ConstGeneric)
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (Name, Sort)> + '_ {
-        self.bindings
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (Var, Sort)> + '_ {
+        let iter_param_consts = self
+            .reftgenerics
+            .iter()
+            .map(|(param_const, sort)| (Var::ConstGeneric(*param_const), sort.clone()));
+        let iter_bindings = self
+            .bindings
             .iter_enumerated()
-            .map(|(name, sort)| (name, sort.clone()))
+            .map(|(name, sort)| (Var::Free(name), sort.clone()));
+        iter_param_consts.chain(iter_bindings)
     }
 
     /// Whether `t` has any free variables not in this scope
@@ -213,7 +225,6 @@ enum NodeKind {
 
 impl RefineTree {
     pub(crate) fn new(const_params: List<(ParamConst, Sort)>) -> RefineTree {
-        // TODO:CONSTGENERIC: Root(List<(ConstParam, Sort)>)
         let root = Node {
             kind: NodeKind::Root(const_params),
             nbindings: 0,
@@ -555,8 +566,26 @@ impl Node {
 
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<Option<fixpoint::Constraint>> {
         let cstr = match &self.kind {
-            NodeKind::Comment(_) | NodeKind::Root | NodeKind::ForAll(_, Sort::Loc) => {
+            NodeKind::Comment(_) | NodeKind::ForAll(_, Sort::Loc) => {
                 children_to_fixpoint(cx, &self.children)?
+            }
+
+            NodeKind::Root(param_const_sorts) => {
+                let Some(children) = children_to_fixpoint(cx, &self.children)? else {
+                    return Ok(None);
+                };
+                let mut constr = children;
+                for (param_const, sort) in param_const_sorts {
+                    constr = fixpoint::Constraint::ForAll(
+                        fixpoint::Bind {
+                            name: fixpoint::Var::ConstGeneric(*param_const),
+                            sort: sort_to_fixpoint(sort),
+                            pred: fixpoint::Pred::TRUE,
+                        },
+                        Box::new(constr),
+                    );
+                }
+                Some(constr)
             }
             NodeKind::ForAll(name, sort) => {
                 cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
@@ -662,9 +691,14 @@ impl TypeVisitable for NodePtr {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         let node = self.borrow();
         match &node.kind {
-            NodeKind::Root | NodeKind::Comment(_) | NodeKind::True => {}
+            NodeKind::Comment(_) | NodeKind::True => {}
             NodeKind::Assumption(pred) | NodeKind::Head(pred, _) => pred.visit_with(visitor)?,
             NodeKind::ForAll(_, sort) => sort.visit_with(visitor)?,
+            NodeKind::Root(param_const_sorts) => {
+                for (_, sort) in param_const_sorts {
+                    sort.visit_with(visitor)?;
+                }
+            }
         }
         for child in &node.children {
             child.visit_with(visitor)?;
@@ -674,10 +708,7 @@ impl TypeVisitable for NodePtr {
 }
 
 mod pretty {
-    use std::{
-        fmt::{self, Write},
-        slice,
-    };
+    use std::fmt::{self, Write};
 
     use flux_common::format::PadAdapter;
     use flux_middle::pretty::*;
@@ -704,7 +735,9 @@ mod pretty {
     fn flatten_conjs(nodes: &[NodePtr]) -> Vec<NodePtr> {
         fn go(ptr: &NodePtr, children: &mut Vec<NodePtr>) {
             let node = ptr.borrow();
-            if let NodeKind::Root = node.kind {
+            if let NodeKind::Root(ps) = &node.kind
+                && ps.is_empty()
+            {
                 for child in &node.children {
                     go(child, children);
                 }
@@ -759,9 +792,18 @@ mod pretty {
                     w!("@ {}", ^comment)?;
                     w!(PadAdapter::wrap_fmt(f, 2), "\n{:?}", join!("\n", &node.children))
                 }
-                NodeKind::Root => {
-                    let nodes = flatten_conjs(slice::from_ref(self));
-                    w!("{:?}", join!("\n", nodes))
+                NodeKind::Root(bindings) => {
+                    // let nodes = flatten_conjs(slice::from_ref(self));
+                    // w!("{:?}", join!("\n", nodes))
+                    w!(
+                        "∀ {}.",
+                        ^bindings
+                            .into_iter()
+                            .format_with(", ", |(name, sort), f| {
+                                f(&format_args_cx!("{:?}: {:?}", ^name, sort))
+                            })
+                    )?;
+                    fmt_children(&node.children, cx, f)
                 }
                 NodeKind::ForAll(name, sort) => {
                     let (bindings, children) = if cx.bindings_chain {
