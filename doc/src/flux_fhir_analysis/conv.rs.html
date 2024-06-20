@@ -1692,6 +1692,16 @@
 <a href="#1692" id="1692">1692</a>
 <a href="#1693" id="1693">1693</a>
 <a href="#1694" id="1694">1694</a>
+<a href="#1695" id="1695">1695</a>
+<a href="#1696" id="1696">1696</a>
+<a href="#1697" id="1697">1697</a>
+<a href="#1698" id="1698">1698</a>
+<a href="#1699" id="1699">1699</a>
+<a href="#1700" id="1700">1700</a>
+<a href="#1701" id="1701">1701</a>
+<a href="#1702" id="1702">1702</a>
+<a href="#1703" id="1703">1703</a>
+<a href="#1704" id="1704">1704</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2102,6 +2112,16 @@
                             <span class="kw-2">&amp;mut </span>clauses,
                         )<span class="question-mark">?</span>;
                     }
+                }
+                fhir::GenericBound::Outlives(lft) =&gt; {
+                    <span class="kw">let </span>re = <span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft);
+                    clauses.push(rty::Clause::new(
+                        List::empty(),
+                        rty::ClauseKind::TypeOutlives(rty::OutlivesPredicate(
+                            bounded_ty.clone(),
+                            re,
+                        )),
+                    ));
                 }
                 <span class="comment">// Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
                 // relax the default which is `Sized` to not have the `Sized` bound, so we just skip

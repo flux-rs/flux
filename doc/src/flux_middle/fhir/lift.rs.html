@@ -632,6 +632,10 @@
 <a href="#632" id="632">632</a>
 <a href="#633" id="633">633</a>
 <a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 //!
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
@@ -845,6 +849,10 @@
                     <span class="self">self</span>.lift_poly_trait_ref(<span class="kw-2">*</span>poly_trait_ref)<span class="question-mark">?</span>,
                     fhir::TraitBoundModifier::Maybe,
                 ))
+            }
+            hir::GenericBound::Outlives(lft) =&gt; {
+                <span class="kw">let </span>lft = <span class="self">self</span>.lift_lifetime(lft)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(fhir::GenericBound::Outlives(lft))
             }
             <span class="kw">_ </span>=&gt; <span class="self">self</span>.emit_unsupported(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"unsupported generic bound: `{bound:?}`"</span>)),
         }

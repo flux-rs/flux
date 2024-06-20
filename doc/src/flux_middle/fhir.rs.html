@@ -1438,6 +1438,7 @@
 <a href="#1438" id="1438">1438</a>
 <a href="#1439" id="1439">1439</a>
 <a href="#1440" id="1440">1440</a>
+<a href="#1441" id="1441">1441</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1749,6 +1750,7 @@
 <span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">pub enum </span>GenericBound&lt;<span class="lifetime">'fhir</span>&gt; {
     Trait(PolyTraitRef&lt;<span class="lifetime">'fhir</span>&gt;, TraitBoundModifier),
+    Outlives(Lifetime),
 }
 
 <span class="attr">#[derive(Debug, Clone, Copy)]

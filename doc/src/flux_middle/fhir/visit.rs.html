@@ -488,6 +488,7 @@
 <a href="#488" id="488">488</a>
 <a href="#489" id="489">489</a>
 <a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
     FnSig, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem,
@@ -720,6 +721,7 @@
 <span class="kw">pub fn </span>walk_generic_bound&lt;<span class="lifetime">'v</span>, V: Visitor&lt;<span class="lifetime">'v</span>&gt;&gt;(vis: <span class="kw-2">&amp;mut </span>V, bound: <span class="kw-2">&amp;</span>GenericBound&lt;<span class="lifetime">'v</span>&gt;) {
     <span class="kw">match </span>bound {
         GenericBound::Trait(trait_ref, <span class="kw">_</span>) =&gt; vis.visit_poly_trait_ref(trait_ref),
+        GenericBound::Outlives(<span class="kw">_</span>) =&gt; {}
     }
 }
 
