@@ -261,6 +261,7 @@ pub trait GenericsSubstDelegate {
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty;
     fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor;
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region;
+    fn expr_for_param_const(&self, param_const: ParamConst) -> Expr;
     fn const_for_param(&mut self, param: &Const) -> Const;
 }
 
@@ -294,12 +295,19 @@ impl GenericsSubstDelegate for IdentitySubstDelegate {
     fn const_for_param(&mut self, param: &Const) -> Const {
         param.clone()
     }
+
+    fn expr_for_param_const(&self, param_const: ParamConst) -> Expr {
+        Expr::var(Var::ConstGeneric(param_const), None)
+    }
 }
 
 /// A substitution with an explicit list of generic arguments.
-pub(crate) struct GenericArgsDelegate<'a>(pub(crate) &'a [GenericArg]);
+pub(crate) struct GenericArgsDelegate<'a, 'tcx>(
+    pub(crate) &'a [GenericArg],
+    pub(crate) TyCtxt<'tcx>,
+);
 
-impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
+impl<'a, 'tcx> GenericsSubstDelegate for GenericArgsDelegate<'a, 'tcx> {
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, !> {
         match self.0.get(param_ty.index as usize) {
             Some(GenericArg::Base(ctor)) => Ok(ctor.sort()),
@@ -339,9 +347,27 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
                 match self.0.get(param_const.index as usize) {
                     Some(GenericArg::Const(konst)) => konst.clone(),
                     Some(arg) => bug!("expected const for generic parameter, found `{arg:?}`"),
-                    None => bug!("type parameter out of range"),
+                    None => bug!("generic parameter out of range"),
                 }
             }
+        }
+    }
+
+    fn expr_for_param_const(&self, param_const: ParamConst) -> Expr {
+        match self.0.get(param_const.index as usize) {
+            Some(GenericArg::Const(konst)) => const_to_expr(&self.1, konst),
+            Some(arg) => bug!("expected const for generic parameter, found `{arg:?}`"),
+            None => bug!("generic parameter out of range"),
+        }
+    }
+}
+
+fn const_to_expr(tcx: &TyCtxt, c: &Const) -> Expr {
+    match c.kind {
+        ConstKind::Param(param_const) => Expr::const_generic(param_const, None),
+        ConstKind::Value(val) => {
+            let val = val.try_to_target_usize(*tcx).unwrap() as u128;
+            Expr::constant(crate::rty::Constant::from(val))
         }
     }
 }
@@ -388,6 +414,10 @@ where
 
     fn const_for_param(&mut self, param: &Const) -> Const {
         bug!("unexpected const param {param:?}");
+    }
+
+    fn expr_for_param_const(&self, param_const: ParamConst) -> Expr {
+        bug!("unexpected param_const {param_const:?}");
     }
 }
 
@@ -470,20 +500,15 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, D::Error> {
         match expr.kind() {
             ExprKind::Var(Var::EarlyParam(var)) => Ok(self.expr_for_param(var.index)),
+            ExprKind::Var(Var::ConstGeneric(param_const)) => {
+                Ok(self.delegate.expr_for_param_const(*param_const))
+            }
             _ => expr.try_super_fold_with(self),
         }
     }
 
     fn try_fold_const(&mut self, c: &Const) -> Result<Const, D::Error> {
         Ok(self.delegate.const_for_param(c))
-        // match c.kind {
-        //     ConstKind::Param(param) => {
-        //         let kind =
-
-        //         Ok(Const { kind, ty: c.ty.clone() })
-        //     }
-        //     _ => c.try_super_fold_with(self),
-        // }
     }
 }
 

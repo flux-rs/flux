@@ -1460,10 +1460,15 @@ where
 }
 
 impl<T: TypeFoldable> EarlyBinder<T> {
-    pub fn instantiate(self, args: &[GenericArg], refine_args: &[Expr]) -> T {
+    pub fn instantiate<'tcx>(
+        self,
+        tcx: TyCtxt<'tcx>,
+        args: &[GenericArg],
+        refine_args: &[Expr],
+    ) -> T {
         self.0
             .try_fold_with(&mut subst::GenericsSubstFolder::new(
-                subst::GenericArgsDelegate(args),
+                subst::GenericArgsDelegate(args, tcx),
                 refine_args,
             ))
             .into_ok()

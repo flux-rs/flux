@@ -1061,7 +1061,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
                     .try_collect_vec()?;
-                return Ok(self.genv.type_of(*def_id)?.instantiate(&generics, &refine));
+                let tcx = self.genv.tcx();
+                return Ok(self
+                    .genv
+                    .type_of(*def_id)?
+                    .instantiate(tcx, &generics, &refine));
             }
             fhir::Res::Def(..) | fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
@@ -1116,10 +1120,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         for param in generics.params.iter().skip(into.len()) {
             if let rty::GenericParamDefKind::Type { has_default } = param.kind {
                 debug_assert!(has_default);
+                let tcx = self.genv.tcx();
                 let ty = self
                     .genv
                     .type_of(param.def_id)?
-                    .instantiate(into, &[])
+                    .instantiate(tcx, into, &[])
                     .to_ty();
                 into.push(rty::GenericArg::Ty(ty));
             } else {

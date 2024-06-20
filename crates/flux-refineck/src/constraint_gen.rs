@@ -139,36 +139,6 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             .collect()
     }
 
-    // TODO:CUT fn call_const_generic_args(
-    // TODO:CUT     tcx: &rustc_middle::ty::TyCtxt,
-    // TODO:CUT     env: &TypeEnv,
-    // TODO:CUT     generic_args: &[GenericArg],
-    // TODO:CUT ) -> ConstGenericArgs {
-    // TODO:CUT     let mut const_generic_args = ConstGenericArgs::empty();
-    // TODO:CUT     for (i, arg) in generic_args.iter().enumerate() {
-    // TODO:CUT         if let GenericArg::Const(c) = arg {
-    // TODO:CUT             let expr = match c.kind {
-    // TODO:CUT                 flux_middle::rustc::ty::ConstKind::Param(p) => {
-    // TODO:CUT                     Some(env.const_generic_args().lookup(p.index))
-    // TODO:CUT                 }
-    // TODO:CUT                 flux_middle::rustc::ty::ConstKind::Value(value) => {
-    // TODO:CUT                     match value.try_to_target_usize(*tcx) {
-    // TODO:CUT                         Ok(value) => {
-    // TODO:CUT                             let value = value as u128;
-    // TODO:CUT                             Some(Expr::constant(rty::Constant::from(value)))
-    // TODO:CUT                         }
-    // TODO:CUT                         _ => None,
-    // TODO:CUT                     }
-    // TODO:CUT                 }
-    // TODO:CUT             };
-    // TODO:CUT             if let Some(expr) = expr {
-    // TODO:CUT                 const_generic_args.insert(i as u32, expr);
-    // TODO:CUT             }
-    // TODO:CUT         }
-    // TODO:CUT     }
-    // TODO:CUT     const_generic_args
-    // TODO:CUT }
-
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn check_fn_call(
         &mut self,
@@ -193,7 +163,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
 
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
-            .instantiate(&generic_args, &refine_args)
+            .instantiate(genv.tcx(), &generic_args, &refine_args)
             .replace_bound_vars(
                 |br| {
                     let re = infcx.region_infcx.next_region_var(BoundRegion(
@@ -302,6 +272,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         generic_args: &[GenericArg],
         fields: &[Ty],
     ) -> Result<Ty> {
+        let tcx = self.genv.tcx();
         // rn we are only calling `check_constructor` when folding so we mark this as a folding error.
         let mut infcx = self.infcx(rcx, ConstrReason::Fold);
 
@@ -309,7 +280,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         let generic_args = infcx.instantiate_generic_args(generic_args);
 
         let variant = variant
-            .instantiate(&generic_args, &[])
+            .instantiate(tcx, &generic_args, &[])
             .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
 
         // Check arguments
@@ -784,10 +755,11 @@ fn mk_obligations(
     args: &[GenericArg],
     refine_args: &[Expr],
 ) -> Result<List<rty::Clause>> {
+    let tcx = genv.tcx();
     Ok(genv
         .predicates_of(did)?
         .predicates()
-        .instantiate(args, refine_args))
+        .instantiate(tcx, args, refine_args))
 }
 
 impl<F> KVarGen for F
