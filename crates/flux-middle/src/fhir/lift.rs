@@ -212,6 +212,10 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     fhir::TraitBoundModifier::Maybe,
                 ))
             }
+            hir::GenericBound::Outlives(lft) => {
+                let lft = self.lift_lifetime(lft)?;
+                Ok(fhir::GenericBound::Outlives(lft))
+            }
             _ => self.emit_unsupported(&format!("unsupported generic bound: `{bound:?}`")),
         }
     }
