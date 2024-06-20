@@ -309,6 +309,7 @@ pub type GenericBounds<'fhir> = &'fhir [GenericBound<'fhir>];
 #[derive(Debug, Clone, Copy)]
 pub enum GenericBound<'fhir> {
     Trait(PolyTraitRef<'fhir>, TraitBoundModifier),
+    Outlives(Lifetime),
 }
 
 #[derive(Debug, Clone, Copy)]

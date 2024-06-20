@@ -409,6 +409,16 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                         )?;
                     }
                 }
+                fhir::GenericBound::Outlives(lft) => {
+                    let re = self.conv_lifetime(env, *lft);
+                    clauses.push(rty::Clause::new(
+                        List::empty(),
+                        rty::ClauseKind::TypeOutlives(rty::OutlivesPredicate(
+                            bounded_ty.clone(),
+                            re,
+                        )),
+                    ));
+                }
                 // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
                 // relax the default which is `Sized` to not have the `Sized` bound, so we just skip
                 // it here.
