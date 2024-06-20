@@ -656,7 +656,7 @@ where
 
         let all_args = iter::zip(&kvar.args, &decl.sorts)
             .map(|(arg, sort)| -> QueryResult<_> {
-                Ok(self.ecx.imm(arg, sort, &mut self.env, bindings)?)
+                self.ecx.imm(arg, sort, &mut self.env, bindings)
             })
             .try_collect_vec()?;
 
@@ -770,7 +770,7 @@ impl KVarStore {
                     (rty::Var::LateBound(debruijn, var), sort)
                 })
             }),
-            scope.iter().map(|(var, sort)| (var, sort)),
+            scope.iter(),
         );
         self.fresh_inner(binders.last().unwrap().len(), args, encoding)
     }
@@ -881,7 +881,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
     fn expr_to_fixpoint(&mut self, expr: &rty::Expr, env: &Env) -> QueryResult<fixpoint::Expr> {
         let e = match expr.kind() {
-            rty::ExprKind::Var(var) => fixpoint::Expr::Var(env.get_var(var, self.dbg_span).into()),
+            rty::ExprKind::Var(var) => fixpoint::Expr::Var(env.get_var(var, self.dbg_span)),
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, env)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, env)?,
@@ -1118,7 +1118,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
     fn func_to_fixpoint(&mut self, func: &rty::Expr, env: &Env) -> fixpoint::Var {
         match func.kind() {
-            rty::ExprKind::Var(var) => env.get_var(var, self.dbg_span).into(),
+            rty::ExprKind::Var(var) => env.get_var(var, self.dbg_span),
             rty::ExprKind::GlobalFunc(_, SpecFuncKind::Thy(sym)) => fixpoint::Var::Itf(*sym),
             rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) => {
                 let cinfo = self.const_map.get(&Key::Uif(*sym)).unwrap_or_else(|| {
