@@ -7,6 +7,9 @@
 //!    refinement predicates, aka abstract refinements, since the syntax in [`rty`] has
 //!    syntactic restrictions on predicates.
 //! 3. Refinements are well-sorted.
+
+mod fill_holes;
+
 use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
@@ -16,7 +19,7 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{
-        self, fill_holes,
+        self,
         fold::TypeFoldable,
         refining::{self, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,

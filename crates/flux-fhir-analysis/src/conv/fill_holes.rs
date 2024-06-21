@@ -1,25 +1,23 @@
 use std::iter;
 
 use flux_common::bug;
-use rustc_ast::Mutability;
-use rustc_data_structures::unord::UnordMap;
-use rustc_hir::{def_id::LocalDefId, OwnerId};
-use rustc_type_ir::{DebruijnIndex, INNERMOST};
-
-use super::{
-    fold::{BottomUpFolder, TypeFoldable},
-    ItemLocalMap, LocalTableInContext, LocalTableInContextMut,
-};
-use crate::{
-    fhir::FluxOwnerId,
+use flux_middle::{
+    fhir::FhirId,
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    rty,
+    rty::{
+        self,
+        fold::{BottomUpFolder, TypeFoldable},
+    },
     rustc::{
         lowering::{self, UnsupportedReason},
         ty,
     },
 };
+use rustc_ast::Mutability;
+use rustc_data_structures::unord::UnordMap;
+use rustc_hir::def_id::LocalDefId;
+use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 pub fn fn_sig(
     genv: GlobalEnv,
@@ -44,8 +42,8 @@ pub fn fn_sig(
             ty_op: |ty| {
                 if let rty::TyKind::Hole(fhir_id) = ty.kind() {
                     zipper
-                        .type_holes()
-                        .get(*fhir_id)
+                        .type_holes
+                        .get(fhir_id)
                         .cloned()
                         .unwrap_or_else(|| bug!("unfilled type hole {fhir_id:?}"))
                 } else {
@@ -73,11 +71,10 @@ pub fn fn_sig(
 struct Zipper<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     generics: rty::Generics,
-    owner: OwnerId,
     locs: UnordMap<rty::Loc, ty::Ty>,
     rty_index: DebruijnIndex,
     ty_index: DebruijnIndex,
-    type_holes: ItemLocalMap<rty::Ty>,
+    type_holes: UnordMap<FhirId, rty::Ty>,
     region_holes: UnordMap<rty::RegionVid, rty::Region>,
 }
 
@@ -86,18 +83,17 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         Ok(Self {
             genv,
             generics: genv.generics_of(owner)?,
-            owner: OwnerId { def_id: owner },
             locs: UnordMap::default(),
             rty_index: INNERMOST,
             ty_index: INNERMOST,
-            type_holes: ItemLocalMap::default(),
+            type_holes: Default::default(),
             region_holes: Default::default(),
         })
     }
 
     fn zip_fn_sig(&mut self, a: &rty::FnSig, b: &ty::FnSig) -> QueryResult {
         debug_assert_eq!(a.inputs().len(), b.inputs().len());
-        for (a, b) in iter::zip(&a.inputs, b.inputs()) {
+        for (a, b) in iter::zip(a.inputs(), b.inputs()) {
             self.zip_ty(a, b)?;
         }
         self.enter_rty_binder(a.output(), |this, output| {
@@ -118,7 +114,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             (rty::TyKind::Hole(fhir_id), _) => {
                 let ty = self.genv.refine_default(&self.generics, b)?;
                 let ty = self.adjust_binders(&ty);
-                self.type_holes_mut().insert(*fhir_id, ty);
+                self.type_holes.insert(*fhir_id, ty);
             }
             (rty::TyKind::Indexed(bty, _), _) => {
                 self.zip_bty(bty, b)?;
@@ -278,13 +274,5 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         let r = f(self, t.as_ref().skip_binder());
         self.rty_index.shift_out(1);
         r
-    }
-
-    fn type_holes_mut(&mut self) -> LocalTableInContextMut<rty::Ty> {
-        LocalTableInContextMut { owner: FluxOwnerId::Rust(self.owner), data: &mut self.type_holes }
-    }
-
-    fn type_holes(&self) -> LocalTableInContext<rty::Ty> {
-        LocalTableInContext { owner: FluxOwnerId::Rust(self.owner), data: &self.type_holes }
     }
 }

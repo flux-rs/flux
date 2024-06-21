@@ -7,7 +7,6 @@
 pub mod canonicalize;
 pub mod evars;
 mod expr;
-pub mod fill_holes;
 pub mod fold;
 pub(crate) mod normalize;
 mod pretty;
