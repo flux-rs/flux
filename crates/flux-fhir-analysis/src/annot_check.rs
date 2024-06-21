@@ -16,73 +16,45 @@ use flux_middle::{
         ExprRes, Res,
     },
     global_env::GlobalEnv,
-    rty::WfckResults,
 };
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
 use rustc_hir::OwnerId;
 
-pub(crate) fn check_node(
-    genv: GlobalEnv,
-    wfckresults: &mut WfckResults,
-    node: &fhir::Node,
-) -> Result<(), ErrorGuaranteed> {
+pub(crate) fn check_node(genv: GlobalEnv, node: &fhir::Node) -> Result<(), ErrorGuaranteed> {
     match node {
-        fhir::Node::Item(item) => check_item(genv, wfckresults, item),
-        fhir::Node::TraitItem(trait_item) => check_trait_item(genv, wfckresults, trait_item),
-        fhir::Node::ImplItem(impl_item) => check_impl_item(genv, wfckresults, impl_item),
+        fhir::Node::Item(item) => check_item(genv, item),
+        fhir::Node::TraitItem(trait_item) => check_trait_item(genv, trait_item),
+        fhir::Node::ImplItem(impl_item) => check_impl_item(genv, impl_item),
     }
 }
 
-fn check_item(
-    genv: GlobalEnv,
-    wfckresults: &mut WfckResults,
-    item: &fhir::Item,
-) -> Result<(), ErrorGuaranteed> {
+fn check_item(genv: GlobalEnv, item: &fhir::Item) -> Result<(), ErrorGuaranteed> {
     match &item.kind {
-        fhir::ItemKind::Enum(enum_def) => {
-            check_enum_def(genv, wfckresults, item.owner_id, enum_def)
-        }
-        fhir::ItemKind::Struct(struct_def) => {
-            check_struct_def(genv, wfckresults, item.owner_id, struct_def)
-        }
-        fhir::ItemKind::Fn(fn_sig) => check_fn_sig(genv, wfckresults, item.owner_id, fn_sig),
-        fhir::ItemKind::TyAlias(ty_alias) => {
-            check_ty_alias(genv, wfckresults, item.owner_id, ty_alias)
-        }
+        fhir::ItemKind::Enum(enum_def) => check_enum_def(genv, item.owner_id, enum_def),
+        fhir::ItemKind::Struct(struct_def) => check_struct_def(genv, item.owner_id, struct_def),
+        fhir::ItemKind::Fn(fn_sig) => check_fn_sig(genv, item.owner_id, fn_sig),
+        fhir::ItemKind::TyAlias(ty_alias) => check_ty_alias(genv, item.owner_id, ty_alias),
         fhir::ItemKind::Trait(_) | fhir::ItemKind::Impl(_) | fhir::ItemKind::OpaqueTy(_) => Ok(()),
     }
 }
 
-fn check_trait_item(
-    genv: GlobalEnv,
-    wfckresults: &mut WfckResults,
-    trait_item: &fhir::TraitItem,
-) -> Result<(), ErrorGuaranteed> {
+fn check_trait_item(genv: GlobalEnv, trait_item: &fhir::TraitItem) -> Result<(), ErrorGuaranteed> {
     match &trait_item.kind {
-        fhir::TraitItemKind::Fn(fn_sig) => {
-            check_fn_sig(genv, wfckresults, trait_item.owner_id, fn_sig)
-        }
+        fhir::TraitItemKind::Fn(fn_sig) => check_fn_sig(genv, trait_item.owner_id, fn_sig),
         fhir::TraitItemKind::Type(_) => Ok(()),
     }
 }
 
-fn check_impl_item(
-    genv: GlobalEnv,
-    wfckresults: &mut WfckResults,
-    impl_item: &fhir::ImplItem,
-) -> Result<(), ErrorGuaranteed> {
+fn check_impl_item(genv: GlobalEnv, impl_item: &fhir::ImplItem) -> Result<(), ErrorGuaranteed> {
     match &impl_item.kind {
-        fhir::ImplItemKind::Fn(fn_sig) => {
-            check_fn_sig(genv, wfckresults, impl_item.owner_id, fn_sig)
-        }
+        fhir::ImplItemKind::Fn(fn_sig) => check_fn_sig(genv, impl_item.owner_id, fn_sig),
         fhir::ImplItemKind::Type(_) => Ok(()),
     }
 }
 
 pub(crate) fn check_fn_sig(
     genv: GlobalEnv,
-    wfckresults: &mut WfckResults,
     owner_id: OwnerId,
     fn_sig: &fhir::FnSig,
 ) -> Result<(), ErrorGuaranteed> {
@@ -91,12 +63,11 @@ pub(crate) fn check_fn_sig(
     }
     let self_ty = lift::lift_self_ty(genv, owner_id)?;
     let expected_fn_decl = &lift::lift_fn_decl(genv, owner_id)?.0;
-    Zipper::new(genv, wfckresults, self_ty).zip_fn_decl(fn_sig.decl, expected_fn_decl)
+    Zipper::new(genv, self_ty).zip_fn_decl(fn_sig.decl, expected_fn_decl)
 }
 
 pub(crate) fn check_ty_alias(
     genv: GlobalEnv,
-    wfckresults: &mut WfckResults,
     owner_id: OwnerId,
     ty_alias: &fhir::TyAlias,
 ) -> Result<(), ErrorGuaranteed> {
@@ -104,12 +75,11 @@ pub(crate) fn check_ty_alias(
         return Ok(());
     }
     let expected_ty_alias = lift::lift_type_alias(genv, owner_id)?;
-    Zipper::new(genv, wfckresults, None).zip_ty(&ty_alias.ty, &expected_ty_alias.ty)
+    Zipper::new(genv, None).zip_ty(&ty_alias.ty, &expected_ty_alias.ty)
 }
 
 pub(crate) fn check_struct_def(
     genv: GlobalEnv,
-    wfckresults: &mut WfckResults,
     owner_id: OwnerId,
     struct_def: &fhir::StructDef,
 ) -> Result<(), ErrorGuaranteed> {
@@ -122,7 +92,7 @@ pub(crate) fn check_struct_def(
                     return Ok(());
                 }
                 let self_ty = lift::lift_self_ty(genv, owner_id)?;
-                Zipper::new(genv, wfckresults, self_ty)
+                Zipper::new(genv, self_ty)
                     .zip_ty(&field.ty, &liftcx.lift_field_def_id(field.def_id)?.ty)
             })
         }
@@ -132,7 +102,6 @@ pub(crate) fn check_struct_def(
 
 pub(crate) fn check_enum_def(
     genv: GlobalEnv,
-    wfckresults: &mut WfckResults,
     owner_id: OwnerId,
     enum_def: &fhir::EnumDef,
 ) -> Result<(), ErrorGuaranteed> {
@@ -143,27 +112,22 @@ pub(crate) fn check_enum_def(
             return Ok(());
         }
         let self_ty = lift::lift_self_ty(genv, owner_id)?;
-        Zipper::new(genv, wfckresults, self_ty)
+        Zipper::new(genv, self_ty)
             .zip_enum_variant(variant, &liftcx.lift_enum_variant_id(variant.def_id)?)
     })
 }
 
-struct Zipper<'zip, 'genv, 'tcx> {
+struct Zipper<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    wfckresults: &'zip mut WfckResults,
     locs: LocsMap<'genv>,
     self_ty: Option<fhir::Ty<'genv>>,
 }
 
 type LocsMap<'genv> = UnordMap<fhir::ParamId, fhir::Ty<'genv>>;
 
-impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
-    fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        wfckresults: &'zip mut WfckResults,
-        self_ty: Option<fhir::Ty<'genv>>,
-    ) -> Self {
-        Self { genv, wfckresults, locs: LocsMap::default(), self_ty }
+impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
+    fn new(genv: GlobalEnv<'genv, 'tcx>, self_ty: Option<fhir::Ty<'genv>>) -> Self {
+        Self { genv, locs: LocsMap::default(), self_ty }
     }
 
     fn zip_enum_variant(
@@ -334,18 +298,11 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
     }
 
     fn zip_lifetime(&mut self, lft: fhir::Lifetime, expected_lft: fhir::Lifetime) {
-        let fhir::Lifetime::Hole(fhir_id) = lft else {
+        if let fhir::Lifetime::Hole(_) = lft {
             return;
         };
-
-        match expected_lft {
-            fhir::Lifetime::Resolved(res) => {
-                self.wfckresults.lifetime_holes_mut().insert(fhir_id, res);
-            }
-            fhir::Lifetime::Hole(_) => {
-                bug!("unexpected hole in lifted lifetime");
-            }
-        }
+        // If `lft` it is not a hole then we lift it and it should be the same as `expected_lft`
+        debug_assert_eq!(lft, expected_lft);
     }
 
     fn zip_bty(

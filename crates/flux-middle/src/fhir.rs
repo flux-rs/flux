@@ -549,7 +549,7 @@ pub struct MutTy<'fhir> {
 
 /// Our surface syntax doesn't have lifetimes. To deal with them we create a *hole* for every lifetime
 /// which we then resolve during `annot_check` when zipping against the lifted version.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Lifetime {
     /// A lifetime hole created during desugaring.
     Hole(FhirId),

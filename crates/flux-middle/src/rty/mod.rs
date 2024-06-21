@@ -29,10 +29,7 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::{
-    middle::resolve_bound_vars::ResolvedArg,
-    ty::{ParamConst, TyCtxt},
-};
+use rustc_middle::ty::{ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, OutlivesPredicate, ParamTy, ScalarInt, UintTy},
@@ -1986,7 +1983,6 @@ pub struct WfckResults {
     node_sorts: ItemLocalMap<Sort>,
     bin_rel_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
-    lifetime_holes: ItemLocalMap<ResolvedArg>,
 }
 
 #[derive(Debug)]
@@ -2016,7 +2012,6 @@ impl WfckResults {
             node_sorts: ItemLocalMap::default(),
             bin_rel_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
-            lifetime_holes: ItemLocalMap::default(),
         }
     }
 
@@ -2050,14 +2045,6 @@ impl WfckResults {
 
     pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
         LocalTableInContext { owner: self.owner, data: &self.coercions }
-    }
-
-    pub fn lifetime_holes_mut(&mut self) -> LocalTableInContextMut<ResolvedArg> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.lifetime_holes }
-    }
-
-    pub fn lifetime_holes(&self) -> LocalTableInContext<ResolvedArg> {
-        LocalTableInContext { owner: self.owner, data: &self.lifetime_holes }
     }
 }
 
