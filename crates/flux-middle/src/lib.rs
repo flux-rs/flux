@@ -46,7 +46,7 @@ use flux_config as config;
 use flux_macros::fluent_messages;
 use flux_syntax::surface::{self, NodeId};
 use rustc_data_structures::unord::UnordMap;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 use rustc_hir as hir;
 use rustc_hir::OwnerId;
 use rustc_span::{
@@ -210,7 +210,8 @@ pub struct Specs {
     pub trusted: UnordMap<LocalDefId, fhir::Trusted>,
     pub consts: FxHashSet<LocalDefId>,
     pub crate_config: Option<config::CrateConfig>,
-    pub extern_specs: FxHashMap<DefId, LocalDefId>,
+    extern_id_to_local_id: UnordMap<DefId, LocalDefId>,
+    local_id_to_extern_id: UnordMap<LocalDefId, DefId>,
 }
 
 impl Specs {
@@ -223,21 +224,25 @@ impl Specs {
             }
         }
     }
-}
 
-pub type ScopeId = NodeId;
+    pub fn insert_extern_id(&mut self, local_id: LocalDefId, extern_id: DefId) {
+        self.extern_id_to_local_id.insert(extern_id, local_id);
+        self.local_id_to_extern_id.insert(local_id, extern_id);
+    }
+}
 
 #[derive(Default)]
 pub struct ResolverOutput {
     pub path_res_map: UnordMap<NodeId, fhir::Res>,
     pub impl_trait_res_map: UnordMap<NodeId, hir::ItemId>,
-    /// Resolution of parameters both explicit and implicit. The [`fhir::ParamId`] is unique per item.
-    /// The [`NodeId`] correspond to the node introducing the parameter. When explicit, this is the
-    /// id of the [`surface::GenericArg`] or [`surface::RefineParam`], when implicit, this is the id
-    /// of the [`surface::RefineArg::Bind`] or [`surface::Arg`].
+    /// Resolution of explicit and implicit parameters. The [`fhir::ParamId`] is unique per item.
+    /// The [`NodeId`] used as the key correspond to the node introducing the parameter. When explicit,
+    /// this is the id of the [`surface::GenericArg`] or [`surface::RefineParam`], when implicit, this
+    /// is the id of the [`surface::RefineArg::Bind`] or [`surface::FnInput`].
     pub param_res_map: UnordMap<NodeId, (fhir::ParamId, fhir::ParamKind)>,
-    /// List of implicit params defined in a scope. The [`NodeId`] is the id of the node introducing
-    /// the scope, i.e., [`surface::FnSig`], [`surface::FnOutput`], or [`surface::VariantDef`].
+    /// List of implicit params defined in a scope. The [`NodeId`] used as key is the id of the node
+    /// introducing the scope, e.g., [`surface::FnSig`], [`surface::FnOutput`], or [`surface::VariantDef`].
+    /// The [`NodeId`]s in the vectors are keys in [`Self::param_res_map`].
     pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
     pub sort_path_res_map: UnordMap<NodeId, fhir::SortRes>,
     pub path_expr_res_map: UnordMap<NodeId, fhir::ExprRes>,

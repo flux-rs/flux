@@ -124,10 +124,7 @@ pub(crate) fn conv_adt_sort_def(
             Ok((*name, conv_sort(genv, sort, &mut bug_on_infer_sort)?))
         })
         .try_collect_vec()?;
-    let def_id = genv
-        .map()
-        .extern_id_of(def_id)?
-        .unwrap_or(def_id.to_def_id());
+    let def_id = genv.resolve_maybe_extern_id(def_id.to_def_id());
     Ok(rty::AdtSortDef::new(def_id, params, fields))
 }
 
@@ -350,7 +347,7 @@ pub(crate) fn conv_fn_decl(
         .collect();
 
     let fn_sig = rty::PolyFnSig::new(rty::FnSig::new(requires.into(), inputs.into(), output), vars);
-    let fn_sig = fill_holes::fn_sig(genv, fn_sig, def_id)?;
+    let fn_sig = fill_holes::fn_sig(genv, &fn_sig, def_id)?;
 
     Ok(rty::EarlyBinder(fn_sig))
 }
@@ -583,22 +580,24 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     pub(crate) fn conv_enum_def_variants(
         genv: GlobalEnv,
-        adt_def_id: DefId,
+        adt_def_id: LocalDefId,
         enum_def: &fhir::EnumDef,
         wfckresults: &WfckResults,
     ) -> QueryResult<Vec<rty::PolyVariant>> {
-        enum_def
+        let variants = enum_def
             .variants
             .iter()
             .map(|variant_def| {
                 ConvCtxt::conv_enum_variant(genv, adt_def_id, variant_def, wfckresults)
             })
-            .try_collect()
+            .try_collect_vec()?;
+        let variants = fill_holes::variants(genv, &variants, adt_def_id)?;
+        Ok(variants)
     }
 
     fn conv_enum_variant(
         genv: GlobalEnv,
-        adt_def_id: DefId,
+        adt_def_id: LocalDefId,
         variant: &fhir::VariantDef,
         wfckresults: &WfckResults,
     ) -> QueryResult<rty::PolyVariant> {
@@ -625,11 +624,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     pub(crate) fn conv_struct_def_variant(
-        genv: GlobalEnv<'genv, '_>,
-        adt_def_id: DefId,
+        genv: GlobalEnv,
+        adt_def_id: LocalDefId,
         struct_def: &fhir::StructDef,
         wfckresults: &WfckResults,
-    ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
+    ) -> QueryResult<rty::Opaqueness<Vec<rty::PolyVariant>>> {
         let mut cx = ConvCtxt::new(genv, wfckresults);
         let mut env = Env::new(genv, &[], wfckresults)?;
         env.push_layer(Layer::list(&cx, 0, struct_def.params)?);
@@ -644,7 +643,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
             let vars = env.pop_layer().into_bound_vars(genv)?;
             let idx = rty::Expr::adt(
-                adt_def_id,
+                adt_def_id.to_def_id(),
                 (0..vars.len())
                     .map(|idx| {
                         rty::Expr::late_bvar(INNERMOST, idx as u32, rty::BoundReftKind::Annon)
@@ -657,7 +656,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 fields,
                 idx,
             );
-            Ok(rty::Opaqueness::Transparent(rty::Binder::new(variant, vars)))
+            let variant = rty::Binder::new(variant, vars);
+            let variants = fill_holes::variants(genv, &[variant], adt_def_id)?;
+            Ok(rty::Opaqueness::Transparent(variants))
         } else {
             Ok(rty::Opaqueness::Opaque)
         }

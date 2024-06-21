@@ -5,7 +5,7 @@ use flux_errors::FluxSession;
 use flux_middle::{
     fhir::{self, lift::LiftCtxt, ExprRes, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
-    try_alloc_slice, ResolverOutput, ScopeId,
+    try_alloc_slice, ResolverOutput,
 };
 use flux_syntax::surface::{self, NodeId};
 use hir::{def::DefKind, ItemKind};
@@ -98,7 +98,7 @@ pub(crate) struct RustItemCtxt<'a, 'genv, 'tcx> {
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: OwnerId,
     extern_id: Option<DefId>,
-    fn_sig_scope: Option<ScopeId>,
+    fn_sig_scope: Option<NodeId>,
     resolver_output: &'genv ResolverOutput,
     opaque_tys: Option<&'a mut UnordMap<LocalDefId, fhir::OpaqueTy<'genv>>>,
 }

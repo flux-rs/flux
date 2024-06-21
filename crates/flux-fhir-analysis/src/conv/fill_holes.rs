@@ -19,63 +19,52 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::LocalDefId;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
-pub fn fn_sig(
+pub(crate) fn fn_sig(
     genv: GlobalEnv,
-    fn_sig: rty::PolyFnSig,
+    fn_sig: &rty::PolyFnSig,
     def_id: LocalDefId,
 ) -> QueryResult<rty::PolyFnSig> {
-    // FIXME(nilehmann) we should call `genv.lower_fn_sig`, but that function normalizes
-    // the signature before lowering it such that constants are evaluated. This is not what we want
-    // here because we need the signatures to match syntactically.
+    // FIXME(nilehmann) we should call `genv.lower_fn_sig`, but that function normalizes the
+    // signature to evaluate constants before lowering it. This also normalize projections which
+    // we don't want here because we need the signatures to match syntactically.
     let rust_fn_sig = lowering::lower_fn_sig(genv.tcx(), genv.tcx().fn_sig(def_id).skip_binder())
         .map_err(UnsupportedReason::into_err)
         .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err))?;
 
     let mut zipper = Zipper::new(genv, def_id)?;
 
-    zipper.enter_binders(&fn_sig, rust_fn_sig, |zipper, fn_sig, rust_fn_sig| {
+    zipper.enter_binders(fn_sig, rust_fn_sig, |zipper, fn_sig, rust_fn_sig| {
         zipper.zip_fn_sig(fn_sig, rust_fn_sig)
     })?;
 
-    let fn_sig = fn_sig.map(|sig| {
-        sig.fold_with(&mut BottomUpFolder {
-            ty_op: |ty| {
-                if let rty::TyKind::Hole(fhir_id) = ty.kind() {
-                    zipper
-                        .type_holes
-                        .get(fhir_id)
-                        .cloned()
-                        .unwrap_or_else(|| bug!("unfilled type hole {fhir_id:?}"))
-                } else {
-                    ty
-                }
-            },
-            lt_op: |r| {
-                if let rty::Region::ReVar(vid) = r {
-                    zipper
-                        .region_holes
-                        .get(&vid)
-                        .copied()
-                        .unwrap_or_else(|| bug!("unfilled region hole {vid:?}"))
-                } else {
-                    r
-                }
-            },
-            ct_op: |c| c,
-        })
-    });
+    Ok(zipper.replace_holes(&fn_sig))
+}
 
-    Ok(fn_sig)
+pub(crate) fn variants(
+    genv: GlobalEnv,
+    variants: &[rty::PolyVariant],
+    adt_def_id: LocalDefId,
+) -> QueryResult<Vec<rty::PolyVariant>> {
+    let adt_def = genv.adt_def(adt_def_id)?;
+    let mut zipper = Zipper::new(genv, adt_def_id)?;
+    let adt_ty = genv
+        .lower_type_of(genv.resolve_maybe_extern_id(adt_def_id.to_def_id()))?
+        .skip_binder();
+    for (variant, variant_def) in iter::zip(variants, adt_def.variants()) {
+        zipper.zip_variant(variant, variant_def, &adt_ty)?;
+    }
+
+    Ok(variants.iter().map(|v| zipper.replace_holes(v)).collect())
 }
 
 struct Zipper<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     generics: rty::Generics,
     locs: UnordMap<rty::Loc, ty::Ty>,
-    rty_index: DebruijnIndex,
-    ty_index: DebruijnIndex,
     type_holes: UnordMap<FhirId, rty::Ty>,
     region_holes: UnordMap<rty::RegionVid, rty::Region>,
+    rty_index: DebruijnIndex,
+    ty_index: DebruijnIndex,
 }
 
 impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
@@ -84,10 +73,27 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             genv,
             generics: genv.generics_of(owner)?,
             locs: UnordMap::default(),
-            rty_index: INNERMOST,
-            ty_index: INNERMOST,
             type_holes: Default::default(),
             region_holes: Default::default(),
+            rty_index: INNERMOST,
+            ty_index: INNERMOST,
+        })
+    }
+
+    fn zip_variant(
+        &mut self,
+        a: &rty::PolyVariant,
+        b: &ty::VariantDef,
+        adt_ty: &ty::Ty,
+    ) -> QueryResult {
+        self.enter_rty_binder(a, |this, a| {
+            debug_assert_eq!(a.fields.len(), b.fields.len());
+            for (ty_a, field_def_b) in iter::zip(&a.fields, &b.fields) {
+                let ty_b = this.genv.lower_type_of(field_def_b.did)?.skip_binder();
+                this.zip_ty(ty_a, &ty_b)?;
+            }
+            this.zip_ty(&a.ret(), adt_ty)?;
+            Ok(())
         })
     }
 
@@ -205,14 +211,14 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 self.zip_ty(ty_a, ty_b)?;
             }
             (rty::BaseTy::Never, ty::TyKind::Never) => {}
+            (rty::BaseTy::Param(pty_a), ty::TyKind::Param(pty_b)) => {
+                debug_assert_eq!(pty_a, pty_b);
+            }
             (rty::BaseTy::Closure(..), _) => {
                 bug!("unexpected closure {a:?}")
             }
             (rty::BaseTy::Coroutine(..), _) => {
                 bug!("unexpected coroutine {a:?}")
-            }
-            (rty::BaseTy::Param(pty_a), ty::TyKind::Param(pty_b)) => {
-                debug_assert_eq!(pty_a, pty_b);
             }
             _ => {
                 bug!("incompatible types `{a:?}` `{b:?}`")
@@ -274,5 +280,31 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         let r = f(self, t.as_ref().skip_binder());
         self.rty_index.shift_out(1);
         r
+    }
+
+    fn replace_holes<T: TypeFoldable>(&self, t: &T) -> T {
+        t.fold_with(&mut BottomUpFolder {
+            ty_op: |ty| {
+                if let rty::TyKind::Hole(fhir_id) = ty.kind() {
+                    self.type_holes
+                        .get(fhir_id)
+                        .cloned()
+                        .unwrap_or_else(|| bug!("unfilled type hole {fhir_id:?}"))
+                } else {
+                    ty
+                }
+            },
+            lt_op: |r| {
+                if let rty::Region::ReVar(vid) = r {
+                    self.region_holes
+                        .get(&vid)
+                        .copied()
+                        .unwrap_or_else(|| bug!("unfilled region hole {vid:?}"))
+                } else {
+                    r
+                }
+            },
+            ct_op: |c| c,
+        })
     }
 }

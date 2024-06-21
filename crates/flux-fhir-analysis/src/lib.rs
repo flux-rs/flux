@@ -260,7 +260,7 @@ fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generi
                 .map()
                 .get_generics(local_id)?
                 .unwrap_or_else(|| bug!("no generics for {:?}", def_id));
-            let extern_id = genv.map().extern_id_of(local_id)?;
+            let extern_id = genv.extern_id_of(local_id);
             conv::conv_generics(genv, &rustc_generics, generics, extern_id, is_trait)?
         }
         DefKind::Closure => {
@@ -345,27 +345,24 @@ fn variants_of(
     let variants = match &item.kind {
         fhir::ItemKind::Enum(enum_def) => {
             let wfckresults = genv.check_wf(def_id)?;
-            let variants = conv::ConvCtxt::conv_enum_def_variants(
-                genv,
-                def_id.to_def_id(),
-                enum_def,
-                &wfckresults,
-            )?
-            .into_iter()
-            .map(|variant| normalize(genv, variant))
-            .try_collect()?;
+            let variants =
+                conv::ConvCtxt::conv_enum_def_variants(genv, def_id, enum_def, &wfckresults)?
+                    .into_iter()
+                    .map(|variant| normalize(genv, variant))
+                    .try_collect()?;
             rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
         }
         fhir::ItemKind::Struct(struct_def) => {
             let wfckresults = genv.check_wf(def_id)?;
-            conv::ConvCtxt::conv_struct_def_variant(
-                genv,
-                def_id.to_def_id(),
-                struct_def,
-                &wfckresults,
-            )?
-            .normalize(genv.spec_func_defns()?)
-            .map(|variant| rty::EarlyBinder(List::singleton(variant)))
+            conv::ConvCtxt::conv_struct_def_variant(genv, def_id, struct_def, &wfckresults)?
+                .map(|variants| {
+                    variants
+                        .into_iter()
+                        .map(|variant| normalize(genv, variant))
+                        .try_collect()
+                })
+                .transpose()?
+                .map(|variants| rty::EarlyBinder(variants))
         }
         _ => bug!("expected struct or enum"),
     };
