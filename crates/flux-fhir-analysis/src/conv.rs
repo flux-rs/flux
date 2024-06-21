@@ -44,6 +44,7 @@ use rustc_type_ir::DebruijnIndex;
 pub struct ConvCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     wfckresults: &'a WfckResults,
+    next_region_index: u32,
 }
 
 pub(crate) struct Env {
@@ -133,7 +134,7 @@ pub(crate) fn expand_type_alias<'genv>(
     alias: &fhir::TyAlias,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
-    let cx = ConvCtxt::new(genv, wfckresults);
+    let mut cx = ConvCtxt::new(genv, wfckresults);
 
     let mut env = Env::new(genv, alias.generics.refinement_params, wfckresults)?;
     env.push_layer(Layer::coalesce(&cx, def_id, alias.params)?);
@@ -148,7 +149,7 @@ pub(crate) fn conv_generic_predicates(
     predicates: &[fhir::WhereBoundPredicate],
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
-    let cx = ConvCtxt::new(genv, wfckresults);
+    let mut cx = ConvCtxt::new(genv, wfckresults);
 
     let refparams = &genv.map().get_generics(def_id)?.unwrap().refinement_params;
 
@@ -172,7 +173,7 @@ pub(crate) fn conv_opaque_ty(
     opaque_ty: &fhir::OpaqueTy,
     wfckresults: &WfckResults,
 ) -> QueryResult<List<rty::Clause>> {
-    let cx = ConvCtxt::new(genv, wfckresults);
+    let mut cx = ConvCtxt::new(genv, wfckresults);
     let parent = genv.tcx().local_parent(def_id);
     let refparams = &genv.map().get_generics(parent)?.unwrap().refinement_params;
     let parent_wfckresults = genv.check_wf(parent)?;
@@ -278,7 +279,7 @@ pub(crate) fn conv_invariants(
     invariants: &[fhir::Expr],
     wfckresults: &WfckResults,
 ) -> QueryResult<Vec<rty::Invariant>> {
-    let cx = ConvCtxt::new(genv, wfckresults);
+    let mut cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults)?;
     env.push_layer(Layer::coalesce(&cx, def_id.to_def_id(), params)?);
     cx.conv_invariants(&mut env, invariants)
@@ -290,7 +291,7 @@ pub(crate) fn conv_defn(
     wfckresults: &WfckResults,
 ) -> QueryResult<Option<rty::SpecFunc>> {
     if let Some(body) = &func.body {
-        let cx = ConvCtxt::new(genv, wfckresults);
+        let mut cx = ConvCtxt::new(genv, wfckresults);
         let mut env = Env::new(genv, &[], wfckresults)?;
         env.push_layer(Layer::list(&cx, 0, func.args)?);
         let expr = cx.conv_expr(&mut env, body)?;
@@ -306,7 +307,7 @@ pub(crate) fn conv_qualifier(
     qualifier: &fhir::Qualifier,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::Qualifier> {
-    let cx = ConvCtxt::new(genv, wfckresults);
+    let mut cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults)?;
     env.push_layer(Layer::list(&cx, 0, qualifier.args)?);
     let body = cx.conv_expr(&mut env, &qualifier.expr)?;
@@ -320,7 +321,7 @@ pub(crate) fn conv_fn_decl(
     decl: &fhir::FnDecl,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-    let cx = ConvCtxt::new(genv, wfckresults);
+    let mut cx = ConvCtxt::new(genv, wfckresults);
 
     let late_bound_regions = refining::refine_bound_variables(&genv.lower_late_bound_vars(def_id)?);
 
@@ -356,7 +357,7 @@ pub(crate) fn conv_assoc_reft_def(
     assoc_reft: &fhir::ImplAssocReft,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::Lambda> {
-    let cx = ConvCtxt::new(genv, wfckresults);
+    let mut cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults)?;
     env.push_layer(Layer::list(&cx, 0, assoc_reft.params)?);
     let expr = cx.conv_expr(&mut env, &assoc_reft.body)?;
@@ -377,11 +378,11 @@ pub(crate) fn conv_ty(
 
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, wfckresults: &'a WfckResults) -> Self {
-        Self { genv, wfckresults }
+        Self { genv, wfckresults, next_region_index: 0 }
     }
 
     fn conv_generic_bounds(
-        &self,
+        &mut self,
         env: &mut Env,
         bounded_ty_span: Span,
         bounded_ty: rty::Ty,
@@ -432,7 +433,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     /// Converts a `T: Trait<T0, ..., A0 = S0, ...>` bound
     fn conv_poly_trait_ref(
-        &self,
+        &mut self,
         env: &mut Env,
         bounded_ty_span: Span,
         bounded_ty: &rty::Ty,
@@ -466,7 +467,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     fn conv_type_binding(
-        &self,
+        &mut self,
         env: &mut Env,
         bounded_ty: &rty::Ty,
         trait_ref: &rty::TraitRef,
@@ -519,7 +520,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     fn conv_fn_bound(
-        &self,
+        &mut self,
         env: &mut Env,
         self_ty: &rty::Ty,
         trait_ref: &fhir::PolyTraitRef,
@@ -559,7 +560,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     fn conv_fn_output(
-        &self,
+        &mut self,
         env: &mut Env,
         output: &fhir::FnOutput,
     ) -> QueryResult<rty::Binder<rty::FnOutput>> {
@@ -598,7 +599,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         variant: &fhir::VariantDef,
         wfckresults: &WfckResults,
     ) -> QueryResult<rty::PolyVariant> {
-        let cx = ConvCtxt::new(genv, wfckresults);
+        let mut cx = ConvCtxt::new(genv, wfckresults);
 
         let mut env = Env::new(genv, &[], wfckresults)?;
         env.push_layer(Layer::list(&cx, 0, variant.params)?);
@@ -626,7 +627,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         struct_def: &fhir::StructDef,
         wfckresults: &WfckResults,
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
-        let cx = ConvCtxt::new(genv, wfckresults);
+        let mut cx = ConvCtxt::new(genv, wfckresults);
         let mut env = Env::new(genv, &[], wfckresults)?;
         env.push_layer(Layer::list(&cx, 0, struct_def.params)?);
 
@@ -659,7 +660,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_requires(&self, env: &mut Env, requires: &fhir::Requires) -> QueryResult<rty::Expr> {
+    fn conv_requires(
+        &mut self,
+        env: &mut Env,
+        requires: &fhir::Requires,
+    ) -> QueryResult<rty::Expr> {
         if requires.params.is_empty() {
             self.conv_expr(env, &requires.pred)
         } else {
@@ -670,7 +675,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_ensures(&self, env: &mut Env, ensures: &fhir::Ensures) -> QueryResult<rty::Ensures> {
+    fn conv_ensures(
+        &mut self,
+        env: &mut Env,
+        ensures: &fhir::Ensures,
+    ) -> QueryResult<rty::Ensures> {
         match ensures {
             fhir::Ensures::Type(loc, ty) => {
                 Ok(rty::Ensures::Type(env.lookup(loc).to_path(), self.conv_ty(env, ty)?))
@@ -680,7 +689,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     fn conv_alias_reft(
-        &self,
+        &mut self,
         env: &mut Env,
         alias: &fhir::AliasReft,
     ) -> QueryResult<rty::AliasReft> {
@@ -698,7 +707,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) })
     }
 
-    fn conv_ty(&self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
+    fn conv_ty(&mut self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => self.conv_base_ty(env, bty),
             fhir::TyKind::Indexed(bty, idx) => {
@@ -773,7 +782,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_base_ty(&self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
+    fn conv_base_ty(&mut self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
         match &bty.kind {
             fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) => {
                 match path.res {
@@ -832,7 +841,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     fn conv_assoc_path(
-        &self,
+        &mut self,
         env: &mut Env,
         qself: &fhir::Ty,
         assoc_segment: &fhir::PathSegment,
@@ -967,15 +976,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Refiner::default(self.genv, item_generics).refine_trait_ref(&trait_ref)
     }
 
-    fn conv_lifetime(&self, env: &Env, lft: fhir::Lifetime) -> rty::Region {
+    fn conv_lifetime(&mut self, env: &Env, lft: fhir::Lifetime) -> rty::Region {
         let res = match lft {
-            fhir::Lifetime::Hole(fhir_id) => {
-                *self
-                    .wfckresults
-                    .lifetime_holes()
-                    .get(fhir_id)
-                    .unwrap_or_else(|| bug!("unresolved lifetime hole"))
-            }
+            fhir::Lifetime::Hole(_) => return rty::Region::ReVar(self.next_region_vid()),
             fhir::Lifetime::Resolved(res) => res,
         };
         let tcx = self.genv.tcx();
@@ -1004,7 +1007,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_refine_arg(&self, env: &mut Env, arg: &fhir::RefineArg) -> QueryResult<rty::Expr> {
+    fn conv_refine_arg(&mut self, env: &mut Env, arg: &fhir::RefineArg) -> QueryResult<rty::Expr> {
         match &arg.kind {
             fhir::RefineArgKind::Expr(expr) => self.conv_expr(env, expr),
             fhir::RefineArgKind::Abs(params, body) => {
@@ -1033,7 +1036,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_ty_ctor(&self, env: &mut Env, path: &fhir::Path) -> QueryResult<rty::TyCtor> {
+    fn conv_ty_ctor(&mut self, env: &mut Env, path: &fhir::Path) -> QueryResult<rty::TyCtor> {
         let bty = match &path.res {
             fhir::Res::PrimTy(PrimTy::Bool) => rty::BaseTy::Bool,
             fhir::Res::PrimTy(PrimTy::Str) => rty::BaseTy::Str,
@@ -1078,7 +1081,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     pub fn conv_generic_args(
-        &self,
+        &mut self,
         env: &mut Env,
         def_id: DefId,
         args: &[fhir::GenericArg],
@@ -1090,7 +1093,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     fn conv_generic_args_into(
-        &self,
+        &mut self,
         env: &mut Env,
         def_id: DefId,
         args: &[fhir::GenericArg],
@@ -1136,7 +1139,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     fn conv_ty_to_generic_arg(
-        &self,
+        &mut self,
         env: &mut Env,
         param: &rty::GenericParamDef,
         ty: &fhir::Ty,
@@ -1178,6 +1181,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     fn resolve_param_sort(&self, param: &fhir::RefineParam) -> QueryResult<rty::Sort> {
         resolve_param_sort(self.genv, param, Some(self.wfckresults))
+    }
+
+    fn next_region_vid(&mut self) -> rty::RegionVid {
+        self.next_region_index = self.next_region_index.checked_add(1).unwrap();
+        rty::RegionVid::from_u32(self.next_region_index - 1)
     }
 }
 
@@ -1255,7 +1263,7 @@ impl ConvCtxt<'_, '_, '_> {
         self.wfckresults.owner
     }
 
-    fn conv_expr(&self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
+    fn conv_expr(&mut self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
         let espan = Some(ESpan::new(expr.span));
         let expr = match &expr.kind {
@@ -1344,12 +1352,12 @@ impl ConvCtxt<'_, '_, '_> {
         self.add_coercions(expr, func.fhir_id)
     }
 
-    fn conv_exprs(&self, env: &mut Env, exprs: &[fhir::Expr]) -> QueryResult<List<rty::Expr>> {
+    fn conv_exprs(&mut self, env: &mut Env, exprs: &[fhir::Expr]) -> QueryResult<List<rty::Expr>> {
         exprs.iter().map(|e| self.conv_expr(env, e)).collect()
     }
 
     fn conv_invariants(
-        &self,
+        &mut self,
         env: &mut Env,
         invariants: &[fhir::Expr],
     ) -> QueryResult<Vec<rty::Invariant>> {
@@ -1359,7 +1367,11 @@ impl ConvCtxt<'_, '_, '_> {
             .collect()
     }
 
-    fn conv_invariant(&self, env: &mut Env, invariant: &fhir::Expr) -> QueryResult<rty::Invariant> {
+    fn conv_invariant(
+        &mut self,
+        env: &mut Env,
+        invariant: &fhir::Expr,
+    ) -> QueryResult<rty::Invariant> {
         Ok(rty::Invariant::new(rty::Binder::new(
             self.conv_expr(env, invariant)?,
             env.top_layer().to_bound_vars(self.genv)?,

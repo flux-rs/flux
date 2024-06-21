@@ -51,6 +51,7 @@ pub use crate::{
     rustc::ty::{
         AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, EarlyParamRegion, FreeRegion,
         Region::{self, *},
+        RegionVid,
     },
 };
 use crate::{

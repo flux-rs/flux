@@ -52,7 +52,17 @@ pub fn fn_sig(
                     ty
                 }
             },
-            lt_op: |r| r,
+            lt_op: |r| {
+                if let rty::Region::ReVar(vid) = r {
+                    zipper
+                        .region_holes
+                        .get(&vid)
+                        .copied()
+                        .unwrap_or_else(|| bug!("unfilled region hole {vid:?}"))
+                } else {
+                    r
+                }
+            },
             ct_op: |c| c,
         })
     });
@@ -68,6 +78,7 @@ struct Zipper<'genv, 'tcx> {
     rty_index: DebruijnIndex,
     ty_index: DebruijnIndex,
     type_holes: ItemLocalMap<rty::Ty>,
+    region_holes: UnordMap<rty::RegionVid, rty::Region>,
 }
 
 impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
@@ -80,6 +91,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             rty_index: INNERMOST,
             ty_index: INNERMOST,
             type_holes: ItemLocalMap::default(),
+            region_holes: Default::default(),
         })
     }
 
@@ -105,7 +117,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         match (a.kind(), b.kind()) {
             (rty::TyKind::Hole(fhir_id), _) => {
                 let ty = self.genv.refine_default(&self.generics, b)?;
-                let ty = self.adjust_binders(ty);
+                let ty = self.adjust_binders(&ty);
                 self.type_holes_mut().insert(*fhir_id, ty);
             }
             (rty::TyKind::Indexed(bty, _), _) => {
@@ -232,9 +244,14 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         Ok(())
     }
 
-    fn zip_region(&mut self, a: &rty::Region, b: &ty::Region) {}
+    fn zip_region(&mut self, a: &rty::Region, b: &ty::Region) {
+        if let rty::Region::ReVar(vid) = a {
+            let re = self.adjust_binders(b);
+            self.region_holes.insert(*vid, re);
+        }
+    }
 
-    fn adjust_binders<T: TypeFoldable>(&self, t: T) -> T {
+    fn adjust_binders<T: TypeFoldable>(&self, t: &T) -> T {
         t.shift_in_escaping(self.rty_index.as_u32() - self.ty_index.as_u32())
     }
 
