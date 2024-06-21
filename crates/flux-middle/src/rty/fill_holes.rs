@@ -23,11 +23,9 @@ use crate::{
 
 pub fn fn_sig(
     genv: GlobalEnv,
-    fn_sig: rty::EarlyBinder<rty::PolyFnSig>,
+    fn_sig: rty::PolyFnSig,
     def_id: LocalDefId,
-) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-    let fn_sig = fn_sig.skip_binder();
-
+) -> QueryResult<rty::PolyFnSig> {
     // FIXME(nilehmann) we should call `genv.lower_fn_sig`, but that function normalizes
     // the signature before lowering it such that constants are evaluated. This is not what we want
     // here because we need the signatures to match syntactically.
@@ -59,7 +57,7 @@ pub fn fn_sig(
         })
     });
 
-    Ok(rty::EarlyBinder(fn_sig))
+    Ok(fn_sig)
 }
 
 struct Zipper<'genv, 'tcx> {

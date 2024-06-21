@@ -16,7 +16,7 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{
-        self,
+        self, fill_holes,
         fold::TypeFoldable,
         refining::{self, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
@@ -345,8 +345,10 @@ pub(crate) fn conv_fn_decl(
         .cloned()
         .collect();
 
-    let res = rty::PolyFnSig::new(rty::FnSig::new(requires.into(), inputs.into(), output), vars);
-    Ok(rty::EarlyBinder(res))
+    let fn_sig = rty::PolyFnSig::new(rty::FnSig::new(requires.into(), inputs.into(), output), vars);
+    let fn_sig = fill_holes::fn_sig(genv, fn_sig, def_id)?;
+
+    Ok(rty::EarlyBinder(fn_sig))
 }
 
 pub(crate) fn conv_assoc_reft_def(

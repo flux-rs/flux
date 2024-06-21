@@ -26,7 +26,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     queries::{Providers, QueryResult},
-    rty::{self, fill_holes, fold::TypeFoldable, refining::Refiner, WfckResults},
+    rty::{self, fold::TypeFoldable, refining::Refiner, WfckResults},
     rustc::lowering,
 };
 use itertools::Itertools;
@@ -380,7 +380,6 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
     let defns = genv.spec_func_defns()?;
     let fn_sig = conv::conv_fn_decl(genv, def_id, fn_sig.decl, &wfckresults)?
         .map(|fn_sig| fn_sig.normalize(defns));
-    let fn_sig = fill_holes::fn_sig(genv, fn_sig, def_id)?;
 
     if config::dump_rty() {
         let generics = genv.generics_of(def_id)?;
