@@ -14,7 +14,7 @@ use super::{
     normalize::{Normalizer, SpecFuncDefns},
     projections,
     subst::EVarSubstFolder,
-    AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind,
+    AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Const,
     CoroutineObligPredicate, Ensures, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
     ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, SubsetTy, TraitPredicate,
@@ -806,7 +806,9 @@ impl TypeSuperVisitable for Ty {
             }
             TyKind::Blocked(ty) => ty.visit_with(visitor),
             TyKind::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
-            TyKind::Param(_) | TyKind::Discr(..) | TyKind::Uninit => ControlFlow::Continue(()),
+            TyKind::Hole(_) | TyKind::Param(_) | TyKind::Discr(..) | TyKind::Uninit => {
+                ControlFlow::Continue(())
+            }
         }
     }
 }
@@ -863,7 +865,7 @@ impl TypeSuperFoldable for Ty {
             }
             TyKind::Blocked(ty) => Ty::blocked(ty.try_fold_with(folder)?),
             TyKind::Alias(kind, alias_ty) => Ty::alias(*kind, alias_ty.try_fold_with(folder)?),
-            TyKind::Param(_) | TyKind::Uninit | TyKind::Discr(..) => self.clone(),
+            TyKind::Hole(_) | TyKind::Param(_) | TyKind::Uninit | TyKind::Discr(..) => self.clone(),
         };
         Ok(ty)
     }
@@ -1270,4 +1272,38 @@ impl TypeFoldable for Invariant {
         let pred = self.pred.try_fold_with(folder)?;
         Ok(Invariant { pred })
     }
+}
+
+pub struct BottomUpFolder<F, G, H>
+where
+    F: FnMut(Ty) -> Ty,
+    G: FnMut(Region) -> Region,
+    H: FnMut(Const) -> Const,
+{
+    pub ty_op: F,
+    pub lt_op: G,
+    pub ct_op: H,
+}
+
+impl<F, G, H> TypeFolder for BottomUpFolder<F, G, H>
+where
+    F: FnMut(Ty) -> Ty,
+    G: FnMut(Region) -> Region,
+    H: FnMut(Const) -> Const,
+{
+    fn fold_ty(&mut self, ty: &Ty) -> Ty {
+        let t = ty.super_fold_with(self);
+        (self.ty_op)(t)
+    }
+
+    fn fold_region(&mut self, r: &Region) -> Region {
+        // This one is a little different, because `super_fold_with` is not
+        // implemented on non-recursive `Region`.
+        (self.lt_op)(*r)
+    }
+
+    // fn fold_const(&mut self, ct: &Const) -> Const {
+    //     let ct = ct.super_fold_with(self);
+    //     (self.ct_op)(ct)
+    // }
 }

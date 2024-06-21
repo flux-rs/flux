@@ -757,14 +757,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     rty::Expr::unit(),
                 ))
             }
-            fhir::TyKind::Hole(fhir_id) => {
-                let ty = self
-                    .wfckresults
-                    .type_holes()
-                    .get(*fhir_id)
-                    .unwrap_or_else(|| span_bug!(ty.span, "unfilled type hole"));
-                self.conv_ty(env, ty)
-            }
+            fhir::TyKind::Hole(fhir_id) => Ok(rty::Ty::hole(*fhir_id)),
             fhir::TyKind::OpaqueDef(item_id, args0, refine_args, _in_trait) => {
                 let def_id = item_id.owner_id.to_def_id();
                 let args = List::from_vec(self.conv_generic_args(env, def_id, args0)?);

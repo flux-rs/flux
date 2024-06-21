@@ -191,8 +191,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.lower_type_of(self, def_id.into())
     }
 
-    pub fn lower_fn_sig(self, def_id: DefId) -> QueryResult<ty::EarlyBinder<ty::PolyFnSig>> {
-        self.inner.queries.lower_fn_sig(self, def_id)
+    pub fn lower_fn_sig(
+        self,
+        def_id: impl Into<DefId>,
+    ) -> QueryResult<ty::EarlyBinder<ty::PolyFnSig>> {
+        self.inner.queries.lower_fn_sig(self, def_id.into())
     }
 
     pub fn adt_def(self, def_id: impl Into<DefId>) -> QueryResult<rty::AdtDef> {

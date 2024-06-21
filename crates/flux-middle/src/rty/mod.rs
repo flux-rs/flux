@@ -7,7 +7,7 @@
 pub mod canonicalize;
 pub mod evars;
 mod expr;
-mod fill_holes;
+pub mod fill_holes;
 pub mod fold;
 pub(crate) mod normalize;
 mod pretty;
@@ -704,6 +704,10 @@ impl Ty {
         BaseTy::Never.into_ty()
     }
 
+    pub fn hole(fhir_id: FhirId) -> Ty {
+        TyKind::Hole(fhir_id).intern()
+    }
+
     pub fn unconstr(&self) -> (Ty, Expr) {
         fn go(this: &Ty, preds: &mut Vec<Expr>) -> Ty {
             if let TyKind::Constr(pred, ty) = this.kind() {
@@ -745,7 +749,8 @@ impl Ty {
             | TyKind::Ptr(_, _)
             | TyKind::Discr(_, _)
             | TyKind::Downcast(_, _, _, _, _)
-            | TyKind::Blocked(_) => todo!(),
+            | TyKind::Blocked(_)
+            | TyKind::Hole(_) => bug!(),
         }
     }
 
@@ -825,6 +830,7 @@ pub enum TyKind {
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
     Blocked(Ty),
     Alias(AliasKind, AliasTy),
+    Hole(FhirId),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]

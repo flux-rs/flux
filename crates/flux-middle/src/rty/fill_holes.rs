@@ -2,22 +2,87 @@ use std::iter;
 
 use flux_common::bug;
 use rustc_ast::Mutability;
+use rustc_hir::{def_id::LocalDefId, OwnerId};
 
-use crate::{rty, rustc::ty};
+use super::{
+    fold::{BottomUpFolder, TypeFoldable},
+    ItemLocalMap, LocalTableInContext, LocalTableInContextMut,
+};
+use crate::{fhir::FluxOwnerId, global_env::GlobalEnv, queries::QueryResult, rty, rustc::ty};
 
-struct Zipper {}
+pub fn fn_sig(
+    genv: GlobalEnv,
+    fn_sig: rty::EarlyBinder<rty::PolyFnSig>,
+    def_id: LocalDefId,
+) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
+    let rust_fn_sig = genv.lower_fn_sig(def_id)?;
+    let mut zipper = Zipper::new(genv, def_id)?;
+    zipper.zip_fn_sig(
+        fn_sig.as_ref().skip_binder().as_ref().skip_binder(),
+        &rust_fn_sig.skip_binder().skip_binder(),
+    )?;
 
-impl Zipper {
-    fn zip_ty(&mut self, a: &rty::Ty, b: &ty::Ty) {
+    let fn_sig = fn_sig.map(|sig| {
+        sig.fold_with(&mut BottomUpFolder {
+            ty_op: |ty| {
+                if let rty::TyKind::Hole(fhir_id) = ty.kind() {
+                    zipper
+                        .type_holes()
+                        .get(*fhir_id)
+                        .cloned()
+                        .unwrap_or_else(|| bug!("unfilled type hole {fhir_id:?}"))
+                } else {
+                    ty
+                }
+            },
+            lt_op: |r| r,
+            ct_op: |c| c,
+        })
+    });
+
+    Ok(fn_sig)
+}
+
+struct Zipper<'genv, 'tcx> {
+    genv: GlobalEnv<'genv, 'tcx>,
+    generics: rty::Generics,
+    owner: OwnerId,
+    type_holes: ItemLocalMap<rty::Ty>,
+}
+
+impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
+    fn new(genv: GlobalEnv<'genv, 'tcx>, owner: LocalDefId) -> QueryResult<Self> {
+        Ok(Self {
+            genv,
+            generics: genv.generics_of(owner)?,
+            owner: OwnerId { def_id: owner },
+            type_holes: ItemLocalMap::default(),
+        })
+    }
+
+    fn zip_fn_sig(&mut self, a: &rty::FnSig, b: &ty::FnSig) -> QueryResult {
+        debug_assert_eq!(a.inputs().len(), b.inputs().len());
+        for (a, b) in iter::zip(&a.inputs, b.inputs()) {
+            self.zip_ty(a, b)?;
+        }
+        self.zip_ty(&a.output().as_ref().skip_binder().ret, b.output())?;
+        Ok(())
+    }
+
+    fn zip_ty(&mut self, a: &rty::Ty, b: &ty::Ty) -> QueryResult {
         match (a.kind(), b.kind()) {
-            (rty::TyKind::Indexed(bty, _), _) => {
-                self.zip_bty(bty, b);
+            (rty::TyKind::Hole(fhir_id), _) => {
+                let ty = self.genv.refine_default(&self.generics, b)?;
+                self.type_holes_mut().insert(*fhir_id, ty);
             }
-            (rty::TyKind::Exists(ctor), _) => self.zip_ty(ctor.as_ref().skip_binder(), b),
-            (rty::TyKind::Constr(_, ty), _) => self.zip_ty(ty, b),
+            (rty::TyKind::Indexed(bty, _), _) => {
+                self.zip_bty(bty, b)?;
+            }
+            (rty::TyKind::Exists(ctor), _) => self.zip_ty(ctor.as_ref().skip_binder(), b)?,
+            (rty::TyKind::Constr(_, ty), _) => self.zip_ty(ty, b)?,
             (rty::TyKind::StrgRef(re_a, _, ty_a), ty::TyKind::Ref(re_b, ty_b, Mutability::Mut)) => {
                 self.zip_region(re_a, re_b);
-                self.zip_ty(ty_a, ty_b);
+                self.zip_ty(ty_a, ty_b)?;
             }
             (rty::TyKind::Param(pty_a), ty::TyKind::Param(pty_b)) => {
                 debug_assert_eq!(pty_a, pty_b);
@@ -27,7 +92,7 @@ impl Zipper {
                 debug_assert_eq!(aty_a.def_id, aty_b.def_id);
                 debug_assert_eq!(aty_a.args.len(), aty_b.args.len());
                 for (arg_a, arg_b) in iter::zip(&aty_a.args, &aty_b.args) {
-                    self.zip_generic_arg(arg_a, arg_b);
+                    self.zip_generic_arg(arg_a, arg_b)?;
                 }
             }
             (
@@ -44,9 +109,10 @@ impl Zipper {
                 bug!("incompatible types `{a:?}` `{b:?}`")
             }
         }
+        Ok(())
     }
 
-    fn zip_bty(&mut self, a: &rty::BaseTy, b: &ty::Ty) {
+    fn zip_bty(&mut self, a: &rty::BaseTy, b: &ty::Ty) -> QueryResult {
         match (a, b.kind()) {
             (rty::BaseTy::Int(ity_a), ty::TyKind::Int(ity_b)) => {
                 debug_assert_eq!(ity_a, ity_b)
@@ -61,33 +127,33 @@ impl Zipper {
                 debug_assert_eq!(fty_a, fty_b);
             }
             (rty::BaseTy::Slice(ty_a), ty::TyKind::Slice(ty_b)) => {
-                self.zip_ty(ty_a, ty_b);
+                self.zip_ty(ty_a, ty_b)?;
             }
             (rty::BaseTy::Adt(adt_def_a, args_a), ty::TyKind::Adt(adt_def_b, args_b)) => {
                 debug_assert_eq!(adt_def_a.did(), adt_def_b.did());
                 debug_assert_eq!(args_a.len(), args_b.len());
                 for (arg_a, arg_b) in iter::zip(args_a, args_b) {
-                    self.zip_generic_arg(arg_a, arg_b);
+                    self.zip_generic_arg(arg_a, arg_b)?;
                 }
             }
             (rty::BaseTy::RawPtr(ty_a, mutbl_a), ty::TyKind::RawPtr(ty_b, mutbl_b)) => {
                 debug_assert_eq!(mutbl_a, mutbl_b);
-                self.zip_ty(ty_a, ty_b);
+                self.zip_ty(ty_a, ty_b)?;
             }
             (rty::BaseTy::Ref(re_a, ty_a, mutbl_a), ty::TyKind::Ref(re_b, ty_b, mutbl_b)) => {
                 debug_assert_eq!(mutbl_a, mutbl_b);
-                self.zip_ty(ty_a, ty_b);
+                self.zip_ty(ty_a, ty_b)?;
                 self.zip_region(re_a, re_b);
             }
             (rty::BaseTy::Tuple(tys_a), ty::TyKind::Tuple(tys_b)) => {
                 debug_assert_eq!(tys_a.len(), tys_b.len());
                 for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
-                    self.zip_ty(ty_a, ty_b);
+                    self.zip_ty(ty_a, ty_b)?;
                 }
             }
             (rty::BaseTy::Array(ty_a, len_a), ty::TyKind::Array(ty_b, len_b)) => {
                 debug_assert_eq!(len_a, len_b);
-                self.zip_ty(ty_a, ty_b);
+                self.zip_ty(ty_a, ty_b)?;
             }
             (rty::BaseTy::Never, ty::TyKind::Never) => {}
             (rty::BaseTy::Closure(..), _) => {
@@ -103,13 +169,14 @@ impl Zipper {
                 bug!("incompatible types `{a:?}` `{b:?}`")
             }
         }
+        Ok(())
     }
 
-    fn zip_generic_arg(&mut self, a: &rty::GenericArg, b: &ty::GenericArg) {
+    fn zip_generic_arg(&mut self, a: &rty::GenericArg, b: &ty::GenericArg) -> QueryResult {
         match (a, b) {
-            (rty::GenericArg::Ty(ty_a), ty::GenericArg::Ty(ty_b)) => self.zip_ty(ty_a, ty_b),
+            (rty::GenericArg::Ty(ty_a), ty::GenericArg::Ty(ty_b)) => self.zip_ty(ty_a, ty_b)?,
             (rty::GenericArg::Base(ctor_a), ty::GenericArg::Ty(ty_b)) => {
-                self.zip_bty(ctor_a.as_bty_skipping_binder(), ty_b);
+                self.zip_bty(ctor_a.as_bty_skipping_binder(), ty_b)?;
             }
             (rty::GenericArg::Lifetime(re_a), ty::GenericArg::Lifetime(re_b)) => {
                 self.zip_region(re_a, re_b);
@@ -121,7 +188,16 @@ impl Zipper {
                 bug!("incompatible generic args `{a:?}` `{b:?}`")
             }
         }
+        Ok(())
     }
 
     fn zip_region(&mut self, a: &rty::Region, b: &ty::Region) {}
+
+    pub fn type_holes_mut(&mut self) -> LocalTableInContextMut<rty::Ty> {
+        LocalTableInContextMut { owner: FluxOwnerId::Rust(self.owner), data: &mut self.type_holes }
+    }
+
+    pub fn type_holes(&self) -> LocalTableInContext<rty::Ty> {
+        LocalTableInContext { owner: FluxOwnerId::Rust(self.owner), data: &self.type_holes }
+    }
 }
