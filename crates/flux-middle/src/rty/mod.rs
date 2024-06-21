@@ -1422,7 +1422,7 @@ where
     pub fn replace_bound_refts(&self, exprs: &[Expr]) -> T {
         let delegate = FnMutDelegate::new(
             |var| exprs[var.index as usize].clone(),
-            |_| bug!("unexpected escaping region"),
+            |_| flux_common::tracked_span_bug!("unexpected escaping region"),
         );
         self.value
             .fold_with(&mut BoundVarReplacer::new(delegate))
