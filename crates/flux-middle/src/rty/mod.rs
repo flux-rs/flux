@@ -7,6 +7,7 @@
 pub mod canonicalize;
 pub mod evars;
 mod expr;
+mod fill_holes;
 pub mod fold;
 pub(crate) mod normalize;
 mod pretty;
@@ -48,7 +49,7 @@ use self::{
 pub use crate::{
     fhir::InferMode,
     rustc::ty::{
-        BoundRegion, BoundRegionKind, BoundVar, Const, EarlyParamRegion, FreeRegion,
+        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, EarlyParamRegion, FreeRegion,
         Region::{self, *},
     },
 };
@@ -858,22 +859,6 @@ pub struct AliasTy {
     /// Holds the refinement-arguments for opaque-types; empty for projections
     pub refine_args: RefineArgs,
     pub def_id: DefId,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
-pub enum AliasKind {
-    Projection,
-    Opaque,
-}
-
-impl AliasKind {
-    fn to_rustc(self) -> rustc_middle::ty::AliasKind {
-        use rustc_middle::ty;
-        match self {
-            AliasKind::Opaque => ty::AliasKind::Opaque,
-            AliasKind::Projection => ty::AliasKind::Projection,
-        }
-    }
 }
 
 pub type RefineArgs = List<Expr>;
