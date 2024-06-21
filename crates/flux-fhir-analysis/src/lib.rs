@@ -391,10 +391,7 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
     Ok(fn_sig)
 }
 
-fn check_wf<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    flux_id: FluxLocalDefId,
-) -> QueryResult<Rc<WfckResults<'genv>>> {
+fn check_wf(genv: GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<Rc<WfckResults>> {
     let wfckresults = match flux_id {
         FluxLocalDefId::Flux(sym) => {
             wf::check_flux_item(genv, genv.map().get_flux_item(sym).unwrap())?

@@ -27,7 +27,7 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     pub params: UnordMap<fhir::ParamId, (rty::Sort, fhir::ParamKind)>,
     pub(super) sort_unification_table: InPlaceUnificationTable<rty::SortVid>,
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
-    pub wfckresults: WfckResults<'genv>,
+    pub wfckresults: WfckResults,
 }
 
 impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
@@ -517,7 +517,7 @@ impl<'genv> InferCtxt<'genv, '_> {
         }
     }
 
-    pub(crate) fn into_results(self) -> WfckResults<'genv> {
+    pub(crate) fn into_results(self) -> WfckResults {
         self.wfckresults
     }
 

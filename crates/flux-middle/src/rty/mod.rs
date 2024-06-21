@@ -1979,13 +1979,12 @@ macro_rules! _Ref {
 }
 pub use crate::_Ref as Ref;
 
-pub struct WfckResults<'genv> {
+pub struct WfckResults {
     pub owner: FluxOwnerId,
     record_ctors: ItemLocalMap<DefId>,
     node_sorts: ItemLocalMap<Sort>,
     bin_rel_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
-    type_holes: ItemLocalMap<fhir::Ty<'genv>>,
     lifetime_holes: ItemLocalMap<ResolvedArg>,
 }
 
@@ -2008,7 +2007,7 @@ pub struct LocalTableInContextMut<'a, T> {
     data: &'a mut ItemLocalMap<T>,
 }
 
-impl<'genv> WfckResults<'genv> {
+impl WfckResults {
     pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
         Self {
             owner: owner.into(),
@@ -2016,7 +2015,6 @@ impl<'genv> WfckResults<'genv> {
             node_sorts: ItemLocalMap::default(),
             bin_rel_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
-            type_holes: ItemLocalMap::default(),
             lifetime_holes: ItemLocalMap::default(),
         }
     }
@@ -2051,14 +2049,6 @@ impl<'genv> WfckResults<'genv> {
 
     pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
         LocalTableInContext { owner: self.owner, data: &self.coercions }
-    }
-
-    pub fn type_holes_mut(&mut self) -> LocalTableInContextMut<fhir::Ty<'genv>> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.type_holes }
-    }
-
-    pub fn type_holes(&self) -> LocalTableInContext<fhir::Ty> {
-        LocalTableInContext { owner: self.owner, data: &self.type_holes }
     }
 
     pub fn lifetime_holes_mut(&mut self) -> LocalTableInContextMut<ResolvedArg> {

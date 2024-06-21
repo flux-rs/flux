@@ -43,7 +43,7 @@ use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    wfckresults: &'a WfckResults<'genv>,
+    wfckresults: &'a WfckResults,
 }
 
 pub(crate) struct Env {
@@ -131,7 +131,7 @@ pub(crate) fn expand_type_alias<'genv>(
     genv: GlobalEnv<'genv, '_>,
     def_id: DefId,
     alias: &fhir::TyAlias,
-    wfckresults: &WfckResults<'genv>,
+    wfckresults: &WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
@@ -142,11 +142,11 @@ pub(crate) fn expand_type_alias<'genv>(
     Ok(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)?))
 }
 
-pub(crate) fn conv_generic_predicates<'genv>(
-    genv: GlobalEnv<'genv, '_>,
+pub(crate) fn conv_generic_predicates(
+    genv: GlobalEnv,
     def_id: LocalDefId,
     predicates: &[fhir::WhereBoundPredicate],
-    wfckresults: &WfckResults<'genv>,
+    wfckresults: &WfckResults,
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
@@ -166,11 +166,11 @@ pub(crate) fn conv_generic_predicates<'genv>(
     Ok(rty::EarlyBinder(rty::GenericPredicates { parent, predicates: List::from_vec(clauses) }))
 }
 
-pub(crate) fn conv_opaque_ty<'genv>(
-    genv: GlobalEnv<'genv, '_>,
+pub(crate) fn conv_opaque_ty(
+    genv: GlobalEnv,
     def_id: LocalDefId,
     opaque_ty: &fhir::OpaqueTy,
-    wfckresults: &WfckResults<'genv>,
+    wfckresults: &WfckResults,
 ) -> QueryResult<List<rty::Clause>> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let parent = genv.tcx().local_parent(def_id);
@@ -247,10 +247,10 @@ pub(crate) fn conv_generics(
     })
 }
 
-pub(crate) fn conv_refinement_generics<'genv>(
-    genv: GlobalEnv<'genv, '_>,
+pub(crate) fn conv_refinement_generics(
+    genv: GlobalEnv,
     params: &[fhir::RefineParam],
-    wfckresults: Option<&WfckResults<'genv>>,
+    wfckresults: Option<&WfckResults>,
 ) -> QueryResult<List<rty::RefineParam>> {
     params
         .iter()
@@ -271,12 +271,12 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
     }
 }
 
-pub(crate) fn conv_invariants<'genv>(
-    genv: GlobalEnv<'genv, '_>,
+pub(crate) fn conv_invariants(
+    genv: GlobalEnv,
     def_id: LocalDefId,
     params: &[fhir::RefineParam],
     invariants: &[fhir::Expr],
-    wfckresults: &WfckResults<'genv>,
+    wfckresults: &WfckResults,
 ) -> QueryResult<Vec<rty::Invariant>> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults)?;
@@ -284,10 +284,10 @@ pub(crate) fn conv_invariants<'genv>(
     cx.conv_invariants(&mut env, invariants)
 }
 
-pub(crate) fn conv_defn<'genv>(
-    genv: GlobalEnv<'genv, '_>,
+pub(crate) fn conv_defn(
+    genv: GlobalEnv,
     func: &fhir::SpecFunc,
-    wfckresults: &WfckResults<'genv>,
+    wfckresults: &WfckResults,
 ) -> QueryResult<Option<rty::SpecFunc>> {
     if let Some(body) = &func.body {
         let cx = ConvCtxt::new(genv, wfckresults);
@@ -301,10 +301,10 @@ pub(crate) fn conv_defn<'genv>(
     }
 }
 
-pub(crate) fn conv_qualifier<'genv>(
-    genv: GlobalEnv<'genv, '_>,
+pub(crate) fn conv_qualifier(
+    genv: GlobalEnv,
     qualifier: &fhir::Qualifier,
-    wfckresults: &WfckResults<'genv>,
+    wfckresults: &WfckResults,
 ) -> QueryResult<rty::Qualifier> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults)?;
@@ -314,11 +314,11 @@ pub(crate) fn conv_qualifier<'genv>(
     Ok(rty::Qualifier { name: qualifier.name, body, global: qualifier.global })
 }
 
-pub(crate) fn conv_fn_decl<'genv>(
-    genv: GlobalEnv<'genv, '_>,
+pub(crate) fn conv_fn_decl(
+    genv: GlobalEnv,
     def_id: LocalDefId,
     decl: &fhir::FnDecl,
-    wfckresults: &WfckResults<'genv>,
+    wfckresults: &WfckResults,
 ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let cx = ConvCtxt::new(genv, wfckresults);
 
@@ -349,10 +349,10 @@ pub(crate) fn conv_fn_decl<'genv>(
     Ok(rty::EarlyBinder(res))
 }
 
-pub(crate) fn conv_assoc_reft_def<'genv>(
-    genv: GlobalEnv<'genv, '_>,
+pub(crate) fn conv_assoc_reft_def(
+    genv: GlobalEnv,
     assoc_reft: &fhir::ImplAssocReft,
-    wfckresults: &WfckResults<'genv>,
+    wfckresults: &WfckResults,
 ) -> QueryResult<rty::Lambda> {
     let cx = ConvCtxt::new(genv, wfckresults);
     let mut env = Env::new(genv, &[], wfckresults)?;
@@ -363,10 +363,10 @@ pub(crate) fn conv_assoc_reft_def<'genv>(
     Ok(rty::Lambda::with_vars(expr, inputs, output))
 }
 
-pub(crate) fn conv_ty<'genv>(
-    genv: GlobalEnv<'genv, '_>,
+pub(crate) fn conv_ty(
+    genv: GlobalEnv,
     ty: &fhir::Ty,
-    wfckresults: &WfckResults<'genv>,
+    wfckresults: &WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let mut env = Env::new(genv, &[], wfckresults)?;
     let ty = ConvCtxt::new(genv, wfckresults).conv_ty(&mut env, ty)?;
@@ -374,7 +374,7 @@ pub(crate) fn conv_ty<'genv>(
 }
 
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
-    pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, wfckresults: &'a WfckResults<'genv>) -> Self {
+    pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, wfckresults: &'a WfckResults) -> Self {
         Self { genv, wfckresults }
     }
 
@@ -576,10 +576,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     pub(crate) fn conv_enum_def_variants(
-        genv: GlobalEnv<'genv, '_>,
+        genv: GlobalEnv,
         adt_def_id: DefId,
         enum_def: &fhir::EnumDef,
-        wfckresults: &WfckResults<'genv>,
+        wfckresults: &WfckResults,
     ) -> QueryResult<Vec<rty::PolyVariant>> {
         enum_def
             .variants
@@ -591,10 +591,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     fn conv_enum_variant(
-        genv: GlobalEnv<'genv, '_>,
+        genv: GlobalEnv,
         adt_def_id: DefId,
         variant: &fhir::VariantDef,
-        wfckresults: &WfckResults<'genv>,
+        wfckresults: &WfckResults,
     ) -> QueryResult<rty::PolyVariant> {
         let cx = ConvCtxt::new(genv, wfckresults);
 
@@ -622,7 +622,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         genv: GlobalEnv<'genv, '_>,
         adt_def_id: DefId,
         struct_def: &fhir::StructDef,
-        wfckresults: &WfckResults<'genv>,
+        wfckresults: &WfckResults,
     ) -> QueryResult<rty::Opaqueness<rty::PolyVariant>> {
         let cx = ConvCtxt::new(genv, wfckresults);
         let mut env = Env::new(genv, &[], wfckresults)?;

@@ -22,9 +22,9 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
 use rustc_hir::OwnerId;
 
-pub(crate) fn check_node<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    wfckresults: &mut WfckResults<'genv>,
+pub(crate) fn check_node(
+    genv: GlobalEnv,
+    wfckresults: &mut WfckResults,
     node: &fhir::Node,
 ) -> Result<(), ErrorGuaranteed> {
     match node {
@@ -34,9 +34,9 @@ pub(crate) fn check_node<'genv>(
     }
 }
 
-fn check_item<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    wfckresults: &mut WfckResults<'genv>,
+fn check_item(
+    genv: GlobalEnv,
+    wfckresults: &mut WfckResults,
     item: &fhir::Item,
 ) -> Result<(), ErrorGuaranteed> {
     match &item.kind {
@@ -54,9 +54,9 @@ fn check_item<'genv>(
     }
 }
 
-fn check_trait_item<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    wfckresults: &mut WfckResults<'genv>,
+fn check_trait_item(
+    genv: GlobalEnv,
+    wfckresults: &mut WfckResults,
     trait_item: &fhir::TraitItem,
 ) -> Result<(), ErrorGuaranteed> {
     match &trait_item.kind {
@@ -67,9 +67,9 @@ fn check_trait_item<'genv>(
     }
 }
 
-fn check_impl_item<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    wfckresults: &mut WfckResults<'genv>,
+fn check_impl_item(
+    genv: GlobalEnv,
+    wfckresults: &mut WfckResults,
     impl_item: &fhir::ImplItem,
 ) -> Result<(), ErrorGuaranteed> {
     match &impl_item.kind {
@@ -80,9 +80,9 @@ fn check_impl_item<'genv>(
     }
 }
 
-pub(crate) fn check_fn_sig<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    wfckresults: &mut WfckResults<'genv>,
+pub(crate) fn check_fn_sig(
+    genv: GlobalEnv,
+    wfckresults: &mut WfckResults,
     owner_id: OwnerId,
     fn_sig: &fhir::FnSig,
 ) -> Result<(), ErrorGuaranteed> {
@@ -94,9 +94,9 @@ pub(crate) fn check_fn_sig<'genv>(
     Zipper::new(genv, wfckresults, self_ty).zip_fn_decl(fn_sig.decl, expected_fn_decl)
 }
 
-pub(crate) fn check_ty_alias<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    wfckresults: &mut WfckResults<'genv>,
+pub(crate) fn check_ty_alias(
+    genv: GlobalEnv,
+    wfckresults: &mut WfckResults,
     owner_id: OwnerId,
     ty_alias: &fhir::TyAlias,
 ) -> Result<(), ErrorGuaranteed> {
@@ -107,9 +107,9 @@ pub(crate) fn check_ty_alias<'genv>(
     Zipper::new(genv, wfckresults, None).zip_ty(&ty_alias.ty, &expected_ty_alias.ty)
 }
 
-pub(crate) fn check_struct_def<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    wfckresults: &mut WfckResults<'genv>,
+pub(crate) fn check_struct_def(
+    genv: GlobalEnv,
+    wfckresults: &mut WfckResults,
     owner_id: OwnerId,
     struct_def: &fhir::StructDef,
 ) -> Result<(), ErrorGuaranteed> {
@@ -130,9 +130,9 @@ pub(crate) fn check_struct_def<'genv>(
     }
 }
 
-pub(crate) fn check_enum_def<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    wfckresults: &mut WfckResults<'genv>,
+pub(crate) fn check_enum_def(
+    genv: GlobalEnv,
+    wfckresults: &mut WfckResults,
     owner_id: OwnerId,
     enum_def: &fhir::EnumDef,
 ) -> Result<(), ErrorGuaranteed> {
@@ -150,7 +150,7 @@ pub(crate) fn check_enum_def<'genv>(
 
 struct Zipper<'zip, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    wfckresults: &'zip mut WfckResults<'genv>,
+    wfckresults: &'zip mut WfckResults,
     locs: LocsMap<'genv>,
     self_ty: Option<fhir::Ty<'genv>>,
 }
@@ -160,7 +160,7 @@ type LocsMap<'genv> = UnordMap<fhir::ParamId, fhir::Ty<'genv>>;
 impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
     fn new(
         genv: GlobalEnv<'genv, 'tcx>,
-        wfckresults: &'zip mut WfckResults<'genv>,
+        wfckresults: &'zip mut WfckResults,
         self_ty: Option<fhir::Ty<'genv>>,
     ) -> Self {
         Self { genv, wfckresults, locs: LocsMap::default(), self_ty }
@@ -291,12 +291,7 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
                 self.zip_ty(ty, expected_ty)
             }
             (fhir::TyKind::Never, fhir::TyKind::Never) => Ok(()),
-            (fhir::TyKind::Hole(fhir_id), _) => {
-                self.wfckresults
-                    .type_holes_mut()
-                    .insert(fhir_id, *expected_ty);
-                Ok(())
-            }
+            (fhir::TyKind::Hole(_), _) => Ok(()),
             (
                 fhir::TyKind::OpaqueDef(item_id, args, _, _),
                 fhir::TyKind::OpaqueDef(exp_item_id, exp_args, _, _),

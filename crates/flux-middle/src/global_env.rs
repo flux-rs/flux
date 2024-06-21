@@ -206,10 +206,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.adt_sort_def_of(self, def_id.into())
     }
 
-    pub fn check_wf(
-        self,
-        flux_id: impl Into<FluxLocalDefId>,
-    ) -> QueryResult<Rc<rty::WfckResults<'genv>>> {
+    pub fn check_wf(self, flux_id: impl Into<FluxLocalDefId>) -> QueryResult<Rc<rty::WfckResults>> {
         self.inner.queries.check_wf(self, flux_id.into())
     }
 
