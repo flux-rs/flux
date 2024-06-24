@@ -530,16 +530,6 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         })
     }
 
-    // CUT fn mk_param_const(&self, def_id: rustc_span::def_id::DefId) -> ParamConst {
-    // CUT     let generics = self.genv.tcx().generics_of(self.owner.def_id);
-    // CUT     for param in &generics.params {
-    // CUT         if param.def_id == def_id {
-    // CUT             return ParamConst::new(param.index, param.name);
-    // CUT         }
-    // CUT     }
-    // CUT     bug!("Cannot find generic corresponding to ConstParam {def_id:?}")
-    // CUT }
-
     fn lift_array_len(&mut self, len: hir::ArrayLen) -> Result<fhir::ArrayLen> {
         let body = match len {
             hir::ArrayLen::Body(anon_const) => self.genv.hir().body(anon_const.body),
