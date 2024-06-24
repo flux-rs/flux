@@ -831,7 +831,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Rvalue::Len(place) => self.check_len(rcx, env, stmt_span, place),
             Rvalue::Cast(kind, op, to) => {
                 let from = self.check_operand(rcx, env, stmt_span, op)?;
-                self.check_cast(env, *kind, &from, to)
+                self.check_cast(*kind, &from, to)
             }
         }
     }
@@ -849,13 +849,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(tys)
     }
 
-    fn index_of_const(&self, env: &TypeEnv, const_: &Const) -> Expr {
+    fn index_of_const(&self, const_: &Const) -> Expr {
         match &const_.kind {
             ConstKind::Value(value) => {
                 let value = value.try_to_target_usize(self.genv.tcx()).unwrap() as u128;
                 Expr::constant(rty::Constant::from(value))
             }
-            ConstKind::Param(param_const) => env.index_of_param_const(param_const),
+            ConstKind::Param(param_const) => Expr::const_generic(*param_const, None),
         }
     }
 
@@ -871,7 +871,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .with_span(source_span)?;
 
         let idx = match ty.kind() {
-            TyKind::Indexed(BaseTy::Array(_, len), _) => self.index_of_const(env, len),
+            TyKind::Indexed(BaseTy::Array(_, len), _) => self.index_of_const(len),
             TyKind::Indexed(BaseTy::Slice(_), idx) => idx.clone(),
             _ => tracked_span_bug!("expected array or slice type"),
         };
@@ -956,13 +956,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
-    fn check_cast(
-        &self,
-        env: &TypeEnv,
-        kind: CastKind,
-        from: &Ty,
-        to: &rustc::ty::Ty,
-    ) -> Result<Ty> {
+    fn check_cast(&self, kind: CastKind, from: &Ty, to: &rustc::ty::Ty) -> Result<Ty> {
         use rustc::ty::TyKind as RustTy;
         let ty = match kind {
             CastKind::IntToInt => {
@@ -995,7 +989,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 {
                     // let v = src_n.try_to_target_usize(self.genv.tcx()).unwrap() as u128;
                     // let idx = Expr::constant(rty::Constant::from(v));
-                    let idx = self.index_of_const(env, src_n);
+                    let idx = self.index_of_const(src_n);
                     let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), idx);
                     Ty::mk_ref(*dst_re, dst_slice, *dst_mut)
                 } else {
@@ -1037,7 +1031,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let ty = match operand {
             Operand::Copy(p) => env.lookup_place(self.genv, rcx, p).with_span(source_span)?,
             Operand::Move(p) => env.move_place(self.genv, rcx, p).with_span(source_span)?,
-            Operand::Constant(c) => self.check_constant(env, c)?,
+            Operand::Constant(c) => self.check_constant(c)?,
         };
         Ok(rcx
             .unpacker()
@@ -1045,7 +1039,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .unpack(&ty))
     }
 
-    fn check_constant(&mut self, env: &TypeEnv, c: &Constant) -> Result<Ty> {
+    fn check_constant(&mut self, c: &Constant) -> Result<Ty> {
         match c {
             Constant::Int(n, int_ty) => {
                 let idx = Expr::constant(rty::Constant::from(*n));
@@ -1064,13 +1058,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Constant::Str => Ok(Ty::mk_ref(ReStatic, Ty::str(), Mutability::Not)),
             Constant::Char => Ok(Ty::char()),
             Constant::Param(param_const, ty) => {
-                let idx = env.index_of_param_const(param_const);
-                let ty = self
-                    .genv
-                    .refine_default(&self.generics, ty)
+                let idx = Expr::const_generic(*param_const, None);
+                let ty_ctor = Refiner::default(self.genv, &self.generics)
+                    .refine_ty_ctor(ty)
                     .with_span(self.body.span())?;
-                let bty = ty.expect_base();
-                Ok(Ty::indexed(bty, idx))
+                Ok(ty_ctor.replace_bound_reft(&idx))
             }
             Constant::Opaque(ty) => {
                 self.genv

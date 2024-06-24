@@ -590,7 +590,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     Ok(fhir::GenericArg::Lifetime(lft))
                 }
                 hir::GenericParamKind::Const { .. } => {
-                    self.emit_unsupported("const generics are not supported (3)")
+                    self.emit_unsupported("const generics are not supported")
                 }
             }
         })

@@ -17,7 +17,7 @@ use flux_middle::{
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
 use itertools::{izip, Itertools};
-use rustc_middle::ty::{ParamConst, TyCtxt};
+use rustc_middle::ty::TyCtxt;
 
 use self::place_ty::{LocKind, PlacesTree};
 use super::rty::Sort;
@@ -57,10 +57,6 @@ struct BasicBlockEnvData {
 impl TypeEnv<'_> {
     pub fn new(local_decls: &LocalDecls) -> TypeEnv {
         TypeEnv { bindings: PlacesTree::default(), local_decls }
-    }
-
-    pub fn index_of_param_const(&self, param_const: &ParamConst) -> Expr {
-        Expr::const_generic(*param_const, None)
     }
 
     pub fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
