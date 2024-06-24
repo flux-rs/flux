@@ -53,7 +53,7 @@ pub use crate::{
     },
 };
 use crate::{
-    fhir::{self, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
+    fhir::{self, ArrayLenKind, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
@@ -991,6 +991,17 @@ pub enum GenericArg {
     Base(SubsetTyCtor),
     Lifetime(Region),
     Const(Const),
+}
+
+pub fn array_len_const(genv: &GlobalEnv, len: ArrayLenKind) -> Const {
+    let kind = match len {
+        ArrayLenKind::Lit(len) => {
+            ConstKind::Value(ScalarInt::try_from_target_usize(len as u128, genv.tcx()).unwrap())
+        }
+
+        ArrayLenKind::ParamConst(def_id) => ConstKind::Param(genv.def_id_to_param_const(def_id)),
+    };
+    Const { kind, ty: crate::rustc::ty::Ty::mk_uint(UintTy::Usize) }
 }
 
 impl GenericArg {

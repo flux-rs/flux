@@ -22,8 +22,6 @@ use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 
 use self::subst::Subst;
 use crate::{
-    fhir::ArrayLenKind,
-    global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     pretty::def_id_to_string,
 };
@@ -199,21 +197,6 @@ pub enum AliasKind {
 pub struct Const {
     pub kind: ConstKind,
     pub ty: Ty,
-}
-
-impl Const {
-    pub fn from_array_len(genv: &GlobalEnv, len: ArrayLenKind) -> Const {
-        let kind = match len {
-            ArrayLenKind::Lit(len) => {
-                ConstKind::Value(ScalarInt::try_from_target_usize(len as u128, genv.tcx()).unwrap())
-            }
-
-            ArrayLenKind::ParamConst(def_id) => {
-                ConstKind::Param(genv.def_id_to_param_const(def_id))
-            }
-        };
-        Const { kind, ty: Ty::mk_uint(UintTy::Usize) }
-    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
