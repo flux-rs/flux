@@ -54,10 +54,6 @@ pub trait TypeVisitor: Sized {
     fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<Self::BreakTy> {
         bty.super_visit_with(self)
     }
-
-    // fn visit_const(&mut self, c: &Const) -> ControlFlow<Self::BreakTy> {
-    //     c.super_visit_with(self)
-    // }
 }
 
 pub trait FallibleTypeFolder: Sized {

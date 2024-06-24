@@ -323,7 +323,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         rcx.replace_evars(&infcx.solve()?);
 
         let len = ArrayLenKind::Lit(args.len());
-        Ok(Ty::array(arr_ty, rty::Const::from_array_len(self.genv.tcx(), len)))
+        Ok(Ty::array(arr_ty, rty::Const::from_array_len(&self.genv, len)))
     }
 
     pub(crate) fn infcx(

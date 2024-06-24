@@ -982,13 +982,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             CastKind::Pointer(mir::PointerCast::Unsize) => {
                 if let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::Array(src_arr_ty, src_n), _) = src_ty.kind()
-                    // && let ConstKind::Value(src_n) = &src_n.kind
                     && let rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
                     && let rustc::ty::TyKind::Slice(_) = dst_ty.kind()
                     && src_mut == dst_mut
                 {
-                    // let v = src_n.try_to_target_usize(self.genv.tcx()).unwrap() as u128;
-                    // let idx = Expr::constant(rty::Constant::from(v));
                     let idx = self.index_of_const(src_n);
                     let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), idx);
                     Ty::mk_ref(*dst_re, dst_slice, *dst_mut)

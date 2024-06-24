@@ -27,6 +27,7 @@ use crate::{
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         SortCtor,
     },
+    rustc::ty::{Const, ConstKind},
 };
 
 /// A lambda abstraction with an elaborated output sort
@@ -250,13 +251,6 @@ pub struct EarlyReftParam {
     pub index: u32,
     pub name: Symbol,
 }
-
-// // TODO: should use ParamConst but cannot due to `Encodable` requirement...
-// #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
-// pub struct ConstParam {
-//     pub index: u32,
-//     pub name: Symbol,
-// }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable, Debug)]
 pub struct BoundReft {
@@ -599,6 +593,16 @@ impl Expr {
     /// Whether the expression is *literally* the constant true.
     fn is_true(&self) -> bool {
         matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
+    }
+
+    pub fn from_const(tcx: &TyCtxt, c: &Const) -> Expr {
+        match c.kind {
+            ConstKind::Param(param_const) => Expr::const_generic(param_const, None),
+            ConstKind::Value(val) => {
+                let val = val.try_to_target_usize(*tcx).unwrap() as u128;
+                Expr::constant(crate::rty::Constant::from(val))
+            }
+        }
     }
 
     pub fn is_binary_op(&self) -> bool {

@@ -793,8 +793,6 @@ mod pretty {
                     w!(PadAdapter::wrap_fmt(f, 2), "\n{:?}", join!("\n", &node.children))
                 }
                 NodeKind::Root(bindings) => {
-                    // let nodes = flatten_conjs(slice::from_ref(self));
-                    // w!("{:?}", join!("\n", nodes))
                     w!(
                         "∀ {}.",
                         ^bindings

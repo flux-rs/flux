@@ -733,7 +733,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::TyKind::Array(ty, len) => {
                 Ok(rty::Ty::array(
                     self.conv_ty(env, ty)?,
-                    rty::Const::from_array_len(self.genv.tcx(), len.kind),
+                    rty::Const::from_array_len(&self.genv, len.kind),
                 ))
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),

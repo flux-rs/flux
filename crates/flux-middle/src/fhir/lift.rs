@@ -8,7 +8,7 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
 use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
-use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::ParamConst};
+use rustc_middle::middle::resolve_bound_vars::ResolvedArg;
 
 use super::{FhirId, FluxOwnerId};
 use crate::{
@@ -530,15 +530,15 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         })
     }
 
-    fn mk_param_const(&self, def_id: rustc_span::def_id::DefId) -> ParamConst {
-        let generics = self.genv.tcx().generics_of(self.owner.def_id);
-        for param in &generics.params {
-            if param.def_id == def_id {
-                return ParamConst::new(param.index, param.name);
-            }
-        }
-        bug!("Cannot find generic corresponding to ConstParam {def_id:?}")
-    }
+    // CUT fn mk_param_const(&self, def_id: rustc_span::def_id::DefId) -> ParamConst {
+    // CUT     let generics = self.genv.tcx().generics_of(self.owner.def_id);
+    // CUT     for param in &generics.params {
+    // CUT         if param.def_id == def_id {
+    // CUT             return ParamConst::new(param.index, param.name);
+    // CUT         }
+    // CUT     }
+    // CUT     bug!("Cannot find generic corresponding to ConstParam {def_id:?}")
+    // CUT }
 
     fn lift_array_len(&mut self, len: hir::ArrayLen) -> Result<fhir::ArrayLen> {
         let body = match len {
@@ -552,8 +552,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         } else if let hir::ExprKind::Path(hir::QPath::Resolved(_, path)) = &body.value.kind
             && let hir::def::Res::Def(DefKind::ConstParam, def_id) = path.res
         {
-            let param_const = self.mk_param_const(def_id);
-            Ok(fhir::ArrayLen::param(param_const, path.span))
+            Ok(fhir::ArrayLen::param(def_id, path.span))
         } else {
             self.emit_unsupported("only integer literals are supported for array lengths")
         }

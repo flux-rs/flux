@@ -355,19 +355,9 @@ impl<'a, 'tcx> GenericsSubstDelegate for GenericArgsDelegate<'a, 'tcx> {
 
     fn expr_for_param_const(&self, param_const: ParamConst) -> Expr {
         match self.0.get(param_const.index as usize) {
-            Some(GenericArg::Const(konst)) => const_to_expr(&self.1, konst),
+            Some(GenericArg::Const(konst)) => Expr::from_const(&self.1, konst),
             Some(arg) => bug!("expected const for generic parameter, found `{arg:?}`"),
             None => bug!("generic parameter out of range"),
-        }
-    }
-}
-
-fn const_to_expr(tcx: &TyCtxt, c: &Const) -> Expr {
-    match c.kind {
-        ConstKind::Param(param_const) => Expr::const_generic(param_const, None),
-        ConstKind::Value(val) => {
-            let val = val.try_to_target_usize(*tcx).unwrap() as u128;
-            Expr::constant(crate::rty::Constant::from(val))
         }
     }
 }

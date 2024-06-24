@@ -570,15 +570,15 @@ pub enum ArrayLenKind {
     /// The length of the array is a constant
     Lit(usize),
     /// The length of the array is a type parameter
-    ParamConst(ParamConst),
+    ParamConst(DefId),
 }
 
 impl ArrayLen {
     pub fn lit(n: usize, span: Span) -> Self {
         Self { kind: ArrayLenKind::Lit(n), span }
     }
-    pub fn param(param_const: ParamConst, span: Span) -> Self {
-        Self { kind: ArrayLenKind::ParamConst(param_const), span }
+    pub fn param(def_id: DefId, span: Span) -> Self {
+        Self { kind: ArrayLenKind::ParamConst(def_id), span }
     }
 }
 
