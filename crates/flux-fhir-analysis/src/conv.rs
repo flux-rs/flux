@@ -41,6 +41,8 @@ use rustc_span::{
 use rustc_trait_selection::traits;
 use rustc_type_ir::DebruijnIndex;
 
+use crate::conv::ty::ParamConst;
+
 pub struct ConvCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     wfckresults: &'a WfckResults<'genv>,
@@ -1255,6 +1257,18 @@ impl ConvCtxt<'_, '_, '_> {
         self.wfckresults.owner
     }
 
+    fn conv_const_generic(&self, def_id: DefId) -> ParamConst {
+        self.genv.def_id_to_param_const(def_id)
+        // // TODO HEREHEREHEREHERE This should go in conv where we can do something similar to GlobalEnv::def_id_to_param_ty (re #637 (comment))
+        // let generics = self.genv.tcx().generics_of(self.owner.def_id);
+        // for param in &generics.params {
+        //     if param.def_id == def_id {
+        //         return ParamConst::new(param.index, param.name);
+        //     }
+        // }
+        // bug!("Cannot find generic corresponding to ConstParam {def_id:?}")
+    }
+
     fn conv_expr(&self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
         let espan = Some(ESpan::new(expr.span));
@@ -1263,7 +1277,9 @@ impl ConvCtxt<'_, '_, '_> {
                 match var.res {
                     ExprRes::Param(..) => env.lookup(var).to_expr(),
                     ExprRes::Const(def_id) => rty::Expr::const_def_id(def_id, espan),
-                    ExprRes::ConstGeneric(param) => rty::Expr::const_generic(param, espan),
+                    ExprRes::ConstGeneric(def_id) => {
+                        rty::Expr::const_generic(self.conv_const_generic(def_id), espan)
+                    }
                     ExprRes::NumConst(num) => {
                         rty::Expr::constant_at(rty::Constant::from(num), espan)
                     }

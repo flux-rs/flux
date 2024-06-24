@@ -35,10 +35,7 @@ use rustc_hir::{
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 pub use rustc_middle::mir::Mutability;
-use rustc_middle::{
-    middle::resolve_bound_vars::ResolvedArg,
-    ty::{ParamConst, TyCtxt},
-};
+use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{symbol::Ident, Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
@@ -887,7 +884,7 @@ pub enum Lit {
 pub enum ExprRes<Id = ParamId> {
     Param(ParamKind, Id),
     Const(DefId),
-    ConstGeneric(ParamConst),
+    ConstGeneric(DefId),
     NumConst(i128),
     GlobalFunc(SpecFuncKind, Symbol),
 }
