@@ -959,6 +959,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn check_cast(&self, kind: CastKind, from: &Ty, to: &rustc::ty::Ty) -> Result<Ty> {
         use rustc::ty::TyKind as RustTy;
         let ty = match kind {
+            CastKind::PointerExposeProvenance => {
+                match to.kind() {
+                    RustTy::Int(int_ty) => Ty::int(*int_ty),
+                    RustTy::Uint(uint_ty) => Ty::uint(*uint_ty),
+                    _ => tracked_span_bug!("unsupported PointerExposeProvenance cast"),
+                }
+            }
             CastKind::IntToInt => {
                 match (from.kind(), to.kind()) {
                     (Bool!(idx), RustTy::Int(int_ty)) => bool_int_cast(idx, *int_ty),
