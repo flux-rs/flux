@@ -11,7 +11,11 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_middle::middle::resolve_bound_vars::ResolvedArg;
 
 use super::{FhirId, FluxOwnerId};
-use crate::{fhir, global_env::GlobalEnv, try_alloc_slice};
+use crate::{
+    fhir::{self},
+    global_env::GlobalEnv,
+    try_alloc_slice,
+};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -156,12 +160,9 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     "`impl Trait` in argument position not supported",
                 ))
             }
-            hir::GenericParamKind::Const { .. } => {
-                return self.emit_err(errors::UnsupportedHir::new(
-                    self.genv.tcx(),
-                    param.def_id,
-                    "const generics are not supported",
-                ))
+            hir::GenericParamKind::Const { ty, is_host_effect, .. } => {
+                let ty = self.lift_ty(ty)?;
+                fhir::GenericParamKind::Const { ty, is_host_effect }
             }
         };
         Ok(fhir::GenericParam { def_id: param.def_id, kind })
@@ -211,6 +212,10 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     self.lift_poly_trait_ref(*poly_trait_ref)?,
                     fhir::TraitBoundModifier::Maybe,
                 ))
+            }
+            hir::GenericBound::Outlives(lft) => {
+                let lft = self.lift_lifetime(lft)?;
+                Ok(fhir::GenericBound::Outlives(lft))
             }
             _ => self.emit_unsupported(&format!("unsupported generic bound: `{bound:?}`")),
         }
@@ -504,7 +509,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     Ok(fhir::GenericArg::Type(self.genv.alloc(ty)))
                 }
                 hir::GenericArg::Const(_) => {
-                    self.emit_unsupported("const generics are not supported")
+                    self.emit_unsupported("const generics are not supported (2)")
                 }
                 hir::GenericArg::Infer(_) => {
                     bug!("unexpected inference generic argument");
@@ -529,7 +534,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         })
     }
 
-    fn lift_array_len(&self, len: hir::ArrayLen) -> Result<fhir::ArrayLen> {
+    fn lift_array_len(&mut self, len: hir::ArrayLen) -> Result<fhir::ArrayLen> {
         let body = match len {
             hir::ArrayLen::Body(anon_const) => self.genv.hir().body(anon_const.body),
             hir::ArrayLen::Infer(_) => bug!("unexpected `ArrayLen::Infer`"),
@@ -537,10 +542,13 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         if let hir::ExprKind::Lit(lit) = &body.value.kind
             && let LitKind::Int(array_len, _) = lit.node
         {
-            // FIXME(nilehmann) we shouldn't panic here
-            Ok(fhir::ArrayLen { val: array_len.get().try_into().unwrap(), span: lit.span })
+            Ok(fhir::ArrayLen::lit(array_len.get().try_into().unwrap(), lit.span))
+        } else if let hir::ExprKind::Path(hir::QPath::Resolved(_, path)) = &body.value.kind
+            && let hir::def::Res::Def(DefKind::ConstParam, def_id) = path.res
+        {
+            Ok(fhir::ArrayLen::param(def_id, path.span))
         } else {
-            self.emit_unsupported("only interger literals are supported for array lengths")
+            self.emit_unsupported("only integer literals are supported for array lengths")
         }
     }
 

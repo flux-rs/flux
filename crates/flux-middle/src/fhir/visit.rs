@@ -230,6 +230,7 @@ pub fn walk_opaque_ty<'v, V: Visitor<'v>>(vis: &mut V, opaque_ty: &OpaqueTy<'v>)
 pub fn walk_generic_bound<'v, V: Visitor<'v>>(vis: &mut V, bound: &GenericBound<'v>) {
     match bound {
         GenericBound::Trait(trait_ref, _) => vis.visit_poly_trait_ref(trait_ref),
+        GenericBound::Outlives(_) => {}
     }
 }
 

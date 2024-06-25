@@ -798,13 +798,14 @@ fn downcast_struct(
     args: &[GenericArg],
     idx: &Expr,
 ) -> CheckerResult<Vec<Ty>> {
+    let tcx = genv.tcx();
     let flds = adt
         .sort_def()
         .projections()
         .map(|proj| idx.proj_and_reduce(proj))
         .collect_vec();
     Ok(struct_variant(genv, adt.did())?
-        .instantiate(args, &[])
+        .instantiate(tcx, args, &[])
         .replace_bound_refts(&flds)
         .fields
         .to_vec())
@@ -835,10 +836,11 @@ fn downcast_enum(
     args: &[GenericArg],
     idx1: &Expr,
 ) -> CheckerResult<Vec<Ty>> {
+    let tcx = genv.tcx();
     let variant_def = genv
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
-        .instantiate(args, &[])
+        .instantiate(tcx, args, &[])
         .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
     // FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there

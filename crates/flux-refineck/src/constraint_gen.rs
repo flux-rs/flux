@@ -2,6 +2,7 @@ use std::iter;
 
 use flux_common::{bug, tracked_span_bug};
 use flux_middle::{
+    fhir::ArrayLenKind,
     global_env::GlobalEnv,
     intern::List,
     rty::{
@@ -162,7 +163,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
 
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
-            .instantiate(&generic_args, &refine_args)
+            .instantiate(genv.tcx(), &generic_args, &refine_args)
             .replace_bound_vars(
                 |br| {
                     let re = infcx.region_infcx.next_region_var(BoundRegion(
@@ -271,6 +272,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         generic_args: &[GenericArg],
         fields: &[Ty],
     ) -> Result<Ty> {
+        let tcx = self.genv.tcx();
         // rn we are only calling `check_constructor` when folding so we mark this as a folding error.
         let mut infcx = self.infcx(rcx, ConstrReason::Fold);
 
@@ -278,7 +280,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         let generic_args = infcx.instantiate_generic_args(generic_args);
 
         let variant = variant
-            .instantiate(&generic_args, &[])
+            .instantiate(tcx, &generic_args, &[])
             .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
 
         // Check arguments
@@ -320,7 +322,8 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         }
         rcx.replace_evars(&infcx.solve()?);
 
-        Ok(Ty::array(arr_ty, rty::Const::from_array_len(self.genv.tcx(), args.len())))
+        let len = ArrayLenKind::Lit(args.len());
+        Ok(Ty::array(arr_ty, rty::array_len_const(&self.genv, len)))
     }
 
     pub(crate) fn infcx(
@@ -752,10 +755,11 @@ fn mk_obligations(
     args: &[GenericArg],
     refine_args: &[Expr],
 ) -> Result<List<rty::Clause>> {
+    let tcx = genv.tcx();
     Ok(genv
         .predicates_of(did)?
         .predicates()
-        .instantiate(args, refine_args))
+        .instantiate(tcx, args, refine_args))
 }
 
 impl<F> KVarGen for F

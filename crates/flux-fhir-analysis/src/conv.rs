@@ -41,6 +41,8 @@ use rustc_span::{
 use rustc_trait_selection::traits;
 use rustc_type_ir::DebruijnIndex;
 
+use crate::conv::ty::ParamConst;
+
 pub struct ConvCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     wfckresults: &'a WfckResults<'genv>,
@@ -265,7 +267,7 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
         }
         fhir::GenericParamKind::Base => rty::GenericParamDefKind::Base,
         fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
-        fhir::GenericParamKind::Const { is_host_effect: _ } => {
+        fhir::GenericParamKind::Const { is_host_effect: _, .. } => {
             rty::GenericParamDefKind::Const { has_default: false }
         }
     }
@@ -408,6 +410,16 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                             &mut clauses,
                         )?;
                     }
+                }
+                fhir::GenericBound::Outlives(lft) => {
+                    let re = self.conv_lifetime(env, *lft);
+                    clauses.push(rty::Clause::new(
+                        List::empty(),
+                        rty::ClauseKind::TypeOutlives(rty::OutlivesPredicate(
+                            bounded_ty.clone(),
+                            re,
+                        )),
+                    ));
                 }
                 // Maybe bounds are only supported for `?Sized`. The effect of the maybe bound is to
                 // relax the default which is `Sized` to not have the `Sized` bound, so we just skip
@@ -733,7 +745,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::TyKind::Array(ty, len) => {
                 Ok(rty::Ty::array(
                     self.conv_ty(env, ty)?,
-                    rty::Const::from_array_len(self.genv.tcx(), len.val),
+                    rty::array_len_const(&self.genv, len.kind),
                 ))
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
@@ -1061,7 +1073,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
                     .try_collect_vec()?;
-                return Ok(self.genv.type_of(*def_id)?.instantiate(&generics, &refine));
+                let tcx = self.genv.tcx();
+                return Ok(self
+                    .genv
+                    .type_of(*def_id)?
+                    .instantiate(tcx, &generics, &refine));
             }
             fhir::Res::Def(..) | fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
@@ -1116,10 +1132,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         for param in generics.params.iter().skip(into.len()) {
             if let rty::GenericParamDefKind::Type { has_default } = param.kind {
                 debug_assert!(has_default);
+                let tcx = self.genv.tcx();
                 let ty = self
                     .genv
                     .type_of(param.def_id)?
-                    .instantiate(into, &[])
+                    .instantiate(tcx, into, &[])
                     .to_ty();
                 into.push(rty::GenericArg::Ty(ty));
             } else {
@@ -1250,6 +1267,18 @@ impl ConvCtxt<'_, '_, '_> {
         self.wfckresults.owner
     }
 
+    fn conv_const_generic(&self, def_id: DefId) -> ParamConst {
+        self.genv.def_id_to_param_const(def_id)
+        // // TODO HEREHEREHEREHERE This should go in conv where we can do something similar to GlobalEnv::def_id_to_param_ty (re #637 (comment))
+        // let generics = self.genv.tcx().generics_of(self.owner.def_id);
+        // for param in &generics.params {
+        //     if param.def_id == def_id {
+        //         return ParamConst::new(param.index, param.name);
+        //     }
+        // }
+        // bug!("Cannot find generic corresponding to ConstParam {def_id:?}")
+    }
+
     fn conv_expr(&self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
         let espan = Some(ESpan::new(expr.span));
@@ -1258,6 +1287,9 @@ impl ConvCtxt<'_, '_, '_> {
                 match var.res {
                     ExprRes::Param(..) => env.lookup(var).to_expr(),
                     ExprRes::Const(def_id) => rty::Expr::const_def_id(def_id, espan),
+                    ExprRes::ConstGeneric(def_id) => {
+                        rty::Expr::const_generic(self.conv_const_generic(def_id), espan)
+                    }
                     ExprRes::NumConst(num) => {
                         rty::Expr::constant_at(rty::Constant::from(num), espan)
                     }

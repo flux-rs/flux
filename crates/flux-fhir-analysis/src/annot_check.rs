@@ -273,7 +273,7 @@ impl<'zip, 'genv, 'tcx> Zipper<'zip, 'genv, 'tcx> {
                 self.zip_tys(tys, expected_tys)
             }
             (fhir::TyKind::Array(ty, len), fhir::TyKind::Array(expected_ty, expected_len)) => {
-                if len.val != expected_len.val {
+                if len.kind != expected_len.kind {
                     return Err(self.emit_err(errors::ArrayLenMismatch::new(&len, &expected_len)));
                 }
                 self.zip_ty(ty, expected_ty)
@@ -553,20 +553,19 @@ mod errors {
         #[primary_span]
         #[label]
         span: Span,
-        len: usize,
+        len: String,
         #[label(fhir_analysis_expected_label)]
         expected_span: Span,
-        expected_len: usize,
+        expected_len: String,
     }
 
     impl ArrayLenMismatch {
         pub(super) fn new(len: &fhir::ArrayLen, expected_len: &fhir::ArrayLen) -> Self {
-            Self {
-                span: len.span,
-                len: len.val,
-                expected_span: expected_len.span,
-                expected_len: expected_len.val,
-            }
+            let span = len.span;
+            let expected_span = expected_len.span;
+            let len = format!("{:?}", len.kind);
+            let expected_len = format!("{:?}", expected_len.kind);
+            Self { span, len, expected_span, expected_len }
         }
     }
 
