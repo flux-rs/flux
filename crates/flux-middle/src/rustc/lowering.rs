@@ -484,10 +484,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 Some(CastKind::Pointer(self.lower_pointer_coercion(ptr_coercion)?))
             }
             rustc_mir::CastKind::PointerExposeProvenance => Some(CastKind::PointerExposeProvenance),
-            _ => {
-                println!("TRACE: lower_cast_kind: {:?}", kind);
-                None
-            }
+            _ => None,
         }
     }
 
