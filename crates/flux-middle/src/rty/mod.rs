@@ -45,22 +45,19 @@ use self::{
 pub use crate::{
     fhir::InferMode,
     rustc::ty::{
-        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, EarlyParamRegion, FreeRegion,
+        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, EarlyParamRegion,
+        FreeRegion,
         Region::{self, *},
         RegionVid,
     },
 };
 use crate::{
-    fhir::{self, ArrayLenKind, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
+    fhir::{self, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
     rty::subst::SortSubst,
-    rustc::{
-        self,
-        mir::Place,
-        ty::{ConstKind, VariantDef},
-    },
+    rustc::{self, mir::Place, ty::VariantDef},
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -827,6 +824,10 @@ pub enum TyKind {
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
     Blocked(Ty),
     Alias(AliasKind, AliasTy),
+    /// A hole is a type that needs to be inferred by matching the signature against a rust signature.
+    /// Holes appear as an intermediate step during `conv` and should not be present in the final
+    /// signature. We use the [`FhirId`] of the `fhir` type to assign a unique id to the hole, but
+    /// we could alternatively have a dedicated variable id for this.
     Hole(FhirId),
 }
 
@@ -981,13 +982,14 @@ pub enum GenericArg {
     Const(Const),
 }
 
-pub fn array_len_const(genv: &GlobalEnv, len: ArrayLenKind) -> Const {
+pub fn array_len_const(genv: &GlobalEnv, len: fhir::ArrayLenKind) -> Const {
     let kind = match len {
-        ArrayLenKind::Lit(len) => {
+        fhir::ArrayLenKind::Lit(len) => {
             ConstKind::Value(ScalarInt::try_from_target_usize(len as u128, genv.tcx()).unwrap())
         }
-
-        ArrayLenKind::ParamConst(def_id) => ConstKind::Param(genv.def_id_to_param_const(def_id)),
+        fhir::ArrayLenKind::ParamConst(def_id) => {
+            ConstKind::Param(genv.def_id_to_param_const(def_id))
+        }
     };
     Const { kind, ty: crate::rustc::ty::Ty::mk_uint(UintTy::Usize) }
 }

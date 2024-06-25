@@ -236,7 +236,7 @@ pub struct ResolverOutput {
     pub path_res_map: UnordMap<NodeId, fhir::Res>,
     pub impl_trait_res_map: UnordMap<NodeId, hir::ItemId>,
     /// Resolution of explicit and implicit parameters. The [`fhir::ParamId`] is unique per item.
-    /// The [`NodeId`] used as the key correspond to the node introducing the parameter. When explicit,
+    /// The [`NodeId`] used as the key corresponds to the node introducing the parameter. When explicit,
     /// this is the id of the [`surface::GenericArg`] or [`surface::RefineParam`], when implicit, this
     /// is the id of the [`surface::RefineArg::Bind`] or [`surface::FnInput`].
     pub param_res_map: UnordMap<NodeId, (fhir::ParamId, fhir::ParamKind)>,

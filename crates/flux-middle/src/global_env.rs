@@ -372,20 +372,18 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// If `def_id` is a local id for an extern spec return the extern id, otherwise return `def_id`.
     pub fn resolve_maybe_extern_id(self, def_id: DefId) -> DefId {
         let Some(local_id) = def_id.as_local() else { return def_id };
-        self.collect_specs()
-            .local_id_to_extern_id
-            .get(&local_id)
-            .copied()
-            .unwrap_or(def_id)
+        self.extern_id_of(local_id).unwrap_or(def_id)
     }
 
-    pub fn extern_id_of(self, def_id: LocalDefId) -> Option<DefId> {
+    /// If `local_def_id` is an id for an extern spec return the extern id.
+    pub fn extern_id_of(self, local_def_id: LocalDefId) -> Option<DefId> {
         self.collect_specs()
             .local_id_to_extern_id
-            .get(&def_id)
+            .get(&local_def_id)
             .copied()
     }
 
+    /// If `extern_def_id` is an extern spec return the corresponding local id.
     pub fn get_local_id_for_extern(self, extern_def_id: DefId) -> Option<LocalDefId> {
         self.collect_specs()
             .extern_id_to_local_id
@@ -393,19 +391,23 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .copied()
     }
 
+    /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
+    /// explicit `#[flux::trusted(..)]` annotation and return whether that item is trusted or not.
+    /// If no explicit annotation is found, return `false`.
     pub fn trusted(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| self.collect_specs().trusted.get(&did))
             .is_some_and(|trusted| trusted.to_bool())
     }
 
-    /// transitively follows the parent-chain to find the first containing item with an explicit
-    /// `ignore` annotation and returns whether that item is ignored or not.
+    /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
+    /// explicit `#[flux::ignore(..)]` annotation and return whether that item is ignored or not.
+    /// If no explicit annotation is found, return `false`.
     pub fn ignored(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| self.collect_specs().ignores.get(&did))
             .is_some_and(|ignored| ignored.to_bool())
     }
 
-    /// traverse the parent chain of a def_id until the first node for which `f` returns [`Some`].
+    /// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].
     fn traverse_parents<T>(
         self,
         mut def_id: LocalDefId,
