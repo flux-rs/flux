@@ -589,7 +589,11 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             (_, TyKind::Tuple(tys)) if tys.is_empty() => return Ok(Constant::Unit),
             (_, _) => Some(Constant::Opaque(lower_ty(tcx, ty)?)),
         }
-        .ok_or_else(|| UnsupportedReason::new(format!("unsupported constant `{constant:?}`")))
+        .ok_or_else(|| {
+            UnsupportedReason::new(format!(
+                "unsupported constant `{constant:?}` with val = {val:?} and ty = {ty:?}"
+            ))
+        })
     }
 
     fn lower_assert_msg(&self, msg: &rustc_mir::AssertMessage) -> Option<AssertKind> {
