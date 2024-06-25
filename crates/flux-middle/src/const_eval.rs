@@ -1,6 +1,6 @@
 use rustc_middle::ty::{self as rustc_ty, ParamEnv, TyCtxt, TyKind};
 
-use crate::rustc::mir::Constant;
+use crate::rustc::{lowering::lower_ty, mir::Constant};
 pub fn scalar_int_to_rty_constant<'tcx>(
     tcx: TyCtxt<'tcx>,
     scalar: rustc_ty::ScalarInt,
@@ -28,7 +28,8 @@ pub fn scalar_int_to_constant<'tcx>(
     scalar: rustc_ty::ScalarInt,
     ty: rustc_middle::ty::Ty<'tcx>,
 ) -> Option<Constant> {
-    match ty.kind() {
+    let kind = ty.kind();
+    match kind {
         TyKind::Int(int_ty) => {
             Some(Constant::Int(scalar_to_int(tcx, scalar, ty).unwrap(), *int_ty))
         }
@@ -41,7 +42,12 @@ pub fn scalar_int_to_constant<'tcx>(
         TyKind::Char => Some(Constant::Char),
         TyKind::Bool => Some(Constant::Bool(scalar_to_bits(tcx, scalar, ty).unwrap() != 0)),
         TyKind::Tuple(tys) if tys.is_empty() => Some(Constant::Unit),
-        _ => None,
+        _ => {
+            match lower_ty(tcx, ty) {
+                Ok(ty) => Some(Constant::Opaque(ty)),
+                Err(_) => None,
+            }
+        }
     }
 }
 
