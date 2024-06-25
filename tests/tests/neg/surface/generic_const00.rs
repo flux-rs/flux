@@ -114,12 +114,12 @@ pub fn test004_client_b_bad<const M: usize>() -> usize {
 //-------------------------------------------------------------------------------
 
 fn test_array_bad<const N: usize>(arr: &[i32; N]) -> i32 {
-    arr[0] //~ ERROR refinement type
+    arr[0] //~ ERROR assertion might fail
 }
 
 fn test_array_good<const N: usize>(arr: &[i32; N]) -> i32 {
     if (N > 0) {
-        arr[0] //~ ERROR refinement type
+        arr[0]
     } else {
         99
     }
