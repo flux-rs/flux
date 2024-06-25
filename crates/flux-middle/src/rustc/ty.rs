@@ -199,15 +199,6 @@ pub struct Const {
     pub ty: Ty,
 }
 
-impl Const {
-    pub fn from_array_len(tcx: TyCtxt, len: usize) -> Const {
-        Const {
-            kind: ConstKind::Value(ScalarInt::try_from_target_usize(len as u128, tcx).unwrap()),
-            ty: Ty::mk_uint(UintTy::Usize),
-        }
-    }
-}
-
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ConstKind {
     Param(ParamConst),

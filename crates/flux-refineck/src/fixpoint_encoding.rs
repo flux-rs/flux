@@ -108,7 +108,7 @@ pub mod fixpoint {
     use std::fmt;
 
     use rustc_index::newtype_index;
-
+    use rustc_middle::ty::ParamConst;
     newtype_index! {
         pub struct KVid {}
     }
@@ -137,6 +137,7 @@ pub mod fixpoint {
         /// Interpreted theory function. This can be an arbitrary string, thus we are assuming the
         /// name is different than the display implementation for the other variants.
         Itf(Symbol),
+        ConstGeneric(ParamConst),
     }
 
     impl From<GlobalVar> for Var {
@@ -173,6 +174,9 @@ pub mod fixpoint {
                 Var::UIFRel(BinRel::Eq) => write!(f, "eq"),
                 Var::UIFRel(BinRel::Ne) => write!(f, "ne"),
                 Var::Underscore => write!(f, "_"),
+                Var::ConstGeneric(param_const) => {
+                    write!(f, "constgen{}{}", param_const.name, param_const.index)
+                }
             }
         }
     }
@@ -295,20 +299,24 @@ impl Env {
         self.layers.pop().unwrap()
     }
 
-    fn get_var(&self, var: &rty::Var, dbg_span: Span) -> fixpoint::LocalVar {
+    fn get_var(&self, var: &rty::Var, dbg_span: Span) -> fixpoint::Var {
         match var {
             rty::Var::Free(name) => {
                 self.get_fvar(*name)
                     .unwrap_or_else(|| span_bug!(dbg_span, "no entry found for name: `{name:?}`"))
+                    .into()
             }
             rty::Var::LateBound(debruijn, var) => {
-                self.get_late_bvar(*debruijn, var.index).unwrap_or_else(|| {
-                    span_bug!(dbg_span, "no entry found for late bound var: `{var:?}`")
-                })
+                self.get_late_bvar(*debruijn, var.index)
+                    .unwrap_or_else(|| {
+                        span_bug!(dbg_span, "no entry found for late bound var: `{var:?}`")
+                    })
+                    .into()
             }
             rty::Var::EarlyParam(_) | rty::Var::EVar(_) => {
                 span_bug!(dbg_span, "unexpected var: `{var:?}`")
             }
+            rty::Var::ConstGeneric(param_const) => fixpoint::Var::ConstGeneric(*param_const),
         }
     }
 
@@ -648,7 +656,7 @@ where
 
         let all_args = iter::zip(&kvar.args, &decl.sorts)
             .map(|(arg, sort)| -> QueryResult<_> {
-                Ok(fixpoint::Var::Local(self.ecx.imm(arg, sort, &mut self.env, bindings)?))
+                self.ecx.imm(arg, sort, &mut self.env, bindings)
             })
             .try_collect_vec()?;
 
@@ -762,9 +770,7 @@ impl KVarStore {
                     (rty::Var::LateBound(debruijn, var), sort)
                 })
             }),
-            scope
-                .iter()
-                .map(|(name, sort)| (rty::Var::Free(name), sort)),
+            scope.iter(),
         );
         self.fresh_inner(binders.last().unwrap().len(), args, encoding)
     }
@@ -875,7 +881,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
     fn expr_to_fixpoint(&mut self, expr: &rty::Expr, env: &Env) -> QueryResult<fixpoint::Expr> {
         let e = match expr.kind() {
-            rty::ExprKind::Var(var) => fixpoint::Expr::Var(env.get_var(var, self.dbg_span).into()),
+            rty::ExprKind::Var(var) => fixpoint::Expr::Var(env.get_var(var, self.dbg_span)),
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, env)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, env)?,
@@ -1112,7 +1118,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
     fn func_to_fixpoint(&mut self, func: &rty::Expr, env: &Env) -> fixpoint::Var {
         match func.kind() {
-            rty::ExprKind::Var(var) => env.get_var(var, self.dbg_span).into(),
+            rty::ExprKind::Var(var) => env.get_var(var, self.dbg_span),
             rty::ExprKind::GlobalFunc(_, SpecFuncKind::Thy(sym)) => fixpoint::Var::Itf(*sym),
             rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) => {
                 let cinfo = self.const_map.get(&Key::Uif(*sym)).unwrap_or_else(|| {
@@ -1138,7 +1144,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         sort: &rty::Sort,
         env: &mut Env,
         bindings: &mut Vec<(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)>,
-    ) -> QueryResult<fixpoint::LocalVar> {
+    ) -> QueryResult<fixpoint::Var> {
         match arg.kind() {
             rty::ExprKind::Var(var) => Ok(env.get_var(var, self.dbg_span)),
             _ => {
@@ -1148,7 +1154,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     self.expr_to_fixpoint(arg, env)?,
                 );
                 bindings.push((fresh, sort_to_fixpoint(sort), pred));
-                Ok(fresh)
+                Ok(fresh.into())
             }
         }
     }

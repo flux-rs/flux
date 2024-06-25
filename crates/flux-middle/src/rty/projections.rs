@@ -61,10 +61,12 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
             }
             let args = subst.finish(self.tcx(), generics);
 
+            let tcx = self.tcx();
+
             let pred = self
                 .genv
                 .assoc_refinement_def(impl_def_id, obligation.name)?
-                .instantiate(&args, &[]);
+                .instantiate(tcx, &args, &[]);
 
             pred.apply(refine_args).try_fold_with(self)
         } else {
@@ -124,10 +126,11 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
                     .map(|item| item.def_id)
                     .unwrap();
 
+                let tcx = self.tcx();
                 Ok(self
                     .genv
                     .type_of(assoc_type_id)?
-                    .instantiate(&args, &[])
+                    .instantiate(tcx, &args, &[])
                     .to_ty())
             }
         }
@@ -154,10 +157,12 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         if let GenericArg::Ty(ty) = &obligation.args[0]
             && let TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind()
         {
-            let bounds = self
-                .genv
-                .item_bounds(alias_ty.def_id)?
-                .instantiate(&alias_ty.args, &alias_ty.refine_args);
+            let tcx = self.tcx();
+            let bounds = self.genv.item_bounds(alias_ty.def_id)?.instantiate(
+                tcx,
+                &alias_ty.args,
+                &alias_ty.refine_args,
+            );
 
             assemble_candidates_from_predicates(
                 &bounds,

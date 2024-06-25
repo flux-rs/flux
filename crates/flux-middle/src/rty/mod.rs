@@ -53,7 +53,7 @@ pub use crate::{
     },
 };
 use crate::{
-    fhir::{self, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
+    fhir::{self, ArrayLenKind, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
@@ -993,6 +993,17 @@ pub enum GenericArg {
     Const(Const),
 }
 
+pub fn array_len_const(genv: &GlobalEnv, len: ArrayLenKind) -> Const {
+    let kind = match len {
+        ArrayLenKind::Lit(len) => {
+            ConstKind::Value(ScalarInt::try_from_target_usize(len as u128, genv.tcx()).unwrap())
+        }
+
+        ArrayLenKind::ParamConst(def_id) => ConstKind::Param(genv.def_id_to_param_const(def_id)),
+    };
+    Const { kind, ty: crate::rustc::ty::Ty::mk_uint(UintTy::Usize) }
+}
+
 impl GenericArg {
     pub fn expect_type(&self) -> &Ty {
         if let GenericArg::Ty(ty) = self {
@@ -1460,10 +1471,10 @@ where
 }
 
 impl<T: TypeFoldable> EarlyBinder<T> {
-    pub fn instantiate(self, args: &[GenericArg], refine_args: &[Expr]) -> T {
+    pub fn instantiate(self, tcx: TyCtxt, args: &[GenericArg], refine_args: &[Expr]) -> T {
         self.0
             .try_fold_with(&mut subst::GenericsSubstFolder::new(
-                subst::GenericArgsDelegate(args),
+                subst::GenericArgsDelegate(args, tcx),
                 refine_args,
             ))
             .into_ok()
@@ -1728,6 +1739,15 @@ impl TyS {
             bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
         }
     }
+
+    #[track_caller]
+    pub fn expect_base(&self) -> BaseTy {
+        match self.kind() {
+            TyKind::Indexed(base_ty, _) => base_ty.clone(),
+            TyKind::Exists(bty) => bty.clone().skip_binder().expect_base(),
+            _ => bug!("expected indexed type"),
+        }
+    }
 }
 
 impl AliasTy {
@@ -1946,6 +1966,7 @@ impl_slice_internable!(
     BoundVariableKind,
     RefineParam,
     AssocRefinement,
+    (ParamConst, Sort)
 );
 
 #[macro_export]

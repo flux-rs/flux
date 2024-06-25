@@ -6,7 +6,10 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::{mir::Local, ty::TyCtxt};
+use rustc_middle::{
+    mir::Local,
+    ty::{ParamConst, TyCtxt},
+};
 use rustc_span::{Span, Symbol};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
@@ -24,6 +27,7 @@ use crate::{
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         SortCtor,
     },
+    rustc::ty::{Const, ConstKind},
 };
 
 /// A lambda abstraction with an elaborated output sort
@@ -254,21 +258,22 @@ pub struct BoundReft {
     pub kind: BoundReftKind,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
 pub enum Var {
     Free(Name),
     LateBound(DebruijnIndex, BoundReft),
     EarlyParam(EarlyReftParam),
     EVar(EVar),
+    ConstGeneric(ParamConst),
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
 pub struct Path {
     pub loc: Loc,
     projection: List<FieldIdx>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
 pub enum Loc {
     Local(Local),
     Var(Var),
@@ -430,6 +435,10 @@ impl Expr {
         ExprKind::ConstDefId(c).intern_at(espan)
     }
 
+    pub fn const_generic(param: ParamConst, espan: Option<ESpan>) -> Expr {
+        ExprKind::Var(Var::ConstGeneric(param)).intern_at(espan)
+    }
+
     pub fn aggregate(kind: AggregateKind, flds: List<Expr>) -> Expr {
         ExprKind::Aggregate(kind, flds).intern()
     }
@@ -584,6 +593,16 @@ impl Expr {
     /// Whether the expression is *literally* the constant true.
     fn is_true(&self) -> bool {
         matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
+    }
+
+    pub fn from_const(tcx: &TyCtxt, c: &Const) -> Expr {
+        match c.kind {
+            ConstKind::Param(param_const) => Expr::const_generic(param_const, None),
+            ConstKind::Value(val) => {
+                let val = val.try_to_target_usize(*tcx).unwrap() as u128;
+                Expr::constant(crate::rty::Constant::from(val))
+            }
+        }
     }
 
     pub fn is_binary_op(&self) -> bool {
@@ -1039,6 +1058,7 @@ mod pretty {
                 Var::EarlyParam(var) => w!("{}", ^var.name),
                 Var::Free(name) => w!("{:?}", ^name),
                 Var::EVar(evar) => w!("{:?}", evar),
+                Var::ConstGeneric(param) => w!("{}", ^param.name),
             }
         }
     }

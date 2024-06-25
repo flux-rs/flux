@@ -192,6 +192,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         match path.res {
             ExprRes::Param(_, id) => self.param_sort(id),
             ExprRes::Const(_) => rty::Sort::Int, // TODO: generalize const sorts
+            ExprRes::ConstGeneric(_) => rty::Sort::Int, // TODO: generalize generic-const sorts
             ExprRes::NumConst(_) => rty::Sort::Int,
             ExprRes::GlobalFunc(_, _) => {
                 span_bug!(path.span, "unexpected func in var position")

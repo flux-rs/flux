@@ -1,6 +1,7 @@
 use std::{cmp::Ordering, collections::hash_map};
 
 use flux_common::bug;
+use rustc_hash::FxHashMap;
 use rustc_middle::ty::RegionVid;
 use rustc_type_ir::DebruijnIndex;
 
@@ -260,6 +261,8 @@ pub trait GenericsSubstDelegate {
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty;
     fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor;
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region;
+    fn expr_for_param_const(&self, param_const: ParamConst) -> Expr;
+    fn const_for_param(&mut self, param: &Const) -> Const;
 }
 
 /// The identity substitution used when checking the body of a (polymorphic) function. For example,
@@ -288,12 +291,23 @@ impl GenericsSubstDelegate for IdentitySubstDelegate {
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region {
         ReEarlyBound(ebr)
     }
+
+    fn const_for_param(&mut self, param: &Const) -> Const {
+        param.clone()
+    }
+
+    fn expr_for_param_const(&self, param_const: ParamConst) -> Expr {
+        Expr::var(Var::ConstGeneric(param_const), None)
+    }
 }
 
 /// A substitution with an explicit list of generic arguments.
-pub(crate) struct GenericArgsDelegate<'a>(pub(crate) &'a [GenericArg]);
+pub(crate) struct GenericArgsDelegate<'a, 'tcx>(
+    pub(crate) &'a [GenericArg],
+    pub(crate) TyCtxt<'tcx>,
+);
 
-impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
+impl<'a, 'tcx> GenericsSubstDelegate for GenericArgsDelegate<'a, 'tcx> {
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, !> {
         match self.0.get(param_ty.index as usize) {
             Some(GenericArg::Base(ctor)) => Ok(ctor.sort()),
@@ -323,6 +337,27 @@ impl GenericsSubstDelegate for GenericArgsDelegate<'_> {
             Some(GenericArg::Lifetime(re)) => *re,
             Some(arg) => bug!("expected region for generic parameter, found `{arg:?}`"),
             None => bug!("region parameter out of range"),
+        }
+    }
+
+    fn const_for_param(&mut self, param: &Const) -> Const {
+        match &param.kind {
+            ConstKind::Value(_) => param.clone(),
+            ConstKind::Param(param_const) => {
+                match self.0.get(param_const.index as usize) {
+                    Some(GenericArg::Const(konst)) => konst.clone(),
+                    Some(arg) => bug!("expected const for generic parameter, found `{arg:?}`"),
+                    None => bug!("generic parameter out of range"),
+                }
+            }
+        }
+    }
+
+    fn expr_for_param_const(&self, param_const: ParamConst) -> Expr {
+        match self.0.get(param_const.index as usize) {
+            Some(GenericArg::Const(konst)) => Expr::from_const(&self.1, konst),
+            Some(arg) => bug!("expected const for generic parameter, found `{arg:?}`"),
+            None => bug!("generic parameter out of range"),
         }
     }
 }
@@ -365,6 +400,31 @@ where
 
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region {
         bug!("unexpected region param {ebr:?}");
+    }
+
+    fn const_for_param(&mut self, param: &Const) -> Const {
+        bug!("unexpected const param {param:?}");
+    }
+
+    fn expr_for_param_const(&self, param_const: ParamConst) -> Expr {
+        bug!("unexpected param_const {param_const:?}");
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ConstGenericArgs(FxHashMap<u32, Expr>);
+
+impl ConstGenericArgs {
+    pub fn empty() -> Self {
+        Self(FxHashMap::default())
+    }
+
+    pub fn insert(&mut self, index: u32, expr: Expr) {
+        self.0.insert(index, expr);
+    }
+
+    pub fn lookup(&self, index: u32) -> Expr {
+        self.0.get(&index).unwrap().clone()
     }
 }
 
@@ -428,11 +488,17 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
     }
 
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, D::Error> {
-        if let ExprKind::Var(Var::EarlyParam(var)) = expr.kind() {
-            Ok(self.expr_for_param(var.index))
-        } else {
-            expr.try_super_fold_with(self)
+        match expr.kind() {
+            ExprKind::Var(Var::EarlyParam(var)) => Ok(self.expr_for_param(var.index)),
+            ExprKind::Var(Var::ConstGeneric(param_const)) => {
+                Ok(self.delegate.expr_for_param_const(*param_const))
+            }
+            _ => expr.try_super_fold_with(self),
         }
+    }
+
+    fn try_fold_const(&mut self, c: &Const) -> Result<Const, D::Error> {
+        Ok(self.delegate.const_for_param(c))
     }
 }
 

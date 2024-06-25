@@ -92,7 +92,7 @@ pub enum GenericParamKind<'fhir> {
     Type { default: Option<Ty<'fhir>> },
     Base,
     Lifetime,
-    Const { is_host_effect: bool },
+    Const { ty: Ty<'fhir>, is_host_effect: bool },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -559,8 +559,25 @@ pub enum Lifetime {
 
 #[derive(Clone, Copy)]
 pub struct ArrayLen {
-    pub val: usize,
+    pub kind: ArrayLenKind,
     pub span: Span,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum ArrayLenKind {
+    /// The length of the array is a constant
+    Lit(usize),
+    /// The length of the array is a type parameter
+    ParamConst(DefId),
+}
+
+impl ArrayLen {
+    pub fn lit(n: usize, span: Span) -> Self {
+        Self { kind: ArrayLenKind::Lit(n), span }
+    }
+    pub fn param(def_id: DefId, span: Span) -> Self {
+        Self { kind: ArrayLenKind::ParamConst(def_id), span }
+    }
 }
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -868,6 +885,7 @@ pub enum Lit {
 pub enum ExprRes<Id = ParamId> {
     Param(ParamKind, Id),
     Const(DefId),
+    ConstGeneric(DefId),
     NumConst(i128),
     GlobalFunc(SpecFuncKind, Symbol),
 }
@@ -1247,7 +1265,16 @@ impl fmt::Debug for Lifetime {
 
 impl fmt::Debug for ArrayLen {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "_")
+        write!(f, "{:?}", self.kind)
+    }
+}
+
+impl fmt::Debug for ArrayLenKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ArrayLenKind::Lit(n) => write!(f, "{n}"),
+            ArrayLenKind::ParamConst(p) => write!(f, "{:?}", p),
+        }
     }
 }
 

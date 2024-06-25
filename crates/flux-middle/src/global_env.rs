@@ -9,7 +9,7 @@ use rustc_hir::{
     def_id::{DefId, LocalDefId},
     LangItem,
 };
-use rustc_middle::ty::{TyCtxt, Variance};
+use rustc_middle::ty::{ParamConst, TyCtxt, Variance};
 pub use rustc_span::{symbol::Ident, Symbol};
 
 use crate::{
@@ -333,6 +333,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let item_def_id = self.hir().ty_param_owner(def_id);
         let generics = self.tcx().generics_of(item_def_id);
         generics.param_def_id_to_index[&def_id.to_def_id()]
+    }
+
+    pub fn def_id_to_param_const(&self, def_id: DefId) -> ParamConst {
+        let def_id = def_id.expect_local();
+        ParamConst {
+            index: self.def_id_to_param_index(def_id),
+            name: self.tcx().hir().ty_param_name(def_id),
+        }
     }
 
     pub fn refine_default(
