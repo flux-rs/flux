@@ -362,7 +362,7 @@ fn variants_of(
                         .try_collect()
                 })
                 .transpose()?
-                .map(|variants| rty::EarlyBinder(variants))
+                .map(rty::EarlyBinder)
         }
         _ => bug!("expected struct or enum"),
     };

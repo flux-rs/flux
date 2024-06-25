@@ -128,8 +128,8 @@ pub(crate) fn conv_adt_sort_def(
     Ok(rty::AdtSortDef::new(def_id, params, fields))
 }
 
-pub(crate) fn expand_type_alias<'genv>(
-    genv: GlobalEnv<'genv, '_>,
+pub(crate) fn expand_type_alias(
+    genv: GlobalEnv,
     def_id: DefId,
     alias: &fhir::TyAlias,
     wfckresults: &WfckResults,

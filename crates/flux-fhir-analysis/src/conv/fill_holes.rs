@@ -28,7 +28,7 @@ pub(crate) fn fn_sig(
     // signature to evaluate constants before lowering it. This also normalizes projections which
     // we don't want here because we need the signatures to match syntactically.
     // FIXME(nilehmann) we should check against the extern signature if this is an extern spec.
-    // Unfortunately, doing this makes `neg/vec01.rs` fail because checking against the real 
+    // Unfortunately, doing this makes `neg/vec01.rs` fail because checking against the real
     // signature of `<Vec as Index<usize>>::index` requires deep normalization.
     let rust_fn_sig = lowering::lower_fn_sig(genv.tcx(), genv.tcx().fn_sig(def_id).skip_binder())
         .map_err(UnsupportedReason::into_err)
@@ -40,7 +40,7 @@ pub(crate) fn fn_sig(
         zipper.zip_fn_sig(fn_sig, rust_fn_sig)
     })?;
 
-    Ok(zipper.replace_holes(&fn_sig))
+    Ok(zipper.replace_holes(fn_sig))
 }
 
 pub(crate) fn variants(
@@ -128,7 +128,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 self.zip_bty(bty, b)?;
             }
             (rty::TyKind::Exists(ctor), _) => {
-                self.enter_rty_binder(ctor, |this, ty| this.zip_ty(ty, b))?
+                self.enter_rty_binder(ctor, |this, ty| this.zip_ty(ty, b))?;
             }
             (rty::TyKind::Constr(_, ty), _) => self.zip_ty(ty, b)?,
             (
@@ -163,7 +163,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 bug!("unexpected type {a:?}");
             }
             _ => {
-                bug!("incompatible types `{a:?}` `{b:?}`")
+                bug!("incompatible types `{a:?}` `{b:?}`");
             }
         }
         Ok(())
@@ -172,10 +172,10 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
     fn zip_bty(&mut self, a: &rty::BaseTy, b: &ty::Ty) -> QueryResult {
         match (a, b.kind()) {
             (rty::BaseTy::Int(ity_a), ty::TyKind::Int(ity_b)) => {
-                debug_assert_eq!(ity_a, ity_b)
+                debug_assert_eq!(ity_a, ity_b);
             }
             (rty::BaseTy::Uint(uity_a), ty::TyKind::Uint(uity_b)) => {
-                debug_assert_eq!(uity_a, uity_b)
+                debug_assert_eq!(uity_a, uity_b);
             }
             (rty::BaseTy::Bool, ty::TyKind::Bool) => {}
             (rty::BaseTy::Str, ty::TyKind::Str) => {}
@@ -217,13 +217,13 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 debug_assert_eq!(pty_a, pty_b);
             }
             (rty::BaseTy::Closure(..), _) => {
-                bug!("unexpected closure {a:?}")
+                bug!("unexpected closure {a:?}");
             }
             (rty::BaseTy::Coroutine(..), _) => {
-                bug!("unexpected coroutine {a:?}")
+                bug!("unexpected coroutine {a:?}");
             }
             _ => {
-                bug!("incompatible types `{a:?}` `{b:?}`")
+                bug!("incompatible types `{a:?}` `{b:?}`");
             }
         }
         Ok(())
@@ -242,7 +242,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 debug_assert_eq!(ct_a, ct_b);
             }
             _ => {
-                bug!("incompatible generic args `{a:?}` `{b:?}`")
+                bug!("incompatible generic args `{a:?}` `{b:?}`");
             }
         }
         Ok(())
