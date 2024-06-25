@@ -25,8 +25,11 @@ pub(crate) fn fn_sig(
     def_id: LocalDefId,
 ) -> QueryResult<rty::PolyFnSig> {
     // FIXME(nilehmann) we should call `genv.lower_fn_sig`, but that function normalizes the
-    // signature to evaluate constants before lowering it. This also normalize projections which
+    // signature to evaluate constants before lowering it. This also normalizes projections which
     // we don't want here because we need the signatures to match syntactically.
+    // FIXME(nilehmann) we should check against the extern signature if this is an extern spec.
+    // Unfortunately, doing this makes `neg/vec01.rs` fail because checking against the real 
+    // signature of `<Vec as Index<usize>>::index` requires deep normalization.
     let rust_fn_sig = lowering::lower_fn_sig(genv.tcx(), genv.tcx().fn_sig(def_id).skip_binder())
         .map_err(UnsupportedReason::into_err)
         .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err))?;
@@ -47,9 +50,8 @@ pub(crate) fn variants(
 ) -> QueryResult<Vec<rty::PolyVariant>> {
     let adt_def = genv.adt_def(adt_def_id)?;
     let mut zipper = Zipper::new(genv, adt_def_id)?;
-    let adt_ty = genv
-        .lower_type_of(genv.resolve_maybe_extern_id(adt_def_id.to_def_id()))?
-        .skip_binder();
+    let def_id = genv.resolve_maybe_extern_id(adt_def_id.to_def_id());
+    let adt_ty = genv.lower_type_of(def_id)?.skip_binder();
     for (variant, variant_def) in iter::zip(variants, adt_def.variants()) {
         zipper.zip_variant(variant, variant_def, &adt_ty)?;
     }
