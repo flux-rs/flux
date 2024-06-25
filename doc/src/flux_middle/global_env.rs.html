@@ -524,6 +524,14 @@
 <a href="#524" id="524">524</a>
 <a href="#525" id="525">525</a>
 <a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -535,7 +543,7 @@
     def_id::{DefId, LocalDefId},
     LangItem,
 };
-<span class="kw">use </span>rustc_middle::ty::{TyCtxt, Variance};
+<span class="kw">use </span>rustc_middle::ty::{ParamConst, TyCtxt, Variance};
 <span class="kw">pub use </span>rustc_span::{symbol::Ident, Symbol};
 
 <span class="kw">use crate</span>::{
@@ -859,6 +867,14 @@
         <span class="kw">let </span>item_def_id = <span class="self">self</span>.hir().ty_param_owner(def_id);
         <span class="kw">let </span>generics = <span class="self">self</span>.tcx().generics_of(item_def_id);
         generics.param_def_id_to_index[<span class="kw-2">&amp;</span>def_id.to_def_id()]
+    }
+
+    <span class="kw">pub fn </span>def_id_to_param_const(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; ParamConst {
+        <span class="kw">let </span>def_id = def_id.expect_local();
+        ParamConst {
+            index: <span class="self">self</span>.def_id_to_param_index(def_id),
+            name: <span class="self">self</span>.tcx().hir().ty_param_name(def_id),
+        }
     }
 
     <span class="kw">pub fn </span>refine_default(

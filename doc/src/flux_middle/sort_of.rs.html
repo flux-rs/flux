@@ -152,7 +152,6 @@
 <a href="#152" id="152">152</a>
 <a href="#153" id="153">153</a>
 <a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>rustc_hir::{def::DefKind, PrimTy};
 <span class="kw">use </span>rustc_span::def_id::{DefId, LocalDefId};
@@ -222,13 +221,12 @@
         <span class="self">self</span>.sort_of_self_ty(alias_to, self_ty)
     }
 
-    <span class="kw">fn </span>sort_of_generic_param(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Sort&gt;&gt; {
+    <span class="kw">pub fn </span>sort_of_generic_param(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Sort&gt;&gt; {
         <span class="kw">let </span>param = <span class="self">self</span>.get_generic_param(def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>sort = <span class="kw">match </span><span class="kw-2">&amp;</span>param.kind {
             fhir::GenericParamKind::Base =&gt; <span class="prelude-val">Some</span>(rty::Sort::Param(<span class="self">self</span>.def_id_to_param_ty(def_id))),
-            fhir::GenericParamKind::Const { .. }
-            | fhir::GenericParamKind::Type { .. }
-            | fhir::GenericParamKind::Lifetime =&gt; <span class="prelude-val">None</span>,
+            fhir::GenericParamKind::Const { ty, .. } =&gt; <span class="self">self</span>.sort_of_ty(ty)<span class="question-mark">?</span>,
+            fhir::GenericParamKind::Type { .. } | fhir::GenericParamKind::Lifetime =&gt; <span class="prelude-val">None</span>,
         };
         <span class="prelude-val">Ok</span>(sort)
     }

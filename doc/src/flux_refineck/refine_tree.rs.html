@@ -869,6 +869,58 @@
 <a href="#869" id="869">869</a>
 <a href="#870" id="870">870</a>
 <a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
@@ -880,6 +932,7 @@
     iter::IterExt,
 };
 <span class="kw">use </span>flux_middle::{
+    intern::List,
     queries::QueryResult,
     rty::{
         box_args,
@@ -888,10 +941,11 @@
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
             TypeVisitor,
         },
-        BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind,
+        BaseTy, Expr, GenericArg, Mutability, Name, Sort, Ty, TyKind, Var,
     },
 };
 <span class="kw">use </span>itertools::Itertools;
+<span class="kw">use </span>rustc_middle::ty::ParamConst;
 
 <span class="kw">use crate</span>::{
     constraint_gen::Tag,
@@ -981,7 +1035,16 @@
             .into_iter()
             .rev()
             .collect();
-        <span class="prelude-val">Some</span>(Scope { bindings })
+        <span class="kw">let </span><span class="kw-2">mut </span>reftgenerics = <span class="macro">vec!</span>[];
+        <span class="kw">let </span>parents = ParentsIter::new(<span class="self">self</span>.ptr.upgrade()<span class="question-mark">?</span>);
+        <span class="kw">for </span>node <span class="kw">in </span>parents {
+            <span class="kw">if let </span>NodeKind::Root(consts) = <span class="kw-2">&amp;</span>node.borrow().kind {
+                <span class="kw">for </span>(param_const, sort) <span class="kw">in </span>consts {
+                    reftgenerics.push((<span class="kw-2">*</span>param_const, sort.clone()));
+                }
+            }
+        }
+        <span class="prelude-val">Some</span>(Scope { bindings, reftgenerics: List::from_vec(reftgenerics) })
     }
 }
 
@@ -989,13 +1052,20 @@
 </span><span class="attr">#[derive(PartialEq, Eq)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Scope {
     bindings: IndexVec&lt;Name, Sort&gt;,
+    reftgenerics: List&lt;(ParamConst, Sort)&gt;,
 }
 
 <span class="kw">impl </span>Scope {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (Name, Sort)&gt; + <span class="lifetime">'_ </span>{
-        <span class="self">self</span>.bindings
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (Var, Sort)&gt; + <span class="lifetime">'_ </span>{
+        <span class="kw">let </span>iter_param_consts = <span class="self">self
+            </span>.reftgenerics
+            .iter()
+            .map(|(param_const, sort)| (Var::ConstGeneric(<span class="kw-2">*</span>param_const), sort.clone()));
+        <span class="kw">let </span>iter_bindings = <span class="self">self
+            </span>.bindings
             .iter_enumerated()
-            .map(|(name, sort)| (name, sort.clone()))
+            .map(|(name, sort)| (Var::Free(name), sort.clone()));
+        iter_param_consts.chain(iter_bindings)
     }
 
     <span class="doccomment">/// Whether `t` has any free variables not in this scope
@@ -1068,7 +1138,7 @@
 }
 
 <span class="kw">enum </span>NodeKind {
-    Conj,
+    Root(List&lt;(ParamConst, Sort)&gt;),
     Comment(String),
     ForAll(Name, Sort),
     Assumption(Expr),
@@ -1077,8 +1147,13 @@
 }
 
 <span class="kw">impl </span>RefineTree {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new() -&gt; RefineTree {
-        <span class="kw">let </span>root = Node { kind: NodeKind::Conj, nbindings: <span class="number">0</span>, parent: <span class="prelude-val">None</span>, children: <span class="macro">vec!</span>[] };
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(const_params: List&lt;(ParamConst, Sort)&gt;) -&gt; RefineTree {
+        <span class="kw">let </span>root = Node {
+            kind: NodeKind::Root(const_params),
+            nbindings: <span class="number">0</span>,
+            parent: <span class="prelude-val">None</span>,
+            children: <span class="macro">vec!</span>[],
+        };
         <span class="kw">let </span>root = NodePtr(Rc::new(RefCell::new(root)));
         RefineTree { root }
     }
@@ -1384,7 +1459,7 @@
                     })
                     .for_each(drop);
             }
-            NodeKind::Comment(<span class="kw">_</span>) | NodeKind::Conj | NodeKind::ForAll(..) =&gt; {
+            NodeKind::Comment(<span class="kw">_</span>) | NodeKind::Root(<span class="kw">_</span>) | NodeKind::ForAll(..) =&gt; {
                 <span class="self">self</span>.children
                     .extract_if(|child| <span class="macro">matches!</span>(<span class="kw-2">&amp;</span>child.borrow().kind, NodeKind::True))
                     .for_each(drop);
@@ -1408,15 +1483,33 @@
             NodeKind::Head(pred, <span class="kw">_</span>) =&gt; {
                 <span class="kw-2">*</span>pred = pred.replace_evars(sol);
             }
-            NodeKind::Comment(<span class="kw">_</span>) | NodeKind::Conj | NodeKind::ForAll(..) | NodeKind::True =&gt; {}
+            NodeKind::Comment(<span class="kw">_</span>) | NodeKind::Root(<span class="kw">_</span>) | NodeKind::ForAll(..) | NodeKind::True =&gt; {}
         }
     }
 
     <span class="kw">fn </span>to_fixpoint(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;mut </span>FixpointCtxt&lt;Tag&gt;) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;fixpoint::Constraint&gt;&gt; {
         <span class="kw">let </span>cstr = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            NodeKind::Comment(<span class="kw">_</span>) | NodeKind::Conj | NodeKind::ForAll(<span class="kw">_</span>, Sort::Loc) =&gt; {
+            NodeKind::Comment(<span class="kw">_</span>) | NodeKind::ForAll(<span class="kw">_</span>, Sort::Loc) =&gt; {
                 children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)<span class="question-mark">?
             </span>}
+
+            NodeKind::Root(param_const_sorts) =&gt; {
+                <span class="kw">let </span><span class="prelude-val">Some</span>(children) = children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)<span class="question-mark">? </span><span class="kw">else </span>{
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
+                };
+                <span class="kw">let </span><span class="kw-2">mut </span>constr = children;
+                <span class="kw">for </span>(param_const, sort) <span class="kw">in </span>param_const_sorts {
+                    constr = fixpoint::Constraint::ForAll(
+                        fixpoint::Bind {
+                            name: fixpoint::Var::ConstGeneric(<span class="kw-2">*</span>param_const),
+                            sort: sort_to_fixpoint(sort),
+                            pred: fixpoint::Pred::TRUE,
+                        },
+                        Box::new(constr),
+                    );
+                }
+                <span class="prelude-val">Some</span>(constr)
+            }
             NodeKind::ForAll(name, sort) =&gt; {
                 cx.with_name_map(<span class="kw-2">*</span>name, |cx, fresh| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; {
                     <span class="kw">let </span><span class="prelude-val">Some</span>(children) = children_to_fixpoint(cx, <span class="kw-2">&amp;</span><span class="self">self</span>.children)<span class="question-mark">? </span><span class="kw">else </span>{
@@ -1521,9 +1614,14 @@
     <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="kw">let </span>node = <span class="self">self</span>.borrow();
         <span class="kw">match </span><span class="kw-2">&amp;</span>node.kind {
-            NodeKind::Conj | NodeKind::Comment(<span class="kw">_</span>) | NodeKind::True =&gt; {}
+            NodeKind::Comment(<span class="kw">_</span>) | NodeKind::True =&gt; {}
             NodeKind::Assumption(pred) | NodeKind::Head(pred, <span class="kw">_</span>) =&gt; pred.visit_with(visitor)<span class="question-mark">?</span>,
             NodeKind::ForAll(<span class="kw">_</span>, sort) =&gt; sort.visit_with(visitor)<span class="question-mark">?</span>,
+            NodeKind::Root(param_const_sorts) =&gt; {
+                <span class="kw">for </span>(<span class="kw">_</span>, sort) <span class="kw">in </span>param_const_sorts {
+                    sort.visit_with(visitor)<span class="question-mark">?</span>;
+                }
+            }
         }
         <span class="kw">for </span>child <span class="kw">in </span><span class="kw-2">&amp;</span>node.children {
             child.visit_with(visitor)<span class="question-mark">?</span>;
@@ -1533,10 +1631,7 @@
 }
 
 <span class="kw">mod </span>pretty {
-    <span class="kw">use </span>std::{
-        fmt::{<span class="self">self</span>, Write},
-        slice,
-    };
+    <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
     <span class="kw">use </span>flux_common::format::PadAdapter;
     <span class="kw">use </span>flux_middle::pretty::<span class="kw-2">*</span>;
@@ -1563,7 +1658,9 @@
     <span class="kw">fn </span>flatten_conjs(nodes: <span class="kw-2">&amp;</span>[NodePtr]) -&gt; Vec&lt;NodePtr&gt; {
         <span class="kw">fn </span>go(ptr: <span class="kw-2">&amp;</span>NodePtr, children: <span class="kw-2">&amp;mut </span>Vec&lt;NodePtr&gt;) {
             <span class="kw">let </span>node = ptr.borrow();
-            <span class="kw">if let </span>NodeKind::Conj = node.kind {
+            <span class="kw">if let </span>NodeKind::Root(ps) = <span class="kw-2">&amp;</span>node.kind
+                &amp;&amp; ps.is_empty()
+            {
                 <span class="kw">for </span>child <span class="kw">in </span><span class="kw-2">&amp;</span>node.children {
                     go(child, children);
                 }
@@ -1618,9 +1715,16 @@
                     <span class="macro">w!</span>(<span class="string">"@ {}"</span>, ^comment)<span class="question-mark">?</span>;
                     <span class="macro">w!</span>(PadAdapter::wrap_fmt(f, <span class="number">2</span>), <span class="string">"\n{:?}"</span>, <span class="macro">join!</span>(<span class="string">"\n"</span>, <span class="kw-2">&amp;</span>node.children))
                 }
-                NodeKind::Conj =&gt; {
-                    <span class="kw">let </span>nodes = flatten_conjs(slice::from_ref(<span class="self">self</span>));
-                    <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="macro">join!</span>(<span class="string">"\n"</span>, nodes))
+                NodeKind::Root(bindings) =&gt; {
+                    <span class="macro">w!</span>(
+                        <span class="string">"∀ {}."</span>,
+                        ^bindings
+                            .into_iter()
+                            .format_with(<span class="string">", "</span>, |(name, sort), f| {
+                                f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(<span class="string">"{:?}: {:?}"</span>, ^name, sort))
+                            })
+                    )<span class="question-mark">?</span>;
+                    fmt_children(<span class="kw-2">&amp;</span>node.children, cx, f)
                 }
                 NodeKind::ForAll(name, sort) =&gt; {
                     <span class="kw">let </span>(bindings, children) = <span class="kw">if </span>cx.bindings_chain {

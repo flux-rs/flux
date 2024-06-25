@@ -355,6 +355,11 @@
 <a href="#355" id="355">355</a>
 <a href="#356" id="356">356</a>
 <a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="attr">#[allow(unused_imports)]
@@ -418,10 +423,12 @@
             }
             <span class="kw">let </span>args = subst.finish(<span class="self">self</span>.tcx(), generics);
 
+            <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
+
             <span class="kw">let </span>pred = <span class="self">self
                 </span>.genv
                 .assoc_refinement_def(impl_def_id, obligation.name)<span class="question-mark">?
-                </span>.instantiate(<span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[]);
+                </span>.instantiate(tcx, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[]);
 
             pred.apply(refine_args).try_fold_with(<span class="self">self</span>)
         } <span class="kw">else </span>{
@@ -481,10 +488,11 @@
                     .map(|item| item.def_id)
                     .unwrap();
 
+                <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
                 <span class="prelude-val">Ok</span>(<span class="self">self
                     </span>.genv
                     .type_of(assoc_type_id)<span class="question-mark">?
-                    </span>.instantiate(<span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[])
+                    </span>.instantiate(tcx, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[])
                     .to_ty())
             }
         }
@@ -511,10 +519,12 @@
         <span class="kw">if let </span>GenericArg::Ty(ty) = <span class="kw-2">&amp;</span>obligation.args[<span class="number">0</span>]
             &amp;&amp; <span class="kw">let </span>TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind()
         {
-            <span class="kw">let </span>bounds = <span class="self">self
-                </span>.genv
-                .item_bounds(alias_ty.def_id)<span class="question-mark">?
-                </span>.instantiate(<span class="kw-2">&amp;</span>alias_ty.args, <span class="kw-2">&amp;</span>alias_ty.refine_args);
+            <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
+            <span class="kw">let </span>bounds = <span class="self">self</span>.genv.item_bounds(alias_ty.def_id)<span class="question-mark">?</span>.instantiate(
+                tcx,
+                <span class="kw-2">&amp;</span>alias_ty.args,
+                <span class="kw-2">&amp;</span>alias_ty.refine_args,
+            );
 
             assemble_candidates_from_predicates(
                 <span class="kw-2">&amp;</span>bounds,

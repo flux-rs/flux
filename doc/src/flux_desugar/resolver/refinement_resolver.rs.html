@@ -946,6 +946,28 @@
 <a href="#946" id="946">946</a>
 <a href="#947" id="947">947</a>
 <a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -1326,6 +1348,7 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>RefinementResolver&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     scopes: Vec&lt;Scope&gt;,
     sorts_res: UnordMap&lt;Symbol, fhir::SortRes&gt;,
+    const_generics: UnordMap&lt;Symbol, (<span class="kw">crate</span>::DefId, u32)&gt;,
     param_defs: FxIndexMap&lt;NodeId, ParamDef&gt;,
     resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     path_res_map: FxHashMap&lt;NodeId, ExprRes&lt;NodeId&gt;&gt;,
@@ -1342,7 +1365,7 @@
             .enumerate()
             .map(|(i, v)| (v.name, fhir::SortRes::SortParam(i)))
             .collect();
-        <span class="self">Self</span>::new(resolver, sort_res)
+        <span class="self">Self</span>::new(resolver, sort_res, Default::default())
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>for_rust_item(
@@ -1352,15 +1375,28 @@
         <span class="kw">let </span>tcx = resolver.genv.tcx();
         <span class="kw">let </span>generics = tcx.generics_of(owner);
         <span class="kw">let </span><span class="kw-2">mut </span>sort_res: UnordMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt; = (<span class="number">0</span>..generics.count())
-            .map(|idx| {
+            .filter_map(|idx| {
                 <span class="kw">let </span>p = generics.param_at(idx, tcx);
-                (p.name, fhir::SortRes::TyParam(p.def_id))
-            })
+                <span class="kw">if let </span>rustc_middle::ty::GenericParamDefKind::Type { .. } = p.kind {
+                    <span class="kw">return </span><span class="prelude-val">Some</span>((p.name, fhir::SortRes::TyParam(p.def_id)));
+                }
+                <span class="prelude-val">None
+            </span>})
             .collect();
+        <span class="kw">let </span>const_generics = (<span class="number">0</span>..generics.count())
+            .filter_map(|idx| {
+                <span class="kw">let </span>p = generics.param_at(idx, tcx);
+                <span class="kw">if let </span>rustc_middle::ty::GenericParamDefKind::Const { .. } = p.kind {
+                    <span class="kw">return </span><span class="prelude-val">Some</span>((p.name, (p.def_id, p.index)));
+                }
+                <span class="prelude-val">None
+            </span>})
+            .collect();
+
         <span class="kw">if let </span><span class="prelude-val">Some</span>(self_res) = self_res(tcx, owner) {
             sort_res.insert(kw::SelfUpper, self_res);
         }
-        <span class="self">Self</span>::new(resolver, sort_res)
+        <span class="self">Self</span>::new(resolver, sort_res, const_generics)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_qualifier(
@@ -1434,12 +1470,14 @@
     <span class="kw">fn </span>new(
         resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         sort_res: UnordMap&lt;Symbol, fhir::SortRes&gt;,
+        const_generics: UnordMap&lt;Symbol, (<span class="kw">crate</span>::DefId, u32)&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>errors = Errors::new(resolver.genv.sess());
         <span class="self">Self </span>{
             resolver,
             sorts_res: sort_res,
             param_defs: Default::default(),
+            const_generics,
             scopes: Default::default(),
             path_res_map: Default::default(),
             errors,
@@ -1508,6 +1546,11 @@
                 .insert(node_id, ExprRes::GlobalFunc(<span class="kw-2">*</span>decl, ident.name));
             <span class="kw">return</span>;
         }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>((def_id, _index)) = <span class="self">self</span>.const_generics.get(<span class="kw-2">&amp;</span>ident.name) {
+            <span class="self">self</span>.path_res_map
+                .insert(node_id, ExprRes::ConstGeneric(<span class="kw-2">*</span>def_id));
+            <span class="kw">return</span>;
+        }
         <span class="self">self</span>.errors
             .emit(errors::UnresolvedVar::from_ident(ident, <span class="string">"name"</span>));
     }
@@ -1556,6 +1599,7 @@
                 ExprRes::Const(def_id) =&gt; ExprRes::Const(def_id),
                 ExprRes::NumConst(val) =&gt; ExprRes::NumConst(val),
                 ExprRes::GlobalFunc(kind, name) =&gt; ExprRes::GlobalFunc(kind, name),
+                ExprRes::ConstGeneric(def_id) =&gt; ExprRes::ConstGeneric(def_id),
             };
             <span class="self">self</span>.resolver.output.path_expr_res_map.insert(node_id, res);
         }

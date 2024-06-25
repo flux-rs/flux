@@ -984,6 +984,9 @@
 <a href="#984" id="984">984</a>
 <a href="#985" id="985">985</a>
 <a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1544,9 +1547,7 @@
         constant: <span class="kw-2">&amp;</span>rustc_mir::ConstOperand&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Constant, UnsupportedReason&gt; {
         <span class="kw">use </span>rustc_middle::ty::TyKind;
-        <span class="comment">// use rustc_ty::ScalarInt;
-        </span><span class="kw">use </span>rustc_mir::interpret::Scalar;
-        <span class="kw">use </span>rustc_mir::Const;
+        <span class="kw">use </span>rustc_mir::{interpret::Scalar, Const};
         <span class="kw">let </span>tcx = <span class="self">self</span>.tcx;
 
         <span class="comment">// HACK(nilehmann) we evaluate the constant to support u32::MAX
@@ -1563,11 +1564,16 @@
                 <span class="prelude-val">Some</span>(Constant::Str)
             }
             (Const::Ty(c), <span class="kw">_</span>) =&gt; {
-                <span class="kw">if let </span>rustc_ty::ConstKind::Value(rustc_ty::ValTree::Leaf(scalar)) = c.kind() {
-                    scalar_int_to_constant(tcx, scalar, c.ty())
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">None
-                </span>}
+                <span class="kw">match </span>c.kind() {
+                    rustc_ty::ConstKind::Value(rustc_ty::ValTree::Leaf(scalar)) =&gt; {
+                        scalar_int_to_constant(tcx, scalar, c.ty())
+                    }
+                    rustc_ty::ConstKind::Param(param_const) =&gt; {
+                        <span class="kw">let </span>ty = lower_ty(tcx, ty)<span class="question-mark">?</span>;
+                        <span class="prelude-val">Some</span>(Constant::Param(param_const, ty))
+                    }
+                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+                }
             }
             (<span class="kw">_</span>, TyKind::Tuple(tys)) <span class="kw">if </span>tys.is_empty() =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(Constant::Unit),
             (<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Some</span>(Constant::Opaque(lower_ty(tcx, ty)<span class="question-mark">?</span>)),

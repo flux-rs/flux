@@ -636,6 +636,10 @@
 <a href="#636" id="636">636</a>
 <a href="#637" id="637">637</a>
 <a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 //!
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
@@ -649,7 +653,11 @@
 <span class="kw">use </span>rustc_middle::middle::resolve_bound_vars::ResolvedArg;
 
 <span class="kw">use super</span>::{FhirId, FluxOwnerId};
-<span class="kw">use crate</span>::{fhir, global_env::GlobalEnv, try_alloc_slice};
+<span class="kw">use crate</span>::{
+    fhir::{<span class="self">self</span>},
+    global_env::GlobalEnv,
+    try_alloc_slice,
+};
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
@@ -794,12 +802,9 @@
                     <span class="string">"`impl Trait` in argument position not supported"</span>,
                 ))
             }
-            hir::GenericParamKind::Const { .. } =&gt; {
-                <span class="kw">return </span><span class="self">self</span>.emit_err(errors::UnsupportedHir::new(
-                    <span class="self">self</span>.genv.tcx(),
-                    param.def_id,
-                    <span class="string">"const generics are not supported"</span>,
-                ))
+            hir::GenericParamKind::Const { ty, is_host_effect, .. } =&gt; {
+                <span class="kw">let </span>ty = <span class="self">self</span>.lift_ty(ty)<span class="question-mark">?</span>;
+                fhir::GenericParamKind::Const { ty, is_host_effect }
             }
         };
         <span class="prelude-val">Ok</span>(fhir::GenericParam { def_id: param.def_id, kind })
@@ -1146,7 +1151,7 @@
                     <span class="prelude-val">Ok</span>(fhir::GenericArg::Type(<span class="self">self</span>.genv.alloc(ty)))
                 }
                 hir::GenericArg::Const(<span class="kw">_</span>) =&gt; {
-                    <span class="self">self</span>.emit_unsupported(<span class="string">"const generics are not supported"</span>)
+                    <span class="self">self</span>.emit_unsupported(<span class="string">"const generics are not supported (2)"</span>)
                 }
                 hir::GenericArg::Infer(<span class="kw">_</span>) =&gt; {
                     <span class="macro">bug!</span>(<span class="string">"unexpected inference generic argument"</span>);
@@ -1171,7 +1176,7 @@
         })
     }
 
-    <span class="kw">fn </span>lift_array_len(<span class="kw-2">&amp;</span><span class="self">self</span>, len: hir::ArrayLen) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ArrayLen&gt; {
+    <span class="kw">fn </span>lift_array_len(<span class="kw-2">&amp;mut </span><span class="self">self</span>, len: hir::ArrayLen) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ArrayLen&gt; {
         <span class="kw">let </span>body = <span class="kw">match </span>len {
             hir::ArrayLen::Body(anon_const) =&gt; <span class="self">self</span>.genv.hir().body(anon_const.body),
             hir::ArrayLen::Infer(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected `ArrayLen::Infer`"</span>),
@@ -1179,10 +1184,13 @@
         <span class="kw">if let </span>hir::ExprKind::Lit(lit) = <span class="kw-2">&amp;</span>body.value.kind
             &amp;&amp; <span class="kw">let </span>LitKind::Int(array_len, <span class="kw">_</span>) = lit.node
         {
-            <span class="comment">// FIXME(nilehmann) we shouldn't panic here
-            </span><span class="prelude-val">Ok</span>(fhir::ArrayLen { val: array_len.get().try_into().unwrap(), span: lit.span })
+            <span class="prelude-val">Ok</span>(fhir::ArrayLen::lit(array_len.get().try_into().unwrap(), lit.span))
+        } <span class="kw">else if let </span>hir::ExprKind::Path(hir::QPath::Resolved(<span class="kw">_</span>, path)) = <span class="kw-2">&amp;</span>body.value.kind
+            &amp;&amp; <span class="kw">let </span>hir::def::Res::Def(DefKind::ConstParam, def_id) = path.res
+        {
+            <span class="prelude-val">Ok</span>(fhir::ArrayLen::param(def_id, path.span))
         } <span class="kw">else </span>{
-            <span class="self">self</span>.emit_unsupported(<span class="string">"only interger literals are supported for array lengths"</span>)
+            <span class="self">self</span>.emit_unsupported(<span class="string">"only integer literals are supported for array lengths"</span>)
         }
     }
 

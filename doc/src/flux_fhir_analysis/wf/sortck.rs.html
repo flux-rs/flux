@@ -698,6 +698,7 @@
 <a href="#698" id="698">698</a>
 <a href="#699" id="699">699</a>
 <a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
@@ -892,6 +893,7 @@
         <span class="kw">match </span>path.res {
             ExprRes::Param(<span class="kw">_</span>, id) =&gt; <span class="self">self</span>.param_sort(id),
             ExprRes::Const(<span class="kw">_</span>) =&gt; rty::Sort::Int, <span class="comment">// TODO: generalize const sorts
+            </span>ExprRes::ConstGeneric(<span class="kw">_</span>) =&gt; rty::Sort::Int, <span class="comment">// TODO: generalize generic-const sorts
             </span>ExprRes::NumConst(<span class="kw">_</span>) =&gt; rty::Sort::Int,
             ExprRes::GlobalFunc(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
                 <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected func in var position"</span>)

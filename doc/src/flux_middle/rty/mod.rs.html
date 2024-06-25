@@ -2092,6 +2092,27 @@
 <a href="#2092" id="2092">2092</a>
 <a href="#2093" id="2093">2093</a>
 <a href="#2094" id="2094">2094</a>
+<a href="#2095" id="2095">2095</a>
+<a href="#2096" id="2096">2096</a>
+<a href="#2097" id="2097">2097</a>
+<a href="#2098" id="2098">2098</a>
+<a href="#2099" id="2099">2099</a>
+<a href="#2100" id="2100">2100</a>
+<a href="#2101" id="2101">2101</a>
+<a href="#2102" id="2102">2102</a>
+<a href="#2103" id="2103">2103</a>
+<a href="#2104" id="2104">2104</a>
+<a href="#2105" id="2105">2105</a>
+<a href="#2106" id="2106">2106</a>
+<a href="#2107" id="2107">2107</a>
+<a href="#2108" id="2108">2108</a>
+<a href="#2109" id="2109">2109</a>
+<a href="#2110" id="2110">2110</a>
+<a href="#2111" id="2111">2111</a>
+<a href="#2112" id="2112">2112</a>
+<a href="#2113" id="2113">2113</a>
+<a href="#2114" id="2114">2114</a>
+<a href="#2115" id="2115">2115</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2147,7 +2168,7 @@
     },
 };
 <span class="kw">use crate</span>::{
-    fhir::{<span class="self">self</span>, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
+    fhir::{<span class="self">self</span>, ArrayLenKind, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
@@ -3087,6 +3108,17 @@
     Const(Const),
 }
 
+<span class="kw">pub fn </span>array_len_const(genv: <span class="kw-2">&amp;</span>GlobalEnv, len: ArrayLenKind) -&gt; Const {
+    <span class="kw">let </span>kind = <span class="kw">match </span>len {
+        ArrayLenKind::Lit(len) =&gt; {
+            ConstKind::Value(ScalarInt::try_from_target_usize(len <span class="kw">as </span>u128, genv.tcx()).unwrap())
+        }
+
+        ArrayLenKind::ParamConst(def_id) =&gt; ConstKind::Param(genv.def_id_to_param_const(def_id)),
+    };
+    Const { kind, ty: <span class="kw">crate</span>::rustc::ty::Ty::mk_uint(UintTy::Usize) }
+}
+
 <span class="kw">impl </span>GenericArg {
     <span class="kw">pub fn </span>expect_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Ty {
         <span class="kw">if let </span>GenericArg::Ty(ty) = <span class="self">self </span>{
@@ -3554,10 +3586,10 @@
 }
 
 <span class="kw">impl</span>&lt;T: TypeFoldable&gt; EarlyBinder&lt;T&gt; {
-    <span class="kw">pub fn </span>instantiate(<span class="self">self</span>, args: <span class="kw-2">&amp;</span>[GenericArg], refine_args: <span class="kw-2">&amp;</span>[Expr]) -&gt; T {
+    <span class="kw">pub fn </span>instantiate(<span class="self">self</span>, tcx: TyCtxt, args: <span class="kw-2">&amp;</span>[GenericArg], refine_args: <span class="kw-2">&amp;</span>[Expr]) -&gt; T {
         <span class="self">self</span>.<span class="number">0
             </span>.try_fold_with(<span class="kw-2">&amp;mut </span>subst::GenericsSubstFolder::new(
-                subst::GenericArgsDelegate(args),
+                subst::GenericArgsDelegate(args, tcx),
                 refine_args,
             ))
             .into_ok()
@@ -3822,6 +3854,15 @@
             <span class="macro">bug!</span>(<span class="string">"expected tuple found `{self:?}` (kind: `{:?}`)"</span>, <span class="self">self</span>.kind())
         }
     }
+
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub fn </span>expect_base(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BaseTy {
+        <span class="kw">match </span><span class="self">self</span>.kind() {
+            TyKind::Indexed(base_ty, <span class="kw">_</span>) =&gt; base_ty.clone(),
+            TyKind::Exists(bty) =&gt; bty.clone().skip_binder().expect_base(),
+            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected indexed type"</span>),
+        }
+    }
 }
 
 <span class="kw">impl </span>AliasTy {
@@ -4040,6 +4081,7 @@
     BoundVariableKind,
     RefineParam,
     AssocRefinement,
+    (ParamConst, Sort)
 );
 
 <span class="attr">#[macro_export]

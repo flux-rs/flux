@@ -778,15 +778,6 @@
 <a href="#778" id="778">778</a>
 <a href="#779" id="779">779</a>
 <a href="#780" id="780">780</a>
-<a href="#781" id="781">781</a>
-<a href="#782" id="782">782</a>
-<a href="#783" id="783">783</a>
-<a href="#784" id="784">784</a>
-<a href="#785" id="785">785</a>
-<a href="#786" id="786">786</a>
-<a href="#787" id="787">787</a>
-<a href="#788" id="788">788</a>
-<a href="#789" id="789">789</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
@@ -986,15 +977,6 @@
 </span><span class="kw">pub struct </span>Const {
     <span class="kw">pub </span>kind: ConstKind,
     <span class="kw">pub </span>ty: Ty,
-}
-
-<span class="kw">impl </span>Const {
-    <span class="kw">pub fn </span>from_array_len(tcx: TyCtxt, len: usize) -&gt; Const {
-        Const {
-            kind: ConstKind::Value(ScalarInt::try_from_target_usize(len <span class="kw">as </span>u128, tcx).unwrap()),
-            ty: Ty::mk_uint(UintTy::Usize),
-        }
-    }
 }
 
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]

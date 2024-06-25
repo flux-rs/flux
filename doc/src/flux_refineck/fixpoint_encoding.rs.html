@@ -1232,6 +1232,12 @@
 <a href="#1232" id="1232">1232</a>
 <a href="#1233" id="1233">1233</a>
 <a href="#1234" id="1234">1234</a>
+<a href="#1235" id="1235">1235</a>
+<a href="#1236" id="1236">1236</a>
+<a href="#1237" id="1237">1237</a>
+<a href="#1238" id="1238">1238</a>
+<a href="#1239" id="1239">1239</a>
+<a href="#1240" id="1240">1240</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter, ops::ControlFlow};
@@ -1342,7 +1348,7 @@
     <span class="kw">use </span>std::fmt;
 
     <span class="kw">use </span>rustc_index::newtype_index;
-
+    <span class="kw">use </span>rustc_middle::ty::ParamConst;
     <span class="macro">newtype_index!</span> {
         <span class="kw">pub struct </span>KVid {}
     }
@@ -1371,6 +1377,7 @@
         <span class="doccomment">/// Interpreted theory function. This can be an arbitrary string, thus we are assuming the
         /// name is different than the display implementation for the other variants.
         </span>Itf(Symbol),
+        ConstGeneric(ParamConst),
     }
 
     <span class="kw">impl </span>From&lt;GlobalVar&gt; <span class="kw">for </span>Var {
@@ -1407,6 +1414,9 @@
                 </span>Var::UIFRel(BinRel::Eq) =&gt; <span class="macro">write!</span>(f, <span class="string">"eq"</span>),
                 Var::UIFRel(BinRel::Ne) =&gt; <span class="macro">write!</span>(f, <span class="string">"ne"</span>),
                 Var::Underscore =&gt; <span class="macro">write!</span>(f, <span class="string">"_"</span>),
+                Var::ConstGeneric(param_const) =&gt; {
+                    <span class="macro">write!</span>(f, <span class="string">"constgen{}{}"</span>, param_const.name, param_const.index)
+                }
             }
         }
     }
@@ -1529,20 +1539,24 @@
         <span class="self">self</span>.layers.pop().unwrap()
     }
 
-    <span class="kw">fn </span>get_var(<span class="kw-2">&amp;</span><span class="self">self</span>, var: <span class="kw-2">&amp;</span>rty::Var, dbg_span: Span) -&gt; fixpoint::LocalVar {
+    <span class="kw">fn </span>get_var(<span class="kw-2">&amp;</span><span class="self">self</span>, var: <span class="kw-2">&amp;</span>rty::Var, dbg_span: Span) -&gt; fixpoint::Var {
         <span class="kw">match </span>var {
             rty::Var::Free(name) =&gt; {
                 <span class="self">self</span>.get_fvar(<span class="kw-2">*</span>name)
                     .unwrap_or_else(|| <span class="macro">span_bug!</span>(dbg_span, <span class="string">"no entry found for name: `{name:?}`"</span>))
+                    .into()
             }
             rty::Var::LateBound(debruijn, var) =&gt; {
-                <span class="self">self</span>.get_late_bvar(<span class="kw-2">*</span>debruijn, var.index).unwrap_or_else(|| {
-                    <span class="macro">span_bug!</span>(dbg_span, <span class="string">"no entry found for late bound var: `{var:?}`"</span>)
-                })
+                <span class="self">self</span>.get_late_bvar(<span class="kw-2">*</span>debruijn, var.index)
+                    .unwrap_or_else(|| {
+                        <span class="macro">span_bug!</span>(dbg_span, <span class="string">"no entry found for late bound var: `{var:?}`"</span>)
+                    })
+                    .into()
             }
             rty::Var::EarlyParam(<span class="kw">_</span>) | rty::Var::EVar(<span class="kw">_</span>) =&gt; {
                 <span class="macro">span_bug!</span>(dbg_span, <span class="string">"unexpected var: `{var:?}`"</span>)
             }
+            rty::Var::ConstGeneric(param_const) =&gt; fixpoint::Var::ConstGeneric(<span class="kw-2">*</span>param_const),
         }
     }
 
@@ -1882,7 +1896,7 @@
 
         <span class="kw">let </span>all_args = iter::zip(<span class="kw-2">&amp;</span>kvar.args, <span class="kw-2">&amp;</span>decl.sorts)
             .map(|(arg, sort)| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; {
-                <span class="prelude-val">Ok</span>(fixpoint::Var::Local(<span class="self">self</span>.ecx.imm(arg, sort, <span class="kw-2">&amp;mut </span><span class="self">self</span>.env, bindings)<span class="question-mark">?</span>))
+                <span class="self">self</span>.ecx.imm(arg, sort, <span class="kw-2">&amp;mut </span><span class="self">self</span>.env, bindings)
             })
             .try_collect_vec()<span class="question-mark">?</span>;
 
@@ -1996,9 +2010,7 @@
                     (rty::Var::LateBound(debruijn, var), sort)
                 })
             }),
-            scope
-                .iter()
-                .map(|(name, sort)| (rty::Var::Free(name), sort)),
+            scope.iter(),
         );
         <span class="self">self</span>.fresh_inner(binders.last().unwrap().len(), args, encoding)
     }
@@ -2109,7 +2121,7 @@
 
     <span class="kw">fn </span>expr_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>rty::Expr, env: <span class="kw-2">&amp;</span>Env) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
         <span class="kw">let </span>e = <span class="kw">match </span>expr.kind() {
-            rty::ExprKind::Var(var) =&gt; fixpoint::Expr::Var(env.get_var(var, <span class="self">self</span>.dbg_span).into()),
+            rty::ExprKind::Var(var) =&gt; fixpoint::Expr::Var(env.get_var(var, <span class="self">self</span>.dbg_span)),
             rty::ExprKind::Constant(c) =&gt; fixpoint::Expr::Constant(<span class="kw-2">*</span>c),
             rty::ExprKind::BinaryOp(op, e1, e2) =&gt; <span class="self">self</span>.bin_op_to_fixpoint(op, e1, e2, env)<span class="question-mark">?</span>,
             rty::ExprKind::UnaryOp(op, e) =&gt; <span class="self">self</span>.un_op_to_fixpoint(<span class="kw-2">*</span>op, e, env)<span class="question-mark">?</span>,
@@ -2346,7 +2358,7 @@
 
     <span class="kw">fn </span>func_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>rty::Expr, env: <span class="kw-2">&amp;</span>Env) -&gt; fixpoint::Var {
         <span class="kw">match </span>func.kind() {
-            rty::ExprKind::Var(var) =&gt; env.get_var(var, <span class="self">self</span>.dbg_span).into(),
+            rty::ExprKind::Var(var) =&gt; env.get_var(var, <span class="self">self</span>.dbg_span),
             rty::ExprKind::GlobalFunc(<span class="kw">_</span>, SpecFuncKind::Thy(sym)) =&gt; fixpoint::Var::Itf(<span class="kw-2">*</span>sym),
             rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) =&gt; {
                 <span class="kw">let </span>cinfo = <span class="self">self</span>.const_map.get(<span class="kw-2">&amp;</span>Key::Uif(<span class="kw-2">*</span>sym)).unwrap_or_else(|| {
@@ -2372,7 +2384,7 @@
         sort: <span class="kw-2">&amp;</span>rty::Sort,
         env: <span class="kw-2">&amp;mut </span>Env,
         bindings: <span class="kw-2">&amp;mut </span>Vec&lt;(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)&gt;,
-    ) -&gt; QueryResult&lt;fixpoint::LocalVar&gt; {
+    ) -&gt; QueryResult&lt;fixpoint::Var&gt; {
         <span class="kw">match </span>arg.kind() {
             rty::ExprKind::Var(var) =&gt; <span class="prelude-val">Ok</span>(env.get_var(var, <span class="self">self</span>.dbg_span)),
             <span class="kw">_ </span>=&gt; {
@@ -2382,7 +2394,7 @@
                     <span class="self">self</span>.expr_to_fixpoint(arg, env)<span class="question-mark">?</span>,
                 );
                 bindings.push((fresh, sort_to_fixpoint(sort), pred));
-                <span class="prelude-val">Ok</span>(fresh)
+                <span class="prelude-val">Ok</span>(fresh.into())
             }
         }
     }

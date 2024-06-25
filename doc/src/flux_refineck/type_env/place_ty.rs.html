@@ -974,6 +974,8 @@
 <a href="#974" id="974">974</a>
 <a href="#975" id="975">975</a>
 <a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -1774,13 +1776,14 @@
     args: <span class="kw-2">&amp;</span>[GenericArg],
     idx: <span class="kw-2">&amp;</span>Expr,
 ) -&gt; CheckerResult&lt;Vec&lt;Ty&gt;&gt; {
+    <span class="kw">let </span>tcx = genv.tcx();
     <span class="kw">let </span>flds = adt
         .sort_def()
         .projections()
         .map(|proj| idx.proj_and_reduce(proj))
         .collect_vec();
     <span class="prelude-val">Ok</span>(struct_variant(genv, adt.did())<span class="question-mark">?
-        </span>.instantiate(args, <span class="kw-2">&amp;</span>[])
+        </span>.instantiate(tcx, args, <span class="kw-2">&amp;</span>[])
         .replace_bound_refts(<span class="kw-2">&amp;</span>flds)
         .fields
         .to_vec())
@@ -1811,10 +1814,11 @@
     args: <span class="kw-2">&amp;</span>[GenericArg],
     idx1: <span class="kw-2">&amp;</span>Expr,
 ) -&gt; CheckerResult&lt;Vec&lt;Ty&gt;&gt; {
+    <span class="kw">let </span>tcx = genv.tcx();
     <span class="kw">let </span>variant_def = genv
         .variant_sig(adt.did(), variant_idx)<span class="question-mark">?
         </span>.expect(<span class="string">"enums cannot be opaque"</span>)
-        .instantiate(args, <span class="kw-2">&amp;</span>[])
+        .instantiate(tcx, args, <span class="kw-2">&amp;</span>[])
         .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| rcx.define_vars(sort));
 
     <span class="comment">// FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there

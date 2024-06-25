@@ -783,10 +783,15 @@
 <a href="#783" id="783">783</a>
 <a href="#784" id="784">784</a>
 <a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
 <span class="kw">use </span>flux_middle::{
+    fhir::ArrayLenKind,
     global_env::GlobalEnv,
     intern::List,
     rty::{
@@ -947,7 +952,7 @@
 
         <span class="comment">// Instantiate function signature and normalize it
         </span><span class="kw">let </span>fn_sig = fn_sig
-            .instantiate(<span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)
+            .instantiate(genv.tcx(), <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)
             .replace_bound_vars(
                 |br| {
                     <span class="kw">let </span>re = infcx.region_infcx.next_region_var(BoundRegion(
@@ -1056,6 +1061,7 @@
         generic_args: <span class="kw-2">&amp;</span>[GenericArg],
         fields: <span class="kw-2">&amp;</span>[Ty],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+        <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
         <span class="comment">// rn we are only calling `check_constructor` when folding so we mark this as a folding error.
         </span><span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, ConstrReason::Fold);
 
@@ -1063,7 +1069,7 @@
         </span><span class="kw">let </span>generic_args = infcx.instantiate_generic_args(generic_args);
 
         <span class="kw">let </span>variant = variant
-            .instantiate(<span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>[])
+            .instantiate(tcx, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>[])
             .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
 
         <span class="comment">// Check arguments
@@ -1105,7 +1111,8 @@
         }
         rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.solve()<span class="question-mark">?</span>);
 
-        <span class="prelude-val">Ok</span>(Ty::array(arr_ty, rty::Const::from_array_len(<span class="self">self</span>.genv.tcx(), args.len())))
+        <span class="kw">let </span>len = ArrayLenKind::Lit(args.len());
+        <span class="prelude-val">Ok</span>(Ty::array(arr_ty, rty::array_len_const(<span class="kw-2">&amp;</span><span class="self">self</span>.genv, len)))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infcx(
@@ -1537,10 +1544,11 @@
     args: <span class="kw-2">&amp;</span>[GenericArg],
     refine_args: <span class="kw-2">&amp;</span>[Expr],
 ) -&gt; <span class="prelude-ty">Result</span>&lt;List&lt;rty::Clause&gt;&gt; {
+    <span class="kw">let </span>tcx = genv.tcx();
     <span class="prelude-val">Ok</span>(genv
         .predicates_of(did)<span class="question-mark">?
         </span>.predicates()
-        .instantiate(args, refine_args))
+        .instantiate(tcx, args, refine_args))
 }
 
 <span class="kw">impl</span>&lt;F&gt; KVarGen <span class="kw">for </span>F

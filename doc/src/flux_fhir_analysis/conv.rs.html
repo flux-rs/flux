@@ -1702,6 +1702,28 @@
 <a href="#1702" id="1702">1702</a>
 <a href="#1703" id="1703">1703</a>
 <a href="#1704" id="1704">1704</a>
+<a href="#1705" id="1705">1705</a>
+<a href="#1706" id="1706">1706</a>
+<a href="#1707" id="1707">1707</a>
+<a href="#1708" id="1708">1708</a>
+<a href="#1709" id="1709">1709</a>
+<a href="#1710" id="1710">1710</a>
+<a href="#1711" id="1711">1711</a>
+<a href="#1712" id="1712">1712</a>
+<a href="#1713" id="1713">1713</a>
+<a href="#1714" id="1714">1714</a>
+<a href="#1715" id="1715">1715</a>
+<a href="#1716" id="1716">1716</a>
+<a href="#1717" id="1717">1717</a>
+<a href="#1718" id="1718">1718</a>
+<a href="#1719" id="1719">1719</a>
+<a href="#1720" id="1720">1720</a>
+<a href="#1721" id="1721">1721</a>
+<a href="#1722" id="1722">1722</a>
+<a href="#1723" id="1723">1723</a>
+<a href="#1724" id="1724">1724</a>
+<a href="#1725" id="1725">1725</a>
+<a href="#1726" id="1726">1726</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -1744,6 +1766,8 @@
 };
 <span class="kw">use </span>rustc_trait_selection::traits;
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
+
+<span class="kw">use </span><span class="kw">crate</span>::conv::ty::ParamConst;
 
 <span class="kw">pub struct </span>ConvCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
@@ -1969,7 +1993,7 @@
         }
         fhir::GenericParamKind::Base =&gt; rty::GenericParamDefKind::Base,
         fhir::GenericParamKind::Lifetime =&gt; rty::GenericParamDefKind::Lifetime,
-        fhir::GenericParamKind::Const { is_host_effect: <span class="kw">_ </span>} =&gt; {
+        fhir::GenericParamKind::Const { is_host_effect: <span class="kw">_</span>, .. } =&gt; {
             rty::GenericParamDefKind::Const { has_default: <span class="bool-val">false </span>}
         }
     }
@@ -2447,7 +2471,7 @@
             fhir::TyKind::Array(ty, len) =&gt; {
                 <span class="prelude-val">Ok</span>(rty::Ty::array(
                     <span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>,
-                    rty::Const::from_array_len(<span class="self">self</span>.genv.tcx(), len.val),
+                    rty::array_len_const(<span class="kw-2">&amp;</span><span class="self">self</span>.genv, len.kind),
                 ))
             }
             fhir::TyKind::Never =&gt; <span class="prelude-val">Ok</span>(rty::Ty::never()),
@@ -2775,7 +2799,11 @@
                     .iter()
                     .map(|arg| <span class="self">self</span>.conv_refine_arg(env, arg))
                     .try_collect_vec()<span class="question-mark">?</span>;
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self</span>.genv.type_of(<span class="kw-2">*</span>def_id)<span class="question-mark">?</span>.instantiate(<span class="kw-2">&amp;</span>generics, <span class="kw-2">&amp;</span>refine));
+                <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self
+                    </span>.genv
+                    .type_of(<span class="kw-2">*</span>def_id)<span class="question-mark">?
+                    </span>.instantiate(tcx, <span class="kw-2">&amp;</span>generics, <span class="kw-2">&amp;</span>refine));
             }
             fhir::Res::Def(..) | fhir::Res::Err =&gt; {
                 <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected resolution in conv_ty_ctor: {:?}"</span>, path.res)
@@ -2830,10 +2858,11 @@
         <span class="kw">for </span>param <span class="kw">in </span>generics.params.iter().skip(into.len()) {
             <span class="kw">if let </span>rty::GenericParamDefKind::Type { has_default } = param.kind {
                 <span class="macro">debug_assert!</span>(has_default);
+                <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
                 <span class="kw">let </span>ty = <span class="self">self
                     </span>.genv
                     .type_of(param.def_id)<span class="question-mark">?
-                    </span>.instantiate(into, <span class="kw-2">&amp;</span>[])
+                    </span>.instantiate(tcx, into, <span class="kw-2">&amp;</span>[])
                     .to_ty();
                 into.push(rty::GenericArg::Ty(ty));
             } <span class="kw">else </span>{
@@ -2964,6 +2993,18 @@
         <span class="self">self</span>.wfckresults.owner
     }
 
+    <span class="kw">fn </span>conv_const_generic(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; ParamConst {
+        <span class="self">self</span>.genv.def_id_to_param_const(def_id)
+        <span class="comment">// // TODO HEREHEREHEREHERE This should go in conv where we can do something similar to GlobalEnv::def_id_to_param_ty (re #637 (comment))
+        // let generics = self.genv.tcx().generics_of(self.owner.def_id);
+        // for param in &amp;generics.params {
+        //     if param.def_id == def_id {
+        //         return ParamConst::new(param.index, param.name);
+        //     }
+        // }
+        // bug!("Cannot find generic corresponding to ConstParam {def_id:?}")
+    </span>}
+
     <span class="kw">fn </span>conv_expr(<span class="kw-2">&amp;</span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, expr: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; QueryResult&lt;rty::Expr&gt; {
         <span class="kw">let </span>fhir_id = expr.fhir_id;
         <span class="kw">let </span>espan = <span class="prelude-val">Some</span>(ESpan::new(expr.span));
@@ -2972,6 +3013,9 @@
                 <span class="kw">match </span>var.res {
                     ExprRes::Param(..) =&gt; env.lookup(var).to_expr(),
                     ExprRes::Const(def_id) =&gt; rty::Expr::const_def_id(def_id, espan),
+                    ExprRes::ConstGeneric(def_id) =&gt; {
+                        rty::Expr::const_generic(<span class="self">self</span>.conv_const_generic(def_id), espan)
+                    }
                     ExprRes::NumConst(num) =&gt; {
                         rty::Expr::constant_at(rty::Constant::from(num), espan)
                     }

@@ -1407,9 +1407,6 @@
 <a href="#1407" id="1407">1407</a>
 <a href="#1408" id="1408">1408</a>
 <a href="#1409" id="1409">1409</a>
-<a href="#1410" id="1410">1410</a>
-<a href="#1411" id="1411">1411</a>
-<a href="#1412" id="1412">1412</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -2466,10 +2463,7 @@
             }
             surface::TyKind::Array(ty, len) =&gt; {
                 <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(ty)<span class="question-mark">?</span>;
-                fhir::TyKind::Array(
-                    <span class="self">self</span>.genv().alloc(ty),
-                    fhir::ArrayLen { val: len.val, span: len.span },
-                )
+                fhir::TyKind::Array(<span class="self">self</span>.genv().alloc(ty), fhir::ArrayLen::lit(len.val, len.span))
             }
             surface::TyKind::ImplTrait(node_id, bounds) =&gt; {
                 <span class="self">self</span>.desugar_impl_trait(<span class="kw-2">*</span>node_id, bounds)<span class="question-mark">?

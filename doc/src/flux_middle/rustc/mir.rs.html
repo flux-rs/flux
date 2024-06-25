@@ -749,6 +749,8 @@
 <a href="#749" id="749">749</a>
 <a href="#750" id="750">750</a>
 <a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
@@ -767,7 +769,7 @@
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable};
 <span class="kw">use </span>rustc_middle::{
     mir::{<span class="self">self</span>, MutBorrowKind},
-    ty::{FloatTy, IntTy, TyCtxt, UintTy},
+    ty::{FloatTy, IntTy, ParamConst, TyCtxt, UintTy},
 };
 <span class="kw">pub use </span>rustc_middle::{
     mir::{
@@ -1032,6 +1034,7 @@
     <span class="doccomment">/// We only support opaque chars, so no data stored here for now
     </span>Char,
     Unit,
+    Param(ParamConst, Ty),
     <span class="doccomment">/// General catch-all for constants of a given Ty
     </span>Opaque(Ty),
 }
@@ -1481,6 +1484,7 @@
             Constant::Str =&gt; <span class="macro">write!</span>(f, <span class="string">"\"&lt;opaque str&gt;\""</span>),
             Constant::Char =&gt; <span class="macro">write!</span>(f, <span class="string">"\"&lt;opaque char&gt;\""</span>),
             Constant::Opaque(ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;opaque {:?}&gt;"</span>, ty),
+            Constant::Param(p, <span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, p),
         }
     }
 }

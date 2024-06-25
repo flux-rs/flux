@@ -1114,6 +1114,26 @@
 <a href="#1114" id="1114">1114</a>
 <a href="#1115" id="1115">1115</a>
 <a href="#1116" id="1116">1116</a>
+<a href="#1117" id="1117">1117</a>
+<a href="#1118" id="1118">1118</a>
+<a href="#1119" id="1119">1119</a>
+<a href="#1120" id="1120">1120</a>
+<a href="#1121" id="1121">1121</a>
+<a href="#1122" id="1122">1122</a>
+<a href="#1123" id="1123">1123</a>
+<a href="#1124" id="1124">1124</a>
+<a href="#1125" id="1125">1125</a>
+<a href="#1126" id="1126">1126</a>
+<a href="#1127" id="1127">1127</a>
+<a href="#1128" id="1128">1128</a>
+<a href="#1129" id="1129">1129</a>
+<a href="#1130" id="1130">1130</a>
+<a href="#1131" id="1131">1131</a>
+<a href="#1132" id="1132">1132</a>
+<a href="#1133" id="1133">1133</a>
+<a href="#1134" id="1134">1134</a>
+<a href="#1135" id="1135">1135</a>
+<a href="#1136" id="1136">1136</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1122,7 +1142,10 @@
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_index::newtype_index;
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-<span class="kw">use </span>rustc_middle::{mir::Local, ty::TyCtxt};
+<span class="kw">use </span>rustc_middle::{
+    mir::Local,
+    ty::{ParamConst, TyCtxt},
+};
 <span class="kw">use </span>rustc_span::{Span, Symbol};
 <span class="kw">use </span>rustc_target::abi::FieldIdx;
 <span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST};
@@ -1140,6 +1163,7 @@
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         SortCtor,
     },
+    rustc::ty::{Const, ConstKind},
 };
 
 <span class="doccomment">/// A lambda abstraction with an elaborated output sort
@@ -1370,21 +1394,22 @@
     <span class="kw">pub </span>kind: BoundReftKind,
 }
 
-<span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+<span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>Var {
     Free(Name),
     LateBound(DebruijnIndex, BoundReft),
     EarlyParam(EarlyReftParam),
     EVar(EVar),
+    ConstGeneric(ParamConst),
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+<span class="attr">#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>Path {
     <span class="kw">pub </span>loc: Loc,
     projection: List&lt;FieldIdx&gt;,
 }
 
-<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>Loc {
     Local(Local),
     Var(Var),
@@ -1546,6 +1571,10 @@
         ExprKind::ConstDefId(c).intern_at(espan)
     }
 
+    <span class="kw">pub fn </span>const_generic(param: ParamConst, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
+        ExprKind::Var(Var::ConstGeneric(param)).intern_at(espan)
+    }
+
     <span class="kw">pub fn </span>aggregate(kind: AggregateKind, flds: List&lt;Expr&gt;) -&gt; Expr {
         ExprKind::Aggregate(kind, flds).intern()
     }
@@ -1700,6 +1729,16 @@
     <span class="doccomment">/// Whether the expression is *literally* the constant true.
     </span><span class="kw">fn </span>is_true(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">matches!</span>(<span class="self">self</span>.kind, ExprKind::Constant(Constant::Bool(<span class="bool-val">true</span>)))
+    }
+
+    <span class="kw">pub fn </span>from_const(tcx: <span class="kw-2">&amp;</span>TyCtxt, c: <span class="kw-2">&amp;</span>Const) -&gt; Expr {
+        <span class="kw">match </span>c.kind {
+            ConstKind::Param(param_const) =&gt; Expr::const_generic(param_const, <span class="prelude-val">None</span>),
+            ConstKind::Value(val) =&gt; {
+                <span class="kw">let </span>val = val.try_to_target_usize(<span class="kw-2">*</span>tcx).unwrap() <span class="kw">as </span>u128;
+                Expr::constant(<span class="kw">crate</span>::rty::Constant::from(val))
+            }
+        }
     }
 
     <span class="kw">pub fn </span>is_binary_op(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
@@ -2155,6 +2194,7 @@
                 Var::EarlyParam(var) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^var.name),
                 Var::Free(name) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^name),
                 Var::EVar(evar) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, evar),
+                Var::ConstGeneric(param) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^param.name),
             }
         }
     }

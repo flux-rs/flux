@@ -595,7 +595,6 @@
 <a href="#595" id="595">595</a>
 <a href="#596" id="596">596</a>
 <a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check if an [`fhir`] annotation is a valid refinement of the corresponding rust declaration.
 //!
 //! To check if an [`fhir`] is valid, we first [`lift`] the `hir` declaration into [`fhir`] and then
@@ -871,7 +870,7 @@
                 <span class="self">self</span>.zip_tys(tys, expected_tys)
             }
             (fhir::TyKind::Array(ty, len), fhir::TyKind::Array(expected_ty, expected_len)) =&gt; {
-                <span class="kw">if </span>len.val != expected_len.val {
+                <span class="kw">if </span>len.kind != expected_len.kind {
                     <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArrayLenMismatch::new(<span class="kw-2">&amp;</span>len, <span class="kw-2">&amp;</span>expected_len)));
                 }
                 <span class="self">self</span>.zip_ty(ty, expected_ty)
@@ -1151,20 +1150,19 @@
         <span class="attr">#[primary_span]
         #[label]
         </span>span: Span,
-        len: usize,
+        len: String,
         <span class="attr">#[label(fhir_analysis_expected_label)]
         </span>expected_span: Span,
-        expected_len: usize,
+        expected_len: String,
     }
 
     <span class="kw">impl </span>ArrayLenMismatch {
         <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(len: <span class="kw-2">&amp;</span>fhir::ArrayLen, expected_len: <span class="kw-2">&amp;</span>fhir::ArrayLen) -&gt; <span class="self">Self </span>{
-            <span class="self">Self </span>{
-                span: len.span,
-                len: len.val,
-                expected_span: expected_len.span,
-                expected_len: expected_len.val,
-            }
+            <span class="kw">let </span>span = len.span;
+            <span class="kw">let </span>expected_span = expected_len.span;
+            <span class="kw">let </span>len = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, len.kind);
+            <span class="kw">let </span>expected_len = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, expected_len.kind);
+            <span class="self">Self </span>{ span, len, expected_span, expected_len }
         }
     }
 

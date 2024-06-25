@@ -1271,6 +1271,35 @@
 <a href="#1271" id="1271">1271</a>
 <a href="#1272" id="1272">1272</a>
 <a href="#1273" id="1273">1273</a>
+<a href="#1274" id="1274">1274</a>
+<a href="#1275" id="1275">1275</a>
+<a href="#1276" id="1276">1276</a>
+<a href="#1277" id="1277">1277</a>
+<a href="#1278" id="1278">1278</a>
+<a href="#1279" id="1279">1279</a>
+<a href="#1280" id="1280">1280</a>
+<a href="#1281" id="1281">1281</a>
+<a href="#1282" id="1282">1282</a>
+<a href="#1283" id="1283">1283</a>
+<a href="#1284" id="1284">1284</a>
+<a href="#1285" id="1285">1285</a>
+<a href="#1286" id="1286">1286</a>
+<a href="#1287" id="1287">1287</a>
+<a href="#1288" id="1288">1288</a>
+<a href="#1289" id="1289">1289</a>
+<a href="#1290" id="1290">1290</a>
+<a href="#1291" id="1291">1291</a>
+<a href="#1292" id="1292">1292</a>
+<a href="#1293" id="1293">1293</a>
+<a href="#1294" id="1294">1294</a>
+<a href="#1295" id="1295">1295</a>
+<a href="#1296" id="1296">1296</a>
+<a href="#1297" id="1297">1297</a>
+<a href="#1298" id="1298">1298</a>
+<a href="#1299" id="1299">1299</a>
+<a href="#1300" id="1300">1300</a>
+<a href="#1301" id="1301">1301</a>
+<a href="#1302" id="1302">1302</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1298,6 +1327,7 @@
     intern::{Internable, List},
     queries::QueryResult,
     rty::{expr::HoleKind, Var, VariantSig},
+    rustc::ty::Const,
 };
 
 <span class="kw">pub trait </span>TypeVisitor: Sized {
@@ -1356,6 +1386,10 @@
 
     <span class="kw">fn </span>try_fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>Region) -&gt; <span class="prelude-ty">Result</span>&lt;Region, <span class="self">Self</span>::Error&gt; {
         <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>re)
+    }
+
+    <span class="kw">fn </span>try_fold_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, c: <span class="kw-2">&amp;</span>Const) -&gt; <span class="prelude-ty">Result</span>&lt;Const, <span class="self">Self</span>::Error&gt; {
+        c.try_super_fold_with(<span class="self">self</span>)
     }
 
     <span class="kw">fn </span>try_fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; <span class="prelude-ty">Result</span>&lt;Expr, <span class="self">Self</span>::Error&gt; {
@@ -2147,6 +2181,26 @@
         ControlFlow::Continue(())
     }
 }
+<span class="kw">impl </span>TypeSuperFoldable <span class="kw">for </span>Const {
+    <span class="kw">fn </span>try_super_fold_with&lt;F: FallibleTypeFolder&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        _folder: <span class="kw-2">&amp;mut </span>F,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.clone())
+    }
+}
+
+<span class="kw">impl </span>TypeVisitable <span class="kw">for </span>Const {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, _visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
+        ControlFlow::Continue(())
+    }
+}
+
+<span class="kw">impl </span>TypeFoldable <span class="kw">for </span>Const {
+    <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
+        folder.try_fold_const(<span class="self">self</span>)
+    }
+}
 
 <span class="kw">impl </span>TypeFoldable <span class="kw">for </span>Region {
     <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
@@ -2202,7 +2256,9 @@
                 BaseTy::Ref(re.try_fold_with(folder)<span class="question-mark">?</span>, ty.try_fold_with(folder)<span class="question-mark">?</span>, <span class="kw-2">*</span>mutbl)
             }
             BaseTy::Tuple(tys) =&gt; BaseTy::Tuple(tys.try_fold_with(folder)<span class="question-mark">?</span>),
-            BaseTy::Array(ty, c) =&gt; BaseTy::Array(ty.try_fold_with(folder)<span class="question-mark">?</span>, c.clone()),
+            BaseTy::Array(ty, c) =&gt; {
+                BaseTy::Array(ty.try_fold_with(folder)<span class="question-mark">?</span>, c.try_fold_with(folder)<span class="question-mark">?</span>)
+            }
             BaseTy::Int(<span class="kw">_</span>)
             | BaseTy::Param(<span class="kw">_</span>)
             | BaseTy::Uint(<span class="kw">_</span>)
@@ -2366,7 +2422,9 @@
     <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="kw">match </span><span class="self">self </span>{
             Var::Free(name) =&gt; visitor.visit_fvar(<span class="kw-2">*</span>name),
-            Var::LateBound(<span class="kw">_</span>, <span class="kw">_</span>) | Var::EarlyParam(<span class="kw">_</span>) | Var::EVar(<span class="kw">_</span>) =&gt; ControlFlow::Continue(()),
+            Var::ConstGeneric(<span class="kw">_</span>) | Var::LateBound(<span class="kw">_</span>, <span class="kw">_</span>) | Var::EarlyParam(<span class="kw">_</span>) | Var::EVar(<span class="kw">_</span>) =&gt; {
+                ControlFlow::Continue(())
+            }
         }
     }
 }

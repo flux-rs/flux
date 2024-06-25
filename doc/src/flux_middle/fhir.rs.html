@@ -1439,6 +1439,33 @@
 <a href="#1439" id="1439">1439</a>
 <a href="#1440" id="1440">1440</a>
 <a href="#1441" id="1441">1441</a>
+<a href="#1442" id="1442">1442</a>
+<a href="#1443" id="1443">1443</a>
+<a href="#1444" id="1444">1444</a>
+<a href="#1445" id="1445">1445</a>
+<a href="#1446" id="1446">1446</a>
+<a href="#1447" id="1447">1447</a>
+<a href="#1448" id="1448">1448</a>
+<a href="#1449" id="1449">1449</a>
+<a href="#1450" id="1450">1450</a>
+<a href="#1451" id="1451">1451</a>
+<a href="#1452" id="1452">1452</a>
+<a href="#1453" id="1453">1453</a>
+<a href="#1454" id="1454">1454</a>
+<a href="#1455" id="1455">1455</a>
+<a href="#1456" id="1456">1456</a>
+<a href="#1457" id="1457">1457</a>
+<a href="#1458" id="1458">1458</a>
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
+<a href="#1468" id="1468">1468</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1533,7 +1560,7 @@
     Type { default: <span class="prelude-ty">Option</span>&lt;Ty&lt;<span class="lifetime">'fhir</span>&gt;&gt; },
     Base,
     Lifetime,
-    Const { is_host_effect: bool },
+    Const { ty: Ty&lt;<span class="lifetime">'fhir</span>&gt;, is_host_effect: bool },
 }
 
 <span class="attr">#[derive(Debug, Clone, Copy)]
@@ -2000,8 +2027,25 @@
 
 <span class="attr">#[derive(Clone, Copy)]
 </span><span class="kw">pub struct </span>ArrayLen {
-    <span class="kw">pub </span>val: usize,
+    <span class="kw">pub </span>kind: ArrayLenKind,
     <span class="kw">pub </span>span: Span,
+}
+
+<span class="attr">#[derive(PartialEq, Eq, Clone, Copy)]
+</span><span class="kw">pub enum </span>ArrayLenKind {
+    <span class="doccomment">/// The length of the array is a constant
+    </span>Lit(usize),
+    <span class="doccomment">/// The length of the array is a type parameter
+    </span>ParamConst(DefId),
+}
+
+<span class="kw">impl </span>ArrayLen {
+    <span class="kw">pub fn </span>lit(n: usize, span: Span) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ kind: ArrayLenKind::Lit(n), span }
+    }
+    <span class="kw">pub fn </span>param(def_id: DefId, span: Span) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ kind: ArrayLenKind::ParamConst(def_id), span }
+    }
 }
 
 <span class="attr">#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -2309,6 +2353,7 @@
 </span><span class="kw">pub enum </span>ExprRes&lt;Id = ParamId&gt; {
     Param(ParamKind, Id),
     Const(DefId),
+    ConstGeneric(DefId),
     NumConst(i128),
     GlobalFunc(SpecFuncKind, Symbol),
 }
@@ -2688,7 +2733,16 @@
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>ArrayLen {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">"_"</span>)
+        <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, <span class="self">self</span>.kind)
+    }
+}
+
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>ArrayLenKind {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            ArrayLenKind::Lit(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"{n}"</span>),
+            ArrayLenKind::ParamConst(p) =&gt; <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, p),
+        }
     }
 }
 
