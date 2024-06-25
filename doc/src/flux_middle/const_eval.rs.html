@@ -80,9 +80,15 @@
 <a href="#80" id="80">80</a>
 <a href="#81" id="81">81</a>
 <a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_middle::ty::{<span class="self">self </span><span class="kw">as </span>rustc_ty, ParamEnv, TyCtxt, TyKind};
 
-<span class="kw">use </span><span class="kw">crate</span>::rustc::mir::Constant;
+<span class="kw">use </span><span class="kw">crate</span>::rustc::{lowering::lower_ty, mir::Constant};
 <span class="kw">pub fn </span>scalar_int_to_rty_constant&lt;<span class="lifetime">'tcx</span>&gt;(
     tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     scalar: rustc_ty::ScalarInt,
@@ -110,7 +116,8 @@
     scalar: rustc_ty::ScalarInt,
     ty: rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;Constant&gt; {
-    <span class="kw">match </span>ty.kind() {
+    <span class="kw">let </span>kind = ty.kind();
+    <span class="kw">match </span>kind {
         TyKind::Int(int_ty) =&gt; {
             <span class="prelude-val">Some</span>(Constant::Int(scalar_to_int(tcx, scalar, ty).unwrap(), <span class="kw-2">*</span>int_ty))
         }
@@ -123,7 +130,12 @@
         TyKind::Char =&gt; <span class="prelude-val">Some</span>(Constant::Char),
         TyKind::Bool =&gt; <span class="prelude-val">Some</span>(Constant::Bool(scalar_to_bits(tcx, scalar, ty).unwrap() != <span class="number">0</span>)),
         TyKind::Tuple(tys) <span class="kw">if </span>tys.is_empty() =&gt; <span class="prelude-val">Some</span>(Constant::Unit),
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        <span class="kw">_ </span>=&gt; {
+            <span class="kw">match </span>lower_ty(tcx, ty) {
+                <span class="prelude-val">Ok</span>(ty) =&gt; <span class="prelude-val">Some</span>(Constant::Opaque(ty)),
+                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+            }
+        }
     }
 }
 
