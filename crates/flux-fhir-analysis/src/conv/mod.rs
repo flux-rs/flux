@@ -266,7 +266,7 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
         }
         fhir::GenericParamKind::Base => rty::GenericParamDefKind::Base,
         fhir::GenericParamKind::Lifetime => rty::GenericParamDefKind::Lifetime,
-        fhir::GenericParamKind::Const { is_host_effect: _ } => {
+        fhir::GenericParamKind::Const { is_host_effect: _, .. } => {
             rty::GenericParamDefKind::Const { has_default: false }
         }
     }
@@ -758,7 +758,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::TyKind::Array(ty, len) => {
                 Ok(rty::Ty::array(
                     self.conv_ty(env, ty)?,
-                    rty::Const::from_array_len(self.genv.tcx(), len.val),
+                    rty::array_len_const(&self.genv, len.kind),
                 ))
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
@@ -1073,7 +1073,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .iter()
                     .map(|arg| self.conv_refine_arg(env, arg))
                     .try_collect_vec()?;
-                return Ok(self.genv.type_of(*def_id)?.instantiate(&generics, &refine));
+                let tcx = self.genv.tcx();
+                return Ok(self
+                    .genv
+                    .type_of(*def_id)?
+                    .instantiate(tcx, &generics, &refine));
             }
             fhir::Res::Def(..) | fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
@@ -1128,10 +1132,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         for param in generics.params.iter().skip(into.len()) {
             if let rty::GenericParamDefKind::Type { has_default } = param.kind {
                 debug_assert!(has_default);
+                let tcx = self.genv.tcx();
                 let ty = self
                     .genv
                     .type_of(param.def_id)?
-                    .instantiate(into, &[])
+                    .instantiate(tcx, into, &[])
                     .to_ty();
                 into.push(rty::GenericArg::Ty(ty));
             } else {
@@ -1275,6 +1280,9 @@ impl ConvCtxt<'_, '_, '_> {
                 match var.res {
                     ExprRes::Param(..) => env.lookup(var).to_expr(),
                     ExprRes::Const(def_id) => rty::Expr::const_def_id(def_id, espan),
+                    ExprRes::ConstGeneric(def_id) => {
+                        rty::Expr::const_generic(self.genv.def_id_to_param_const(def_id), espan)
+                    }
                     ExprRes::NumConst(num) => {
                         rty::Expr::constant_at(rty::Constant::from(num), espan)
                     }

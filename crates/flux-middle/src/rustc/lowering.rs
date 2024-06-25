@@ -483,6 +483,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::CastKind::PointerCoercion(ptr_coercion) => {
                 Some(CastKind::Pointer(self.lower_pointer_coercion(ptr_coercion)?))
             }
+            rustc_mir::CastKind::PointerExposeProvenance => Some(CastKind::PointerExposeProvenance),
             _ => None,
         }
     }
@@ -558,9 +559,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         constant: &rustc_mir::ConstOperand<'tcx>,
     ) -> Result<Constant, UnsupportedReason> {
         use rustc_middle::ty::TyKind;
-        // use rustc_ty::ScalarInt;
-        use rustc_mir::interpret::Scalar;
-        use rustc_mir::Const;
+        use rustc_mir::{interpret::Scalar, Const};
         let tcx = self.tcx;
 
         // HACK(nilehmann) we evaluate the constant to support u32::MAX
@@ -577,10 +576,15 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 Some(Constant::Str)
             }
             (Const::Ty(c), _) => {
-                if let rustc_ty::ConstKind::Value(rustc_ty::ValTree::Leaf(scalar)) = c.kind() {
-                    scalar_int_to_constant(tcx, scalar, c.ty())
-                } else {
-                    None
+                match c.kind() {
+                    rustc_ty::ConstKind::Value(rustc_ty::ValTree::Leaf(scalar)) => {
+                        scalar_int_to_constant(tcx, scalar, c.ty())
+                    }
+                    rustc_ty::ConstKind::Param(param_const) => {
+                        let ty = lower_ty(tcx, ty)?;
+                        Some(Constant::Param(param_const, ty))
+                    }
+                    _ => None,
                 }
             }
             (_, TyKind::Tuple(tys)) if tys.is_empty() => return Ok(Constant::Unit),

@@ -16,7 +16,7 @@ use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
     mir::{self, MutBorrowKind},
-    ty::{FloatTy, IntTy, TyCtxt, UintTy},
+    ty::{FloatTy, IntTy, ParamConst, TyCtxt, UintTy},
 };
 pub use rustc_middle::{
     mir::{
@@ -206,6 +206,7 @@ pub enum CastKind {
     IntToFloat,
     PtrToPtr,
     Pointer(PointerCast),
+    PointerExposeProvenance,
 }
 
 #[derive(Copy, Clone)]
@@ -281,6 +282,7 @@ pub enum Constant {
     /// We only support opaque chars, so no data stored here for now
     Char,
     Unit,
+    Param(ParamConst, Ty),
     /// General catch-all for constants of a given Ty
     Opaque(Ty),
 }
@@ -705,6 +707,7 @@ impl fmt::Debug for CastKind {
             CastKind::IntToFloat => write!(f, "IntToFloat"),
             CastKind::PtrToPtr => write!(f, "PtrToPtr"),
             CastKind::Pointer(c) => write!(f, "Pointer({c:?})"),
+            CastKind::PointerExposeProvenance => write!(f, "PointerExposeProvenance"),
         }
     }
 }
@@ -730,6 +733,7 @@ impl fmt::Debug for Constant {
             Constant::Str => write!(f, "\"<opaque str>\""),
             Constant::Char => write!(f, "\"<opaque char>\""),
             Constant::Opaque(ty) => write!(f, "<opaque {:?}>", ty),
+            Constant::Param(p, _) => write!(f, "{:?}", p),
         }
     }
 }

@@ -1054,10 +1054,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             }
             surface::TyKind::Array(ty, len) => {
                 let ty = self.desugar_ty(ty)?;
-                fhir::TyKind::Array(
-                    self.genv().alloc(ty),
-                    fhir::ArrayLen { val: len.val, span: len.span },
-                )
+                fhir::TyKind::Array(self.genv().alloc(ty), fhir::ArrayLen::lit(len.val, len.span))
             }
             surface::TyKind::ImplTrait(node_id, bounds) => {
                 self.desugar_impl_trait(*node_id, bounds)?

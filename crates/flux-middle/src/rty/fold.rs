@@ -85,6 +85,10 @@ pub trait FallibleTypeFolder: Sized {
         Ok(*re)
     }
 
+    fn try_fold_const(&mut self, c: &Const) -> Result<Const, Self::Error> {
+        c.try_super_fold_with(self)
+    }
+
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
         expr.try_super_fold_with(self)
     }
@@ -113,6 +117,10 @@ pub trait TypeFolder: FallibleTypeFolder<Error = !> {
 
     fn fold_region(&mut self, re: &Region) -> Region {
         *re
+    }
+
+    fn fold_const(&mut self, c: &Const) -> Const {
+        c.super_fold_with(self)
     }
 
     fn fold_expr(&mut self, expr: &Expr) -> Expr {
@@ -877,6 +885,27 @@ impl TypeVisitable for Region {
     }
 }
 
+impl TypeSuperFoldable for Const {
+    fn try_super_fold_with<F: FallibleTypeFolder>(
+        &self,
+        _folder: &mut F,
+    ) -> Result<Self, F::Error> {
+        Ok(self.clone())
+    }
+}
+
+impl TypeVisitable for Const {
+    fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        ControlFlow::Continue(())
+    }
+}
+
+impl TypeFoldable for Const {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        folder.try_fold_const(self)
+    }
+}
+
 impl TypeFoldable for Region {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         folder.try_fold_region(self)
@@ -931,7 +960,9 @@ impl TypeSuperFoldable for BaseTy {
                 BaseTy::Ref(re.try_fold_with(folder)?, ty.try_fold_with(folder)?, *mutbl)
             }
             BaseTy::Tuple(tys) => BaseTy::Tuple(tys.try_fold_with(folder)?),
-            BaseTy::Array(ty, c) => BaseTy::Array(ty.try_fold_with(folder)?, c.clone()),
+            BaseTy::Array(ty, c) => {
+                BaseTy::Array(ty.try_fold_with(folder)?, c.try_fold_with(folder)?)
+            }
             BaseTy::Int(_)
             | BaseTy::Param(_)
             | BaseTy::Uint(_)
@@ -1095,7 +1126,9 @@ impl TypeVisitable for Var {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             Var::Free(name) => visitor.visit_fvar(*name),
-            Var::LateBound(_, _) | Var::EarlyParam(_) | Var::EVar(_) => ControlFlow::Continue(()),
+            Var::ConstGeneric(_) | Var::LateBound(_, _) | Var::EarlyParam(_) | Var::EVar(_) => {
+                ControlFlow::Continue(())
+            }
         }
     }
 }
@@ -1302,8 +1335,8 @@ where
         (self.lt_op)(*r)
     }
 
-    // fn fold_const(&mut self, ct: &Const) -> Const {
-    //     let ct = ct.super_fold_with(self);
-    //     (self.ct_op)(ct)
-    // }
+    fn fold_const(&mut self, ct: &Const) -> Const {
+        let ct = ct.super_fold_with(self);
+        (self.ct_op)(ct)
+    }
 }

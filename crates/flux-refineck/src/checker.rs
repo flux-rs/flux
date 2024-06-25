@@ -8,9 +8,9 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         self, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, CoroutineObligPredicate,
-        EarlyBinder, Ensures, Expr, Float, FnOutput, FnSig, FnTraitPredicate, GenericArg, Generics,
-        HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref, Region::ReStatic, Ty, TyKind, Uint,
-        UintTy, VariantIdx,
+        EarlyBinder, Ensures, Expr, Float, FnOutput, FnSig, FnTraitPredicate, GenericArg,
+        GenericParamDefKind, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref,
+        Region::ReStatic, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -19,7 +19,7 @@ use flux_middle::{
             Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
             RETURN_PLACE, START_BLOCK,
         },
-        ty::{self, ConstKind},
+        ty::{self, Const, ConstKind},
     },
 };
 use itertools::Itertools;
@@ -33,7 +33,7 @@ use rustc_index::bit_set::BitSet;
 use rustc_infer::infer::NllRegionVariableOrigin;
 use rustc_middle::{
     mir::{SourceInfo, SwitchTargets},
-    ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
+    ty::{ParamConst, TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
 };
 use rustc_span::{sym, Span};
 
@@ -169,7 +169,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
     ) -> Result<ShapeResult> {
         dbg::shape_mode_span!(genv.tcx(), def_id).in_scope(|| {
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
-            let mut refine_tree = RefineTree::new();
+            let mut refine_tree = RefineTree::new(List::default());
             let mut rcx = refine_tree.refine_ctxt_at_root();
             let inherited = Inherited::new(genv, &mut rcx, def_id, &mut mode, ghost_stmts, config)?;
             Checker::run(
@@ -185,6 +185,25 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
     }
 }
 
+fn const_params(
+    genv: GlobalEnv,
+    def_id: LocalDefId,
+    span: Span,
+) -> Result<List<(ParamConst, Sort)>> {
+    let generics = genv.generics_of(def_id).with_span(span)?;
+    let mut res = vec![];
+    for generic_param in &generics.params {
+        if let GenericParamDefKind::Const { .. } = generic_param.kind
+            && let Some(local_def_id) = generic_param.def_id.as_local()
+            && let Some(sort) = genv.sort_of_generic_param(local_def_id).with_span(span)?
+        {
+            let param_const = ParamConst { name: generic_param.name, index: generic_param.index };
+            res.push((param_const, sort));
+        }
+    }
+    Ok(List::from_vec(res))
+}
+
 impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
     pub(crate) fn run_in_refine_mode(
         genv: GlobalEnv<'genv, 'tcx>,
@@ -193,10 +212,12 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
     ) -> Result<(RefineTree, KVarStore)> {
-        let fn_sig = genv.fn_sig(def_id).with_span(genv.tcx().def_span(def_id))?;
+        let span = genv.tcx().def_span(def_id);
+        let fn_sig = genv.fn_sig(def_id).with_span(span)?;
 
         let mut kvars = fixpoint_encoding::KVarStore::new();
-        let mut refine_tree = RefineTree::new();
+        let const_params = const_params(genv, def_id, span)?;
+        let mut refine_tree = RefineTree::new(const_params);
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
@@ -226,7 +247,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let poly_sig = poly_sig
+        let poly_sig: Binder<FnSig> = poly_sig
             .instantiate_identity(&inherited.refine_params)
             .normalize_projections(genv, &body.infcx, def_id.to_def_id(), &inherited.refine_params)
             .with_span(span)?;
@@ -263,6 +284,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),
         };
+
         ck.check_ghost_statements_at(&mut rcx, &mut env, Point::FunEntry, body.span())?;
         ck.check_goto(rcx, env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
@@ -827,6 +849,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(tys)
     }
 
+    fn index_of_const(&self, const_: &Const) -> Expr {
+        match &const_.kind {
+            ConstKind::Value(value) => {
+                let value = value.try_to_target_usize(self.genv.tcx()).unwrap() as u128;
+                Expr::constant(rty::Constant::from(value))
+            }
+            ConstKind::Param(param_const) => Expr::const_generic(*param_const, None),
+        }
+    }
+
     fn check_len(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -839,14 +871,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .with_span(source_span)?;
 
         let idx = match ty.kind() {
-            TyKind::Indexed(BaseTy::Array(_, len), _) => {
-                if let ConstKind::Value(value) = &len.kind {
-                    let value = value.try_to_target_usize(self.genv.tcx()).unwrap() as u128;
-                    Expr::constant(rty::Constant::from(value))
-                } else {
-                    tracked_span_bug!("unexpected array length")
-                }
-            }
+            TyKind::Indexed(BaseTy::Array(_, len), _) => self.index_of_const(len),
             TyKind::Indexed(BaseTy::Slice(_), idx) => idx.clone(),
             _ => tracked_span_bug!("expected array or slice type"),
         };
@@ -934,6 +959,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn check_cast(&self, kind: CastKind, from: &Ty, to: &rustc::ty::Ty) -> Result<Ty> {
         use rustc::ty::TyKind as RustTy;
         let ty = match kind {
+            CastKind::PointerExposeProvenance => {
+                match to.kind() {
+                    RustTy::Int(int_ty) => Ty::int(*int_ty),
+                    RustTy::Uint(uint_ty) => Ty::uint(*uint_ty),
+                    _ => tracked_span_bug!("unsupported PointerExposeProvenance cast"),
+                }
+            }
             CastKind::IntToInt => {
                 match (from.kind(), to.kind()) {
                     (Bool!(idx), RustTy::Int(int_ty)) => bool_int_cast(idx, *int_ty),
@@ -957,14 +989,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             CastKind::Pointer(mir::PointerCast::Unsize) => {
                 if let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::Array(src_arr_ty, src_n), _) = src_ty.kind()
-                    && let ConstKind::Value(src_n) = &src_n.kind
                     && let rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
                     && let rustc::ty::TyKind::Slice(_) = dst_ty.kind()
                     && src_mut == dst_mut
                 {
-                    let v = src_n.try_to_target_usize(self.genv.tcx()).unwrap() as u128;
-                    let expr = Expr::constant(rty::Constant::from(v));
-                    let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), expr);
+                    let idx = self.index_of_const(src_n);
+                    let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), idx);
                     Ty::mk_ref(*dst_re, dst_slice, *dst_mut)
                 } else {
                     tracked_span_bug!("unsupported Unsize cast")
@@ -1031,6 +1061,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Constant::Unit => Ok(Ty::unit()),
             Constant::Str => Ok(Ty::mk_ref(ReStatic, Ty::str(), Mutability::Not)),
             Constant::Char => Ok(Ty::char()),
+            Constant::Param(param_const, ty) => {
+                let idx = Expr::const_generic(*param_const, None);
+                let ty_ctor = Refiner::default(self.genv, &self.generics)
+                    .refine_ty_ctor(ty)
+                    .with_span(self.body.span())?;
+                Ok(ty_ctor.replace_bound_reft(&idx))
+            }
             Constant::Opaque(ty) => {
                 self.genv
                     .refine_default(&self.generics, ty)

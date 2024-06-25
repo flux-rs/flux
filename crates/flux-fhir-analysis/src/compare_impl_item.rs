@@ -72,7 +72,7 @@ fn check_assoc_reft(genv: GlobalEnv, impl_id: LocalDefId, trait_id: DefId, name:
             pretty::def_id_to_string(trait_id),
         )));
     };
-    let trait_sort = trait_sort.instantiate(&impl_trait_ref.args, &[]);
+    let trait_sort = trait_sort.instantiate(genv.tcx(), &impl_trait_ref.args, &[]);
 
     if impl_sort != trait_sort {
         return Err(genv

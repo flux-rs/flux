@@ -378,6 +378,7 @@ fn self_res(tcx: TyCtxt, owner: OwnerId) -> Option<fhir::SortRes> {
 pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     scopes: Vec<Scope>,
     sorts_res: UnordMap<Symbol, fhir::SortRes>,
+    const_generics: UnordMap<Symbol, (crate::DefId, u32)>,
     param_defs: FxIndexMap<NodeId, ParamDef>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
     path_res_map: FxHashMap<NodeId, ExprRes<NodeId>>,
@@ -394,7 +395,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             .enumerate()
             .map(|(i, v)| (v.name, fhir::SortRes::SortParam(i)))
             .collect();
-        Self::new(resolver, sort_res)
+        Self::new(resolver, sort_res, Default::default())
     }
 
     pub(crate) fn for_rust_item(
@@ -404,15 +405,28 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         let tcx = resolver.genv.tcx();
         let generics = tcx.generics_of(owner);
         let mut sort_res: UnordMap<_, _> = (0..generics.count())
-            .map(|idx| {
+            .filter_map(|idx| {
                 let p = generics.param_at(idx, tcx);
-                (p.name, fhir::SortRes::TyParam(p.def_id))
+                if let rustc_middle::ty::GenericParamDefKind::Type { .. } = p.kind {
+                    return Some((p.name, fhir::SortRes::TyParam(p.def_id)));
+                }
+                None
             })
             .collect();
+        let const_generics = (0..generics.count())
+            .filter_map(|idx| {
+                let p = generics.param_at(idx, tcx);
+                if let rustc_middle::ty::GenericParamDefKind::Const { .. } = p.kind {
+                    return Some((p.name, (p.def_id, p.index)));
+                }
+                None
+            })
+            .collect();
+
         if let Some(self_res) = self_res(tcx, owner) {
             sort_res.insert(kw::SelfUpper, self_res);
         }
-        Self::new(resolver, sort_res)
+        Self::new(resolver, sort_res, const_generics)
     }
 
     pub(crate) fn resolve_qualifier(
@@ -486,12 +500,14 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     fn new(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         sort_res: UnordMap<Symbol, fhir::SortRes>,
+        const_generics: UnordMap<Symbol, (crate::DefId, u32)>,
     ) -> Self {
         let errors = Errors::new(resolver.genv.sess());
         Self {
             resolver,
             sorts_res: sort_res,
             param_defs: Default::default(),
+            const_generics,
             scopes: Default::default(),
             path_res_map: Default::default(),
             errors,
@@ -560,6 +576,11 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 .insert(node_id, ExprRes::GlobalFunc(*decl, ident.name));
             return;
         }
+        if let Some((def_id, _index)) = self.const_generics.get(&ident.name) {
+            self.path_res_map
+                .insert(node_id, ExprRes::ConstGeneric(*def_id));
+            return;
+        }
         self.errors
             .emit(errors::UnresolvedVar::from_ident(ident, "name"));
     }
@@ -608,6 +629,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 ExprRes::Const(def_id) => ExprRes::Const(def_id),
                 ExprRes::NumConst(val) => ExprRes::NumConst(val),
                 ExprRes::GlobalFunc(kind, name) => ExprRes::GlobalFunc(kind, name),
+                ExprRes::ConstGeneric(def_id) => ExprRes::ConstGeneric(def_id),
             };
             self.resolver.output.path_expr_res_map.insert(node_id, res);
         }
