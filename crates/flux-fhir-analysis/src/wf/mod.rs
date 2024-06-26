@@ -29,10 +29,7 @@ use crate::conv::{self, bug_on_infer_sort};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-pub(crate) fn check_flux_item<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    item: &fhir::FluxItem,
-) -> Result<WfckResults<'genv>> {
+pub(crate) fn check_flux_item(genv: GlobalEnv, item: &fhir::FluxItem) -> Result<WfckResults> {
     let owner = FluxOwnerId::Flux(item.name());
     let mut infcx = InferCtxt::new(genv, owner);
     match item {
@@ -55,7 +52,7 @@ pub(crate) fn check_flux_item<'genv>(
 pub(crate) fn check_node<'genv>(
     genv: GlobalEnv<'genv, '_>,
     node: &fhir::Node<'genv>,
-) -> Result<WfckResults<'genv>> {
+) -> Result<WfckResults> {
     let mut infcx = InferCtxt::new(genv, node.owner_id().into());
 
     insert_params(&mut infcx, node)?;

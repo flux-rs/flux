@@ -207,6 +207,10 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 }
                 Ok(())
             }
+            DefKind::TyAlias => {
+                self.genv.type_of(def_id).emit(&self.genv)?;
+                Ok(())
+            }
             _ => Ok(()),
         }
     }

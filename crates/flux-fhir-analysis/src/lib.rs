@@ -1,5 +1,6 @@
 #![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
+extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
@@ -259,7 +260,7 @@ fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generi
                 .map()
                 .get_generics(local_id)?
                 .unwrap_or_else(|| bug!("no generics for {:?}", def_id));
-            let extern_id = genv.map().extern_id_of(local_id)?;
+            let extern_id = genv.extern_id_of(local_id);
             conv::conv_generics(genv, &rustc_generics, generics, extern_id, is_trait)?
         }
         DefKind::Closure => {
@@ -344,27 +345,24 @@ fn variants_of(
     let variants = match &item.kind {
         fhir::ItemKind::Enum(enum_def) => {
             let wfckresults = genv.check_wf(def_id)?;
-            let variants = conv::ConvCtxt::conv_enum_def_variants(
-                genv,
-                def_id.to_def_id(),
-                enum_def,
-                &wfckresults,
-            )?
-            .into_iter()
-            .map(|variant| normalize(genv, variant))
-            .try_collect()?;
+            let variants =
+                conv::ConvCtxt::conv_enum_def_variants(genv, def_id, enum_def, &wfckresults)?
+                    .into_iter()
+                    .map(|variant| normalize(genv, variant))
+                    .try_collect()?;
             rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
         }
         fhir::ItemKind::Struct(struct_def) => {
             let wfckresults = genv.check_wf(def_id)?;
-            conv::ConvCtxt::conv_struct_def_variant(
-                genv,
-                def_id.to_def_id(),
-                struct_def,
-                &wfckresults,
-            )?
-            .normalize(genv.spec_func_defns()?)
-            .map(|variant| rty::EarlyBinder(List::singleton(variant)))
+            conv::ConvCtxt::conv_struct_def_variant(genv, def_id, struct_def, &wfckresults)?
+                .map(|variants| {
+                    variants
+                        .into_iter()
+                        .map(|variant| normalize(genv, variant))
+                        .try_collect()
+                })
+                .transpose()?
+                .map(rty::EarlyBinder)
         }
         _ => bug!("expected struct or enum"),
     };
@@ -390,18 +388,15 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
     Ok(fn_sig)
 }
 
-fn check_wf<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    flux_id: FluxLocalDefId,
-) -> QueryResult<Rc<WfckResults<'genv>>> {
+fn check_wf(genv: GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<Rc<WfckResults>> {
     let wfckresults = match flux_id {
         FluxLocalDefId::Flux(sym) => {
             wf::check_flux_item(genv, genv.map().get_flux_item(sym).unwrap())?
         }
         FluxLocalDefId::Rust(def_id) => {
             let node = genv.desugar(def_id)?;
-            let mut wfckresults = wf::check_node(genv, &node)?;
-            annot_check::check_node(genv, &mut wfckresults, &node)?;
+            let wfckresults = wf::check_node(genv, &node)?;
+            annot_check::check_node(genv, &node)?;
             wfckresults
         }
     };

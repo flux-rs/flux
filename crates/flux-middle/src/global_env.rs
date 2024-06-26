@@ -191,8 +191,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.lower_type_of(self, def_id.into())
     }
 
-    pub fn lower_fn_sig(self, def_id: DefId) -> QueryResult<ty::EarlyBinder<ty::PolyFnSig>> {
-        self.inner.queries.lower_fn_sig(self, def_id)
+    pub fn lower_fn_sig(
+        self,
+        def_id: impl Into<DefId>,
+    ) -> QueryResult<ty::EarlyBinder<ty::PolyFnSig>> {
+        self.inner.queries.lower_fn_sig(self, def_id.into())
     }
 
     pub fn adt_def(self, def_id: impl Into<DefId>) -> QueryResult<rty::AdtDef> {
@@ -203,10 +206,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.adt_sort_def_of(self, def_id.into())
     }
 
-    pub fn check_wf(
-        self,
-        flux_id: impl Into<FluxLocalDefId>,
-    ) -> QueryResult<Rc<rty::WfckResults<'genv>>> {
+    pub fn check_wf(self, flux_id: impl Into<FluxLocalDefId>) -> QueryResult<Rc<rty::WfckResults>> {
         self.inner.queries.check_wf(self, flux_id.into())
     }
 
@@ -214,7 +214,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         impl_id: DefId,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::TraitRef>>> {
-        let impl_id = self.extern_id_of(impl_id)?.unwrap_or(impl_id);
+        let impl_id = self.resolve_maybe_extern_id(impl_id);
 
         let Some(poly_trait_ref) = self.tcx().impl_trait_ref(impl_id) else { return Ok(None) };
 
@@ -281,8 +281,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.item_bounds(self, def_id)
     }
 
-    pub fn type_of(self, def_id: DefId) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
-        self.inner.queries.type_of(self, def_id)
+    pub fn type_of(self, def_id: impl Into<DefId>) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
+        self.inner.queries.type_of(self, def_id.into())
     }
 
     pub fn fn_sig(self, def_id: impl Into<DefId>) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
@@ -369,31 +369,45 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             == def_id
     }
 
-    fn extern_id_of(self, def_id: DefId) -> QueryResult<Option<DefId>> {
-        let Some(local_id) = def_id.as_local() else { return Ok(None) };
-        self.map().extern_id_of(local_id)
+    /// If `def_id` is a local id for an extern spec return the extern id, otherwise return `def_id`.
+    pub fn resolve_maybe_extern_id(self, def_id: DefId) -> DefId {
+        let Some(local_id) = def_id.as_local() else { return def_id };
+        self.extern_id_of(local_id).unwrap_or(def_id)
     }
 
+    /// If `local_def_id` is an id for an extern spec return the extern id.
+    pub fn extern_id_of(self, local_def_id: LocalDefId) -> Option<DefId> {
+        self.collect_specs()
+            .local_id_to_extern_id
+            .get(&local_def_id)
+            .copied()
+    }
+
+    /// If `extern_def_id` is an extern spec return the corresponding local id.
     pub fn get_local_id_for_extern(self, extern_def_id: DefId) -> Option<LocalDefId> {
         self.collect_specs()
-            .extern_specs
+            .extern_id_to_local_id
             .get(&extern_def_id)
             .copied()
     }
 
+    /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
+    /// explicit `#[flux::trusted(..)]` annotation and return whether that item is trusted or not.
+    /// If no explicit annotation is found, return `false`.
     pub fn trusted(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| self.collect_specs().trusted.get(&did))
             .is_some_and(|trusted| trusted.to_bool())
     }
 
-    /// transitively follows the parent-chain to find the first containing item with an explicit
-    /// `ignore` annotation and returns whether that item is ignored or not.
+    /// Transitively follow the parent-chain of `def_id` to find the first containing item with an
+    /// explicit `#[flux::ignore(..)]` annotation and return whether that item is ignored or not.
+    /// If no explicit annotation is found, return `false`.
     pub fn ignored(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| self.collect_specs().ignores.get(&did))
             .is_some_and(|ignored| ignored.to_bool())
     }
 
-    /// traverse the parent chain of a def_id until the first node for which `f` returns [`Some`].
+    /// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].
     fn traverse_parents<T>(
         self,
         mut def_id: LocalDefId,
@@ -452,10 +466,6 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
             _ => bug!("expected struct, enum or type alias"),
         };
         Ok(refined_by)
-    }
-
-    pub fn extern_id_of(self, def_id: LocalDefId) -> QueryResult<Option<DefId>> {
-        Ok(self.node(def_id)?.extern_id())
     }
 
     pub fn spec_funcs(self) -> impl Iterator<Item = &'genv fhir::SpecFunc<'genv>> {

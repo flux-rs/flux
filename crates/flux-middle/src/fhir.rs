@@ -549,7 +549,7 @@ pub struct MutTy<'fhir> {
 
 /// Our surface syntax doesn't have lifetimes. To deal with them we create a *hole* for every lifetime
 /// which we then resolve during `annot_check` when zipping against the lifted version.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Lifetime {
     /// A lifetime hole created during desugaring.
     Hole(FhirId),
@@ -589,7 +589,7 @@ pub enum FluxLocalDefId {
 }
 
 /// Owner version of [`FluxLocalDefId`]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
 pub enum FluxOwnerId {
     Flux(Symbol),
     Rust(OwnerId),
@@ -602,7 +602,7 @@ pub enum FluxOwnerId {
 ///
 /// [`rty`]: crate::rty
 /// [`HirId`]: rustc_hir::HirId
-#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone, Encodable, Decodable)]
 pub struct FhirId {
     pub owner: FluxOwnerId,
     pub local_id: ItemLocalId,
@@ -610,6 +610,7 @@ pub struct FhirId {
 
 newtype_index! {
     /// An `ItemLocalId` uniquely identifies something within a given "item-like".
+    #[encodable]
     pub struct ItemLocalId {}
 }
 

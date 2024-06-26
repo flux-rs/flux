@@ -157,7 +157,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         if attrs.extern_spec() {
             let extern_id =
                 self.extract_extern_def_id_from_extern_spec_trait(owner_id.def_id, bounds)?;
-            self.specs.extern_specs.insert(extern_id, owner_id.def_id);
+            self.specs.insert_extern_id(owner_id.def_id, extern_id);
         };
 
         Ok(())
@@ -181,7 +181,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             && let Some(extern_id) =
                 self.extract_extern_def_id_from_extern_spec_impl(owner_id.def_id, impl_.items)
         {
-            self.specs.extern_specs.insert(extern_id, owner_id.def_id);
+            self.specs.insert_extern_id(owner_id.def_id, extern_id);
             Some(extern_id)
         } else {
             None
@@ -230,7 +230,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             opaque = true;
             let extern_id =
                 self.extract_extern_def_id_from_extern_spec_struct(owner_id.def_id, data)?;
-            self.specs.extern_specs.insert(extern_id, owner_id.def_id);
+            self.specs.insert_extern_id(owner_id.def_id, extern_id);
             Some(extern_id)
         } else {
             None
@@ -304,7 +304,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         let extern_id = if attrs.extern_spec() {
             let extern_id =
                 self.extract_extern_def_id_from_extern_spec_enum(owner_id.def_id, enum_def)?;
-            self.specs.extern_specs.insert(extern_id, owner_id.def_id);
+            self.specs.insert_extern_id(owner_id.def_id, extern_id);
             Some(extern_id)
         } else {
             None
@@ -361,9 +361,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
                 }));
             }
             let extern_def_id = self.extract_extern_def_id_from_extern_spec_fn(owner_id.def_id)?;
-            self.specs
-                .extern_specs
-                .insert(extern_def_id, owner_id.def_id);
+            self.specs.insert_extern_id(owner_id.def_id, extern_def_id);
             // We should never check an extern spec (it will infinitely recurse)
             Some(extern_def_id)
         } else {
