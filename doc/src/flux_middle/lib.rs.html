@@ -242,6 +242,11 @@
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
 <a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(
     associated_type_defaults,
     box_patterns,
@@ -290,7 +295,7 @@
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, NodeId};
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_hash::{FxHashMap, FxHashSet};
+<span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir <span class="kw">as </span>hir;
 <span class="kw">use </span>rustc_hir::OwnerId;
 <span class="kw">use </span>rustc_span::{
@@ -454,7 +459,8 @@
     <span class="kw">pub </span>trusted: UnordMap&lt;LocalDefId, fhir::Trusted&gt;,
     <span class="kw">pub </span>consts: FxHashSet&lt;LocalDefId&gt;,
     <span class="kw">pub </span>crate_config: <span class="prelude-ty">Option</span>&lt;config::CrateConfig&gt;,
-    <span class="kw">pub </span>extern_specs: FxHashMap&lt;DefId, LocalDefId&gt;,
+    extern_id_to_local_id: UnordMap&lt;DefId, LocalDefId&gt;,
+    local_id_to_extern_id: UnordMap&lt;LocalDefId, DefId&gt;,
 }
 
 <span class="kw">impl </span>Specs {
@@ -467,21 +473,25 @@
             }
         }
     }
-}
 
-<span class="kw">pub type </span>ScopeId = NodeId;
+    <span class="kw">pub fn </span>insert_extern_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local_id: LocalDefId, extern_id: DefId) {
+        <span class="self">self</span>.extern_id_to_local_id.insert(extern_id, local_id);
+        <span class="self">self</span>.local_id_to_extern_id.insert(local_id, extern_id);
+    }
+}
 
 <span class="attr">#[derive(Default)]
 </span><span class="kw">pub struct </span>ResolverOutput {
     <span class="kw">pub </span>path_res_map: UnordMap&lt;NodeId, fhir::Res&gt;,
     <span class="kw">pub </span>impl_trait_res_map: UnordMap&lt;NodeId, hir::ItemId&gt;,
-    <span class="doccomment">/// Resolution of parameters both explicit and implicit. The [`fhir::ParamId`] is unique per item.
-    /// The [`NodeId`] correspond to the node introducing the parameter. When explicit, this is the
-    /// id of the [`surface::GenericArg`] or [`surface::RefineParam`], when implicit, this is the id
-    /// of the [`surface::RefineArg::Bind`] or [`surface::Arg`].
+    <span class="doccomment">/// Resolution of explicit and implicit parameters. The [`fhir::ParamId`] is unique per item.
+    /// The [`NodeId`] used as the key corresponds to the node introducing the parameter. When explicit,
+    /// this is the id of the [`surface::GenericArg`] or [`surface::RefineParam`], when implicit, this
+    /// is the id of the [`surface::RefineArg::Bind`] or [`surface::FnInput`].
     </span><span class="kw">pub </span>param_res_map: UnordMap&lt;NodeId, (fhir::ParamId, fhir::ParamKind)&gt;,
-    <span class="doccomment">/// List of implicit params defined in a scope. The [`NodeId`] is the id of the node introducing
-    /// the scope, i.e., [`surface::FnSig`], [`surface::FnOutput`], or [`surface::VariantDef`].
+    <span class="doccomment">/// List of implicit params defined in a scope. The [`NodeId`] used as key is the id of the node
+    /// introducing the scope, e.g., [`surface::FnSig`], [`surface::FnOutput`], or [`surface::VariantDef`].
+    /// The [`NodeId`]s in the vectors are keys in [`Self::param_res_map`].
     </span><span class="kw">pub </span>implicit_params: UnordMap&lt;NodeId, Vec&lt;(Ident, NodeId)&gt;&gt;,
     <span class="kw">pub </span>sort_path_res_map: UnordMap&lt;NodeId, fhir::SortRes&gt;,
     <span class="kw">pub </span>path_expr_res_map: UnordMap&lt;NodeId, fhir::ExprRes&gt;,

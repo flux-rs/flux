@@ -547,54 +547,6 @@
 <a href="#547" id="547">547</a>
 <a href="#548" id="548">548</a>
 <a href="#549" id="549">549</a>
-<a href="#550" id="550">550</a>
-<a href="#551" id="551">551</a>
-<a href="#552" id="552">552</a>
-<a href="#553" id="553">553</a>
-<a href="#554" id="554">554</a>
-<a href="#555" id="555">555</a>
-<a href="#556" id="556">556</a>
-<a href="#557" id="557">557</a>
-<a href="#558" id="558">558</a>
-<a href="#559" id="559">559</a>
-<a href="#560" id="560">560</a>
-<a href="#561" id="561">561</a>
-<a href="#562" id="562">562</a>
-<a href="#563" id="563">563</a>
-<a href="#564" id="564">564</a>
-<a href="#565" id="565">565</a>
-<a href="#566" id="566">566</a>
-<a href="#567" id="567">567</a>
-<a href="#568" id="568">568</a>
-<a href="#569" id="569">569</a>
-<a href="#570" id="570">570</a>
-<a href="#571" id="571">571</a>
-<a href="#572" id="572">572</a>
-<a href="#573" id="573">573</a>
-<a href="#574" id="574">574</a>
-<a href="#575" id="575">575</a>
-<a href="#576" id="576">576</a>
-<a href="#577" id="577">577</a>
-<a href="#578" id="578">578</a>
-<a href="#579" id="579">579</a>
-<a href="#580" id="580">580</a>
-<a href="#581" id="581">581</a>
-<a href="#582" id="582">582</a>
-<a href="#583" id="583">583</a>
-<a href="#584" id="584">584</a>
-<a href="#585" id="585">585</a>
-<a href="#586" id="586">586</a>
-<a href="#587" id="587">587</a>
-<a href="#588" id="588">588</a>
-<a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check if an [`fhir`] annotation is a valid refinement of the corresponding rust declaration.
 //!
 //! To check if an [`fhir`] is valid, we first [`lift`] the `hir` declaration into [`fhir`] and then
@@ -613,73 +565,45 @@
         ExprRes, Res,
     },
     global_env::GlobalEnv,
-    rty::WfckResults,
 };
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_errors::Diagnostic;
 <span class="kw">use </span>rustc_hir::OwnerId;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_node&lt;<span class="lifetime">'genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
-    node: <span class="kw-2">&amp;</span>fhir::Node,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_node(genv: GlobalEnv, node: <span class="kw-2">&amp;</span>fhir::Node) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">match </span>node {
-        fhir::Node::Item(item) =&gt; check_item(genv, wfckresults, item),
-        fhir::Node::TraitItem(trait_item) =&gt; check_trait_item(genv, wfckresults, trait_item),
-        fhir::Node::ImplItem(impl_item) =&gt; check_impl_item(genv, wfckresults, impl_item),
+        fhir::Node::Item(item) =&gt; check_item(genv, item),
+        fhir::Node::TraitItem(trait_item) =&gt; check_trait_item(genv, trait_item),
+        fhir::Node::ImplItem(impl_item) =&gt; check_impl_item(genv, impl_item),
     }
 }
 
-<span class="kw">fn </span>check_item&lt;<span class="lifetime">'genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
-    item: <span class="kw-2">&amp;</span>fhir::Item,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+<span class="kw">fn </span>check_item(genv: GlobalEnv, item: <span class="kw-2">&amp;</span>fhir::Item) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
-        fhir::ItemKind::Enum(enum_def) =&gt; {
-            check_enum_def(genv, wfckresults, item.owner_id, enum_def)
-        }
-        fhir::ItemKind::Struct(struct_def) =&gt; {
-            check_struct_def(genv, wfckresults, item.owner_id, struct_def)
-        }
-        fhir::ItemKind::Fn(fn_sig) =&gt; check_fn_sig(genv, wfckresults, item.owner_id, fn_sig),
-        fhir::ItemKind::TyAlias(ty_alias) =&gt; {
-            check_ty_alias(genv, wfckresults, item.owner_id, ty_alias)
-        }
+        fhir::ItemKind::Enum(enum_def) =&gt; check_enum_def(genv, item.owner_id, enum_def),
+        fhir::ItemKind::Struct(struct_def) =&gt; check_struct_def(genv, item.owner_id, struct_def),
+        fhir::ItemKind::Fn(fn_sig) =&gt; check_fn_sig(genv, item.owner_id, fn_sig),
+        fhir::ItemKind::TyAlias(ty_alias) =&gt; check_ty_alias(genv, item.owner_id, ty_alias),
         fhir::ItemKind::Trait(<span class="kw">_</span>) | fhir::ItemKind::Impl(<span class="kw">_</span>) | fhir::ItemKind::OpaqueTy(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
     }
 }
 
-<span class="kw">fn </span>check_trait_item&lt;<span class="lifetime">'genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
-    trait_item: <span class="kw-2">&amp;</span>fhir::TraitItem,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+<span class="kw">fn </span>check_trait_item(genv: GlobalEnv, trait_item: <span class="kw-2">&amp;</span>fhir::TraitItem) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">match </span><span class="kw-2">&amp;</span>trait_item.kind {
-        fhir::TraitItemKind::Fn(fn_sig) =&gt; {
-            check_fn_sig(genv, wfckresults, trait_item.owner_id, fn_sig)
-        }
+        fhir::TraitItemKind::Fn(fn_sig) =&gt; check_fn_sig(genv, trait_item.owner_id, fn_sig),
         fhir::TraitItemKind::Type(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
     }
 }
 
-<span class="kw">fn </span>check_impl_item&lt;<span class="lifetime">'genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
-    impl_item: <span class="kw-2">&amp;</span>fhir::ImplItem,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+<span class="kw">fn </span>check_impl_item(genv: GlobalEnv, impl_item: <span class="kw-2">&amp;</span>fhir::ImplItem) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">match </span><span class="kw-2">&amp;</span>impl_item.kind {
-        fhir::ImplItemKind::Fn(fn_sig) =&gt; {
-            check_fn_sig(genv, wfckresults, impl_item.owner_id, fn_sig)
-        }
+        fhir::ImplItemKind::Fn(fn_sig) =&gt; check_fn_sig(genv, impl_item.owner_id, fn_sig),
         fhir::ImplItemKind::Type(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_fn_sig&lt;<span class="lifetime">'genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_fn_sig(
+    genv: GlobalEnv,
     owner_id: OwnerId,
     fn_sig: <span class="kw-2">&amp;</span>fhir::FnSig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
@@ -688,12 +612,11 @@
     }
     <span class="kw">let </span>self_ty = lift::lift_self_ty(genv, owner_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>expected_fn_decl = <span class="kw-2">&amp;</span>lift::lift_fn_decl(genv, owner_id)<span class="question-mark">?</span>.<span class="number">0</span>;
-    Zipper::new(genv, wfckresults, self_ty).zip_fn_decl(fn_sig.decl, expected_fn_decl)
+    Zipper::new(genv, self_ty).zip_fn_decl(fn_sig.decl, expected_fn_decl)
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_ty_alias&lt;<span class="lifetime">'genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_ty_alias(
+    genv: GlobalEnv,
     owner_id: OwnerId,
     ty_alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
@@ -701,12 +624,11 @@
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
     <span class="kw">let </span>expected_ty_alias = lift::lift_type_alias(genv, owner_id)<span class="question-mark">?</span>;
-    Zipper::new(genv, wfckresults, <span class="prelude-val">None</span>).zip_ty(<span class="kw-2">&amp;</span>ty_alias.ty, <span class="kw-2">&amp;</span>expected_ty_alias.ty)
+    Zipper::new(genv, <span class="prelude-val">None</span>).zip_ty(<span class="kw-2">&amp;</span>ty_alias.ty, <span class="kw-2">&amp;</span>expected_ty_alias.ty)
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_struct_def&lt;<span class="lifetime">'genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_struct_def(
+    genv: GlobalEnv,
     owner_id: OwnerId,
     struct_def: <span class="kw-2">&amp;</span>fhir::StructDef,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
@@ -719,7 +641,7 @@
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                 }
                 <span class="kw">let </span>self_ty = lift::lift_self_ty(genv, owner_id)<span class="question-mark">?</span>;
-                Zipper::new(genv, wfckresults, self_ty)
+                Zipper::new(genv, self_ty)
                     .zip_ty(<span class="kw-2">&amp;</span>field.ty, <span class="kw-2">&amp;</span>liftcx.lift_field_def_id(field.def_id)<span class="question-mark">?</span>.ty)
             })
         }
@@ -727,9 +649,8 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_enum_def&lt;<span class="lifetime">'genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_enum_def(
+    genv: GlobalEnv,
     owner_id: OwnerId,
     enum_def: <span class="kw-2">&amp;</span>fhir::EnumDef,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
@@ -740,27 +661,22 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
         <span class="kw">let </span>self_ty = lift::lift_self_ty(genv, owner_id)<span class="question-mark">?</span>;
-        Zipper::new(genv, wfckresults, self_ty)
+        Zipper::new(genv, self_ty)
             .zip_enum_variant(variant, <span class="kw-2">&amp;</span>liftcx.lift_enum_variant_id(variant.def_id)<span class="question-mark">?</span>)
     })
 }
 
-<span class="kw">struct </span>Zipper&lt;<span class="lifetime">'zip</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+<span class="kw">struct </span>Zipper&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">'zip </span><span class="kw-2">mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
     locs: LocsMap&lt;<span class="lifetime">'genv</span>&gt;,
     self_ty: <span class="prelude-ty">Option</span>&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt;,
 }
 
 <span class="kw">type </span>LocsMap&lt;<span class="lifetime">'genv</span>&gt; = UnordMap&lt;fhir::ParamId, fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt;;
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'zip</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Zipper&lt;<span class="lifetime">'zip</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">fn </span>new(
-        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">'zip </span><span class="kw-2">mut </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
-        self_ty: <span class="prelude-ty">Option</span>&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt;,
-    ) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ genv, wfckresults, locs: LocsMap::default(), self_ty }
+<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Zipper&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, self_ty: <span class="prelude-ty">Option</span>&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ genv, locs: LocsMap::default(), self_ty }
     }
 
     <span class="kw">fn </span>zip_enum_variant(
@@ -888,12 +804,7 @@
                 <span class="self">self</span>.zip_ty(ty, expected_ty)
             }
             (fhir::TyKind::Never, fhir::TyKind::Never) =&gt; <span class="prelude-val">Ok</span>(()),
-            (fhir::TyKind::Hole(fhir_id), <span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.wfckresults
-                    .type_holes_mut()
-                    .insert(fhir_id, <span class="kw-2">*</span>expected_ty);
-                <span class="prelude-val">Ok</span>(())
-            }
+            (fhir::TyKind::Hole(<span class="kw">_</span>), <span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
             (
                 fhir::TyKind::OpaqueDef(item_id, args, <span class="kw">_</span>, <span class="kw">_</span>),
                 fhir::TyKind::OpaqueDef(exp_item_id, exp_args, <span class="kw">_</span>, <span class="kw">_</span>),
@@ -936,18 +847,11 @@
     }
 
     <span class="kw">fn </span>zip_lifetime(<span class="kw-2">&amp;mut </span><span class="self">self</span>, lft: fhir::Lifetime, expected_lft: fhir::Lifetime) {
-        <span class="kw">let </span>fhir::Lifetime::Hole(fhir_id) = lft <span class="kw">else </span>{
+        <span class="kw">if let </span>fhir::Lifetime::Hole(<span class="kw">_</span>) = lft {
             <span class="kw">return</span>;
         };
-
-        <span class="kw">match </span>expected_lft {
-            fhir::Lifetime::Resolved(res) =&gt; {
-                <span class="self">self</span>.wfckresults.lifetime_holes_mut().insert(fhir_id, res);
-            }
-            fhir::Lifetime::Hole(<span class="kw">_</span>) =&gt; {
-                <span class="macro">bug!</span>(<span class="string">"unexpected hole in lifted lifetime"</span>);
-            }
-        }
+        <span class="comment">// If `lft` it is not a hole then we lift it and it should be the same as `expected_lft`
+        </span><span class="macro">debug_assert_eq!</span>(lft, expected_lft);
     }
 
     <span class="kw">fn </span>zip_bty(

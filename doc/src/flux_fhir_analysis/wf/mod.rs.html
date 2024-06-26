@@ -295,9 +295,6 @@
 <a href="#295" id="295">295</a>
 <a href="#296" id="296">296</a>
 <a href="#297" id="297">297</a>
-<a href="#298" id="298">298</a>
-<a href="#299" id="299">299</a>
-<a href="#300" id="300">300</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
@@ -329,10 +326,7 @@
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_flux_item&lt;<span class="lifetime">'genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-    item: <span class="kw-2">&amp;</span>fhir::FluxItem,
-) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_flux_item(genv: GlobalEnv, item: <span class="kw-2">&amp;</span>fhir::FluxItem) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&gt; {
     <span class="kw">let </span>owner = FluxOwnerId::Flux(item.name());
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner);
     <span class="kw">match </span>item {
@@ -355,7 +349,7 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_node&lt;<span class="lifetime">'genv</span>&gt;(
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     node: <span class="kw-2">&amp;</span>fhir::Node&lt;<span class="lifetime">'genv</span>&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;WfckResults&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, node.owner_id().into());
 
     insert_params(<span class="kw-2">&amp;mut </span>infcx, node)<span class="question-mark">?</span>;

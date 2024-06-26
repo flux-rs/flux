@@ -706,9 +706,6 @@
 <a href="#706" id="706">706</a>
 <a href="#707" id="707">707</a>
 <a href="#708" id="708">708</a>
-<a href="#709" id="709">709</a>
-<a href="#710" id="710">710</a>
-<a href="#711" id="711">711</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -780,10 +777,7 @@
     <span class="kw">pub </span>spec_func_defns: <span class="kw">fn</span>(GlobalEnv) -&gt; QueryResult&lt;rty::SpecFuncDefns&gt;,
     <span class="kw">pub </span>spec_func_decls: <span class="kw">fn</span>(GlobalEnv) -&gt; QueryResult&lt;FxHashMap&lt;Symbol, rty::SpecFuncDecl&gt;&gt;,
     <span class="kw">pub </span>adt_sort_def_of: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::AdtSortDef&gt;,
-    <span class="kw">pub </span>check_wf: <span class="kw">for</span>&lt;<span class="lifetime">'genv</span>&gt; <span class="kw">fn</span>(
-        GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-        FluxLocalDefId,
-    ) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
+    <span class="kw">pub </span>check_wf: <span class="kw">for</span>&lt;<span class="lifetime">'genv</span>&gt; <span class="kw">fn</span>(GlobalEnv, FluxLocalDefId) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&gt;&gt;,
     <span class="kw">pub </span>adt_def: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::AdtDef&gt;,
     <span class="kw">pub </span>type_of: <span class="kw">fn</span>(GlobalEnv, LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt;,
     <span class="kw">pub </span>variants_of: <span class="kw">fn</span>(
@@ -851,7 +845,7 @@
     func_decls: OnceCell&lt;QueryResult&lt;FxHashMap&lt;Symbol, rty::SpecFuncDecl&gt;&gt;&gt;,
     qualifiers: OnceCell&lt;QueryResult&lt;Vec&lt;rty::Qualifier&gt;&gt;&gt;,
     adt_sort_def_of: Cache&lt;DefId, QueryResult&lt;rty::AdtSortDef&gt;&gt;,
-    check_wf: Cache&lt;FluxLocalDefId, QueryResult&lt;Rc&lt;rty::WfckResults&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;&gt;,
+    check_wf: Cache&lt;FluxLocalDefId, QueryResult&lt;Rc&lt;rty::WfckResults&gt;&gt;&gt;,
     adt_def: Cache&lt;DefId, QueryResult&lt;rty::AdtDef&gt;&gt;,
     generics_of: Cache&lt;DefId, QueryResult&lt;rty::Generics&gt;&gt;,
     refinement_generics_of: Cache&lt;DefId, QueryResult&lt;rty::RefinementGenerics&gt;&gt;,
@@ -1062,7 +1056,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
         flux_id: FluxLocalDefId,
-    ) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt; {
+    ) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.check_wf, flux_id, || (<span class="self">self</span>.providers.check_wf)(genv, flux_id))
     }
 

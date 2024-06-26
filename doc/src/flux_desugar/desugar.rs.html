@@ -1414,7 +1414,7 @@
 <span class="kw">use </span>flux_middle::{
     fhir::{<span class="self">self</span>, lift::LiftCtxt, ExprRes, FhirId, FluxOwnerId, Res},
     global_env::GlobalEnv,
-    try_alloc_slice, ResolverOutput, ScopeId,
+    try_alloc_slice, ResolverOutput,
 };
 <span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, NodeId};
 <span class="kw">use </span>hir::{def::DefKind, ItemKind};
@@ -1507,7 +1507,7 @@
     local_id_gen: IndexGen&lt;fhir::ItemLocalId&gt;,
     owner: OwnerId,
     extern_id: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
-    fn_sig_scope: <span class="prelude-ty">Option</span>&lt;ScopeId&gt;,
+    fn_sig_scope: <span class="prelude-ty">Option</span>&lt;NodeId&gt;,
     resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>ResolverOutput,
     opaque_tys: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>UnordMap&lt;LocalDefId, fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt;,
 }

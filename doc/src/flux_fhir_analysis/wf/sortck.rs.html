@@ -728,7 +728,7 @@
     <span class="kw">pub </span>params: UnordMap&lt;fhir::ParamId, (rty::Sort, fhir::ParamKind)&gt;,
     <span class="kw">pub</span>(<span class="kw">super</span>) sort_unification_table: InPlaceUnificationTable&lt;rty::SortVid&gt;,
     num_unification_table: InPlaceUnificationTable&lt;rty::NumVid&gt;,
-    <span class="kw">pub </span>wfckresults: WfckResults&lt;<span class="lifetime">'genv</span>&gt;,
+    <span class="kw">pub </span>wfckresults: WfckResults,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -1219,7 +1219,7 @@
         </span>}
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_results(<span class="self">self</span>) -&gt; WfckResults&lt;<span class="lifetime">'genv</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_results(<span class="self">self</span>) -&gt; WfckResults {
         <span class="self">self</span>.wfckresults
     }
 

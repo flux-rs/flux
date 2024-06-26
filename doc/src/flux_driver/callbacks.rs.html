@@ -243,6 +243,10 @@
 <a href="#243" id="243">243</a>
 <a href="#244" id="244">244</a>
 <a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
@@ -450,6 +454,10 @@
                 <span class="kw">if </span>of_trait {
                     compare_impl_item::check_impl_against_trait(<span class="self">self</span>.genv, def_id)<span class="question-mark">?</span>;
                 }
+                <span class="prelude-val">Ok</span>(())
+            }
+            DefKind::TyAlias =&gt; {
+                <span class="self">self</span>.genv.type_of(def_id).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(())
             }
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(()),

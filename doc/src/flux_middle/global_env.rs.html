@@ -532,6 +532,16 @@
 <a href="#532" id="532">532</a>
 <a href="#533" id="533">533</a>
 <a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -725,8 +735,11 @@
         <span class="self">self</span>.inner.queries.lower_type_of(<span class="self">self</span>, def_id.into())
     }
 
-    <span class="kw">pub fn </span>lower_fn_sig(<span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;ty::EarlyBinder&lt;ty::PolyFnSig&gt;&gt; {
-        <span class="self">self</span>.inner.queries.lower_fn_sig(<span class="self">self</span>, def_id)
+    <span class="kw">pub fn </span>lower_fn_sig(
+        <span class="self">self</span>,
+        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
+    ) -&gt; QueryResult&lt;ty::EarlyBinder&lt;ty::PolyFnSig&gt;&gt; {
+        <span class="self">self</span>.inner.queries.lower_fn_sig(<span class="self">self</span>, def_id.into())
     }
 
     <span class="kw">pub fn </span>adt_def(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::AdtDef&gt; {
@@ -737,10 +750,7 @@
         <span class="self">self</span>.inner.queries.adt_sort_def_of(<span class="self">self</span>, def_id.into())
     }
 
-    <span class="kw">pub fn </span>check_wf(
-        <span class="self">self</span>,
-        flux_id: <span class="kw">impl </span>Into&lt;FluxLocalDefId&gt;,
-    ) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt; {
+    <span class="kw">pub fn </span>check_wf(<span class="self">self</span>, flux_id: <span class="kw">impl </span>Into&lt;FluxLocalDefId&gt;) -&gt; QueryResult&lt;Rc&lt;rty::WfckResults&gt;&gt; {
         <span class="self">self</span>.inner.queries.check_wf(<span class="self">self</span>, flux_id.into())
     }
 
@@ -748,7 +758,7 @@
         <span class="self">self</span>,
         impl_id: DefId,
     ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::TraitRef&gt;&gt;&gt; {
-        <span class="kw">let </span>impl_id = <span class="self">self</span>.extern_id_of(impl_id)<span class="question-mark">?</span>.unwrap_or(impl_id);
+        <span class="kw">let </span>impl_id = <span class="self">self</span>.resolve_maybe_extern_id(impl_id);
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(poly_trait_ref) = <span class="self">self</span>.tcx().impl_trait_ref(impl_id) <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
 
@@ -815,8 +825,8 @@
         <span class="self">self</span>.inner.queries.item_bounds(<span class="self">self</span>, def_id)
     }
 
-    <span class="kw">pub fn </span>type_of(<span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt; {
-        <span class="self">self</span>.inner.queries.type_of(<span class="self">self</span>, def_id)
+    <span class="kw">pub fn </span>type_of(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::TyCtor&gt;&gt; {
+        <span class="self">self</span>.inner.queries.type_of(<span class="self">self</span>, def_id.into())
     }
 
     <span class="kw">pub fn </span>fn_sig(<span class="self">self</span>, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
@@ -903,31 +913,45 @@
             == def_id
     }
 
-    <span class="kw">fn </span>extern_id_of(<span class="self">self</span>, def_id: DefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;DefId&gt;&gt; {
-        <span class="kw">let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
-        <span class="self">self</span>.map().extern_id_of(local_id)
+    <span class="doccomment">/// If `def_id` is a local id for an extern spec return the extern id, otherwise return `def_id`.
+    </span><span class="kw">pub fn </span>resolve_maybe_extern_id(<span class="self">self</span>, def_id: DefId) -&gt; DefId {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() <span class="kw">else </span>{ <span class="kw">return </span>def_id };
+        <span class="self">self</span>.extern_id_of(local_id).unwrap_or(def_id)
     }
 
-    <span class="kw">pub fn </span>get_local_id_for_extern(<span class="self">self</span>, extern_def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;LocalDefId&gt; {
+    <span class="doccomment">/// If `local_def_id` is an id for an extern spec return the extern id.
+    </span><span class="kw">pub fn </span>extern_id_of(<span class="self">self</span>, local_def_id: LocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
         <span class="self">self</span>.collect_specs()
-            .extern_specs
+            .local_id_to_extern_id
+            .get(<span class="kw-2">&amp;</span>local_def_id)
+            .copied()
+    }
+
+    <span class="doccomment">/// If `extern_def_id` is an extern spec return the corresponding local id.
+    </span><span class="kw">pub fn </span>get_local_id_for_extern(<span class="self">self</span>, extern_def_id: DefId) -&gt; <span class="prelude-ty">Option</span>&lt;LocalDefId&gt; {
+        <span class="self">self</span>.collect_specs()
+            .extern_id_to_local_id
             .get(<span class="kw-2">&amp;</span>extern_def_id)
             .copied()
     }
 
-    <span class="kw">pub fn </span>trusted(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
+    <span class="doccomment">/// Transitively follow the parent-chain of `def_id` to find the first containing item with an
+    /// explicit `#[flux::trusted(..)]` annotation and return whether that item is trusted or not.
+    /// If no explicit annotation is found, return `false`.
+    </span><span class="kw">pub fn </span>trusted(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
         <span class="self">self</span>.traverse_parents(def_id, |did| <span class="self">self</span>.collect_specs().trusted.get(<span class="kw-2">&amp;</span>did))
             .is_some_and(|trusted| trusted.to_bool())
     }
 
-    <span class="doccomment">/// transitively follows the parent-chain to find the first containing item with an explicit
-    /// `ignore` annotation and returns whether that item is ignored or not.
+    <span class="doccomment">/// Transitively follow the parent-chain of `def_id` to find the first containing item with an
+    /// explicit `#[flux::ignore(..)]` annotation and return whether that item is ignored or not.
+    /// If no explicit annotation is found, return `false`.
     </span><span class="kw">pub fn </span>ignored(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
         <span class="self">self</span>.traverse_parents(def_id, |did| <span class="self">self</span>.collect_specs().ignores.get(<span class="kw-2">&amp;</span>did))
             .is_some_and(|ignored| ignored.to_bool())
     }
 
-    <span class="doccomment">/// traverse the parent chain of a def_id until the first node for which `f` returns [`Some`].
+    <span class="doccomment">/// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].
     </span><span class="kw">fn </span>traverse_parents&lt;T&gt;(
         <span class="self">self</span>,
         <span class="kw-2">mut </span>def_id: LocalDefId,
@@ -986,10 +1010,6 @@
             <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected struct, enum or type alias"</span>),
         };
         <span class="prelude-val">Ok</span>(refined_by)
-    }
-
-    <span class="kw">pub fn </span>extern_id_of(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;DefId&gt;&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.node(def_id)<span class="question-mark">?</span>.extern_id())
     }
 
     <span class="kw">pub fn </span>spec_funcs(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;&gt; {

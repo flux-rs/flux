@@ -1466,6 +1466,7 @@
 <a href="#1466" id="1466">1466</a>
 <a href="#1467" id="1467">1467</a>
 <a href="#1468" id="1468">1468</a>
+<a href="#1469" id="1469">1469</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -2017,7 +2018,7 @@
 
 <span class="doccomment">/// Our surface syntax doesn't have lifetimes. To deal with them we create a *hole* for every lifetime
 /// which we then resolve during `annot_check` when zipping against the lifted version.
-</span><span class="attr">#[derive(Copy, Clone)]
+</span><span class="attr">#[derive(Copy, Clone, PartialEq, Eq)]
 </span><span class="kw">pub enum </span>Lifetime {
     <span class="doccomment">/// A lifetime hole created during desugaring.
     </span>Hole(FhirId),
@@ -2057,7 +2058,7 @@
 }
 
 <span class="doccomment">/// Owner version of [`FluxLocalDefId`]
-</span><span class="attr">#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+</span><span class="attr">#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
 </span><span class="kw">pub enum </span>FluxOwnerId {
     Flux(Symbol),
     Rust(OwnerId),
@@ -2070,7 +2071,7 @@
 ///
 /// [`rty`]: crate::rty
 /// [`HirId`]: rustc_hir::HirId
-</span><span class="attr">#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
+</span><span class="attr">#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone, Encodable, Decodable)]
 </span><span class="kw">pub struct </span>FhirId {
     <span class="kw">pub </span>owner: FluxOwnerId,
     <span class="kw">pub </span>local_id: ItemLocalId,
@@ -2078,6 +2079,7 @@
 
 <span class="macro">newtype_index!</span> {
     <span class="doccomment">/// An `ItemLocalId` uniquely identifies something within a given "item-like".
+    </span><span class="attr">#[encodable]
     </span><span class="kw">pub struct </span>ItemLocalId {}
 }
 

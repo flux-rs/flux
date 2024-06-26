@@ -1300,6 +1300,46 @@
 <a href="#1300" id="1300">1300</a>
 <a href="#1301" id="1301">1301</a>
 <a href="#1302" id="1302">1302</a>
+<a href="#1303" id="1303">1303</a>
+<a href="#1304" id="1304">1304</a>
+<a href="#1305" id="1305">1305</a>
+<a href="#1306" id="1306">1306</a>
+<a href="#1307" id="1307">1307</a>
+<a href="#1308" id="1308">1308</a>
+<a href="#1309" id="1309">1309</a>
+<a href="#1310" id="1310">1310</a>
+<a href="#1311" id="1311">1311</a>
+<a href="#1312" id="1312">1312</a>
+<a href="#1313" id="1313">1313</a>
+<a href="#1314" id="1314">1314</a>
+<a href="#1315" id="1315">1315</a>
+<a href="#1316" id="1316">1316</a>
+<a href="#1317" id="1317">1317</a>
+<a href="#1318" id="1318">1318</a>
+<a href="#1319" id="1319">1319</a>
+<a href="#1320" id="1320">1320</a>
+<a href="#1321" id="1321">1321</a>
+<a href="#1322" id="1322">1322</a>
+<a href="#1323" id="1323">1323</a>
+<a href="#1324" id="1324">1324</a>
+<a href="#1325" id="1325">1325</a>
+<a href="#1326" id="1326">1326</a>
+<a href="#1327" id="1327">1327</a>
+<a href="#1328" id="1328">1328</a>
+<a href="#1329" id="1329">1329</a>
+<a href="#1330" id="1330">1330</a>
+<a href="#1331" id="1331">1331</a>
+<a href="#1332" id="1332">1332</a>
+<a href="#1333" id="1333">1333</a>
+<a href="#1334" id="1334">1334</a>
+<a href="#1335" id="1335">1335</a>
+<a href="#1336" id="1336">1336</a>
+<a href="#1337" id="1337">1337</a>
+<a href="#1338" id="1338">1338</a>
+<a href="#1339" id="1339">1339</a>
+<a href="#1340" id="1340">1340</a>
+<a href="#1341" id="1341">1341</a>
+<a href="#1342" id="1342">1342</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1316,7 +1356,7 @@
     normalize::{Normalizer, SpecFuncDefns},
     projections,
     subst::EVarSubstFolder,
-    AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind,
+    AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Const,
     CoroutineObligPredicate, Ensures, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
     ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, SubsetTy, TraitPredicate,
@@ -1327,7 +1367,6 @@
     intern::{Internable, List},
     queries::QueryResult,
     rty::{expr::HoleKind, Var, VariantSig},
-    rustc::ty::Const,
 };
 
 <span class="kw">pub trait </span>TypeVisitor: Sized {
@@ -1420,6 +1459,10 @@
 
     <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>Region) -&gt; Region {
         <span class="kw-2">*</span>re
+    }
+
+    <span class="kw">fn </span>fold_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, c: <span class="kw-2">&amp;</span>Const) -&gt; Const {
+        c.super_fold_with(<span class="self">self</span>)
     }
 
     <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
@@ -2113,7 +2156,9 @@
             }
             TyKind::Blocked(ty) =&gt; ty.visit_with(visitor),
             TyKind::Alias(<span class="kw">_</span>, alias_ty) =&gt; alias_ty.visit_with(visitor),
-            TyKind::Param(<span class="kw">_</span>) | TyKind::Discr(..) | TyKind::Uninit =&gt; ControlFlow::Continue(()),
+            TyKind::Hole(<span class="kw">_</span>) | TyKind::Param(<span class="kw">_</span>) | TyKind::Discr(..) | TyKind::Uninit =&gt; {
+                ControlFlow::Continue(())
+            }
         }
     }
 }
@@ -2170,7 +2215,7 @@
             }
             TyKind::Blocked(ty) =&gt; Ty::blocked(ty.try_fold_with(folder)<span class="question-mark">?</span>),
             TyKind::Alias(kind, alias_ty) =&gt; Ty::alias(<span class="kw-2">*</span>kind, alias_ty.try_fold_with(folder)<span class="question-mark">?</span>),
-            TyKind::Param(<span class="kw">_</span>) | TyKind::Uninit | TyKind::Discr(..) =&gt; <span class="self">self</span>.clone(),
+            TyKind::Hole(<span class="kw">_</span>) | TyKind::Param(<span class="kw">_</span>) | TyKind::Uninit | TyKind::Discr(..) =&gt; <span class="self">self</span>.clone(),
         };
         <span class="prelude-val">Ok</span>(ty)
     }
@@ -2181,6 +2226,7 @@
         ControlFlow::Continue(())
     }
 }
+
 <span class="kw">impl </span>TypeSuperFoldable <span class="kw">for </span>Const {
     <span class="kw">fn </span>try_super_fold_with&lt;F: FallibleTypeFolder&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
@@ -2600,6 +2646,40 @@
     <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
         <span class="kw">let </span>pred = <span class="self">self</span>.pred.try_fold_with(folder)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(Invariant { pred })
+    }
+}
+
+<span class="kw">pub struct </span>BottomUpFolder&lt;F, G, H&gt;
+<span class="kw">where
+    </span>F: FnMut(Ty) -&gt; Ty,
+    G: FnMut(Region) -&gt; Region,
+    H: FnMut(Const) -&gt; Const,
+{
+    <span class="kw">pub </span>ty_op: F,
+    <span class="kw">pub </span>lt_op: G,
+    <span class="kw">pub </span>ct_op: H,
+}
+
+<span class="kw">impl</span>&lt;F, G, H&gt; TypeFolder <span class="kw">for </span>BottomUpFolder&lt;F, G, H&gt;
+<span class="kw">where
+    </span>F: FnMut(Ty) -&gt; Ty,
+    G: FnMut(Region) -&gt; Region,
+    H: FnMut(Const) -&gt; Const,
+{
+    <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
+        <span class="kw">let </span>t = ty.super_fold_with(<span class="self">self</span>);
+        (<span class="self">self</span>.ty_op)(t)
+    }
+
+    <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>Region) -&gt; Region {
+        <span class="comment">// This one is a little different, because `super_fold_with` is not
+        // implemented on non-recursive `Region`.
+        </span>(<span class="self">self</span>.lt_op)(<span class="kw-2">*</span>r)
+    }
+
+    <span class="kw">fn </span>fold_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ct: <span class="kw-2">&amp;</span>Const) -&gt; Const {
+        <span class="kw">let </span>ct = ct.super_fold_with(<span class="self">self</span>);
+        (<span class="self">self</span>.ct_op)(ct)
     }
 }
 </code></pre></div></section></main></body></html>

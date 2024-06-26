@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"trait":["FallibleTypeFolder","TypeFoldable","TypeFolder","TypeSuperFoldable","TypeSuperVisitable","TypeVisitable","TypeVisitor"]};
+window.SIDEBAR_ITEMS = {"struct":["BottomUpFolder"],"trait":["FallibleTypeFolder","TypeFoldable","TypeFolder","TypeSuperFoldable","TypeSuperVisitable","TypeVisitable","TypeVisitor"]};

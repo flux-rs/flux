@@ -2083,36 +2083,6 @@
 <a href="#2083" id="2083">2083</a>
 <a href="#2084" id="2084">2084</a>
 <a href="#2085" id="2085">2085</a>
-<a href="#2086" id="2086">2086</a>
-<a href="#2087" id="2087">2087</a>
-<a href="#2088" id="2088">2088</a>
-<a href="#2089" id="2089">2089</a>
-<a href="#2090" id="2090">2090</a>
-<a href="#2091" id="2091">2091</a>
-<a href="#2092" id="2092">2092</a>
-<a href="#2093" id="2093">2093</a>
-<a href="#2094" id="2094">2094</a>
-<a href="#2095" id="2095">2095</a>
-<a href="#2096" id="2096">2096</a>
-<a href="#2097" id="2097">2097</a>
-<a href="#2098" id="2098">2098</a>
-<a href="#2099" id="2099">2099</a>
-<a href="#2100" id="2100">2100</a>
-<a href="#2101" id="2101">2101</a>
-<a href="#2102" id="2102">2102</a>
-<a href="#2103" id="2103">2103</a>
-<a href="#2104" id="2104">2104</a>
-<a href="#2105" id="2105">2105</a>
-<a href="#2106" id="2106">2106</a>
-<a href="#2107" id="2107">2107</a>
-<a href="#2108" id="2108">2108</a>
-<a href="#2109" id="2109">2109</a>
-<a href="#2110" id="2110">2110</a>
-<a href="#2111" id="2111">2111</a>
-<a href="#2112" id="2112">2112</a>
-<a href="#2113" id="2113">2113</a>
-<a href="#2114" id="2114">2114</a>
-<a href="#2115" id="2115">2115</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2143,10 +2113,7 @@
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_index::{newtype_index, IndexSlice};
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-<span class="kw">use </span>rustc_middle::{
-    middle::resolve_bound_vars::ResolvedArg,
-    ty::{ParamConst, TyCtxt},
-};
+<span class="kw">use </span>rustc_middle::ty::{ParamConst, TyCtxt};
 <span class="kw">pub use </span>rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, OutlivesPredicate, ParamTy, ScalarInt, UintTy},
@@ -2163,21 +2130,19 @@
 <span class="kw">pub use crate</span>::{
     fhir::InferMode,
     rustc::ty::{
-        BoundRegion, BoundRegionKind, BoundVar, Const, EarlyParamRegion, FreeRegion,
+        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, EarlyParamRegion,
+        FreeRegion,
         Region::{<span class="self">self</span>, <span class="kw-2">*</span>},
+        RegionVid,
     },
 };
 <span class="kw">use crate</span>::{
-    fhir::{<span class="self">self</span>, ArrayLenKind, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
+    fhir::{<span class="self">self</span>, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
     rty::subst::SortSubst,
-    rustc::{
-        <span class="self">self</span>,
-        mir::Place,
-        ty::{ConstKind, VariantDef},
-    },
+    rustc::{<span class="self">self</span>, mir::Place, ty::VariantDef},
 };
 
 <span class="attr">#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -2818,6 +2783,10 @@
         BaseTy::Never.into_ty()
     }
 
+    <span class="kw">pub fn </span>hole(fhir_id: FhirId) -&gt; Ty {
+        TyKind::Hole(fhir_id).intern()
+    }
+
     <span class="kw">pub fn </span>unconstr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (Ty, Expr) {
         <span class="kw">fn </span>go(this: <span class="kw-2">&amp;</span>Ty, preds: <span class="kw-2">&amp;mut </span>Vec&lt;Expr&gt;) -&gt; Ty {
             <span class="kw">if let </span>TyKind::Constr(pred, ty) = this.kind() {
@@ -2859,7 +2828,8 @@
             | TyKind::Ptr(<span class="kw">_</span>, <span class="kw">_</span>)
             | TyKind::Discr(<span class="kw">_</span>, <span class="kw">_</span>)
             | TyKind::Downcast(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
-            | TyKind::Blocked(<span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
+            | TyKind::Blocked(<span class="kw">_</span>)
+            | TyKind::Hole(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(),
         }
     }
 
@@ -2939,6 +2909,11 @@
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List&lt;Ty&gt;),
     Blocked(Ty),
     Alias(AliasKind, AliasTy),
+    <span class="doccomment">/// A hole is a type that needs to be inferred by matching the signature against a rust signature.
+    /// Holes appear as an intermediate step during `conv` and should not be present in the final
+    /// signature. We use the [`FhirId`] of the `fhir` type to assign a unique id to the hole, but
+    /// we could alternatively have a dedicated variable id for this.
+    </span>Hole(FhirId),
 }
 
 <span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -2973,22 +2948,6 @@
     <span class="doccomment">/// Holds the refinement-arguments for opaque-types; empty for projections
     </span><span class="kw">pub </span>refine_args: RefineArgs,
     <span class="kw">pub </span>def_id: DefId,
-}
-
-<span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
-</span><span class="kw">pub enum </span>AliasKind {
-    Projection,
-    Opaque,
-}
-
-<span class="kw">impl </span>AliasKind {
-    <span class="kw">fn </span>to_rustc(<span class="self">self</span>) -&gt; rustc_middle::ty::AliasKind {
-        <span class="kw">use </span>rustc_middle::ty;
-        <span class="kw">match </span><span class="self">self </span>{
-            AliasKind::Opaque =&gt; ty::AliasKind::Opaque,
-            AliasKind::Projection =&gt; ty::AliasKind::Projection,
-        }
-    }
 }
 
 <span class="kw">pub type </span>RefineArgs = List&lt;Expr&gt;;
@@ -3108,13 +3067,14 @@
     Const(Const),
 }
 
-<span class="kw">pub fn </span>array_len_const(genv: <span class="kw-2">&amp;</span>GlobalEnv, len: ArrayLenKind) -&gt; Const {
+<span class="kw">pub fn </span>array_len_const(genv: <span class="kw-2">&amp;</span>GlobalEnv, len: fhir::ArrayLenKind) -&gt; Const {
     <span class="kw">let </span>kind = <span class="kw">match </span>len {
-        ArrayLenKind::Lit(len) =&gt; {
+        fhir::ArrayLenKind::Lit(len) =&gt; {
             ConstKind::Value(ScalarInt::try_from_target_usize(len <span class="kw">as </span>u128, genv.tcx()).unwrap())
         }
-
-        ArrayLenKind::ParamConst(def_id) =&gt; ConstKind::Param(genv.def_id_to_param_const(def_id)),
+        fhir::ArrayLenKind::ParamConst(def_id) =&gt; {
+            ConstKind::Param(genv.def_id_to_param_const(def_id))
+        }
     };
     Const { kind, ty: <span class="kw">crate</span>::rustc::ty::Ty::mk_uint(UintTy::Usize) }
 }
@@ -4124,14 +4084,12 @@
 }
 <span class="kw">pub use </span><span class="kw">crate</span>::_Ref <span class="kw">as </span>Ref;
 
-<span class="kw">pub struct </span>WfckResults&lt;<span class="lifetime">'genv</span>&gt; {
+<span class="kw">pub struct </span>WfckResults {
     <span class="kw">pub </span>owner: FluxOwnerId,
     record_ctors: ItemLocalMap&lt;DefId&gt;,
     node_sorts: ItemLocalMap&lt;Sort&gt;,
     bin_rel_sorts: ItemLocalMap&lt;Sort&gt;,
     coercions: ItemLocalMap&lt;Vec&lt;Coercion&gt;&gt;,
-    type_holes: ItemLocalMap&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt;,
-    lifetime_holes: ItemLocalMap&lt;ResolvedArg&gt;,
 }
 
 <span class="attr">#[derive(Debug)]
@@ -4153,7 +4111,7 @@
     data: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>ItemLocalMap&lt;T&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>&gt; WfckResults&lt;<span class="lifetime">'genv</span>&gt; {
+<span class="kw">impl </span>WfckResults {
     <span class="kw">pub fn </span>new(owner: <span class="kw">impl </span>Into&lt;FluxOwnerId&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             owner: owner.into(),
@@ -4161,8 +4119,6 @@
             node_sorts: ItemLocalMap::default(),
             bin_rel_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
-            type_holes: ItemLocalMap::default(),
-            lifetime_holes: ItemLocalMap::default(),
         }
     }
 
@@ -4196,22 +4152,6 @@
 
     <span class="kw">pub fn </span>coercions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;Vec&lt;Coercion&gt;&gt; {
         LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.coercions }
-    }
-
-    <span class="kw">pub fn </span>type_holes_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.type_holes }
-    }
-
-    <span class="kw">pub fn </span>type_holes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;fhir::Ty&gt; {
-        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.type_holes }
-    }
-
-    <span class="kw">pub fn </span>lifetime_holes_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;ResolvedArg&gt; {
-        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.lifetime_holes }
-    }
-
-    <span class="kw">pub fn </span>lifetime_holes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;ResolvedArg&gt; {
-        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.lifetime_holes }
     }
 }
 

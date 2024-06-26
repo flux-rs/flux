@@ -477,14 +477,10 @@
 <a href="#477" id="477">477</a>
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
-</span><span class="kw">extern crate </span>rustc_data_structures;
+</span><span class="kw">extern crate </span>rustc_ast;
+<span class="kw">extern crate </span>rustc_data_structures;
 <span class="kw">extern crate </span>rustc_errors;
 <span class="kw">extern crate </span>rustc_hash;
 <span class="kw">extern crate </span>rustc_hir;
@@ -743,7 +739,7 @@
                 .map()
                 .get_generics(local_id)<span class="question-mark">?
                 </span>.unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"no generics for {:?}"</span>, def_id));
-            <span class="kw">let </span>extern_id = genv.map().extern_id_of(local_id)<span class="question-mark">?</span>;
+            <span class="kw">let </span>extern_id = genv.extern_id_of(local_id);
             conv::conv_generics(genv, <span class="kw-2">&amp;</span>rustc_generics, generics, extern_id, is_trait)<span class="question-mark">?
         </span>}
         DefKind::Closure =&gt; {
@@ -828,27 +824,24 @@
     <span class="kw">let </span>variants = <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
         fhir::ItemKind::Enum(enum_def) =&gt; {
             <span class="kw">let </span>wfckresults = genv.check_wf(def_id)<span class="question-mark">?</span>;
-            <span class="kw">let </span>variants = conv::ConvCtxt::conv_enum_def_variants(
-                genv,
-                def_id.to_def_id(),
-                enum_def,
-                <span class="kw-2">&amp;</span>wfckresults,
-            )<span class="question-mark">?
-            </span>.into_iter()
-            .map(|variant| normalize(genv, variant))
-            .try_collect()<span class="question-mark">?</span>;
+            <span class="kw">let </span>variants =
+                conv::ConvCtxt::conv_enum_def_variants(genv, def_id, enum_def, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
+                    </span>.into_iter()
+                    .map(|variant| normalize(genv, variant))
+                    .try_collect()<span class="question-mark">?</span>;
             rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
         }
         fhir::ItemKind::Struct(struct_def) =&gt; {
             <span class="kw">let </span>wfckresults = genv.check_wf(def_id)<span class="question-mark">?</span>;
-            conv::ConvCtxt::conv_struct_def_variant(
-                genv,
-                def_id.to_def_id(),
-                struct_def,
-                <span class="kw-2">&amp;</span>wfckresults,
-            )<span class="question-mark">?
-            </span>.normalize(genv.spec_func_defns()<span class="question-mark">?</span>)
-            .map(|variant| rty::EarlyBinder(List::singleton(variant)))
+            conv::ConvCtxt::conv_struct_def_variant(genv, def_id, struct_def, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
+                </span>.map(|variants| {
+                    variants
+                        .into_iter()
+                        .map(|variant| normalize(genv, variant))
+                        .try_collect()
+                })
+                .transpose()<span class="question-mark">?
+                </span>.map(rty::EarlyBinder)
         }
         <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected struct or enum"</span>),
     };
@@ -874,18 +867,15 @@
     <span class="prelude-val">Ok</span>(fn_sig)
 }
 
-<span class="kw">fn </span>check_wf&lt;<span class="lifetime">'genv</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-    flux_id: FluxLocalDefId,
-) -&gt; QueryResult&lt;Rc&lt;WfckResults&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt; {
+<span class="kw">fn </span>check_wf(genv: GlobalEnv, flux_id: FluxLocalDefId) -&gt; QueryResult&lt;Rc&lt;WfckResults&gt;&gt; {
     <span class="kw">let </span>wfckresults = <span class="kw">match </span>flux_id {
         FluxLocalDefId::Flux(sym) =&gt; {
             wf::check_flux_item(genv, genv.map().get_flux_item(sym).unwrap())<span class="question-mark">?
         </span>}
         FluxLocalDefId::Rust(def_id) =&gt; {
             <span class="kw">let </span>node = genv.desugar(def_id)<span class="question-mark">?</span>;
-            <span class="kw">let </span><span class="kw-2">mut </span>wfckresults = wf::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
-            annot_check::check_node(genv, <span class="kw-2">&amp;mut </span>wfckresults, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
+            <span class="kw">let </span>wfckresults = wf::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
+            annot_check::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
             wfckresults
         }
     };

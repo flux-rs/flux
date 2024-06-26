@@ -1044,7 +1044,7 @@
         UnsupportedReason { descr: reason.to_string() }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_err(<span class="self">self</span>) -&gt; UnsupportedErr {
+    <span class="kw">pub fn </span>into_err(<span class="self">self</span>) -&gt; UnsupportedErr {
         UnsupportedErr { descr: <span class="self">self</span>.descr, span: <span class="prelude-val">None </span>}
     }
 }
@@ -1613,7 +1613,7 @@
     <span class="prelude-val">Ok</span>(Place { local: place.local, projection })
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_fn_sig&lt;<span class="lifetime">'tcx</span>&gt;(
+<span class="kw">pub fn </span>lower_fn_sig&lt;<span class="lifetime">'tcx</span>&gt;(
     tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     fn_sig: rustc_ty::PolyFnSig&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;PolyFnSig, UnsupportedReason&gt; {

@@ -692,6 +692,7 @@
 <a href="#692" id="692">692</a>
 <a href="#693" id="693">693</a>
 <a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -1019,7 +1020,8 @@
             | TyKind::Uninit
             | TyKind::Param(<span class="kw">_</span>)
             | TyKind::Constr(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; ty.clone(),
-            TyKind::StrgRef(..) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected strong reference inside function"</span>),
+            TyKind::Hole(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected hole whecn checking function body"</span>),
+            TyKind::StrgRef(..) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected strong reference when checking function body"</span>),
         }
     }
 

@@ -1099,8 +1099,6 @@
 <a href="#1099" id="1099">1099</a>
 <a href="#1100" id="1100">1100</a>
 <a href="#1101" id="1101">1101</a>
-<a href="#1102" id="1102">1102</a>
-<a href="#1103" id="1103">1103</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 
 <span class="kw">use </span>flux_common::{iter::IterExt, result::ResultExt};
@@ -1260,7 +1258,7 @@
         <span class="kw">if </span>attrs.extern_spec() {
             <span class="kw">let </span>extern_id =
                 <span class="self">self</span>.extract_extern_def_id_from_extern_spec_trait(owner_id.def_id, bounds)<span class="question-mark">?</span>;
-            <span class="self">self</span>.specs.extern_specs.insert(extern_id, owner_id.def_id);
+            <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_id);
         };
 
         <span class="prelude-val">Ok</span>(())
@@ -1284,7 +1282,7 @@
             &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(extern_id) =
                 <span class="self">self</span>.extract_extern_def_id_from_extern_spec_impl(owner_id.def_id, impl_.items)
         {
-            <span class="self">self</span>.specs.extern_specs.insert(extern_id, owner_id.def_id);
+            <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_id);
             <span class="prelude-val">Some</span>(extern_id)
         } <span class="kw">else </span>{
             <span class="prelude-val">None
@@ -1333,7 +1331,7 @@
             </span>opaque = <span class="bool-val">true</span>;
             <span class="kw">let </span>extern_id =
                 <span class="self">self</span>.extract_extern_def_id_from_extern_spec_struct(owner_id.def_id, data)<span class="question-mark">?</span>;
-            <span class="self">self</span>.specs.extern_specs.insert(extern_id, owner_id.def_id);
+            <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_id);
             <span class="prelude-val">Some</span>(extern_id)
         } <span class="kw">else </span>{
             <span class="prelude-val">None
@@ -1407,7 +1405,7 @@
         <span class="kw">let </span>extern_id = <span class="kw">if </span>attrs.extern_spec() {
             <span class="kw">let </span>extern_id =
                 <span class="self">self</span>.extract_extern_def_id_from_extern_spec_enum(owner_id.def_id, enum_def)<span class="question-mark">?</span>;
-            <span class="self">self</span>.specs.extern_specs.insert(extern_id, owner_id.def_id);
+            <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_id);
             <span class="prelude-val">Some</span>(extern_id)
         } <span class="kw">else </span>{
             <span class="prelude-val">None
@@ -1464,9 +1462,7 @@
                 }));
             }
             <span class="kw">let </span>extern_def_id = <span class="self">self</span>.extract_extern_def_id_from_extern_spec_fn(owner_id.def_id)<span class="question-mark">?</span>;
-            <span class="self">self</span>.specs
-                .extern_specs
-                .insert(extern_def_id, owner_id.def_id);
+            <span class="self">self</span>.specs.insert_extern_id(owner_id.def_id, extern_def_id);
             <span class="comment">// We should never check an extern spec (it will infinitely recurse)
             </span><span class="prelude-val">Some</span>(extern_def_id)
         } <span class="kw">else </span>{
