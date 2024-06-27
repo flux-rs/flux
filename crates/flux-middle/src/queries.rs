@@ -69,10 +69,7 @@ pub struct Providers {
     pub spec_func_defns: fn(GlobalEnv) -> QueryResult<rty::SpecFuncDefns>,
     pub spec_func_decls: fn(GlobalEnv) -> QueryResult<FxHashMap<Symbol, rty::SpecFuncDecl>>,
     pub adt_sort_def_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtSortDef>,
-    pub check_wf: for<'genv> fn(
-        GlobalEnv<'genv, '_>,
-        FluxLocalDefId,
-    ) -> QueryResult<Rc<rty::WfckResults<'genv>>>,
+    pub check_wf: for<'genv> fn(GlobalEnv, FluxLocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
     pub type_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyCtor>>,
     pub variants_of: fn(
@@ -140,7 +137,7 @@ pub struct Queries<'genv, 'tcx> {
     func_decls: OnceCell<QueryResult<FxHashMap<Symbol, rty::SpecFuncDecl>>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
-    check_wf: Cache<FluxLocalDefId, QueryResult<Rc<rty::WfckResults<'genv>>>>,
+    check_wf: Cache<FluxLocalDefId, QueryResult<Rc<rty::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
     generics_of: Cache<DefId, QueryResult<rty::Generics>>,
     refinement_generics_of: Cache<DefId, QueryResult<rty::RefinementGenerics>>,
@@ -351,7 +348,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv<'genv, '_>,
         flux_id: FluxLocalDefId,
-    ) -> QueryResult<Rc<rty::WfckResults<'genv>>> {
+    ) -> QueryResult<Rc<rty::WfckResults>> {
         run_with_cache(&self.check_wf, flux_id, || (self.providers.check_wf)(genv, flux_id))
     }
 

@@ -28,10 +28,7 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::{
-    middle::resolve_bound_vars::ResolvedArg,
-    ty::{ParamConst, TyCtxt},
-};
+use rustc_middle::ty::{ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, OutlivesPredicate, ParamTy, ScalarInt, UintTy},
@@ -48,21 +45,19 @@ use self::{
 pub use crate::{
     fhir::InferMode,
     rustc::ty::{
-        BoundRegion, BoundRegionKind, BoundVar, Const, EarlyParamRegion, FreeRegion,
+        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, EarlyParamRegion,
+        FreeRegion,
         Region::{self, *},
+        RegionVid,
     },
 };
 use crate::{
-    fhir::{self, ArrayLenKind, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
+    fhir::{self, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
     rty::subst::SortSubst,
-    rustc::{
-        self,
-        mir::Place,
-        ty::{ConstKind, VariantDef},
-    },
+    rustc::{self, mir::Place, ty::VariantDef},
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -703,6 +698,10 @@ impl Ty {
         BaseTy::Never.into_ty()
     }
 
+    pub fn hole(fhir_id: FhirId) -> Ty {
+        TyKind::Hole(fhir_id).intern()
+    }
+
     pub fn unconstr(&self) -> (Ty, Expr) {
         fn go(this: &Ty, preds: &mut Vec<Expr>) -> Ty {
             if let TyKind::Constr(pred, ty) = this.kind() {
@@ -744,7 +743,8 @@ impl Ty {
             | TyKind::Ptr(_, _)
             | TyKind::Discr(_, _)
             | TyKind::Downcast(_, _, _, _, _)
-            | TyKind::Blocked(_) => todo!(),
+            | TyKind::Blocked(_)
+            | TyKind::Hole(_) => bug!(),
         }
     }
 
@@ -824,6 +824,11 @@ pub enum TyKind {
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
     Blocked(Ty),
     Alias(AliasKind, AliasTy),
+    /// A hole is a type that needs to be inferred by matching the signature against a rust signature.
+    /// Holes appear as an intermediate step during `conv` and should not be present in the final
+    /// signature. We use the [`FhirId`] of the `fhir` type to assign a unique id to the hole, but
+    /// we could alternatively have a dedicated variable id for this.
+    Hole(FhirId),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -858,22 +863,6 @@ pub struct AliasTy {
     /// Holds the refinement-arguments for opaque-types; empty for projections
     pub refine_args: RefineArgs,
     pub def_id: DefId,
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
-pub enum AliasKind {
-    Projection,
-    Opaque,
-}
-
-impl AliasKind {
-    fn to_rustc(self) -> rustc_middle::ty::AliasKind {
-        use rustc_middle::ty;
-        match self {
-            AliasKind::Opaque => ty::AliasKind::Opaque,
-            AliasKind::Projection => ty::AliasKind::Projection,
-        }
-    }
 }
 
 pub type RefineArgs = List<Expr>;
@@ -993,13 +982,14 @@ pub enum GenericArg {
     Const(Const),
 }
 
-pub fn array_len_const(genv: &GlobalEnv, len: ArrayLenKind) -> Const {
+pub fn array_len_const(genv: &GlobalEnv, len: fhir::ArrayLenKind) -> Const {
     let kind = match len {
-        ArrayLenKind::Lit(len) => {
+        fhir::ArrayLenKind::Lit(len) => {
             ConstKind::Value(ScalarInt::try_from_target_usize(len as u128, genv.tcx()).unwrap())
         }
-
-        ArrayLenKind::ParamConst(def_id) => ConstKind::Param(genv.def_id_to_param_const(def_id)),
+        fhir::ArrayLenKind::ParamConst(def_id) => {
+            ConstKind::Param(genv.def_id_to_param_const(def_id))
+        }
     };
     Const { kind, ty: crate::rustc::ty::Ty::mk_uint(UintTy::Usize) }
 }
@@ -2009,14 +1999,12 @@ macro_rules! _Ref {
 }
 pub use crate::_Ref as Ref;
 
-pub struct WfckResults<'genv> {
+pub struct WfckResults {
     pub owner: FluxOwnerId,
     record_ctors: ItemLocalMap<DefId>,
     node_sorts: ItemLocalMap<Sort>,
     bin_rel_sorts: ItemLocalMap<Sort>,
     coercions: ItemLocalMap<Vec<Coercion>>,
-    type_holes: ItemLocalMap<fhir::Ty<'genv>>,
-    lifetime_holes: ItemLocalMap<ResolvedArg>,
 }
 
 #[derive(Debug)]
@@ -2038,7 +2026,7 @@ pub struct LocalTableInContextMut<'a, T> {
     data: &'a mut ItemLocalMap<T>,
 }
 
-impl<'genv> WfckResults<'genv> {
+impl WfckResults {
     pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
         Self {
             owner: owner.into(),
@@ -2046,8 +2034,6 @@ impl<'genv> WfckResults<'genv> {
             node_sorts: ItemLocalMap::default(),
             bin_rel_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
-            type_holes: ItemLocalMap::default(),
-            lifetime_holes: ItemLocalMap::default(),
         }
     }
 
@@ -2081,22 +2067,6 @@ impl<'genv> WfckResults<'genv> {
 
     pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
         LocalTableInContext { owner: self.owner, data: &self.coercions }
-    }
-
-    pub fn type_holes_mut(&mut self) -> LocalTableInContextMut<fhir::Ty<'genv>> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.type_holes }
-    }
-
-    pub fn type_holes(&self) -> LocalTableInContext<fhir::Ty> {
-        LocalTableInContext { owner: self.owner, data: &self.type_holes }
-    }
-
-    pub fn lifetime_holes_mut(&mut self) -> LocalTableInContextMut<ResolvedArg> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.lifetime_holes }
-    }
-
-    pub fn lifetime_holes(&self) -> LocalTableInContext<ResolvedArg> {
-        LocalTableInContext { owner: self.owner, data: &self.lifetime_holes }
     }
 }
 

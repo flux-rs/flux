@@ -193,6 +193,16 @@ pub enum AliasKind {
     Opaque,
 }
 
+impl AliasKind {
+    pub fn to_rustc(self) -> rustc_middle::ty::AliasKind {
+        use rustc_middle::ty;
+        match self {
+            AliasKind::Opaque => ty::AliasKind::Opaque,
+            AliasKind::Projection => ty::AliasKind::Projection,
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct Const {
     pub kind: ConstKind,

@@ -54,7 +54,7 @@ impl UnsupportedReason {
         UnsupportedReason { descr: reason.to_string() }
     }
 
-    pub(crate) fn into_err(self) -> UnsupportedErr {
+    pub fn into_err(self) -> UnsupportedErr {
         UnsupportedErr { descr: self.descr, span: None }
     }
 }
@@ -483,6 +483,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::CastKind::PointerCoercion(ptr_coercion) => {
                 Some(CastKind::Pointer(self.lower_pointer_coercion(ptr_coercion)?))
             }
+            rustc_mir::CastKind::PointerExposeProvenance => Some(CastKind::PointerExposeProvenance),
             _ => None,
         }
     }
@@ -622,7 +623,7 @@ pub fn lower_place(place: &rustc_mir::Place) -> Result<Place, UnsupportedReason>
     Ok(Place { local: place.local, projection })
 }
 
-pub(crate) fn lower_fn_sig<'tcx>(
+pub fn lower_fn_sig<'tcx>(
     tcx: TyCtxt<'tcx>,
     fn_sig: rustc_ty::PolyFnSig<'tcx>,
 ) -> Result<PolyFnSig, UnsupportedReason> {
