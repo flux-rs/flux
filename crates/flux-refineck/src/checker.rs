@@ -833,6 +833,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let from = self.check_operand(rcx, env, stmt_span, op)?;
                 self.check_cast(*kind, &from, to)
             }
+            Rvalue::Repeat(operand, c) => {
+                let ty = self.check_operand(rcx, env, stmt_span, operand)?;
+                Ok(Ty::array(ty, c.clone()))
+            }
         }
     }
 
@@ -907,32 +911,42 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     | mir::BinOp::Div
                     | mir::BinOp::BitAnd
                     | mir::BinOp::BitOr
+                    | mir::BinOp::BitXor
                     | mir::BinOp::Shl
                     | mir::BinOp::Shr
                     | mir::BinOp::Rem => Ok(Ty::float(*float_ty1)),
                 }
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
-                let sig = if let Some(sig) =
-                    sigs::get_bin_op_sig(bin_op, bty1, bty2, self.check_overflow())
-                {
-                    sig
-                } else {
-                    tracked_span_bug!(
-                        "No sig for binop : `{bin_op:?}` with `{ty1:?}` and `{ty2:?}`"
-                    )
-                };
+                match sigs::get_bin_op_sig(bin_op, bty1, bty2, self.check_overflow()) {
+                    Some(sig) => {
+                        let (e1, e2) = (idx1.clone(), idx2.clone());
+                        if let sigs::Pre::Some(reason, constr) = &sig.pre {
+                            self.constr_gen(rcx, source_span).check_pred(
+                                rcx,
+                                &constr([e1.clone(), e2.clone()]),
+                                *reason,
+                            );
+                        }
 
-                let (e1, e2) = (idx1.clone(), idx2.clone());
-                if let sigs::Pre::Some(reason, constr) = &sig.pre {
-                    self.constr_gen(rcx, source_span).check_pred(
-                        rcx,
-                        &constr([e1.clone(), e2.clone()]),
-                        *reason,
-                    );
+                        Ok(sig.out.to_ty([e1, e2]))
+                    }
+                    None => {
+                        match bin_op {
+                            mir::BinOp::Eq
+                            | mir::BinOp::Ne
+                            | mir::BinOp::Gt
+                            | mir::BinOp::Ge
+                            | mir::BinOp::Lt
+                            | mir::BinOp::Le => Ok(Ty::bool()),
+                            _ => {
+                                tracked_span_bug!(
+                                    "No sig for binop : `{bin_op:?}` with `{ty1:?}` and `{ty2:?}`"
+                                )
+                            }
+                        }
+                    }
                 }
-
-                Ok(sig.out.to_ty([e1, e2]))
             }
             _ => tracked_span_bug!("incompatible types: `{ty1:?}` `{ty2:?}`"),
         }

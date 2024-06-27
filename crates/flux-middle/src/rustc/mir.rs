@@ -28,7 +28,7 @@ pub use rustc_middle::{
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 
-use super::ty::{GenericArg, GenericArgs, Region, Ty, TyKind};
+use super::ty::{Const, GenericArg, GenericArgs, Region, Ty, TyKind};
 use crate::{
     global_env::GlobalEnv, intern::List, pretty::def_id_to_string, queries::QueryResult,
     rustc::ty::region_to_string,
@@ -192,6 +192,7 @@ pub enum Rvalue {
     Discriminant(Place),
     Len(Place),
     Cast(CastKind, Operand, Ty),
+    Repeat(Operand, Const),
 }
 
 pub enum BorrowKind {
@@ -239,6 +240,7 @@ pub enum BinOp {
     Rem,
     BitAnd,
     BitOr,
+    BitXor,
     Shl,
     Shr,
 }
@@ -686,6 +688,7 @@ impl fmt::Debug for Rvalue {
             }
             Rvalue::Len(place) => write!(f, "Len({place:?})"),
             Rvalue::Cast(kind, op, ty) => write!(f, "{op:?} as {ty:?} [{kind:?}]"),
+            Rvalue::Repeat(op, c) => write!(f, "[{op:?}; {c:?}]"),
         }
     }
 }

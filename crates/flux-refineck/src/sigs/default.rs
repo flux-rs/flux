@@ -64,6 +64,7 @@ fn mk_unsigned_bin_ops() -> impl Iterator<Item = (mir::BinOp, Sig<2>)> {
                 // BIT
                 (BitAnd, s!(fn(a: Uint, b: Uint) -> Uint{v: E::tt()})),
                 (BitOr,  s!(fn(a: Uint, b: Uint) -> Uint{v: E::tt()})),
+                (BitXor, s!(fn(a: Uint, b: Uint) -> Uint{v: E::tt()})),
                 // CMP
                 (Eq, s!(fn(a: Uint, b: Uint) -> bool[E::eq(a, b)])),
                 (Ne, s!(fn(a: Uint, b: Uint) -> bool[E::ne(a, b)])),
