@@ -106,3 +106,18 @@ pub fn logical_not_f(a: bool) -> bool {
 pub fn uint_shr(left: u32, right: usize) {
     let blah = left >> right;
 }
+
+// equality comparison
+pub fn test1(left: *const u8, right: *const u8) -> bool {
+    left == right
+}
+
+// bit-xor
+pub fn test2(res: u8, i: usize) -> u8 {
+    res ^ (1 << i)
+}
+
+// repeat
+pub fn test3<const N: usize>(x: i32) {
+    let _bob = [x; N];
+}
