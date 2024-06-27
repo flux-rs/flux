@@ -75,7 +75,6 @@ pub fn bitwise_not_i32(a: i32) -> i32 {
     !a
 }
 
-
 // Logical BinOps
 #[flux::sig(fn(a: bool, b: bool) -> bool{v: v == a || v == b})]
 pub fn logical_or(a: bool, b: bool) -> bool {
@@ -103,3 +102,7 @@ pub fn logical_not_f(a: bool) -> bool {
     !a
 }
 
+// unsigned shift right
+pub fn uint_shr(left: u32, right: usize) {
+    let blah = left >> right;
+}
