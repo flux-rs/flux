@@ -913,7 +913,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
-                let sig = sigs::get_bin_op_sig(bin_op, bty1, bty2, self.check_overflow());
+                let sig = if let Some(sig) =
+                    sigs::get_bin_op_sig(bin_op, bty1, bty2, self.check_overflow())
+                {
+                    sig
+                } else {
+                    tracked_span_bug!(
+                        "No sig for binop : `{bin_op:?}` with `{ty1:?}` and `{ty2:?}`"
+                    )
+                };
+
                 let (e1, e2) = (idx1.clone(), idx2.clone());
                 if let sigs::Pre::Some(reason, constr) = &sig.pre {
                     self.constr_gen(rcx, source_span).check_pred(
@@ -941,7 +950,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         match ty.kind() {
             Float!(float_ty) => Ok(Ty::float(*float_ty)),
             TyKind::Indexed(bty, idx) => {
-                let sig = sigs::get_un_op_sig(un_op, bty, self.check_overflow());
+                let sig = if let Some(sig) = sigs::get_un_op_sig(un_op, bty, self.check_overflow())
+                {
+                    sig
+                } else {
+                    tracked_span_bug!("No sig for unop : `{un_op:?}` with `{ty:?}`")
+                };
                 let e = idx.clone();
                 if let sigs::Pre::Some(reason, constr) = &sig.pre {
                     self.constr_gen(rcx, source_span).check_pred(

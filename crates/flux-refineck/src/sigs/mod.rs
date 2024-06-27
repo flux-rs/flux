@@ -36,12 +36,16 @@ pub(crate) fn get_bin_op_sig(
     bty1: &BaseTy,
     bty2: &BaseTy,
     check_overflow: bool,
-) -> &'static Sig<2> {
+) -> Option<&'static Sig<2>> {
     let table = if check_overflow { &overflow::BIN_OPS } else { &default::BIN_OPS };
     table.get(op, [bty1.clone(), bty2.clone()])
 }
 
-pub(crate) fn get_un_op_sig(op: mir::UnOp, bty: &BaseTy, check_overflow: bool) -> &'static Sig<1> {
+pub(crate) fn get_un_op_sig(
+    op: mir::UnOp,
+    bty: &BaseTy,
+    check_overflow: bool,
+) -> Option<&'static Sig<1>> {
     let table = if check_overflow { &overflow::UN_OPS } else { &default::UN_OPS };
     table.get(op, [bty.clone()])
 }
@@ -121,7 +125,12 @@ where
         );
     }
 
-    fn get(&self, op: T, btys: [BaseTy; N]) -> &Sig<N> {
-        &self.map[&(op, btys)]
+    fn get(&self, op: T, btys: [BaseTy; N]) -> Option<&Sig<N>> {
+        let _msg = format!("no sig found for {op:?} at {btys:?}", op = op, btys = btys);
+        match &self.map.get(&(op, btys)) {
+            Some(sig) => Some(sig),
+            None => None, // panic!("{}", msg),
+        }
+        // &self.map[&(op, btys)]
     }
 }

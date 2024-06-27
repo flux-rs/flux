@@ -19,7 +19,8 @@ pub(super) static BIN_OPS: LazyLock<SigTable<mir::BinOp, 2>> = LazyLock::new(|| 
 
     table.extend(mk_signed_bin_ops());
     table.extend(mk_unsigned_bin_ops());
-    table.extend(mk_shift_ops());
+    table.extend(mk_signed_shift_ops());
+    table.extend(mk_unsigned_shift_ops());
     table.extend(mk_bool_bin_ops());
 
     table
@@ -130,13 +131,36 @@ pub(crate) fn mk_bool_bin_ops() -> impl IntoIterator<Item = (mir::BinOp, Sig<2>)
 }
 
 #[rustfmt::skip]
-pub(crate) fn mk_shift_ops() -> impl IntoIterator<Item = (mir::BinOp, Sig<2>)> {
+pub(crate) fn mk_signed_shift_ops() -> impl IntoIterator<Item = (mir::BinOp, Sig<2>)> {
     use mir::BinOp::*;
     iproduct!(INT_TYS, UINT_TYS)
         .flat_map(|(int_ty, uint_ty)|{
             define_btys! {
                 let Int = BaseTy::Int(int_ty);
                 let Uint = BaseTy::Uint(uint_ty);
+            }
+            [
+                (Shl, s!(fn(a: Int, b: Int) -> Int{ v: E::tt() })),
+                (Shl, s!(fn(a: Int, b: Uint) -> Int{ v: E::tt() })),
+                (Shr, s!(fn(a: Int, b: Int) -> Int{ v: E::tt() })),
+                (Shr, s!(fn(a: Int, b: Uint) -> Int{ v: E::tt() })),
+
+                (Shl, s!(fn(a: Uint, b: Int) -> Uint{ v: E::tt() })),
+                (Shl, s!(fn(a: Uint, b: Uint) -> Uint{ v: E::tt() })),
+                (Shr, s!(fn(a: Uint, b: Int) -> Uint{ v: E::tt() })),
+                (Shr, s!(fn(a: Uint, b: Uint) -> Uint{ v: E::tt() })),
+            ]
+        })
+}
+
+#[rustfmt::skip]
+pub(crate) fn mk_unsigned_shift_ops() -> impl IntoIterator<Item = (mir::BinOp, Sig<2>)> {
+    use mir::BinOp::*;
+    iproduct!(UINT_TYS, UINT_TYS)
+        .flat_map(|(uint_ty_l, uint_ty_r)|{
+            define_btys! {
+                let Int = BaseTy::Uint(uint_ty_l);
+                let Uint = BaseTy::Uint(uint_ty_r);
             }
             [
                 (Shl, s!(fn(a: Int, b: Int) -> Int{ v: E::tt() })),

@@ -18,7 +18,8 @@ pub(super) static BIN_OPS: LazyLock<SigTable<mir::BinOp, 2>> = LazyLock::new(|| 
 
     table.extend(mk_signed_bin_ops());
     table.extend(mk_unsigned_bin_ops());
-    table.extend(super::default::mk_shift_ops());
+    table.extend(super::default::mk_signed_shift_ops());
+    table.extend(super::default::mk_unsigned_shift_ops());
     table.extend(super::default::mk_bool_bin_ops());
 
     table
