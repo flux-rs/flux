@@ -290,6 +290,9 @@ impl Pretty for TyS {
                     join!(", ", &alias_ty.refine_args)
                 )
             }
+            TyKind::Hole(_) => {
+                w!("□")
+            }
         }
     }
 
