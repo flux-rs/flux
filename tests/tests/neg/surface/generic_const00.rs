@@ -124,3 +124,13 @@ fn test_array_good<const N: usize>(arr: &[i32; N]) -> i32 {
         99
     }
 }
+
+//-------------------------------------------------------------------------------
+// TODO: get this to work
+// fn test_loop<const N: usize>(arr: &[i32; N]) -> i32 {
+//     let mut x = 0;
+//     for i in 0..N {
+//         x += arr[i];
+//     }
+//     x
+// }

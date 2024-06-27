@@ -553,6 +553,10 @@ impl BasicBlockEnvShape {
                 // debug_assert_eq!(re1, _re2);
                 GenericArg::Lifetime(*re1)
             }
+            (GenericArg::Const(c1), GenericArg::Const(c2)) => {
+                debug_assert_eq!(c1, c2);
+                GenericArg::Const(c1.clone())
+            }
             _ => tracked_span_bug!("unexpected generic args: `{arg1:?}` - `{arg2:?}`"),
         }
     }
