@@ -20,13 +20,13 @@ macro_rules! unwrap_result {
     }};
 }
 
-pub fn signatures(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let sigs = parse_macro_input!(input as PrimOpSigs);
+pub fn primop_rules(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let rules = parse_macro_input!(input as Rules);
 
-    let argc = unwrap_result!(sigs.check_arg_count());
+    let argc = unwrap_result!(rules.check_arg_count());
 
-    let sigs = sigs.0.into_iter().enumerate().map(|(i, sig)| {
-        Renderer::new(i, sig)
+    let rules = rules.0.into_iter().enumerate().map(|(i, rule)| {
+        Renderer::new(i, rule)
             .render()
             .unwrap_or_else(|err| err.to_compile_error())
     });
@@ -34,7 +34,7 @@ pub fn signatures(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     quote! {
         #[allow(unused_variables, non_snake_case)]
         |#args| {
-            #(#sigs)*
+            #(#rules)*
             None
         }
     }
@@ -50,17 +50,17 @@ fn args(n: usize) -> TokenStream {
     quote!([#(#args),*])
 }
 
-struct PrimOpSigs(Vec<Sig>);
+struct Rules(Vec<Rule>);
 
-impl PrimOpSigs {
-    /// Check that the number of arguments is the same in all signatures
+impl Rules {
+    /// Check that the number of arguments is the same in all rules
     fn check_arg_count(&self) -> syn::Result<usize> {
-        let argc = self.0.get(0).map(|sig| sig.args.len()).unwrap_or(0);
-        for sig in &self.0 {
-            if sig.args.len() != argc {
+        let argc = self.0.get(0).map(|rule| rule.args.len()).unwrap_or(0);
+        for rule in &self.0 {
+            if rule.args.len() != argc {
                 return Err(syn::Error::new(
                     Span::call_site(),
-                    "all signatures must have the same number of arguments",
+                    "all rules must have the same number of arguments",
                 ));
             }
         }
@@ -68,27 +68,27 @@ impl PrimOpSigs {
     }
 }
 
-impl Parse for PrimOpSigs {
+impl Parse for Rules {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut v = vec![];
         while !input.is_empty() {
             v.push(input.parse()?);
         }
-        Ok(PrimOpSigs(v))
+        Ok(Rules(v))
     }
 }
 
 struct Renderer {
     lbl: Lifetime,
-    sig: Sig,
+    rule: Rule,
     /// The set of metavars and the index of the inputs they match
     metavars: HashMap<String, Vec<usize>>,
 }
 
 impl Renderer {
-    fn new(i: usize, sig: Sig) -> Self {
+    fn new(i: usize, rule: Rule) -> Self {
         let mut metavars: HashMap<String, Vec<usize>> = HashMap::new();
-        for (i, input) in sig.args.iter().enumerate() {
+        for (i, input) in rule.args.iter().enumerate() {
             let bty_str = input.bty.to_string();
             if !is_primitive_type(&bty_str) {
                 metavars.entry(bty_str).or_default().push(i);
@@ -97,7 +97,7 @@ impl Renderer {
 
         let lbl = syn::Lifetime::new(&format!("'lbl{}", i), Span::call_site());
 
-        Self { lbl, sig, metavars }
+        Self { lbl, rule, metavars }
     }
 
     fn render(&self) -> syn::Result<TokenStream> {
@@ -143,7 +143,7 @@ impl Renderer {
     }
 
     fn output_type(&self) -> syn::Result<TokenStream> {
-        let out = match &self.sig.output {
+        let out = match &self.rule.output {
             Output::Base(bty) => {
                 let bty = self.bty_arg_or_prim(bty)?;
                 quote!(#bty.to_ty())
@@ -181,7 +181,7 @@ impl Renderer {
     /// Generates the code that checks if an arg matching a primitive type has indeed that type
     fn check_primitive_types(&self) -> TokenStream {
         let lbl = &self.lbl;
-        self.sig
+        self.rule
             .args
             .iter()
             .enumerate()
@@ -206,7 +206,7 @@ impl Renderer {
     }
 
     fn precondition(&self) -> TokenStream {
-        if let Some(requires) = &self.sig.requires {
+        if let Some(requires) = &self.rule.requires {
             let reason = &requires.reason;
             let pred = &requires.pred;
             quote!(Some(Pre { reason: #reason, pred: #pred }))
@@ -230,7 +230,7 @@ impl Renderer {
     }
 
     fn declare_idxs_names(&self) -> TokenStream {
-        self.sig
+        self.rule
             .args
             .iter()
             .enumerate()
@@ -243,7 +243,7 @@ impl Renderer {
     }
 
     fn guards(&self) -> TokenStream {
-        self.sig
+        self.rule
             .guards
             .iter()
             .map(|guard| self.guard(guard))
@@ -260,14 +260,14 @@ impl Renderer {
     }
 }
 
-struct Sig {
+struct Rule {
     args: Punctuated<Arg, Token![,]>,
     output: Output,
     requires: Option<Requires>,
     guards: Vec<Guard>,
 }
 
-impl Parse for Sig {
+impl Parse for Rule {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let _: Token![fn] = input.parse()?;
         let content;
@@ -277,7 +277,7 @@ impl Parse for Sig {
         let output = input.parse()?;
         let requires = if input.peek(kw::requires) { Some(input.parse()?) } else { None };
         let guards = parse_guards(input)?;
-        Ok(Sig { args: inputs, output, requires, guards })
+        Ok(Rule { args: inputs, output, requires, guards })
     }
 }
 

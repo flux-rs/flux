@@ -51,6 +51,6 @@ pub fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
 }
 
 #[proc_macro]
-pub fn signatures(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    primops::signatures(input)
+pub fn primop_rules(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    primops::primop_rules(input)
 }

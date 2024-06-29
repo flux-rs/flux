@@ -1,6 +1,6 @@
 use std::{hash::Hash, sync::LazyLock};
 
-use flux_macros::signatures;
+use flux_macros::primop_rules;
 use flux_middle::{
     rty::{self, BaseTy, Expr},
     rustc::mir,
@@ -135,7 +135,7 @@ static OVERFLOW_UN_OPS: LazyLock<RuleTable<mir::UnOp, 1>> = LazyLock::new(|| {
 /// `a + b`
 fn mk_add_rules(check_overflow: bool) -> RuleMatcher<2> {
     if check_overflow {
-        signatures! {
+        primop_rules! {
             fn(a: T, b: T) -> T[a + b]
             requires E::and(
                          E::ge(a + b, E::int_min(int_ty)),
@@ -150,7 +150,7 @@ fn mk_add_rules(check_overflow: bool) -> RuleMatcher<2> {
             fn(a: T, b: T) -> T
         }
     } else {
-        signatures! {
+        primop_rules! {
             fn(a: T, b: T) -> T[a + b]
             if T.is_integral()
 
@@ -162,7 +162,7 @@ fn mk_add_rules(check_overflow: bool) -> RuleMatcher<2> {
 /// `a * b`
 fn mk_mul_rules(check_overflow: bool) -> RuleMatcher<2> {
     if check_overflow {
-        signatures! {
+        primop_rules! {
             fn(a: T, b: T) -> T[a * b]
             requires E::and(
                          E::ge(a * b, E::int_min(int_ty)),
@@ -177,7 +177,7 @@ fn mk_mul_rules(check_overflow: bool) -> RuleMatcher<2> {
             fn(a: T, b: T) -> T
         }
     } else {
-        signatures!(
+        primop_rules!(
             fn(a: T, b: T) -> T[a * b]
             if T.is_integral()
 
@@ -190,7 +190,7 @@ fn mk_mul_rules(check_overflow: bool) -> RuleMatcher<2> {
 /// `a - b`
 fn mk_sub_rules(check_overflow: bool) -> RuleMatcher<2> {
     if check_overflow {
-        signatures! {
+        primop_rules! {
             fn(a: T, b: T) -> T[a - b]
             requires E::and(
                          E::ge(a - b, E::int_min(int_ty)),
@@ -208,7 +208,7 @@ fn mk_sub_rules(check_overflow: bool) -> RuleMatcher<2> {
             fn(a: T, b: T) -> T
         }
     } else {
-        signatures! {
+        primop_rules! {
             fn(a: T, b: T) -> T[a - b]
             requires E::ge(a - b, 0) => ConstrReason::Overflow
             if T.is_unsigned()
@@ -224,7 +224,7 @@ fn mk_sub_rules(check_overflow: bool) -> RuleMatcher<2> {
 
 /// `a/b`
 fn mk_div_rules() -> RuleMatcher<2> {
-    signatures! {
+    primop_rules! {
         fn(a: T, b: T) -> T[a/b]
         requires E::ne(b, 0) => ConstrReason::Div
         if T.is_integral()
@@ -236,7 +236,7 @@ fn mk_div_rules() -> RuleMatcher<2> {
 
 /// `a % b`
 fn mk_rem_rules() -> RuleMatcher<2> {
-    signatures! {
+    primop_rules! {
         fn(a: T, b: T) -> T[E::binary_op(Mod, a, b, None)]
         requires E::ne(b, 0) => ConstrReason::Rem
         if T.is_unsigned()
@@ -251,7 +251,7 @@ fn mk_rem_rules() -> RuleMatcher<2> {
 
 /// `a & b`
 fn mk_bit_and_rules() -> RuleMatcher<2> {
-    signatures! {
+    primop_rules! {
         fn(a: T, b: T) -> T
         if T.is_integral()
 
@@ -261,7 +261,7 @@ fn mk_bit_and_rules() -> RuleMatcher<2> {
 
 /// `a | b`
 fn mk_bit_or_rules() -> RuleMatcher<2> {
-    signatures! {
+    primop_rules! {
         fn(a: T, b: T) -> T
         if T.is_integral()
 
@@ -271,7 +271,7 @@ fn mk_bit_or_rules() -> RuleMatcher<2> {
 
 /// `a ^ b`
 fn mk_bit_xor_rules() -> RuleMatcher<2> {
-    signatures! {
+    primop_rules! {
         fn(a: T, b: T) -> T
         if T.is_integral()
     }
@@ -279,7 +279,7 @@ fn mk_bit_xor_rules() -> RuleMatcher<2> {
 
 /// `a == b`
 fn mk_eq_rules() -> RuleMatcher<2> {
-    signatures! {
+    primop_rules! {
         fn(a: T, b: T) -> bool[E::eq(a, b)]
         if T.is_integral() || T.is_bool()
 
@@ -289,7 +289,7 @@ fn mk_eq_rules() -> RuleMatcher<2> {
 
 /// `a != b`
 fn mk_ne_rules() -> RuleMatcher<2> {
-    signatures! {
+    primop_rules! {
         fn(a: T, b: T) -> bool[E::ne(a, b)]
         if T.is_integral() || T.is_bool()
 
@@ -299,7 +299,7 @@ fn mk_ne_rules() -> RuleMatcher<2> {
 
 /// `a <= b`
 fn mk_le_rules() -> RuleMatcher<2> {
-    signatures! {
+    primop_rules! {
         fn(a: T, b: T) -> bool[E::le(a, b)]
         if T.is_integral()
 
@@ -311,7 +311,7 @@ fn mk_le_rules() -> RuleMatcher<2> {
 
 /// `a >= b`
 fn mk_ge_rules() -> RuleMatcher<2> {
-    signatures! {
+    primop_rules! {
         fn(a: T, b: T) -> bool[E::ge(a, b)]
         if T.is_integral()
 
@@ -323,7 +323,7 @@ fn mk_ge_rules() -> RuleMatcher<2> {
 
 /// `a < b`
 fn mk_lt_rules() -> RuleMatcher<2> {
-    signatures! {
+    primop_rules! {
         fn(a: T, b: T) -> bool[E::lt(a, b)]
         if T.is_integral()
 
@@ -335,7 +335,7 @@ fn mk_lt_rules() -> RuleMatcher<2> {
 
 /// `a > b`
 fn mk_gt_rules() -> RuleMatcher<2> {
-    signatures! {
+    primop_rules! {
         fn(a: T, b: T) -> bool[E::gt(a, b)]
         if T.is_integral()
 
@@ -347,7 +347,7 @@ fn mk_gt_rules() -> RuleMatcher<2> {
 
 /// `a << b`
 fn mk_shl_rules() -> RuleMatcher<2> {
-    signatures! {
+    primop_rules! {
         fn(a: T, b: S) -> T
         if T.is_integral() && S.is_integral()
     }
@@ -355,7 +355,7 @@ fn mk_shl_rules() -> RuleMatcher<2> {
 
 /// `a >> b`
 fn mk_shr_rules() -> RuleMatcher<2> {
-    signatures! {
+    primop_rules! {
         fn(a: T, b: S) -> T
         if T.is_integral() && S.is_integral()
     }
@@ -364,13 +364,13 @@ fn mk_shr_rules() -> RuleMatcher<2> {
 /// `-a`
 fn mk_neg_rules(check_overflow: bool) -> RuleMatcher<1> {
     if check_overflow {
-        signatures! {
+        primop_rules! {
             fn(a: T) -> T[a.neg()]
             requires E::ne(a, E::int_min(int_ty)) => ConstrReason::Overflow
             if let &BaseTy::Int(int_ty) = T
         }
     } else {
-        signatures! {
+        primop_rules! {
             fn(a: T) -> T[a.neg()]
             if T.is_integral()
 
@@ -382,7 +382,7 @@ fn mk_neg_rules(check_overflow: bool) -> RuleMatcher<1> {
 
 /// `!a`
 fn mk_not_rules() -> RuleMatcher<1> {
-    signatures! {
+    primop_rules! {
         fn(a: bool) -> bool[a.not()]
 
         fn(a: T) -> T
