@@ -9,7 +9,7 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_index::{IndexSlice, IndexVec};
 use rustc_macros::{TyDecodable, TyEncodable};
-use rustc_middle::ty::{AdtFlags, ParamConst, TyCtxt};
+use rustc_middle::ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
@@ -209,6 +209,22 @@ pub struct Const {
     pub ty: Ty,
 }
 
+impl Const {
+    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_ty::Const<'tcx> {
+        let ty = &self.ty;
+        let ty = ty.to_rustc(tcx);
+        let kind = match self.kind {
+            ConstKind::Param(param_const) => {
+                let param_const = ParamConst { name: param_const.name, index: param_const.index };
+                rustc_ty::ConstKind::Param(param_const)
+            }
+            ConstKind::Value(scalar_int) => {
+                rustc_ty::ConstKind::Value(rustc_middle::ty::ValTree::Leaf(scalar_int))
+            }
+        };
+        rustc_ty::Const::new(tcx, kind, ty)
+    }
+}
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ConstKind {
     Param(ParamConst),
@@ -386,6 +402,15 @@ impl GenericArg {
             bug!("expected `GenericArg::Const`, found {:?}", self)
         }
     }
+
+    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::GenericArg<'tcx> {
+        use rustc_middle::ty;
+        match self {
+            GenericArg::Ty(ty) => ty::GenericArg::from(ty.to_rustc(tcx)),
+            GenericArg::Lifetime(re) => ty::GenericArg::from(re.to_rustc(tcx)),
+            GenericArg::Const(c) => ty::GenericArg::from(c.to_rustc(tcx)),
+        }
+    }
 }
 
 impl CoroutineArgs {
@@ -489,6 +514,10 @@ impl AdtDef {
     pub fn non_enum_variant(&self) -> &VariantDef {
         assert!(self.is_struct() || self.is_union());
         self.variant(FIRST_VARIANT)
+    }
+
+    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::AdtDef<'tcx> {
+        tcx.adt_def(self.did())
     }
 }
 
@@ -641,6 +670,47 @@ impl Ty {
 
     pub fn is_box(&self) -> bool {
         matches!(self.kind(), TyKind::Adt(adt, ..) if adt.is_box())
+    }
+
+    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
+        let kind = match self.kind() {
+            TyKind::Bool => rustc_ty::TyKind::Bool,
+            TyKind::Str => rustc_ty::TyKind::Str,
+            TyKind::Char => rustc_ty::TyKind::Char,
+            TyKind::Never => rustc_ty::TyKind::Never,
+            TyKind::Float(float_ty) => rustc_ty::TyKind::Float(*float_ty),
+            TyKind::Int(int_ty) => rustc_ty::TyKind::Int(*int_ty),
+            TyKind::Uint(uint_ty) => rustc_ty::TyKind::Uint(*uint_ty),
+            TyKind::Adt(adt_def, args) => {
+                let adt_def = adt_def.to_rustc(tcx);
+                let args = tcx.mk_args_from_iter(args.iter().map(|arg| arg.to_rustc(tcx)));
+                rustc_ty::TyKind::Adt(adt_def, args)
+            }
+            TyKind::Array(ty, len) => {
+                let ty = ty.to_rustc(tcx);
+                let len = len.to_rustc(tcx);
+                rustc_ty::TyKind::Array(ty, len)
+            }
+            TyKind::Param(pty) => {
+                let pty = rustc_ty::ParamTy::new(pty.index, pty.name);
+                rustc_ty::TyKind::Param(pty)
+            }
+            TyKind::Ref(re, ty, mutbl) => {
+                rustc_ty::TyKind::Ref(re.to_rustc(tcx), ty.to_rustc(tcx), *mutbl)
+            }
+            TyKind::Tuple(tys) => {
+                let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
+                rustc_ty::TyKind::Tuple(tcx.mk_type_list(&ts))
+            }
+            TyKind::Slice(ty) => rustc_ty::TyKind::Slice(ty.to_rustc(tcx)),
+            TyKind::RawPtr(ty, mutbl) => rustc_ty::TyKind::RawPtr(ty.to_rustc(tcx), *mutbl),
+            TyKind::FnPtr(_) => todo!(),
+            TyKind::Closure(_, _) => todo!(),
+            TyKind::Coroutine(_, _) => todo!(),
+            TyKind::CoroutineWitness(_, _) => todo!(),
+            TyKind::Alias(_, _) => todo!(),
+        };
+        rustc_ty::Ty::new(tcx, kind)
     }
 }
 

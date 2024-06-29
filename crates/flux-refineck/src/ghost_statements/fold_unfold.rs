@@ -322,6 +322,9 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                         M::projection(self, env, discr, ProjKind::Other)?;
                         self.discriminants.insert(place.clone(), discr.clone());
                     }
+                    Rvalue::Repeat(op, _) => {
+                        self.operand(op, env)?;
+                    }
                 }
                 M::projection(self, env, place, ProjKind::Other)?;
             }

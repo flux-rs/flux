@@ -31,9 +31,9 @@ mod constraint_gen;
 mod fixpoint_encoding;
 mod ghost_statements;
 pub mod invariants;
+mod primops;
 mod queue;
 mod refine_tree;
-mod sigs;
 mod type_env;
 
 use checker::Checker;

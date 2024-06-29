@@ -12,8 +12,8 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
-    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Expr, ExprKind, GenericArg,
-    ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
+    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, Expr, ExprKind,
+    GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -297,6 +297,7 @@ impl TVarSubst {
             (GenericArg::Base(a), GenericArg::Base(b)) => {
                 self.btys(a.as_bty_skipping_binder(), b.as_bty_skipping_binder());
             }
+            (GenericArg::Const(a), GenericArg::Const(b)) => self.consts(a, b),
             _ => {}
         }
     }
@@ -351,6 +352,12 @@ impl TVarSubst {
     fn regions(&mut self, a: Region, b: Region) {
         if let Region::ReEarlyBound(ebr) = a {
             self.insert_generic_arg(ebr.index, GenericArg::Lifetime(b));
+        }
+    }
+
+    fn consts(&mut self, a: &Const, b: &Const) {
+        if let super::ConstKind::Param(param_const) = a.kind {
+            self.insert_generic_arg(param_const.index, GenericArg::Const(b.clone()));
         }
     }
 

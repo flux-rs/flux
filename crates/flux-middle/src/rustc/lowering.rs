@@ -436,8 +436,12 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 let ty = lower_ty(self.tcx, *ty)?;
                 Ok(Rvalue::Cast(kind, op, ty))
             }
-            rustc_mir::Rvalue::Repeat(_, _)
-            | rustc_mir::Rvalue::ThreadLocalRef(_)
+            rustc_mir::Rvalue::Repeat(op, c) => {
+                let op = self.lower_operand(op)?;
+                let c = lower_const(self.tcx, *c)?;
+                Ok(Rvalue::Repeat(op, c))
+            }
+            rustc_mir::Rvalue::ThreadLocalRef(_)
             | rustc_mir::Rvalue::AddressOf(_, _)
             | rustc_mir::Rvalue::NullaryOp(_, _)
             | rustc_mir::Rvalue::CopyForDeref(_)
@@ -531,6 +535,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::BinOp::Rem => Ok(BinOp::Rem),
             rustc_mir::BinOp::BitAnd => Ok(BinOp::BitAnd),
             rustc_mir::BinOp::BitOr => Ok(BinOp::BitOr),
+            rustc_mir::BinOp::BitXor => Ok(BinOp::BitXor),
             rustc_mir::BinOp::Shl => Ok(BinOp::Shl),
             rustc_mir::BinOp::Shr => Ok(BinOp::Shr),
             rustc_mir::BinOp::AddUnchecked
@@ -538,7 +543,6 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             | rustc_mir::BinOp::MulUnchecked
             | rustc_mir::BinOp::ShlUnchecked
             | rustc_mir::BinOp::ShrUnchecked
-            | rustc_mir::BinOp::BitXor
             | rustc_mir::BinOp::Cmp
             | rustc_mir::BinOp::Offset => {
                 Err(UnsupportedReason::new(format!("unsupported binary op `{bin_op:?}`")))

@@ -25,3 +25,19 @@ fn test03() -> usize {
 fn test03_bad() -> usize {
     array_len(&[1, 2]) //~ ERROR refinement type
 }
+
+struct Bloop<const N: usize>([i32; N]);
+
+impl<const M: usize> Bloop<M> {
+    fn test_array_good(&self) -> i32 {
+        if (M > 0) {
+            self.0[0]
+        } else {
+            99
+        }
+    }
+
+    fn test_array_bad(&self) -> i32 {
+        self.0[0] //~ ERROR assertion might fail
+    }
+}
