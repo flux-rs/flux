@@ -192,7 +192,8 @@ fn const_params(
 ) -> Result<List<(ParamConst, Sort)>> {
     let generics = genv.generics_of(def_id).with_span(span)?;
     let mut res = vec![];
-    for generic_param in &generics.params {
+    for i in 0..generics.count() {
+        let generic_param = generics.param_at(i, genv).with_span(span)?;
         if let GenericParamDefKind::Const { .. } = generic_param.kind
             && let Some(local_def_id) = generic_param.def_id.as_local()
             && let Some(sort) = genv.sort_of_generic_param(local_def_id).with_span(span)?
@@ -216,8 +217,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         let fn_sig = genv.fn_sig(def_id).with_span(span)?;
 
         let mut kvars = fixpoint_encoding::KVarStore::new();
-        let const_params = const_params(genv, def_id, span)?;
-        let mut refine_tree = RefineTree::new(const_params);
+        let mut refine_tree = RefineTree::new(const_params(genv, def_id, span)?);
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
@@ -832,6 +832,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Rvalue::Cast(kind, op, to) => {
                 let from = self.check_operand(rcx, env, stmt_span, op)?;
                 self.check_cast(*kind, &from, to)
+            }
+            Rvalue::Repeat(operand, c) => {
+                let ty = self.check_operand(rcx, env, stmt_span, operand)?;
+                Ok(Ty::array(ty, c.clone()))
             }
         }
     }

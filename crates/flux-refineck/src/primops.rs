@@ -64,9 +64,10 @@ static DEFAULT_BIN_OPS: LazyLock<RuleTable<mir::BinOp, 2>> = LazyLock::new(|| {
             (Sub, mk_sub_rules(false)),
             (Div, mk_div_rules()),
             (Rem, mk_rem_rules()),
-            // Logic
+            // Bitwise
             (BitAnd, mk_bit_and_rules()),
             (BitOr, mk_bit_or_rules()),
+            (BitXor, mk_bit_xor_rules()),
             // Cmp
             (Eq, mk_eq_rules()),
             (Ne, mk_ne_rules()),
@@ -96,6 +97,7 @@ static OVERFLOW_BIN_OPS: LazyLock<RuleTable<mir::BinOp, 2>> = LazyLock::new(|| {
             // Bitwise
             (BitAnd, mk_bit_and_rules()),
             (BitOr, mk_bit_or_rules()),
+            (BitXor, mk_bit_xor_rules()),
             // Cmp
             (Eq, mk_eq_rules()),
             (Ne, mk_ne_rules()),
@@ -250,7 +252,7 @@ fn mk_rem_rules() -> RuleMatcher<2> {
 /// `a & b`
 fn mk_bit_and_rules() -> RuleMatcher<2> {
     signatures! {
-        fn(a: T, b: T) -> T{v: E::tt()}
+        fn(a: T, b: T) -> T
         if T.is_integral()
 
         fn(a: bool, b: bool) -> bool[E::and(a, b)]
@@ -260,10 +262,18 @@ fn mk_bit_and_rules() -> RuleMatcher<2> {
 /// `a | b`
 fn mk_bit_or_rules() -> RuleMatcher<2> {
     signatures! {
-        fn(a: T, b: T) -> T{v: E::tt()}
+        fn(a: T, b: T) -> T
         if T.is_integral()
 
         fn(a: bool, b: bool) -> bool[E::or(a, b)]
+    }
+}
+
+/// `a ^ b`
+fn mk_bit_xor_rules() -> RuleMatcher<2> {
+    signatures! {
+        fn(a: T, b: T) -> T
+        if T.is_integral()
     }
 }
 
