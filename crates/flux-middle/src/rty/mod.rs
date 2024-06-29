@@ -712,7 +712,7 @@ impl Ty {
             }
         }
         let mut preds = vec![];
-        (go(self, &mut preds), Expr::and(preds))
+        (go(self, &mut preds), Expr::and_from_iter(preds))
     }
 
     pub fn unblocked(&self) -> Ty {
@@ -957,7 +957,7 @@ impl SubsetTy {
 
     pub fn strengthen(&self, pred: impl Into<Expr>) -> Self {
         let this = self.clone();
-        Self { bty: this.bty, idx: this.idx, pred: Expr::and([this.pred, pred.into()]) }
+        Self { bty: this.bty, idx: this.idx, pred: Expr::and_from_iter([this.pred, pred.into()]) }
     }
 
     fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {

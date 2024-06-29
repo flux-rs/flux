@@ -114,7 +114,7 @@ impl Ty {
         let mut hoister = Hoister::default();
         let ty = hoister.hoist(self);
         let (vars, preds) = hoister.into_parts();
-        let pred = Expr::and(preds);
+        let pred = Expr::and_from_iter(preds);
         let constr_ty = CanonicalConstrTy { ty, pred };
         if vars.is_empty() {
             CanonicalTy::Constr(constr_ty)
@@ -167,7 +167,7 @@ impl CanonicalTy {
                     let constr = SubsetTy::new(
                         bty.clone(),
                         Expr::nu(),
-                        Expr::and([constr.pred.clone(), Expr::eq(Expr::nu(), idx)]),
+                        Expr::and_from_iter([constr.pred.clone(), Expr::eq(Expr::nu(), idx)]),
                     );
                     Some(Binder::with_sort(constr, sort))
                 } else {

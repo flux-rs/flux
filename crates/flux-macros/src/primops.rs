@@ -8,29 +8,65 @@ use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
-    token, Lifetime, Token,
+    token, Ident, Lifetime, Token,
 };
+
+macro_rules! unwrap_result {
+    ($e:expr) => {{
+        match $e {
+            Ok(e) => e,
+            Err(e) => return e.to_compile_error().into(),
+        }
+    }};
+}
 
 pub fn signatures(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let sigs = parse_macro_input!(input as PrimOpSigs);
+
+    let argc = unwrap_result!(sigs.check_arg_count());
+
     let sigs = sigs.0.into_iter().enumerate().map(|(i, sig)| {
         Renderer::new(i, sig)
             .render()
             .unwrap_or_else(|err| err.to_compile_error())
     });
+    let args = args(argc);
     quote! {
-        PrimOpFactory {
-            #[allow(unused_variables, non_snake_case)]
-            make: |inputs| {
-                #(#sigs)*
-                None
-            },
+        #[allow(unused_variables, non_snake_case)]
+        |#args| {
+            #(#sigs)*
+            None
         }
     }
     .into()
 }
 
+fn args(n: usize) -> TokenStream {
+    let args = (0..n).map(|i| {
+        let bty = mk_bty_arg(i);
+        let idx = mk_idx_arg(i);
+        quote!((#bty, #idx))
+    });
+    quote!([#(#args),*])
+}
+
 struct PrimOpSigs(Vec<Sig>);
+
+impl PrimOpSigs {
+    /// Check that the number of arguments is the same in all signatures
+    fn check_arg_count(&self) -> syn::Result<usize> {
+        let argc = self.0.get(0).map(|sig| sig.args.len()).unwrap_or(0);
+        for sig in &self.0 {
+            if sig.args.len() != argc {
+                return Err(syn::Error::new(
+                    Span::call_site(),
+                    "all signatures must have the same number of arguments",
+                ));
+            }
+        }
+        Ok(argc)
+    }
+}
 
 impl Parse for PrimOpSigs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -47,25 +83,21 @@ struct Renderer {
     sig: Sig,
     /// The set of metavars and the index of the inputs they match
     metavars: HashMap<String, Vec<usize>>,
-    args: TokenStream,
 }
 
 impl Renderer {
     fn new(i: usize, sig: Sig) -> Self {
         let mut metavars: HashMap<String, Vec<usize>> = HashMap::new();
-        for (i, input) in sig.inputs.iter().enumerate() {
+        for (i, input) in sig.args.iter().enumerate() {
             let bty_str = input.bty.to_string();
             if !is_primitive_type(&bty_str) {
                 metavars.entry(bty_str).or_default().push(i);
             }
         }
 
-        let args = sig.inputs.iter().map(|input| &input.name);
-        let args = quote!([#(#args),*]);
-
         let lbl = syn::Lifetime::new(&format!("'lbl{}", i), Span::call_site());
 
-        Self { lbl, sig, metavars, args }
+        Self { lbl, sig, metavars }
     }
 
     fn render(&self) -> syn::Result<TokenStream> {
@@ -74,8 +106,9 @@ impl Renderer {
         let primitive_checks = self.check_primitive_types();
         let declare_metavars = self.declare_metavars();
         let guards = self.guards();
-        let output = self.render_output()?;
-        let requires = self.requires();
+        let declare_idxs_names = self.declare_idxs_names();
+        let output_type = self.output_type()?;
+        let precondition = self.precondition();
         Ok(quote! {
             #lbl: {
                 #metavar_matching
@@ -83,16 +116,16 @@ impl Renderer {
                 #declare_metavars
                 #guards
 
-                let out = #output;
-                return Some(PrimOpSig {
-                    pre: #requires,
-                    out,
-                })
+                #declare_idxs_names
+                let precondition = #precondition;
+                let v = Expr::nu();
+                let output_type = #output_type;
+                return Some(MatchedRule { precondition, output_type })
             }
         })
     }
 
-    fn render_bty(&self, ident: &syn::Ident) -> syn::Result<TokenStream> {
+    fn bty_arg_or_prim(&self, ident: &syn::Ident) -> syn::Result<TokenStream> {
         let ident_str = ident.to_string();
         if is_primitive_type(ident) {
             Ok(quote!(BaseTy::from_primitive_str(#ident_str).unwrap()))
@@ -100,8 +133,8 @@ impl Renderer {
             self.metavars
                 .get(&ident_str)
                 .map(|idxs| {
-                    let i = idxs[0];
-                    quote!(inputs[#i].clone())
+                    let arg = mk_bty_arg(idxs[0]);
+                    quote!(#arg.clone())
                 })
                 .ok_or_else(|| {
                     syn::Error::new(ident.span(), format!("cannot find metavariable `{ident_str}`"))
@@ -109,31 +142,19 @@ impl Renderer {
         }
     }
 
-    fn render_output(&self) -> syn::Result<TokenStream> {
+    fn output_type(&self) -> syn::Result<TokenStream> {
         let out = match &self.sig.output {
             Output::Base(bty) => {
-                let bty = self.render_bty(bty)?;
-                quote!(Output::Base(#bty))
+                let bty = self.bty_arg_or_prim(bty)?;
+                quote!(#bty.to_ty())
             }
-            Output::Indexed(bty, mk_expr) => {
-                let bty = self.render_bty(bty)?;
-                let args = &self.args;
-                quote! {
-                    Output::Indexed(
-                        #bty,
-                        |#args| #mk_expr,
-                    )
-                }
+            Output::Indexed(bty, idx) => {
+                let bty = self.bty_arg_or_prim(bty)?;
+                quote!(rty::Ty::indexed( #bty, #idx))
             }
-            Output::Exists(bty, mk_pred) => {
-                let bty = self.render_bty(bty)?;
-                let args = &self.args;
-                quote! {
-                    Output::Exists(
-                        #bty,
-                        |v, #args| #mk_pred,
-                    )
-                }
+            Output::Exists(bty, pred) => {
+                let bty = self.bty_arg_or_prim(bty)?;
+                quote!(rty::Ty::exists_with_constr( #bty, #pred))
             }
         };
         Ok(out)
@@ -144,8 +165,10 @@ impl Renderer {
         let lbl = &self.lbl;
         let checks = self.metavars.values().map(|idxs| {
             let checks = idxs.iter().tuple_windows().map(|(i, j)| {
+                let bty_arg1 = mk_bty_arg(*i);
+                let bty_arg2 = mk_bty_arg(*j);
                 quote! {
-                    if inputs[#i] != inputs[#j] {
+                    if #bty_arg2 != #bty_arg1 {
                         break #lbl;
                     }
                 }
@@ -155,54 +178,76 @@ impl Renderer {
         quote!(#(#checks)*)
     }
 
-    /// Generates the code that checks if an input matching a primitive type has indeed that type
+    /// Generates the code that checks if an arg matching a primitive type has indeed that type
     fn check_primitive_types(&self) -> TokenStream {
         let lbl = &self.lbl;
-        let checks = self.sig.inputs.iter().enumerate().flat_map(|(i, input)| {
-            let bty = &input.bty;
-            if is_primitive_type(bty) {
-                let bty_str = bty.to_string();
-                Some(quote! {
-                    let Some(s) = inputs[#i].primitive_symbol() else {
-                        break #lbl;
-                    };
-                    if s.as_str() != #bty_str {
-                        break #lbl;
-                    }
-                })
-            } else {
-                None
-            }
-        });
-        quote!(#(#checks)*)
+        self.sig
+            .args
+            .iter()
+            .enumerate()
+            .flat_map(|(i, arg)| {
+                let bty = &arg.bty;
+                if is_primitive_type(bty) {
+                    let bty_str = bty.to_string();
+                    let bty_arg = mk_bty_arg(i);
+                    Some(quote! {
+                        let Some(s) = #bty_arg.primitive_symbol() else {
+                            break #lbl;
+                        };
+                        if s.as_str() != #bty_str {
+                            break #lbl;
+                        }
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
-    fn requires(&self) -> TokenStream {
+    fn precondition(&self) -> TokenStream {
         if let Some(requires) = &self.sig.requires {
-            let tag = &requires.tag;
+            let reason = &requires.reason;
             let pred = &requires.pred;
-            let args = &self.args;
-            quote!(Pre::Some(#tag, Box::new(move |#args| #pred)))
+            quote!(Some(Pre { reason: #reason, pred: #pred }))
         } else {
-            quote!(Pre::None)
+            quote!(None)
         }
     }
 
     /// Declare metavars as variables so they can be accessed in the guards
     fn declare_metavars(&self) -> TokenStream {
-        let metavars = self.metavars.iter().map(|(var, idxs)| {
-            let i = idxs[0];
-            let var = syn::Ident::new(var, Span::call_site());
-            quote! {
-                let #var = &inputs[#i];
-            }
-        });
-        quote!(#(#metavars)*)
+        self.metavars
+            .iter()
+            .map(|(var, matching_positions)| {
+                let var = syn::Ident::new(var, Span::call_site());
+                let bty_arg = mk_bty_arg(matching_positions[0]);
+                quote! {
+                    let #var = #bty_arg;
+                }
+            })
+            .collect()
+    }
+
+    fn declare_idxs_names(&self) -> TokenStream {
+        self.sig
+            .args
+            .iter()
+            .enumerate()
+            .map(|(i, arg)| {
+                let name = &arg.name;
+                let idx_arg = mk_idx_arg(i);
+                quote!(let #name = #idx_arg;)
+            })
+            .collect()
     }
 
     fn guards(&self) -> TokenStream {
-        let guards = self.sig.guards.iter().map(|guard| self.guard(guard));
-        quote!(#(#guards)*)
+        self.sig
+            .guards
+            .iter()
+            .map(|guard| self.guard(guard))
+            .collect()
     }
 
     fn guard(&self, guard: &Guard) -> TokenStream {
@@ -216,7 +261,7 @@ impl Renderer {
 }
 
 struct Sig {
-    inputs: Punctuated<Input, Token![,]>,
+    args: Punctuated<Arg, Token![,]>,
     output: Output,
     requires: Option<Requires>,
     guards: Vec<Guard>,
@@ -227,27 +272,27 @@ impl Parse for Sig {
         let _: Token![fn] = input.parse()?;
         let content;
         parenthesized!(content in input);
-        let inputs = content.parse_terminated(Input::parse, Token![,])?;
+        let inputs = content.parse_terminated(Arg::parse, Token![,])?;
         let _: Token![->] = input.parse()?;
         let output = input.parse()?;
         let requires = if input.peek(kw::requires) { Some(input.parse()?) } else { None };
         let guards = parse_guards(input)?;
-        Ok(Sig { inputs, output, requires, guards })
+        Ok(Sig { args: inputs, output, requires, guards })
     }
 }
 
-/// An input of the form `a: T`
-struct Input {
+/// An arg of the form `a: T`
+struct Arg {
     name: syn::Ident,
     bty: syn::Ident,
 }
 
-impl Parse for Input {
+impl Parse for Arg {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let name = input.parse()?;
         let _: Token![:] = input.parse()?;
         let bty = input.parse()?;
-        Ok(Input { name, bty })
+        Ok(Arg { name, bty })
     }
 }
 
@@ -278,7 +323,7 @@ impl Parse for Output {
 
 struct Requires {
     pred: syn::Expr,
-    tag: syn::Path,
+    reason: syn::Path,
 }
 
 impl Parse for Requires {
@@ -286,8 +331,8 @@ impl Parse for Requires {
         let _: kw::requires = input.parse()?;
         let pred = input.parse()?;
         let _: Token![=>] = input.parse()?;
-        let tag = input.parse()?;
-        Ok(Requires { pred, tag })
+        let reason = input.parse()?;
+        Ok(Requires { pred, reason })
     }
 }
 
@@ -320,6 +365,14 @@ impl Parse for Guard {
             Err(lookahead.error())
         }
     }
+}
+
+fn mk_idx_arg(i: usize) -> Ident {
+    Ident::new(&format!("idx{}", i), Span::call_site())
+}
+
+fn mk_bty_arg(i: usize) -> Ident {
+    Ident::new(&format!("bty{}", i), Span::call_site())
 }
 
 fn is_primitive_type<T>(s: &T) -> bool

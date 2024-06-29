@@ -660,7 +660,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         for (bits, bb) in targets.iter() {
             successors.push((bb, Guard::Pred(mk(bits))));
         }
-        let otherwise = Expr::and(targets.iter().map(|(bits, _)| mk(bits).not()));
+        let otherwise = Expr::and_from_iter(targets.iter().map(|(bits, _)| mk(bits).not()));
         successors.push((targets.otherwise(), Guard::Pred(otherwise)));
 
         successors
@@ -888,22 +888,19 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         op1: &Operand,
         op2: &Operand,
     ) -> Result<Ty> {
+        let check_overflow = self.check_overflow();
         let ty1 = self.check_operand(rcx, env, source_span, op1)?;
         let ty2 = self.check_operand(rcx, env, source_span, op2)?;
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
-                let sig = primops::get_bin_op_sig(bin_op, bty1, bty2, self.check_overflow());
-                let (e1, e2) = (idx1.clone(), idx2.clone());
-                if let primops::Pre::Some(reason, constr) = &sig.pre {
-                    self.constr_gen(rcx, source_span).check_pred(
-                        rcx,
-                        &constr([e1.clone(), e2.clone()]),
-                        *reason,
-                    );
+                let rule = primops::match_bin_op(bin_op, bty1, idx1, bty2, idx2, check_overflow);
+                if let Some(pre) = rule.precondition {
+                    self.constr_gen(rcx, source_span)
+                        .check_pred(rcx, pre.pred, pre.reason);
                 }
 
-                Ok(sig.out.to_ty([e1, e2]))
+                Ok(rule.output_type)
             }
             _ => tracked_span_bug!("incompatible types: `{ty1:?}` `{ty2:?}`"),
         }
@@ -920,16 +917,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let ty = self.check_operand(rcx, env, source_span, op)?;
         match ty.kind() {
             TyKind::Indexed(bty, idx) => {
-                let sig = primops::get_un_op_sig(un_op, bty, self.check_overflow());
-                let e = idx.clone();
-                if let primops::Pre::Some(reason, constr) = &sig.pre {
-                    self.constr_gen(rcx, source_span).check_pred(
-                        rcx,
-                        &constr([e.clone()]),
-                        *reason,
-                    );
+                let rule = primops::match_un_op(un_op, bty, idx, self.check_overflow());
+                if let Some(pre) = rule.precondition {
+                    self.constr_gen(rcx, source_span)
+                        .check_pred(rcx, pre.pred, pre.reason);
                 }
-                Ok(sig.out.to_ty([e]))
+                Ok(rule.output_type)
             }
             _ => tracked_span_bug!("invalid type for unary operator `{un_op:?}` `{ty:?}`"),
         }
