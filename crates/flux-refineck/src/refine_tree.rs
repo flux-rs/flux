@@ -904,12 +904,17 @@ mod pretty {
             define_scoped!(cx, f);
             write!(
                 f,
-                "[{}]",
+                "[bindings = {}, reftgenerics = {}]",
                 self.bindings
                     .iter_enumerated()
                     .format_with(", ", |(name, sort), f| {
                         f(&format_args_cx!("{:?}: {:?}", ^name, sort))
-                    })
+                    }),
+                self.reftgenerics
+                    .iter()
+                    .format_with(", ", |(param_const, sort), f| {
+                        f(&format_args_cx!("{:?}: {:?}", ^param_const, sort))
+                    }),
             )
         }
     }

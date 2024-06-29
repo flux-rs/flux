@@ -192,7 +192,8 @@ fn const_params(
 ) -> Result<List<(ParamConst, Sort)>> {
     let generics = genv.generics_of(def_id).with_span(span)?;
     let mut res = vec![];
-    for generic_param in &generics.params {
+    for i in 0..generics.count() {
+        let generic_param = generics.param_at(i, genv).with_span(span)?;
         if let GenericParamDefKind::Const { .. } = generic_param.kind
             && let Some(local_def_id) = generic_param.def_id.as_local()
             && let Some(sort) = genv.sort_of_generic_param(local_def_id).with_span(span)?
@@ -216,8 +217,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         let fn_sig = genv.fn_sig(def_id).with_span(span)?;
 
         let mut kvars = fixpoint_encoding::KVarStore::new();
-        let const_params = const_params(genv, def_id, span)?;
-        let mut refine_tree = RefineTree::new(const_params);
+        let mut refine_tree = RefineTree::new(const_params(genv, def_id, span)?);
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
@@ -833,6 +833,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let from = self.check_operand(rcx, env, stmt_span, op)?;
                 self.check_cast(*kind, &from, to)
             }
+            Rvalue::Repeat(operand, c) => {
+                let ty = self.check_operand(rcx, env, stmt_span, operand)?;
+                Ok(Ty::array(ty, c.clone()))
+            }
         }
     }
 
@@ -907,23 +911,42 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     | mir::BinOp::Div
                     | mir::BinOp::BitAnd
                     | mir::BinOp::BitOr
+                    | mir::BinOp::BitXor
                     | mir::BinOp::Shl
                     | mir::BinOp::Shr
                     | mir::BinOp::Rem => Ok(Ty::float(*float_ty1)),
                 }
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
-                let sig = sigs::get_bin_op_sig(bin_op, bty1, bty2, self.check_overflow());
-                let (e1, e2) = (idx1.clone(), idx2.clone());
-                if let sigs::Pre::Some(reason, constr) = &sig.pre {
-                    self.constr_gen(rcx, source_span).check_pred(
-                        rcx,
-                        &constr([e1.clone(), e2.clone()]),
-                        *reason,
-                    );
-                }
+                match sigs::get_bin_op_sig(bin_op, bty1, bty2, self.check_overflow()) {
+                    Some(sig) => {
+                        let (e1, e2) = (idx1.clone(), idx2.clone());
+                        if let sigs::Pre::Some(reason, constr) = &sig.pre {
+                            self.constr_gen(rcx, source_span).check_pred(
+                                rcx,
+                                &constr([e1.clone(), e2.clone()]),
+                                *reason,
+                            );
+                        }
 
-                Ok(sig.out.to_ty([e1, e2]))
+                        Ok(sig.out.to_ty([e1, e2]))
+                    }
+                    None => {
+                        match bin_op {
+                            mir::BinOp::Eq
+                            | mir::BinOp::Ne
+                            | mir::BinOp::Gt
+                            | mir::BinOp::Ge
+                            | mir::BinOp::Lt
+                            | mir::BinOp::Le => Ok(Ty::bool()),
+                            _ => {
+                                tracked_span_bug!(
+                                    "No sig for binop : `{bin_op:?}` with `{ty1:?}` and `{ty2:?}`"
+                                )
+                            }
+                        }
+                    }
+                }
             }
             _ => tracked_span_bug!("incompatible types: `{ty1:?}` `{ty2:?}`"),
         }
@@ -941,7 +964,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         match ty.kind() {
             Float!(float_ty) => Ok(Ty::float(*float_ty)),
             TyKind::Indexed(bty, idx) => {
-                let sig = sigs::get_un_op_sig(un_op, bty, self.check_overflow());
+                let sig = if let Some(sig) = sigs::get_un_op_sig(un_op, bty, self.check_overflow())
+                {
+                    sig
+                } else {
+                    tracked_span_bug!("No sig for unop : `{un_op:?}` with `{ty:?}`")
+                };
                 let e = idx.clone();
                 if let sigs::Pre::Some(reason, constr) = &sig.pre {
                     self.constr_gen(rcx, source_span).check_pred(
