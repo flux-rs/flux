@@ -46,9 +46,9 @@ struct RuleTable<Op: Eq + Hash, const N: usize> {
     rules: UnordMap<Op, RuleMatcher<N>>,
 }
 
-impl<K: Eq + Hash, const N: usize> RuleTable<K, N> {
-    fn match_inputs(&self, k: &K, inputs: [(BaseTy, Expr); N]) -> MatchedRule {
-        (self.rules[&k])(&inputs).unwrap()
+impl<Op: Eq + Hash, const N: usize> RuleTable<Op, N> {
+    fn match_inputs(&self, op: &Op, inputs: [(BaseTy, Expr); N]) -> MatchedRule {
+        (self.rules[op])(&inputs).unwrap()
     }
 }
 
