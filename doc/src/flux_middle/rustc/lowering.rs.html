@@ -988,6 +988,10 @@
 <a href="#988" id="988">988</a>
 <a href="#989" id="989">989</a>
 <a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1426,8 +1430,12 @@
                 <span class="kw">let </span>ty = lower_ty(<span class="self">self</span>.tcx, <span class="kw-2">*</span>ty)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(Rvalue::Cast(kind, op, ty))
             }
-            rustc_mir::Rvalue::Repeat(<span class="kw">_</span>, <span class="kw">_</span>)
-            | rustc_mir::Rvalue::ThreadLocalRef(<span class="kw">_</span>)
+            rustc_mir::Rvalue::Repeat(op, c) =&gt; {
+                <span class="kw">let </span>op = <span class="self">self</span>.lower_operand(op)<span class="question-mark">?</span>;
+                <span class="kw">let </span>c = lower_const(<span class="self">self</span>.tcx, <span class="kw-2">*</span>c)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(Rvalue::Repeat(op, c))
+            }
+            rustc_mir::Rvalue::ThreadLocalRef(<span class="kw">_</span>)
             | rustc_mir::Rvalue::AddressOf(<span class="kw">_</span>, <span class="kw">_</span>)
             | rustc_mir::Rvalue::NullaryOp(<span class="kw">_</span>, <span class="kw">_</span>)
             | rustc_mir::Rvalue::CopyForDeref(<span class="kw">_</span>)
@@ -1521,6 +1529,7 @@
             rustc_mir::BinOp::Rem =&gt; <span class="prelude-val">Ok</span>(BinOp::Rem),
             rustc_mir::BinOp::BitAnd =&gt; <span class="prelude-val">Ok</span>(BinOp::BitAnd),
             rustc_mir::BinOp::BitOr =&gt; <span class="prelude-val">Ok</span>(BinOp::BitOr),
+            rustc_mir::BinOp::BitXor =&gt; <span class="prelude-val">Ok</span>(BinOp::BitXor),
             rustc_mir::BinOp::Shl =&gt; <span class="prelude-val">Ok</span>(BinOp::Shl),
             rustc_mir::BinOp::Shr =&gt; <span class="prelude-val">Ok</span>(BinOp::Shr),
             rustc_mir::BinOp::AddUnchecked
@@ -1528,7 +1537,6 @@
             | rustc_mir::BinOp::MulUnchecked
             | rustc_mir::BinOp::ShlUnchecked
             | rustc_mir::BinOp::ShrUnchecked
-            | rustc_mir::BinOp::BitXor
             | rustc_mir::BinOp::Cmp
             | rustc_mir::BinOp::Offset =&gt; {
                 <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported binary op `{bin_op:?}`"</span>)))

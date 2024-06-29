@@ -753,6 +753,9 @@
 <a href="#753" id="753">753</a>
 <a href="#754" id="754">754</a>
 <a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
@@ -783,7 +786,7 @@
 <span class="kw">use </span>rustc_span::{Span, Symbol};
 <span class="kw">pub use </span>rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 
-<span class="kw">use </span><span class="kw">super</span>::ty::{GenericArg, GenericArgs, Region, Ty, TyKind};
+<span class="kw">use </span><span class="kw">super</span>::ty::{Const, GenericArg, GenericArgs, Region, Ty, TyKind};
 <span class="kw">use crate</span>::{
     global_env::GlobalEnv, intern::List, pretty::def_id_to_string, queries::QueryResult,
     rustc::ty::region_to_string,
@@ -947,6 +950,7 @@
     Discriminant(Place),
     Len(Place),
     Cast(CastKind, Operand, Ty),
+    Repeat(Operand, Const),
 }
 
 <span class="kw">pub enum </span>BorrowKind {
@@ -994,6 +998,7 @@
     Rem,
     BitAnd,
     BitOr,
+    BitXor,
     Shl,
     Shr,
 }
@@ -1441,6 +1446,7 @@
             }
             Rvalue::Len(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"Len({place:?})"</span>),
             Rvalue::Cast(kind, op, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{op:?} as {ty:?} [{kind:?}]"</span>),
+            Rvalue::Repeat(op, c) =&gt; <span class="macro">write!</span>(f, <span class="string">"[{op:?}; {c:?}]"</span>),
         }
     }
 }

@@ -693,6 +693,10 @@
 <a href="#693" id="693">693</a>
 <a href="#694" id="694">694</a>
 <a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -1247,6 +1251,10 @@
                 // wee should fix it.
                 // debug_assert_eq!(re1, _re2);
                 </span>GenericArg::Lifetime(<span class="kw-2">*</span>re1)
+            }
+            (GenericArg::Const(c1), GenericArg::Const(c2)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(c1, c2);
+                GenericArg::Const(c1.clone())
             }
             <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected generic args: `{arg1:?}` - `{arg2:?}`"</span>),
         }

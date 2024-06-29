@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["mk_bool_bin_ops","mk_lnot","mk_neg","mk_not","mk_shift_ops","mk_signed_bin_ops","mk_unsigned_bin_ops"],"static":["BIN_OPS","UN_OPS"],"type":["E"]};
+window.SIDEBAR_ITEMS = {"fn":["mk_bool_bin_ops","mk_lnot","mk_neg","mk_not","mk_signed_bin_ops","mk_signed_shift_ops","mk_unsigned_bin_ops","mk_unsigned_shift_ops"],"static":["BIN_OPS","UN_OPS"],"type":["E"]};

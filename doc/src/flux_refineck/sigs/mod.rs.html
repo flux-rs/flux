@@ -125,6 +125,10 @@
 <a href="#125" id="125">125</a>
 <a href="#126" id="126">126</a>
 <a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>default;
 <span class="kw">mod </span>overflow;
 
@@ -163,12 +167,16 @@
     bty1: <span class="kw-2">&amp;</span>BaseTy,
     bty2: <span class="kw-2">&amp;</span>BaseTy,
     check_overflow: bool,
-) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>Sig&lt;<span class="number">2</span>&gt; {
+) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>Sig&lt;<span class="number">2</span>&gt;&gt; {
     <span class="kw">let </span>table = <span class="kw">if </span>check_overflow { <span class="kw-2">&amp;</span>overflow::BIN_OPS } <span class="kw">else </span>{ <span class="kw-2">&amp;</span>default::BIN_OPS };
     table.get(op, [bty1.clone(), bty2.clone()])
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_un_op_sig(op: mir::UnOp, bty: <span class="kw-2">&amp;</span>BaseTy, check_overflow: bool) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>Sig&lt;<span class="number">1</span>&gt; {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_un_op_sig(
+    op: mir::UnOp,
+    bty: <span class="kw-2">&amp;</span>BaseTy,
+    check_overflow: bool,
+) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>Sig&lt;<span class="number">1</span>&gt;&gt; {
     <span class="kw">let </span>table = <span class="kw">if </span>check_overflow { <span class="kw-2">&amp;</span>overflow::UN_OPS } <span class="kw">else </span>{ <span class="kw-2">&amp;</span>default::UN_OPS };
     table.get(op, [bty.clone()])
 }
@@ -248,8 +256,8 @@
         );
     }
 
-    <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, op: T, btys: [BaseTy; N]) -&gt; <span class="kw-2">&amp;</span>Sig&lt;N&gt; {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.map[<span class="kw-2">&amp;</span>(op, btys)]
+    <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, op: T, btys: [BaseTy; N]) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Sig&lt;N&gt;&gt; {
+        <span class="self">self</span>.map.get(<span class="kw-2">&amp;</span>(op, btys))
     }
 }
 </code></pre></div></section></main></body></html>

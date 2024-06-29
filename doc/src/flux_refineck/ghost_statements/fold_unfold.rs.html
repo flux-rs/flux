@@ -862,6 +862,9 @@
 <a href="#862" id="862">862</a>
 <a href="#863" id="863">863</a>
 <a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, fmt, iter};
 
 <span class="kw">use </span>flux_common::tracked_span_bug;
@@ -1185,6 +1188,9 @@
                     Rvalue::Discriminant(discr) =&gt; {
                         M::projection(<span class="self">self</span>, env, discr, ProjKind::Other)<span class="question-mark">?</span>;
                         <span class="self">self</span>.discriminants.insert(place.clone(), discr.clone());
+                    }
+                    Rvalue::Repeat(op, <span class="kw">_</span>) =&gt; {
+                        <span class="self">self</span>.operand(op, env)<span class="question-mark">?</span>;
                     }
                 }
                 M::projection(<span class="self">self</span>, env, place, ProjKind::Other)<span class="question-mark">?</span>;

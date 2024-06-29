@@ -143,6 +143,7 @@
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
 <a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::LazyLock;
 
 <span class="kw">use </span>flux_middle::{
@@ -163,7 +164,8 @@
 
     table.extend(mk_signed_bin_ops());
     table.extend(mk_unsigned_bin_ops());
-    table.extend(<span class="kw">super</span>::default::mk_shift_ops());
+    table.extend(<span class="kw">super</span>::default::mk_signed_shift_ops());
+    table.extend(<span class="kw">super</span>::default::mk_unsigned_shift_ops());
     table.extend(<span class="kw">super</span>::default::mk_bool_bin_ops());
 
     table

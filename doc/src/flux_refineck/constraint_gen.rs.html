@@ -787,6 +787,11 @@
 <a href="#787" id="787">787</a>
 <a href="#788" id="788">788</a>
 <a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
@@ -1425,6 +1430,11 @@
                 (ctor1.to_ty(), ctor2.to_ty())
             }
             (GenericArg::Lifetime(<span class="kw">_</span>), GenericArg::Lifetime(<span class="kw">_</span>)) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
+            (GenericArg::Const(c1), GenericArg::Const(c2)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(c1, c2);
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            }
+
             <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"incompatible generic args: `{arg1:?}` `{arg2:?}"</span>),
         };
         <span class="kw">match </span>variance {
