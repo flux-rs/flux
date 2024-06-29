@@ -23,6 +23,7 @@ flux-rs = { path = "./crates/flux-rs", version = "0.1.0" }
 flux-syntax = { path = "./crates/flux-syntax", version = "0.1.0" }
 tests = { path = "./tests", version = "0.1.0" }
 
+dashmap = { version = "5.5.3", features = ["raw-api"] }
 home = "0.5.9"
 itertools = "0.10.5"
 serde = { version = "1.0", features = ["derive"] }

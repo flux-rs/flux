@@ -33,7 +33,7 @@ pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, OutlivesPredicate, ParamTy, ScalarInt, UintTy},
 };
-use rustc_span::{symbol::kw, Symbol};
+use rustc_span::{sym, symbol::kw, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
 pub use rustc_type_ir::INNERMOST;
 pub use SortInfer::*;
@@ -629,15 +629,15 @@ impl Ty {
     }
 
     pub fn bool() -> Ty {
-        BaseTy::Bool.into_ty()
+        BaseTy::Bool.to_ty()
     }
 
     pub fn int(int_ty: IntTy) -> Ty {
-        BaseTy::Int(int_ty).into_ty()
+        BaseTy::Int(int_ty).to_ty()
     }
 
     pub fn uint(uint_ty: UintTy) -> Ty {
-        BaseTy::Uint(uint_ty).into_ty()
+        BaseTy::Uint(uint_ty).to_ty()
     }
 
     pub fn param(param_ty: ParamTy) -> Ty {
@@ -659,43 +659,43 @@ impl Ty {
     }
 
     pub fn str() -> Ty {
-        BaseTy::Str.into_ty()
+        BaseTy::Str.to_ty()
     }
 
     pub fn char() -> Ty {
-        BaseTy::Char.into_ty()
+        BaseTy::Char.to_ty()
     }
 
     pub fn float(float_ty: FloatTy) -> Ty {
-        BaseTy::Float(float_ty).into_ty()
+        BaseTy::Float(float_ty).to_ty()
     }
 
     pub fn mk_ref(region: Region, ty: Ty, mutbl: Mutability) -> Ty {
-        BaseTy::Ref(region, ty, mutbl).into_ty()
+        BaseTy::Ref(region, ty, mutbl).to_ty()
     }
 
     pub fn mk_slice(ty: Ty) -> Ty {
-        BaseTy::Slice(ty).into_ty()
+        BaseTy::Slice(ty).to_ty()
     }
 
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
-        BaseTy::Tuple(tys.into()).into_ty()
+        BaseTy::Tuple(tys.into()).to_ty()
     }
 
     pub fn array(ty: Ty, c: Const) -> Ty {
-        BaseTy::Array(ty, c).into_ty()
+        BaseTy::Array(ty, c).to_ty()
     }
 
     pub fn closure(did: DefId, tys: impl Into<List<Ty>>) -> Ty {
-        BaseTy::Closure(did, tys.into()).into_ty()
+        BaseTy::Closure(did, tys.into()).to_ty()
     }
 
     pub fn coroutine(did: DefId, resume_ty: Ty, upvar_tys: List<Ty>) -> Ty {
-        BaseTy::Coroutine(did, resume_ty, upvar_tys).into_ty()
+        BaseTy::Coroutine(did, resume_ty, upvar_tys).to_ty()
     }
 
     pub fn never() -> Ty {
-        BaseTy::Never.into_ty()
+        BaseTy::Never.to_ty()
     }
 
     pub fn hole(fhir_id: FhirId) -> Ty {
@@ -1760,11 +1760,87 @@ impl BaseTy {
         BaseTy::Adt(adt_def, args.into())
     }
 
-    fn is_integral(&self) -> bool {
+    pub fn from_primitive_str(s: &str) -> Option<BaseTy> {
+        match s {
+            "i8" => Some(BaseTy::Int(IntTy::I8)),
+            "i16" => Some(BaseTy::Int(IntTy::I16)),
+            "i32" => Some(BaseTy::Int(IntTy::I32)),
+            "i64" => Some(BaseTy::Int(IntTy::I64)),
+            "i128" => Some(BaseTy::Int(IntTy::I128)),
+            "u8" => Some(BaseTy::Uint(UintTy::U8)),
+            "u16" => Some(BaseTy::Uint(UintTy::U16)),
+            "u32" => Some(BaseTy::Uint(UintTy::U32)),
+            "u64" => Some(BaseTy::Uint(UintTy::U64)),
+            "u128" => Some(BaseTy::Uint(UintTy::U128)),
+            "f32" => Some(BaseTy::Float(FloatTy::F32)),
+            "f64" => Some(BaseTy::Float(FloatTy::F64)),
+            "isize" => Some(BaseTy::Int(IntTy::Isize)),
+            "usize" => Some(BaseTy::Uint(UintTy::Usize)),
+            "bool" => Some(BaseTy::Bool),
+            "char" => Some(BaseTy::Char),
+            "str" => Some(BaseTy::Str),
+            _ => None,
+        }
+    }
+
+    /// If `self` is a primitive, return its [`Symbol`].
+    pub fn primitive_symbol(&self) -> Option<Symbol> {
+        match self {
+            BaseTy::Bool => Some(sym::bool),
+            BaseTy::Char => Some(sym::char),
+            BaseTy::Float(f) => {
+                match f {
+                    FloatTy::F16 => Some(sym::f16),
+                    FloatTy::F32 => Some(sym::f32),
+                    FloatTy::F64 => Some(sym::f64),
+                    FloatTy::F128 => Some(sym::f128),
+                }
+            }
+            BaseTy::Int(f) => {
+                match f {
+                    IntTy::Isize => Some(sym::isize),
+                    IntTy::I8 => Some(sym::i8),
+                    IntTy::I16 => Some(sym::i16),
+                    IntTy::I32 => Some(sym::i32),
+                    IntTy::I64 => Some(sym::i64),
+                    IntTy::I128 => Some(sym::i128),
+                }
+            }
+            BaseTy::Uint(f) => {
+                match f {
+                    UintTy::Usize => Some(sym::usize),
+                    UintTy::U8 => Some(sym::u8),
+                    UintTy::U16 => Some(sym::u16),
+                    UintTy::U32 => Some(sym::u32),
+                    UintTy::U64 => Some(sym::u64),
+                    UintTy::U128 => Some(sym::u128),
+                }
+            }
+            _ => None,
+        }
+    }
+
+    pub fn is_integral(&self) -> bool {
         matches!(self, BaseTy::Int(_) | BaseTy::Uint(_))
     }
 
-    fn is_bool(&self) -> bool {
+    pub fn is_numeric(&self) -> bool {
+        matches!(self, BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Float(_))
+    }
+
+    pub fn is_signed(&self) -> bool {
+        matches!(self, BaseTy::Int(_))
+    }
+
+    pub fn is_unsigned(&self) -> bool {
+        matches!(self, BaseTy::Uint(_))
+    }
+
+    pub fn is_float(&self) -> bool {
+        matches!(self, BaseTy::Float(_))
+    }
+
+    pub fn is_bool(&self) -> bool {
         matches!(self, BaseTy::Bool)
     }
 
@@ -1797,12 +1873,12 @@ impl BaseTy {
         }
     }
 
-    fn into_ty(self) -> Ty {
+    pub fn to_ty(&self) -> Ty {
         let sort = self.sort();
         if sort.is_unit() {
-            Ty::indexed(self, Expr::unit())
+            Ty::indexed(self.clone(), Expr::unit())
         } else {
-            Ty::exists(Binder::with_sort(Ty::indexed(self, Expr::nu()), sort))
+            Ty::exists(Binder::with_sort(Ty::indexed(self.clone(), Expr::nu()), sort))
         }
     }
 
@@ -1982,14 +2058,6 @@ macro_rules! _Bool {
     };
 }
 pub use crate::_Bool as Bool;
-
-#[macro_export]
-macro_rules! _Float {
-    ($float_ty:pat) => {
-        TyKind::Indexed(BaseTy::Float($float_ty), _)
-    };
-}
-pub use crate::_Float as Float;
 
 #[macro_export]
 macro_rules! _Ref {

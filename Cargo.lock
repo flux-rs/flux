@@ -579,6 +579,7 @@ dependencies = [
  "annotate-snippets",
  "fluent-bundle",
  "fluent-syntax",
+ "itertools",
  "proc-macro2",
  "quote",
  "syn",
@@ -619,6 +620,7 @@ dependencies = [
 name = "flux-refineck"
 version = "0.1.0"
 dependencies = [
+ "dashmap",
  "flux-common",
  "flux-config",
  "flux-errors",

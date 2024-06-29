@@ -8,7 +8,7 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         self, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, CoroutineObligPredicate,
-        EarlyBinder, Ensures, Expr, Float, FnOutput, FnSig, FnTraitPredicate, GenericArg,
+        EarlyBinder, Ensures, Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg,
         GenericParamDefKind, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref,
         Region::ReStatic, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
@@ -42,9 +42,9 @@ use crate::{
     constraint_gen::{ConstrGen, ConstrReason, Obligations},
     fixpoint_encoding::{self, KVarStore},
     ghost_statements::{GhostStatement, GhostStatements, Point},
+    primops,
     queue::WorkQueue,
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
-    sigs,
     type_env::{BasicBlockEnv, BasicBlockEnvShape, TypeEnv},
 };
 
@@ -892,30 +892,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let ty2 = self.check_operand(rcx, env, source_span, op2)?;
 
         match (ty1.kind(), ty2.kind()) {
-            (Float!(float_ty1), Float!(float_ty2)) => {
-                debug_assert_eq!(float_ty1, float_ty2);
-                match bin_op {
-                    mir::BinOp::Eq
-                    | mir::BinOp::Ne
-                    | mir::BinOp::Gt
-                    | mir::BinOp::Ge
-                    | mir::BinOp::Lt
-                    | mir::BinOp::Le => Ok(Ty::bool()),
-                    mir::BinOp::Add
-                    | mir::BinOp::Sub
-                    | mir::BinOp::Mul
-                    | mir::BinOp::Div
-                    | mir::BinOp::BitAnd
-                    | mir::BinOp::BitOr
-                    | mir::BinOp::Shl
-                    | mir::BinOp::Shr
-                    | mir::BinOp::Rem => Ok(Ty::float(*float_ty1)),
-                }
-            }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
-                let sig = sigs::get_bin_op_sig(bin_op, bty1, bty2, self.check_overflow());
+                let sig = primops::get_bin_op_sig(bin_op, bty1, bty2, self.check_overflow());
                 let (e1, e2) = (idx1.clone(), idx2.clone());
-                if let sigs::Pre::Some(reason, constr) = &sig.pre {
+                if let primops::Pre::Some(reason, constr) = &sig.pre {
                     self.constr_gen(rcx, source_span).check_pred(
                         rcx,
                         &constr([e1.clone(), e2.clone()]),
@@ -939,11 +919,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<Ty> {
         let ty = self.check_operand(rcx, env, source_span, op)?;
         match ty.kind() {
-            Float!(float_ty) => Ok(Ty::float(*float_ty)),
             TyKind::Indexed(bty, idx) => {
-                let sig = sigs::get_un_op_sig(un_op, bty, self.check_overflow());
+                let sig = primops::get_un_op_sig(un_op, bty, self.check_overflow());
                 let e = idx.clone();
-                if let sigs::Pre::Some(reason, constr) = &sig.pre {
+                if let primops::Pre::Some(reason, constr) = &sig.pre {
                     self.constr_gen(rcx, source_span).check_pred(
                         rcx,
                         &constr([e.clone()]),
