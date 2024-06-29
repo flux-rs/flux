@@ -8,7 +8,7 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         self, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, CoroutineObligPredicate,
-        EarlyBinder, Ensures, Expr, Float, FnOutput, FnSig, FnTraitPredicate, GenericArg,
+        EarlyBinder, Ensures, Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg,
         GenericParamDefKind, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref,
         Region::ReStatic, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
@@ -42,9 +42,9 @@ use crate::{
     constraint_gen::{ConstrGen, ConstrReason, Obligations},
     fixpoint_encoding::{self, KVarStore},
     ghost_statements::{GhostStatement, GhostStatements, Point},
+    primops,
     queue::WorkQueue,
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
-    sigs,
     type_env::{BasicBlockEnv, BasicBlockEnvShape, TypeEnv},
 };
 
@@ -660,7 +660,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         for (bits, bb) in targets.iter() {
             successors.push((bb, Guard::Pred(mk(bits))));
         }
-        let otherwise = Expr::and(targets.iter().map(|(bits, _)| mk(bits).not()));
+        let otherwise = Expr::and_from_iter(targets.iter().map(|(bits, _)| mk(bits).not()));
         successors.push((targets.otherwise(), Guard::Pred(otherwise)));
 
         successors
@@ -892,61 +892,19 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         op1: &Operand,
         op2: &Operand,
     ) -> Result<Ty> {
+        let check_overflow = self.check_overflow();
         let ty1 = self.check_operand(rcx, env, source_span, op1)?;
         let ty2 = self.check_operand(rcx, env, source_span, op2)?;
 
         match (ty1.kind(), ty2.kind()) {
-            (Float!(float_ty1), Float!(float_ty2)) => {
-                debug_assert_eq!(float_ty1, float_ty2);
-                match bin_op {
-                    mir::BinOp::Eq
-                    | mir::BinOp::Ne
-                    | mir::BinOp::Gt
-                    | mir::BinOp::Ge
-                    | mir::BinOp::Lt
-                    | mir::BinOp::Le => Ok(Ty::bool()),
-                    mir::BinOp::Add
-                    | mir::BinOp::Sub
-                    | mir::BinOp::Mul
-                    | mir::BinOp::Div
-                    | mir::BinOp::BitAnd
-                    | mir::BinOp::BitOr
-                    | mir::BinOp::BitXor
-                    | mir::BinOp::Shl
-                    | mir::BinOp::Shr
-                    | mir::BinOp::Rem => Ok(Ty::float(*float_ty1)),
-                }
-            }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
-                match sigs::get_bin_op_sig(bin_op, bty1, bty2, self.check_overflow()) {
-                    Some(sig) => {
-                        let (e1, e2) = (idx1.clone(), idx2.clone());
-                        if let sigs::Pre::Some(reason, constr) = &sig.pre {
-                            self.constr_gen(rcx, source_span).check_pred(
-                                rcx,
-                                &constr([e1.clone(), e2.clone()]),
-                                *reason,
-                            );
-                        }
-
-                        Ok(sig.out.to_ty([e1, e2]))
-                    }
-                    None => {
-                        match bin_op {
-                            mir::BinOp::Eq
-                            | mir::BinOp::Ne
-                            | mir::BinOp::Gt
-                            | mir::BinOp::Ge
-                            | mir::BinOp::Lt
-                            | mir::BinOp::Le => Ok(Ty::bool()),
-                            _ => {
-                                tracked_span_bug!(
-                                    "No sig for binop : `{bin_op:?}` with `{ty1:?}` and `{ty2:?}`"
-                                )
-                            }
-                        }
-                    }
+                let rule = primops::match_bin_op(bin_op, bty1, idx1, bty2, idx2, check_overflow);
+                if let Some(pre) = rule.precondition {
+                    self.constr_gen(rcx, source_span)
+                        .check_pred(rcx, pre.pred, pre.reason);
                 }
+
+                Ok(rule.output_type)
             }
             _ => tracked_span_bug!("incompatible types: `{ty1:?}` `{ty2:?}`"),
         }
@@ -962,23 +920,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<Ty> {
         let ty = self.check_operand(rcx, env, source_span, op)?;
         match ty.kind() {
-            Float!(float_ty) => Ok(Ty::float(*float_ty)),
             TyKind::Indexed(bty, idx) => {
-                let sig = if let Some(sig) = sigs::get_un_op_sig(un_op, bty, self.check_overflow())
-                {
-                    sig
-                } else {
-                    tracked_span_bug!("No sig for unop : `{un_op:?}` with `{ty:?}`")
-                };
-                let e = idx.clone();
-                if let sigs::Pre::Some(reason, constr) = &sig.pre {
-                    self.constr_gen(rcx, source_span).check_pred(
-                        rcx,
-                        &constr([e.clone()]),
-                        *reason,
-                    );
+                let rule = primops::match_un_op(un_op, bty, idx, self.check_overflow());
+                if let Some(pre) = rule.precondition {
+                    self.constr_gen(rcx, source_span)
+                        .check_pred(rcx, pre.pred, pre.reason);
                 }
-                Ok(sig.out.to_ty([e]))
+                Ok(rule.output_type)
             }
             _ => tracked_span_bug!("invalid type for unary operator `{un_op:?}` `{ty:?}`"),
         }
