@@ -208,6 +208,7 @@ pub enum CastKind {
     PtrToPtr,
     Pointer(PointerCast),
     PointerExposeProvenance,
+    PointerWithExposedProvenance,
 }
 
 #[derive(Copy, Clone)]
@@ -711,6 +712,7 @@ impl fmt::Debug for CastKind {
             CastKind::PtrToPtr => write!(f, "PtrToPtr"),
             CastKind::Pointer(c) => write!(f, "Pointer({c:?})"),
             CastKind::PointerExposeProvenance => write!(f, "PointerExposeProvenance"),
+            CastKind::PointerWithExposedProvenance => write!(f, "PointerWithExposedProvenance"),
         }
     }
 }
