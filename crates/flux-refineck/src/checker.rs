@@ -1458,10 +1458,7 @@ impl Mode for RefineMode {
         target: BasicBlock,
     ) -> Result<bool> {
         let bb_env = &ck.inherited.mode.bb_envs[&ck.def_id][&target];
-        debug_assert_eq!(
-            ck.snapshot_at_dominator(target).scope().unwrap().bindings(),
-            bb_env.scope().bindings()
-        );
+        debug_assert_eq!(&ck.snapshot_at_dominator(target).scope().unwrap(), bb_env.scope());
 
         dbg::refine_goto!(target, rcx, env, bb_env);
 

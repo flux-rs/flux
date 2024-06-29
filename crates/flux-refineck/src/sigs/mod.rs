@@ -126,11 +126,6 @@ where
     }
 
     fn get(&self, op: T, btys: [BaseTy; N]) -> Option<&Sig<N>> {
-        let _msg = format!("no sig found for {op:?} at {btys:?}", op = op, btys = btys);
-        match &self.map.get(&(op, btys)) {
-            Some(sig) => Some(sig),
-            None => None, // panic!("{}", msg),
-        }
-        // &self.map[&(op, btys)]
+        self.map.get(&(op, btys))
     }
 }

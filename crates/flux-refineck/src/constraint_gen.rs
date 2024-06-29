@@ -636,7 +636,8 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 (ctor1.to_ty(), ctor2.to_ty())
             }
             (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => return Ok(()),
-            (GenericArg::Const(_c1), GenericArg::Const(_c2)) => {
+            (GenericArg::Const(c1), GenericArg::Const(c2)) => {
+                debug_assert_eq!(c1, c2);
                 return Ok(());
             }
 

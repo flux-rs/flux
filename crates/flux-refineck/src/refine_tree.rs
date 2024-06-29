@@ -157,10 +157,6 @@ impl Scope {
     fn contains(&self, name: Name) -> bool {
         name.index() < self.bindings.len()
     }
-
-    pub fn bindings(&self) -> &IndexVec<Name, Sort> {
-        &self.bindings
-    }
 }
 
 struct Node {

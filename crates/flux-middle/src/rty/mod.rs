@@ -1052,8 +1052,6 @@ impl GenericArg {
                 let ty = ty.to_rustc(tcx);
                 let kind = match c.kind {
                     ConstKind::Param(param_const) => {
-                        let param_const =
-                            ParamConst { name: param_const.name, index: param_const.index };
                         rustc_middle::ty::ConstKind::Param(param_const)
                     }
                     ConstKind::Value(scalar_int) => {
