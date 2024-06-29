@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Output","Pre"],"fn":["get_bin_op_sig","get_un_op_sig"],"mod":["default","overflow"],"struct":["Sig","SigTable"]};

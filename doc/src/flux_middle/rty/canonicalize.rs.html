@@ -335,7 +335,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>hoister = Hoister::default();
         <span class="kw">let </span>ty = hoister.hoist(<span class="self">self</span>);
         <span class="kw">let </span>(vars, preds) = hoister.into_parts();
-        <span class="kw">let </span>pred = Expr::and(preds);
+        <span class="kw">let </span>pred = Expr::and_from_iter(preds);
         <span class="kw">let </span>constr_ty = CanonicalConstrTy { ty, pred };
         <span class="kw">if </span>vars.is_empty() {
             CanonicalTy::Constr(constr_ty)
@@ -388,7 +388,7 @@
                     <span class="kw">let </span>constr = SubsetTy::new(
                         bty.clone(),
                         Expr::nu(),
-                        Expr::and([constr.pred.clone(), Expr::eq(Expr::nu(), idx)]),
+                        Expr::and_from_iter([constr.pred.clone(), Expr::eq(Expr::nu(), idx)]),
                     );
                     <span class="prelude-val">Some</span>(Binder::with_sort(constr, sort))
                 } <span class="kw">else </span>{

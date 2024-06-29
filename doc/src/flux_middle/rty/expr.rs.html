@@ -1134,6 +1134,14 @@
 <a href="#1134" id="1134">1134</a>
 <a href="#1135" id="1135">1135</a>
 <a href="#1136" id="1136">1136</a>
+<a href="#1137" id="1137">1137</a>
+<a href="#1138" id="1138">1138</a>
+<a href="#1139" id="1139">1139</a>
+<a href="#1140" id="1140">1140</a>
+<a href="#1141" id="1141">1141</a>
+<a href="#1142" id="1142">1142</a>
+<a href="#1143" id="1143">1143</a>
+<a href="#1144" id="1144">1144</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1467,18 +1475,26 @@
             .clone()
     }
 
-    <span class="kw">pub fn </span>and(exprs: <span class="kw">impl </span>IntoIterator&lt;Item = Expr&gt;) -&gt; Expr {
+    <span class="kw">pub fn </span>and_from_iter(exprs: <span class="kw">impl </span>IntoIterator&lt;Item = Expr&gt;) -&gt; Expr {
         exprs
             .into_iter()
             .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e, <span class="prelude-val">None</span>))
             .unwrap_or_else(Expr::tt)
     }
 
-    <span class="kw">pub fn </span>or(exprs: <span class="kw">impl </span>IntoIterator&lt;Item = Expr&gt;) -&gt; Expr {
+    <span class="kw">pub fn </span>and(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
+        Expr::and_from_iter([e1.into(), e2.into()])
+    }
+
+    <span class="kw">pub fn </span>or_from_iter(exprs: <span class="kw">impl </span>IntoIterator&lt;Item = Expr&gt;) -&gt; Expr {
         exprs
             .into_iter()
             .reduce(|acc, e| Expr::binary_op(BinOp::Or, acc, e, <span class="prelude-val">None</span>))
             .unwrap_or_else(Expr::ff)
+    }
+
+    <span class="kw">pub fn </span>or(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
+        Expr::or_from_iter([e1.into(), e2.into()])
     }
 
     <span class="kw">pub fn </span>zero() -&gt; Expr {

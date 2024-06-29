@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"derive":["Diagnostic","Subdiagnostic"],"macro":["fluent_messages"],"mod":["diagnostics"]};
+window.SIDEBAR_ITEMS = {"derive":["Diagnostic","Subdiagnostic"],"macro":["fluent_messages","primop_rules"],"mod":["diagnostics","primops"]};
