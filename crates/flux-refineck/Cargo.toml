@@ -14,7 +14,6 @@ flux-fixpoint.workspace = true
 flux-macros.workspace = true
 flux-middle.workspace = true
 
-dashmap.workspace = true
 itertools.workspace = true
 
 tracing = "0.1"
