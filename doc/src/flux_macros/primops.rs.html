@@ -458,7 +458,7 @@
 <span class="kw">impl </span>Rules {
     <span class="doccomment">/// Check that the number of arguments is the same in all rules
     </span><span class="kw">fn </span>check_arg_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; syn::Result&lt;usize&gt; {
-        <span class="kw">let </span>argc = <span class="self">self</span>.<span class="number">0</span>.get(<span class="number">0</span>).map(|rule| rule.args.len()).unwrap_or(<span class="number">0</span>);
+        <span class="kw">let </span>argc = <span class="self">self</span>.<span class="number">0</span>.first().map(|rule| rule.args.len()).unwrap_or(<span class="number">0</span>);
         <span class="kw">for </span>rule <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0 </span>{
             <span class="kw">if </span>rule.args.len() != argc {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(syn::Error::new(

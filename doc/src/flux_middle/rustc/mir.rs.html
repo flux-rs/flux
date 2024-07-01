@@ -756,6 +756,8 @@
 <a href="#756" id="756">756</a>
 <a href="#757" id="757">757</a>
 <a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
@@ -966,6 +968,7 @@
     PtrToPtr,
     Pointer(PointerCast),
     PointerExposeProvenance,
+    PointerWithExposedProvenance,
 }
 
 <span class="attr">#[derive(Copy, Clone)]
@@ -1469,6 +1472,7 @@
             CastKind::PtrToPtr =&gt; <span class="macro">write!</span>(f, <span class="string">"PtrToPtr"</span>),
             CastKind::Pointer(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"Pointer({c:?})"</span>),
             CastKind::PointerExposeProvenance =&gt; <span class="macro">write!</span>(f, <span class="string">"PointerExposeProvenance"</span>),
+            CastKind::PointerWithExposedProvenance =&gt; <span class="macro">write!</span>(f, <span class="string">"PointerWithExposedProvenance"</span>),
         }
     }
 }

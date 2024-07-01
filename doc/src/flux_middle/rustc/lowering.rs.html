@@ -992,6 +992,9 @@
 <a href="#992" id="992">992</a>
 <a href="#993" id="993">993</a>
 <a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1482,6 +1485,9 @@
                 <span class="prelude-val">Some</span>(CastKind::Pointer(<span class="self">self</span>.lower_pointer_coercion(ptr_coercion)<span class="question-mark">?</span>))
             }
             rustc_mir::CastKind::PointerExposeProvenance =&gt; <span class="prelude-val">Some</span>(CastKind::PointerExposeProvenance),
+            rustc_mir::CastKind::PointerWithExposedProvenance =&gt; {
+                <span class="prelude-val">Some</span>(CastKind::PointerWithExposedProvenance)
+            }
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }

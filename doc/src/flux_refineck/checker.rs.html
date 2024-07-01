@@ -1589,6 +1589,7 @@
 <a href="#1589" id="1589">1589</a>
 <a href="#1590" id="1590">1590</a>
 <a href="#1591" id="1591">1591</a>
+<a href="#1592" id="1592">1592</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -2570,7 +2571,8 @@
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::PtrToPtr
-            | CastKind::Pointer(mir::PointerCast::MutToConstPointer) =&gt; {
+            | CastKind::Pointer(mir::PointerCast::MutToConstPointer)
+            | CastKind::PointerWithExposedProvenance =&gt; {
                 <span class="self">self</span>.genv
                     .refine_default(<span class="kw-2">&amp;</span><span class="self">self</span>.generics, to)
                     .with_span(<span class="self">self</span>.body.span())<span class="question-mark">?
