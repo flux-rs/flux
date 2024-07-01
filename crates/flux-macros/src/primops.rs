@@ -55,7 +55,7 @@ struct Rules(Vec<Rule>);
 impl Rules {
     /// Check that the number of arguments is the same in all rules
     fn check_arg_count(&self) -> syn::Result<usize> {
-        let argc = self.0.get(0).map(|rule| rule.args.len()).unwrap_or(0);
+        let argc = self.0.first().map(|rule| rule.args.len()).unwrap_or(0);
         for rule in &self.0 {
             if rule.args.len() != argc {
                 return Err(syn::Error::new(
