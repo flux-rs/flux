@@ -640,6 +640,17 @@
 <a href="#640" id="640">640</a>
 <a href="#641" id="641">641</a>
 <a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 //!
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
@@ -709,8 +720,10 @@
 /// allow a refinement using `&amp;List&lt;T&gt;`.
 /// Do not use this outside of annot check because the `FhirId`s will be wrong.
 ///
+/// This should be removed once we move annot check to rty
+///
 /// [`Self`]: fhir::Res::SelfTyAlias
-</span><span class="kw">pub fn </span>lift_self_ty&lt;<span class="lifetime">'genv</span>&gt;(
+</span><span class="kw">pub fn </span>lift_self_ty_hack&lt;<span class="lifetime">'genv</span>&gt;(
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
     owner_id: OwnerId,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;fhir::Ty&lt;<span class="lifetime">'genv</span>&gt;&gt;&gt; {
@@ -737,7 +750,7 @@
         <span class="kw">let </span>segment = fhir::PathSegment {
             ident: item.ident,
             res,
-            args: cx.generic_params_into_args(generics)<span class="question-mark">?</span>,
+            args: cx.generic_params_into_args_hack(generics)<span class="question-mark">?</span>,
             bindings: <span class="kw-2">&amp;</span>[],
         };
         <span class="kw">let </span>path = fhir::Path { res, segments: genv.alloc_slice(<span class="kw-2">&amp;</span>[segment]), refine: <span class="kw-2">&amp;</span>[], span };
@@ -1150,8 +1163,8 @@
                     <span class="kw">let </span>ty = <span class="self">self</span>.lift_ty(ty)<span class="question-mark">?</span>;
                     <span class="prelude-val">Ok</span>(fhir::GenericArg::Type(<span class="self">self</span>.genv.alloc(ty)))
                 }
-                hir::GenericArg::Const(<span class="kw">_</span>) =&gt; {
-                    <span class="self">self</span>.emit_unsupported(<span class="string">"const generics are not supported (2)"</span>)
+                hir::GenericArg::Const(const_) =&gt; {
+                    <span class="prelude-val">Ok</span>(fhir::GenericArg::Const(<span class="self">self</span>.lift_anon_const(const_.value)<span class="question-mark">?</span>))
                 }
                 hir::GenericArg::Infer(<span class="kw">_</span>) =&gt; {
                     <span class="macro">bug!</span>(<span class="string">"unexpected inference generic argument"</span>);
@@ -1176,26 +1189,33 @@
         })
     }
 
-    <span class="kw">fn </span>lift_array_len(<span class="kw-2">&amp;mut </span><span class="self">self</span>, len: hir::ArrayLen) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ArrayLen&gt; {
-        <span class="kw">let </span>body = <span class="kw">match </span>len {
-            hir::ArrayLen::Body(anon_const) =&gt; <span class="self">self</span>.genv.hir().body(anon_const.body),
+    <span class="kw">fn </span>lift_array_len(<span class="kw-2">&amp;mut </span><span class="self">self</span>, len: hir::ArrayLen) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ConstArg&gt; {
+        <span class="kw">match </span>len {
+            hir::ArrayLen::Body(anon_const) =&gt; <span class="self">self</span>.lift_anon_const(anon_const),
             hir::ArrayLen::Infer(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected `ArrayLen::Infer`"</span>),
-        };
-        <span class="kw">if let </span>hir::ExprKind::Lit(lit) = <span class="kw-2">&amp;</span>body.value.kind
-            &amp;&amp; <span class="kw">let </span>LitKind::Int(array_len, <span class="kw">_</span>) = lit.node
-        {
-            <span class="prelude-val">Ok</span>(fhir::ArrayLen::lit(array_len.get().try_into().unwrap(), lit.span))
-        } <span class="kw">else if let </span>hir::ExprKind::Path(hir::QPath::Resolved(<span class="kw">_</span>, path)) = <span class="kw-2">&amp;</span>body.value.kind
-            &amp;&amp; <span class="kw">let </span>hir::def::Res::Def(DefKind::ConstParam, def_id) = path.res
-        {
-            <span class="prelude-val">Ok</span>(fhir::ArrayLen::param(def_id, path.span))
-        } <span class="kw">else </span>{
-            <span class="self">self</span>.emit_unsupported(<span class="string">"only integer literals are supported for array lengths"</span>)
         }
     }
 
-    <span class="doccomment">/// HACK(nilehmann) do not use this function. See [`lift_self_ty`].
-    </span><span class="kw">fn </span>generic_params_into_args(
+    <span class="kw">fn </span>lift_anon_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, anon_const: hir::AnonConst) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ConstArg&gt; {
+        <span class="kw">let </span>body = <span class="self">self</span>.genv.hir().body(anon_const.body);
+        <span class="kw">let </span>kind = <span class="kw">if let </span>hir::ExprKind::Lit(lit) = <span class="kw-2">&amp;</span>body.value.kind
+            &amp;&amp; <span class="kw">let </span>LitKind::Int(int_lit, <span class="kw">_</span>) = lit.node
+        {
+            fhir::ConstArgKind::Lit(int_lit.get().try_into().unwrap())
+        } <span class="kw">else if let </span>hir::ExprKind::Path(hir::QPath::Resolved(<span class="kw">_</span>, path)) = <span class="kw-2">&amp;</span>body.value.kind
+            &amp;&amp; <span class="kw">let </span>hir::def::Res::Def(DefKind::ConstParam, def_id) = path.res
+        {
+            fhir::ConstArgKind::Param(def_id)
+        } <span class="kw">else </span>{
+            <span class="kw">return </span><span class="self">self</span>.emit_unsupported(
+                <span class="string">"only integer literals or generic parameters are supported type constants"</span>,
+            );
+        };
+        <span class="prelude-val">Ok</span>(fhir::ConstArg { kind, span: body.value.span })
+    }
+
+    <span class="doccomment">/// HACK(nilehmann) do not use this function. See [`lift_self_ty_hack`].
+    </span><span class="kw">fn </span>generic_params_into_args_hack(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         generics: <span class="kw-2">&amp;</span>hir::Generics,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[fhir::GenericArg&lt;<span class="lifetime">'genv</span>&gt;]&gt; {
@@ -1225,7 +1245,9 @@
                     <span class="prelude-val">Ok</span>(fhir::GenericArg::Lifetime(lft))
                 }
                 hir::GenericParamKind::Const { .. } =&gt; {
-                    <span class="self">self</span>.emit_unsupported(<span class="string">"const generics are not supported"</span>)
+                    <span class="kw">let </span>def_id = param.def_id.to_def_id();
+                    <span class="kw">let </span>kind = fhir::ConstArgKind::Param(def_id);
+                    <span class="prelude-val">Ok</span>(fhir::GenericArg::Const(fhir::ConstArg { kind, span: param.span }))
                 }
             }
         })

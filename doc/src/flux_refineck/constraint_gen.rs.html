@@ -790,13 +790,10 @@
 <a href="#790" id="790">790</a>
 <a href="#791" id="791">791</a>
 <a href="#792" id="792">792</a>
-<a href="#793" id="793">793</a>
-<a href="#794" id="794">794</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
 <span class="kw">use </span>flux_middle::{
-    fhir::ArrayLenKind,
     global_env::GlobalEnv,
     intern::List,
     rty::{
@@ -1116,8 +1113,7 @@
         }
         rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.solve()<span class="question-mark">?</span>);
 
-        <span class="kw">let </span>len = ArrayLenKind::Lit(args.len());
-        <span class="prelude-val">Ok</span>(Ty::array(arr_ty, rty::array_len_const(<span class="kw-2">&amp;</span><span class="self">self</span>.genv, len)))
+        <span class="prelude-val">Ok</span>(Ty::array(arr_ty, rty::Const::from_usize(<span class="self">self</span>.genv.tcx(), args.len())))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infcx(

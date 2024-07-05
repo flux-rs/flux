@@ -489,6 +489,7 @@
 <a href="#489" id="489">489</a>
 <a href="#490" id="490">490</a>
 <a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
     FnSig, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem,
@@ -833,6 +834,7 @@
     <span class="kw">match </span>arg {
         GenericArg::Lifetime(lft) =&gt; vis.visit_lifetime(lft),
         GenericArg::Type(ty) =&gt; vis.visit_ty(ty),
+        GenericArg::Const(_cst) =&gt; {}
     }
 }
 

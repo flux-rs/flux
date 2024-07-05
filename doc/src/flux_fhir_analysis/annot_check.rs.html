@@ -610,7 +610,7 @@
     <span class="kw">if </span>fn_sig.decl.lifted {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
-    <span class="kw">let </span>self_ty = lift::lift_self_ty(genv, owner_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>self_ty = lift::lift_self_ty_hack(genv, owner_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>expected_fn_decl = <span class="kw-2">&amp;</span>lift::lift_fn_decl(genv, owner_id)<span class="question-mark">?</span>.<span class="number">0</span>;
     Zipper::new(genv, self_ty).zip_fn_decl(fn_sig.decl, expected_fn_decl)
 }
@@ -640,7 +640,7 @@
                 <span class="kw">if </span>field.lifted {
                     <span class="kw">return </span><span class="prelude-val">Ok</span>(());
                 }
-                <span class="kw">let </span>self_ty = lift::lift_self_ty(genv, owner_id)<span class="question-mark">?</span>;
+                <span class="kw">let </span>self_ty = lift::lift_self_ty_hack(genv, owner_id)<span class="question-mark">?</span>;
                 Zipper::new(genv, self_ty)
                     .zip_ty(<span class="kw-2">&amp;</span>field.ty, <span class="kw-2">&amp;</span>liftcx.lift_field_def_id(field.def_id)<span class="question-mark">?</span>.ty)
             })
@@ -660,7 +660,7 @@
         <span class="kw">if </span>variant.lifted {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
-        <span class="kw">let </span>self_ty = lift::lift_self_ty(genv, owner_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>self_ty = lift::lift_self_ty_hack(genv, owner_id)<span class="question-mark">?</span>;
         Zipper::new(genv, self_ty)
             .zip_enum_variant(variant, <span class="kw-2">&amp;</span>liftcx.lift_enum_variant_id(variant.def_id)<span class="question-mark">?</span>)
     })
@@ -1061,7 +1061,7 @@
     }
 
     <span class="kw">impl </span>ArrayLenMismatch {
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(len: <span class="kw-2">&amp;</span>fhir::ArrayLen, expected_len: <span class="kw-2">&amp;</span>fhir::ArrayLen) -&gt; <span class="self">Self </span>{
+        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(len: <span class="kw-2">&amp;</span>fhir::ConstArg, expected_len: <span class="kw-2">&amp;</span>fhir::ConstArg) -&gt; <span class="self">Self </span>{
             <span class="kw">let </span>span = len.span;
             <span class="kw">let </span>expected_span = expected_len.span;
             <span class="kw">let </span>len = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, len.kind);

@@ -858,6 +858,13 @@
 <a href="#858" id="858">858</a>
 <a href="#859" id="859">859</a>
 <a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
@@ -1070,6 +1077,13 @@
 }
 
 <span class="kw">impl </span>Const {
+    <span class="kw">pub fn </span>from_usize(tcx: TyCtxt, v: usize) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            kind: ConstKind::Value(ScalarInt::try_from_target_usize(v <span class="kw">as </span>u128, tcx).unwrap()),
+            ty: Ty::mk_uint(UintTy::Usize),
+        }
+    }
+
     <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_ty::Const&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="kw">let </span>ty = <span class="kw-2">&amp;</span><span class="self">self</span>.ty;
         <span class="kw">let </span>ty = ty.to_rustc(tcx);

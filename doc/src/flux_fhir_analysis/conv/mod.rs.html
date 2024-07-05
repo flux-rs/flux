@@ -1721,6 +1721,16 @@
 <a href="#1721" id="1721">1721</a>
 <a href="#1722" id="1722">1722</a>
 <a href="#1723" id="1723">1723</a>
+<a href="#1724" id="1724">1724</a>
+<a href="#1725" id="1725">1725</a>
+<a href="#1726" id="1726">1726</a>
+<a href="#1727" id="1727">1727</a>
+<a href="#1728" id="1728">1728</a>
+<a href="#1729" id="1729">1729</a>
+<a href="#1730" id="1730">1730</a>
+<a href="#1731" id="1731">1731</a>
+<a href="#1732" id="1732">1732</a>
+<a href="#1733" id="1733">1733</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2479,10 +2489,7 @@
                 <span class="prelude-val">Ok</span>(rty::Ty::tuple(tys))
             }
             fhir::TyKind::Array(ty, len) =&gt; {
-                <span class="prelude-val">Ok</span>(rty::Ty::array(
-                    <span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>,
-                    rty::array_len_const(<span class="kw-2">&amp;</span><span class="self">self</span>.genv, len.kind),
-                ))
+                <span class="prelude-val">Ok</span>(rty::Ty::array(<span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>, <span class="self">self</span>.conv_const_arg(<span class="kw-2">*</span>len)<span class="question-mark">?</span>))
             }
             fhir::TyKind::Never =&gt; <span class="prelude-val">Ok</span>(rty::Ty::never()),
             fhir::TyKind::Constr(pred, ty) =&gt; {
@@ -2734,6 +2741,16 @@
         }
     }
 
+    <span class="kw">fn </span>conv_const_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cst: fhir::ConstArg) -&gt; QueryResult&lt;rty::Const&gt; {
+        <span class="kw">match </span>cst.kind {
+            fhir::ConstArgKind::Lit(lit) =&gt; <span class="prelude-val">Ok</span>(rty::Const::from_usize(<span class="self">self</span>.genv.tcx(), lit)),
+            fhir::ConstArgKind::Param(def_id) =&gt; {
+                <span class="kw">let </span>kind = rty::ConstKind::Param(<span class="self">self</span>.genv.def_id_to_param_const(def_id));
+                <span class="prelude-val">Ok</span>(rty::Const { kind, ty: <span class="self">self</span>.genv.lower_type_of(def_id)<span class="question-mark">?</span>.skip_binder() })
+            }
+        }
+    }
+
     <span class="kw">fn </span>conv_refine_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, arg: <span class="kw-2">&amp;</span>fhir::RefineArg) -&gt; QueryResult&lt;rty::Expr&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span>arg.kind {
             fhir::RefineArgKind::Expr(expr) =&gt; <span class="self">self</span>.conv_expr(env, expr),
@@ -2840,6 +2857,9 @@
                 }
                 fhir::GenericArg::Type(ty) =&gt; {
                     into.push(<span class="self">self</span>.conv_ty_to_generic_arg(env, <span class="kw-2">&amp;</span>param, ty)<span class="question-mark">?</span>);
+                }
+                fhir::GenericArg::Const(cst) =&gt; {
+                    into.push(rty::GenericArg::Const(<span class="self">self</span>.conv_const_arg(<span class="kw-2">*</span>cst)<span class="question-mark">?</span>))
                 }
             }
         }
