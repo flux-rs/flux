@@ -982,18 +982,6 @@ pub enum GenericArg {
     Const(Const),
 }
 
-pub fn array_len_const(genv: &GlobalEnv, len: fhir::ArrayLenKind) -> Const {
-    let kind = match len {
-        fhir::ArrayLenKind::Lit(len) => {
-            ConstKind::Value(ScalarInt::try_from_target_usize(len as u128, genv.tcx()).unwrap())
-        }
-        fhir::ArrayLenKind::ParamConst(def_id) => {
-            ConstKind::Param(genv.def_id_to_param_const(def_id))
-        }
-    };
-    Const { kind, ty: crate::rustc::ty::Ty::mk_uint(UintTy::Usize) }
-}
-
 impl GenericArg {
     pub fn expect_type(&self) -> &Ty {
         if let GenericArg::Ty(ty) = self {

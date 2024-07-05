@@ -67,8 +67,10 @@ pub fn lift_fn_decl<'genv>(
 /// allow a refinement using `&List<T>`.
 /// Do not use this outside of annot check because the `FhirId`s will be wrong.
 ///
+/// This should be removed once we move annot check to rty
+///
 /// [`Self`]: fhir::Res::SelfTyAlias
-pub fn lift_self_ty<'genv>(
+pub fn lift_self_ty_hack<'genv>(
     genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
 ) -> Result<Option<fhir::Ty<'genv>>> {
@@ -95,7 +97,7 @@ pub fn lift_self_ty<'genv>(
         let segment = fhir::PathSegment {
             ident: item.ident,
             res,
-            args: cx.generic_params_into_args(generics)?,
+            args: cx.generic_params_into_args_hack(generics)?,
             bindings: &[],
         };
         let path = fhir::Path { res, segments: genv.alloc_slice(&[segment]), refine: &[], span };
@@ -508,8 +510,8 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     let ty = self.lift_ty(ty)?;
                     Ok(fhir::GenericArg::Type(self.genv.alloc(ty)))
                 }
-                hir::GenericArg::Const(_) => {
-                    self.emit_unsupported("const generics are not supported (2)")
+                hir::GenericArg::Const(const_) => {
+                    Ok(fhir::GenericArg::Const(self.lift_anon_const(const_.value)?))
                 }
                 hir::GenericArg::Infer(_) => {
                     bug!("unexpected inference generic argument");
@@ -534,26 +536,33 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         })
     }
 
-    fn lift_array_len(&mut self, len: hir::ArrayLen) -> Result<fhir::ArrayLen> {
-        let body = match len {
-            hir::ArrayLen::Body(anon_const) => self.genv.hir().body(anon_const.body),
+    fn lift_array_len(&mut self, len: hir::ArrayLen) -> Result<fhir::ConstArg> {
+        match len {
+            hir::ArrayLen::Body(anon_const) => self.lift_anon_const(anon_const),
             hir::ArrayLen::Infer(_) => bug!("unexpected `ArrayLen::Infer`"),
-        };
-        if let hir::ExprKind::Lit(lit) = &body.value.kind
-            && let LitKind::Int(array_len, _) = lit.node
-        {
-            Ok(fhir::ArrayLen::lit(array_len.get().try_into().unwrap(), lit.span))
-        } else if let hir::ExprKind::Path(hir::QPath::Resolved(_, path)) = &body.value.kind
-            && let hir::def::Res::Def(DefKind::ConstParam, def_id) = path.res
-        {
-            Ok(fhir::ArrayLen::param(def_id, path.span))
-        } else {
-            self.emit_unsupported("only integer literals are supported for array lengths")
         }
     }
 
-    /// HACK(nilehmann) do not use this function. See [`lift_self_ty`].
-    fn generic_params_into_args(
+    fn lift_anon_const(&mut self, anon_const: hir::AnonConst) -> Result<fhir::ConstArg> {
+        let body = self.genv.hir().body(anon_const.body);
+        let kind = if let hir::ExprKind::Lit(lit) = &body.value.kind
+            && let LitKind::Int(int_lit, _) = lit.node
+        {
+            fhir::ConstArgKind::Lit(int_lit.get().try_into().unwrap())
+        } else if let hir::ExprKind::Path(hir::QPath::Resolved(_, path)) = &body.value.kind
+            && let hir::def::Res::Def(DefKind::ConstParam, def_id) = path.res
+        {
+            fhir::ConstArgKind::Param(def_id)
+        } else {
+            return self.emit_unsupported(
+                "only integer literals or generic parameters are supported type constants",
+            );
+        };
+        Ok(fhir::ConstArg { kind, span: body.value.span })
+    }
+
+    /// HACK(nilehmann) do not use this function. See [`lift_self_ty_hack`].
+    fn generic_params_into_args_hack(
         &self,
         generics: &hir::Generics,
     ) -> Result<&'genv [fhir::GenericArg<'genv>]> {
@@ -583,7 +592,9 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     Ok(fhir::GenericArg::Lifetime(lft))
                 }
                 hir::GenericParamKind::Const { .. } => {
-                    self.emit_unsupported("const generics are not supported")
+                    let def_id = param.def_id.to_def_id();
+                    let kind = fhir::ConstArgKind::Param(def_id);
+                    Ok(fhir::GenericArg::Const(fhir::ConstArg { kind, span: param.span }))
                 }
             }
         })

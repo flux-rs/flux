@@ -210,6 +210,13 @@ pub struct Const {
 }
 
 impl Const {
+    pub fn from_usize(tcx: TyCtxt, v: usize) -> Self {
+        Self {
+            kind: ConstKind::Value(ScalarInt::try_from_target_usize(v as u128, tcx).unwrap()),
+            ty: Ty::mk_uint(UintTy::Usize),
+        }
+    }
+
     pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_ty::Const<'tcx> {
         let ty = &self.ty;
         let ty = ty.to_rustc(tcx);
