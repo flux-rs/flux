@@ -61,7 +61,7 @@ pub(crate) fn check_fn_sig(
     if fn_sig.decl.lifted {
         return Ok(());
     }
-    let self_ty = lift::lift_self_ty(genv, owner_id)?;
+    let self_ty = lift::lift_self_ty_hack(genv, owner_id)?;
     let expected_fn_decl = &lift::lift_fn_decl(genv, owner_id)?.0;
     Zipper::new(genv, self_ty).zip_fn_decl(fn_sig.decl, expected_fn_decl)
 }
@@ -91,7 +91,7 @@ pub(crate) fn check_struct_def(
                 if field.lifted {
                     return Ok(());
                 }
-                let self_ty = lift::lift_self_ty(genv, owner_id)?;
+                let self_ty = lift::lift_self_ty_hack(genv, owner_id)?;
                 Zipper::new(genv, self_ty)
                     .zip_ty(&field.ty, &liftcx.lift_field_def_id(field.def_id)?.ty)
             })
@@ -111,7 +111,7 @@ pub(crate) fn check_enum_def(
         if variant.lifted {
             return Ok(());
         }
-        let self_ty = lift::lift_self_ty(genv, owner_id)?;
+        let self_ty = lift::lift_self_ty_hack(genv, owner_id)?;
         Zipper::new(genv, self_ty)
             .zip_enum_variant(variant, &liftcx.lift_enum_variant_id(variant.def_id)?)
     })
@@ -512,7 +512,7 @@ mod errors {
     }
 
     impl ArrayLenMismatch {
-        pub(super) fn new(len: &fhir::ArrayLen, expected_len: &fhir::ArrayLen) -> Self {
+        pub(super) fn new(len: &fhir::ConstArg, expected_len: &fhir::ConstArg) -> Self {
             let span = len.span;
             let expected_span = expected_len.span;
             let len = format!("{:?}", len.kind);

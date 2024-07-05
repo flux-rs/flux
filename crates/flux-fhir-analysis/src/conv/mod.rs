@@ -756,10 +756,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 Ok(rty::Ty::tuple(tys))
             }
             fhir::TyKind::Array(ty, len) => {
-                Ok(rty::Ty::array(
-                    self.conv_ty(env, ty)?,
-                    rty::array_len_const(&self.genv, len.kind),
-                ))
+                Ok(rty::Ty::array(self.conv_ty(env, ty)?, self.conv_const_arg(*len)?))
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
             fhir::TyKind::Constr(pred, ty) => {
@@ -1011,6 +1008,16 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
+    fn conv_const_arg(&mut self, cst: fhir::ConstArg) -> QueryResult<rty::Const> {
+        match cst.kind {
+            fhir::ConstArgKind::Lit(lit) => Ok(rty::Const::from_usize(self.genv.tcx(), lit)),
+            fhir::ConstArgKind::Param(def_id) => {
+                let kind = rty::ConstKind::Param(self.genv.def_id_to_param_const(def_id));
+                Ok(rty::Const { kind, ty: self.genv.lower_type_of(def_id)?.skip_binder() })
+            }
+        }
+    }
+
     fn conv_refine_arg(&mut self, env: &mut Env, arg: &fhir::RefineArg) -> QueryResult<rty::Expr> {
         match &arg.kind {
             fhir::RefineArgKind::Expr(expr) => self.conv_expr(env, expr),
@@ -1117,6 +1124,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 }
                 fhir::GenericArg::Type(ty) => {
                     into.push(self.conv_ty_to_generic_arg(env, &param, ty)?);
+                }
+                fhir::GenericArg::Const(cst) => {
+                    into.push(rty::GenericArg::Const(self.conv_const_arg(*cst)?))
                 }
             }
         }

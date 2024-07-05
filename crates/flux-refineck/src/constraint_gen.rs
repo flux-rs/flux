@@ -2,7 +2,6 @@ use std::iter;
 
 use flux_common::{bug, tracked_span_bug};
 use flux_middle::{
-    fhir::ArrayLenKind,
     global_env::GlobalEnv,
     intern::List,
     rty::{
@@ -322,8 +321,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         }
         rcx.replace_evars(&infcx.solve()?);
 
-        let len = ArrayLenKind::Lit(args.len());
-        Ok(Ty::array(arr_ty, rty::array_len_const(&self.genv, len)))
+        Ok(Ty::array(arr_ty, rty::Const::from_usize(self.genv.tcx(), args.len())))
     }
 
     pub(crate) fn infcx(
