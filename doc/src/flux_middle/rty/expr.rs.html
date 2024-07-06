@@ -1407,7 +1407,7 @@
 <span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>Var {
     Free(Name),
-    LateBound(DebruijnIndex, BoundReft),
+    Bound(DebruijnIndex, BoundReft),
     EarlyParam(EarlyReftParam),
     EVar(EVar),
     ConstGeneric(ParamConst),
@@ -1527,11 +1527,11 @@
     }
 
     <span class="kw">pub fn </span>nu() -&gt; Expr {
-        Expr::late_bvar(INNERMOST, <span class="number">0</span>, BoundReftKind::Annon)
+        Expr::bvar(INNERMOST, <span class="number">0</span>, BoundReftKind::Annon)
     }
 
     <span class="kw">pub fn </span>is_nu(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">if let </span>ExprKind::Var(Var::LateBound(INNERMOST, var)) = <span class="self">self</span>.kind()
+        <span class="kw">if let </span>ExprKind::Var(Var::Bound(INNERMOST, var)) = <span class="self">self</span>.kind()
             &amp;&amp; var.index == <span class="number">0
         </span>{
             <span class="bool-val">true
@@ -1565,8 +1565,8 @@
         Var::EVar(evar).to_expr()
     }
 
-    <span class="kw">pub fn </span>late_bvar(debruijn: DebruijnIndex, index: u32, kind: BoundReftKind) -&gt; Expr {
-        Var::LateBound(debruijn, BoundReft { index, kind }).to_expr()
+    <span class="kw">pub fn </span>bvar(debruijn: DebruijnIndex, index: u32, kind: BoundReftKind) -&gt; Expr {
+        Var::Bound(debruijn, BoundReft { index, kind }).to_expr()
     }
 
     <span class="kw">pub fn </span>early_param(index: u32, name: Symbol) -&gt; Expr {
@@ -1863,7 +1863,7 @@
 
     <span class="kw">pub fn </span>eta_expand_abs(<span class="kw-2">&amp;</span><span class="self">self</span>, inputs: <span class="kw-2">&amp;</span>[Sort], output: Sort) -&gt; Lambda {
         <span class="kw">let </span>args = (<span class="number">0</span>..inputs.len())
-            .map(|idx| Expr::late_bvar(INNERMOST, idx <span class="kw">as </span>u32, BoundReftKind::Annon))
+            .map(|idx| Expr::bvar(INNERMOST, idx <span class="kw">as </span>u32, BoundReftKind::Annon))
             .collect_vec();
         <span class="kw">let </span>body = Expr::app(<span class="self">self</span>, args, <span class="prelude-val">None</span>);
         Lambda::with_sorts(body, inputs, output)
@@ -2208,7 +2208,7 @@
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">match </span><span class="self">self </span>{
-                Var::LateBound(debruijn, var) =&gt; cx.fmt_bound_reft(<span class="kw-2">*</span>debruijn, <span class="kw-2">*</span>var, f),
+                Var::Bound(debruijn, var) =&gt; cx.fmt_bound_reft(<span class="kw-2">*</span>debruijn, <span class="kw-2">*</span>var, f),
                 Var::EarlyParam(var) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^var.name),
                 Var::Free(name) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^name),
                 Var::EVar(evar) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, evar),

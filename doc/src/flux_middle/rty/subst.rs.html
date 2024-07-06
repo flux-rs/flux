@@ -708,15 +708,15 @@
     }
 
     <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, e: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
-        <span class="kw">if let </span>ExprKind::Var(Var::LateBound(debruijn, var)) = e.kind() {
+        <span class="kw">if let </span>ExprKind::Var(Var::Bound(debruijn, var)) = e.kind() {
             <span class="kw">match </span>debruijn.cmp(<span class="kw-2">&amp;</span><span class="self">self</span>.current_index) {
-                Ordering::Less =&gt; Expr::late_bvar(<span class="kw-2">*</span>debruijn, var.index, var.kind),
+                Ordering::Less =&gt; Expr::bvar(<span class="kw-2">*</span>debruijn, var.index, var.kind),
                 Ordering::Equal =&gt; {
                     <span class="self">self</span>.delegate
                         .replace_expr(<span class="kw-2">*</span>var)
                         .shift_in_escaping(<span class="self">self</span>.current_index.as_u32())
                 }
-                Ordering::Greater =&gt; Expr::late_bvar(debruijn.shifted_out(<span class="number">1</span>), var.index, var.kind),
+                Ordering::Greater =&gt; Expr::bvar(debruijn.shifted_out(<span class="number">1</span>), var.index, var.kind),
             }
         } <span class="kw">else </span>{
             e.super_fold_with(<span class="self">self</span>)

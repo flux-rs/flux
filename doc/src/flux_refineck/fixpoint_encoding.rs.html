@@ -1238,6 +1238,9 @@
 <a href="#1238" id="1238">1238</a>
 <a href="#1239" id="1239">1239</a>
 <a href="#1240" id="1240">1240</a>
+<a href="#1241" id="1241">1241</a>
+<a href="#1242" id="1242">1242</a>
+<a href="#1243" id="1243">1243</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter, ops::ControlFlow};
@@ -1410,7 +1413,7 @@
                 Var::UIFRel(BinRel::Ge) =&gt; <span class="macro">write!</span>(f, <span class="string">"ge"</span>),
                 Var::UIFRel(BinRel::Lt) =&gt; <span class="macro">write!</span>(f, <span class="string">"lt"</span>),
                 Var::UIFRel(BinRel::Le) =&gt; <span class="macro">write!</span>(f, <span class="string">"le"</span>),
-                <span class="comment">// these are actually not necessary because all equality is interpreted.
+                <span class="comment">// these are actually not necessary because equality is interpreted for all sorts
                 </span>Var::UIFRel(BinRel::Eq) =&gt; <span class="macro">write!</span>(f, <span class="string">"eq"</span>),
                 Var::UIFRel(BinRel::Ne) =&gt; <span class="macro">write!</span>(f, <span class="string">"ne"</span>),
                 Var::Underscore =&gt; <span class="macro">write!</span>(f, <span class="string">"_"</span>),
@@ -1451,7 +1454,7 @@
     env: Env,
     tags: IndexVec&lt;TagIdx, T&gt;,
     tags_inv: UnordMap&lt;T, TagIdx&gt;,
-    <span class="doccomment">/// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
+    <span class="doccomment">/// [`DefId`] of the item being checked. This can be a function/method or an adt when checking
     /// invariants.
     </span>def_id: LocalDefId,
 }
@@ -1461,7 +1464,9 @@
     orig: rty::KVid,
 }
 
-<span class="attr">#[derive(Default)]
+<span class="doccomment">/// During encoding into fixpoint we generate multiple fxpoint kvars per kvar in flux. A
+/// [`KVarEncodingCtxt`] is used to keep track of the state needed for this.
+</span><span class="attr">#[derive(Default)]
 </span><span class="kw">struct </span>KVarEncodingCtxt {
     <span class="doccomment">/// List of all kvars that need to be defined in fixpoint
     </span>kvars: IndexVec&lt;fixpoint::KVid, FixpointKVar&gt;,
@@ -1530,7 +1535,8 @@
         <span class="self">self</span>.fvars.remove(<span class="kw-2">&amp;</span>name);
     }
 
-    <span class="kw">fn </span>push_layer_with_fresh_names(<span class="kw-2">&amp;mut </span><span class="self">self</span>, count: usize) {
+    <span class="doccomment">/// Push a layer of bound variables assigning a fresh [`fixpoint::LocalVar`] to each one
+    </span><span class="kw">fn </span>push_layer_with_fresh_names(<span class="kw-2">&amp;mut </span><span class="self">self</span>, count: usize) {
         <span class="kw">let </span>layer = (<span class="number">0</span>..count).map(|<span class="kw">_</span>| <span class="self">self</span>.fresh_name()).collect();
         <span class="self">self</span>.layers.push(layer);
     }
@@ -1546,7 +1552,7 @@
                     .unwrap_or_else(|| <span class="macro">span_bug!</span>(dbg_span, <span class="string">"no entry found for name: `{name:?}`"</span>))
                     .into()
             }
-            rty::Var::LateBound(debruijn, var) =&gt; {
+            rty::Var::Bound(debruijn, var) =&gt; {
                 <span class="self">self</span>.get_late_bvar(<span class="kw-2">*</span>debruijn, var.index)
                     .unwrap_or_else(|| {
                         <span class="macro">span_bug!</span>(dbg_span, <span class="string">"no entry found for late bound var: `{var:?}`"</span>)
@@ -2007,7 +2013,7 @@
                 sorts.iter().cloned().enumerate().map(<span class="kw">move </span>|(index, sort)| {
                     <span class="kw">let </span>var =
                         rty::BoundReft { index: index <span class="kw">as </span>u32, kind: rty::BoundReftKind::Annon };
-                    (rty::Var::LateBound(debruijn, var), sort)
+                    (rty::Var::Bound(debruijn, var), sort)
                 })
             }),
             scope.iter(),

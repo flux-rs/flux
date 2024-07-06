@@ -1191,7 +1191,7 @@
                     ))
                 } <span class="kw">else </span>{
                     bound_sorts.push(sort.clone());
-                    Expr::late_bvar(INNERMOST, (bound_sorts.len() - <span class="number">1</span>) <span class="kw">as </span>u32, BoundReftKind::Annon)
+                    Expr::bvar(INNERMOST, (bound_sorts.len() - <span class="number">1</span>) <span class="kw">as </span>u32, BoundReftKind::Annon)
                 }
             }
         }

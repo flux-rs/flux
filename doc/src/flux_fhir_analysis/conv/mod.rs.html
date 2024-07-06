@@ -1729,8 +1729,6 @@
 <a href="#1729" id="1729">1729</a>
 <a href="#1730" id="1730">1730</a>
 <a href="#1731" id="1731">1731</a>
-<a href="#1732" id="1732">1732</a>
-<a href="#1733" id="1733">1733</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2378,9 +2376,7 @@
             <span class="kw">let </span>idx = rty::Expr::adt(
                 adt_def_id.to_def_id(),
                 (<span class="number">0</span>..vars.len())
-                    .map(|idx| {
-                        rty::Expr::late_bvar(INNERMOST, idx <span class="kw">as </span>u32, rty::BoundReftKind::Annon)
-                    })
+                    .map(|idx| rty::Expr::bvar(INNERMOST, idx <span class="kw">as </span>u32, rty::BoundReftKind::Annon))
                     .collect(),
             );
             <span class="kw">let </span>variant = rty::VariantSig::new(
@@ -3220,7 +3216,7 @@
             LookupResultKind::LateBound { debruijn, entry: ParamEntry { name, .. }, kind, idx } =&gt; {
                 <span class="kw">match </span><span class="kw-2">*</span>kind {
                     LayerKind::List { bound_regions } =&gt; {
-                        rty::Expr::late_bvar(
+                        rty::Expr::bvar(
                             <span class="kw-2">*</span>debruijn,
                             bound_regions + <span class="kw-2">*</span>idx,
                             rty::BoundReftKind::Named(<span class="kw-2">*</span>name),
@@ -3228,7 +3224,7 @@
                     }
                     LayerKind::Coalesce(def_id) =&gt; {
                         rty::Expr::field_proj(
-                            rty::Expr::late_bvar(<span class="kw-2">*</span>debruijn, <span class="number">0</span>, rty::BoundReftKind::Annon),
+                            rty::Expr::bvar(<span class="kw-2">*</span>debruijn, <span class="number">0</span>, rty::BoundReftKind::Annon),
                             rty::FieldProj::Adt { def_id, field: <span class="kw-2">*</span>idx },
                             <span class="prelude-val">None</span>,
                         )

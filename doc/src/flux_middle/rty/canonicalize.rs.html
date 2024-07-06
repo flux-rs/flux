@@ -296,7 +296,7 @@
                     <span class="kw">let </span>idx = <span class="self">self</span>.vars.len();
                     <span class="self">self</span>.vars
                         .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
-                    Expr::late_bvar(INNERMOST, idx <span class="kw">as </span>u32, kind)
+                    Expr::bvar(INNERMOST, idx <span class="kw">as </span>u32, kind)
                 })
                 .fold_with(<span class="self">self</span>)
             }
