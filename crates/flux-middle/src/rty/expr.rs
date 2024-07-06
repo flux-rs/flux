@@ -262,7 +262,7 @@ pub struct BoundReft {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, TyEncodable, TyDecodable)]
 pub enum Var {
     Free(Name),
-    LateBound(DebruijnIndex, BoundReft),
+    Bound(DebruijnIndex, BoundReft),
     EarlyParam(EarlyReftParam),
     EVar(EVar),
     ConstGeneric(ParamConst),
@@ -382,11 +382,11 @@ impl Expr {
     }
 
     pub fn nu() -> Expr {
-        Expr::late_bvar(INNERMOST, 0, BoundReftKind::Annon)
+        Expr::bvar(INNERMOST, 0, BoundReftKind::Annon)
     }
 
     pub fn is_nu(&self) -> bool {
-        if let ExprKind::Var(Var::LateBound(INNERMOST, var)) = self.kind()
+        if let ExprKind::Var(Var::Bound(INNERMOST, var)) = self.kind()
             && var.index == 0
         {
             true
@@ -420,8 +420,8 @@ impl Expr {
         Var::EVar(evar).to_expr()
     }
 
-    pub fn late_bvar(debruijn: DebruijnIndex, index: u32, kind: BoundReftKind) -> Expr {
-        Var::LateBound(debruijn, BoundReft { index, kind }).to_expr()
+    pub fn bvar(debruijn: DebruijnIndex, index: u32, kind: BoundReftKind) -> Expr {
+        Var::Bound(debruijn, BoundReft { index, kind }).to_expr()
     }
 
     pub fn early_param(index: u32, name: Symbol) -> Expr {
@@ -718,7 +718,7 @@ impl Expr {
 
     pub fn eta_expand_abs(&self, inputs: &[Sort], output: Sort) -> Lambda {
         let args = (0..inputs.len())
-            .map(|idx| Expr::late_bvar(INNERMOST, idx as u32, BoundReftKind::Annon))
+            .map(|idx| Expr::bvar(INNERMOST, idx as u32, BoundReftKind::Annon))
             .collect_vec();
         let body = Expr::app(self, args, None);
         Lambda::with_sorts(body, inputs, output)
@@ -1063,7 +1063,7 @@ mod pretty {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
             match self {
-                Var::LateBound(debruijn, var) => cx.fmt_bound_reft(*debruijn, *var, f),
+                Var::Bound(debruijn, var) => cx.fmt_bound_reft(*debruijn, *var, f),
                 Var::EarlyParam(var) => w!("{}", ^var.name),
                 Var::Free(name) => w!("{:?}", ^name),
                 Var::EVar(evar) => w!("{:?}", evar),

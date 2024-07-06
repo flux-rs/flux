@@ -492,7 +492,7 @@ impl BasicBlockEnvShape {
                     ))
                 } else {
                     bound_sorts.push(sort.clone());
-                    Expr::late_bvar(INNERMOST, (bound_sorts.len() - 1) as u32, BoundReftKind::Annon)
+                    Expr::bvar(INNERMOST, (bound_sorts.len() - 1) as u32, BoundReftKind::Annon)
                 }
             }
         }
