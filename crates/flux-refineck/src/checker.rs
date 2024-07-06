@@ -19,7 +19,7 @@ use flux_middle::{
             Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
             RETURN_PLACE, START_BLOCK,
         },
-        ty::{self, Const, ConstKind},
+        ty,
     },
 };
 use itertools::Itertools;
@@ -853,16 +853,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(tys)
     }
 
-    fn index_of_const(&self, const_: &Const) -> Expr {
-        match &const_.kind {
-            ConstKind::Value(value) => {
-                let value = value.try_to_target_usize(self.genv.tcx()).unwrap() as u128;
-                Expr::constant(rty::Constant::from(value))
-            }
-            ConstKind::Param(param_const) => Expr::const_generic(*param_const, None),
-        }
-    }
-
     fn check_len(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -875,7 +865,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .with_span(source_span)?;
 
         let idx = match ty.kind() {
-            TyKind::Indexed(BaseTy::Array(_, len), _) => self.index_of_const(len),
+            TyKind::Indexed(BaseTy::Array(_, len), _) => Expr::from_const(self.genv.tcx(), len),
             TyKind::Indexed(BaseTy::Slice(_), idx) => idx.clone(),
             _ => tracked_span_bug!("expected array or slice type"),
         };
@@ -969,7 +959,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     && let rustc::ty::TyKind::Slice(_) = dst_ty.kind()
                     && src_mut == dst_mut
                 {
-                    let idx = self.index_of_const(src_n);
+                    let idx = Expr::from_const(self.genv.tcx(), src_n);
                     let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), idx);
                     Ty::mk_ref(*dst_re, dst_slice, *dst_mut)
                 } else {
@@ -1536,7 +1526,7 @@ pub(crate) mod errors {
     impl<'a> Diagnostic<'a> for CheckerError {
         fn into_diag(
             self,
-            dcx: &'a rustc_errors::DiagCtxt,
+            dcx: rustc_errors::DiagCtxtHandle<'a>,
             level: rustc_errors::Level,
         ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
             use crate::fluent_generated as fluent;

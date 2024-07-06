@@ -625,7 +625,7 @@ impl QueryErr {
 impl<'a> Diagnostic<'a> for QueryErr {
     fn into_diag(
         self,
-        dcx: &'a rustc_errors::DiagCtxt,
+        dcx: rustc_errors::DiagCtxtHandle<'a>,
         _level: rustc_errors::Level,
     ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
         use crate::fluent_generated as fluent;
@@ -665,7 +665,7 @@ impl<'a> Diagnostic<'a> for QueryErr {
 impl<'a> Diagnostic<'a> for QueryErrAt {
     fn into_diag(
         self,
-        dcx: &'a rustc_errors::DiagCtxt,
+        dcx: rustc_errors::DiagCtxtHandle<'a>,
         level: rustc_errors::Level,
     ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
         use crate::fluent_generated as fluent;

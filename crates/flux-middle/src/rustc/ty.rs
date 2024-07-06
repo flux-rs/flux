@@ -13,8 +13,8 @@ use rustc_middle::ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundRegionKind, BoundVar, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy,
-        OutlivesPredicate, ParamTy, RegionVid, ScalarInt, UintTy,
+        BoundRegionKind, BoundVar, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy, ParamTy,
+        RegionVid, ScalarInt, UintTy,
     },
 };
 use rustc_span::{symbol::kw, Symbol};
@@ -83,7 +83,10 @@ pub enum ClauseKind {
     ConstArgHasType(Const, Ty),
 }
 
-pub type TypeOutlivesPredicate = OutlivesPredicate<Ty, Region>;
+#[derive(Eq, PartialEq, Hash, Clone, Debug, TyEncodable, TyDecodable)]
+pub struct OutlivesPredicate<T>(pub T, pub Region);
+
+pub type TypeOutlivesPredicate = OutlivesPredicate<Ty>;
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct TraitPredicate {
@@ -194,11 +197,11 @@ pub enum AliasKind {
 }
 
 impl AliasKind {
-    pub fn to_rustc(self) -> rustc_middle::ty::AliasKind {
+    pub fn to_rustc(self) -> rustc_middle::ty::AliasTyKind {
         use rustc_middle::ty;
         match self {
-            AliasKind::Opaque => ty::AliasKind::Opaque,
-            AliasKind::Projection => ty::AliasKind::Projection,
+            AliasKind::Opaque => ty::AliasTyKind::Opaque,
+            AliasKind::Projection => ty::AliasTyKind::Projection,
         }
     }
 }
@@ -206,36 +209,38 @@ impl AliasKind {
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct Const {
     pub kind: ConstKind,
-    pub ty: Ty,
 }
 
 impl Const {
     pub fn from_usize(tcx: TyCtxt, v: usize) -> Self {
         Self {
-            kind: ConstKind::Value(ScalarInt::try_from_target_usize(v as u128, tcx).unwrap()),
-            ty: Ty::mk_uint(UintTy::Usize),
+            kind: ConstKind::Value(
+                Ty::mk_uint(UintTy::Usize),
+                ScalarInt::try_from_target_usize(v as u128, tcx).unwrap(),
+            ),
         }
     }
 
     pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_ty::Const<'tcx> {
-        let ty = &self.ty;
-        let ty = ty.to_rustc(tcx);
-        let kind = match self.kind {
+        let kind = match &self.kind {
             ConstKind::Param(param_const) => {
                 let param_const = ParamConst { name: param_const.name, index: param_const.index };
                 rustc_ty::ConstKind::Param(param_const)
             }
-            ConstKind::Value(scalar_int) => {
-                rustc_ty::ConstKind::Value(rustc_middle::ty::ValTree::Leaf(scalar_int))
+            ConstKind::Value(ty, scalar_int) => {
+                rustc_ty::ConstKind::Value(
+                    ty.to_rustc(tcx),
+                    rustc_middle::ty::ValTree::Leaf(*scalar_int),
+                )
             }
         };
-        rustc_ty::Const::new(tcx, kind, ty)
+        rustc_ty::Const::new(tcx, kind)
     }
 }
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ConstKind {
     Param(ParamConst),
-    Value(ScalarInt),
+    Value(Ty, ScalarInt),
 }
 
 #[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -831,15 +836,6 @@ impl fmt::Debug for Ty {
                 write!(f, ")")?;
                 Ok(())
             }
-        }
-    }
-}
-
-impl fmt::Debug for Const {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
-            ConstKind::Param(param) => write!(f, "{:?}", param),
-            ConstKind::Value(scalar_int) => write!(f, "{}", scalar_int),
         }
     }
 }

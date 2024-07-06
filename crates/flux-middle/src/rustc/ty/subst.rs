@@ -67,7 +67,7 @@ impl Subst for Const {
             ConstKind::Param(param_const) => {
                 args[param_const.index as usize].expect_const().clone()
             }
-            ConstKind::Value(_) => self.clone(),
+            ConstKind::Value(..) => self.clone(),
         }
     }
 }

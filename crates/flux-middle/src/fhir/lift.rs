@@ -487,7 +487,10 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         let (args, bindings) = {
             match segment.args {
                 Some(args) => {
-                    (self.lift_generic_args(args.args)?, self.lift_type_bindings(args.bindings)?)
+                    (
+                        self.lift_generic_args(args.args)?,
+                        self.lift_assoc_item_constraints(args.constraints)?,
+                    )
                 }
                 None => ([].as_slice(), [].as_slice()),
             }
@@ -520,12 +523,12 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         })
     }
 
-    fn lift_type_bindings(
+    fn lift_assoc_item_constraints(
         &mut self,
-        bindings: &[hir::TypeBinding<'_>],
+        bindings: &[hir::AssocItemConstraint<'_>],
     ) -> Result<&'genv [fhir::TypeBinding<'genv>]> {
         try_alloc_slice!(self.genv, bindings, |binding| {
-            let hir::TypeBindingKind::Equality { term } = binding.kind else {
+            let hir::AssocItemConstraintKind::Equality { term } = binding.kind else {
                 return self.emit_unsupported("unsupported type binding");
             };
             let hir::Term::Ty(term) = term else {
@@ -543,7 +546,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn lift_anon_const(&mut self, anon_const: hir::AnonConst) -> Result<fhir::ConstArg> {
+    fn lift_anon_const(&mut self, anon_const: &hir::AnonConst) -> Result<fhir::ConstArg> {
         let body = self.genv.hir().body(anon_const.body);
         let kind = if let hir::ExprKind::Lit(lit) = &body.value.kind
             && let LitKind::Int(int_lit, _) = lit.node

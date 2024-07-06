@@ -451,14 +451,14 @@ impl TypeFoldable for ClauseKind {
     }
 }
 
-impl<T: TypeVisitable, U: TypeVisitable> TypeVisitable for OutlivesPredicate<T, U> {
+impl<T: TypeVisitable> TypeVisitable for OutlivesPredicate<T> {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.0.visit_with(visitor)?;
         self.1.visit_with(visitor)
     }
 }
 
-impl<T: TypeFoldable, U: TypeFoldable> TypeFoldable for OutlivesPredicate<T, U> {
+impl<T: TypeFoldable> TypeFoldable for OutlivesPredicate<T> {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         Ok(OutlivesPredicate(self.0.try_fold_with(folder)?, self.1.try_fold_with(folder)?))
     }

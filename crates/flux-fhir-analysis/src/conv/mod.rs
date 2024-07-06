@@ -989,7 +989,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             ResolvedArg::EarlyBound(def_id) => {
                 let index = self.genv.def_id_to_param_index(def_id.expect_local());
                 let name = lifetime_name(def_id.expect_local());
-                rty::ReEarlyBound(rty::EarlyParamRegion { def_id, index, name })
+                rty::ReEarlyBound(rty::EarlyParamRegion { index, name })
             }
             ResolvedArg::LateBound(_, index, def_id) => {
                 let depth = env.depth().checked_sub(1).unwrap();
@@ -1013,7 +1013,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::ConstArgKind::Lit(lit) => Ok(rty::Const::from_usize(self.genv.tcx(), lit)),
             fhir::ConstArgKind::Param(def_id) => {
                 let kind = rty::ConstKind::Param(self.genv.def_id_to_param_const(def_id));
-                Ok(rty::Const { kind, ty: self.genv.lower_type_of(def_id)?.skip_binder() })
+                Ok(rty::Const { kind })
             }
         }
     }

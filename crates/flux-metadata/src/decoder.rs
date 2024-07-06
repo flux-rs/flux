@@ -46,7 +46,8 @@ pub(super) fn decode_crate_metadata(
         panic!("incompatible metadata version")
     }
 
-    let mut decoder = DecodeContext { tcx, opaque: MemDecoder::new(&buf, METADATA_HEADER.len()) };
+    let mut decoder =
+        DecodeContext { tcx, opaque: MemDecoder::new(&buf, METADATA_HEADER.len()).unwrap() };
     Some(CrateMetadata::decode(&mut decoder))
 }
 
@@ -151,9 +152,7 @@ impl<'a, 'tcx> TyDecoder for DecodeContext<'a, 'tcx> {
     where
         F: FnOnce(&mut Self) -> R,
     {
-        debug_assert!(pos < self.opaque.data().len());
-
-        let new_opaque = MemDecoder::new(self.opaque.data(), pos);
+        let new_opaque = self.opaque.split_at(pos);
         let old_opaque = mem::replace(&mut self.opaque, new_opaque);
         let r = f(self);
         self.opaque = old_opaque;
