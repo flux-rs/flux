@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rustc/ty.rs`."><title>ty.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-081576b923113409.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.79.0-nightly (dbce3b43b 2024-04-20)" data-channel="nightly" data-search-js="search-bf21c90c8c1d92b1.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-e32f0c247825364d.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-09095024cf37855e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../flux_middle/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Type ‘S’ or ‘/’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings">Settings</a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rustc/ty.rs`."><title>ty.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.81.0-nightly (cc8da78a0 2024-07-04)" data-channel="nightly" data-search-js="search-0fe7219eb170c82e.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -861,10 +861,6 @@
 <a href="#861" id="861">861</a>
 <a href="#862" id="862">862</a>
 <a href="#863" id="863">863</a>
-<a href="#864" id="864">864</a>
-<a href="#865" id="865">865</a>
-<a href="#866" id="866">866</a>
-<a href="#867" id="867">867</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
@@ -880,8 +876,8 @@
 <span class="kw">pub use </span>rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundRegionKind, BoundVar, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy,
-        OutlivesPredicate, ParamTy, RegionVid, ScalarInt, UintTy,
+        BoundRegionKind, BoundVar, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy, ParamTy,
+        RegionVid, ScalarInt, UintTy,
     },
 };
 <span class="kw">use </span>rustc_span::{symbol::kw, Symbol};
@@ -950,7 +946,10 @@
     ConstArgHasType(Const, Ty),
 }
 
-<span class="kw">pub type </span>TypeOutlivesPredicate = OutlivesPredicate&lt;Ty, Region&gt;;
+<span class="attr">#[derive(Eq, PartialEq, Hash, Clone, Debug, TyEncodable, TyDecodable)]
+</span><span class="kw">pub struct </span>OutlivesPredicate&lt;T&gt;(<span class="kw">pub </span>T, <span class="kw">pub </span>Region);
+
+<span class="kw">pub type </span>TypeOutlivesPredicate = OutlivesPredicate&lt;Ty&gt;;
 
 <span class="attr">#[derive(PartialEq, Eq, Hash, Debug)]
 </span><span class="kw">pub struct </span>TraitPredicate {
@@ -1061,11 +1060,11 @@
 }
 
 <span class="kw">impl </span>AliasKind {
-    <span class="kw">pub fn </span>to_rustc(<span class="self">self</span>) -&gt; rustc_middle::ty::AliasKind {
+    <span class="kw">pub fn </span>to_rustc(<span class="self">self</span>) -&gt; rustc_middle::ty::AliasTyKind {
         <span class="kw">use </span>rustc_middle::ty;
         <span class="kw">match </span><span class="self">self </span>{
-            AliasKind::Opaque =&gt; ty::AliasKind::Opaque,
-            AliasKind::Projection =&gt; ty::AliasKind::Projection,
+            AliasKind::Opaque =&gt; ty::AliasTyKind::Opaque,
+            AliasKind::Projection =&gt; ty::AliasTyKind::Projection,
         }
     }
 }
@@ -1073,36 +1072,38 @@
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>Const {
     <span class="kw">pub </span>kind: ConstKind,
-    <span class="kw">pub </span>ty: Ty,
 }
 
 <span class="kw">impl </span>Const {
     <span class="kw">pub fn </span>from_usize(tcx: TyCtxt, v: usize) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            kind: ConstKind::Value(ScalarInt::try_from_target_usize(v <span class="kw">as </span>u128, tcx).unwrap()),
-            ty: Ty::mk_uint(UintTy::Usize),
+            kind: ConstKind::Value(
+                Ty::mk_uint(UintTy::Usize),
+                ScalarInt::try_from_target_usize(v <span class="kw">as </span>u128, tcx).unwrap(),
+            ),
         }
     }
 
     <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_ty::Const&lt;<span class="lifetime">'tcx</span>&gt; {
-        <span class="kw">let </span>ty = <span class="kw-2">&amp;</span><span class="self">self</span>.ty;
-        <span class="kw">let </span>ty = ty.to_rustc(tcx);
-        <span class="kw">let </span>kind = <span class="kw">match </span><span class="self">self</span>.kind {
+        <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
             ConstKind::Param(param_const) =&gt; {
                 <span class="kw">let </span>param_const = ParamConst { name: param_const.name, index: param_const.index };
                 rustc_ty::ConstKind::Param(param_const)
             }
-            ConstKind::Value(scalar_int) =&gt; {
-                rustc_ty::ConstKind::Value(rustc_middle::ty::ValTree::Leaf(scalar_int))
+            ConstKind::Value(ty, scalar_int) =&gt; {
+                rustc_ty::ConstKind::Value(
+                    ty.to_rustc(tcx),
+                    rustc_middle::ty::ValTree::Leaf(<span class="kw-2">*</span>scalar_int),
+                )
             }
         };
-        rustc_ty::Const::new(tcx, kind, ty)
+        rustc_ty::Const::new(tcx, kind)
     }
 }
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>ConstKind {
     Param(ParamConst),
-    Value(ScalarInt),
+    Value(Ty, ScalarInt),
 }
 
 <span class="attr">#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -1698,15 +1699,6 @@
                 <span class="macro">write!</span>(f, <span class="string">")"</span>)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(())
             }
-        }
-    }
-}
-
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Const {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            ConstKind::Param(param) =&gt; <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, param),
-            ConstKind::Value(scalar_int) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, scalar_int),
         }
     }
 }
