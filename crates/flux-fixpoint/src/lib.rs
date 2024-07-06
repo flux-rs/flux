@@ -1,4 +1,4 @@
-#![feature(rustc_private, lazy_cell, box_patterns)]
+#![feature(rustc_private, box_patterns)]
 
 extern crate rustc_macros;
 extern crate rustc_serialize;

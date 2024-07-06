@@ -85,7 +85,7 @@ fn collect_generics_in_refined_by(
     let mut vis = ParamCollector { resolver_output, found: FxHashSet::default() };
     surface::visit::Visitor::visit_refined_by(&mut vis, refined_by);
     generics
-        .params
+        .own_params
         .iter()
         .filter_map(
             |param| if vis.found.contains(&param.def_id) { Some(param.def_id) } else { None },
@@ -957,7 +957,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         ) = res
         {
             let generics = self.genv().tcx().generics_of(def_id);
-            for param in &generics.params {
+            for param in &generics.own_params {
                 if let rustc_middle::ty::GenericParamDefKind::Lifetime = param.kind {
                     fhir_args.push(fhir::GenericArg::Lifetime(self.mk_lft_hole()));
                 }

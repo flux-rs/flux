@@ -398,7 +398,7 @@ impl Pretty for Const {
         define_scoped!(cx, f);
         match &self.kind {
             ConstKind::Param(p) => w!("{}", ^p.name.as_str()),
-            ConstKind::Value(v) => w!("{}", ^v),
+            ConstKind::Value(_, v) => w!("{}", ^v),
         }
     }
 }
@@ -453,4 +453,5 @@ impl_debug_with_default_cx!(
     FuncSort,
     SortCtor,
     SubsetTy,
+    Const,
 );

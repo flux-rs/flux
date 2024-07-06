@@ -19,6 +19,7 @@ use super::{
     Sort, UintTy,
 };
 use crate::{
+    const_eval,
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
@@ -603,11 +604,11 @@ impl Expr {
         matches!(self.kind, ExprKind::Constant(Constant::Bool(true)))
     }
 
-    pub fn from_const(tcx: &TyCtxt, c: &Const) -> Expr {
-        match c.kind {
-            ConstKind::Param(param_const) => Expr::const_generic(param_const, None),
-            ConstKind::Value(val) => {
-                let val = val.try_to_target_usize(*tcx).unwrap() as u128;
+    pub fn from_const(tcx: TyCtxt, c: &Const) -> Expr {
+        match &c.kind {
+            ConstKind::Param(param_const) => Expr::const_generic(*param_const, None),
+            ConstKind::Value(ty, scalar) => {
+                let val = const_eval::scalar_int_to_rty_constant2(tcx, *scalar, ty).unwrap();
                 Expr::constant(crate::rty::Constant::from(val))
             }
         }

@@ -42,35 +42,35 @@ impl FluxSession {
     }
 
     pub fn err_count(&self) -> usize {
-        self.parse_sess.dcx.err_count()
+        self.parse_sess.dcx().err_count()
     }
 
     #[track_caller]
     pub fn emit_err<'a>(&'a self, err: impl Diagnostic<'a>) -> ErrorGuaranteed {
-        self.parse_sess.dcx.emit_err(err)
+        self.parse_sess.dcx().emit_err(err)
     }
 
     #[track_caller]
     pub fn emit_fatal<'a>(&'a self, fatal: impl Diagnostic<'a, FatalAbort>) -> ! {
-        self.parse_sess.dcx.emit_fatal(fatal)
+        self.parse_sess.dcx().emit_fatal(fatal)
     }
 
     pub fn abort(&self, _: ErrorGuaranteed) -> ! {
-        self.parse_sess.dcx.abort_if_errors();
+        self.parse_sess.dcx().abort_if_errors();
         FatalError.raise()
     }
 
     pub fn abort_if_errors(&self) {
-        self.parse_sess.dcx.abort_if_errors();
+        self.parse_sess.dcx().abort_if_errors();
     }
 
     pub fn finish_diagnostics(&self) {
-        self.parse_sess.dcx.print_error_count(&Registry::new(&[]));
+        self.parse_sess.dcx().print_error_count(&Registry::new(&[]));
         self.abort_if_errors();
     }
 
     pub fn dcx(&self) -> &rustc_errors::DiagCtxt {
-        &self.parse_sess.dcx
+        &self.parse_sess.dcx()
     }
 }
 
