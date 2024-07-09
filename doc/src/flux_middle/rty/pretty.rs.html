@@ -454,7 +454,6 @@
 <a href="#454" id="454">454</a>
 <a href="#455" id="455">455</a>
 <a href="#456" id="456">456</a>
-<a href="#457" id="457">457</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -609,11 +608,10 @@
 <span class="kw">impl </span>Pretty <span class="kw">for </span>FnSig {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
-        <span class="macro">w!</span>(<span class="string">"fn("</span>)<span class="question-mark">?</span>;
         <span class="kw">if </span>!<span class="self">self</span>.requires.is_empty() {
             <span class="macro">w!</span>(<span class="string">"[{:?}] "</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.requires))<span class="question-mark">?</span>;
         }
-        <span class="macro">w!</span>(<span class="string">"{:?}) -&gt; {:?}"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.inputs), <span class="kw-2">&amp;</span><span class="self">self</span>.output)<span class="question-mark">?</span>;
+        <span class="macro">w!</span>(<span class="string">"fn({:?}) -&gt; {:?}"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.inputs), <span class="kw-2">&amp;</span><span class="self">self</span>.output)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(())
     }
