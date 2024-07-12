@@ -233,6 +233,7 @@ pub struct FnSpec {
 #[derive(Debug)]
 pub struct FnSig {
     pub asyncness: Async,
+    pub ident: Option<Ident>,
     pub generics: Generics,
     /// example: `requires n > 0`
     pub requires: Vec<Requires>,

@@ -231,6 +231,7 @@ pub FnSig: surface::FnSig = {
     <lo:@L>
     <asyncness:Async>
     "fn"
+    <ident:Ident?>
     <mut generics:GenericsWithAngleBrackets>
     "(" <inputs:FnInputs> ")"
     <ret_lo:@L> <ret_hi:@R>
@@ -253,6 +254,7 @@ pub FnSig: surface::FnSig = {
         };
         surface::FnSig {
             asyncness,
+            ident,
             generics,
             inputs,
             requires: requires.unwrap_or_default(),

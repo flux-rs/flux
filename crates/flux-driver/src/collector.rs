@@ -353,6 +353,19 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
 
         let fn_sig = attrs.fn_sig();
+
+        if let Some(fn_sig) = &fn_sig
+            && let Some(ident) = fn_sig.ident
+            && let Some(item_ident) = self.tcx.opt_item_ident(owner_id.to_def_id())
+            && ident != item_ident
+        {
+            return Err(self.emit_err(errors::MismatchedSpecName::new(
+                self.tcx,
+                ident,
+                owner_id.to_def_id(),
+            )));
+        };
+
         let qual_names: Option<surface::QualNames> = attrs.qual_names();
         let extern_id = if attrs.extern_spec() {
             if fn_sig.is_none() {
@@ -408,7 +421,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
             ("alias", AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_type_alias, FluxAttrKind::TypeAlias)?
             }
-            ("sig", AttrArgs::Delimited(dargs)) => {
+            ("sig" | "spec", AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_fn_sig, FluxAttrKind::FnSig)?
             }
             ("assoc", AttrArgs::Delimited(dargs)) => {
@@ -1013,7 +1026,9 @@ impl FluxAttrCFG {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use rustc_span::Span;
+    use rustc_hir::def_id::DefId;
+    use rustc_middle::ty::TyCtxt;
+    use rustc_span::{symbol::Ident, Span};
 
     #[derive(Diagnostic)]
     #[diag(driver_duplicated_attr, code = E0999)]
@@ -1101,6 +1116,26 @@ mod errors {
             };
 
             SyntaxErr { span: err.span, msg }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_mismatched_spec_name, code = E0999)]
+    pub(super) struct MismatchedSpecName {
+        #[primary_span]
+        #[label]
+        span: Span,
+        #[label(driver_item_def_ident)]
+        item_ident_span: Span,
+        item_ident: Ident,
+        def_descr: &'static str,
+    }
+
+    impl MismatchedSpecName {
+        pub(super) fn new(tcx: TyCtxt, ident: Ident, def_id: DefId) -> Self {
+            let def_descr = tcx.def_descr(def_id);
+            let item_ident = tcx.opt_item_ident(def_id).unwrap();
+            Self { span: ident.span, item_ident_span: item_ident.span, item_ident, def_descr }
         }
     }
 }

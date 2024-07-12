@@ -10,7 +10,7 @@ pub enum Pos {
 }
 
 impl Pos {
-    #[flux::sig(fn(&Pos[@n]) -> i32[n])]
+    #[flux::spec(fn(&Pos[@n]) -> i32[n])]
     pub fn to_i32(&self) -> i32 {
         match self {
             Pos::XH => 1,
