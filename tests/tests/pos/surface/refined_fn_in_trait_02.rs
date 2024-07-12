@@ -4,7 +4,7 @@ pub trait MyTrait {
 }
 
 impl MyTrait for i32 {
-    #[flux::sig(fn<refine q: Self -> bool>(&Self{v: q(v)}) -> Self{v: q(v)})]
+    #[flux::sig(fn[hrn q: Self -> bool](&Self{v: q(v)}) -> Self{v: q(v)})]
     fn foo2(&self) -> Self {
         *self
     }

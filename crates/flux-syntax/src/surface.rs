@@ -37,7 +37,7 @@ pub enum Item {
 #[derive(Debug)]
 pub struct Qualifier {
     pub name: Ident,
-    pub args: Vec<RefineParam>,
+    pub params: RefineParams,
     pub expr: Expr,
     pub span: Span,
     pub global: bool,
@@ -49,7 +49,7 @@ pub struct Qualifier {
 pub struct SpecFunc {
     pub name: Ident,
     pub sort_vars: Vec<Ident>,
-    pub args: Vec<RefineParam>,
+    pub params: RefineParams,
     pub output: Sort,
     /// Body of the function. If not present this definition corresponds to an uninterpreted function.
     pub body: Option<Expr>,
@@ -73,14 +73,14 @@ pub struct GenericParam {
 pub enum GenericParamKind {
     Type,
     Base,
-    Refine { sort: Sort },
 }
 
 #[derive(Debug)]
 pub struct TyAlias {
     pub ident: Ident,
     pub generics: Generics,
-    pub refined_by: RefinedBy,
+    pub params: RefineParams,
+    pub refined_by: RefineParams,
     pub ty: Ty,
     pub node_id: NodeId,
     pub span: Span,
@@ -89,7 +89,7 @@ pub struct TyAlias {
 #[derive(Debug)]
 pub struct StructDef {
     pub generics: Option<Generics>,
-    pub refined_by: Option<RefinedBy>,
+    pub refined_by: Option<RefineParams>,
     pub fields: Vec<Option<Ty>>,
     pub opaque: bool,
     pub invariants: Vec<Expr>,
@@ -108,7 +108,7 @@ impl StructDef {
 #[derive(Debug)]
 pub struct EnumDef {
     pub generics: Option<Generics>,
-    pub refined_by: Option<RefinedBy>,
+    pub refined_by: Option<RefineParams>,
     pub variants: Vec<Option<VariantDef>>,
     pub invariants: Vec<Expr>,
     pub node_id: NodeId,
@@ -139,11 +139,7 @@ pub struct VariantRet {
     pub indices: Indices,
 }
 
-#[derive(Debug, Default)]
-pub struct RefinedBy {
-    pub fields: Vec<RefineParam>,
-    pub span: Span,
-}
+pub type RefineParams = Vec<RefineParam>;
 
 #[derive(Debug, Default)]
 pub struct QualNames {
@@ -152,10 +148,17 @@ pub struct QualNames {
 
 #[derive(Debug)]
 pub struct RefineParam {
-    pub name: Ident,
+    pub ident: Ident,
     pub sort: Sort,
+    pub mode: Option<ParamMode>,
     pub span: Span,
     pub node_id: NodeId,
+}
+
+#[derive(Debug)]
+pub enum ParamMode {
+    Horn,
+    Hindley,
 }
 
 #[derive(Debug)]
@@ -203,7 +206,7 @@ pub struct Impl {
 #[derive(Debug)]
 pub struct ImplAssocReft {
     pub name: Ident,
-    pub params: Vec<RefineParam>,
+    pub params: RefineParams,
     pub output: BaseSort,
     pub body: Expr,
     pub span: Span,
@@ -217,7 +220,7 @@ pub struct Trait {
 #[derive(Debug)]
 pub struct TraitAssocReft {
     pub name: Ident,
-    pub params: Vec<RefineParam>,
+    pub params: RefineParams,
     pub output: BaseSort,
     pub span: Span,
 }
@@ -235,6 +238,7 @@ pub struct FnSig {
     pub asyncness: Async,
     pub ident: Option<Ident>,
     pub generics: Generics,
+    pub params: RefineParams,
     /// example: `requires n > 0`
     pub requires: Vec<Requires>,
     /// example: `i32<@n>`
@@ -248,7 +252,7 @@ pub struct FnSig {
 #[derive(Debug)]
 pub struct Requires {
     /// Optional list of universally quantified parameters
-    pub params: Vec<RefineParam>,
+    pub params: RefineParams,
     pub pred: Expr,
 }
 
@@ -337,7 +341,7 @@ pub enum TyKind {
         pred: Expr,
     },
     GeneralExists {
-        params: Vec<RefineParam>,
+        params: RefineParams,
         ty: Box<Ty>,
         pred: Option<Expr>,
     },
@@ -411,7 +415,7 @@ pub enum RefineArg {
     /// `@n` or `#n`, the span corresponds to the span of the identifier plus the binder token (`@` or `#`)
     Bind(Ident, BindKind, Span, NodeId),
     Expr(Expr),
-    Abs(Vec<RefineParam>, Expr, Span, NodeId),
+    Abs(RefineParams, Expr, Span, NodeId),
 }
 
 #[derive(Debug, Clone, Copy)]

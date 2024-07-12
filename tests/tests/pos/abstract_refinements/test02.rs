@@ -6,5 +6,5 @@ fn ipa(x: S) -> S {
     x
 }
 
-#[flux::sig(fn<refine p: int -> bool>(S[|x| p(x) && x != 0]))]
+#[flux::sig(fn[hrn p: int -> bool](S[|x| p(x) && x != 0]))]
 fn ris(x: S) {}

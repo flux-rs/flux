@@ -402,9 +402,9 @@ impl<'fhir> Crate<'fhir> {
 pub struct TyAlias<'fhir> {
     pub generics: Generics<'fhir>,
     pub refined_by: &'fhir RefinedBy<'fhir>,
+    pub params: &'fhir [RefineParam<'fhir>],
     pub ty: Ty<'fhir>,
     pub span: Span,
-    pub params: &'fhir [RefineParam<'fhir>],
     /// Whether this alias was [lifted] from a `hir` alias
     ///
     /// [lifted]: lift::lift_type_alias
@@ -1015,7 +1015,6 @@ impl Lit {
 /// Information about the refinement parameters associated with a type alias or an adt (struct/enum).
 #[derive(Clone, Debug)]
 pub struct RefinedBy<'fhir> {
-    pub span: Span,
     /// Tracks the mapping from bound var to generic def ids. e.g. if we have
     ///
     /// ```ignore
@@ -1074,16 +1073,12 @@ impl<'fhir> Generics<'fhir> {
 }
 
 impl<'fhir> RefinedBy<'fhir> {
-    pub fn new(
-        fields: FxIndexMap<Symbol, Sort<'fhir>>,
-        sort_params: FxIndexSet<DefId>,
-        span: Span,
-    ) -> Self {
-        RefinedBy { span, sort_params, fields }
+    pub fn new(fields: FxIndexMap<Symbol, Sort<'fhir>>, sort_params: FxIndexSet<DefId>) -> Self {
+        RefinedBy { sort_params, fields }
     }
 
-    pub fn trivial(span: Span) -> Self {
-        RefinedBy { sort_params: Default::default(), span, fields: Default::default() }
+    pub fn trivial() -> Self {
+        RefinedBy { sort_params: Default::default(), fields: Default::default() }
     }
 
     fn is_base_generic(&self, def_id: DefId) -> bool {

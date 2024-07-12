@@ -37,7 +37,7 @@ impl ParseSess {
         &mut self,
         tokens: &TokenStream,
         span: Span,
-    ) -> ParseResult<surface::RefinedBy> {
+    ) -> ParseResult<surface::RefineParams> {
         parse!(self, grammar::RefinedByParser, tokens, span)
     }
 

@@ -127,7 +127,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     }
 
     fn visit_refine_param(&mut self, param: &surface::RefineParam) {
-        self.on_refine_param(param.name, param.node_id);
+        self.on_refine_param(param.ident, param.node_id);
         surface::visit::walk_refine_param(self, param);
     }
 
@@ -723,11 +723,6 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
         for (ident, kind, param_id) in params {
             self.define_param(ident, kind, param_id, Some(output.node_id));
         }
-    }
-
-    fn on_generic_param(&mut self, param: &surface::GenericParam) {
-        let surface::GenericParamKind::Refine { .. } = &param.kind else { return };
-        self.define_param(param.name, fhir::ParamKind::Explicit, param.node_id, None);
     }
 
     fn on_refine_param(&mut self, name: Ident, node_id: NodeId) {

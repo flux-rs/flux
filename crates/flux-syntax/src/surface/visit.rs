@@ -2,10 +2,10 @@ use rustc_span::symbol::Ident;
 
 use super::{
     AliasReft, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind,
-    FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, GenericParamKind,
-    Generics, Impl, ImplAssocReft, Indices, Lit, Path, PathExpr, PathSegment, Qualifier, RefineArg,
-    RefineParam, RefinedBy, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef,
-    Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, Generics, Impl,
+    ImplAssocReft, Indices, Lit, Path, PathExpr, PathSegment, Qualifier, RefineArg, RefineParam,
+    Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind,
+    VariantDef, VariantRet, WhereBoundPredicate,
 };
 
 #[macro_export]
@@ -27,10 +27,6 @@ pub trait Visitor: Sized {
 
     fn visit_defn(&mut self, defn: &SpecFunc) {
         walk_defn(self, defn);
-    }
-
-    fn visit_refined_by(&mut self, refined_by: &RefinedBy) {
-        walk_refined_by(self, refined_by);
     }
 
     fn visit_refine_param(&mut self, param: &RefineParam) {
@@ -172,35 +168,27 @@ pub trait Visitor: Sized {
 
 pub fn walk_qualifier<V: Visitor>(vis: &mut V, qualifier: &Qualifier) {
     vis.visit_ident(qualifier.name);
-    walk_list!(vis, visit_refine_param, &qualifier.args);
+    walk_list!(vis, visit_refine_param, &qualifier.params);
     vis.visit_expr(&qualifier.expr);
 }
 
 pub fn walk_defn<V: Visitor>(vis: &mut V, defn: &SpecFunc) {
     vis.visit_ident(defn.name);
     walk_list!(vis, visit_ident, defn.sort_vars.iter().copied());
-    walk_list!(vis, visit_refine_param, &defn.args);
+    walk_list!(vis, visit_refine_param, &defn.params);
     vis.visit_sort(&defn.output);
     if let Some(body) = &defn.body {
         vis.visit_expr(body);
     }
 }
 
-pub fn walk_refined_by<V: Visitor>(vis: &mut V, refined_by: &RefinedBy) {
-    walk_list!(vis, visit_refine_param, &refined_by.fields);
-}
-
 pub fn walk_refine_param<V: Visitor>(vis: &mut V, param: &RefineParam) {
-    vis.visit_ident(param.name);
+    vis.visit_ident(param.ident);
     vis.visit_sort(&param.sort);
 }
 
 pub fn walk_generic_param<V: Visitor>(vis: &mut V, param: &GenericParam) {
     vis.visit_ident(param.name);
-    match &param.kind {
-        GenericParamKind::Refine { sort } => vis.visit_sort(sort),
-        GenericParamKind::Type | GenericParamKind::Base => {}
-    }
 }
 
 pub fn walk_sort<V: Visitor>(vis: &mut V, sort: &Sort) {
@@ -260,7 +248,8 @@ pub fn walk_sort_path<V: Visitor>(vis: &mut V, path: &SortPath) {
 pub fn walk_ty_alias<V: Visitor>(vis: &mut V, ty_alias: &TyAlias) {
     vis.visit_ident(ty_alias.ident);
     vis.visit_generics(&ty_alias.generics);
-    vis.visit_refined_by(&ty_alias.refined_by);
+    walk_list!(vis, visit_refine_param, &ty_alias.params);
+    walk_list!(vis, visit_refine_param, &ty_alias.refined_by);
     vis.visit_ty(&ty_alias.ty);
 }
 
@@ -269,7 +258,7 @@ pub fn walk_struct_def<V: Visitor>(vis: &mut V, struct_def: &StructDef) {
         vis.visit_generics(generics);
     }
     if let Some(refined_by) = &struct_def.refined_by {
-        vis.visit_refined_by(refined_by);
+        walk_list!(vis, visit_refine_param, refined_by);
     }
     walk_list!(vis, visit_expr, &struct_def.invariants);
     struct_def.fields.iter().flatten().for_each(|field| {
@@ -279,7 +268,7 @@ pub fn walk_struct_def<V: Visitor>(vis: &mut V, struct_def: &StructDef) {
 
 pub fn walk_enum_def<V: Visitor>(vis: &mut V, enum_def: &EnumDef) {
     if let Some(refined_by) = &enum_def.refined_by {
-        vis.visit_refined_by(refined_by);
+        walk_list!(vis, visit_refine_param, refined_by);
     }
     walk_list!(vis, visit_expr, &enum_def.invariants);
     enum_def
@@ -304,6 +293,7 @@ pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
 pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
     vis.visit_async(&fn_sig.asyncness);
     vis.visit_generics(&fn_sig.generics);
+    walk_list!(vis, visit_refine_param, &fn_sig.params);
     for requires in &fn_sig.requires {
         walk_list!(vis, visit_refine_param, &requires.params);
         vis.visit_expr(&requires.pred);
