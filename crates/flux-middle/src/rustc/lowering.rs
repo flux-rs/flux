@@ -88,7 +88,6 @@ fn trait_ref_impl_id<'tcx>(
     let ImplSource::UserDefined(impl_data) = impl_source else {
         return None;
     };
-
     Some((impl_data.impl_def_id, impl_data.args))
 }
 
