@@ -534,6 +534,7 @@
 <a href="#534" id="534">534</a>
 <a href="#535" id="535">535</a>
 <a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
 </pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
@@ -769,6 +770,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>FnSig {
     <span class="kw">pub </span>asyncness: Async,
+    <span class="kw">pub </span>ident: <span class="prelude-ty">Option</span>&lt;Ident&gt;,
     <span class="kw">pub </span>generics: Generics,
     <span class="doccomment">/// example: `requires n &gt; 0`
     </span><span class="kw">pub </span>requires: Vec&lt;Requires&gt;,
