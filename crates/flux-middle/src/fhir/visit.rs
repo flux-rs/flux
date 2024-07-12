@@ -342,6 +342,7 @@ pub fn walk_generic_arg<'v, V: Visitor<'v>>(vis: &mut V, arg: &GenericArg<'v>) {
     match arg {
         GenericArg::Lifetime(lft) => vis.visit_lifetime(lft),
         GenericArg::Type(ty) => vis.visit_ty(ty),
+        GenericArg::Const(_cst) => {}
     }
 }
 

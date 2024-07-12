@@ -188,7 +188,7 @@ pub trait TypeVisitable: Sized {
             // TODO(nilehmann) keep track of the outermost binder to optimize this, i.e.,
             // what rustc calls outer_exclusive_binder.
             fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<()> {
-                if let ExprKind::Var(Var::LateBound(debruijn, _)) = expr.kind() {
+                if let ExprKind::Var(Var::Bound(debruijn, _)) = expr.kind() {
                     if *debruijn >= self.outer_index {
                         ControlFlow::Break(())
                     } else {
@@ -349,10 +349,10 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::Var(Var::LateBound(debruijn, var)) = expr.kind()
+                if let ExprKind::Var(Var::Bound(debruijn, var)) = expr.kind()
                     && *debruijn >= self.current_index
                 {
-                    Expr::late_bvar(debruijn.shifted_in(self.amount), var.index, var.kind)
+                    Expr::bvar(debruijn.shifted_in(self.amount), var.index, var.kind)
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -386,10 +386,10 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::Var(Var::LateBound(debruijn, var)) = expr.kind()
+                if let ExprKind::Var(Var::Bound(debruijn, var)) = expr.kind()
                     && debruijn >= &self.current_index
                 {
-                    Expr::late_bvar(debruijn.shifted_out(self.amount), var.index, var.kind)
+                    Expr::bvar(debruijn.shifted_out(self.amount), var.index, var.kind)
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -451,14 +451,14 @@ impl TypeFoldable for ClauseKind {
     }
 }
 
-impl<T: TypeVisitable, U: TypeVisitable> TypeVisitable for OutlivesPredicate<T, U> {
+impl<T: TypeVisitable> TypeVisitable for OutlivesPredicate<T> {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.0.visit_with(visitor)?;
         self.1.visit_with(visitor)
     }
 }
 
-impl<T: TypeFoldable, U: TypeFoldable> TypeFoldable for OutlivesPredicate<T, U> {
+impl<T: TypeFoldable> TypeFoldable for OutlivesPredicate<T> {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         Ok(OutlivesPredicate(self.0.try_fold_with(folder)?, self.1.try_fold_with(folder)?))
     }
@@ -1126,7 +1126,7 @@ impl TypeVisitable for Var {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
             Var::Free(name) => visitor.visit_fvar(*name),
-            Var::ConstGeneric(_) | Var::LateBound(_, _) | Var::EarlyParam(_) | Var::EVar(_) => {
+            Var::ConstGeneric(_) | Var::Bound(_, _) | Var::EarlyParam(_) | Var::EVar(_) => {
                 ControlFlow::Continue(())
             }
         }

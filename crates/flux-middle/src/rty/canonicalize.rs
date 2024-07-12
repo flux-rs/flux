@@ -75,7 +75,7 @@ impl TypeFolder for Hoister {
                     let idx = self.vars.len();
                     self.vars
                         .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
-                    Expr::late_bvar(INNERMOST, idx as u32, kind)
+                    Expr::bvar(INNERMOST, idx as u32, kind)
                 })
                 .fold_with(self)
             }

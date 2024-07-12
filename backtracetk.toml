@@ -1,0 +1,12 @@
+[env]
+RUST_LIB_BACKTRACE = "0"
+
+[[hide]]
+begin = "flux_common::bug"
+
+[[hide]]
+begin = "core::panicking::panic_explicit"
+
+[[hide]]
+begin = "rustc_interface::queries::QueryResult<&rustc_middle::ty::context::GlobalCtxt>::enter"
+end = "rustc_middle::ty::context::GlobalCtxt::enter::.*closure.*"

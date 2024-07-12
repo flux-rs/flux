@@ -30,6 +30,7 @@ serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"
 
 [workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(flux_sysroot)'] }
 unused_extern_crates = "warn"
 
 [workspace.lints.rustdoc]

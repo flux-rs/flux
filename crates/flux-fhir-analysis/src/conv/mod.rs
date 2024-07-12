@@ -645,9 +645,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             let idx = rty::Expr::adt(
                 adt_def_id.to_def_id(),
                 (0..vars.len())
-                    .map(|idx| {
-                        rty::Expr::late_bvar(INNERMOST, idx as u32, rty::BoundReftKind::Annon)
-                    })
+                    .map(|idx| rty::Expr::bvar(INNERMOST, idx as u32, rty::BoundReftKind::Annon))
                     .collect(),
             );
             let variant = rty::VariantSig::new(
@@ -756,10 +754,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 Ok(rty::Ty::tuple(tys))
             }
             fhir::TyKind::Array(ty, len) => {
-                Ok(rty::Ty::array(
-                    self.conv_ty(env, ty)?,
-                    rty::array_len_const(&self.genv, len.kind),
-                ))
+                Ok(rty::Ty::array(self.conv_ty(env, ty)?, self.conv_const_arg(*len)?))
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
             fhir::TyKind::Constr(pred, ty) => {
@@ -992,7 +987,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             ResolvedArg::EarlyBound(def_id) => {
                 let index = self.genv.def_id_to_param_index(def_id.expect_local());
                 let name = lifetime_name(def_id.expect_local());
-                rty::ReEarlyBound(rty::EarlyParamRegion { def_id, index, name })
+                rty::ReEarlyBound(rty::EarlyParamRegion { index, name })
             }
             ResolvedArg::LateBound(_, index, def_id) => {
                 let depth = env.depth().checked_sub(1).unwrap();
@@ -1008,6 +1003,16 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 rty::ReFree(rty::FreeRegion { scope, bound_region })
             }
             ResolvedArg::Error(_) => bug!("lifetime resolved to an error"),
+        }
+    }
+
+    fn conv_const_arg(&mut self, cst: fhir::ConstArg) -> QueryResult<rty::Const> {
+        match cst.kind {
+            fhir::ConstArgKind::Lit(lit) => Ok(rty::Const::from_usize(self.genv.tcx(), lit)),
+            fhir::ConstArgKind::Param(def_id) => {
+                let kind = rty::ConstKind::Param(self.genv.def_id_to_param_const(def_id));
+                Ok(rty::Const { kind })
+            }
         }
     }
 
@@ -1117,6 +1122,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 }
                 fhir::GenericArg::Type(ty) => {
                     into.push(self.conv_ty_to_generic_arg(env, &param, ty)?);
+                }
+                fhir::GenericArg::Const(cst) => {
+                    into.push(rty::GenericArg::Const(self.conv_const_arg(*cst)?))
                 }
             }
         }
@@ -1477,7 +1485,7 @@ impl LookupResult<'_> {
             LookupResultKind::LateBound { debruijn, entry: ParamEntry { name, .. }, kind, idx } => {
                 match *kind {
                     LayerKind::List { bound_regions } => {
-                        rty::Expr::late_bvar(
+                        rty::Expr::bvar(
                             *debruijn,
                             bound_regions + *idx,
                             rty::BoundReftKind::Named(*name),
@@ -1485,7 +1493,7 @@ impl LookupResult<'_> {
                     }
                     LayerKind::Coalesce(def_id) => {
                         rty::Expr::field_proj(
-                            rty::Expr::late_bvar(*debruijn, 0, rty::BoundReftKind::Annon),
+                            rty::Expr::bvar(*debruijn, 0, rty::BoundReftKind::Annon),
                             rty::FieldProj::Adt { def_id, field: *idx },
                             None,
                         )

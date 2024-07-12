@@ -786,7 +786,12 @@ macro_rules! read_attr {
 
 impl FluxAttr {
     pub fn allow_dups(&self) -> bool {
-        matches!(&self.kind, FluxAttrKind::Invariant(..))
+        matches!(
+            &self.kind,
+            FluxAttrKind::Invariant(..)
+                | FluxAttrKind::TraitAssocReft(..)
+                | FluxAttrKind::ImplAssocReft(..)
+        )
     }
 }
 

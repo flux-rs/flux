@@ -152,11 +152,10 @@ impl Pretty for PolyFuncSort {
 impl Pretty for FnSig {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
-        w!("fn(")?;
         if !self.requires.is_empty() {
             w!("[{:?}] ", join!(", ", &self.requires))?;
         }
-        w!("{:?}) -> {:?}", join!(", ", &self.inputs), &self.output)?;
+        w!("fn({:?}) -> {:?}", join!(", ", &self.inputs), &self.output)?;
 
         Ok(())
     }
@@ -398,7 +397,7 @@ impl Pretty for Const {
         define_scoped!(cx, f);
         match &self.kind {
             ConstKind::Param(p) => w!("{}", ^p.name.as_str()),
-            ConstKind::Value(v) => w!("{}", ^v),
+            ConstKind::Value(_, v) => w!("{}", ^v),
         }
     }
 }
@@ -453,4 +452,5 @@ impl_debug_with_default_cx!(
     FuncSort,
     SortCtor,
     SubsetTy,
+    Const,
 );

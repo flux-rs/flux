@@ -534,7 +534,7 @@ pub enum TyKind<'fhir> {
     StrgRef(Lifetime, &'fhir PathExpr<'fhir>, &'fhir Ty<'fhir>),
     Ref(Lifetime, MutTy<'fhir>),
     Tuple(&'fhir [Ty<'fhir>]),
-    Array(&'fhir Ty<'fhir>, ArrayLen),
+    Array(&'fhir Ty<'fhir>, ConstArg),
     RawPtr(&'fhir Ty<'fhir>, Mutability),
     OpaqueDef(ItemId, &'fhir [GenericArg<'fhir>], &'fhir [RefineArg<'fhir>], bool),
     Never,
@@ -555,29 +555,6 @@ pub enum Lifetime {
     Hole(FhirId),
     /// A resolved lifetime created during lifting.
     Resolved(ResolvedArg),
-}
-
-#[derive(Clone, Copy)]
-pub struct ArrayLen {
-    pub kind: ArrayLenKind,
-    pub span: Span,
-}
-
-#[derive(PartialEq, Eq, Clone, Copy)]
-pub enum ArrayLenKind {
-    /// The length of the array is a constant
-    Lit(usize),
-    /// The length of the array is a type parameter
-    ParamConst(DefId),
-}
-
-impl ArrayLen {
-    pub fn lit(n: usize, span: Span) -> Self {
-        Self { kind: ArrayLenKind::Lit(n), span }
-    }
-    pub fn param(def_id: DefId, span: Span) -> Self {
-        Self { kind: ArrayLenKind::ParamConst(def_id), span }
-    }
 }
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -693,6 +670,21 @@ pub struct TypeBinding<'fhir> {
 pub enum GenericArg<'fhir> {
     Lifetime(Lifetime),
     Type(&'fhir Ty<'fhir>),
+    Const(ConstArg),
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub struct ConstArg {
+    pub kind: ConstArgKind,
+    pub span: Span,
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum ConstArgKind {
+    /// The length of the array is a constant
+    Lit(usize),
+    /// The length of the array is a type parameter
+    Param(DefId),
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -1264,17 +1256,17 @@ impl fmt::Debug for Lifetime {
     }
 }
 
-impl fmt::Debug for ArrayLen {
+impl fmt::Debug for ConstArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self.kind)
     }
 }
 
-impl fmt::Debug for ArrayLenKind {
+impl fmt::Debug for ConstArgKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ArrayLenKind::Lit(n) => write!(f, "{n}"),
-            ArrayLenKind::ParamConst(p) => write!(f, "{:?}", p),
+            ConstArgKind::Lit(n) => write!(f, "{n}"),
+            ConstArgKind::Param(p) => write!(f, "{:?}", p),
         }
     }
 }
@@ -1328,6 +1320,7 @@ impl fmt::Debug for GenericArg<'_> {
         match self {
             GenericArg::Type(ty) => write!(f, "{ty:?}"),
             GenericArg::Lifetime(lft) => write!(f, "{lft:?}"),
+            GenericArg::Const(cst) => write!(f, "{cst:?}"),
         }
     }
 }

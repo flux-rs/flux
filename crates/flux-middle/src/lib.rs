@@ -2,7 +2,6 @@
     associated_type_defaults,
     box_patterns,
     if_let_guard,
-    lazy_cell,
     let_chains,
     min_specialization,
     never_type,
@@ -12,6 +11,7 @@
 
 //! This crate contains common type definitions that are used by other crates.
 
+extern crate rustc_abi;
 extern crate rustc_ast;
 extern crate rustc_borrowck;
 extern crate rustc_data_structures;

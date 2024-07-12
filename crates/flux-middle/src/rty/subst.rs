@@ -179,15 +179,15 @@ where
     }
 
     fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::Var(Var::LateBound(debruijn, var)) = e.kind() {
+        if let ExprKind::Var(Var::Bound(debruijn, var)) = e.kind() {
             match debruijn.cmp(&self.current_index) {
-                Ordering::Less => Expr::late_bvar(*debruijn, var.index, var.kind),
+                Ordering::Less => Expr::bvar(*debruijn, var.index, var.kind),
                 Ordering::Equal => {
                     self.delegate
                         .replace_expr(*var)
                         .shift_in_escaping(self.current_index.as_u32())
                 }
-                Ordering::Greater => Expr::late_bvar(debruijn.shifted_out(1), var.index, var.kind),
+                Ordering::Greater => Expr::bvar(debruijn.shifted_out(1), var.index, var.kind),
             }
         } else {
             e.super_fold_with(self)
@@ -342,10 +342,10 @@ impl<'a, 'tcx> GenericsSubstDelegate for GenericArgsDelegate<'a, 'tcx> {
 
     fn const_for_param(&mut self, param: &Const) -> Const {
         match &param.kind {
-            ConstKind::Value(_) => param.clone(),
+            ConstKind::Value(..) => param.clone(),
             ConstKind::Param(param_const) => {
                 match self.0.get(param_const.index as usize) {
-                    Some(GenericArg::Const(konst)) => konst.clone(),
+                    Some(GenericArg::Const(cst)) => cst.clone(),
                     Some(arg) => bug!("expected const for generic parameter, found `{arg:?}`"),
                     None => bug!("generic parameter out of range"),
                 }
@@ -355,7 +355,7 @@ impl<'a, 'tcx> GenericsSubstDelegate for GenericArgsDelegate<'a, 'tcx> {
 
     fn expr_for_param_const(&self, param_const: ParamConst) -> Expr {
         match self.0.get(param_const.index as usize) {
-            Some(GenericArg::Const(konst)) => Expr::from_const(&self.1, konst),
+            Some(GenericArg::Const(cst)) => Expr::from_const(self.1, cst),
             Some(arg) => bug!("expected const for generic parameter, found `{arg:?}`"),
             None => bug!("generic parameter out of range"),
         }

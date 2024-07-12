@@ -91,8 +91,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
 
     fn sort_of_generic_arg(self, arg: &fhir::GenericArg) -> QueryResult<Option<rty::Sort>> {
         match arg {
-            fhir::GenericArg::Lifetime(_) => Ok(None),
             fhir::GenericArg::Type(ty) => self.sort_of_ty(ty),
+            fhir::GenericArg::Lifetime(_) | fhir::GenericArg::Const(_) => Ok(None),
         }
     }
 

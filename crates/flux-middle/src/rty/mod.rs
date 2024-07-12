@@ -31,7 +31,7 @@ use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::{ParamConst, TyCtxt, ValTree};
 pub use rustc_middle::{
     mir::Mutability,
-    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, OutlivesPredicate, ParamTy, ScalarInt, UintTy},
+    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
 };
 use rustc_span::{sym, symbol::kw, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
@@ -46,7 +46,7 @@ pub use crate::{
     fhir::InferMode,
     rustc::ty::{
         AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, EarlyParamRegion,
-        FreeRegion,
+        FreeRegion, OutlivesPredicate,
         Region::{self, *},
         RegionVid,
     },
@@ -179,7 +179,7 @@ pub enum ClauseKind {
     CoroutineOblig(CoroutineObligPredicate),
 }
 
-pub type TypeOutlivesPredicate = OutlivesPredicate<Ty, Region>;
+pub type TypeOutlivesPredicate = OutlivesPredicate<Ty>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct TraitPredicate {
@@ -982,18 +982,6 @@ pub enum GenericArg {
     Const(Const),
 }
 
-pub fn array_len_const(genv: &GlobalEnv, len: fhir::ArrayLenKind) -> Const {
-    let kind = match len {
-        fhir::ArrayLenKind::Lit(len) => {
-            ConstKind::Value(ScalarInt::try_from_target_usize(len as u128, genv.tcx()).unwrap())
-        }
-        fhir::ArrayLenKind::ParamConst(def_id) => {
-            ConstKind::Param(genv.def_id_to_param_const(def_id))
-        }
-    };
-    Const { kind, ty: crate::rustc::ty::Ty::mk_uint(UintTy::Usize) }
-}
-
 impl GenericArg {
     pub fn expect_type(&self) -> &Ty {
         if let GenericArg::Ty(ty) = self {
@@ -1011,30 +999,28 @@ impl GenericArg {
         }
     }
 
-    fn from_param_def(genv: GlobalEnv, param: &GenericParamDef) -> QueryResult<Self> {
+    fn from_param_def(param: &GenericParamDef) -> Self {
         match param.kind {
             GenericParamDefKind::Type { .. } => {
                 let param_ty = ParamTy { index: param.index, name: param.name };
-                Ok(GenericArg::Ty(Ty::param(param_ty)))
+                GenericArg::Ty(Ty::param(param_ty))
             }
             GenericParamDefKind::Base => {
                 // λv. T[v]
                 let param_ty = ParamTy { index: param.index, name: param.name };
-                Ok(GenericArg::Base(Binder::with_sort(
+                GenericArg::Base(Binder::with_sort(
                     SubsetTy::trivial(BaseTy::Param(param_ty), Expr::nu()),
                     Sort::Param(param_ty),
-                )))
+                ))
             }
             GenericParamDefKind::Lifetime => {
-                let region =
-                    EarlyParamRegion { index: param.index, name: param.name, def_id: param.def_id };
-                Ok(GenericArg::Lifetime(Region::ReEarlyBound(region)))
+                let region = EarlyParamRegion { index: param.index, name: param.name };
+                GenericArg::Lifetime(Region::ReEarlyBound(region))
             }
             GenericParamDefKind::Const { .. } => {
                 let param_const = ParamConst { index: param.index, name: param.name };
                 let kind = ConstKind::Param(param_const);
-                let ty = genv.lower_type_of(param.def_id)?.skip_binder();
-                Ok(GenericArg::Const(Const { kind, ty }))
+                GenericArg::Const(Const { kind })
             }
         }
     }
@@ -1048,17 +1034,18 @@ impl GenericArg {
             }
             GenericArg::Lifetime(re) => ty::GenericArg::from(re.to_rustc(tcx)),
             GenericArg::Const(c) => {
-                let ty = &c.ty;
-                let ty = ty.to_rustc(tcx);
-                let kind = match c.kind {
+                let kind = match &c.kind {
                     ConstKind::Param(param_const) => {
-                        rustc_middle::ty::ConstKind::Param(param_const)
+                        rustc_middle::ty::ConstKind::Param(*param_const)
                     }
-                    ConstKind::Value(scalar_int) => {
-                        rustc_middle::ty::ConstKind::Value(ValTree::Leaf(scalar_int))
+                    ConstKind::Value(ty, scalar_int) => {
+                        rustc_middle::ty::ConstKind::Value(
+                            ty.to_rustc(tcx),
+                            ValTree::Leaf(*scalar_int),
+                        )
                     }
                 };
-                let c = rustc_middle::ty::Const::new(tcx, kind, ty);
+                let c = rustc_middle::ty::Const::new(tcx, kind);
                 ty::GenericArg::from(c)
             }
         }
@@ -1072,7 +1059,7 @@ impl GenericArgs {
         let mut args = vec![];
         let generics = genv.generics_of(def_id)?;
         Self::fill_item(genv, &mut args, &generics, &mut |param, _| {
-            GenericArg::from_param_def(genv, param)
+            GenericArg::from_param_def(param)
         })?;
         Ok(List::from_vec(args))
     }
@@ -1084,14 +1071,14 @@ impl GenericArgs {
         mk_kind: &mut F,
     ) -> QueryResult<()>
     where
-        F: FnMut(&GenericParamDef, &[GenericArg]) -> QueryResult<GenericArg>,
+        F: FnMut(&GenericParamDef, &[GenericArg]) -> GenericArg,
     {
         if let Some(def_id) = generics.parent {
             let parent_generics = genv.generics_of(def_id)?;
             Self::fill_item(genv, args, &parent_generics, mk_kind)?;
         }
         for param in &generics.params {
-            let kind = mk_kind(param, args)?;
+            let kind = mk_kind(param, args);
             assert_eq!(param.index as usize, args.len(), "{args:#?}, {generics:#?}");
             args.push(kind);
         }

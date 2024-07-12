@@ -170,7 +170,7 @@ pub mod fixpoint {
                 Var::UIFRel(BinRel::Ge) => write!(f, "ge"),
                 Var::UIFRel(BinRel::Lt) => write!(f, "lt"),
                 Var::UIFRel(BinRel::Le) => write!(f, "le"),
-                // these are actually not necessary because all equality is interpreted.
+                // these are actually not necessary because equality is interpreted for all sorts
                 Var::UIFRel(BinRel::Eq) => write!(f, "eq"),
                 Var::UIFRel(BinRel::Ne) => write!(f, "ne"),
                 Var::Underscore => write!(f, "_"),
@@ -211,7 +211,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     env: Env,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
-    /// [`DefId`] of the item being checked. This could be a function/method or an adt when checking
+    /// [`DefId`] of the item being checked. This can be a function/method or an adt when checking
     /// invariants.
     def_id: LocalDefId,
 }
@@ -221,6 +221,8 @@ struct FixpointKVar {
     orig: rty::KVid,
 }
 
+/// During encoding into fixpoint we generate multiple fxpoint kvars per kvar in flux. A
+/// [`KVarEncodingCtxt`] is used to keep track of the state needed for this.
 #[derive(Default)]
 struct KVarEncodingCtxt {
     /// List of all kvars that need to be defined in fixpoint
@@ -290,6 +292,7 @@ impl Env {
         self.fvars.remove(&name);
     }
 
+    /// Push a layer of bound variables assigning a fresh [`fixpoint::LocalVar`] to each one
     fn push_layer_with_fresh_names(&mut self, count: usize) {
         let layer = (0..count).map(|_| self.fresh_name()).collect();
         self.layers.push(layer);
@@ -306,7 +309,7 @@ impl Env {
                     .unwrap_or_else(|| span_bug!(dbg_span, "no entry found for name: `{name:?}`"))
                     .into()
             }
-            rty::Var::LateBound(debruijn, var) => {
+            rty::Var::Bound(debruijn, var) => {
                 self.get_late_bvar(*debruijn, var.index)
                     .unwrap_or_else(|| {
                         span_bug!(dbg_span, "no entry found for late bound var: `{var:?}`")
@@ -767,7 +770,7 @@ impl KVarStore {
                 sorts.iter().cloned().enumerate().map(move |(index, sort)| {
                     let var =
                         rty::BoundReft { index: index as u32, kind: rty::BoundReftKind::Annon };
-                    (rty::Var::LateBound(debruijn, var), sort)
+                    (rty::Var::Bound(debruijn, var), sort)
                 })
             }),
             scope.iter(),
