@@ -255,7 +255,11 @@ pub(crate) fn conv_refinement_generics(
 ) -> QueryResult<List<rty::RefineParam>> {
     params
         .iter()
-        .map(|param| conv_refine_param(genv, param, wfckresults))
+        .map(|param| {
+            let sort = resolve_param_sort(genv, param, wfckresults)?;
+            let mode = rty::InferMode::from_param_kind(param.kind);
+            Ok(rty::RefineParam { sort, mode })
+        })
         .try_collect()
 }
 
@@ -1420,7 +1424,7 @@ impl Layer {
             .iter()
             .map(|param| -> QueryResult<_> {
                 let sort = cx.resolve_param_sort(param)?;
-                let infer_mode = sort.infer_mode(param.kind);
+                let infer_mode = rty::InferMode::from_param_kind(param.kind);
                 let entry = ParamEntry::new(sort, infer_mode, param.name);
                 Ok((param.id, entry))
             })
@@ -1456,10 +1460,11 @@ impl Layer {
                 let sort_def = genv.adt_sort_def_of(def_id)?;
                 let args = sort_def.identity_args();
                 let ctor = rty::SortCtor::Adt(sort_def);
-                let sort = rty::Sort::App(ctor, args);
-                let infer_mode = sort.default_infer_mode();
-                let kind = rty::BoundReftKind::Annon;
-                Ok(List::singleton(rty::BoundVariableKind::Refine(sort, infer_mode, kind)))
+                Ok(List::singleton(rty::BoundVariableKind::Refine(
+                    rty::Sort::App(ctor, args),
+                    rty::InferMode::EVar,
+                    rty::BoundReftKind::Annon,
+                )))
             }
         }
     }
@@ -1563,16 +1568,6 @@ fn conv_sorts(
         .iter()
         .map(|sort| conv_sort(genv, sort, next_infer_sort))
         .try_collect()
-}
-
-fn conv_refine_param(
-    genv: GlobalEnv,
-    param: &fhir::RefineParam,
-    wfckresults: Option<&WfckResults>,
-) -> QueryResult<rty::RefineParam> {
-    let sort = resolve_param_sort(genv, param, wfckresults)?;
-    let mode = sort.infer_mode(param.kind);
-    Ok(rty::RefineParam { sort, mode })
 }
 
 pub(crate) fn resolve_param_sort(

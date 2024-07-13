@@ -30,25 +30,8 @@ pub fn lift_type_alias<'genv>(
     genv: GlobalEnv<'genv, '_>,
     owner_id: OwnerId,
 ) -> Result<fhir::TyAlias<'genv>> {
-    let def_id = owner_id.def_id;
-    let item = genv.hir().expect_item(def_id);
-    let hir::ItemKind::TyAlias(ty, _) = item.kind else {
-        bug!("expected type alias");
-    };
     let local_id_gen = IndexGen::new();
-    let mut cx = LiftCtxt::new(genv, owner_id, &local_id_gen, None);
-
-    let generics = cx.lift_generics()?;
-    let refined_by = cx.lift_refined_by();
-    let ty = cx.lift_ty(ty)?;
-    Ok(fhir::TyAlias {
-        generics,
-        refined_by: genv.alloc(refined_by),
-        params: &[],
-        ty,
-        span: item.span,
-        lifted: true,
-    })
+    LiftCtxt::new(genv, owner_id, &local_id_gen, None).lift_type_alias()
 }
 
 pub fn lift_fn_decl<'genv>(
@@ -136,7 +119,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         let item = self.genv.hir().expect_item(def_id);
         match item.kind {
             hir::ItemKind::TyAlias(..) | hir::ItemKind::Struct(..) | hir::ItemKind::Enum(..) => {
-                fhir::RefinedBy::trivial(item.ident.span)
+                fhir::RefinedBy::trivial()
             }
             _ => {
                 bug!("expected struct, enum, or type alias");

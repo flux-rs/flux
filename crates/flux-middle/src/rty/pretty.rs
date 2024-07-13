@@ -422,7 +422,7 @@ impl Pretty for GenericArg {
 impl Pretty for VariantSig {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
-        w!("({:?}) -> {:?}", join!(", ", self.fields()), &self.idx)
+        w!("({:?}) => {:?}", join!(", ", self.fields()), &self.idx)
     }
 }
 

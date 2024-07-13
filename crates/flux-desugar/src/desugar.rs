@@ -7,7 +7,10 @@ use flux_middle::{
     global_env::GlobalEnv,
     try_alloc_slice, ResolverOutput,
 };
-use flux_syntax::surface::{self, NodeId};
+use flux_syntax::{
+    surface::{self, visit::Visitor as _, NodeId},
+    walk_list,
+};
 use hir::{def::DefKind, ItemKind};
 use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
@@ -35,7 +38,7 @@ pub(crate) fn desugar_qualifier<'genv>(
 
     Ok(fhir::Qualifier {
         name: qualifier.name.name,
-        args: cx.desugar_refine_params(&qualifier.args),
+        args: cx.desugar_refine_params(&qualifier.params),
         global: qualifier.global,
         expr: expr?,
     })
@@ -55,7 +58,7 @@ pub(crate) fn desugar_spec_func<'genv>(
     let name = spec_func.name.name;
     let params = spec_func.sort_vars.len();
     let sort = cx.desugar_sort(&spec_func.output, None);
-    let args = cx.desugar_refine_params(&spec_func.args);
+    let args = cx.desugar_refine_params(&spec_func.params);
 
     Ok(fhir::SpecFunc { name, params, args, sort, body })
 }
@@ -65,7 +68,7 @@ pub(crate) fn desugar_spec_func<'genv>(
 fn collect_generics_in_refined_by(
     generics: &rustc_middle::ty::Generics,
     resolver_output: &ResolverOutput,
-    refined_by: &surface::RefinedBy,
+    refined_by: &surface::RefineParams,
 ) -> FxIndexSet<DefId> {
     struct ParamCollector<'a> {
         resolver_output: &'a ResolverOutput,
@@ -83,7 +86,7 @@ fn collect_generics_in_refined_by(
         }
     }
     let mut vis = ParamCollector { resolver_output, found: FxHashSet::default() };
-    surface::visit::Visitor::visit_refined_by(&mut vis, refined_by);
+    walk_list!(vis, visit_refine_param, refined_by);
     generics
         .own_params
         .iter()
@@ -211,17 +214,12 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let mut surface_params = FxHashMap::default();
         let mut self_kind = None;
         for param in &generics.params {
-            if let surface::GenericParamKind::Refine { .. } = &param.kind {
-                continue;
-            }
-
             if param.name.name == kw::SelfUpper {
                 let kind = match &param.kind {
                     surface::GenericParamKind::Type => {
                         fhir::GenericParamKind::Type { default: None }
                     }
                     surface::GenericParamKind::Base => fhir::GenericParamKind::Base,
-                    surface::GenericParamKind::Refine { .. } => unreachable!(),
                 };
                 self_kind = Some(kind);
             } else {
@@ -238,7 +236,6 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                         }
                     }
                     surface::GenericParamKind::Base => fhir::GenericParamKind::Base,
-                    surface::GenericParamKind::Refine { .. } => unreachable!(),
                 };
                 surface_params.insert(def_id, fhir::GenericParam { def_id, kind });
             }
@@ -292,21 +289,20 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     fn desugar_refined_by(
         &mut self,
-        refined_by: &surface::RefinedBy,
+        refined_by: &surface::RefineParams,
     ) -> Result<fhir::RefinedBy<'genv>> {
         let generics = self.genv.tcx().generics_of(self.owner);
         let generic_id_to_var_idx =
             collect_generics_in_refined_by(generics, self.resolver_output, refined_by);
 
         let fields = refined_by
-            .fields
             .iter()
             .map(|param| {
-                (param.name.name, self.desugar_sort(&param.sort, Some(&generic_id_to_var_idx)))
+                (param.ident.name, self.desugar_sort(&param.sort, Some(&generic_id_to_var_idx)))
             })
             .collect();
 
-        Ok(fhir::RefinedBy::new(fields, generic_id_to_var_idx, refined_by.span))
+        Ok(fhir::RefinedBy::new(fields, generic_id_to_var_idx))
     }
 
     pub(crate) fn desugar_struct_def(
@@ -352,8 +348,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             fhir::StructKind::Transparent { fields }
         };
 
-        let params =
-            self.desugar_refine_params(struct_def.refined_by.as_ref().map_or(&[], |it| &it.fields));
+        let params = self.desugar_refine_params(struct_def.refined_by.as_deref().unwrap_or(&[]));
         let struct_def = fhir::StructDef {
             generics,
             refined_by: self.genv.alloc(refined_by),
@@ -390,8 +385,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             self.desugar_expr(invariant)
         })?;
 
-        let params =
-            self.desugar_refine_params(enum_def.refined_by.as_ref().map_or(&[], |it| &it.fields));
+        let params = self.desugar_refine_params(enum_def.refined_by.as_deref().unwrap_or(&[]));
         let enum_def = fhir::EnumDef {
             generics,
             refined_by: self.genv.alloc(refined_by),
@@ -468,11 +462,9 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
         let ty = self.desugar_ty(&ty_alias.ty)?;
 
-        generics.refinement_params = self
-            .genv
-            .alloc_slice(&self.desugar_refinement_generics(&ty_alias.generics));
+        generics.refinement_params = self.desugar_refine_params(&ty_alias.params);
 
-        let params = self.desugar_refine_params(&ty_alias.refined_by.fields);
+        let params = self.desugar_refine_params(&ty_alias.refined_by);
 
         let ty_alias = fhir::TyAlias {
             refined_by: self.genv.alloc(refined_by),
@@ -534,36 +526,11 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         })
     }
 
-    fn desugar_refinement_generics(
-        &self,
-        generics: &surface::Generics,
-    ) -> Vec<fhir::RefineParam<'genv>> {
-        generics
-            .params
-            .iter()
-            .flat_map(|p| {
-                if let surface::GenericParamKind::Refine { sort } = &p.kind {
-                    let (id, kind) = self.resolve_param(p.node_id);
-                    Some(fhir::RefineParam {
-                        id,
-                        name: p.name.name,
-                        span: p.name.span,
-                        sort: self.desugar_sort(sort, None),
-                        kind,
-                        fhir_id: self.next_fhir_id(),
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
     fn desugar_fn_sig_refine_params(
         &self,
         fn_sig: &surface::FnSig,
     ) -> &'genv [fhir::RefineParam<'genv>] {
-        let explicit = self.desugar_refinement_generics(&fn_sig.generics);
+        let explicit = self.desugar_refine_params_iter(&fn_sig.params);
         let implicit = self.implicit_params_to_params(fn_sig.node_id);
 
         self.genv.alloc_slice_with_capacity(
@@ -915,17 +882,24 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         params: &[surface::RefineParam],
     ) -> &'genv [fhir::RefineParam<'genv>] {
         self.genv()
-            .alloc_slice_fill_iter(params.iter().map(|param| {
-                let (id, kind) = self.resolve_param(param.node_id);
-                fhir::RefineParam {
-                    id,
-                    name: param.name.name,
-                    span: param.name.span,
-                    kind,
-                    sort: self.desugar_sort(&param.sort, None),
-                    fhir_id: self.next_fhir_id(),
-                }
-            }))
+            .alloc_slice_fill_iter(self.desugar_refine_params_iter(params))
+    }
+
+    fn desugar_refine_params_iter(
+        &self,
+        params: &[surface::RefineParam],
+    ) -> impl ExactSizeIterator<Item = fhir::RefineParam<'genv>> {
+        params.iter().map(|param| {
+            let (id, kind) = self.resolve_param(param.node_id);
+            fhir::RefineParam {
+                id,
+                name: param.ident.name,
+                span: param.ident.span,
+                kind,
+                sort: self.desugar_sort(&param.sort, None),
+                fhir_id: self.next_fhir_id(),
+            }
+        })
     }
 
     fn desugar_sort(

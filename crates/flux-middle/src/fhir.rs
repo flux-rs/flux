@@ -22,6 +22,7 @@ pub mod visit;
 use std::{borrow::Cow, fmt};
 
 use flux_common::{bug, span_bug};
+use flux_syntax::surface::ParamMode;
 pub use flux_syntax::surface::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
@@ -402,9 +403,9 @@ impl<'fhir> Crate<'fhir> {
 pub struct TyAlias<'fhir> {
     pub generics: Generics<'fhir>,
     pub refined_by: &'fhir RefinedBy<'fhir>,
+    pub params: &'fhir [RefineParam<'fhir>],
     pub ty: Ty<'fhir>,
     pub span: Span,
-    pub params: &'fhir [RefineParam<'fhir>],
     /// Whether this alias was [lifted] from a `hir` alias
     ///
     /// [lifted]: lift::lift_type_alias
@@ -712,8 +713,8 @@ pub struct RefineParam<'fhir> {
 /// [inference mode]: InferMode
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum ParamKind {
-    /// A parameter declared in an explicit scope, e.g., `fn foo<refine n: int>(x: i32[n])`
-    Explicit,
+    /// A parameter declared in an explicit scope, e.g., `fn foo[hdl n: int](x: i32[n])`
+    Explicit(Option<ParamMode>),
     /// An implicitly scoped parameter declared with `@a` syntax
     At,
     /// An implicitly scoped parameter declared with `#a` syntax
@@ -736,10 +737,6 @@ pub enum ParamKind {
 }
 
 impl ParamKind {
-    pub(crate) fn is_implicit(&self) -> bool {
-        matches!(self, ParamKind::At | ParamKind::Pound | ParamKind::Colon)
-    }
-
     pub fn is_loc(&self) -> bool {
         matches!(self, ParamKind::Loc)
     }
@@ -759,6 +756,14 @@ pub enum InferMode {
 }
 
 impl InferMode {
+    pub fn from_param_kind(kind: ParamKind) -> InferMode {
+        if let ParamKind::Explicit(Some(ParamMode::Horn)) = kind {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
+        }
+    }
+
     pub fn prefix_str(self) -> &'static str {
         match self {
             InferMode::EVar => "?",
@@ -1015,7 +1020,6 @@ impl Lit {
 /// Information about the refinement parameters associated with a type alias or an adt (struct/enum).
 #[derive(Clone, Debug)]
 pub struct RefinedBy<'fhir> {
-    pub span: Span,
     /// Tracks the mapping from bound var to generic def ids. e.g. if we have
     ///
     /// ```ignore
@@ -1074,16 +1078,12 @@ impl<'fhir> Generics<'fhir> {
 }
 
 impl<'fhir> RefinedBy<'fhir> {
-    pub fn new(
-        fields: FxIndexMap<Symbol, Sort<'fhir>>,
-        sort_params: FxIndexSet<DefId>,
-        span: Span,
-    ) -> Self {
-        RefinedBy { span, sort_params, fields }
+    pub fn new(fields: FxIndexMap<Symbol, Sort<'fhir>>, sort_params: FxIndexSet<DefId>) -> Self {
+        RefinedBy { sort_params, fields }
     }
 
-    pub fn trivial(span: Span) -> Self {
-        RefinedBy { sort_params: Default::default(), span, fields: Default::default() }
+    pub fn trivial() -> Self {
+        RefinedBy { sort_params: Default::default(), fields: Default::default() }
     }
 
     fn is_base_generic(&self, def_id: DefId) -> bool {

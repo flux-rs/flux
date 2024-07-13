@@ -758,7 +758,7 @@ enum FluxAttrKind {
     FnSig(surface::FnSig),
     TraitAssocReft(surface::TraitAssocReft),
     ImplAssocReft(surface::ImplAssocReft),
-    RefinedBy(surface::RefinedBy),
+    RefinedBy(surface::RefineParams),
     Generics(surface::Generics),
     QualNames(surface::QualNames),
     Items(Vec<surface::Item>),
@@ -856,7 +856,7 @@ impl FluxAttrs {
         read_attr!(self, TypeAlias)
     }
 
-    fn refined_by(&mut self) -> Option<surface::RefinedBy> {
+    fn refined_by(&mut self) -> Option<surface::RefineParams> {
         read_attr!(self, RefinedBy)
     }
 

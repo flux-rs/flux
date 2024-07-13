@@ -1,4 +1,4 @@
-#[flux::refined_by(a: int, b: int, p: (int, int) -> bool)]
+#[flux::refined_by(a: int, b: int, hrn p: (int, int) -> bool)]
 struct Pair {
     #[flux::field(i32[a])]
     fst: i32,

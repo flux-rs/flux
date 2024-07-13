@@ -52,7 +52,7 @@ pub use crate::{
     },
 };
 use crate::{
-    fhir::{self, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
+    fhir::{self, FhirId, FluxOwnerId, SpecFuncKind},
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
@@ -1199,14 +1199,6 @@ impl RefinementGenerics {
 }
 
 impl Sort {
-    pub fn infer_mode(&self, kind: ParamKind) -> InferMode {
-        if self.is_pred() && !kind.is_implicit() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
-        }
-    }
-
     pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
         Sort::Tuple(sorts.into())
     }
@@ -1225,14 +1217,6 @@ impl Sort {
             sort
         } else {
             bug!("expected `Sort::Func`")
-        }
-    }
-
-    pub fn default_infer_mode(&self) -> InferMode {
-        if self.is_pred() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
         }
     }
 
@@ -1315,11 +1299,8 @@ impl<T> Binder<T> {
     pub fn with_sorts(value: T, sorts: &[Sort]) -> Binder<T> {
         let vars = sorts
             .iter()
-            .map(|s| {
-                let infer_mode = s.default_infer_mode();
-                let kind = BoundReftKind::Annon;
-                BoundVariableKind::Refine(s.clone(), infer_mode, kind)
-            })
+            .cloned()
+            .map(|sort| BoundVariableKind::Refine(sort, InferMode::EVar, BoundReftKind::Annon))
             .collect();
         Binder { vars, value }
     }

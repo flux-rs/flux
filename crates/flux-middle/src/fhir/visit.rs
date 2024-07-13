@@ -218,8 +218,8 @@ pub fn walk_variant_ret<'v, V: Visitor<'v>>(vis: &mut V, ret: &VariantRet<'v>) {
 
 pub fn walk_ty_alias<'v, V: Visitor<'v>>(vis: &mut V, ty_alias: &TyAlias<'v>) {
     vis.visit_generics(&ty_alias.generics);
-    vis.visit_ty(&ty_alias.ty);
     walk_list!(vis, visit_refine_param, ty_alias.params);
+    vis.visit_ty(&ty_alias.ty);
 }
 
 pub fn walk_opaque_ty<'v, V: Visitor<'v>>(vis: &mut V, opaque_ty: &OpaqueTy<'v>) {
