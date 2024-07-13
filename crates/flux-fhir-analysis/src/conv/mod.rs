@@ -1128,7 +1128,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     into.push(self.conv_ty_to_generic_arg(env, &param, ty)?);
                 }
                 fhir::GenericArg::Const(cst) => {
-                    into.push(rty::GenericArg::Const(self.conv_const_arg(*cst)?))
+                    into.push(rty::GenericArg::Const(self.conv_const_arg(*cst)?));
                 }
             }
         }

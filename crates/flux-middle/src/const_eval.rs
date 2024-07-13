@@ -86,7 +86,7 @@ fn scalar_to_int(tcx: TyCtxt, scalar: rustc_ty::ScalarInt, int_ty: IntTy) -> i12
     scalar.to_int(size_of_int_ty(tcx, int_ty))
 }
 
-fn scalar_to_uint<'tcx>(tcx: TyCtxt<'tcx>, scalar: rustc_ty::ScalarInt, uint_ty: UintTy) -> u128 {
+fn scalar_to_uint(tcx: TyCtxt<'_>, scalar: rustc_ty::ScalarInt, uint_ty: UintTy) -> u128 {
     scalar.to_uint(size_of_uint_ty(tcx, uint_ty))
 }
 
