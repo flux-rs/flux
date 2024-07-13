@@ -1460,10 +1460,11 @@ impl Layer {
                 let sort_def = genv.adt_sort_def_of(def_id)?;
                 let args = sort_def.identity_args();
                 let ctor = rty::SortCtor::Adt(sort_def);
-                let sort = rty::Sort::App(ctor, args);
-                let infer_mode = sort.default_infer_mode();
-                let kind = rty::BoundReftKind::Annon;
-                Ok(List::singleton(rty::BoundVariableKind::Refine(sort, infer_mode, kind)))
+                Ok(List::singleton(rty::BoundVariableKind::Refine(
+                    rty::Sort::App(ctor, args),
+                    rty::InferMode::EVar,
+                    rty::BoundReftKind::Annon,
+                )))
             }
         }
     }

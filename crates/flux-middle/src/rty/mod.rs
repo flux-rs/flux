@@ -1220,14 +1220,6 @@ impl Sort {
         }
     }
 
-    pub fn default_infer_mode(&self) -> InferMode {
-        if self.is_pred() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
-        }
-    }
-
     pub fn is_unit(&self) -> bool {
         matches!(self, Sort::Tuple(sorts) if sorts.is_empty())
     }
@@ -1307,11 +1299,8 @@ impl<T> Binder<T> {
     pub fn with_sorts(value: T, sorts: &[Sort]) -> Binder<T> {
         let vars = sorts
             .iter()
-            .map(|s| {
-                let infer_mode = s.default_infer_mode();
-                let kind = BoundReftKind::Annon;
-                BoundVariableKind::Refine(s.clone(), infer_mode, kind)
-            })
+            .cloned()
+            .map(|sort| BoundVariableKind::Refine(sort, InferMode::EVar, BoundReftKind::Annon))
             .collect();
         Binder { vars, value }
     }

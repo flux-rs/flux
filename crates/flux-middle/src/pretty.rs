@@ -10,7 +10,7 @@ use rustc_span::{Pos, Span};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
-use crate::intern::{Internable, Interned, List};
+use crate::intern::{Internable, Interned};
 
 #[macro_export]
 macro_rules! _define_scoped {
