@@ -82,9 +82,15 @@
 <a href="#82" id="82">82</a>
 <a href="#83" id="83">83</a>
 <a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{env, ffi::OsString, fs, path::PathBuf};
 
 <span class="kw">use </span>anyhow::{anyhow, <span class="prelude-ty">Result</span>};
+<span class="kw">use </span>serde::Deserialize;
 
 <span class="attr">#[cfg(target_os = <span class="string">"windows"</span>)]
 </span><span class="kw">pub const </span>LIB_PATH: <span class="kw-2">&amp;</span>str = <span class="string">"PATH"</span>;
@@ -101,6 +107,16 @@
 <span class="doccomment">/// The path of the flux sysroot lib containing precompiled libraries and the flux driver.
 </span><span class="kw">pub fn </span>sysroot_dir() -&gt; PathBuf {
     env::var(FLUX_SYSROOT).map_or_else(|<span class="kw">_</span>| default_sysroot_dir(), PathBuf::from)
+}
+
+<span class="attr">#[derive(Deserialize)]
+</span><span class="kw">pub struct </span>ToolchainToml {
+    toolchain: ToolchainSpec,
+}
+
+<span class="attr">#[derive(Deserialize)]
+</span><span class="kw">pub struct </span>ToolchainSpec {
+    channel: String,
 }
 
 <span class="doccomment">/// Return the default sysroot
@@ -124,14 +140,8 @@
 
 <span class="kw">pub fn </span>get_rust_toolchain() -&gt; <span class="prelude-ty">Result</span>&lt;String&gt; {
     <span class="kw">let </span>toolchain_str = <span class="macro">include_str!</span>(<span class="string">"../../../rust-toolchain"</span>);
-    <span class="kw">let </span>toolchain_file = rust_toolchain_file::toml::Parser::new(toolchain_str).parse()<span class="question-mark">?</span>;
-    toolchain_file
-        .toolchain()
-        .spec()
-        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"No spec in rust-toolchain file"</span>))<span class="question-mark">?
-        </span>.channel()
-        .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"No channel in rust-toolchain file"</span>))
-        .map(|channel| channel.name().to_string())
+    <span class="kw">let </span>toolchain_file: ToolchainToml = toml::from_str(toolchain_str)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(toolchain_file.toolchain.channel)
 }
 
 <span class="doccomment">/// Path from where to load the rustc-driver library from
