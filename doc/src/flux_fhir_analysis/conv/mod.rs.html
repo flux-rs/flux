@@ -2855,7 +2855,7 @@
                     into.push(<span class="self">self</span>.conv_ty_to_generic_arg(env, <span class="kw-2">&amp;</span>param, ty)<span class="question-mark">?</span>);
                 }
                 fhir::GenericArg::Const(cst) =&gt; {
-                    into.push(rty::GenericArg::Const(<span class="self">self</span>.conv_const_arg(<span class="kw-2">*</span>cst)<span class="question-mark">?</span>))
+                    into.push(rty::GenericArg::Const(<span class="self">self</span>.conv_const_arg(<span class="kw-2">*</span>cst)<span class="question-mark">?</span>));
                 }
             }
         }

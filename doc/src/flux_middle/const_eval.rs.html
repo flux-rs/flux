@@ -199,7 +199,7 @@
     scalar.to_int(size_of_int_ty(tcx, int_ty))
 }
 
-<span class="kw">fn </span>scalar_to_uint&lt;<span class="lifetime">'tcx</span>&gt;(tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;, scalar: rustc_ty::ScalarInt, uint_ty: UintTy) -&gt; u128 {
+<span class="kw">fn </span>scalar_to_uint(tcx: TyCtxt&lt;<span class="lifetime">'_</span>&gt;, scalar: rustc_ty::ScalarInt, uint_ty: UintTy) -&gt; u128 {
     scalar.to_uint(size_of_uint_ty(tcx, uint_ty))
 }
 

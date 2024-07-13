@@ -1754,7 +1754,7 @@
             ConstKind::Param(param_const) =&gt; Expr::const_generic(<span class="kw-2">*</span>param_const, <span class="prelude-val">None</span>),
             ConstKind::Value(ty, scalar) =&gt; {
                 <span class="kw">let </span>val = const_eval::scalar_int_to_rty_constant2(tcx, <span class="kw-2">*</span>scalar, ty).unwrap();
-                Expr::constant(<span class="kw">crate</span>::rty::Constant::from(val))
+                Expr::constant(val)
             }
         }
     }
