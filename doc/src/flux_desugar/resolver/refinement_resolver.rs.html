@@ -968,6 +968,8 @@
 <a href="#968" id="968">968</a>
 <a href="#969" id="969">969</a>
 <a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -1032,7 +1034,7 @@
 
     <span class="kw">fn </span>on_implicit_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _ident: Ident, _kind: fhir::ParamKind, _node_id: NodeId) {}
     <span class="kw">fn </span>on_generic_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _param: <span class="kw-2">&amp;</span>surface::GenericParam) {}
-    <span class="kw">fn </span>on_refine_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _name: Ident, _node_id: NodeId) {}
+    <span class="kw">fn </span>on_refine_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _param: <span class="kw-2">&amp;</span>surface::RefineParam) {}
     <span class="kw">fn </span>on_enum_variant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _variant: <span class="kw-2">&amp;</span>surface::VariantDef) {}
     <span class="kw">fn </span>on_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _fn_sig: <span class="kw-2">&amp;</span>surface::FnSig) {}
     <span class="kw">fn </span>on_fn_output(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _output: <span class="kw-2">&amp;</span>surface::FnOutput) {}
@@ -1097,7 +1099,7 @@
     }
 
     <span class="kw">fn </span>visit_refine_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>surface::RefineParam) {
-        <span class="self">self</span>.on_refine_param(param.name, param.node_id);
+        <span class="self">self</span>.on_refine_param(param);
         surface::visit::walk_refine_param(<span class="self">self</span>, param);
     }
 
@@ -1216,7 +1218,14 @@
         <span class="kw">match </span><span class="kw-2">&amp;</span>ty.kind {
             surface::TyKind::Exists { bind, .. } =&gt; {
                 <span class="self">self</span>.with_scope(ScopeKind::Misc, |this| {
-                    this.on_refine_param(<span class="kw-2">*</span>bind, node_id);
+                    <span class="kw">let </span>param = surface::RefineParam {
+                        ident: <span class="kw-2">*</span>bind,
+                        mode: <span class="prelude-val">None</span>,
+                        sort: surface::Sort::Infer,
+                        node_id,
+                        span: bind.span,
+                    };
+                    this.on_refine_param(<span class="kw-2">&amp;</span>param);
                     surface::visit::walk_ty(this, ty);
                 });
             }
@@ -1695,13 +1704,8 @@
         }
     }
 
-    <span class="kw">fn </span>on_generic_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>surface::GenericParam) {
-        <span class="kw">let </span>surface::GenericParamKind::Refine { .. } = <span class="kw-2">&amp;</span>param.kind <span class="kw">else </span>{ <span class="kw">return </span>};
-        <span class="self">self</span>.define_param(param.name, fhir::ParamKind::Explicit, param.node_id, <span class="prelude-val">None</span>);
-    }
-
-    <span class="kw">fn </span>on_refine_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: Ident, node_id: NodeId) {
-        <span class="self">self</span>.define_param(name, fhir::ParamKind::Explicit, node_id, <span class="prelude-val">None</span>);
+    <span class="kw">fn </span>on_refine_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>surface::RefineParam) {
+        <span class="self">self</span>.define_param(param.ident, fhir::ParamKind::Explicit(param.mode), param.node_id, <span class="prelude-val">None</span>);
     }
 
     <span class="kw">fn </span>on_func(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: Ident, node_id: NodeId) {
@@ -1831,7 +1835,7 @@
             fhir::ParamKind::Colon
             | fhir::ParamKind::Loc
             | fhir::ParamKind::Error
-            | fhir::ParamKind::Explicit =&gt; <span class="kw">return</span>,
+            | fhir::ParamKind::Explicit(..) =&gt; <span class="kw">return</span>,
         };
         <span class="kw">if </span>!allowed {
             <span class="self">self</span>.errors

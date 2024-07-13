@@ -698,7 +698,6 @@
 <a href="#698" id="698">698</a>
 <a href="#699" id="699">699</a>
 <a href="#700" id="700">700</a>
-<a href="#701" id="701">701</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
@@ -1224,8 +1223,7 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>infer_mode(<span class="kw-2">&amp;</span><span class="self">self</span>, id: fhir::ParamId) -&gt; fhir::InferMode {
-        <span class="kw">let </span>(sort, kind) = <span class="kw-2">&amp;</span><span class="self">self</span>.params[<span class="kw-2">&amp;</span>id];
-        sort.infer_mode(<span class="kw-2">*</span>kind)
+        fhir::InferMode::from_param_kind(<span class="self">self</span>.params[<span class="kw-2">&amp;</span>id].<span class="number">1</span>)
     }
 
     <span class="attr">#[track_caller]

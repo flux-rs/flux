@@ -1899,7 +1899,7 @@
     FnSig(surface::FnSig),
     TraitAssocReft(surface::TraitAssocReft),
     ImplAssocReft(surface::ImplAssocReft),
-    RefinedBy(surface::RefinedBy),
+    RefinedBy(surface::RefineParams),
     Generics(surface::Generics),
     QualNames(surface::QualNames),
     Items(Vec&lt;surface::Item&gt;),
@@ -1997,7 +1997,7 @@
         <span class="macro">read_attr!</span>(<span class="self">self</span>, TypeAlias)
     }
 
-    <span class="kw">fn </span>refined_by(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;surface::RefinedBy&gt; {
+    <span class="kw">fn </span>refined_by(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;surface::RefineParams&gt; {
         <span class="macro">read_attr!</span>(<span class="self">self</span>, RefinedBy)
     }
 

@@ -835,9 +835,9 @@
 
     <span class="kw">pub fn </span>variants_of(
         <span class="self">self</span>,
-        def_id: DefId,
+        def_id: <span class="kw">impl </span>Into&lt;DefId&gt;,
     ) -&gt; QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt; {
-        <span class="self">self</span>.inner.queries.variants_of(<span class="self">self</span>, def_id)
+        <span class="self">self</span>.inner.queries.variants_of(<span class="self">self</span>, def_id.into())
     }
 
     <span class="kw">pub fn </span>variant_sig(

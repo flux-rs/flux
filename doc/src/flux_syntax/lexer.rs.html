@@ -245,6 +245,10 @@
 <a href="#245" id="245">245</a>
 <a href="#246" id="246">246</a>
 <a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::VecDeque, iter::Peekable};
 
 <span class="kw">pub use </span>rustc_ast::token::{BinOpToken, Delimiter, Lit, LitKind};
@@ -312,7 +316,8 @@
     Local,
     BitVec,
     As,
-    Refine,
+    Hrn,
+    Hdl,
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Cursor&lt;<span class="lifetime">'t</span>&gt; {
@@ -333,7 +338,8 @@
     opaque: Symbol,
     local: Symbol,
     bitvec: Symbol,
-    refine: Symbol,
+    hrn: Symbol,
+    hdl: Symbol,
     forall: Symbol,
 }
 
@@ -362,7 +368,8 @@
                 bitvec: Symbol::intern(<span class="string">"bitvec"</span>),
                 opaque: Symbol::intern(<span class="string">"opaque"</span>),
                 local: Symbol::intern(<span class="string">"local"</span>),
-                refine: Symbol::intern(<span class="string">"refine"</span>),
+                hrn: Symbol::intern(<span class="string">"hrn"</span>),
+                hdl: Symbol::intern(<span class="string">"hdl"</span>),
                 forall: Symbol::intern(<span class="string">"forall"</span>),
             },
         }
@@ -404,7 +411,8 @@
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.opaque =&gt; Token::Opaque,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.local =&gt; Token::Local,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.bitvec =&gt; Token::BitVec,
-            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.refine =&gt; Token::Refine,
+            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.hrn =&gt; Token::Hrn,
+            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.hdl =&gt; Token::Hdl,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.forall =&gt; Token::Forall,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Mut =&gt; Token::Mut,
             TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Where =&gt; Token::Where,

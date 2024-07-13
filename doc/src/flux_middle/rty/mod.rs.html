@@ -2132,25 +2132,6 @@
 <a href="#2132" id="2132">2132</a>
 <a href="#2133" id="2133">2133</a>
 <a href="#2134" id="2134">2134</a>
-<a href="#2135" id="2135">2135</a>
-<a href="#2136" id="2136">2136</a>
-<a href="#2137" id="2137">2137</a>
-<a href="#2138" id="2138">2138</a>
-<a href="#2139" id="2139">2139</a>
-<a href="#2140" id="2140">2140</a>
-<a href="#2141" id="2141">2141</a>
-<a href="#2142" id="2142">2142</a>
-<a href="#2143" id="2143">2143</a>
-<a href="#2144" id="2144">2144</a>
-<a href="#2145" id="2145">2145</a>
-<a href="#2146" id="2146">2146</a>
-<a href="#2147" id="2147">2147</a>
-<a href="#2148" id="2148">2148</a>
-<a href="#2149" id="2149">2149</a>
-<a href="#2150" id="2150">2150</a>
-<a href="#2151" id="2151">2151</a>
-<a href="#2152" id="2152">2152</a>
-<a href="#2153" id="2153">2153</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2205,7 +2186,7 @@
     },
 };
 <span class="kw">use crate</span>::{
-    fhir::{<span class="self">self</span>, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
+    fhir::{<span class="self">self</span>, FhirId, FluxOwnerId, SpecFuncKind},
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
@@ -3352,14 +3333,6 @@
 }
 
 <span class="kw">impl </span>Sort {
-    <span class="kw">pub fn </span>infer_mode(<span class="kw-2">&amp;</span><span class="self">self</span>, kind: ParamKind) -&gt; InferMode {
-        <span class="kw">if </span><span class="self">self</span>.is_pred() &amp;&amp; !kind.is_implicit() {
-            InferMode::KVar
-        } <span class="kw">else </span>{
-            InferMode::EVar
-        }
-    }
-
     <span class="kw">pub fn </span>tuple(sorts: <span class="kw">impl </span>Into&lt;List&lt;Sort&gt;&gt;) -&gt; <span class="self">Self </span>{
         Sort::Tuple(sorts.into())
     }
@@ -3378,14 +3351,6 @@
             sort
         } <span class="kw">else </span>{
             <span class="macro">bug!</span>(<span class="string">"expected `Sort::Func`"</span>)
-        }
-    }
-
-    <span class="kw">pub fn </span>default_infer_mode(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; InferMode {
-        <span class="kw">if </span><span class="self">self</span>.is_pred() {
-            InferMode::KVar
-        } <span class="kw">else </span>{
-            InferMode::EVar
         }
     }
 
@@ -3468,11 +3433,8 @@
     <span class="kw">pub fn </span>with_sorts(value: T, sorts: <span class="kw-2">&amp;</span>[Sort]) -&gt; Binder&lt;T&gt; {
         <span class="kw">let </span>vars = sorts
             .iter()
-            .map(|s| {
-                <span class="kw">let </span>infer_mode = s.default_infer_mode();
-                <span class="kw">let </span>kind = BoundReftKind::Annon;
-                BoundVariableKind::Refine(s.clone(), infer_mode, kind)
-            })
+            .cloned()
+            .map(|sort| BoundVariableKind::Refine(sort, InferMode::EVar, BoundReftKind::Annon))
             .collect();
         Binder { vars, value }
     }

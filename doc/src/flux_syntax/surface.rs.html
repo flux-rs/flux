@@ -535,6 +535,19 @@
 <a href="#535" id="535">535</a>
 <a href="#536" id="536">536</a>
 <a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
 </pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
@@ -574,7 +587,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Qualifier {
     <span class="kw">pub </span>name: Ident,
-    <span class="kw">pub </span>args: Vec&lt;RefineParam&gt;,
+    <span class="kw">pub </span>params: RefineParams,
     <span class="kw">pub </span>expr: Expr,
     <span class="kw">pub </span>span: Span,
     <span class="kw">pub </span>global: bool,
@@ -586,7 +599,7 @@
 </span><span class="kw">pub struct </span>SpecFunc {
     <span class="kw">pub </span>name: Ident,
     <span class="kw">pub </span>sort_vars: Vec&lt;Ident&gt;,
-    <span class="kw">pub </span>args: Vec&lt;RefineParam&gt;,
+    <span class="kw">pub </span>params: RefineParams,
     <span class="kw">pub </span>output: Sort,
     <span class="doccomment">/// Body of the function. If not present this definition corresponds to an uninterpreted function.
     </span><span class="kw">pub </span>body: <span class="prelude-ty">Option</span>&lt;Expr&gt;,
@@ -610,14 +623,14 @@
 </span><span class="kw">pub enum </span>GenericParamKind {
     Type,
     Base,
-    Refine { sort: Sort },
 }
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>TyAlias {
     <span class="kw">pub </span>ident: Ident,
     <span class="kw">pub </span>generics: Generics,
-    <span class="kw">pub </span>refined_by: RefinedBy,
+    <span class="kw">pub </span>params: RefineParams,
+    <span class="kw">pub </span>refined_by: RefineParams,
     <span class="kw">pub </span>ty: Ty,
     <span class="kw">pub </span>node_id: NodeId,
     <span class="kw">pub </span>span: Span,
@@ -626,7 +639,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>StructDef {
     <span class="kw">pub </span>generics: <span class="prelude-ty">Option</span>&lt;Generics&gt;,
-    <span class="kw">pub </span>refined_by: <span class="prelude-ty">Option</span>&lt;RefinedBy&gt;,
+    <span class="kw">pub </span>refined_by: <span class="prelude-ty">Option</span>&lt;RefineParams&gt;,
     <span class="kw">pub </span>fields: Vec&lt;<span class="prelude-ty">Option</span>&lt;Ty&gt;&gt;,
     <span class="kw">pub </span>opaque: bool,
     <span class="kw">pub </span>invariants: Vec&lt;Expr&gt;,
@@ -645,7 +658,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>EnumDef {
     <span class="kw">pub </span>generics: <span class="prelude-ty">Option</span>&lt;Generics&gt;,
-    <span class="kw">pub </span>refined_by: <span class="prelude-ty">Option</span>&lt;RefinedBy&gt;,
+    <span class="kw">pub </span>refined_by: <span class="prelude-ty">Option</span>&lt;RefineParams&gt;,
     <span class="kw">pub </span>variants: Vec&lt;<span class="prelude-ty">Option</span>&lt;VariantDef&gt;&gt;,
     <span class="kw">pub </span>invariants: Vec&lt;Expr&gt;,
     <span class="kw">pub </span>node_id: NodeId,
@@ -676,11 +689,7 @@
     </span><span class="kw">pub </span>indices: Indices,
 }
 
-<span class="attr">#[derive(Debug, Default)]
-</span><span class="kw">pub struct </span>RefinedBy {
-    <span class="kw">pub </span>fields: Vec&lt;RefineParam&gt;,
-    <span class="kw">pub </span>span: Span,
-}
+<span class="kw">pub type </span>RefineParams = Vec&lt;RefineParam&gt;;
 
 <span class="attr">#[derive(Debug, Default)]
 </span><span class="kw">pub struct </span>QualNames {
@@ -689,10 +698,17 @@
 
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>RefineParam {
-    <span class="kw">pub </span>name: Ident,
+    <span class="kw">pub </span>ident: Ident,
     <span class="kw">pub </span>sort: Sort,
+    <span class="kw">pub </span>mode: <span class="prelude-ty">Option</span>&lt;ParamMode&gt;,
     <span class="kw">pub </span>span: Span,
     <span class="kw">pub </span>node_id: NodeId,
+}
+
+<span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+</span><span class="kw">pub enum </span>ParamMode {
+    Horn,
+    Hindley,
 }
 
 <span class="attr">#[derive(Debug)]
@@ -740,7 +756,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ImplAssocReft {
     <span class="kw">pub </span>name: Ident,
-    <span class="kw">pub </span>params: Vec&lt;RefineParam&gt;,
+    <span class="kw">pub </span>params: RefineParams,
     <span class="kw">pub </span>output: BaseSort,
     <span class="kw">pub </span>body: Expr,
     <span class="kw">pub </span>span: Span,
@@ -754,7 +770,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>TraitAssocReft {
     <span class="kw">pub </span>name: Ident,
-    <span class="kw">pub </span>params: Vec&lt;RefineParam&gt;,
+    <span class="kw">pub </span>params: RefineParams,
     <span class="kw">pub </span>output: BaseSort,
     <span class="kw">pub </span>span: Span,
 }
@@ -772,6 +788,7 @@
     <span class="kw">pub </span>asyncness: Async,
     <span class="kw">pub </span>ident: <span class="prelude-ty">Option</span>&lt;Ident&gt;,
     <span class="kw">pub </span>generics: Generics,
+    <span class="kw">pub </span>params: RefineParams,
     <span class="doccomment">/// example: `requires n &gt; 0`
     </span><span class="kw">pub </span>requires: Vec&lt;Requires&gt;,
     <span class="doccomment">/// example: `i32&lt;@n&gt;`
@@ -785,7 +802,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>Requires {
     <span class="doccomment">/// Optional list of universally quantified parameters
-    </span><span class="kw">pub </span>params: Vec&lt;RefineParam&gt;,
+    </span><span class="kw">pub </span>params: RefineParams,
     <span class="kw">pub </span>pred: Expr,
 }
 
@@ -874,7 +891,7 @@
         pred: Expr,
     },
     GeneralExists {
-        params: Vec&lt;RefineParam&gt;,
+        params: RefineParams,
         ty: Box&lt;Ty&gt;,
         pred: <span class="prelude-ty">Option</span>&lt;Expr&gt;,
     },
@@ -948,7 +965,7 @@
     <span class="doccomment">/// `@n` or `#n`, the span corresponds to the span of the identifier plus the binder token (`@` or `#`)
     </span>Bind(Ident, BindKind, Span, NodeId),
     Expr(Expr),
-    Abs(Vec&lt;RefineParam&gt;, Expr, Span, NodeId),
+    Abs(RefineParams, Expr, Span, NodeId),
 }
 
 <span class="attr">#[derive(Debug, Clone, Copy)]
@@ -1036,21 +1053,6 @@
     Mod,
 }
 
-<span class="attr">#[derive(Copy, Clone, Debug)]
-</span><span class="kw">pub enum </span>UnOp {
-    Not,
-    Neg,
-}
-
-<span class="kw">impl </span>BindKind {
-    <span class="kw">pub fn </span>token_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-        <span class="kw">match </span><span class="self">self </span>{
-            BindKind::At =&gt; <span class="string">"@"</span>,
-            BindKind::Pound =&gt; <span class="string">"#"</span>,
-        }
-    }
-}
-
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>BinOp {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
@@ -1069,6 +1071,30 @@
             BinOp::Mod =&gt; <span class="macro">write!</span>(f, <span class="string">"mod"</span>),
             BinOp::Mul =&gt; <span class="macro">write!</span>(f, <span class="string">"*"</span>),
             BinOp::Div =&gt; <span class="macro">write!</span>(f, <span class="string">"/"</span>),
+        }
+    }
+}
+
+<span class="attr">#[derive(Copy, Clone)]
+</span><span class="kw">pub enum </span>UnOp {
+    Not,
+    Neg,
+}
+
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>UnOp {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Not =&gt; <span class="macro">write!</span>(f, <span class="string">"!"</span>),
+            <span class="self">Self</span>::Neg =&gt; <span class="macro">write!</span>(f, <span class="string">"-"</span>),
+        }
+    }
+}
+
+<span class="kw">impl </span>BindKind {
+    <span class="kw">pub fn </span>token_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            BindKind::At =&gt; <span class="string">"@"</span>,
+            BindKind::Pound =&gt; <span class="string">"#"</span>,
         }
     }
 }

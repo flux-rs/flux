@@ -1724,11 +1724,6 @@
 <a href="#1724" id="1724">1724</a>
 <a href="#1725" id="1725">1725</a>
 <a href="#1726" id="1726">1726</a>
-<a href="#1727" id="1727">1727</a>
-<a href="#1728" id="1728">1728</a>
-<a href="#1729" id="1729">1729</a>
-<a href="#1730" id="1730">1730</a>
-<a href="#1731" id="1731">1731</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -1986,7 +1981,11 @@
 ) -&gt; QueryResult&lt;List&lt;rty::RefineParam&gt;&gt; {
     params
         .iter()
-        .map(|param| conv_refine_param(genv, param, wfckresults))
+        .map(|param| {
+            <span class="kw">let </span>sort = resolve_param_sort(genv, param, wfckresults)<span class="question-mark">?</span>;
+            <span class="kw">let </span>mode = rty::InferMode::from_param_kind(param.kind);
+            <span class="prelude-val">Ok</span>(rty::RefineParam { sort, mode })
+        })
         .try_collect()
 }
 
@@ -3151,7 +3150,7 @@
             .iter()
             .map(|param| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; {
                 <span class="kw">let </span>sort = cx.resolve_param_sort(param)<span class="question-mark">?</span>;
-                <span class="kw">let </span>infer_mode = sort.infer_mode(param.kind);
+                <span class="kw">let </span>infer_mode = rty::InferMode::from_param_kind(param.kind);
                 <span class="kw">let </span>entry = ParamEntry::new(sort, infer_mode, param.name);
                 <span class="prelude-val">Ok</span>((param.id, entry))
             })
@@ -3187,10 +3186,11 @@
                 <span class="kw">let </span>sort_def = genv.adt_sort_def_of(def_id)<span class="question-mark">?</span>;
                 <span class="kw">let </span>args = sort_def.identity_args();
                 <span class="kw">let </span>ctor = rty::SortCtor::Adt(sort_def);
-                <span class="kw">let </span>sort = rty::Sort::App(ctor, args);
-                <span class="kw">let </span>infer_mode = sort.default_infer_mode();
-                <span class="kw">let </span>kind = rty::BoundReftKind::Annon;
-                <span class="prelude-val">Ok</span>(List::singleton(rty::BoundVariableKind::Refine(sort, infer_mode, kind)))
+                <span class="prelude-val">Ok</span>(List::singleton(rty::BoundVariableKind::Refine(
+                    rty::Sort::App(ctor, args),
+                    rty::InferMode::EVar,
+                    rty::BoundReftKind::Annon,
+                )))
             }
         }
     }
@@ -3294,16 +3294,6 @@
         .iter()
         .map(|sort| conv_sort(genv, sort, next_infer_sort))
         .try_collect()
-}
-
-<span class="kw">fn </span>conv_refine_param(
-    genv: GlobalEnv,
-    param: <span class="kw-2">&amp;</span>fhir::RefineParam,
-    wfckresults: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>WfckResults&gt;,
-) -&gt; QueryResult&lt;rty::RefineParam&gt; {
-    <span class="kw">let </span>sort = resolve_param_sort(genv, param, wfckresults)<span class="question-mark">?</span>;
-    <span class="kw">let </span>mode = sort.infer_mode(param.kind);
-    <span class="prelude-val">Ok</span>(rty::RefineParam { sort, mode })
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_param_sort(
