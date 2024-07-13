@@ -1,4 +1,4 @@
-#[flux::refined_by(p: int -> bool)]
+#[flux::refined_by(hrn p: int -> bool)]
 struct S;
 
 #[flux::sig(fn(S[@p]) -> S[p])]

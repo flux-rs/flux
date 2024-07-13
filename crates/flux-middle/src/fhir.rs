@@ -22,6 +22,7 @@ pub mod visit;
 use std::{borrow::Cow, fmt};
 
 use flux_common::{bug, span_bug};
+use flux_syntax::surface::ParamMode;
 pub use flux_syntax::surface::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
@@ -712,8 +713,8 @@ pub struct RefineParam<'fhir> {
 /// [inference mode]: InferMode
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum ParamKind {
-    /// A parameter declared in an explicit scope, e.g., `fn foo<refine n: int>(x: i32[n])`
-    Explicit,
+    /// A parameter declared in an explicit scope, e.g., `fn foo[hdl n: int](x: i32[n])`
+    Explicit(Option<ParamMode>),
     /// An implicitly scoped parameter declared with `@a` syntax
     At,
     /// An implicitly scoped parameter declared with `#a` syntax
@@ -736,10 +737,6 @@ pub enum ParamKind {
 }
 
 impl ParamKind {
-    pub(crate) fn is_implicit(&self) -> bool {
-        matches!(self, ParamKind::At | ParamKind::Pound | ParamKind::Colon)
-    }
-
     pub fn is_loc(&self) -> bool {
         matches!(self, ParamKind::Loc)
     }
@@ -759,6 +756,14 @@ pub enum InferMode {
 }
 
 impl InferMode {
+    pub fn from_param_kind(kind: ParamKind) -> InferMode {
+        if let ParamKind::Explicit(Some(ParamMode::Horn)) = kind {
+            InferMode::KVar
+        } else {
+            InferMode::EVar
+        }
+    }
+
     pub fn prefix_str(self) -> &'static str {
         match self {
             InferMode::EVar => "?",

@@ -155,7 +155,7 @@ pub struct RefineParam {
     pub node_id: NodeId,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ParamMode {
     Horn,
     Hindley,
@@ -503,21 +503,6 @@ pub enum BinOp {
     Mod,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum UnOp {
-    Not,
-    Neg,
-}
-
-impl BindKind {
-    pub fn token_str(&self) -> &'static str {
-        match self {
-            BindKind::At => "@",
-            BindKind::Pound => "#",
-        }
-    }
-}
-
 impl fmt::Debug for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -536,6 +521,30 @@ impl fmt::Debug for BinOp {
             BinOp::Mod => write!(f, "mod"),
             BinOp::Mul => write!(f, "*"),
             BinOp::Div => write!(f, "/"),
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub enum UnOp {
+    Not,
+    Neg,
+}
+
+impl fmt::Debug for UnOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Not => write!(f, "!"),
+            Self::Neg => write!(f, "-"),
+        }
+    }
+}
+
+impl BindKind {
+    pub fn token_str(&self) -> &'static str {
+        match self {
+            BindKind::At => "@",
+            BindKind::Pound => "#",
         }
     }
 }

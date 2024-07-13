@@ -52,7 +52,7 @@ pub use crate::{
     },
 };
 use crate::{
-    fhir::{self, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
+    fhir::{self, FhirId, FluxOwnerId, SpecFuncKind},
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
@@ -1199,14 +1199,6 @@ impl RefinementGenerics {
 }
 
 impl Sort {
-    pub fn infer_mode(&self, kind: ParamKind) -> InferMode {
-        if self.is_pred() && !kind.is_implicit() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
-        }
-    }
-
     pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
         Sort::Tuple(sorts.into())
     }

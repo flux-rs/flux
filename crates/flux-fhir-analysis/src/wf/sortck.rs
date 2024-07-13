@@ -523,8 +523,7 @@ impl<'genv> InferCtxt<'genv, '_> {
     }
 
     pub(crate) fn infer_mode(&self, id: fhir::ParamId) -> fhir::InferMode {
-        let (sort, kind) = &self.params[&id];
-        sort.infer_mode(*kind)
+        fhir::InferMode::from_param_kind(self.params[&id].1)
     }
 
     #[track_caller]

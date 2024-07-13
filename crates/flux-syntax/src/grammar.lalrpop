@@ -352,10 +352,7 @@ TyKind: surface::TyKind = {
     <bty:BaseTy> "[" <indices:Indices> "]"            => surface::TyKind::Indexed { <> },
     <bty:BaseTy> "{" <bind:Ident> ":" <pred:Expr> "}" => surface::TyKind::Exists { <> },
     "{" <ty:Ty> "|" <pred:Expr> "}"                   => surface::TyKind::Constr(pred, Box::new(ty)),
-    // "{" <params:Comma1<RefineParam<"?">>> "." <ty:Ty> <pred:("|" <Expr>)?> "}" => {
-    //     surface::TyKind::GeneralExists { params, ty: Box::new(ty), pred }
-    // },
-    "{" <params:RefineParams<"?">> "." <ty:Ty> <pred:("|" <Expr>)?> "}" => {
+    "{" <params:Comma1<RefineParam<"?">>> "." <ty:Ty> <pred:("|" <Expr>)?> "}" => {
         surface::TyKind::GeneralExists { params, ty: Box::new(ty), pred }
     },
     "(" <tys:Comma<Ty>> ")"         => surface::TyKind::Tuple(tys),

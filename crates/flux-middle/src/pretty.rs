@@ -10,7 +10,7 @@ use rustc_span::{Pos, Span};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
-use crate::intern::{Internable, Interned};
+use crate::intern::{Internable, Interned, List};
 
 #[macro_export]
 macro_rules! _define_scoped {
@@ -303,12 +303,12 @@ impl PrettyCx<'_> {
             }
             match var {
                 BoundVariableKind::Region(re) => w!("{:?}", re)?,
-                BoundVariableKind::Refine(_, _mode, BoundReftKind::Named(name)) => {
-                    // w!("{}", ^mode.prefix_str())?;
+                BoundVariableKind::Refine(_, mode, BoundReftKind::Named(name)) => {
+                    w!("{}", ^mode.prefix_str())?;
                     w!("{}", ^name)?;
                 }
-                BoundVariableKind::Refine(_, _mode, BoundReftKind::Annon) => {
-                    // w!("{}", ^mode.prefix_str())?;
+                BoundVariableKind::Refine(_, mode, BoundReftKind::Annon) => {
+                    w!("{}", ^mode.prefix_str())?;
                     if let Some(name) = self.env.borrow().lookup(INNERMOST, i as u32) {
                         w!("{:?}", ^name)?;
                     } else {
