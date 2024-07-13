@@ -668,7 +668,6 @@ extern {
         "ref" => Token::Ref,
         "hrn" => Token::Hrn,
         "hdl" => Token::Hdl,
-        "refine" => Token::Refine,
         "as" => Token::As,
         "@"  => Token::At,
         "#"  => Token::Pound,

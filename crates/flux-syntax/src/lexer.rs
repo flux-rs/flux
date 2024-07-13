@@ -67,7 +67,6 @@ pub enum Token {
     As,
     Hrn,
     Hdl,
-    Refine,
 }
 
 pub(crate) struct Cursor<'t> {
@@ -90,7 +89,6 @@ struct Symbols {
     bitvec: Symbol,
     hrn: Symbol,
     hdl: Symbol,
-    refine: Symbol,
     forall: Symbol,
 }
 
@@ -121,7 +119,6 @@ impl<'t> Cursor<'t> {
                 local: Symbol::intern("local"),
                 hrn: Symbol::intern("hrn"),
                 hdl: Symbol::intern("hdl"),
-                refine: Symbol::intern("refine"),
                 forall: Symbol::intern("forall"),
             },
         }
@@ -165,7 +162,6 @@ impl<'t> Cursor<'t> {
             TokenKind::Ident(symb, _) if symb == self.symbs.bitvec => Token::BitVec,
             TokenKind::Ident(symb, _) if symb == self.symbs.hrn => Token::Hrn,
             TokenKind::Ident(symb, _) if symb == self.symbs.hdl => Token::Hdl,
-            TokenKind::Ident(symb, _) if symb == self.symbs.refine => Token::Refine,
             TokenKind::Ident(symb, _) if symb == self.symbs.forall => Token::Forall,
             TokenKind::Ident(symb, _) if symb == kw::Mut => Token::Mut,
             TokenKind::Ident(symb, _) if symb == kw::Where => Token::Where,
