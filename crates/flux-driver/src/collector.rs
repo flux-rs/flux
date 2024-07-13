@@ -636,7 +636,7 @@ impl<'tcx, 'a> SpecCollector<'tcx, 'a> {
     /// we want to
     /// 1. extract the [`TraitRef`] for `<Ty as Trait>` and then
     /// 2. query [`resolve_trait_ref_impl_id`] to get the impl_id for the above trait-implementation.
-    /// TODO: sadly the [`resolve_trait_ref_impl_id`] fails for this? see `extern_spec_impl01.rs`
+    ///    TODO: sadly the [`resolve_trait_ref_impl_id`] fails for this? see `extern_spec_impl01.rs`
     ///
     /// [`TraitRef`]: rustc_middle::ty::TraitRef
     #[allow(dead_code)]

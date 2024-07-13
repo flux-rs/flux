@@ -609,7 +609,7 @@ impl Expr {
             ConstKind::Param(param_const) => Expr::const_generic(*param_const, None),
             ConstKind::Value(ty, scalar) => {
                 let val = const_eval::scalar_int_to_rty_constant2(tcx, *scalar, ty).unwrap();
-                Expr::constant(crate::rty::Constant::from(val))
+                Expr::constant(val)
             }
         }
     }
