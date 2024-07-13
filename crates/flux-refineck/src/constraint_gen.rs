@@ -694,7 +694,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
             _ => {
                 self.unify_exprs(e1, e2);
                 let span = e2.span();
-                rcx.check_pred(&Expr::eq_at(e1, e2, span), self.tag);
+                rcx.check_pred(Expr::eq_at(e1, e2, span), self.tag);
             }
         }
     }
