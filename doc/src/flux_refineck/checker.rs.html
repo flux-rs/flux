@@ -1562,24 +1562,6 @@
 <a href="#1562" id="1562">1562</a>
 <a href="#1563" id="1563">1563</a>
 <a href="#1564" id="1564">1564</a>
-<a href="#1565" id="1565">1565</a>
-<a href="#1566" id="1566">1566</a>
-<a href="#1567" id="1567">1567</a>
-<a href="#1568" id="1568">1568</a>
-<a href="#1569" id="1569">1569</a>
-<a href="#1570" id="1570">1570</a>
-<a href="#1571" id="1571">1571</a>
-<a href="#1572" id="1572">1572</a>
-<a href="#1573" id="1573">1573</a>
-<a href="#1574" id="1574">1574</a>
-<a href="#1575" id="1575">1575</a>
-<a href="#1576" id="1576">1576</a>
-<a href="#1577" id="1577">1577</a>
-<a href="#1578" id="1578">1578</a>
-<a href="#1579" id="1579">1579</a>
-<a href="#1580" id="1580">1580</a>
-<a href="#1581" id="1581">1581</a>
-<a href="#1582" id="1582">1582</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -1590,9 +1572,9 @@
     queries::QueryResult,
     rty::{
         <span class="self">self</span>, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, CoroutineObligPredicate,
-        EarlyBinder, Ensures, Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg,
-        GenericParamDefKind, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref,
-        Region::ReStatic, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+        EarlyBinder, Ensures, Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg, Generics,
+        HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref, Region::ReStatic, Ty, TyKind, Uint,
+        UintTy, VariantIdx,
     },
     rustc::{
         <span class="self">self</span>,
@@ -1615,7 +1597,7 @@
 <span class="kw">use </span>rustc_infer::infer::NllRegionVariableOrigin;
 <span class="kw">use </span>rustc_middle::{
     mir::{SourceInfo, SwitchTargets},
-    ty::{ParamConst, TyCtxt, TypeSuperVisitable <span class="kw">as _</span>, TypeVisitable <span class="kw">as _</span>},
+    ty::{TyCtxt, TypeSuperVisitable <span class="kw">as _</span>, TypeVisitable <span class="kw">as _</span>},
 };
 <span class="kw">use </span>rustc_span::{sym, Span};
 
@@ -1767,26 +1749,6 @@
     }
 }
 
-<span class="kw">fn </span>const_params(
-    genv: GlobalEnv,
-    def_id: LocalDefId,
-    span: Span,
-) -&gt; <span class="prelude-ty">Result</span>&lt;List&lt;(ParamConst, Sort)&gt;&gt; {
-    <span class="kw">let </span>generics = genv.generics_of(def_id).with_span(span)<span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>res = <span class="macro">vec!</span>[];
-    <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..generics.count() {
-        <span class="kw">let </span>generic_param = generics.param_at(i, genv).with_span(span)<span class="question-mark">?</span>;
-        <span class="kw">if let </span>GenericParamDefKind::Const { .. } = generic_param.kind
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(local_def_id) = generic_param.def_id.as_local()
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = genv.sort_of_generic_param(local_def_id).with_span(span)<span class="question-mark">?
-        </span>{
-            <span class="kw">let </span>param_const = ParamConst { name: generic_param.name, index: generic_param.index };
-            res.push((param_const, sort));
-        }
-    }
-    <span class="prelude-val">Ok</span>(List::from_vec(res))
-}
-
 <span class="kw">impl</span>&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Checker&lt;<span class="lifetime">'ck</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, RefineMode&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>run_in_refine_mode(
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
@@ -1799,7 +1761,9 @@
         <span class="kw">let </span>fn_sig = genv.fn_sig(def_id).with_span(span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>kvars = fixpoint_encoding::KVarStore::new();
-        <span class="kw">let </span><span class="kw-2">mut </span>refine_tree = RefineTree::new(const_params(genv, def_id, span)<span class="question-mark">?</span>);
+        <span class="kw">let </span>generics = genv.generics_of(def_id).with_span(span)<span class="question-mark">?</span>;
+        <span class="kw">let </span>const_params = generics.const_params(genv).with_span(span)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>refine_tree = RefineTree::new(const_params);
         <span class="kw">let </span>bb_envs = bb_env_shapes.into_bb_envs(<span class="kw-2">&amp;mut </span>kvars);
 
         <span class="macro">dbg::refine_mode_span!</span>(genv.tcx(), def_id, bb_envs).in_scope(|| {

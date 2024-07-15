@@ -2132,6 +2132,22 @@
 <a href="#2132" id="2132">2132</a>
 <a href="#2133" id="2133">2133</a>
 <a href="#2134" id="2134">2134</a>
+<a href="#2135" id="2135">2135</a>
+<a href="#2136" id="2136">2136</a>
+<a href="#2137" id="2137">2137</a>
+<a href="#2138" id="2138">2138</a>
+<a href="#2139" id="2139">2139</a>
+<a href="#2140" id="2140">2140</a>
+<a href="#2141" id="2141">2141</a>
+<a href="#2142" id="2142">2142</a>
+<a href="#2143" id="2143">2143</a>
+<a href="#2144" id="2144">2144</a>
+<a href="#2145" id="2145">2145</a>
+<a href="#2146" id="2146">2146</a>
+<a href="#2147" id="2147">2147</a>
+<a href="#2148" id="2148">2148</a>
+<a href="#2149" id="2149">2149</a>
+<a href="#2150" id="2150">2150</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2259,6 +2275,37 @@
     <span class="kw">pub </span>parent: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
     <span class="kw">pub </span>parent_count: usize,
     <span class="kw">pub </span>params: List&lt;GenericParamDef&gt;,
+}
+
+<span class="kw">impl </span>Generics {
+    <span class="kw">pub fn </span>count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.parent_count + <span class="self">self</span>.params.len()
+    }
+
+    <span class="kw">pub fn </span>param_at(<span class="kw-2">&amp;</span><span class="self">self</span>, param_index: usize, genv: GlobalEnv) -&gt; QueryResult&lt;GenericParamDef&gt; {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = param_index.checked_sub(<span class="self">self</span>.parent_count) {
+            <span class="prelude-val">Ok</span>(<span class="self">self</span>.params[index].clone())
+        } <span class="kw">else </span>{
+            <span class="kw">let </span>parent = <span class="self">self</span>.parent.expect(<span class="string">"parent_count &gt; 0 but no parent?"</span>);
+            genv.generics_of(parent)<span class="question-mark">?</span>.param_at(param_index, genv)
+        }
+    }
+
+    <span class="kw">pub fn </span>const_params(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;List&lt;(ParamConst, Sort)&gt;&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>res = <span class="macro">vec!</span>[];
+        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="self">self</span>.count() {
+            <span class="kw">let </span>generic_param = <span class="self">self</span>.param_at(i, genv)<span class="question-mark">?</span>;
+            <span class="kw">if let </span>GenericParamDefKind::Const { .. } = generic_param.kind
+                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(local_def_id) = generic_param.def_id.as_local()
+                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = genv.sort_of_generic_param(local_def_id)<span class="question-mark">?
+            </span>{
+                <span class="kw">let </span>param_const =
+                    ParamConst { name: generic_param.name, index: generic_param.index };
+                res.push((param_const, sort));
+            }
+        }
+        <span class="prelude-val">Ok</span>(List::from_vec(res))
+    }
 }
 
 <span class="attr">#[derive(Debug, Clone, TyEncodable, TyDecodable)]
@@ -3284,21 +3331,6 @@
         <span class="kw">let </span>output = Binder::new(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty());
 
         PolyFnSig::new(FnSig::new(List::empty(), inputs, output), List::from(vars))
-    }
-}
-
-<span class="kw">impl </span>Generics {
-    <span class="kw">pub fn </span>count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.parent_count + <span class="self">self</span>.params.len()
-    }
-
-    <span class="kw">pub fn </span>param_at(<span class="kw-2">&amp;</span><span class="self">self</span>, param_index: usize, genv: GlobalEnv) -&gt; QueryResult&lt;GenericParamDef&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = param_index.checked_sub(<span class="self">self</span>.parent_count) {
-            <span class="prelude-val">Ok</span>(<span class="self">self</span>.params[index].clone())
-        } <span class="kw">else </span>{
-            <span class="kw">let </span>parent = <span class="self">self</span>.parent.expect(<span class="string">"parent_count &gt; 0 but no parent?"</span>);
-            genv.generics_of(parent)<span class="question-mark">?</span>.param_at(param_index, genv)
-        }
     }
 }
 
