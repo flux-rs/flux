@@ -127,6 +127,37 @@ pub struct Generics {
     pub params: List<GenericParamDef>,
 }
 
+impl Generics {
+    pub fn count(&self) -> usize {
+        self.parent_count + self.params.len()
+    }
+
+    pub fn param_at(&self, param_index: usize, genv: GlobalEnv) -> QueryResult<GenericParamDef> {
+        if let Some(index) = param_index.checked_sub(self.parent_count) {
+            Ok(self.params[index].clone())
+        } else {
+            let parent = self.parent.expect("parent_count > 0 but no parent?");
+            genv.generics_of(parent)?.param_at(param_index, genv)
+        }
+    }
+
+    pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<List<(ParamConst, Sort)>> {
+        let mut res = vec![];
+        for i in 0..self.count() {
+            let generic_param = self.param_at(i, genv)?;
+            if let GenericParamDefKind::Const { .. } = generic_param.kind
+                && let Some(local_def_id) = generic_param.def_id.as_local()
+                && let Some(sort) = genv.sort_of_generic_param(local_def_id)?
+            {
+                let param_const =
+                    ParamConst { name: generic_param.name, index: generic_param.index };
+                res.push((param_const, sort));
+            }
+        }
+        Ok(List::from_vec(res))
+    }
+}
+
 #[derive(Debug, Clone, TyEncodable, TyDecodable)]
 pub struct RefinementGenerics {
     pub parent: Option<DefId>,
@@ -1150,21 +1181,6 @@ impl CoroutineObligPredicate {
         let output = Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
         PolyFnSig::new(FnSig::new(List::empty(), inputs, output), List::from(vars))
-    }
-}
-
-impl Generics {
-    pub fn count(&self) -> usize {
-        self.parent_count + self.params.len()
-    }
-
-    pub fn param_at(&self, param_index: usize, genv: GlobalEnv) -> QueryResult<GenericParamDef> {
-        if let Some(index) = param_index.checked_sub(self.parent_count) {
-            Ok(self.params[index].clone())
-        } else {
-            let parent = self.parent.expect("parent_count > 0 but no parent?");
-            genv.generics_of(parent)?.param_at(param_index, genv)
-        }
     }
 }
 
