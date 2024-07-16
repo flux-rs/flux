@@ -207,10 +207,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         Ok(rty::Binder::new(inner, vars))
     }
 
-    pub(crate) fn refine_poly_fn_sig(
-        &self,
-        fn_sig: &rustc::ty::PolyFnSig,
-    ) -> QueryResult<rty::PolyFnSig> {
+    pub fn refine_poly_fn_sig(&self, fn_sig: &rustc::ty::PolyFnSig) -> QueryResult<rty::PolyFnSig> {
         self.refine_binders(fn_sig, |fn_sig| {
             let inputs = fn_sig
                 .inputs()

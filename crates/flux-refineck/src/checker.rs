@@ -558,6 +558,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         if let Some(BaseTy::Closure(def_id, tys)) =
             fn_trait_pred.self_ty.as_bty_skipping_existentials()
         {
+            // TODO(nilehmann) Checking of closure body should happen at construction time in
+            // check_rvalue
             let refine_tree = rcx.subtree_at(snapshot).unwrap();
             let poly_sig = fn_trait_pred.to_poly_fn_sig(*def_id, tys.clone());
             Checker::run(
@@ -802,7 +804,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let upvar_tys = self.check_aggregate_operands(rcx, env, stmt_span, ops)?;
                 Ok(Ty::coroutine(*did, resume_ty, upvar_tys))
             }
-
             Rvalue::Discriminant(place) => {
                 let ty = env
                     .lookup_place(self.genv, rcx, place)

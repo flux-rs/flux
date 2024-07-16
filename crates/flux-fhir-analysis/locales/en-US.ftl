@@ -100,6 +100,22 @@ fhir_analysis_refined_unrefinable_type =
 
 # Annot check
 
+fhir_analysis_incompatible_refinement =
+    {$def_descr} has an incompatible refinement annotation
+    .label = expected a refinement of `{$expected_ty}`
+    .expected_label = corresponding unrefined definition
+
+fhir_analysis_incompatible_param_count =
+    {$def_descr} has an incompatible refinement annotation
+    .label = refined signature has {$found} {$found ->
+        [one] parameter
+        *[other] parameters
+     }
+    .expected_label = unrefined signature has {$expected} {$expected ->
+        [one] parameter
+        *[other] parameters
+    }
+
 fhir_analysis_invalid_refinement =
     invalid refinement annotation
     .label = expected a refinement of `{$expected_ty}`
@@ -107,12 +123,12 @@ fhir_analysis_invalid_refinement =
     .note = {$note}
 
 fhir_analysis_fun_arg_count_mismatch =
-    argument count mismatch
+    {$def_descr} has an incompatible refinement annotation
     .label = refined signature has {$args} {$args ->
         [one] argument
         *[other] arguments
      }
-    .expected_label = rust signature has {$expected_args} {$expected_args ->
+    .expected_label = unrefined signature has {$expected_args} {$expected_args ->
         [one] argument
         *[other] arguments
     }

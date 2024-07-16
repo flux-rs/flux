@@ -5,6 +5,7 @@ extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
 extern crate rustc_hir;
+extern crate rustc_hir_pretty;
 extern crate rustc_middle;
 extern crate rustc_span;
 extern crate rustc_trait_selection;
@@ -396,7 +397,7 @@ fn check_wf(genv: GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<Rc<WfckResu
         FluxLocalDefId::Rust(def_id) => {
             let node = genv.desugar(def_id)?;
             let wfckresults = wf::check_node(genv, &node)?;
-            annot_check::check_node(genv, &node)?;
+            // annot_check::check_node(genv, &node)?;
             wfckresults
         }
     };

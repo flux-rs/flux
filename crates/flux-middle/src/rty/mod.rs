@@ -2059,7 +2059,7 @@ pub use crate::_Bool as Bool;
 #[macro_export]
 macro_rules! _Ref {
     ($($pats:pat),+ $(,)?) => {
-        TyKind::Indexed(BaseTy::Ref($($pats),+), _)
+        $crate::rty::TyKind::Indexed($crate::rty::BaseTy::Ref($($pats),+), _)
     };
 }
 pub use crate::_Ref as Ref;

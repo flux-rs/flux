@@ -351,7 +351,7 @@ pub(crate) fn conv_fn_decl(
         .collect();
 
     let fn_sig = rty::PolyFnSig::new(rty::FnSig::new(requires.into(), inputs.into(), output), vars);
-    let fn_sig = fill_holes::fn_sig(genv, &fn_sig, def_id)?;
+    let fn_sig = fill_holes::fn_sig(genv, decl, &fn_sig, def_id)?;
 
     Ok(rty::EarlyBinder(fn_sig))
 }
