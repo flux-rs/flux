@@ -43,35 +43,27 @@ pub(crate) enum LocKind {
 }
 
 pub(crate) trait LookupKey {
-    type Iter<'a>: DoubleEndedIterator<Item = PlaceElem> + 'a
-    where
-        Self: 'a;
-
     fn loc(&self) -> Loc;
 
-    fn proj(&self) -> Self::Iter<'_>;
+    fn proj(&self) -> impl DoubleEndedIterator<Item = PlaceElem>;
 }
 
 impl LookupKey for Place {
-    type Iter<'a> = impl DoubleEndedIterator<Item = PlaceElem> + 'a;
-
     fn loc(&self) -> Loc {
         Loc::Local(self.local)
     }
 
-    fn proj(&self) -> Self::Iter<'_> {
+    fn proj(&self) -> impl DoubleEndedIterator<Item = PlaceElem> {
         self.projection.iter().copied()
     }
 }
 
 impl LookupKey for Path {
-    type Iter<'a> = impl DoubleEndedIterator<Item = PlaceElem> + 'a;
-
     fn loc(&self) -> Loc {
         self.loc
     }
 
-    fn proj(&self) -> Self::Iter<'_> {
+    fn proj(&self) -> impl DoubleEndedIterator<Item = PlaceElem> {
         self.projection().iter().map(|f| PlaceElem::Field(*f))
     }
 }
