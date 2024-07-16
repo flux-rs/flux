@@ -93,7 +93,7 @@ impl TypeEnv<'_> {
 
     /// When checking a borrow in the right hand side of an assignment `x = &'?n p`, we use the
     /// annotated region `'?n` in the type of the result. This region will only be used temporarily
-    /// and then replaced by the region in the type of the `x` after the assignment.
+    /// and then replaced by the region in the type of `x` after the assignment.
     pub(crate) fn borrow(
         &mut self,
         genv: GlobalEnv,

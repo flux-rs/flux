@@ -76,7 +76,7 @@ impl LookupKey for Path {
     }
 }
 
-pub(crate) struct LookupResult<'a> {
+pub(super) struct LookupResult<'a> {
     pub ty: Ty,
     pub is_strg: bool,
     cursor: Cursor,
