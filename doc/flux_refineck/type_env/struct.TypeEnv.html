@@ -18,7 +18,7 @@
     place: &amp;<a class="struct" href="../../flux_middle/rustc/mir/struct.Place.html" title="struct flux_middle::rustc::mir::Place">Place</a>,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="type" href="../../flux_middle/rty/type.Ty.html" title="type flux_middle::rty::Ty">Ty</a>, <a class="enum" href="../checker/errors/enum.CheckerErrKind.html" title="enum flux_refineck::checker::errors::CheckerErrKind">CheckerErrKind</a>&gt;</h4></section></summary><div class="docblock"><p>When checking a borrow in the right hand side of an assignment <code>x = &amp;'?n p</code>, we use the
 annotated region <code>'?n</code> in the type of the result. This region will only be used temporarily
-and then replaced by the region in the type of the <code>x</code> after the assignment.</p>
+and then replaced by the region in the type of <code>x</code> after the assignment.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.ptr_to_borrow" class="method"><a class="src rightside" href="../../src/flux_refineck/type_env.rs.html#130-163">source</a><h4 class="code-header">pub(crate) fn <a href="#method.ptr_to_borrow" class="fn">ptr_to_borrow</a>(
     &amp;mut self,
     rcx: &amp;mut <a class="struct" href="../refine_tree/struct.RefineCtxt.html" title="struct flux_refineck::refine_tree::RefineCtxt">RefineCtxt</a>&lt;'_&gt;,
