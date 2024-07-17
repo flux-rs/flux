@@ -338,7 +338,7 @@ impl LookupResult<'_> {
             // blocked. This happens when taking a reference to an array or with a shared reborrow.
             // To avoid crashing, we call `Ty::unblocked` which would simply return the original
             // type if it wasn't unblocked. We should instead properly block the place in the first place
-            // can ensure we are only unblocking blocked places.
+            // and ensure we are only unblocking blocked places.
             let mut unblocked = ty.unblocked();
             if self.is_strg {
                 unblocked = rcx
@@ -641,6 +641,7 @@ where
             PlaceElem::Downcast(_, _) => self.fold_ty(ty),
             PlaceElem::Index(_) => {
                 // When unblocking under an array/slice we stop at the array/slice because the entire
+                // array has to be blocked when taking references to an element
                 (self.new_ty)(self.cursor, ty)
             }
         }
