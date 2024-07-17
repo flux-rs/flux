@@ -319,7 +319,7 @@ impl PlacesTree {
 impl LookupResult<'_> {
     pub(crate) fn update(self, new: Ty) -> Ty {
         let old = self.ty.clone();
-        Updater::update(self.bindings, self.cursor, new);
+        Updater::update(self.bindings, self.cursor, |_| new.clone());
         old
     }
 
@@ -327,14 +327,16 @@ impl LookupResult<'_> {
         if self.ty.is_uninit() {
             return;
         }
-        let mut unblocked = self.ty.unblocked();
-        if self.is_strg {
-            unblocked = rcx
-                .unpacker()
-                .assume_invariants(check_overflow)
-                .unpack(&unblocked);
-        }
-        Updater::update(self.bindings, self.cursor, unblocked);
+        Updater::update(self.bindings, self.cursor, |ty| {
+            let mut unblocked = ty.unblocked();
+            if self.is_strg {
+                unblocked = rcx
+                    .unpacker()
+                    .assume_invariants(check_overflow)
+                    .unpack(&unblocked);
+            }
+            unblocked
+        });
     }
 
     pub(crate) fn block_with(self, new_ty: Ty) -> Ty {
@@ -599,36 +601,37 @@ impl<'a, 'rcx, 'genv, 'tcx> Unfolder<'a, 'rcx, 'genv, 'tcx> {
     }
 }
 
-struct Updater<'a> {
-    new_ty: Ty,
+struct Updater<'a, F> {
+    new_ty: F,
     cursor: &'a mut Cursor,
 }
 
-impl TypeFolder for Updater<'_> {
+impl<'a, F> Updater<'a, F>
+where
+    F: FnMut(&Ty) -> Ty,
+{
+    fn new(cursor: &'a mut Cursor, new_ty: F) -> Self {
+        Self { new_ty, cursor }
+    }
+
+    fn update(bindings: &mut PlacesTree, mut cursor: Cursor, new_ty: F) {
+        let binding = bindings.get_loc_mut(&cursor.loc);
+        let mut lookup = Updater::new(&mut cursor, new_ty);
+        binding.ty = lookup.fold_ty(&binding.ty);
+    }
+
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         let Some(elem) = self.cursor.next() else {
-            return self.new_ty.clone();
+            return (self.new_ty)(ty);
         };
         match elem {
             PlaceElem::Deref => self.deref(ty),
             PlaceElem::Field(f) => self.field(ty, f),
-            PlaceElem::Downcast(_, _) => ty.fold_with(self),
+            PlaceElem::Downcast(_, _) => self.fold_ty(ty),
             PlaceElem::Index(_) => {
                 tracked_span_bug!("cannot update inside array or slice")
             }
         }
-    }
-}
-
-impl<'a> Updater<'a> {
-    fn new(cursor: &'a mut Cursor, new_ty: Ty) -> Self {
-        Self { new_ty, cursor }
-    }
-
-    fn update(bindings: &mut PlacesTree, mut cursor: Cursor, new_ty: Ty) {
-        let binding = bindings.get_loc_mut(&cursor.loc);
-        let mut lookup = Updater::new(&mut cursor, new_ty);
-        binding.ty = binding.ty.fold_with(&mut lookup);
     }
 
     fn deref(&mut self, ty: &Ty) -> Ty {
@@ -636,7 +639,7 @@ impl<'a> Updater<'a> {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) if adt.is_box() => {
                 let (deref_ty, alloc) = box_args(args);
                 let args = List::from_arr([
-                    GenericArg::Ty(deref_ty.fold_with(self)),
+                    GenericArg::Ty(self.fold_ty(deref_ty)),
                     GenericArg::Ty(alloc.clone()),
                 ]);
                 Ty::indexed(BaseTy::Adt(adt.clone(), args), idx.clone())
@@ -644,7 +647,7 @@ impl<'a> Updater<'a> {
             TyKind::Ptr(..) => {
                 tracked_span_bug!("cannot update through pointer");
             }
-            Ref!(re, deref_ty, mutbl) => Ty::mk_ref(*re, deref_ty.fold_with(self), *mutbl),
+            Ref!(re, deref_ty, mutbl) => Ty::mk_ref(*re, self.fold_ty(deref_ty), *mutbl),
             _ => tracked_span_bug!("invalid deref on `{ty:?}`"),
         }
     }
@@ -673,7 +676,7 @@ impl<'a> Updater<'a> {
 
     fn fold_field_at(&mut self, fields: &[Ty], f: FieldIdx) -> List<Ty> {
         let mut fields = fields.to_vec();
-        fields[f.as_usize()] = fields[f.as_usize()].fold_with(self);
+        fields[f.as_usize()] = self.fold_ty(&fields[f.as_usize()]);
         fields.into()
     }
 }
