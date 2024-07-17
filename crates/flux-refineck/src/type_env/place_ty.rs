@@ -6,7 +6,7 @@ use flux_middle::{
     intern::List,
     rty::{
         box_args,
-        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
+        fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Loc, Mutability, Path, PtrKind, Ref,
         Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
@@ -319,7 +319,7 @@ impl PlacesTree {
 impl LookupResult<'_> {
     pub(crate) fn update(self, new: Ty) -> Ty {
         let old = self.ty.clone();
-        Updater::update(self.bindings, self.cursor, |_| new.clone());
+        Updater::update(self.bindings, self.cursor, |_| new);
         old
     }
 
@@ -608,7 +608,7 @@ struct Updater<'a, F> {
 
 impl<'a, F> Updater<'a, F>
 where
-    F: FnMut(&Ty) -> Ty,
+    F: FnOnce(&Ty) -> Ty,
 {
     fn new(cursor: &'a mut Cursor, new_ty: F) -> Self {
         Self { new_ty, cursor }
@@ -616,11 +616,11 @@ where
 
     fn update(bindings: &mut PlacesTree, mut cursor: Cursor, new_ty: F) {
         let binding = bindings.get_loc_mut(&cursor.loc);
-        let mut lookup = Updater::new(&mut cursor, new_ty);
+        let lookup = Updater::new(&mut cursor, new_ty);
         binding.ty = lookup.fold_ty(&binding.ty);
     }
 
-    fn fold_ty(&mut self, ty: &Ty) -> Ty {
+    fn fold_ty(self, ty: &Ty) -> Ty {
         let Some(elem) = self.cursor.next() else {
             return (self.new_ty)(ty);
         };
@@ -634,7 +634,7 @@ where
         }
     }
 
-    fn deref(&mut self, ty: &Ty) -> Ty {
+    fn deref(self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) if adt.is_box() => {
                 let (deref_ty, alloc) = box_args(args);
@@ -652,7 +652,7 @@ where
         }
     }
 
-    fn field(&mut self, ty: &Ty, f: FieldIdx) -> Ty {
+    fn field(self, ty: &Ty, f: FieldIdx) -> Ty {
         match ty.kind() {
             TyKind::Indexed(BaseTy::Tuple(fields), idx) => {
                 let fields = self.fold_field_at(fields, f);
@@ -674,7 +674,7 @@ where
         }
     }
 
-    fn fold_field_at(&mut self, fields: &[Ty], f: FieldIdx) -> List<Ty> {
+    fn fold_field_at(self, fields: &[Ty], f: FieldIdx) -> List<Ty> {
         let mut fields = fields.to_vec();
         fields[f.as_usize()] = self.fold_ty(&fields[f.as_usize()]);
         fields.into()
