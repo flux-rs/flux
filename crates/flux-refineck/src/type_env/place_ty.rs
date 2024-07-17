@@ -319,7 +319,13 @@ impl PlacesTree {
 impl LookupResult<'_> {
     pub(crate) fn update(self, new: Ty) -> Ty {
         let old = self.ty.clone();
-        Updater::update(self.bindings, self.cursor, |_| new);
+        Updater::update(self.bindings, self.cursor, |cursor, _| {
+            if !cursor.is_exhausted() {
+                // This means we are trying to do a strong updated inside an array/slice
+                tracked_span_bug!("update through non-exhausted cursor");
+            }
+            new
+        });
         old
     }
 
@@ -327,7 +333,12 @@ impl LookupResult<'_> {
         if self.ty.is_uninit() {
             return;
         }
-        Updater::update(self.bindings, self.cursor, |ty| {
+        Updater::update(self.bindings, self.cursor, |_, ty| {
+            // FIXME(nilehmann) in some situations we are calling unblock on a place that's not actually
+            // blocked. This happens when taking a reference to an array or with a shared reborrow.
+            // To avoid crashing, we call `Ty::unblocked` which would simply return the original
+            // type if it wasn't unblocked. We should instead properly block the place in the first place
+            // can ensure we are only unblocking blocked places.
             let mut unblocked = ty.unblocked();
             if self.is_strg {
                 unblocked = rcx
@@ -601,35 +612,36 @@ impl<'a, 'rcx, 'genv, 'tcx> Unfolder<'a, 'rcx, 'genv, 'tcx> {
     }
 }
 
-struct Updater<'a, F> {
+struct Updater<F> {
     new_ty: F,
-    cursor: &'a mut Cursor,
+    cursor: Cursor,
 }
 
-impl<'a, F> Updater<'a, F>
+impl<F> Updater<F>
 where
-    F: FnOnce(&Ty) -> Ty,
+    F: FnOnce(Cursor, &Ty) -> Ty,
 {
-    fn new(cursor: &'a mut Cursor, new_ty: F) -> Self {
+    fn new(cursor: Cursor, new_ty: F) -> Self {
         Self { new_ty, cursor }
     }
 
-    fn update(bindings: &mut PlacesTree, mut cursor: Cursor, new_ty: F) {
+    fn update(bindings: &mut PlacesTree, cursor: Cursor, new_ty: F) {
         let binding = bindings.get_loc_mut(&cursor.loc);
-        let lookup = Updater::new(&mut cursor, new_ty);
+        let lookup = Updater::new(cursor, new_ty);
         binding.ty = lookup.fold_ty(&binding.ty);
     }
 
-    fn fold_ty(self, ty: &Ty) -> Ty {
+    fn fold_ty(mut self, ty: &Ty) -> Ty {
         let Some(elem) = self.cursor.next() else {
-            return (self.new_ty)(ty);
+            return (self.new_ty)(self.cursor, ty);
         };
         match elem {
             PlaceElem::Deref => self.deref(ty),
             PlaceElem::Field(f) => self.field(ty, f),
             PlaceElem::Downcast(_, _) => self.fold_ty(ty),
             PlaceElem::Index(_) => {
-                tracked_span_bug!("cannot update inside array or slice")
+                // When unblocking under an array/slice we stop at the array/slice because the entire
+                (self.new_ty)(self.cursor, ty)
             }
         }
     }
@@ -738,6 +750,10 @@ impl Cursor {
         } else {
             None
         }
+    }
+
+    fn is_exhausted(&self) -> bool {
+        self.pos == 0
     }
 
     fn reset(&mut self) {

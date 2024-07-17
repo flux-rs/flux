@@ -106,6 +106,9 @@ impl TypeEnv<'_> {
         if result.is_strg && mutbl == Mutability::Mut {
             Ok(Ty::ptr(PtrKind::Mut(re), result.path()))
         } else {
+            // FIXME(nilehmann) we should block the place here. That would require a notion
+            // of shared vs mutable block types because sometimes blocked places from a shared
+            // reference never get unblocked and we should still allow reads through them.
             Ok(Ty::mk_ref(re, result.ty, mutbl))
         }
     }
