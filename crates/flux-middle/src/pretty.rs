@@ -121,6 +121,22 @@ pub fn pprint_with_default_cx<T: Pretty>(
     rustc_middle::ty::tls::with(|tcx| {
         #[allow(unused_mut)]
         let mut cx = <T>::default_cx(tcx);
+
+        if let Some(pprint) = flux_config::CONFIG_FILE
+            .get("dev")
+            .and_then(|dev| dev.get("pprint"))
+        {
+            if let Some(opts) = pprint.get("default") {
+                cx.merge(opts);
+            }
+
+            if let Some(key) = cfg_key
+                && let Some(opts) = pprint.get(key)
+            {
+                cx.merge(opts);
+            }
+        }
+
         if let Some(key) = cfg_key
             && let Some(opts) = flux_config::CONFIG_FILE
                 .get("dev")

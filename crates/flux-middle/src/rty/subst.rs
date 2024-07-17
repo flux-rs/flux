@@ -312,7 +312,7 @@ impl<'a, 'tcx> GenericsSubstDelegate for GenericArgsDelegate<'a, 'tcx> {
         match self.0.get(param_ty.index as usize) {
             Some(GenericArg::Base(ctor)) => Ok(ctor.sort()),
             Some(arg) => {
-                tracked_span_bug!("extected base type for generic parameter, found `{arg:?}`")
+                tracked_span_bug!("expected base type for generic parameter, found `{arg:?}`")
             }
             None => tracked_span_bug!("type parameter out of range {param_ty:?}"),
         }

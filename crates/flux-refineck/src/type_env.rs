@@ -93,7 +93,7 @@ impl TypeEnv<'_> {
 
     /// When checking a borrow in the right hand side of an assignment `x = &'?n p`, we use the
     /// annotated region `'?n` in the type of the result. This region will only be used temporarily
-    /// and then replaced by the region in the type of the `x` after the assignment.
+    /// and then replaced by the region in the type of `x` after the assignment.
     pub(crate) fn borrow(
         &mut self,
         genv: GlobalEnv,
@@ -106,6 +106,9 @@ impl TypeEnv<'_> {
         if result.is_strg && mutbl == Mutability::Mut {
             Ok(Ty::ptr(PtrKind::Mut(re), result.path()))
         } else {
+            // FIXME(nilehmann) we should block the place here. That would require a notion
+            // of shared vs mutable block types because sometimes blocked places from a shared
+            // reference never get unblocked and we should still allow reads through them.
             Ok(Ty::mk_ref(re, result.ty, mutbl))
         }
     }
