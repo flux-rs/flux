@@ -127,13 +127,13 @@ pub fn pprint_with_default_cx<T: Pretty>(
             .and_then(|dev| dev.get("pprint"))
         {
             if let Some(opts) = pprint.get("default") {
-                cx.merge(opts)
+                cx.merge(opts);
             }
 
             if let Some(key) = cfg_key
                 && let Some(opts) = pprint.get(key)
             {
-                cx.merge(opts)
+                cx.merge(opts);
             }
         }
 
