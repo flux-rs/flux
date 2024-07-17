@@ -968,14 +968,6 @@
 <a href="#968" id="968">968</a>
 <a href="#969" id="969">969</a>
 <a href="#970" id="970">970</a>
-<a href="#971" id="971">971</a>
-<a href="#972" id="972">972</a>
-<a href="#973" id="973">973</a>
-<a href="#974" id="974">974</a>
-<a href="#975" id="975">975</a>
-<a href="#976" id="976">976</a>
-<a href="#977" id="977">977</a>
-<a href="#978" id="978">978</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -1021,35 +1013,27 @@
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">trait </span>LookupKey {
-    <span class="kw">type </span>Iter&lt;<span class="lifetime">'a</span>&gt;: DoubleEndedIterator&lt;Item = PlaceElem&gt; + <span class="lifetime">'a
-    </span><span class="kw">where
-        </span><span class="self">Self</span>: <span class="lifetime">'a</span>;
-
     <span class="kw">fn </span>loc(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Loc;
 
-    <span class="kw">fn </span>proj(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::Iter&lt;<span class="lifetime">'_</span>&gt;;
+    <span class="kw">fn </span>proj(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>DoubleEndedIterator&lt;Item = PlaceElem&gt;;
 }
 
 <span class="kw">impl </span>LookupKey <span class="kw">for </span>Place {
-    <span class="kw">type </span>Iter&lt;<span class="lifetime">'a</span>&gt; = <span class="kw">impl </span>DoubleEndedIterator&lt;Item = PlaceElem&gt; + <span class="lifetime">'a</span>;
-
     <span class="kw">fn </span>loc(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Loc {
         Loc::Local(<span class="self">self</span>.local)
     }
 
-    <span class="kw">fn </span>proj(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::Iter&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="kw">fn </span>proj(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>DoubleEndedIterator&lt;Item = PlaceElem&gt; {
         <span class="self">self</span>.projection.iter().copied()
     }
 }
 
 <span class="kw">impl </span>LookupKey <span class="kw">for </span>Path {
-    <span class="kw">type </span>Iter&lt;<span class="lifetime">'a</span>&gt; = <span class="kw">impl </span>DoubleEndedIterator&lt;Item = PlaceElem&gt; + <span class="lifetime">'a</span>;
-
     <span class="kw">fn </span>loc(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Loc {
         <span class="self">self</span>.loc
     }
 
-    <span class="kw">fn </span>proj(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::Iter&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="kw">fn </span>proj(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>DoubleEndedIterator&lt;Item = PlaceElem&gt; {
         <span class="self">self</span>.projection().iter().map(|f| PlaceElem::Field(<span class="kw-2">*</span>f))
     }
 }
