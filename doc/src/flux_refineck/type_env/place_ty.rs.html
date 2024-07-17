@@ -968,6 +968,26 @@
 <a href="#968" id="968">968</a>
 <a href="#969" id="969">969</a>
 <a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -976,7 +996,7 @@
     intern::List,
     rty::{
         box_args,
-        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeVisitable, TypeVisitor},
+        fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Loc, Mutability, Path, PtrKind, Ref,
         Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
     },
@@ -1289,7 +1309,13 @@
 <span class="kw">impl </span>LookupResult&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>update(<span class="self">self</span>, new: Ty) -&gt; Ty {
         <span class="kw">let </span>old = <span class="self">self</span>.ty.clone();
-        Updater::update(<span class="self">self</span>.bindings, <span class="self">self</span>.cursor, new);
+        Updater::update(<span class="self">self</span>.bindings, <span class="self">self</span>.cursor, |cursor, <span class="kw">_</span>| {
+            <span class="kw">if </span>!cursor.is_exhausted() {
+                <span class="comment">// This means we are trying to do a strong updated inside an array/slice
+                </span><span class="macro">tracked_span_bug!</span>(<span class="string">"update through non-exhausted cursor"</span>);
+            }
+            new
+        });
         old
     }
 
@@ -1297,14 +1323,21 @@
         <span class="kw">if </span><span class="self">self</span>.ty.is_uninit() {
             <span class="kw">return</span>;
         }
-        <span class="kw">let </span><span class="kw-2">mut </span>unblocked = <span class="self">self</span>.ty.unblocked();
-        <span class="kw">if </span><span class="self">self</span>.is_strg {
-            unblocked = rcx
-                .unpacker()
-                .assume_invariants(check_overflow)
-                .unpack(<span class="kw-2">&amp;</span>unblocked);
-        }
-        Updater::update(<span class="self">self</span>.bindings, <span class="self">self</span>.cursor, unblocked);
+        Updater::update(<span class="self">self</span>.bindings, <span class="self">self</span>.cursor, |<span class="kw">_</span>, ty| {
+            <span class="comment">// FIXME(nilehmann) in some situations we are calling unblock on a place that's not actually
+            // blocked. This happens when taking a reference to an array or with a shared reborrow.
+            // To avoid crashing, we call `Ty::unblocked` which would simply return the original
+            // type if it wasn't unblocked. We should instead properly block the place in the first place
+            // and ensure we are only unblocking blocked places.
+            </span><span class="kw">let </span><span class="kw-2">mut </span>unblocked = ty.unblocked();
+            <span class="kw">if </span><span class="self">self</span>.is_strg {
+                unblocked = rcx
+                    .unpacker()
+                    .assume_invariants(check_overflow)
+                    .unpack(<span class="kw-2">&amp;</span>unblocked);
+            }
+            unblocked
+        });
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_with(<span class="self">self</span>, new_ty: Ty) -&gt; Ty {
@@ -1569,44 +1602,47 @@
     }
 }
 
-<span class="kw">struct </span>Updater&lt;<span class="lifetime">'a</span>&gt; {
-    new_ty: Ty,
-    cursor: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Cursor,
+<span class="kw">struct </span>Updater&lt;F&gt; {
+    new_ty: F,
+    cursor: Cursor,
 }
 
-<span class="kw">impl </span>TypeFolder <span class="kw">for </span>Updater&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
+<span class="kw">impl</span>&lt;F&gt; Updater&lt;F&gt;
+<span class="kw">where
+    </span>F: FnOnce(Cursor, <span class="kw-2">&amp;</span>Ty) -&gt; Ty,
+{
+    <span class="kw">fn </span>new(cursor: Cursor, new_ty: F) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ new_ty, cursor }
+    }
+
+    <span class="kw">fn </span>update(bindings: <span class="kw-2">&amp;mut </span>PlacesTree, cursor: Cursor, new_ty: F) {
+        <span class="kw">let </span>binding = bindings.get_loc_mut(<span class="kw-2">&amp;</span>cursor.loc);
+        <span class="kw">let </span>lookup = Updater::new(cursor, new_ty);
+        binding.ty = lookup.fold_ty(<span class="kw-2">&amp;</span>binding.ty);
+    }
+
+    <span class="kw">fn </span>fold_ty(<span class="kw-2">mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
         <span class="kw">let </span><span class="prelude-val">Some</span>(elem) = <span class="self">self</span>.cursor.next() <span class="kw">else </span>{
-            <span class="kw">return </span><span class="self">self</span>.new_ty.clone();
+            <span class="kw">return </span>(<span class="self">self</span>.new_ty)(<span class="self">self</span>.cursor, ty);
         };
         <span class="kw">match </span>elem {
             PlaceElem::Deref =&gt; <span class="self">self</span>.deref(ty),
             PlaceElem::Field(f) =&gt; <span class="self">self</span>.field(ty, f),
-            PlaceElem::Downcast(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; ty.fold_with(<span class="self">self</span>),
+            PlaceElem::Downcast(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="self">self</span>.fold_ty(ty),
             PlaceElem::Index(<span class="kw">_</span>) =&gt; {
-                <span class="macro">tracked_span_bug!</span>(<span class="string">"cannot update inside array or slice"</span>)
+                <span class="comment">// When unblocking under an array/slice we stop at the array/slice because the entire
+                // array has to be blocked when taking references to an element
+                </span>(<span class="self">self</span>.new_ty)(<span class="self">self</span>.cursor, ty)
             }
         }
     }
-}
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Updater&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="kw">fn </span>new(cursor: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Cursor, new_ty: Ty) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ new_ty, cursor }
-    }
-
-    <span class="kw">fn </span>update(bindings: <span class="kw-2">&amp;mut </span>PlacesTree, <span class="kw-2">mut </span>cursor: Cursor, new_ty: Ty) {
-        <span class="kw">let </span>binding = bindings.get_loc_mut(<span class="kw-2">&amp;</span>cursor.loc);
-        <span class="kw">let </span><span class="kw-2">mut </span>lookup = Updater::new(<span class="kw-2">&amp;mut </span>cursor, new_ty);
-        binding.ty = binding.ty.fold_with(<span class="kw-2">&amp;mut </span>lookup);
-    }
-
-    <span class="kw">fn </span>deref(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
+    <span class="kw">fn </span>deref(<span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
         <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) <span class="kw">if </span>adt.is_box() =&gt; {
                 <span class="kw">let </span>(deref_ty, alloc) = box_args(args);
                 <span class="kw">let </span>args = List::from_arr([
-                    GenericArg::Ty(deref_ty.fold_with(<span class="self">self</span>)),
+                    GenericArg::Ty(<span class="self">self</span>.fold_ty(deref_ty)),
                     GenericArg::Ty(alloc.clone()),
                 ]);
                 Ty::indexed(BaseTy::Adt(adt.clone(), args), idx.clone())
@@ -1614,12 +1650,12 @@
             TyKind::Ptr(..) =&gt; {
                 <span class="macro">tracked_span_bug!</span>(<span class="string">"cannot update through pointer"</span>);
             }
-            <span class="macro">Ref!</span>(re, deref_ty, mutbl) =&gt; Ty::mk_ref(<span class="kw-2">*</span>re, deref_ty.fold_with(<span class="self">self</span>), <span class="kw-2">*</span>mutbl),
+            <span class="macro">Ref!</span>(re, deref_ty, mutbl) =&gt; Ty::mk_ref(<span class="kw-2">*</span>re, <span class="self">self</span>.fold_ty(deref_ty), <span class="kw-2">*</span>mutbl),
             <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid deref on `{ty:?}`"</span>),
         }
     }
 
-    <span class="kw">fn </span>field(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, f: FieldIdx) -&gt; Ty {
+    <span class="kw">fn </span>field(<span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, f: FieldIdx) -&gt; Ty {
         <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(BaseTy::Tuple(fields), idx) =&gt; {
                 <span class="kw">let </span>fields = <span class="self">self</span>.fold_field_at(fields, f);
@@ -1641,9 +1677,9 @@
         }
     }
 
-    <span class="kw">fn </span>fold_field_at(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fields: <span class="kw-2">&amp;</span>[Ty], f: FieldIdx) -&gt; List&lt;Ty&gt; {
+    <span class="kw">fn </span>fold_field_at(<span class="self">self</span>, fields: <span class="kw-2">&amp;</span>[Ty], f: FieldIdx) -&gt; List&lt;Ty&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>fields = fields.to_vec();
-        fields[f.as_usize()] = fields[f.as_usize()].fold_with(<span class="self">self</span>);
+        fields[f.as_usize()] = <span class="self">self</span>.fold_ty(<span class="kw-2">&amp;</span>fields[f.as_usize()]);
         fields.into()
     }
 }
@@ -1706,6 +1742,10 @@
             <span class="prelude-val">None
         </span>}
     }
+
+    <span class="kw">fn </span>is_exhausted(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.pos == <span class="number">0
+    </span>}
 
     <span class="kw">fn </span>reset(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.pos = <span class="self">self</span>.proj.len();

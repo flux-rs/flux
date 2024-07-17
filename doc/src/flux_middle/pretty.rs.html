@@ -668,13 +668,13 @@
             .and_then(|dev| dev.get(<span class="string">"pprint"</span>))
         {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(opts) = pprint.get(<span class="string">"default"</span>) {
-                cx.merge(opts)
+                cx.merge(opts);
             }
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = cfg_key
                 &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(opts) = pprint.get(key)
             {
-                cx.merge(opts)
+                cx.merge(opts);
             }
         }
 

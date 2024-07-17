@@ -697,6 +697,9 @@
 <a href="#697" id="697">697</a>
 <a href="#698" id="698">698</a>
 <a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -805,7 +808,10 @@
         <span class="kw">if </span>result.is_strg &amp;&amp; mutbl == Mutability::Mut {
             <span class="prelude-val">Ok</span>(Ty::ptr(PtrKind::Mut(re), result.path()))
         } <span class="kw">else </span>{
-            <span class="prelude-val">Ok</span>(Ty::mk_ref(re, result.ty, mutbl))
+            <span class="comment">// FIXME(nilehmann) we should block the place here. That would require a notion
+            // of shared vs mutable block types because sometimes blocked places from a shared
+            // reference never get unblocked and we should still allow reads through them.
+            </span><span class="prelude-val">Ok</span>(Ty::mk_ref(re, result.ty, mutbl))
         }
     }
 
