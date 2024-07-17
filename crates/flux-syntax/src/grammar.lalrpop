@@ -45,13 +45,6 @@ GenericParam: surface::GenericParam = {
         };
         Ok(surface::GenericParam { name, kind, node_id: cx.next_node_id() })
     },
-    "refine" <name:Ident> ":" <sort:Sort> => {
-        surface::GenericParam {
-            name,
-            kind: surface::GenericParamKind::Refine{ sort },
-            node_id: cx.next_node_id(),
-        }
-    },
 }
 
 pub TyAlias: surface::TyAlias = {
@@ -59,32 +52,16 @@ pub TyAlias: surface::TyAlias = {
     "type"
     <ident:Ident>
     <mut generics:GenericsWithAngleBrackets>
-    <early_bound_params:("(" <RefineParams<"!">> ")")?>
-    <refined_by_lo:@L>
-    <fields:("[" <RefineParams<"!">> "]")?>
-    <refined_by_hi:@R>
+    <params:("(" <RefineParams<"!">> ")")?>
+    <refined_by:("[" <RefineParams<"!">> "]")?>
     "="
     <ty:Ty>
     <hi:@R> => {
-        generics.params.extend(
-            early_bound_params
-                .unwrap_or_default()
-                .into_iter()
-                .map(|param| surface::GenericParam {
-                    name: param.name,
-                    kind: surface::GenericParamKind::Refine { sort: param.sort },
-                    node_id: cx.next_node_id(),
-                }
-            )
-        );
-        let refined_by = surface::RefinedBy {
-            fields: fields.unwrap_or_default(),
-            span: cx.map_span(refined_by_lo, refined_by_hi),
-        };
         surface::TyAlias {
             ident,
             generics,
-            refined_by,
+            params: params.unwrap_or_default(),
+            refined_by: refined_by.unwrap_or_default(),
             ty,
             node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi)
@@ -92,12 +69,7 @@ pub TyAlias: surface::TyAlias = {
     }
 }
 
-pub RefinedBy: surface::RefinedBy = {
-    <lo:@L>  <fields:RefineParams<"!">> <hi:@R> => surface::RefinedBy {
-        fields,
-        span: cx.map_span(lo, hi)
-    }
-}
+pub RefinedBy = RefineParams<"!">;
 
 pub Items: Vec<surface::Item> = {
     (<Item>)*
@@ -114,12 +86,12 @@ Qualifier: surface::Qualifier = {
     <local: ("local")?>
     "qualifier"
     <name:Ident>
-    "(" <args:RefineParams<"!">> ")" "{" <expr:Expr> "}"
+    "(" <params:RefineParams<"!">> ")" "{" <expr:Expr> "}"
     <hi:@R> =>? {
         let global = local.is_none();
         Ok(surface::Qualifier {
             name,
-            args,
+            params,
             expr,
             global,
             span: cx.map_span(lo, hi),
@@ -128,20 +100,20 @@ Qualifier: surface::Qualifier = {
 }
 
 SpecFunc: surface::SpecFunc = {
-    "fn" <name:Ident> <vars:SortVars?> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> "{" <body:Expr> "}" => {
+    "fn" <name:Ident> <vars:SortVars?> "(" <params:RefineParams<"!">> ")" "->" <output:Sort> "{" <body:Expr> "}" => {
         surface::SpecFunc {
             name,
             sort_vars: vars.unwrap_or_default(),
-            args,
+            params,
             output,
             body: Some(body),
         }
     },
-    "fn" <name:Ident> <vars:SortVars?> "(" <args:RefineParams<"!">> ")" "->" <output:Sort> ";" => {
+    "fn" <name:Ident> <vars:SortVars?> "(" <params:RefineParams<"!">> ")" "->" <output:Sort> ";" => {
         surface::SpecFunc {
             name,
             sort_vars: vars.unwrap_or_default(),
-            args,
+            params,
             output,
             body: None,
         }
@@ -163,22 +135,29 @@ pub QualNames: surface::QualNames = {
     <names:Comma<Ident>> => surface::QualNames { names }
 }
 
-RefineParams<T>: Vec<surface::RefineParam> = Comma<RefineParam<T>>;
+RefineParams<T>: surface::RefineParams = <Comma<RefineParam<T>>>;
 
 RefineParam<T>: surface::RefineParam = {
-    <lo:@L>  <name:Ident> ":" <sort:Sort> <hi:@R> => surface::RefineParam {
-        name,
+    <lo:@L> <mode:ParamMode?> <ident:Ident> ":" <sort:Sort> <hi:@R> => surface::RefineParam {
+        ident,
         sort,
+        mode,
         span: cx.map_span(lo, hi),
         node_id: cx.next_node_id(),
     },
-    <name:Ident> if T == "?" => surface::RefineParam {
-        name,
+    <mode:ParamMode?> <ident:Ident> if T == "?" => surface::RefineParam {
+        ident,
         sort: surface::Sort::Infer,
-        span: name.span,
+        mode,
+        span: ident.span,
         node_id: cx.next_node_id(),
     },
 };
+
+ParamMode: surface::ParamMode = {
+    "hrn" => surface::ParamMode::Horn,
+    "hdl" => surface::ParamMode::Hindley
+}
 
 BaseSort: surface::BaseSort = {
     "bitvec" "<" <lo:@L> <lit:Lit> <hi:@R> ">" =>? {
@@ -231,7 +210,9 @@ pub FnSig: surface::FnSig = {
     <lo:@L>
     <asyncness:Async>
     "fn"
+    <ident:Ident?>
     <mut generics:GenericsWithAngleBrackets>
+    <params:("["<RefineParams<"!">>"]")?>
     "(" <inputs:FnInputs> ")"
     <ret_lo:@L> <ret_hi:@R>
     <returns:("->" <Ty>)?>
@@ -253,7 +234,9 @@ pub FnSig: surface::FnSig = {
         };
         surface::FnSig {
             asyncness,
+            ident,
             generics,
+            params: params.unwrap_or_default(),
             inputs,
             requires: requires.unwrap_or_default(),
             output,
@@ -683,7 +666,8 @@ extern {
         "async" => Token::Async,
         "type" => Token::Type,
         "ref" => Token::Ref,
-        "refine" => Token::Refine,
+        "hrn" => Token::Hrn,
+        "hdl" => Token::Hdl,
         "as" => Token::As,
         "@"  => Token::At,
         "#"  => Token::Pound,

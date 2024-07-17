@@ -291,9 +291,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn variants_of(
         self,
-        def_id: DefId,
+        def_id: impl Into<DefId>,
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
-        self.inner.queries.variants_of(self, def_id)
+        self.inner.queries.variants_of(self, def_id.into())
     }
 
     pub fn variant_sig(

@@ -19,8 +19,10 @@ test = false
 [dependencies]
 anyhow = "1.0.79"
 dirs = "5.0.1"
+
 home.workspace = true
-rust-toolchain-file = "0.1.1"
+serde.workspace = true
+toml.workspace = true
 
 [lints]
 workspace = true

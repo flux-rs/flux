@@ -166,6 +166,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             }
             DefKind::Enum => {
                 let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(&self.genv)?;
+                let _ = self.genv.variants_of(def_id).emit(&self.genv)?;
                 let enum_def = self
                     .genv
                     .map()
@@ -183,6 +184,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             }
             DefKind::Struct => {
                 let adt_def = self.genv.adt_def(def_id.to_def_id()).emit(&self.genv)?;
+                let _ = self.genv.variants_of(def_id).emit(&self.genv)?;
                 let struct_def = self
                     .genv
                     .map()

@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-#[flux::refined_by(p: int -> bool)]
+#[flux::refined_by(hrn p: int -> bool)]
 struct S;
 
 #[flux::sig(fn(s: S[@p], x: i32{p(x)}))] //~ NOTE inside this call

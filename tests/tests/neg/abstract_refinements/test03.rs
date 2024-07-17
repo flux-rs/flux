@@ -1,5 +1,5 @@
 #[derive(Clone, Copy)]
-#[flux::refined_by(p: int -> bool)]
+#[flux::refined_by(hrn p: int -> bool)]
 pub struct S;
 
 #[flux::sig(fn(x: i32) -> S[|y| y > x])]

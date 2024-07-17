@@ -121,6 +121,22 @@ pub fn pprint_with_default_cx<T: Pretty>(
     rustc_middle::ty::tls::with(|tcx| {
         #[allow(unused_mut)]
         let mut cx = <T>::default_cx(tcx);
+
+        if let Some(pprint) = flux_config::CONFIG_FILE
+            .get("dev")
+            .and_then(|dev| dev.get("pprint"))
+        {
+            if let Some(opts) = pprint.get("default") {
+                cx.merge(opts);
+            }
+
+            if let Some(key) = cfg_key
+                && let Some(opts) = pprint.get(key)
+            {
+                cx.merge(opts);
+            }
+        }
+
         if let Some(key) = cfg_key
             && let Some(opts) = flux_config::CONFIG_FILE
                 .get("dev")
@@ -303,12 +319,12 @@ impl PrettyCx<'_> {
             }
             match var {
                 BoundVariableKind::Region(re) => w!("{:?}", re)?,
-                BoundVariableKind::Refine(_, _mode, BoundReftKind::Named(name)) => {
-                    // w!("{}", ^mode.prefix_str())?;
+                BoundVariableKind::Refine(_, mode, BoundReftKind::Named(name)) => {
+                    w!("{}", ^mode.prefix_str())?;
                     w!("{}", ^name)?;
                 }
-                BoundVariableKind::Refine(_, _mode, BoundReftKind::Annon) => {
-                    // w!("{}", ^mode.prefix_str())?;
+                BoundVariableKind::Refine(_, mode, BoundReftKind::Annon) => {
+                    w!("{}", ^mode.prefix_str())?;
                     if let Some(name) = self.env.borrow().lookup(INNERMOST, i as u32) {
                         w!("{:?}", ^name)?;
                     } else {

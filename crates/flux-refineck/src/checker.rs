@@ -8,9 +8,9 @@ use flux_middle::{
     queries::QueryResult,
     rty::{
         self, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, CoroutineObligPredicate,
-        EarlyBinder, Ensures, Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg,
-        GenericParamDefKind, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref,
-        Region::ReStatic, Sort, Ty, TyKind, Uint, UintTy, VariantIdx,
+        EarlyBinder, Ensures, Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg, Generics,
+        HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref, Region::ReStatic, Ty, TyKind, Uint,
+        UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -33,7 +33,7 @@ use rustc_index::bit_set::BitSet;
 use rustc_infer::infer::NllRegionVariableOrigin;
 use rustc_middle::{
     mir::{SourceInfo, SwitchTargets},
-    ty::{ParamConst, TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
+    ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
 };
 use rustc_span::{sym, Span};
 
@@ -185,26 +185,6 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
     }
 }
 
-fn const_params(
-    genv: GlobalEnv,
-    def_id: LocalDefId,
-    span: Span,
-) -> Result<List<(ParamConst, Sort)>> {
-    let generics = genv.generics_of(def_id).with_span(span)?;
-    let mut res = vec![];
-    for i in 0..generics.count() {
-        let generic_param = generics.param_at(i, genv).with_span(span)?;
-        if let GenericParamDefKind::Const { .. } = generic_param.kind
-            && let Some(local_def_id) = generic_param.def_id.as_local()
-            && let Some(sort) = genv.sort_of_generic_param(local_def_id).with_span(span)?
-        {
-            let param_const = ParamConst { name: generic_param.name, index: generic_param.index };
-            res.push((param_const, sort));
-        }
-    }
-    Ok(List::from_vec(res))
-}
-
 impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
     pub(crate) fn run_in_refine_mode(
         genv: GlobalEnv<'genv, 'tcx>,
@@ -217,7 +197,9 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         let fn_sig = genv.fn_sig(def_id).with_span(span)?;
 
         let mut kvars = fixpoint_encoding::KVarStore::new();
-        let mut refine_tree = RefineTree::new(const_params(genv, def_id, span)?);
+        let generics = genv.generics_of(def_id).with_span(span)?;
+        let const_params = generics.const_params(genv).with_span(span)?;
+        let mut refine_tree = RefineTree::new(const_params);
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {

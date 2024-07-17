@@ -62,7 +62,7 @@ pub(crate) trait ScopedVisitor: Sized {
 
     fn on_implicit_param(&mut self, _ident: Ident, _kind: fhir::ParamKind, _node_id: NodeId) {}
     fn on_generic_param(&mut self, _param: &surface::GenericParam) {}
-    fn on_refine_param(&mut self, _name: Ident, _node_id: NodeId) {}
+    fn on_refine_param(&mut self, _param: &surface::RefineParam) {}
     fn on_enum_variant(&mut self, _variant: &surface::VariantDef) {}
     fn on_fn_sig(&mut self, _fn_sig: &surface::FnSig) {}
     fn on_fn_output(&mut self, _output: &surface::FnOutput) {}
@@ -127,7 +127,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     }
 
     fn visit_refine_param(&mut self, param: &surface::RefineParam) {
-        self.on_refine_param(param.name, param.node_id);
+        self.on_refine_param(param);
         surface::visit::walk_refine_param(self, param);
     }
 
@@ -246,7 +246,14 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         match &ty.kind {
             surface::TyKind::Exists { bind, .. } => {
                 self.with_scope(ScopeKind::Misc, |this| {
-                    this.on_refine_param(*bind, node_id);
+                    let param = surface::RefineParam {
+                        ident: *bind,
+                        mode: None,
+                        sort: surface::Sort::Infer,
+                        node_id,
+                        span: bind.span,
+                    };
+                    this.on_refine_param(&param);
                     surface::visit::walk_ty(this, ty);
                 });
             }
@@ -725,13 +732,8 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
         }
     }
 
-    fn on_generic_param(&mut self, param: &surface::GenericParam) {
-        let surface::GenericParamKind::Refine { .. } = &param.kind else { return };
-        self.define_param(param.name, fhir::ParamKind::Explicit, param.node_id, None);
-    }
-
-    fn on_refine_param(&mut self, name: Ident, node_id: NodeId) {
-        self.define_param(name, fhir::ParamKind::Explicit, node_id, None);
+    fn on_refine_param(&mut self, param: &surface::RefineParam) {
+        self.define_param(param.ident, fhir::ParamKind::Explicit(param.mode), param.node_id, None);
     }
 
     fn on_func(&mut self, func: Ident, node_id: NodeId) {
@@ -861,7 +863,7 @@ impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
             fhir::ParamKind::Colon
             | fhir::ParamKind::Loc
             | fhir::ParamKind::Error
-            | fhir::ParamKind::Explicit => return,
+            | fhir::ParamKind::Explicit(..) => return,
         };
         if !allowed {
             self.errors

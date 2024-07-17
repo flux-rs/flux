@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, collections::hash_map};
 
-use flux_common::bug;
+use flux_common::{bug, tracked_span_bug};
 use rustc_hash::FxHashMap;
 use rustc_middle::ty::RegionVid;
 use rustc_type_ir::DebruijnIndex;
@@ -311,24 +311,28 @@ impl<'a, 'tcx> GenericsSubstDelegate for GenericArgsDelegate<'a, 'tcx> {
     fn sort_for_param(&mut self, param_ty: ParamTy) -> Result<Sort, !> {
         match self.0.get(param_ty.index as usize) {
             Some(GenericArg::Base(ctor)) => Ok(ctor.sort()),
-            Some(arg) => bug!("extected base type for generic parameter, found `{arg:?}`"),
-            None => bug!("type parameter out of range {param_ty:?}"),
+            Some(arg) => {
+                tracked_span_bug!("expected base type for generic parameter, found `{arg:?}`")
+            }
+            None => tracked_span_bug!("type parameter out of range {param_ty:?}"),
         }
     }
 
     fn ty_for_param(&mut self, param_ty: ParamTy) -> Ty {
         match self.0.get(param_ty.index as usize) {
             Some(GenericArg::Ty(ty)) => ty.clone(),
-            Some(arg) => bug!("expected type for generic parameter, found `{arg:?}`"),
-            None => bug!("type parameter out of range"),
+            Some(arg) => tracked_span_bug!("expected type for generic parameter, found `{arg:?}`"),
+            None => tracked_span_bug!("type parameter out of range {param_ty:?}"),
         }
     }
 
     fn ctor_for_param(&mut self, param_ty: ParamTy) -> SubsetTyCtor {
         match self.0.get(param_ty.index as usize) {
             Some(GenericArg::Base(ctor)) => ctor.clone(),
-            Some(arg) => bug!("expected base type for generic parameter, found `{arg:?}`"),
-            None => bug!("type parameter out of range"),
+            Some(arg) => {
+                tracked_span_bug!("expected base type for generic parameter, found `{arg:?}`")
+            }
+            None => tracked_span_bug!("type parameter out of range"),
         }
     }
 

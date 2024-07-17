@@ -27,3 +27,8 @@ driver_malformed_extern_spec =
 
 driver_missing_fn_sig_for_extern_spec =
     missing flux::sig attribute (functions declared as flux::extern_spec require a flux::sig)
+
+driver_mismatched_spec_name =
+    name in {$def_descr} spec doesn't match item's name
+    .label = must be `{$item_ident}`
+    .item_def_ident = {$def_descr} defined here

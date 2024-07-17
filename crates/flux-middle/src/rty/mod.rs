@@ -52,7 +52,7 @@ pub use crate::{
     },
 };
 use crate::{
-    fhir::{self, FhirId, FluxOwnerId, ParamKind, SpecFuncKind},
+    fhir::{self, FhirId, FluxOwnerId, SpecFuncKind},
     global_env::GlobalEnv,
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
@@ -125,6 +125,37 @@ pub struct Generics {
     pub parent: Option<DefId>,
     pub parent_count: usize,
     pub params: List<GenericParamDef>,
+}
+
+impl Generics {
+    pub fn count(&self) -> usize {
+        self.parent_count + self.params.len()
+    }
+
+    pub fn param_at(&self, param_index: usize, genv: GlobalEnv) -> QueryResult<GenericParamDef> {
+        if let Some(index) = param_index.checked_sub(self.parent_count) {
+            Ok(self.params[index].clone())
+        } else {
+            let parent = self.parent.expect("parent_count > 0 but no parent?");
+            genv.generics_of(parent)?.param_at(param_index, genv)
+        }
+    }
+
+    pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<List<(ParamConst, Sort)>> {
+        let mut res = vec![];
+        for i in 0..self.count() {
+            let generic_param = self.param_at(i, genv)?;
+            if let GenericParamDefKind::Const { .. } = generic_param.kind
+                && let Some(local_def_id) = generic_param.def_id.as_local()
+                && let Some(sort) = genv.sort_of_generic_param(local_def_id)?
+            {
+                let param_const =
+                    ParamConst { name: generic_param.name, index: generic_param.index };
+                res.push((param_const, sort));
+            }
+        }
+        Ok(List::from_vec(res))
+    }
 }
 
 #[derive(Debug, Clone, TyEncodable, TyDecodable)]
@@ -1153,21 +1184,6 @@ impl CoroutineObligPredicate {
     }
 }
 
-impl Generics {
-    pub fn count(&self) -> usize {
-        self.parent_count + self.params.len()
-    }
-
-    pub fn param_at(&self, param_index: usize, genv: GlobalEnv) -> QueryResult<GenericParamDef> {
-        if let Some(index) = param_index.checked_sub(self.parent_count) {
-            Ok(self.params[index].clone())
-        } else {
-            let parent = self.parent.expect("parent_count > 0 but no parent?");
-            genv.generics_of(parent)?.param_at(param_index, genv)
-        }
-    }
-}
-
 impl RefinementGenerics {
     pub fn count(&self) -> usize {
         self.parent_count + self.params.len()
@@ -1199,14 +1215,6 @@ impl RefinementGenerics {
 }
 
 impl Sort {
-    pub fn infer_mode(&self, kind: ParamKind) -> InferMode {
-        if self.is_pred() && !kind.is_implicit() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
-        }
-    }
-
     pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
         Sort::Tuple(sorts.into())
     }
@@ -1225,14 +1233,6 @@ impl Sort {
             sort
         } else {
             bug!("expected `Sort::Func`")
-        }
-    }
-
-    pub fn default_infer_mode(&self) -> InferMode {
-        if self.is_pred() {
-            InferMode::KVar
-        } else {
-            InferMode::EVar
         }
     }
 
@@ -1315,11 +1315,8 @@ impl<T> Binder<T> {
     pub fn with_sorts(value: T, sorts: &[Sort]) -> Binder<T> {
         let vars = sorts
             .iter()
-            .map(|s| {
-                let infer_mode = s.default_infer_mode();
-                let kind = BoundReftKind::Annon;
-                BoundVariableKind::Refine(s.clone(), infer_mode, kind)
-            })
+            .cloned()
+            .map(|sort| BoundVariableKind::Refine(sort, InferMode::EVar, BoundReftKind::Annon))
             .collect();
         Binder { vars, value }
     }

@@ -1,6 +1,7 @@
 use std::{env, ffi::OsString, fs, path::PathBuf};
 
 use anyhow::{anyhow, Result};
+use serde::Deserialize;
 
 #[cfg(target_os = "windows")]
 pub const LIB_PATH: &str = "PATH";
@@ -17,6 +18,16 @@ pub const FLUX_SYSROOT: &str = "FLUX_SYSROOT";
 /// The path of the flux sysroot lib containing precompiled libraries and the flux driver.
 pub fn sysroot_dir() -> PathBuf {
     env::var(FLUX_SYSROOT).map_or_else(|_| default_sysroot_dir(), PathBuf::from)
+}
+
+#[derive(Deserialize)]
+pub struct ToolchainToml {
+    toolchain: ToolchainSpec,
+}
+
+#[derive(Deserialize)]
+pub struct ToolchainSpec {
+    channel: String,
 }
 
 /// Return the default sysroot
@@ -40,14 +51,8 @@ pub fn get_flux_driver_path() -> Result<PathBuf> {
 
 pub fn get_rust_toolchain() -> Result<String> {
     let toolchain_str = include_str!("../../../rust-toolchain");
-    let toolchain_file = rust_toolchain_file::toml::Parser::new(toolchain_str).parse()?;
-    toolchain_file
-        .toolchain()
-        .spec()
-        .ok_or_else(|| anyhow!("No spec in rust-toolchain file"))?
-        .channel()
-        .ok_or_else(|| anyhow!("No channel in rust-toolchain file"))
-        .map(|channel| channel.name().to_string())
+    let toolchain_file: ToolchainToml = toml::from_str(toolchain_str)?;
+    Ok(toolchain_file.toolchain.channel)
 }
 
 /// Path from where to load the rustc-driver library from

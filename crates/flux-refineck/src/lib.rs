@@ -5,12 +5,10 @@
     box_patterns,
     extract_if,
     if_let_guard,
-    impl_trait_in_assoc_type,
     let_chains,
     min_specialization,
     never_type,
     rustc_private,
-    type_alias_impl_trait,
     unwrap_infallible
 )]
 

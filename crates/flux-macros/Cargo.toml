@@ -9,7 +9,7 @@ proc-macro = true
 
 [dependencies]
 annotate-snippets = "0.10"
-fluent-bundle = "0.15.2"
+fluent-bundle = "0.15.3"
 fluent-syntax = "0.11"
 itertools.workspace = true
 proc-macro2 = "1"
