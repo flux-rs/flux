@@ -236,10 +236,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let fn_sig = poly_sig.replace_bound_vars(
             |_| {
-                let re = body
-                    .infcx
-                    .next_nll_region_var(NllRegionVariableOrigin::FreeRegion);
-                rty::ReVar(re.as_var())
+                rty::ReVar(
+                    body.infcx
+                        .next_nll_region_var(NllRegionVariableOrigin::FreeRegion)
+                        .as_var(),
+                )
             },
             |sort, _| rcx.define_vars(sort),
         );

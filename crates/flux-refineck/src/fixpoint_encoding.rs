@@ -263,7 +263,7 @@ impl KVarEncodingCtxt {
 }
 
 /// Environment used to map between [`rty::Var`] and [`fixpoint::LocalVar`]. This only supports
-/// mapping of [`rty::Var::LateBound`] and [`rty::Var::Free`].
+/// mapping of [`rty::Var::Bound`] and [`rty::Var::Free`].
 struct Env {
     local_var_gen: IndexGen<fixpoint::LocalVar>,
     fvars: UnordMap<rty::Name, fixpoint::LocalVar>,

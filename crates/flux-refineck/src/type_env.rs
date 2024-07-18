@@ -94,7 +94,7 @@ impl TypeEnv<'_> {
 
     /// When checking a borrow in the right hand side of an assignment `x = &'?n p`, we use the
     /// annotated region `'?n` in the type of the result. This region will only be used temporarily
-    /// and then replaced by the region in the type of `x` after the assignment.
+    /// and then replaced by the region in the type of `x` after the assignment. See [`TypeEnv::assign`]
     pub(crate) fn borrow(
         &mut self,
         genv: GlobalEnv,
@@ -166,6 +166,15 @@ impl TypeEnv<'_> {
         Ok(())
     }
 
+    /// Updates the type of `place` to `new_ty`
+    ///
+    /// This process involves recovering the original regions (lifetimes) used in the (unrefined) Rust
+    /// type of `place` and then substituting these regions in `new_ty`.  For instance, if we are
+    /// assigning a value of type `S<&'?10 i32 {v: v > 0}>` to a variable `x`, and the (unrefined) Rust
+    /// type of `x` is `S<&'?5 i32>`, before the assignment we identify a substitution that maps the
+    /// region `'?10` to `'?5`. After applying this substitution, the type of the place `x` is updated
+    /// accordingly. This ensures that the lifetimes in the assigned type are consistent with those
+    /// expected by the place's original type definition.
     pub(crate) fn assign(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -489,6 +498,8 @@ impl BasicBlockEnvShape {
                 if !has_free_vars2 && !has_escaping_vars1 && !has_escaping_vars2 && e1 == e2 {
                     e1.clone()
                 } else if sort.is_pred() {
+                    // FIXME(nilehmann) we shouldn't special case predicates here. Instead, we
+                    // should differentiate between generics and indices.
                     let fsort = sort.expect_func().expect_mono();
                     Expr::abs(Lambda::with_sorts(
                         Expr::hole(HoleKind::Pred),

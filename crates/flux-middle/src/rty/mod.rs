@@ -734,6 +734,12 @@ impl Ty {
         TyKind::Hole(fhir_id).intern()
     }
 
+    /// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
+    /// to have a unique var identifying each position such that we can infer a [region substitution]
+    /// when assigning a type to a place. This way we can recover the regions in the original rust
+    /// type. See `flux_refineck::type_env::TypeEnv::assign`
+    ///
+    /// [region substitution]: subst::RegionSubst
     pub fn replace_regions_with_vars(&self) -> Ty {
         struct Replacer {
             next_rvid: u32,
@@ -904,10 +910,12 @@ pub enum TyKind {
     Ptr(PtrKind, Path),
     /// This is a bit of a hack. We use this type internally to represent the result of
     /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information
-    /// when checking [`TerminatorKind::SwitchInt`].
+    /// when checking a [`match`]. The hack is that we assume the dicriminant remains the same from
+    /// the creation of this type until we use it in a [`match`].
+    ///
     ///
     /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
-    /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
+    /// [`match`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
     Param(ParamTy),
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
