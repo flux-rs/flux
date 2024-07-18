@@ -172,6 +172,7 @@ impl TypeEnv<'_> {
         place: &Place,
         new_ty: Ty,
     ) -> Result {
+        let new_ty = new_ty.replace_regions_with_vars();
         let rustc_ty = place.ty(gen.genv, self.local_decls)?.ty;
         let new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
         let result = self.bindings.lookup_unfolding(gen.genv, rcx, place)?;

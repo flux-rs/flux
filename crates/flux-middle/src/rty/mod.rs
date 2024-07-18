@@ -22,6 +22,7 @@ pub use expr::{
     HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
 use flux_common::bug;
+use fold::TypeFolder;
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
@@ -733,6 +734,21 @@ impl Ty {
         TyKind::Hole(fhir_id).intern()
     }
 
+    pub fn replace_regions_with_vars(&self) -> Ty {
+        struct Replacer {
+            next_rvid: u32,
+        }
+        impl TypeFolder for Replacer {
+            fn fold_region(&mut self, _: &Region) -> Region {
+                let rvid = self.next_rvid;
+                self.next_rvid += 1;
+                Region::ReVar(RegionVid::from_u32(rvid))
+            }
+        }
+
+        self.fold_with(&mut Replacer { next_rvid: 0 })
+    }
+
     pub fn unconstr(&self) -> (Ty, Expr) {
         fn go(this: &Ty, preds: &mut Vec<Expr>) -> Ty {
             if let TyKind::Constr(pred, ty) = this.kind() {
@@ -834,6 +850,48 @@ impl Ty {
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct TyS {
     kind: TyKind,
+}
+
+impl TyS {
+    pub fn kind(&self) -> &TyKind {
+        &self.kind
+    }
+
+    #[track_caller]
+    pub fn expect_discr(&self) -> (&AdtDef, &Place) {
+        if let TyKind::Discr(adt_def, place) = self.kind() {
+            (adt_def, place)
+        } else {
+            bug!("expected discr")
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Expr) {
+        if let TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = self.kind() {
+            (adt_def, args, idx)
+        } else {
+            bug!("expected adt")
+        }
+    }
+
+    #[track_caller]
+    pub(crate) fn expect_tuple(&self) -> &[Ty] {
+        if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
+            tys
+        } else {
+            bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_base(&self) -> BaseTy {
+        match self.kind() {
+            TyKind::Indexed(base_ty, _) => base_ty.clone(),
+            TyKind::Exists(bty) => bty.clone().skip_binder().expect_base(),
+            _ => bug!("expected indexed type"),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
@@ -1692,48 +1750,6 @@ impl EarlyBinder<PolyVariant> {
 impl TyKind {
     fn intern(self) -> Ty {
         Interned::new(TyS { kind: self })
-    }
-}
-
-impl TyS {
-    pub fn kind(&self) -> &TyKind {
-        &self.kind
-    }
-
-    #[track_caller]
-    pub fn expect_discr(&self) -> (&AdtDef, &Place) {
-        if let TyKind::Discr(adt_def, place) = self.kind() {
-            (adt_def, place)
-        } else {
-            bug!("expected discr")
-        }
-    }
-
-    #[track_caller]
-    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Expr) {
-        if let TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = self.kind() {
-            (adt_def, args, idx)
-        } else {
-            bug!("expected adt")
-        }
-    }
-
-    #[track_caller]
-    pub(crate) fn expect_tuple(&self) -> &[Ty] {
-        if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
-            tys
-        } else {
-            bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
-        }
-    }
-
-    #[track_caller]
-    pub fn expect_base(&self) -> BaseTy {
-        match self.kind() {
-            TyKind::Indexed(base_ty, _) => base_ty.clone(),
-            TyKind::Exists(bty) => bty.clone().skip_binder().expect_base(),
-            _ => bug!("expected indexed type"),
-        }
     }
 }
 
