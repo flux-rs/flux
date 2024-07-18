@@ -236,10 +236,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let fn_sig = poly_sig.replace_bound_vars(
             |_| {
-                let re = body
-                    .infcx
-                    .next_nll_region_var(NllRegionVariableOrigin::FreeRegion);
-                rty::ReVar(re.as_var())
+                rty::ReVar(
+                    body.infcx
+                        .next_nll_region_var(NllRegionVariableOrigin::FreeRegion)
+                        .as_var(),
+                )
             },
             |sort, _| rcx.define_vars(sort),
         );
@@ -642,7 +643,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         for (bits, bb) in targets.iter() {
             successors.push((bb, Guard::Pred(mk(bits))));
         }
-        let otherwise = Expr::and_from_iter(targets.iter().map(|(bits, _)| mk(bits).not()));
+        let otherwise = Expr::and_iter(targets.iter().map(|(bits, _)| mk(bits).not()));
         successors.push((targets.otherwise(), Guard::Pred(otherwise)));
 
         successors

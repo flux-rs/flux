@@ -349,10 +349,10 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::Var(Var::Bound(debruijn, var)) = expr.kind()
+                if let ExprKind::Var(Var::Bound(debruijn, breft)) = expr.kind()
                     && *debruijn >= self.current_index
                 {
-                    Expr::bvar(debruijn.shifted_in(self.amount), var.index, var.kind)
+                    Expr::bvar(debruijn.shifted_in(self.amount), breft.var, breft.kind)
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -386,10 +386,10 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::Var(Var::Bound(debruijn, var)) = expr.kind()
+                if let ExprKind::Var(Var::Bound(debruijn, breft)) = expr.kind()
                     && debruijn >= &self.current_index
                 {
-                    Expr::bvar(debruijn.shifted_out(self.amount), var.index, var.kind)
+                    Expr::bvar(debruijn.shifted_out(self.amount), breft.var, breft.kind)
                 } else {
                     expr.super_fold_with(self)
                 }

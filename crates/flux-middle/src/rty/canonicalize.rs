@@ -11,9 +11,9 @@
 //! type constructors.
 //!
 //! Note that existentials inside some type constructors like shared references, tuples or boxes can
-//! be hoisted soundly, e.g., the type `(∃a. i32[a], ∃b. i32[b])` is equivalent to
-//! `∃a,b. (i32[a], i32[b]). We don't do this hoisting by default, but the [`Hoister`] struct can be
-//! configured to do so.
+//! be hoisted soundly, e.g., `(∃a. i32[a], ∃b. i32[b])` is equivalent to `∃a,b. (i32[a], i32[b])`
+//! and `&∃a. i32[a]` is equivalent to `∃a. &i32[a]`. We don't do this hoisting by default, but the
+//! [`Hoister`] struct can be configured to do so.
 //!
 //! It's also important to note that canonizalization doesn't imply any form of semantic equality
 //! and it is just a best effort to facilitate syntactic manipulation. For example, the types
@@ -23,7 +23,7 @@
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
 use rustc_ast::Mutability;
-use rustc_type_ir::INNERMOST;
+use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
     box_args,
@@ -75,7 +75,7 @@ impl TypeFolder for Hoister {
                     let idx = self.vars.len();
                     self.vars
                         .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
-                    Expr::bvar(INNERMOST, idx as u32, kind)
+                    Expr::bvar(INNERMOST, BoundVar::from_usize(idx), kind)
                 })
                 .fold_with(self)
             }
@@ -114,7 +114,7 @@ impl Ty {
         let mut hoister = Hoister::default();
         let ty = hoister.hoist(self);
         let (vars, preds) = hoister.into_parts();
-        let pred = Expr::and_from_iter(preds);
+        let pred = Expr::and_iter(preds);
         let constr_ty = CanonicalConstrTy { ty, pred };
         if vars.is_empty() {
             CanonicalTy::Constr(constr_ty)
@@ -146,7 +146,7 @@ impl CanonicalConstrTy {
 /// A (shallowly) canonicalized type. This can be either of the form `{T | p}` or `∃v0,…,vn. {T | p}`,
 /// where `T` doesnt have any (shallow) [existential] or [constraint] types.
 ///
-/// When canonizalizing a type without a [constraint] type, `p` will be [`Expr::tt()`].
+/// When canonicalizing a type without a [constraint] type, `p` will be [`Expr::tt()`].
 ///
 /// [existential]: TyKind::Exists
 /// [constraint]: TyKind::Constr
@@ -167,7 +167,7 @@ impl CanonicalTy {
                     let constr = SubsetTy::new(
                         bty.clone(),
                         Expr::nu(),
-                        Expr::and_from_iter([constr.pred.clone(), Expr::eq(Expr::nu(), idx)]),
+                        Expr::and(constr.pred.clone(), Expr::eq(Expr::nu(), idx)),
                     );
                     Some(Binder::with_sort(constr, sort))
                 } else {

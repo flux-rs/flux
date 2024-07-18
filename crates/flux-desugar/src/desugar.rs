@@ -63,12 +63,12 @@ pub(crate) fn desugar_spec_func<'genv>(
     Ok(fhir::SpecFunc { name, params, args, sort, body })
 }
 
-/// Collect all sorts resolved to a generic parameter in a [`surface::RefinedBy`]. Return the set
-/// of generic def ids used, sorted by their position in the list of generics.
-fn collect_generics_in_refined_by(
+/// Collect all sorts resolved to a generic type in a list of refinement parameters. Return the set
+/// of generic def_ids used (sorted by their position in the list of generics).
+fn collect_generics_in_params(
     generics: &rustc_middle::ty::Generics,
     resolver_output: &ResolverOutput,
-    refined_by: &surface::RefineParams,
+    params: &surface::RefineParams,
 ) -> FxIndexSet<DefId> {
     struct ParamCollector<'a> {
         resolver_output: &'a ResolverOutput,
@@ -86,7 +86,7 @@ fn collect_generics_in_refined_by(
         }
     }
     let mut vis = ParamCollector { resolver_output, found: FxHashSet::default() };
-    walk_list!(vis, visit_refine_param, refined_by);
+    walk_list!(vis, visit_refine_param, params);
     generics
         .own_params
         .iter()
@@ -293,7 +293,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> Result<fhir::RefinedBy<'genv>> {
         let generics = self.genv.tcx().generics_of(self.owner);
         let generic_id_to_var_idx =
-            collect_generics_in_refined_by(generics, self.resolver_output, refined_by);
+            collect_generics_in_params(generics, self.resolver_output, refined_by);
 
         let fields = refined_by
             .iter()

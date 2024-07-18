@@ -649,7 +649,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             let idx = rty::Expr::adt(
                 adt_def_id.to_def_id(),
                 (0..vars.len())
-                    .map(|idx| rty::Expr::bvar(INNERMOST, idx as u32, rty::BoundReftKind::Annon))
+                    .map(|idx| {
+                        rty::Expr::bvar(
+                            INNERMOST,
+                            BoundVar::from_usize(idx),
+                            rty::BoundReftKind::Annon,
+                        )
+                    })
                     .collect(),
             );
             let variant = rty::VariantSig::new(
@@ -1492,13 +1498,13 @@ impl LookupResult<'_> {
                     LayerKind::List { bound_regions } => {
                         rty::Expr::bvar(
                             *debruijn,
-                            bound_regions + *idx,
+                            BoundVar::from_u32(bound_regions + *idx),
                             rty::BoundReftKind::Named(*name),
                         )
                     }
                     LayerKind::Coalesce(def_id) => {
                         rty::Expr::field_proj(
-                            rty::Expr::bvar(*debruijn, 0, rty::BoundReftKind::Annon),
+                            rty::Expr::bvar(*debruijn, BoundVar::ZERO, rty::BoundReftKind::Annon),
                             rty::FieldProj::Adt { def_id, field: *idx },
                             None,
                         )
