@@ -75,9 +75,9 @@ impl Subst for Const {
 impl Subst for Region {
     fn subst(&self, args: &[GenericArg]) -> Self {
         match self {
-            Region::ReEarlyBound(ebr) => args[ebr.index as usize].expect_lifetime(),
-            Region::ReFree(..)
-            | Region::ReLateBound(_, _)
+            Region::ReEarlyParam(ebr) => args[ebr.index as usize].expect_lifetime(),
+            Region::ReLateParam(..)
+            | Region::ReBound(_, _)
             | Region::ReStatic
             | Region::ReVar(_) => *self,
         }

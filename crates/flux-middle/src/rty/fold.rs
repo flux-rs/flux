@@ -17,7 +17,7 @@ use super::{
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Const,
     CoroutineObligPredicate, Ensures, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
-    ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, SubsetTy, TraitPredicate,
+    ProjectionPredicate, PtrKind, Qualifier, ReBound, Region, Sort, SubsetTy, TraitPredicate,
     TraitRef, Ty, TyKind,
 };
 use crate::{
@@ -339,10 +339,10 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
-                if let ReLateBound(debruijn, br) = *re
+                if let ReBound(debruijn, br) = *re
                     && debruijn >= self.current_index
                 {
-                    ReLateBound(debruijn.shifted_in(self.amount), br)
+                    ReBound(debruijn.shifted_in(self.amount), br)
                 } else {
                     *re
                 }
@@ -376,10 +376,10 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
-                if let ReLateBound(debruijn, br) = *re
+                if let ReBound(debruijn, br) = *re
                     && debruijn >= self.current_index
                 {
-                    ReLateBound(debruijn.shifted_out(self.amount), br)
+                    ReBound(debruijn.shifted_out(self.amount), br)
                 } else {
                     *re
                 }

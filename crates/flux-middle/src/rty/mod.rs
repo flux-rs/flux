@@ -47,7 +47,7 @@ pub use crate::{
     fhir::InferMode,
     rustc::ty::{
         AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, EarlyParamRegion,
-        FreeRegion, OutlivesPredicate,
+        LateParamRegion, OutlivesPredicate,
         Region::{self, *},
         RegionVid,
     },
@@ -1112,7 +1112,7 @@ impl GenericArg {
             }
             GenericParamDefKind::Lifetime => {
                 let region = EarlyParamRegion { index: param.index, name: param.name };
-                GenericArg::Lifetime(Region::ReEarlyBound(region))
+                GenericArg::Lifetime(Region::ReEarlyParam(region))
             }
             GenericParamDefKind::Const { .. } => {
                 let param_const = ParamConst { index: param.index, name: param.name };
@@ -1210,7 +1210,7 @@ impl FnTraitPredicate {
                     var: BoundVar::from_usize(vars.len() - 1),
                     kind: BoundRegionKind::BrEnv,
                 };
-                Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Not)
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
             }
             ClosureKind::FnMut => {
                 vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
@@ -1218,7 +1218,7 @@ impl FnTraitPredicate {
                     var: BoundVar::from_usize(vars.len() - 1),
                     kind: BoundRegionKind::BrEnv,
                 };
-                Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Mut)
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
             }
             ClosureKind::FnOnce => closure_ty,
         };
