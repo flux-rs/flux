@@ -17,7 +17,7 @@ use super::{
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Const,
     CoroutineObligPredicate, Ensures, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
-    ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, SubsetTy, TraitPredicate,
+    ProjectionPredicate, PtrKind, Qualifier, ReBound, Region, Sort, SubsetTy, TraitPredicate,
     TraitRef, Ty, TyKind,
 };
 use crate::{
@@ -339,20 +339,20 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
-                if let ReLateBound(debruijn, br) = *re
+                if let ReBound(debruijn, br) = *re
                     && debruijn >= self.current_index
                 {
-                    ReLateBound(debruijn.shifted_in(self.amount), br)
+                    ReBound(debruijn.shifted_in(self.amount), br)
                 } else {
                     *re
                 }
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::Var(Var::Bound(debruijn, var)) = expr.kind()
+                if let ExprKind::Var(Var::Bound(debruijn, breft)) = expr.kind()
                     && *debruijn >= self.current_index
                 {
-                    Expr::bvar(debruijn.shifted_in(self.amount), var.index, var.kind)
+                    Expr::bvar(debruijn.shifted_in(self.amount), breft.var, breft.kind)
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -376,20 +376,20 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
-                if let ReLateBound(debruijn, br) = *re
+                if let ReBound(debruijn, br) = *re
                     && debruijn >= self.current_index
                 {
-                    ReLateBound(debruijn.shifted_out(self.amount), br)
+                    ReBound(debruijn.shifted_out(self.amount), br)
                 } else {
                     *re
                 }
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::Var(Var::Bound(debruijn, var)) = expr.kind()
+                if let ExprKind::Var(Var::Bound(debruijn, breft)) = expr.kind()
                     && debruijn >= &self.current_index
                 {
-                    Expr::bvar(debruijn.shifted_out(self.amount), var.index, var.kind)
+                    Expr::bvar(debruijn.shifted_out(self.amount), breft.var, breft.kind)
                 } else {
                     expr.super_fold_with(self)
                 }

@@ -32,7 +32,7 @@ use rustc_data_structures::{
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_span::Span;
-use rustc_type_ir::DebruijnIndex;
+use rustc_type_ir::{BoundVar, DebruijnIndex};
 
 use crate::{refine_tree::Scope, CheckerConfig};
 
@@ -263,7 +263,7 @@ impl KVarEncodingCtxt {
 }
 
 /// Environment used to map between [`rty::Var`] and [`fixpoint::LocalVar`]. This only supports
-/// mapping of [`rty::Var::LateBound`] and [`rty::Var::Free`].
+/// mapping of [`rty::Var::Bound`] and [`rty::Var::Free`].
 struct Env {
     local_var_gen: IndexGen<fixpoint::LocalVar>,
     fvars: UnordMap<rty::Name, fixpoint::LocalVar>,
@@ -309,10 +309,10 @@ impl Env {
                     .unwrap_or_else(|| span_bug!(dbg_span, "no entry found for name: `{name:?}`"))
                     .into()
             }
-            rty::Var::Bound(debruijn, var) => {
-                self.get_late_bvar(*debruijn, var.index)
+            rty::Var::Bound(debruijn, breft) => {
+                self.get_late_bvar(*debruijn, breft.var)
                     .unwrap_or_else(|| {
-                        span_bug!(dbg_span, "no entry found for late bound var: `{var:?}`")
+                        span_bug!(dbg_span, "no entry found for late bound var: `{breft:?}`")
                     })
                     .into()
             }
@@ -327,9 +327,9 @@ impl Env {
         self.fvars.get(&name).copied()
     }
 
-    fn get_late_bvar(&self, debruijn: DebruijnIndex, idx: u32) -> Option<fixpoint::LocalVar> {
+    fn get_late_bvar(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<fixpoint::LocalVar> {
         let depth = self.layers.len().checked_sub(debruijn.as_usize() + 1)?;
-        self.layers[depth].get(idx as usize).copied()
+        self.layers[depth].get(var.as_usize()).copied()
     }
 }
 
@@ -767,9 +767,11 @@ impl KVarStore {
         let args = itertools::chain(
             binders.iter().rev().enumerate().flat_map(|(level, sorts)| {
                 let debruijn = DebruijnIndex::from_usize(level);
-                sorts.iter().cloned().enumerate().map(move |(index, sort)| {
-                    let var =
-                        rty::BoundReft { index: index as u32, kind: rty::BoundReftKind::Annon };
+                sorts.iter().cloned().enumerate().map(move |(idx, sort)| {
+                    let var = rty::BoundReft {
+                        var: BoundVar::from_usize(idx),
+                        kind: rty::BoundReftKind::Annon,
+                    };
                     (rty::Var::Bound(debruijn, var), sort)
                 })
             }),

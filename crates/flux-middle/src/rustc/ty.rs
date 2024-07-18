@@ -289,26 +289,23 @@ pub struct CoroutineArgsParts<'a> {
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Region {
-    ReLateBound(DebruijnIndex, BoundRegion),
-    ReEarlyBound(EarlyParamRegion),
+    ReBound(DebruijnIndex, BoundRegion),
+    ReEarlyParam(EarlyParamRegion),
     ReStatic,
     ReVar(RegionVid),
-    ReFree(FreeRegion),
+    ReLateParam(LateParamRegion),
 }
 
 impl Region {
     pub fn to_rustc(self, tcx: TyCtxt) -> rustc_middle::ty::Region {
         match self {
-            Region::ReLateBound(debruijn, bound_region) => {
+            Region::ReBound(debruijn, bound_region) => {
                 rustc_middle::ty::Region::new_bound(tcx, debruijn, bound_region.to_rustc())
             }
-            Region::ReEarlyBound(epr) => rustc_middle::ty::Region::new_early_param(tcx, epr),
+            Region::ReEarlyParam(epr) => rustc_middle::ty::Region::new_early_param(tcx, epr),
             Region::ReStatic => tcx.lifetimes.re_static,
-            Region::ReVar(_rvid) => {
-                tcx.lifetimes.re_static
-                // rustc_middle::ty::Region::new_var(tcx, rvid)
-            }
-            Region::ReFree(FreeRegion { scope, bound_region }) => {
+            Region::ReVar(rvid) => rustc_middle::ty::Region::new_var(tcx, rvid),
+            Region::ReLateParam(LateParamRegion { scope, bound_region }) => {
                 rustc_middle::ty::Region::new_late_param(tcx, scope, bound_region)
             }
         }
@@ -316,7 +313,7 @@ impl Region {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct FreeRegion {
+pub struct LateParamRegion {
     pub scope: DefId,
     pub bound_region: BoundRegionKind,
 }
@@ -845,7 +842,7 @@ impl fmt::Debug for Ty {
 
 pub(crate) fn region_to_string(region: Region) -> String {
     match region {
-        Region::ReLateBound(_, region) => {
+        Region::ReBound(_, region) => {
             match region.kind {
                 BoundRegionKind::BrAnon => "'<annon>".to_string(),
                 BoundRegionKind::BrNamed(_, sym) => {
@@ -858,9 +855,9 @@ pub(crate) fn region_to_string(region: Region) -> String {
                 BoundRegionKind::BrEnv => "'<env>".to_string(),
             }
         }
-        Region::ReEarlyBound(region) => region.name.to_string(),
+        Region::ReEarlyParam(region) => region.name.to_string(),
         Region::ReStatic => "'static".to_string(),
         Region::ReVar(rvid) => format!("{rvid:?}"),
-        Region::ReFree(..) => "'<free>".to_string(),
+        Region::ReLateParam(..) => "'<free>".to_string(),
     }
 }

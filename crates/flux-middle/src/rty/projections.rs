@@ -350,7 +350,7 @@ impl TVarSubst {
     }
 
     fn regions(&mut self, a: Region, b: Region) {
-        if let Region::ReEarlyBound(ebr) = a {
+        if let Region::ReEarlyParam(ebr) = a {
             self.insert_generic_arg(ebr.index, GenericArg::Lifetime(b));
         }
     }

@@ -22,6 +22,7 @@ pub use expr::{
     HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
 use flux_common::bug;
+use fold::TypeFolder;
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
@@ -46,7 +47,7 @@ pub use crate::{
     fhir::InferMode,
     rustc::ty::{
         AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, EarlyParamRegion,
-        FreeRegion, OutlivesPredicate,
+        LateParamRegion, OutlivesPredicate,
         Region::{self, *},
         RegionVid,
     },
@@ -733,6 +734,27 @@ impl Ty {
         TyKind::Hole(fhir_id).intern()
     }
 
+    /// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
+    /// to have a unique var identifying each position such that we can infer a [region substitution]
+    /// when assigning a type to a place. This way we can recover the regions in the original rust
+    /// type. See `flux_refineck::type_env::TypeEnv::assign`
+    ///
+    /// [region substitution]: subst::RegionSubst
+    pub fn replace_regions_with_vars(&self) -> Ty {
+        struct Replacer {
+            next_rvid: u32,
+        }
+        impl TypeFolder for Replacer {
+            fn fold_region(&mut self, _: &Region) -> Region {
+                let rvid = self.next_rvid;
+                self.next_rvid += 1;
+                Region::ReVar(RegionVid::from_u32(rvid))
+            }
+        }
+
+        self.fold_with(&mut Replacer { next_rvid: 0 })
+    }
+
     pub fn unconstr(&self) -> (Ty, Expr) {
         fn go(this: &Ty, preds: &mut Vec<Expr>) -> Ty {
             if let TyKind::Constr(pred, ty) = this.kind() {
@@ -743,7 +765,7 @@ impl Ty {
             }
         }
         let mut preds = vec![];
-        (go(self, &mut preds), Expr::and_from_iter(preds))
+        (go(self, &mut preds), Expr::and_iter(preds))
     }
 
     pub fn unblocked(&self) -> Ty {
@@ -836,6 +858,48 @@ pub struct TyS {
     kind: TyKind,
 }
 
+impl TyS {
+    pub fn kind(&self) -> &TyKind {
+        &self.kind
+    }
+
+    #[track_caller]
+    pub fn expect_discr(&self) -> (&AdtDef, &Place) {
+        if let TyKind::Discr(adt_def, place) = self.kind() {
+            (adt_def, place)
+        } else {
+            bug!("expected discr")
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Expr) {
+        if let TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = self.kind() {
+            (adt_def, args, idx)
+        } else {
+            bug!("expected adt")
+        }
+    }
+
+    #[track_caller]
+    pub(crate) fn expect_tuple(&self) -> &[Ty] {
+        if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
+            tys
+        } else {
+            bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_base(&self) -> BaseTy {
+        match self.kind() {
+            TyKind::Indexed(base_ty, _) => base_ty.clone(),
+            TyKind::Exists(bty) => bty.clone().skip_binder().expect_base(),
+            _ => bug!("expected indexed type"),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum TyKind {
     Indexed(BaseTy, Expr),
@@ -846,10 +910,12 @@ pub enum TyKind {
     Ptr(PtrKind, Path),
     /// This is a bit of a hack. We use this type internally to represent the result of
     /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information
-    /// when checking [`TerminatorKind::SwitchInt`].
+    /// when checking a [`match`]. The hack is that we assume the dicriminant remains the same from
+    /// the creation of this type until we use it in a [`match`].
+    ///
     ///
     /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
-    /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
+    /// [`match`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
     Param(ParamTy),
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
@@ -988,7 +1054,7 @@ impl SubsetTy {
 
     pub fn strengthen(&self, pred: impl Into<Expr>) -> Self {
         let this = self.clone();
-        Self { bty: this.bty, idx: this.idx, pred: Expr::and_from_iter([this.pred, pred.into()]) }
+        Self { bty: this.bty, idx: this.idx, pred: Expr::and(this.pred, pred.into()) }
     }
 
     fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
@@ -1046,7 +1112,7 @@ impl GenericArg {
             }
             GenericParamDefKind::Lifetime => {
                 let region = EarlyParamRegion { index: param.index, name: param.name };
-                GenericArg::Lifetime(Region::ReEarlyBound(region))
+                GenericArg::Lifetime(Region::ReEarlyParam(region))
             }
             GenericParamDefKind::Const { .. } => {
                 let param_const = ParamConst { index: param.index, name: param.name };
@@ -1144,7 +1210,7 @@ impl FnTraitPredicate {
                     var: BoundVar::from_usize(vars.len() - 1),
                     kind: BoundRegionKind::BrEnv,
                 };
-                Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Not)
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
             }
             ClosureKind::FnMut => {
                 vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
@@ -1152,7 +1218,7 @@ impl FnTraitPredicate {
                     var: BoundVar::from_usize(vars.len() - 1),
                     kind: BoundRegionKind::BrEnv,
                 };
-                Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Mut)
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
             }
             ClosureKind::FnOnce => closure_ty,
         };
@@ -1404,21 +1470,26 @@ where
 {
     pub fn replace_bound_vars(
         &self,
-        replace_region: impl FnMut(BoundRegion) -> Region,
+        mut replace_region: impl FnMut(BoundRegion) -> Region,
         mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
     ) -> T {
         let mut exprs = UnordMap::default();
+        let mut regions = UnordMap::default();
         let delegate = FnMutDelegate::new(
-            |var| {
+            |breft| {
                 exprs
-                    .entry(var.index)
+                    .entry(breft.var)
                     .or_insert_with(|| {
-                        let (sort, mode, _) = self.vars[var.index as usize].expect_refine();
+                        let (sort, mode, _) = self.vars[breft.var.as_usize()].expect_refine();
                         replace_expr(sort, mode)
                     })
                     .clone()
             },
-            replace_region,
+            |bre| {
+                *regions
+                    .entry(bre.var)
+                    .or_insert_with(|| replace_region(bre))
+            },
         );
 
         self.value
@@ -1428,7 +1499,7 @@ where
 
     pub fn replace_bound_refts(&self, exprs: &[Expr]) -> T {
         let delegate = FnMutDelegate::new(
-            |var| exprs[var.index as usize].clone(),
+            |breft| exprs[breft.var.as_usize()].clone(),
             |_| bug!("unexpected escaping region"),
         );
         self.value
@@ -1692,48 +1763,6 @@ impl EarlyBinder<PolyVariant> {
 impl TyKind {
     fn intern(self) -> Ty {
         Interned::new(TyS { kind: self })
-    }
-}
-
-impl TyS {
-    pub fn kind(&self) -> &TyKind {
-        &self.kind
-    }
-
-    #[track_caller]
-    pub fn expect_discr(&self) -> (&AdtDef, &Place) {
-        if let TyKind::Discr(adt_def, place) = self.kind() {
-            (adt_def, place)
-        } else {
-            bug!("expected discr")
-        }
-    }
-
-    #[track_caller]
-    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Expr) {
-        if let TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = self.kind() {
-            (adt_def, args, idx)
-        } else {
-            bug!("expected adt")
-        }
-    }
-
-    #[track_caller]
-    pub(crate) fn expect_tuple(&self) -> &[Ty] {
-        if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
-            tys
-        } else {
-            bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
-        }
-    }
-
-    #[track_caller]
-    pub fn expect_base(&self) -> BaseTy {
-        match self.kind() {
-            TyKind::Indexed(base_ty, _) => base_ty.clone(),
-            TyKind::Exists(bty) => bty.clone().skip_binder().expect_base(),
-            _ => bug!("expected indexed type"),
-        }
     }
 }
 
