@@ -179,15 +179,15 @@ where
     }
 
     fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::Var(Var::Bound(debruijn, var)) = e.kind() {
+        if let ExprKind::Var(Var::Bound(debruijn, breft)) = e.kind() {
             match debruijn.cmp(&self.current_index) {
-                Ordering::Less => Expr::bvar(*debruijn, var.index, var.kind),
+                Ordering::Less => Expr::bvar(*debruijn, breft.var, breft.kind),
                 Ordering::Equal => {
                     self.delegate
-                        .replace_expr(*var)
+                        .replace_expr(*breft)
                         .shift_in_escaping(self.current_index.as_u32())
                 }
-                Ordering::Greater => Expr::bvar(debruijn.shifted_out(1), var.index, var.kind),
+                Ordering::Greater => Expr::bvar(debruijn.shifted_out(1), breft.var, breft.kind),
             }
         } else {
             e.super_fold_with(self)

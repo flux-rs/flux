@@ -1468,16 +1468,20 @@ where
         let mut exprs = UnordMap::default();
         let mut regions = UnordMap::default();
         let delegate = FnMutDelegate::new(
-            |var| {
+            |breft| {
                 exprs
-                    .entry(var.index)
+                    .entry(breft.var)
                     .or_insert_with(|| {
-                        let (sort, mode, _) = self.vars[var.index as usize].expect_refine();
+                        let (sort, mode, _) = self.vars[breft.var.as_usize()].expect_refine();
                         replace_expr(sort, mode)
                     })
                     .clone()
             },
-            |br| *regions.entry(br.var).or_insert_with(|| replace_region(br)),
+            |bre| {
+                *regions
+                    .entry(bre.var)
+                    .or_insert_with(|| replace_region(bre))
+            },
         );
 
         self.value
@@ -1487,7 +1491,7 @@ where
 
     pub fn replace_bound_refts(&self, exprs: &[Expr]) -> T {
         let delegate = FnMutDelegate::new(
-            |var| exprs[var.index as usize].clone(),
+            |breft| exprs[breft.var.as_usize()].clone(),
             |_| bug!("unexpected escaping region"),
         );
         self.value

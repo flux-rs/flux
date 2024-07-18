@@ -23,7 +23,7 @@
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
 use rustc_ast::Mutability;
-use rustc_type_ir::INNERMOST;
+use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
     box_args,
@@ -75,7 +75,7 @@ impl TypeFolder for Hoister {
                     let idx = self.vars.len();
                     self.vars
                         .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
-                    Expr::bvar(INNERMOST, idx as u32, kind)
+                    Expr::bvar(INNERMOST, BoundVar::from_usize(idx), kind)
                 })
                 .fold_with(self)
             }

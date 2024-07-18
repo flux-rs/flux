@@ -18,6 +18,7 @@ use flux_middle::{
 };
 use itertools::{izip, Itertools};
 use rustc_middle::ty::TyCtxt;
+use rustc_type_ir::BoundVar;
 
 use self::place_ty::{LocKind, PlacesTree};
 use super::rty::Sort;
@@ -496,7 +497,11 @@ impl BasicBlockEnvShape {
                     ))
                 } else {
                     bound_sorts.push(sort.clone());
-                    Expr::bvar(INNERMOST, (bound_sorts.len() - 1) as u32, BoundReftKind::Annon)
+                    Expr::bvar(
+                        INNERMOST,
+                        BoundVar::from_usize(bound_sorts.len() - 1),
+                        BoundReftKind::Annon,
+                    )
                 }
             }
         }
