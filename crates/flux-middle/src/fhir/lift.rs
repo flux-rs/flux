@@ -169,7 +169,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     ) -> Result<fhir::WhereBoundPredicate<'genv>> {
         if let hir::WherePredicate::BoundPredicate(bound) = pred {
             if !bound.bound_generic_params.is_empty() {
-                return self.emit_unsupported("higher-rank trait bounds are not supported");
+                return self.emit_unsupported("higher-rank trait bounds are not supported (1)");
             }
             let bounded_ty = self.lift_ty(bound.bounded_ty)?;
             let bounds =

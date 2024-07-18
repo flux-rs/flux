@@ -869,13 +869,10 @@ pub(crate) fn lower_item_bounds<'tcx>(
         .try_collect()
 }
 
-fn lower_clause<'tcx>(
+fn lower_clause_kind<'tcx>(
     tcx: TyCtxt<'tcx>,
-    clause: &rustc_ty::Clause<'tcx>,
-) -> Result<Clause, UnsupportedReason> {
-    let Some(kind) = clause.kind().no_bound_vars() else {
-        return Err(UnsupportedReason::new("higher-rank trait bounds are not supported"));
-    };
+    kind: &rustc_ty::ClauseKind<'tcx>,
+) -> Result<ClauseKind, UnsupportedReason> {
     let kind = match kind {
         rustc_ty::ClauseKind::Trait(trait_pred) => {
             ClauseKind::Trait(TraitPredicate {
@@ -896,15 +893,23 @@ fn lower_clause<'tcx>(
             ClauseKind::Projection(ProjectionPredicate { projection_ty, term })
         }
         rustc_ty::ClauseKind::TypeOutlives(outlives_pred) => {
-            ClauseKind::TypeOutlives(lower_type_outlives(tcx, outlives_pred)?)
+            ClauseKind::TypeOutlives(lower_type_outlives(tcx, *outlives_pred)?)
         }
         rustc_ty::ClauseKind::ConstArgHasType(const_, ty) => {
-            ClauseKind::ConstArgHasType(lower_const(tcx, const_)?, lower_ty(tcx, ty)?)
+            ClauseKind::ConstArgHasType(lower_const(tcx, *const_)?, lower_ty(tcx, *ty)?)
         }
         _ => {
             return Err(UnsupportedReason::new(format!("unsupported clause kind `{kind:?}`")));
         }
     };
+    Ok(kind)
+}
+
+fn lower_clause<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    clause: &rustc_ty::Clause<'tcx>,
+) -> Result<Clause, UnsupportedReason> {
+    let kind = lower_binder(clause.kind(), |kind| lower_clause_kind(tcx, &kind))?;
     Ok(Clause::new(kind))
 }
 

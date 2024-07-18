@@ -72,7 +72,7 @@ pub struct GenericPredicates {
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct Clause {
-    pub kind: ClauseKind,
+    pub kind: Binder<ClauseKind>,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]
@@ -304,7 +304,10 @@ impl Region {
             }
             Region::ReEarlyBound(epr) => rustc_middle::ty::Region::new_early_param(tcx, epr),
             Region::ReStatic => tcx.lifetimes.re_static,
-            Region::ReVar(rvid) => rustc_middle::ty::Region::new_var(tcx, rvid),
+            Region::ReVar(_rvid) => {
+                tcx.lifetimes.re_static
+                // rustc_middle::ty::Region::new_var(tcx, rvid)
+            }
             Region::ReFree(FreeRegion { scope, bound_region }) => {
                 rustc_middle::ty::Region::new_late_param(tcx, scope, bound_region)
             }
@@ -341,7 +344,7 @@ impl Generics<'_> {
 }
 
 impl Clause {
-    pub(crate) fn new(kind: ClauseKind) -> Clause {
+    pub(crate) fn new(kind: Binder<ClauseKind>) -> Clause {
         Clause { kind }
     }
 }
