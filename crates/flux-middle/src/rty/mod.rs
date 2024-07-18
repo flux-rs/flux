@@ -1462,10 +1462,11 @@ where
 {
     pub fn replace_bound_vars(
         &self,
-        replace_region: impl FnMut(BoundRegion) -> Region,
+        mut replace_region: impl FnMut(BoundRegion) -> Region,
         mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
     ) -> T {
         let mut exprs = UnordMap::default();
+        let mut regions = UnordMap::default();
         let delegate = FnMutDelegate::new(
             |var| {
                 exprs
@@ -1476,7 +1477,7 @@ where
                     })
                     .clone()
             },
-            replace_region,
+            |br| *regions.entry(br.var).or_insert_with(|| replace_region(br)),
         );
 
         self.value
