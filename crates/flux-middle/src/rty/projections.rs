@@ -193,12 +193,11 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
     ) -> QueryResult {
-        let obligation = obligation.to_rustc(self.tcx()).trait_ref(self.tcx());
         let trait_pred = Obligation::new(
             self.tcx(),
             ObligationCause::dummy(),
             self.rustc_param_env(),
-            obligation,
+            obligation.to_rustc(self.tcx()).trait_ref(self.tcx()),
         );
         match self.selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => {
