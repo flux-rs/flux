@@ -1152,23 +1152,23 @@
 
 <span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>Region {
-    ReLateBound(DebruijnIndex, BoundRegion),
-    ReEarlyBound(EarlyParamRegion),
+    ReBound(DebruijnIndex, BoundRegion),
+    ReEarlyParam(EarlyParamRegion),
     ReStatic,
     ReVar(RegionVid),
-    ReFree(FreeRegion),
+    ReLateParam(LateParamRegion),
 }
 
 <span class="kw">impl </span>Region {
     <span class="kw">pub fn </span>to_rustc(<span class="self">self</span>, tcx: TyCtxt) -&gt; rustc_middle::ty::Region {
         <span class="kw">match </span><span class="self">self </span>{
-            Region::ReLateBound(debruijn, bound_region) =&gt; {
+            Region::ReBound(debruijn, bound_region) =&gt; {
                 rustc_middle::ty::Region::new_bound(tcx, debruijn, bound_region.to_rustc())
             }
-            Region::ReEarlyBound(epr) =&gt; rustc_middle::ty::Region::new_early_param(tcx, epr),
+            Region::ReEarlyParam(epr) =&gt; rustc_middle::ty::Region::new_early_param(tcx, epr),
             Region::ReStatic =&gt; tcx.lifetimes.re_static,
             Region::ReVar(rvid) =&gt; rustc_middle::ty::Region::new_var(tcx, rvid),
-            Region::ReFree(FreeRegion { scope, bound_region }) =&gt; {
+            Region::ReLateParam(LateParamRegion { scope, bound_region }) =&gt; {
                 rustc_middle::ty::Region::new_late_param(tcx, scope, bound_region)
             }
         }
@@ -1176,7 +1176,7 @@
 }
 
 <span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-</span><span class="kw">pub struct </span>FreeRegion {
+</span><span class="kw">pub struct </span>LateParamRegion {
     <span class="kw">pub </span>scope: DefId,
     <span class="kw">pub </span>bound_region: BoundRegionKind,
 }
@@ -1705,7 +1705,7 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>region_to_string(region: Region) -&gt; String {
     <span class="kw">match </span>region {
-        Region::ReLateBound(<span class="kw">_</span>, region) =&gt; {
+        Region::ReBound(<span class="kw">_</span>, region) =&gt; {
             <span class="kw">match </span>region.kind {
                 BoundRegionKind::BrAnon =&gt; <span class="string">"'&lt;annon&gt;"</span>.to_string(),
                 BoundRegionKind::BrNamed(<span class="kw">_</span>, sym) =&gt; {
@@ -1718,10 +1718,10 @@
                 BoundRegionKind::BrEnv =&gt; <span class="string">"'&lt;env&gt;"</span>.to_string(),
             }
         }
-        Region::ReEarlyBound(region) =&gt; region.name.to_string(),
+        Region::ReEarlyParam(region) =&gt; region.name.to_string(),
         Region::ReStatic =&gt; <span class="string">"'static"</span>.to_string(),
         Region::ReVar(rvid) =&gt; <span class="macro">format!</span>(<span class="string">"{rvid:?}"</span>),
-        Region::ReFree(..) =&gt; <span class="string">"'&lt;free&gt;"</span>.to_string(),
+        Region::ReLateParam(..) =&gt; <span class="string">"'&lt;free&gt;"</span>.to_string(),
     }
 }
 </code></pre></div></section></main></body></html>

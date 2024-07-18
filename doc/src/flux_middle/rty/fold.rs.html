@@ -1359,7 +1359,7 @@
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Const,
     CoroutineObligPredicate, Ensures, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
-    ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, SubsetTy, TraitPredicate,
+    ProjectionPredicate, PtrKind, Qualifier, ReBound, Region, Sort, SubsetTy, TraitPredicate,
     TraitRef, Ty, TyKind,
 };
 <span class="kw">use crate</span>::{
@@ -1681,10 +1681,10 @@
             }
 
             <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>Region) -&gt; Region {
-                <span class="kw">if let </span>ReLateBound(debruijn, br) = <span class="kw-2">*</span>re
+                <span class="kw">if let </span>ReBound(debruijn, br) = <span class="kw-2">*</span>re
                     &amp;&amp; debruijn &gt;= <span class="self">self</span>.current_index
                 {
-                    ReLateBound(debruijn.shifted_in(<span class="self">self</span>.amount), br)
+                    ReBound(debruijn.shifted_in(<span class="self">self</span>.amount), br)
                 } <span class="kw">else </span>{
                     <span class="kw-2">*</span>re
                 }
@@ -1718,10 +1718,10 @@
             }
 
             <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>Region) -&gt; Region {
-                <span class="kw">if let </span>ReLateBound(debruijn, br) = <span class="kw-2">*</span>re
+                <span class="kw">if let </span>ReBound(debruijn, br) = <span class="kw-2">*</span>re
                     &amp;&amp; debruijn &gt;= <span class="self">self</span>.current_index
                 {
-                    ReLateBound(debruijn.shifted_out(<span class="self">self</span>.amount), br)
+                    ReBound(debruijn.shifted_out(<span class="self">self</span>.amount), br)
                 } <span class="kw">else </span>{
                     <span class="kw-2">*</span>re
                 }

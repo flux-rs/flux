@@ -728,23 +728,23 @@
     }
 
     <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>Region) -&gt; Region {
-        <span class="kw">if let </span>ReLateBound(debruijn, br) = <span class="kw-2">*</span>re {
+        <span class="kw">if let </span>ReBound(debruijn, br) = <span class="kw-2">*</span>re {
             <span class="kw">match </span>debruijn.cmp(<span class="kw-2">&amp;</span><span class="self">self</span>.current_index) {
                 Ordering::Less =&gt; <span class="kw-2">*</span>re,
                 Ordering::Equal =&gt; {
                     <span class="kw">let </span>region = <span class="self">self</span>.delegate.replace_region(br);
-                    <span class="kw">if let </span>ReLateBound(debruijn1, br) = region {
+                    <span class="kw">if let </span>ReBound(debruijn1, br) = region {
                         <span class="comment">// If the callback returns a late-bound region,
                         // that region should always use the INNERMOST
                         // debruijn index. Then we adjust it to the
                         // correct depth.
                         </span><span class="macro">assert_eq!</span>(debruijn1, INNERMOST);
-                        Region::ReLateBound(debruijn, br)
+                        Region::ReBound(debruijn, br)
                     } <span class="kw">else </span>{
                         region
                     }
                 }
-                Ordering::Greater =&gt; ReLateBound(debruijn.shifted_out(<span class="number">1</span>), br),
+                Ordering::Greater =&gt; ReBound(debruijn.shifted_out(<span class="number">1</span>), br),
             }
         } <span class="kw">else </span>{
             <span class="kw-2">*</span>re
@@ -822,7 +822,7 @@
     }
 
     <span class="kw">fn </span>region_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ebr: EarlyParamRegion) -&gt; Region {
-        ReEarlyBound(ebr)
+        ReEarlyParam(ebr)
     }
 
     <span class="kw">fn </span>const_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>Const) -&gt; Const {
@@ -1017,7 +1017,7 @@
     }
 
     <span class="kw">fn </span>try_fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>Region) -&gt; <span class="prelude-ty">Result</span>&lt;Region, D::Error&gt; {
-        <span class="kw">if let </span>ReEarlyBound(ebr) = <span class="kw-2">*</span>re {
+        <span class="kw">if let </span>ReEarlyParam(ebr) = <span class="kw-2">*</span>re {
             <span class="prelude-val">Ok</span>(<span class="self">self</span>.delegate.region_for_param(ebr))
         } <span class="kw">else </span>{
             <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>re)

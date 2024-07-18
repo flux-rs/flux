@@ -2729,7 +2729,7 @@
             ResolvedArg::EarlyBound(def_id) =&gt; {
                 <span class="kw">let </span>index = <span class="self">self</span>.genv.def_id_to_param_index(def_id.expect_local());
                 <span class="kw">let </span>name = lifetime_name(def_id.expect_local());
-                rty::ReEarlyBound(rty::EarlyParamRegion { index, name })
+                rty::ReEarlyParam(rty::EarlyParamRegion { index, name })
             }
             ResolvedArg::LateBound(<span class="kw">_</span>, index, def_id) =&gt; {
                 <span class="kw">let </span>depth = env.depth().checked_sub(<span class="number">1</span>).unwrap();
@@ -2737,12 +2737,12 @@
                 <span class="kw">let </span>kind = rty::BoundRegionKind::BrNamed(def_id, name);
                 <span class="kw">let </span>var = BoundVar::from_u32(index);
                 <span class="kw">let </span>bound_region = rty::BoundRegion { var, kind };
-                rty::ReLateBound(rustc::ty::DebruijnIndex::from_usize(depth), bound_region)
+                rty::ReBound(rustc::ty::DebruijnIndex::from_usize(depth), bound_region)
             }
             ResolvedArg::Free(scope, id) =&gt; {
                 <span class="kw">let </span>name = lifetime_name(id.expect_local());
                 <span class="kw">let </span>bound_region = rty::BoundRegionKind::BrNamed(id, name);
-                rty::ReFree(rty::FreeRegion { scope, bound_region })
+                rty::ReLateParam(rty::LateParamRegion { scope, bound_region })
             }
             ResolvedArg::Error(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"lifetime resolved to an error"</span>),
         }

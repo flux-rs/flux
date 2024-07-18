@@ -170,9 +170,9 @@
 <span class="kw">impl </span>Subst <span class="kw">for </span>Region {
     <span class="kw">fn </span>subst(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[GenericArg]) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span><span class="self">self </span>{
-            Region::ReEarlyBound(ebr) =&gt; args[ebr.index <span class="kw">as </span>usize].expect_lifetime(),
-            Region::ReFree(..)
-            | Region::ReLateBound(<span class="kw">_</span>, <span class="kw">_</span>)
+            Region::ReEarlyParam(ebr) =&gt; args[ebr.index <span class="kw">as </span>usize].expect_lifetime(),
+            Region::ReLateParam(..)
+            | Region::ReBound(<span class="kw">_</span>, <span class="kw">_</span>)
             | Region::ReStatic
             | Region::ReVar(<span class="kw">_</span>) =&gt; <span class="kw-2">*</span><span class="self">self</span>,
         }

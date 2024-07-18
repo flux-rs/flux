@@ -2226,7 +2226,7 @@
     fhir::InferMode,
     rustc::ty::{
         AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, EarlyParamRegion,
-        FreeRegion, OutlivesPredicate,
+        LateParamRegion, OutlivesPredicate,
         Region::{<span class="self">self</span>, <span class="kw-2">*</span>},
         RegionVid,
     },
@@ -3291,7 +3291,7 @@
             }
             GenericParamDefKind::Lifetime =&gt; {
                 <span class="kw">let </span>region = EarlyParamRegion { index: param.index, name: param.name };
-                GenericArg::Lifetime(Region::ReEarlyBound(region))
+                GenericArg::Lifetime(Region::ReEarlyParam(region))
             }
             GenericParamDefKind::Const { .. } =&gt; {
                 <span class="kw">let </span>param_const = ParamConst { index: param.index, name: param.name };
@@ -3389,7 +3389,7 @@
                     var: BoundVar::from_usize(vars.len() - <span class="number">1</span>),
                     kind: BoundRegionKind::BrEnv,
                 };
-                Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Not)
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
             }
             ClosureKind::FnMut =&gt; {
                 vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
@@ -3397,7 +3397,7 @@
                     var: BoundVar::from_usize(vars.len() - <span class="number">1</span>),
                     kind: BoundRegionKind::BrEnv,
                 };
-                Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Mut)
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
             }
             ClosureKind::FnOnce =&gt; closure_ty,
         };

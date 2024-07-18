@@ -719,7 +719,7 @@
     }
 
     <span class="kw">fn </span>regions(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: Region, b: Region) {
-        <span class="kw">if let </span>Region::ReEarlyBound(ebr) = a {
+        <span class="kw">if let </span>Region::ReEarlyParam(ebr) = a {
             <span class="self">self</span>.insert_generic_arg(ebr.index, GenericArg::Lifetime(b));
         }
     }
