@@ -2148,6 +2148,35 @@
 <a href="#2148" id="2148">2148</a>
 <a href="#2149" id="2149">2149</a>
 <a href="#2150" id="2150">2150</a>
+<a href="#2151" id="2151">2151</a>
+<a href="#2152" id="2152">2152</a>
+<a href="#2153" id="2153">2153</a>
+<a href="#2154" id="2154">2154</a>
+<a href="#2155" id="2155">2155</a>
+<a href="#2156" id="2156">2156</a>
+<a href="#2157" id="2157">2157</a>
+<a href="#2158" id="2158">2158</a>
+<a href="#2159" id="2159">2159</a>
+<a href="#2160" id="2160">2160</a>
+<a href="#2161" id="2161">2161</a>
+<a href="#2162" id="2162">2162</a>
+<a href="#2163" id="2163">2163</a>
+<a href="#2164" id="2164">2164</a>
+<a href="#2165" id="2165">2165</a>
+<a href="#2166" id="2166">2166</a>
+<a href="#2167" id="2167">2167</a>
+<a href="#2168" id="2168">2168</a>
+<a href="#2169" id="2169">2169</a>
+<a href="#2170" id="2170">2170</a>
+<a href="#2171" id="2171">2171</a>
+<a href="#2172" id="2172">2172</a>
+<a href="#2173" id="2173">2173</a>
+<a href="#2174" id="2174">2174</a>
+<a href="#2175" id="2175">2175</a>
+<a href="#2176" id="2176">2176</a>
+<a href="#2177" id="2177">2177</a>
+<a href="#2178" id="2178">2178</a>
+<a href="#2179" id="2179">2179</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2172,6 +2201,7 @@
     HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
 <span class="kw">use </span>flux_common::bug;
+<span class="kw">use </span>fold::TypeFolder;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">pub use </span>normalize::SpecFuncDefns;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
@@ -2883,6 +2913,27 @@
         TyKind::Hole(fhir_id).intern()
     }
 
+    <span class="doccomment">/// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
+    /// to have a unique var identifying each position such that we can infer a [region substitution]
+    /// when assigning a type to a place. This way we can recover the regions in the original rust
+    /// type. See `flux_refineck::type_env::TypeEnv::assign`
+    ///
+    /// [region substitution]: subst::RegionSubst
+    </span><span class="kw">pub fn </span>replace_regions_with_vars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
+        <span class="kw">struct </span>Replacer {
+            next_rvid: u32,
+        }
+        <span class="kw">impl </span>TypeFolder <span class="kw">for </span>Replacer {
+            <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span>Region) -&gt; Region {
+                <span class="kw">let </span>rvid = <span class="self">self</span>.next_rvid;
+                <span class="self">self</span>.next_rvid += <span class="number">1</span>;
+                Region::ReVar(RegionVid::from_u32(rvid))
+            }
+        }
+
+        <span class="self">self</span>.fold_with(<span class="kw-2">&amp;mut </span>Replacer { next_rvid: <span class="number">0 </span>})
+    }
+
     <span class="kw">pub fn </span>unconstr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (Ty, Expr) {
         <span class="kw">fn </span>go(this: <span class="kw-2">&amp;</span>Ty, preds: <span class="kw-2">&amp;mut </span>Vec&lt;Expr&gt;) -&gt; Ty {
             <span class="kw">if let </span>TyKind::Constr(pred, ty) = this.kind() {
@@ -2893,7 +2944,7 @@
             }
         }
         <span class="kw">let </span><span class="kw-2">mut </span>preds = <span class="macro">vec!</span>[];
-        (go(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>preds), Expr::and_from_iter(preds))
+        (go(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>preds), Expr::and_iter(preds))
     }
 
     <span class="kw">pub fn </span>unblocked(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
@@ -2986,6 +3037,48 @@
     kind: TyKind,
 }
 
+<span class="kw">impl </span>TyS {
+    <span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>TyKind {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.kind
+    }
+
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub fn </span>expect_discr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>AdtDef, <span class="kw-2">&amp;</span>Place) {
+        <span class="kw">if let </span>TyKind::Discr(adt_def, place) = <span class="self">self</span>.kind() {
+            (adt_def, place)
+        } <span class="kw">else </span>{
+            <span class="macro">bug!</span>(<span class="string">"expected discr"</span>)
+        }
+    }
+
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub fn </span>expect_adt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>AdtDef, <span class="kw-2">&amp;</span>[GenericArg], <span class="kw-2">&amp;</span>Expr) {
+        <span class="kw">if let </span>TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = <span class="self">self</span>.kind() {
+            (adt_def, args, idx)
+        } <span class="kw">else </span>{
+            <span class="macro">bug!</span>(<span class="string">"expected adt"</span>)
+        }
+    }
+
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>expect_tuple(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Ty] {
+        <span class="kw">if let </span>TyKind::Indexed(BaseTy::Tuple(tys), <span class="kw">_</span>) = <span class="self">self</span>.kind() {
+            tys
+        } <span class="kw">else </span>{
+            <span class="macro">bug!</span>(<span class="string">"expected tuple found `{self:?}` (kind: `{:?}`)"</span>, <span class="self">self</span>.kind())
+        }
+    }
+
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub fn </span>expect_base(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BaseTy {
+        <span class="kw">match </span><span class="self">self</span>.kind() {
+            TyKind::Indexed(base_ty, <span class="kw">_</span>) =&gt; base_ty.clone(),
+            TyKind::Exists(bty) =&gt; bty.clone().skip_binder().expect_base(),
+            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected indexed type"</span>),
+        }
+    }
+}
+
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 </span><span class="kw">pub enum </span>TyKind {
     Indexed(BaseTy, Expr),
@@ -2996,10 +3089,12 @@
     Ptr(PtrKind, Path),
     <span class="doccomment">/// This is a bit of a hack. We use this type internally to represent the result of
     /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information
-    /// when checking [`TerminatorKind::SwitchInt`].
+    /// when checking a [`match`]. The hack is that we assume the dicriminant remains the same from
+    /// the creation of this type until we use it in a [`match`].
+    ///
     ///
     /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
-    /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
+    /// [`match`]: crate::rustc::mir::TerminatorKind::SwitchInt
     </span>Discr(AdtDef, Place),
     Param(ParamTy),
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List&lt;Ty&gt;),
@@ -3138,7 +3233,7 @@
 
     <span class="kw">pub fn </span>strengthen(<span class="kw-2">&amp;</span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>this = <span class="self">self</span>.clone();
-        <span class="self">Self </span>{ bty: this.bty, idx: this.idx, pred: Expr::and_from_iter([this.pred, pred.into()]) }
+        <span class="self">Self </span>{ bty: this.bty, idx: this.idx, pred: Expr::and(this.pred, pred.into()) }
     }
 
     <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt; {
@@ -3554,21 +3649,26 @@
 {
     <span class="kw">pub fn </span>replace_bound_vars(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        replace_region: <span class="kw">impl </span>FnMut(BoundRegion) -&gt; Region,
+        <span class="kw-2">mut </span>replace_region: <span class="kw">impl </span>FnMut(BoundRegion) -&gt; Region,
         <span class="kw-2">mut </span>replace_expr: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>Sort, InferMode) -&gt; Expr,
     ) -&gt; T {
         <span class="kw">let </span><span class="kw-2">mut </span>exprs = UnordMap::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>regions = UnordMap::default();
         <span class="kw">let </span>delegate = FnMutDelegate::new(
-            |var| {
+            |breft| {
                 exprs
-                    .entry(var.index)
+                    .entry(breft.var)
                     .or_insert_with(|| {
-                        <span class="kw">let </span>(sort, mode, <span class="kw">_</span>) = <span class="self">self</span>.vars[var.index <span class="kw">as </span>usize].expect_refine();
+                        <span class="kw">let </span>(sort, mode, <span class="kw">_</span>) = <span class="self">self</span>.vars[breft.var.as_usize()].expect_refine();
                         replace_expr(sort, mode)
                     })
                     .clone()
             },
-            replace_region,
+            |bre| {
+                <span class="kw-2">*</span>regions
+                    .entry(bre.var)
+                    .or_insert_with(|| replace_region(bre))
+            },
         );
 
         <span class="self">self</span>.value
@@ -3578,7 +3678,7 @@
 
     <span class="kw">pub fn </span>replace_bound_refts(<span class="kw-2">&amp;</span><span class="self">self</span>, exprs: <span class="kw-2">&amp;</span>[Expr]) -&gt; T {
         <span class="kw">let </span>delegate = FnMutDelegate::new(
-            |var| exprs[var.index <span class="kw">as </span>usize].clone(),
+            |breft| exprs[breft.var.as_usize()].clone(),
             |<span class="kw">_</span>| <span class="macro">bug!</span>(<span class="string">"unexpected escaping region"</span>),
         );
         <span class="self">self</span>.value
@@ -3842,48 +3942,6 @@
 <span class="kw">impl </span>TyKind {
     <span class="kw">fn </span>intern(<span class="self">self</span>) -&gt; Ty {
         Interned::new(TyS { kind: <span class="self">self </span>})
-    }
-}
-
-<span class="kw">impl </span>TyS {
-    <span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>TyKind {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.kind
-    }
-
-    <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>expect_discr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>AdtDef, <span class="kw-2">&amp;</span>Place) {
-        <span class="kw">if let </span>TyKind::Discr(adt_def, place) = <span class="self">self</span>.kind() {
-            (adt_def, place)
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected discr"</span>)
-        }
-    }
-
-    <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>expect_adt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>AdtDef, <span class="kw-2">&amp;</span>[GenericArg], <span class="kw-2">&amp;</span>Expr) {
-        <span class="kw">if let </span>TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = <span class="self">self</span>.kind() {
-            (adt_def, args, idx)
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected adt"</span>)
-        }
-    }
-
-    <span class="attr">#[track_caller]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>expect_tuple(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Ty] {
-        <span class="kw">if let </span>TyKind::Indexed(BaseTy::Tuple(tys), <span class="kw">_</span>) = <span class="self">self</span>.kind() {
-            tys
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected tuple found `{self:?}` (kind: `{:?}`)"</span>, <span class="self">self</span>.kind())
-        }
-    }
-
-    <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>expect_base(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BaseTy {
-        <span class="kw">match </span><span class="self">self</span>.kind() {
-            TyKind::Indexed(base_ty, <span class="kw">_</span>) =&gt; base_ty.clone(),
-            TyKind::Exists(bty) =&gt; bty.clone().skip_binder().expect_base(),
-            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected indexed type"</span>),
-        }
     }
 }
 

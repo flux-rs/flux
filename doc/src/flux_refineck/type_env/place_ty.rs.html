@@ -1851,7 +1851,7 @@
     // 2. We could expand the equality during encoding, but that would require annotating the sort
     // of the equality operator, which will be cumbersome because we create equalities in some places where
     // the sort is not readily available.
-    </span><span class="kw">let </span>constr = Expr::and_from_iter(adt.sort_def().projections().map(|proj| {
+    </span><span class="kw">let </span>constr = Expr::and_iter(adt.sort_def().projections().map(|proj| {
         <span class="kw">let </span>e1 = idx1.proj_and_reduce(proj);
         <span class="kw">let </span>e2 = variant_def.idx.proj_and_reduce(proj);
         Expr::eq(e1, e2)

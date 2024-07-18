@@ -9,9 +9,9 @@ can be canonizalized locally inside the scope of the generic argument. Shallow c
 stops when finding type constructors. In contrast, deep canonicalization also canonizalizes inside
 type constructors.</p>
 <p>Note that existentials inside some type constructors like shared references, tuples or boxes can
-be hoisted soundly, e.g., the type <code>(∃a. i32[a], ∃b. i32[b])</code> is equivalent to
-<code>∃a,b. (i32[a], i32[b]). We don't do this hoisting by default, but the [</code>Hoister`] struct can be
-configured to do so.</p>
+be hoisted soundly, e.g., <code>(∃a. i32[a], ∃b. i32[b])</code> is equivalent to <code>∃a,b. (i32[a], i32[b])</code>
+and <code>&amp;∃a. i32[a]</code> is equivalent to <code>∃a. &amp;i32[a]</code>. We don’t do this hoisting by default, but the
+<a href="struct.Hoister.html" title="struct flux_middle::rty::canonicalize::Hoister"><code>Hoister</code></a> struct can be configured to do so.</p>
 <p>It’s also important to note that canonizalization doesn’t imply any form of semantic equality
 and it is just a best effort to facilitate syntactic manipulation. For example, the types
 <code>∃a,b. (i32[a], i32[b])</code> and <code>∃a,b. (i32[b], i32[a])</code> are semantically equal but hoisting won’t

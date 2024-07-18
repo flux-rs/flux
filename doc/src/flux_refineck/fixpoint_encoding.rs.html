@@ -1241,6 +1241,8 @@
 <a href="#1241" id="1241">1241</a>
 <a href="#1242" id="1242">1242</a>
 <a href="#1243" id="1243">1243</a>
+<a href="#1244" id="1244">1244</a>
+<a href="#1245" id="1245">1245</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter, ops::ControlFlow};
@@ -1275,7 +1277,7 @@
 <span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
 <span class="kw">use </span>rustc_index::newtype_index;
 <span class="kw">use </span>rustc_span::Span;
-<span class="kw">use </span>rustc_type_ir::DebruijnIndex;
+<span class="kw">use </span>rustc_type_ir::{BoundVar, DebruijnIndex};
 
 <span class="kw">use crate</span>::{refine_tree::Scope, CheckerConfig};
 
@@ -1506,7 +1508,7 @@
 }
 
 <span class="doccomment">/// Environment used to map between [`rty::Var`] and [`fixpoint::LocalVar`]. This only supports
-/// mapping of [`rty::Var::LateBound`] and [`rty::Var::Free`].
+/// mapping of [`rty::Var::Bound`] and [`rty::Var::Free`].
 </span><span class="kw">struct </span>Env {
     local_var_gen: IndexGen&lt;fixpoint::LocalVar&gt;,
     fvars: UnordMap&lt;rty::Name, fixpoint::LocalVar&gt;,
@@ -1552,10 +1554,10 @@
                     .unwrap_or_else(|| <span class="macro">span_bug!</span>(dbg_span, <span class="string">"no entry found for name: `{name:?}`"</span>))
                     .into()
             }
-            rty::Var::Bound(debruijn, var) =&gt; {
-                <span class="self">self</span>.get_late_bvar(<span class="kw-2">*</span>debruijn, var.index)
+            rty::Var::Bound(debruijn, breft) =&gt; {
+                <span class="self">self</span>.get_late_bvar(<span class="kw-2">*</span>debruijn, breft.var)
                     .unwrap_or_else(|| {
-                        <span class="macro">span_bug!</span>(dbg_span, <span class="string">"no entry found for late bound var: `{var:?}`"</span>)
+                        <span class="macro">span_bug!</span>(dbg_span, <span class="string">"no entry found for late bound var: `{breft:?}`"</span>)
                     })
                     .into()
             }
@@ -1570,9 +1572,9 @@
         <span class="self">self</span>.fvars.get(<span class="kw-2">&amp;</span>name).copied()
     }
 
-    <span class="kw">fn </span>get_late_bvar(<span class="kw-2">&amp;</span><span class="self">self</span>, debruijn: DebruijnIndex, idx: u32) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::LocalVar&gt; {
+    <span class="kw">fn </span>get_late_bvar(<span class="kw-2">&amp;</span><span class="self">self</span>, debruijn: DebruijnIndex, var: BoundVar) -&gt; <span class="prelude-ty">Option</span>&lt;fixpoint::LocalVar&gt; {
         <span class="kw">let </span>depth = <span class="self">self</span>.layers.len().checked_sub(debruijn.as_usize() + <span class="number">1</span>)<span class="question-mark">?</span>;
-        <span class="self">self</span>.layers[depth].get(idx <span class="kw">as </span>usize).copied()
+        <span class="self">self</span>.layers[depth].get(var.as_usize()).copied()
     }
 }
 
@@ -2010,9 +2012,11 @@
         <span class="kw">let </span>args = itertools::chain(
             binders.iter().rev().enumerate().flat_map(|(level, sorts)| {
                 <span class="kw">let </span>debruijn = DebruijnIndex::from_usize(level);
-                sorts.iter().cloned().enumerate().map(<span class="kw">move </span>|(index, sort)| {
-                    <span class="kw">let </span>var =
-                        rty::BoundReft { index: index <span class="kw">as </span>u32, kind: rty::BoundReftKind::Annon };
+                sorts.iter().cloned().enumerate().map(<span class="kw">move </span>|(idx, sort)| {
+                    <span class="kw">let </span>var = rty::BoundReft {
+                        var: BoundVar::from_usize(idx),
+                        kind: rty::BoundReftKind::Annon,
+                    };
                     (rty::Var::Bound(debruijn, var), sort)
                 })
             }),

@@ -1157,7 +1157,7 @@
 };
 <span class="kw">use </span>rustc_span::{Span, Symbol};
 <span class="kw">use </span>rustc_target::abi::FieldIdx;
-<span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST};
+<span class="kw">use </span>rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 <span class="kw">use super</span>::{
     evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKind, FuncSort, GenericArgs, IntTy,
@@ -1400,7 +1400,7 @@
 
 <span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable, Debug)]
 </span><span class="kw">pub struct </span>BoundReft {
-    <span class="kw">pub </span>index: u32,
+    <span class="kw">pub </span>var: BoundVar,
     <span class="kw">pub </span>kind: BoundReftKind,
 }
 
@@ -1477,7 +1477,7 @@
             .clone()
     }
 
-    <span class="kw">pub fn </span>and_from_iter(exprs: <span class="kw">impl </span>IntoIterator&lt;Item = Expr&gt;) -&gt; Expr {
+    <span class="kw">pub fn </span>and_iter(exprs: <span class="kw">impl </span>IntoIterator&lt;Item = Expr&gt;) -&gt; Expr {
         exprs
             .into_iter()
             .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e, <span class="prelude-val">None</span>))
@@ -1485,7 +1485,7 @@
     }
 
     <span class="kw">pub fn </span>and(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
-        Expr::and_from_iter([e1.into(), e2.into()])
+        Expr::and_iter([e1.into(), e2.into()])
     }
 
     <span class="kw">pub fn </span>or_from_iter(exprs: <span class="kw">impl </span>IntoIterator&lt;Item = Expr&gt;) -&gt; Expr {
@@ -1527,13 +1527,13 @@
     }
 
     <span class="kw">pub fn </span>nu() -&gt; Expr {
-        Expr::bvar(INNERMOST, <span class="number">0</span>, BoundReftKind::Annon)
+        Expr::bvar(INNERMOST, BoundVar::ZERO, BoundReftKind::Annon)
     }
 
     <span class="kw">pub fn </span>is_nu(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">if let </span>ExprKind::Var(Var::Bound(INNERMOST, var)) = <span class="self">self</span>.kind()
-            &amp;&amp; var.index == <span class="number">0
-        </span>{
+            &amp;&amp; var.var == BoundVar::ZERO
+        {
             <span class="bool-val">true
         </span>} <span class="kw">else </span>{
             <span class="bool-val">false
@@ -1565,8 +1565,8 @@
         Var::EVar(evar).to_expr()
     }
 
-    <span class="kw">pub fn </span>bvar(debruijn: DebruijnIndex, index: u32, kind: BoundReftKind) -&gt; Expr {
-        Var::Bound(debruijn, BoundReft { index, kind }).to_expr()
+    <span class="kw">pub fn </span>bvar(debruijn: DebruijnIndex, var: BoundVar, kind: BoundReftKind) -&gt; Expr {
+        Var::Bound(debruijn, BoundReft { var, kind }).to_expr()
     }
 
     <span class="kw">pub fn </span>early_param(index: u32, name: Symbol) -&gt; Expr {
@@ -1863,7 +1863,7 @@
 
     <span class="kw">pub fn </span>eta_expand_abs(<span class="kw-2">&amp;</span><span class="self">self</span>, inputs: <span class="kw-2">&amp;</span>[Sort], output: Sort) -&gt; Lambda {
         <span class="kw">let </span>args = (<span class="number">0</span>..inputs.len())
-            .map(|idx| Expr::bvar(INNERMOST, idx <span class="kw">as </span>u32, BoundReftKind::Annon))
+            .map(|idx| Expr::bvar(INNERMOST, BoundVar::from_usize(idx), BoundReftKind::Annon))
             .collect_vec();
         <span class="kw">let </span>body = Expr::app(<span class="self">self</span>, args, <span class="prelude-val">None</span>);
         Lambda::with_sorts(body, inputs, output)

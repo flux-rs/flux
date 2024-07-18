@@ -1562,6 +1562,7 @@
 <a href="#1562" id="1562">1562</a>
 <a href="#1563" id="1563">1563</a>
 <a href="#1564" id="1564">1564</a>
+<a href="#1565" id="1565">1565</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -1800,10 +1801,11 @@
 
         <span class="kw">let </span>fn_sig = poly_sig.replace_bound_vars(
             |<span class="kw">_</span>| {
-                <span class="kw">let </span>re = body
-                    .infcx
-                    .next_nll_region_var(NllRegionVariableOrigin::FreeRegion);
-                rty::ReVar(re.as_var())
+                rty::ReVar(
+                    body.infcx
+                        .next_nll_region_var(NllRegionVariableOrigin::FreeRegion)
+                        .as_var(),
+                )
             },
             |sort, <span class="kw">_</span>| rcx.define_vars(sort),
         );
@@ -2206,7 +2208,7 @@
         <span class="kw">for </span>(bits, bb) <span class="kw">in </span>targets.iter() {
             successors.push((bb, Guard::Pred(mk(bits))));
         }
-        <span class="kw">let </span>otherwise = Expr::and_from_iter(targets.iter().map(|(bits, <span class="kw">_</span>)| mk(bits).not()));
+        <span class="kw">let </span>otherwise = Expr::and_iter(targets.iter().map(|(bits, <span class="kw">_</span>)| mk(bits).not()));
         successors.push((targets.otherwise(), Guard::Pred(otherwise)));
 
         successors

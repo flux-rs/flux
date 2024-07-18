@@ -232,9 +232,9 @@
 //! type constructors.
 //!
 //! Note that existentials inside some type constructors like shared references, tuples or boxes can
-//! be hoisted soundly, e.g., the type `(∃a. i32[a], ∃b. i32[b])` is equivalent to
-//! `∃a,b. (i32[a], i32[b]). We don't do this hoisting by default, but the [`Hoister`] struct can be
-//! configured to do so.
+//! be hoisted soundly, e.g., `(∃a. i32[a], ∃b. i32[b])` is equivalent to `∃a,b. (i32[a], i32[b])`
+//! and `&amp;∃a. i32[a]` is equivalent to `∃a. &amp;i32[a]`. We don't do this hoisting by default, but the
+//! [`Hoister`] struct can be configured to do so.
 //!
 //! It's also important to note that canonizalization doesn't imply any form of semantic equality
 //! and it is just a best effort to facilitate syntactic manipulation. For example, the types
@@ -244,7 +244,7 @@
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
 </span><span class="kw">use </span>rustc_ast::Mutability;
-<span class="kw">use </span>rustc_type_ir::INNERMOST;
+<span class="kw">use </span>rustc_type_ir::{BoundVar, INNERMOST};
 
 <span class="kw">use super</span>::{
     box_args,
@@ -296,7 +296,7 @@
                     <span class="kw">let </span>idx = <span class="self">self</span>.vars.len();
                     <span class="self">self</span>.vars
                         .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
-                    Expr::bvar(INNERMOST, idx <span class="kw">as </span>u32, kind)
+                    Expr::bvar(INNERMOST, BoundVar::from_usize(idx), kind)
                 })
                 .fold_with(<span class="self">self</span>)
             }
@@ -335,7 +335,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>hoister = Hoister::default();
         <span class="kw">let </span>ty = hoister.hoist(<span class="self">self</span>);
         <span class="kw">let </span>(vars, preds) = hoister.into_parts();
-        <span class="kw">let </span>pred = Expr::and_from_iter(preds);
+        <span class="kw">let </span>pred = Expr::and_iter(preds);
         <span class="kw">let </span>constr_ty = CanonicalConstrTy { ty, pred };
         <span class="kw">if </span>vars.is_empty() {
             CanonicalTy::Constr(constr_ty)
@@ -367,7 +367,7 @@
 <span class="doccomment">/// A (shallowly) canonicalized type. This can be either of the form `{T | p}` or `∃v0,…,vn. {T | p}`,
 /// where `T` doesnt have any (shallow) [existential] or [constraint] types.
 ///
-/// When canonizalizing a type without a [constraint] type, `p` will be [`Expr::tt()`].
+/// When canonicalizing a type without a [constraint] type, `p` will be [`Expr::tt()`].
 ///
 /// [existential]: TyKind::Exists
 /// [constraint]: TyKind::Constr
@@ -388,7 +388,7 @@
                     <span class="kw">let </span>constr = SubsetTy::new(
                         bty.clone(),
                         Expr::nu(),
-                        Expr::and_from_iter([constr.pred.clone(), Expr::eq(Expr::nu(), idx)]),
+                        Expr::and(constr.pred.clone(), Expr::eq(Expr::nu(), idx)),
                     );
                     <span class="prelude-val">Some</span>(Binder::with_sort(constr, sort))
                 } <span class="kw">else </span>{

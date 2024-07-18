@@ -1691,10 +1691,10 @@
             }
 
             <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
-                <span class="kw">if let </span>ExprKind::Var(Var::Bound(debruijn, var)) = expr.kind()
+                <span class="kw">if let </span>ExprKind::Var(Var::Bound(debruijn, breft)) = expr.kind()
                     &amp;&amp; <span class="kw-2">*</span>debruijn &gt;= <span class="self">self</span>.current_index
                 {
-                    Expr::bvar(debruijn.shifted_in(<span class="self">self</span>.amount), var.index, var.kind)
+                    Expr::bvar(debruijn.shifted_in(<span class="self">self</span>.amount), breft.var, breft.kind)
                 } <span class="kw">else </span>{
                     expr.super_fold_with(<span class="self">self</span>)
                 }
@@ -1728,10 +1728,10 @@
             }
 
             <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
-                <span class="kw">if let </span>ExprKind::Var(Var::Bound(debruijn, var)) = expr.kind()
+                <span class="kw">if let </span>ExprKind::Var(Var::Bound(debruijn, breft)) = expr.kind()
                     &amp;&amp; debruijn &gt;= <span class="kw-2">&amp;</span><span class="self">self</span>.current_index
                 {
-                    Expr::bvar(debruijn.shifted_out(<span class="self">self</span>.amount), var.index, var.kind)
+                    Expr::bvar(debruijn.shifted_out(<span class="self">self</span>.amount), breft.var, breft.kind)
                 } <span class="kw">else </span>{
                     expr.super_fold_with(<span class="self">self</span>)
                 }

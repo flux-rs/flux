@@ -1448,12 +1448,12 @@
     <span class="prelude-val">Ok</span>(fhir::SpecFunc { name, params, args, sort, body })
 }
 
-<span class="doccomment">/// Collect all sorts resolved to a generic parameter in a [`surface::RefinedBy`]. Return the set
-/// of generic def ids used, sorted by their position in the list of generics.
-</span><span class="kw">fn </span>collect_generics_in_refined_by(
+<span class="doccomment">/// Collect all sorts resolved to a generic type in a list of refinement parameters. Return the set
+/// of generic def_ids used (sorted by their position in the list of generics).
+</span><span class="kw">fn </span>collect_generics_in_params(
     generics: <span class="kw-2">&amp;</span>rustc_middle::ty::Generics,
     resolver_output: <span class="kw-2">&amp;</span>ResolverOutput,
-    refined_by: <span class="kw-2">&amp;</span>surface::RefineParams,
+    params: <span class="kw-2">&amp;</span>surface::RefineParams,
 ) -&gt; FxIndexSet&lt;DefId&gt; {
     <span class="kw">struct </span>ParamCollector&lt;<span class="lifetime">'a</span>&gt; {
         resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>ResolverOutput,
@@ -1471,7 +1471,7 @@
         }
     }
     <span class="kw">let </span><span class="kw-2">mut </span>vis = ParamCollector { resolver_output, found: FxHashSet::default() };
-    <span class="macro">walk_list!</span>(vis, visit_refine_param, refined_by);
+    <span class="macro">walk_list!</span>(vis, visit_refine_param, params);
     generics
         .own_params
         .iter()
@@ -1678,7 +1678,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::RefinedBy&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>generics = <span class="self">self</span>.genv.tcx().generics_of(<span class="self">self</span>.owner);
         <span class="kw">let </span>generic_id_to_var_idx =
-            collect_generics_in_refined_by(generics, <span class="self">self</span>.resolver_output, refined_by);
+            collect_generics_in_params(generics, <span class="self">self</span>.resolver_output, refined_by);
 
         <span class="kw">let </span>fields = refined_by
             .iter()

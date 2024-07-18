@@ -539,6 +539,7 @@
 <a href="#539" id="539">539</a>
 <a href="#540" id="540">540</a>
 <a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
 
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -549,7 +550,7 @@
 <span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">use </span>rustc_span::{Pos, Span};
 <span class="kw">use </span>rustc_target::abi::FieldIdx;
-<span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST};
+<span class="kw">use </span>rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 <span class="kw">use </span><span class="kw">crate</span>::intern::{Internable, Interned};
 
@@ -726,14 +727,14 @@
 <span class="attr">#[derive(Default)]
 </span><span class="kw">struct </span>Env {
     name_gen: IndexGen&lt;BoundVarName&gt;,
-    layers: Vec&lt;FxHashMap&lt;u32, BoundVarName&gt;&gt;,
+    layers: Vec&lt;FxHashMap&lt;BoundVar, BoundVarName&gt;&gt;,
 }
 
 <span class="kw">impl </span>Env {
-    <span class="kw">fn </span>lookup(<span class="kw-2">&amp;</span><span class="self">self</span>, debruijn: DebruijnIndex, index: u32) -&gt; <span class="prelude-ty">Option</span>&lt;BoundVarName&gt; {
+    <span class="kw">fn </span>lookup(<span class="kw-2">&amp;</span><span class="self">self</span>, debruijn: DebruijnIndex, var: BoundVar) -&gt; <span class="prelude-ty">Option</span>&lt;BoundVarName&gt; {
         <span class="self">self</span>.layers
             .get(<span class="self">self</span>.layers.len().checked_sub(debruijn.as_usize() + <span class="number">1</span>)<span class="question-mark">?</span>)<span class="question-mark">?
-            </span>.get(<span class="kw-2">&amp;</span>index)
+            </span>.get(<span class="kw-2">&amp;</span>var)
             .copied()
     }
 
@@ -741,7 +742,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>layer = FxHashMap::default();
         <span class="kw">for </span>(idx, var) <span class="kw">in </span>vars.iter().enumerate() {
             <span class="kw">if let </span>BoundVariableKind::Refine(<span class="kw">_</span>, <span class="kw">_</span>, BoundReftKind::Annon) = var {
-                layer.insert(idx <span class="kw">as </span>u32, <span class="self">self</span>.name_gen.fresh());
+                layer.insert(BoundVar::from_usize(idx), <span class="self">self</span>.name_gen.fresh());
             }
         }
         <span class="self">self</span>.layers.push(layer);
@@ -866,7 +867,8 @@
                 }
                 BoundVariableKind::Refine(<span class="kw">_</span>, mode, BoundReftKind::Annon) =&gt; {
                     <span class="macro">w!</span>(<span class="string">"{}"</span>, ^mode.prefix_str())<span class="question-mark">?</span>;
-                    <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.borrow().lookup(INNERMOST, i <span class="kw">as </span>u32) {
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.borrow().lookup(INNERMOST, BoundVar::from_usize(i))
+                    {
                         <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^name)<span class="question-mark">?</span>;
                     } <span class="kw">else </span>{
                         <span class="macro">w!</span>(<span class="string">"_"</span>)<span class="question-mark">?</span>;
@@ -880,16 +882,16 @@
     <span class="kw">pub fn </span>fmt_bound_reft(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         debruijn: DebruijnIndex,
-        var: BoundReft,
+        breft: BoundReft,
         f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
     ) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(<span class="self">self</span>, f);
-        <span class="kw">match </span>var.kind {
+        <span class="kw">match </span>breft.kind {
             BoundReftKind::Annon =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.borrow().lookup(debruijn, var.index) {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.env.borrow().lookup(debruijn, breft.var) {
                     <span class="macro">w!</span>(<span class="string">"{name:?}"</span>)
                 } <span class="kw">else </span>{
-                    <span class="macro">w!</span>(<span class="string">"⭡{}/#{}"</span>, ^debruijn.as_usize(), ^var.index)
+                    <span class="macro">w!</span>(<span class="string">"⭡{}/#{:?}"</span>, ^debruijn.as_usize(), ^breft.var)
                 }
             }
             BoundReftKind::Named(name) =&gt; <span class="macro">w!</span>(<span class="string">"{name}"</span>),
