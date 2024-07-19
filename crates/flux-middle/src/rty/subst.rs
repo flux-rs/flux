@@ -12,19 +12,20 @@ use super::{
 };
 use crate::rty::*;
 
-#[derive(Debug)]
-pub struct RegionSubst {
+pub fn match_regions(ty1: &Ty, ty2: &rustc::ty::Ty) -> Ty {
+    let ty1 = ty1.replace_regions_with_unique_vars();
+    let mut subst = RegionSubst::default();
+    subst.infer_from_ty(&ty1, ty2);
+    subst.apply(&ty1)
+}
+
+#[derive(Default, Debug)]
+struct RegionSubst {
     map: UnordMap<RegionVid, Region>,
 }
 
 impl RegionSubst {
-    pub fn new(ty1: &Ty, ty2: &rustc::ty::Ty) -> Self {
-        let mut subst = RegionSubst { map: UnordMap::default() };
-        subst.infer_from_ty(ty1, ty2);
-        subst
-    }
-
-    pub fn apply<T: TypeFoldable>(&self, t: &T) -> T {
+    fn apply<T: TypeFoldable>(&self, t: &T) -> T {
         struct Folder<'a>(&'a RegionSubst);
         impl TypeFolder for Folder<'_> {
             fn fold_region(&mut self, re: &Region) -> Region {
