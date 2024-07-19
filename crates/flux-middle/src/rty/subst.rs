@@ -179,15 +179,15 @@ where
     }
 
     fn fold_expr(&mut self, e: &Expr) -> Expr {
-        if let ExprKind::Var(Var::Bound(debruijn, var)) = e.kind() {
+        if let ExprKind::Var(Var::Bound(debruijn, breft)) = e.kind() {
             match debruijn.cmp(&self.current_index) {
-                Ordering::Less => Expr::bvar(*debruijn, var.index, var.kind),
+                Ordering::Less => Expr::bvar(*debruijn, breft.var, breft.kind),
                 Ordering::Equal => {
                     self.delegate
-                        .replace_expr(*var)
+                        .replace_expr(*breft)
                         .shift_in_escaping(self.current_index.as_u32())
                 }
-                Ordering::Greater => Expr::bvar(debruijn.shifted_out(1), var.index, var.kind),
+                Ordering::Greater => Expr::bvar(debruijn.shifted_out(1), breft.var, breft.kind),
             }
         } else {
             e.super_fold_with(self)
@@ -195,23 +195,23 @@ where
     }
 
     fn fold_region(&mut self, re: &Region) -> Region {
-        if let ReLateBound(debruijn, br) = *re {
+        if let ReBound(debruijn, br) = *re {
             match debruijn.cmp(&self.current_index) {
                 Ordering::Less => *re,
                 Ordering::Equal => {
                     let region = self.delegate.replace_region(br);
-                    if let ReLateBound(debruijn1, br) = region {
+                    if let ReBound(debruijn1, br) = region {
                         // If the callback returns a late-bound region,
                         // that region should always use the INNERMOST
                         // debruijn index. Then we adjust it to the
                         // correct depth.
                         assert_eq!(debruijn1, INNERMOST);
-                        Region::ReLateBound(debruijn, br)
+                        Region::ReBound(debruijn, br)
                     } else {
                         region
                     }
                 }
-                Ordering::Greater => ReLateBound(debruijn.shifted_out(1), br),
+                Ordering::Greater => ReBound(debruijn.shifted_out(1), br),
             }
         } else {
             *re
@@ -289,7 +289,7 @@ impl GenericsSubstDelegate for IdentitySubstDelegate {
     }
 
     fn region_for_param(&mut self, ebr: EarlyParamRegion) -> Region {
-        ReEarlyBound(ebr)
+        ReEarlyParam(ebr)
     }
 
     fn const_for_param(&mut self, param: &Const) -> Const {
@@ -484,7 +484,7 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
     }
 
     fn try_fold_region(&mut self, re: &Region) -> Result<Region, D::Error> {
-        if let ReEarlyBound(ebr) = *re {
+        if let ReEarlyParam(ebr) = *re {
             Ok(self.delegate.region_for_param(ebr))
         } else {
             Ok(*re)

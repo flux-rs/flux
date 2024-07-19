@@ -1,4 +1,4 @@
-use std::iter;
+use std::{cell::RefCell, iter};
 
 use flux_common::{bug, tracked_span_bug};
 use flux_middle::{
@@ -13,8 +13,8 @@ use flux_middle::{
 };
 use itertools::{izip, Itertools};
 use rustc_hir::def_id::DefId;
-use rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin::BoundRegion};
-use rustc_middle::ty::Variance;
+use rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin};
+use rustc_middle::ty::{BoundRegionKind, Variance};
 use rustc_span::Span;
 
 use crate::{
@@ -42,7 +42,7 @@ pub(crate) struct Obligations {
 }
 
 pub trait KVarGen {
-    fn fresh(&mut self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr;
+    fn fresh(&self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr;
 }
 
 pub(crate) struct InferCtxt<'a, 'genv, 'tcx> {
@@ -51,7 +51,7 @@ pub(crate) struct InferCtxt<'a, 'genv, 'tcx> {
     def_id: DefId,
     refparams: &'a [Expr],
     kvar_gen: &'a mut (dyn KVarGen + 'a),
-    evar_gen: EVarGen<Scope>,
+    evar_gen: RefCell<EVarGen<Scope>>,
     tag: Tag,
     obligs: Vec<rty::Clause>,
 }
@@ -164,14 +164,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         let fn_sig = fn_sig
             .instantiate(genv.tcx(), &generic_args, &refine_args)
             .replace_bound_vars(
-                |br| {
-                    let re = infcx.region_infcx.next_region_var(BoundRegion(
-                        span,
-                        br.kind,
-                        BoundRegionConversionTime::FnCall,
-                    ));
-                    rty::ReVar(re.as_var())
-                },
+                |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
             )
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)?;
@@ -353,7 +346,16 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
     ) -> Self {
         let mut evar_gen = EVarGen::default();
         evar_gen.enter_context(rcx.scope());
-        Self { genv, region_infcx, def_id, refparams, kvar_gen, evar_gen, tag, obligs: Vec::new() }
+        Self {
+            genv,
+            region_infcx,
+            def_id,
+            refparams,
+            kvar_gen,
+            evar_gen: RefCell::new(evar_gen),
+            tag,
+            obligs: Vec::new(),
+        }
     }
 
     fn obligations(&self) -> Vec<rty::Clause> {
@@ -365,11 +367,11 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
     }
 
     fn push_scope(&mut self, rcx: &RefineCtxt) {
-        self.evar_gen.enter_context(rcx.scope());
+        self.evar_gen.borrow_mut().enter_context(rcx.scope());
     }
 
     fn pop_scope(&mut self) {
-        self.evar_gen.exit_context();
+        self.evar_gen.borrow_mut().exit_context();
     }
 
     fn instantiate_refine_args(
@@ -392,7 +394,20 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
             .collect_vec()
     }
 
-    pub(crate) fn fresh_infer_var(&mut self, sort: &Sort, mode: InferMode) -> Expr {
+    fn next_region_var(&self, origin: RegionVariableOrigin) -> rty::Region {
+        rty::ReVar(self.region_infcx.next_region_var(origin).as_var())
+    }
+
+    fn next_bound_region_var(
+        &self,
+        span: Span,
+        kind: BoundRegionKind,
+        conversion_time: BoundRegionConversionTime,
+    ) -> rty::Region {
+        self.next_region_var(RegionVariableOrigin::BoundRegion(span, kind, conversion_time))
+    }
+
+    pub(crate) fn fresh_infer_var(&self, sort: &Sort, mode: InferMode) -> Expr {
         match mode {
             InferMode::KVar => {
                 let fsort = sort.expect_func().expect_mono();
@@ -414,12 +429,13 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    pub(crate) fn fresh_kvar(&mut self, sorts: &[List<Sort>], encoding: KVarEncoding) -> Expr {
+    pub(crate) fn fresh_kvar(&self, sorts: &[List<Sort>], encoding: KVarEncoding) -> Expr {
         self.kvar_gen.fresh(sorts, encoding)
     }
 
-    fn fresh_evars(&mut self, sort: &Sort) -> Expr {
-        Expr::fold_sort(sort, |_| Expr::evar(self.evar_gen.fresh_in_current()))
+    fn fresh_evars(&self, sort: &Sort) -> Expr {
+        let mut evar_gen = self.evar_gen.borrow_mut();
+        Expr::fold_sort(sort, |_| Expr::evar(evar_gen.fresh_in_current()))
     }
 
     pub(crate) fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
@@ -707,18 +723,20 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         self.idx_eq(rcx, &e1, &e2);
     }
 
-    fn unify_exprs(&mut self, e1: &Expr, e2: &Expr) {
+    fn unify_exprs(&self, e1: &Expr, e2: &Expr) {
+        let mut evar_gen = self.evar_gen.borrow_mut();
         if let ExprKind::Var(Var::EVar(evar)) = e2.kind()
-            && let scope = &self.evar_gen.data(evar.cx())
+            && let scope = &evar_gen.data(evar.cx())
             && !scope.has_free_vars(e1)
         {
-            self.evar_gen.unify(*evar, e1, false);
+            evar_gen.unify(*evar, e1, false);
         }
     }
 
-    pub(crate) fn solve(mut self) -> Result<EVarSol> {
-        self.evar_gen.exit_context();
-        Ok(self.evar_gen.try_solve_pending()?)
+    pub(crate) fn solve(self) -> Result<EVarSol> {
+        let mut evar_gen = self.evar_gen.into_inner();
+        evar_gen.exit_context();
+        Ok(evar_gen.try_solve_pending()?)
     }
 }
 
@@ -767,9 +785,9 @@ fn mk_obligations(
 
 impl<F> KVarGen for F
 where
-    F: FnMut(&[List<Sort>], KVarEncoding) -> Expr,
+    F: Fn(&[List<Sort>], KVarEncoding) -> Expr,
 {
-    fn fresh(&mut self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr {
+    fn fresh(&self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr {
         (self)(binders, kind)
     }
 }

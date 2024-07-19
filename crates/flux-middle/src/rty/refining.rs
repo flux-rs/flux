@@ -107,7 +107,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         clauses: &[rustc::ty::Clause],
         clause: &rustc::ty::Clause,
     ) -> QueryResult<Option<rty::Clause>> {
-        let kind = match &clause.kind {
+        let kind = match &clause.kind.as_ref().skip_binder() {
             rustc::ty::ClauseKind::Trait(trait_pred) => {
                 let trait_ref = &trait_pred.trait_ref;
                 if let Some(kind) = self.genv.tcx().fn_trait_kind_from_def_id(trait_ref.def_id) {
@@ -150,7 +150,8 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     ) -> QueryResult<rty::ClauseKind> {
         let mut candidates = vec![];
         for clause in clauses {
-            if let rustc::ty::ClauseKind::Projection(trait_pred) = &clause.kind
+            if let rustc::ty::ClauseKind::Projection(trait_pred) =
+                &clause.kind.as_ref().skip_binder()
                 && self.genv.is_fn_once_output(trait_pred.projection_ty.def_id)
                 && trait_pred.projection_ty.self_ty() == trait_ref.self_ty()
             {
