@@ -954,6 +954,193 @@ pub enum BaseTy {
     Param(ParamTy),
 }
 
+impl BaseTy {
+    pub fn adt(adt_def: AdtDef, args: impl Into<GenericArgs>) -> BaseTy {
+        BaseTy::Adt(adt_def, args.into())
+    }
+
+    pub fn from_primitive_str(s: &str) -> Option<BaseTy> {
+        match s {
+            "i8" => Some(BaseTy::Int(IntTy::I8)),
+            "i16" => Some(BaseTy::Int(IntTy::I16)),
+            "i32" => Some(BaseTy::Int(IntTy::I32)),
+            "i64" => Some(BaseTy::Int(IntTy::I64)),
+            "i128" => Some(BaseTy::Int(IntTy::I128)),
+            "u8" => Some(BaseTy::Uint(UintTy::U8)),
+            "u16" => Some(BaseTy::Uint(UintTy::U16)),
+            "u32" => Some(BaseTy::Uint(UintTy::U32)),
+            "u64" => Some(BaseTy::Uint(UintTy::U64)),
+            "u128" => Some(BaseTy::Uint(UintTy::U128)),
+            "f16" => Some(BaseTy::Float(FloatTy::F16)),
+            "f32" => Some(BaseTy::Float(FloatTy::F32)),
+            "f64" => Some(BaseTy::Float(FloatTy::F64)),
+            "f128" => Some(BaseTy::Float(FloatTy::F128)),
+            "isize" => Some(BaseTy::Int(IntTy::Isize)),
+            "usize" => Some(BaseTy::Uint(UintTy::Usize)),
+            "bool" => Some(BaseTy::Bool),
+            "char" => Some(BaseTy::Char),
+            "str" => Some(BaseTy::Str),
+            _ => None,
+        }
+    }
+
+    /// If `self` is a primitive, return its [`Symbol`].
+    pub fn primitive_symbol(&self) -> Option<Symbol> {
+        match self {
+            BaseTy::Bool => Some(sym::bool),
+            BaseTy::Char => Some(sym::char),
+            BaseTy::Float(f) => {
+                match f {
+                    FloatTy::F16 => Some(sym::f16),
+                    FloatTy::F32 => Some(sym::f32),
+                    FloatTy::F64 => Some(sym::f64),
+                    FloatTy::F128 => Some(sym::f128),
+                }
+            }
+            BaseTy::Int(f) => {
+                match f {
+                    IntTy::Isize => Some(sym::isize),
+                    IntTy::I8 => Some(sym::i8),
+                    IntTy::I16 => Some(sym::i16),
+                    IntTy::I32 => Some(sym::i32),
+                    IntTy::I64 => Some(sym::i64),
+                    IntTy::I128 => Some(sym::i128),
+                }
+            }
+            BaseTy::Uint(f) => {
+                match f {
+                    UintTy::Usize => Some(sym::usize),
+                    UintTy::U8 => Some(sym::u8),
+                    UintTy::U16 => Some(sym::u16),
+                    UintTy::U32 => Some(sym::u32),
+                    UintTy::U64 => Some(sym::u64),
+                    UintTy::U128 => Some(sym::u128),
+                }
+            }
+            BaseTy::Str => Some(sym::str),
+            _ => None,
+        }
+    }
+
+    pub fn is_integral(&self) -> bool {
+        matches!(self, BaseTy::Int(_) | BaseTy::Uint(_))
+    }
+
+    pub fn is_numeric(&self) -> bool {
+        matches!(self, BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Float(_))
+    }
+
+    pub fn is_signed(&self) -> bool {
+        matches!(self, BaseTy::Int(_))
+    }
+
+    pub fn is_unsigned(&self) -> bool {
+        matches!(self, BaseTy::Uint(_))
+    }
+
+    pub fn is_float(&self) -> bool {
+        matches!(self, BaseTy::Float(_))
+    }
+
+    pub fn is_bool(&self) -> bool {
+        matches!(self, BaseTy::Bool)
+    }
+
+    fn is_struct(&self) -> bool {
+        matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_struct())
+    }
+
+    fn is_array(&self) -> bool {
+        matches!(self, BaseTy::Array(..))
+    }
+
+    fn is_slice(&self) -> bool {
+        matches!(self, BaseTy::Slice(..))
+    }
+
+    fn is_adt(&self) -> bool {
+        matches!(self, BaseTy::Adt(..))
+    }
+
+    pub fn is_box(&self) -> bool {
+        matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_box())
+    }
+
+    pub fn invariants(&self, overflow_checking: bool) -> &[Invariant] {
+        match self {
+            BaseTy::Adt(adt_def, _) => adt_def.invariants(),
+            BaseTy::Uint(uint_ty) => uint_invariants(*uint_ty, overflow_checking),
+            BaseTy::Int(int_ty) => int_invariants(*int_ty, overflow_checking),
+            _ => &[],
+        }
+    }
+
+    pub fn to_ty(&self) -> Ty {
+        let sort = self.sort();
+        if sort.is_unit() {
+            Ty::indexed(self.clone(), Expr::unit())
+        } else {
+            Ty::exists(Binder::with_sort(Ty::indexed(self.clone(), Expr::nu()), sort))
+        }
+    }
+
+    pub fn sort(&self) -> Sort {
+        match self {
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
+            BaseTy::Bool => Sort::Bool,
+            BaseTy::Adt(adt_def, args) => adt_def.sort(args),
+            BaseTy::Param(param_ty) => Sort::Param(*param_ty),
+            BaseTy::Float(_)
+            | BaseTy::Str
+            | BaseTy::Char
+            | BaseTy::RawPtr(..)
+            | BaseTy::Ref(..)
+            | BaseTy::Tuple(_)
+            | BaseTy::Array(_, _)
+            | BaseTy::Closure(_, _)
+            | BaseTy::Coroutine(..)
+            | BaseTy::Never => Sort::unit(),
+        }
+    }
+
+    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
+        use rustc_middle::ty;
+        match self {
+            BaseTy::Int(i) => ty::Ty::new_int(tcx, *i),
+            BaseTy::Uint(i) => ty::Ty::new_uint(tcx, *i),
+            BaseTy::Param(pty) => pty.to_ty(tcx),
+            BaseTy::Slice(ty) => ty::Ty::new_slice(tcx, ty.to_rustc(tcx)),
+            BaseTy::Bool => tcx.types.bool,
+            BaseTy::Char => tcx.types.char,
+            BaseTy::Str => tcx.types.str_,
+            BaseTy::Adt(adt_def, args) => {
+                let did = adt_def.did();
+                let adt_def = tcx.adt_def(did);
+                let args = args.to_rustc(tcx);
+                ty::Ty::new_adt(tcx, adt_def, args)
+            }
+            BaseTy::Float(f) => ty::Ty::new_float(tcx, *f),
+            BaseTy::RawPtr(ty, mutbl) => ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), *mutbl),
+            BaseTy::Ref(re, ty, mutbl) => {
+                ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), *mutbl)
+            }
+            BaseTy::Tuple(tys) => {
+                let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
+                ty::Ty::new_tup(tcx, &ts)
+            }
+            BaseTy::Array(_, _) => todo!(),
+            BaseTy::Never => tcx.types.never,
+            BaseTy::Closure(_, _) => todo!(),
+            BaseTy::Coroutine(def_id, resume_ty, upvars) => {
+                todo!("Generator {def_id:?} {resume_ty:?} {upvars:?}")
+                // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
+                // let args = tcx.mk_args_from_iter(args);
+                // ty::Ty::new_generator(*tcx, *def_id, args, mov)
+            }
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct AliasTy {
     pub args: GenericArgs,
@@ -1778,190 +1965,6 @@ impl AliasTy {
 
     fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::AliasTy<'tcx> {
         rustc_middle::ty::AliasTy::new(tcx, self.def_id, self.args.to_rustc(tcx))
-    }
-}
-
-impl BaseTy {
-    pub fn adt(adt_def: AdtDef, args: impl Into<GenericArgs>) -> BaseTy {
-        BaseTy::Adt(adt_def, args.into())
-    }
-
-    pub fn from_primitive_str(s: &str) -> Option<BaseTy> {
-        match s {
-            "i8" => Some(BaseTy::Int(IntTy::I8)),
-            "i16" => Some(BaseTy::Int(IntTy::I16)),
-            "i32" => Some(BaseTy::Int(IntTy::I32)),
-            "i64" => Some(BaseTy::Int(IntTy::I64)),
-            "i128" => Some(BaseTy::Int(IntTy::I128)),
-            "u8" => Some(BaseTy::Uint(UintTy::U8)),
-            "u16" => Some(BaseTy::Uint(UintTy::U16)),
-            "u32" => Some(BaseTy::Uint(UintTy::U32)),
-            "u64" => Some(BaseTy::Uint(UintTy::U64)),
-            "u128" => Some(BaseTy::Uint(UintTy::U128)),
-            "f32" => Some(BaseTy::Float(FloatTy::F32)),
-            "f64" => Some(BaseTy::Float(FloatTy::F64)),
-            "isize" => Some(BaseTy::Int(IntTy::Isize)),
-            "usize" => Some(BaseTy::Uint(UintTy::Usize)),
-            "bool" => Some(BaseTy::Bool),
-            "char" => Some(BaseTy::Char),
-            "str" => Some(BaseTy::Str),
-            _ => None,
-        }
-    }
-
-    /// If `self` is a primitive, return its [`Symbol`].
-    pub fn primitive_symbol(&self) -> Option<Symbol> {
-        match self {
-            BaseTy::Bool => Some(sym::bool),
-            BaseTy::Char => Some(sym::char),
-            BaseTy::Float(f) => {
-                match f {
-                    FloatTy::F16 => Some(sym::f16),
-                    FloatTy::F32 => Some(sym::f32),
-                    FloatTy::F64 => Some(sym::f64),
-                    FloatTy::F128 => Some(sym::f128),
-                }
-            }
-            BaseTy::Int(f) => {
-                match f {
-                    IntTy::Isize => Some(sym::isize),
-                    IntTy::I8 => Some(sym::i8),
-                    IntTy::I16 => Some(sym::i16),
-                    IntTy::I32 => Some(sym::i32),
-                    IntTy::I64 => Some(sym::i64),
-                    IntTy::I128 => Some(sym::i128),
-                }
-            }
-            BaseTy::Uint(f) => {
-                match f {
-                    UintTy::Usize => Some(sym::usize),
-                    UintTy::U8 => Some(sym::u8),
-                    UintTy::U16 => Some(sym::u16),
-                    UintTy::U32 => Some(sym::u32),
-                    UintTy::U64 => Some(sym::u64),
-                    UintTy::U128 => Some(sym::u128),
-                }
-            }
-            _ => None,
-        }
-    }
-
-    pub fn is_integral(&self) -> bool {
-        matches!(self, BaseTy::Int(_) | BaseTy::Uint(_))
-    }
-
-    pub fn is_numeric(&self) -> bool {
-        matches!(self, BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Float(_))
-    }
-
-    pub fn is_signed(&self) -> bool {
-        matches!(self, BaseTy::Int(_))
-    }
-
-    pub fn is_unsigned(&self) -> bool {
-        matches!(self, BaseTy::Uint(_))
-    }
-
-    pub fn is_float(&self) -> bool {
-        matches!(self, BaseTy::Float(_))
-    }
-
-    pub fn is_bool(&self) -> bool {
-        matches!(self, BaseTy::Bool)
-    }
-
-    fn is_struct(&self) -> bool {
-        matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_struct())
-    }
-
-    fn is_array(&self) -> bool {
-        matches!(self, BaseTy::Array(..))
-    }
-
-    fn is_slice(&self) -> bool {
-        matches!(self, BaseTy::Slice(..))
-    }
-
-    fn is_adt(&self) -> bool {
-        matches!(self, BaseTy::Adt(..))
-    }
-
-    pub fn is_box(&self) -> bool {
-        matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_box())
-    }
-
-    pub fn invariants(&self, overflow_checking: bool) -> &[Invariant] {
-        match self {
-            BaseTy::Adt(adt_def, _) => adt_def.invariants(),
-            BaseTy::Uint(uint_ty) => uint_invariants(*uint_ty, overflow_checking),
-            BaseTy::Int(int_ty) => int_invariants(*int_ty, overflow_checking),
-            _ => &[],
-        }
-    }
-
-    pub fn to_ty(&self) -> Ty {
-        let sort = self.sort();
-        if sort.is_unit() {
-            Ty::indexed(self.clone(), Expr::unit())
-        } else {
-            Ty::exists(Binder::with_sort(Ty::indexed(self.clone(), Expr::nu()), sort))
-        }
-    }
-
-    pub fn sort(&self) -> Sort {
-        match self {
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
-            BaseTy::Bool => Sort::Bool,
-            BaseTy::Adt(adt_def, args) => adt_def.sort(args),
-            BaseTy::Param(param_ty) => Sort::Param(*param_ty),
-            BaseTy::Float(_)
-            | BaseTy::Str
-            | BaseTy::Char
-            | BaseTy::RawPtr(..)
-            | BaseTy::Ref(..)
-            | BaseTy::Tuple(_)
-            | BaseTy::Array(_, _)
-            | BaseTy::Closure(_, _)
-            | BaseTy::Coroutine(..)
-            | BaseTy::Never => Sort::unit(),
-        }
-    }
-
-    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
-        use rustc_middle::ty;
-        match self {
-            BaseTy::Int(i) => ty::Ty::new_int(tcx, *i),
-            BaseTy::Uint(i) => ty::Ty::new_uint(tcx, *i),
-            BaseTy::Param(pty) => pty.to_ty(tcx),
-            BaseTy::Slice(ty) => ty::Ty::new_slice(tcx, ty.to_rustc(tcx)),
-            BaseTy::Bool => tcx.types.bool,
-            BaseTy::Char => tcx.types.char,
-            BaseTy::Str => tcx.types.str_,
-            BaseTy::Adt(adt_def, args) => {
-                let did = adt_def.did();
-                let adt_def = tcx.adt_def(did);
-                let args = args.to_rustc(tcx);
-                ty::Ty::new_adt(tcx, adt_def, args)
-            }
-            BaseTy::Float(f) => ty::Ty::new_float(tcx, *f),
-            BaseTy::RawPtr(ty, mutbl) => ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), *mutbl),
-            BaseTy::Ref(re, ty, mutbl) => {
-                ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), *mutbl)
-            }
-            BaseTy::Tuple(tys) => {
-                let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
-                ty::Ty::new_tup(tcx, &ts)
-            }
-            BaseTy::Array(_, _) => todo!(),
-            BaseTy::Never => tcx.types.never,
-            BaseTy::Closure(_, _) => todo!(),
-            BaseTy::Coroutine(def_id, resume_ty, upvars) => {
-                todo!("Generator {def_id:?} {resume_ty:?} {upvars:?}")
-                // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
-                // let args = tcx.mk_args_from_iter(args);
-                // ty::Ty::new_generator(*tcx, *def_id, args, mov)
-            }
-        }
     }
 }
 
