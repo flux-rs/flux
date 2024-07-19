@@ -10,9 +10,8 @@ use flux_middle::{
         canonicalize::Hoister,
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        subst::RegionSubst,
-        BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Lambda, Mutability,
-        Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
+        subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Lambda,
+        Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -61,7 +60,7 @@ impl TypeEnv<'_> {
     }
 
     pub fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
-        let ty = RegionSubst::new(&ty, &self.local_decls[local].ty).apply(&ty);
+        let ty = subst::match_regions(&ty, &self.local_decls[local].ty);
         self.bindings
             .insert(local.into(), Place::new(local, vec![]), LocKind::Local, ty);
     }
@@ -170,7 +169,7 @@ impl TypeEnv<'_> {
     ///
     /// This process involves recovering the original regions (lifetimes) used in the (unrefined) Rust
     /// type of `place` and then substituting these regions in `new_ty`.  For instance, if we are
-    /// assigning a value of type `S<&'?10 i32 {v: v > 0}>` to a variable `x`, and the (unrefined) Rust
+    /// assigning a value of type `S<&'?10 i32{v: v > 0}>` to a variable `x`, and the (unrefined) Rust
     /// type of `x` is `S<&'?5 i32>`, before the assignment we identify a substitution that maps the
     /// region `'?10` to `'?5`. After applying this substitution, the type of the place `x` is updated
     /// accordingly. This ensures that the lifetimes in the assigned type are consistent with those
@@ -182,9 +181,8 @@ impl TypeEnv<'_> {
         place: &Place,
         new_ty: Ty,
     ) -> Result {
-        let new_ty = new_ty.replace_regions_with_vars();
         let rustc_ty = place.ty(gen.genv, self.local_decls)?.ty;
-        let new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
+        let new_ty = subst::match_regions(&new_ty, &rustc_ty);
         let result = self.bindings.lookup_unfolding(gen.genv, rcx, place)?;
 
         if result.is_strg {
@@ -222,7 +220,7 @@ impl TypeEnv<'_> {
     pub(crate) fn block_with(&mut self, genv: GlobalEnv, path: &Path, new_ty: Ty) -> Result<Ty> {
         let place = self.bindings.path_to_place(path);
         let rustc_ty = place.ty(genv, self.local_decls)?.ty;
-        let new_ty = RegionSubst::new(&new_ty, &rustc_ty).apply(&new_ty);
+        let new_ty = subst::match_regions(&new_ty, &rustc_ty);
 
         Ok(self.bindings.lookup(path).block_with(new_ty))
     }

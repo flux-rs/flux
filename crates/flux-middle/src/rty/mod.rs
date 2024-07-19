@@ -740,7 +740,7 @@ impl Ty {
     /// type. See `flux_refineck::type_env::TypeEnv::assign`
     ///
     /// [region substitution]: subst::RegionSubst
-    pub fn replace_regions_with_vars(&self) -> Ty {
+    pub fn replace_regions_with_unique_vars(&self) -> Ty {
         struct Replacer {
             next_rvid: u32,
         }
