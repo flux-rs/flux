@@ -318,6 +318,10 @@ impl<'tcx> Body<'tcx> {
         Self { basic_blocks, local_decls, infcx, fake_predecessors, body_with_facts }
     }
 
+    pub fn def_id(&self) -> DefId {
+        self.inner().source.def_id()
+    }
+
     pub fn span(&self) -> Span {
         self.body_with_facts.body.span
     }
