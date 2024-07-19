@@ -2922,7 +2922,7 @@
     /// type. See `flux_refineck::type_env::TypeEnv::assign`
     ///
     /// [region substitution]: subst::RegionSubst
-    </span><span class="kw">pub fn </span>replace_regions_with_vars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
+    </span><span class="kw">pub fn </span>replace_regions_with_unique_vars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
         <span class="kw">struct </span>Replacer {
             next_rvid: u32,
         }

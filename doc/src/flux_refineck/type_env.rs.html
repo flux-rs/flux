@@ -715,8 +715,6 @@
 <a href="#715" id="715">715</a>
 <a href="#716" id="716">716</a>
 <a href="#717" id="717">717</a>
-<a href="#718" id="718">718</a>
-<a href="#719" id="719">719</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -729,9 +727,8 @@
         canonicalize::Hoister,
         evars::EVarSol,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
-        subst::RegionSubst,
-        BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Lambda, Mutability,
-        Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
+        subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Lambda,
+        Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
     rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
 };
@@ -780,7 +777,7 @@
     }
 
     <span class="kw">pub fn </span>alloc_with_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, local: Local, ty: Ty) {
-        <span class="kw">let </span>ty = RegionSubst::new(<span class="kw-2">&amp;</span>ty, <span class="kw-2">&amp;</span><span class="self">self</span>.local_decls[local].ty).apply(<span class="kw-2">&amp;</span>ty);
+        <span class="kw">let </span>ty = subst::match_regions(<span class="kw-2">&amp;</span>ty, <span class="kw-2">&amp;</span><span class="self">self</span>.local_decls[local].ty);
         <span class="self">self</span>.bindings
             .insert(local.into(), Place::new(local, <span class="macro">vec!</span>[]), LocKind::Local, ty);
     }
@@ -889,7 +886,7 @@
     ///
     /// This process involves recovering the original regions (lifetimes) used in the (unrefined) Rust
     /// type of `place` and then substituting these regions in `new_ty`.  For instance, if we are
-    /// assigning a value of type `S&lt;&amp;'?10 i32 {v: v &gt; 0}&gt;` to a variable `x`, and the (unrefined) Rust
+    /// assigning a value of type `S&lt;&amp;'?10 i32{v: v &gt; 0}&gt;` to a variable `x`, and the (unrefined) Rust
     /// type of `x` is `S&lt;&amp;'?5 i32&gt;`, before the assignment we identify a substitution that maps the
     /// region `'?10` to `'?5`. After applying this substitution, the type of the place `x` is updated
     /// accordingly. This ensures that the lifetimes in the assigned type are consistent with those
@@ -901,9 +898,8 @@
         place: <span class="kw-2">&amp;</span>Place,
         new_ty: Ty,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span>new_ty = new_ty.replace_regions_with_vars();
         <span class="kw">let </span>rustc_ty = place.ty(gen.genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
-        <span class="kw">let </span>new_ty = RegionSubst::new(<span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>rustc_ty).apply(<span class="kw-2">&amp;</span>new_ty);
+        <span class="kw">let </span>new_ty = subst::match_regions(<span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>rustc_ty);
         <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(gen.genv, rcx, place)<span class="question-mark">?</span>;
 
         <span class="kw">if </span>result.is_strg {
@@ -941,7 +937,7 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_with(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, path: <span class="kw-2">&amp;</span>Path, new_ty: Ty) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
         <span class="kw">let </span>place = <span class="self">self</span>.bindings.path_to_place(path);
         <span class="kw">let </span>rustc_ty = place.ty(genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
-        <span class="kw">let </span>new_ty = RegionSubst::new(<span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>rustc_ty).apply(<span class="kw-2">&amp;</span>new_ty);
+        <span class="kw">let </span>new_ty = subst::match_regions(<span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>rustc_ty);
 
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.bindings.lookup(path).block_with(new_ty))
     }

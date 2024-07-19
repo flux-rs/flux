@@ -531,6 +531,7 @@
 <a href="#531" id="531">531</a>
 <a href="#532" id="532">532</a>
 <a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cmp::Ordering, collections::hash_map};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
@@ -545,19 +546,20 @@
 };
 <span class="kw">use </span><span class="kw">crate</span>::rty::<span class="kw-2">*</span>;
 
-<span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>RegionSubst {
+<span class="kw">pub fn </span>match_regions(ty1: <span class="kw-2">&amp;</span>Ty, ty2: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; Ty {
+    <span class="kw">let </span>ty1 = ty1.replace_regions_with_unique_vars();
+    <span class="kw">let </span><span class="kw-2">mut </span>subst = RegionSubst::default();
+    subst.infer_from_ty(<span class="kw-2">&amp;</span>ty1, ty2);
+    subst.apply(<span class="kw-2">&amp;</span>ty1)
+}
+
+<span class="attr">#[derive(Default, Debug)]
+</span><span class="kw">struct </span>RegionSubst {
     map: UnordMap&lt;RegionVid, Region&gt;,
 }
 
 <span class="kw">impl </span>RegionSubst {
-    <span class="kw">pub fn </span>new(ty1: <span class="kw-2">&amp;</span>Ty, ty2: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>subst = RegionSubst { map: UnordMap::default() };
-        subst.infer_from_ty(ty1, ty2);
-        subst
-    }
-
-    <span class="kw">pub fn </span>apply&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; T {
+    <span class="kw">fn </span>apply&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; T {
         <span class="kw">struct </span>Folder&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RegionSubst);
         <span class="kw">impl </span>TypeFolder <span class="kw">for </span>Folder&lt;<span class="lifetime">'_</span>&gt; {
             <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>Region) -&gt; Region {
