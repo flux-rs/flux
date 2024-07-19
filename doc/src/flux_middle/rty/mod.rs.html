@@ -2177,6 +2177,9 @@
 <a href="#2177" id="2177">2177</a>
 <a href="#2178" id="2178">2178</a>
 <a href="#2179" id="2179">2179</a>
+<a href="#2180" id="2180">2180</a>
+<a href="#2181" id="2181">2181</a>
+<a href="#2182" id="2182">2182</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -3133,6 +3136,193 @@
     Param(ParamTy),
 }
 
+<span class="kw">impl </span>BaseTy {
+    <span class="kw">pub fn </span>adt(adt_def: AdtDef, args: <span class="kw">impl </span>Into&lt;GenericArgs&gt;) -&gt; BaseTy {
+        BaseTy::Adt(adt_def, args.into())
+    }
+
+    <span class="kw">pub fn </span>from_primitive_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;BaseTy&gt; {
+        <span class="kw">match </span>s {
+            <span class="string">"i8" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Int(IntTy::I8)),
+            <span class="string">"i16" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Int(IntTy::I16)),
+            <span class="string">"i32" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Int(IntTy::I32)),
+            <span class="string">"i64" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Int(IntTy::I64)),
+            <span class="string">"i128" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Int(IntTy::I128)),
+            <span class="string">"u8" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Uint(UintTy::U8)),
+            <span class="string">"u16" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Uint(UintTy::U16)),
+            <span class="string">"u32" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Uint(UintTy::U32)),
+            <span class="string">"u64" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Uint(UintTy::U64)),
+            <span class="string">"u128" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Uint(UintTy::U128)),
+            <span class="string">"f16" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Float(FloatTy::F16)),
+            <span class="string">"f32" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Float(FloatTy::F32)),
+            <span class="string">"f64" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Float(FloatTy::F64)),
+            <span class="string">"f128" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Float(FloatTy::F128)),
+            <span class="string">"isize" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Int(IntTy::Isize)),
+            <span class="string">"usize" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Uint(UintTy::Usize)),
+            <span class="string">"bool" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Bool),
+            <span class="string">"char" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Char),
+            <span class="string">"str" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Str),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="doccomment">/// If `self` is a primitive, return its [`Symbol`].
+    </span><span class="kw">pub fn </span>primitive_symbol(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Symbol&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            BaseTy::Bool =&gt; <span class="prelude-val">Some</span>(sym::bool),
+            BaseTy::Char =&gt; <span class="prelude-val">Some</span>(sym::char),
+            BaseTy::Float(f) =&gt; {
+                <span class="kw">match </span>f {
+                    FloatTy::F16 =&gt; <span class="prelude-val">Some</span>(sym::f16),
+                    FloatTy::F32 =&gt; <span class="prelude-val">Some</span>(sym::f32),
+                    FloatTy::F64 =&gt; <span class="prelude-val">Some</span>(sym::f64),
+                    FloatTy::F128 =&gt; <span class="prelude-val">Some</span>(sym::f128),
+                }
+            }
+            BaseTy::Int(f) =&gt; {
+                <span class="kw">match </span>f {
+                    IntTy::Isize =&gt; <span class="prelude-val">Some</span>(sym::isize),
+                    IntTy::I8 =&gt; <span class="prelude-val">Some</span>(sym::i8),
+                    IntTy::I16 =&gt; <span class="prelude-val">Some</span>(sym::i16),
+                    IntTy::I32 =&gt; <span class="prelude-val">Some</span>(sym::i32),
+                    IntTy::I64 =&gt; <span class="prelude-val">Some</span>(sym::i64),
+                    IntTy::I128 =&gt; <span class="prelude-val">Some</span>(sym::i128),
+                }
+            }
+            BaseTy::Uint(f) =&gt; {
+                <span class="kw">match </span>f {
+                    UintTy::Usize =&gt; <span class="prelude-val">Some</span>(sym::usize),
+                    UintTy::U8 =&gt; <span class="prelude-val">Some</span>(sym::u8),
+                    UintTy::U16 =&gt; <span class="prelude-val">Some</span>(sym::u16),
+                    UintTy::U32 =&gt; <span class="prelude-val">Some</span>(sym::u32),
+                    UintTy::U64 =&gt; <span class="prelude-val">Some</span>(sym::u64),
+                    UintTy::U128 =&gt; <span class="prelude-val">Some</span>(sym::u128),
+                }
+            }
+            BaseTy::Str =&gt; <span class="prelude-val">Some</span>(sym::str),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        }
+    }
+
+    <span class="kw">pub fn </span>is_integral(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Int(<span class="kw">_</span>) | BaseTy::Uint(<span class="kw">_</span>))
+    }
+
+    <span class="kw">pub fn </span>is_numeric(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Int(<span class="kw">_</span>) | BaseTy::Uint(<span class="kw">_</span>) | BaseTy::Float(<span class="kw">_</span>))
+    }
+
+    <span class="kw">pub fn </span>is_signed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Int(<span class="kw">_</span>))
+    }
+
+    <span class="kw">pub fn </span>is_unsigned(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Uint(<span class="kw">_</span>))
+    }
+
+    <span class="kw">pub fn </span>is_float(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Float(<span class="kw">_</span>))
+    }
+
+    <span class="kw">pub fn </span>is_bool(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Bool)
+    }
+
+    <span class="kw">fn </span>is_struct(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Adt(adt_def, <span class="kw">_</span>) <span class="kw">if </span>adt_def.is_struct())
+    }
+
+    <span class="kw">fn </span>is_array(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Array(..))
+    }
+
+    <span class="kw">fn </span>is_slice(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Slice(..))
+    }
+
+    <span class="kw">fn </span>is_adt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Adt(..))
+    }
+
+    <span class="kw">pub fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Adt(adt_def, <span class="kw">_</span>) <span class="kw">if </span>adt_def.is_box())
+    }
+
+    <span class="kw">pub fn </span>invariants(<span class="kw-2">&amp;</span><span class="self">self</span>, overflow_checking: bool) -&gt; <span class="kw-2">&amp;</span>[Invariant] {
+        <span class="kw">match </span><span class="self">self </span>{
+            BaseTy::Adt(adt_def, <span class="kw">_</span>) =&gt; adt_def.invariants(),
+            BaseTy::Uint(uint_ty) =&gt; uint_invariants(<span class="kw-2">*</span>uint_ty, overflow_checking),
+            BaseTy::Int(int_ty) =&gt; int_invariants(<span class="kw-2">*</span>int_ty, overflow_checking),
+            <span class="kw">_ </span>=&gt; <span class="kw-2">&amp;</span>[],
+        }
+    }
+
+    <span class="kw">pub fn </span>to_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
+        <span class="kw">let </span>sort = <span class="self">self</span>.sort();
+        <span class="kw">if </span>sort.is_unit() {
+            Ty::indexed(<span class="self">self</span>.clone(), Expr::unit())
+        } <span class="kw">else </span>{
+            Ty::exists(Binder::with_sort(Ty::indexed(<span class="self">self</span>.clone(), Expr::nu()), sort))
+        }
+    }
+
+    <span class="kw">pub fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Sort {
+        <span class="kw">match </span><span class="self">self </span>{
+            BaseTy::Int(<span class="kw">_</span>) | BaseTy::Uint(<span class="kw">_</span>) | BaseTy::Slice(<span class="kw">_</span>) =&gt; Sort::Int,
+            BaseTy::Bool =&gt; Sort::Bool,
+            BaseTy::Adt(adt_def, args) =&gt; adt_def.sort(args),
+            BaseTy::Param(param_ty) =&gt; Sort::Param(<span class="kw-2">*</span>param_ty),
+            BaseTy::Float(<span class="kw">_</span>)
+            | BaseTy::Str
+            | BaseTy::Char
+            | BaseTy::RawPtr(..)
+            | BaseTy::Ref(..)
+            | BaseTy::Tuple(<span class="kw">_</span>)
+            | BaseTy::Array(<span class="kw">_</span>, <span class="kw">_</span>)
+            | BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>)
+            | BaseTy::Coroutine(..)
+            | BaseTy::Never =&gt; Sort::unit(),
+        }
+    }
+
+    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt; {
+        <span class="kw">use </span>rustc_middle::ty;
+        <span class="kw">match </span><span class="self">self </span>{
+            BaseTy::Int(i) =&gt; ty::Ty::new_int(tcx, <span class="kw-2">*</span>i),
+            BaseTy::Uint(i) =&gt; ty::Ty::new_uint(tcx, <span class="kw-2">*</span>i),
+            BaseTy::Param(pty) =&gt; pty.to_ty(tcx),
+            BaseTy::Slice(ty) =&gt; ty::Ty::new_slice(tcx, ty.to_rustc(tcx)),
+            BaseTy::Bool =&gt; tcx.types.bool,
+            BaseTy::Char =&gt; tcx.types.char,
+            BaseTy::Str =&gt; tcx.types.str_,
+            BaseTy::Adt(adt_def, args) =&gt; {
+                <span class="kw">let </span>did = adt_def.did();
+                <span class="kw">let </span>adt_def = tcx.adt_def(did);
+                <span class="kw">let </span>args = args.to_rustc(tcx);
+                ty::Ty::new_adt(tcx, adt_def, args)
+            }
+            BaseTy::Float(f) =&gt; ty::Ty::new_float(tcx, <span class="kw-2">*</span>f),
+            BaseTy::RawPtr(ty, mutbl) =&gt; ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), <span class="kw-2">*</span>mutbl),
+            BaseTy::Ref(re, ty, mutbl) =&gt; {
+                ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), <span class="kw-2">*</span>mutbl)
+            }
+            BaseTy::Tuple(tys) =&gt; {
+                <span class="kw">let </span>ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
+                ty::Ty::new_tup(tcx, <span class="kw-2">&amp;</span>ts)
+            }
+            BaseTy::Array(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
+            BaseTy::Never =&gt; tcx.types.never,
+            BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
+            BaseTy::Coroutine(def_id, resume_ty, upvars) =&gt; {
+                <span class="macro">todo!</span>(<span class="string">"Generator {def_id:?} {resume_ty:?} {upvars:?}"</span>)
+                <span class="comment">// let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
+                // let args = tcx.mk_args_from_iter(args);
+                // ty::Ty::new_generator(*tcx, *def_id, args, mov)
+            </span>}
+        }
+    }
+}
+
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>AliasTy {
     <span class="kw">pub </span>args: GenericArgs,
@@ -3957,190 +4147,6 @@
 
     <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::AliasTy&lt;<span class="lifetime">'tcx</span>&gt; {
         rustc_middle::ty::AliasTy::new(tcx, <span class="self">self</span>.def_id, <span class="self">self</span>.args.to_rustc(tcx))
-    }
-}
-
-<span class="kw">impl </span>BaseTy {
-    <span class="kw">pub fn </span>adt(adt_def: AdtDef, args: <span class="kw">impl </span>Into&lt;GenericArgs&gt;) -&gt; BaseTy {
-        BaseTy::Adt(adt_def, args.into())
-    }
-
-    <span class="kw">pub fn </span>from_primitive_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;BaseTy&gt; {
-        <span class="kw">match </span>s {
-            <span class="string">"i8" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Int(IntTy::I8)),
-            <span class="string">"i16" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Int(IntTy::I16)),
-            <span class="string">"i32" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Int(IntTy::I32)),
-            <span class="string">"i64" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Int(IntTy::I64)),
-            <span class="string">"i128" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Int(IntTy::I128)),
-            <span class="string">"u8" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Uint(UintTy::U8)),
-            <span class="string">"u16" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Uint(UintTy::U16)),
-            <span class="string">"u32" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Uint(UintTy::U32)),
-            <span class="string">"u64" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Uint(UintTy::U64)),
-            <span class="string">"u128" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Uint(UintTy::U128)),
-            <span class="string">"f32" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Float(FloatTy::F32)),
-            <span class="string">"f64" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Float(FloatTy::F64)),
-            <span class="string">"isize" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Int(IntTy::Isize)),
-            <span class="string">"usize" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Uint(UintTy::Usize)),
-            <span class="string">"bool" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Bool),
-            <span class="string">"char" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Char),
-            <span class="string">"str" </span>=&gt; <span class="prelude-val">Some</span>(BaseTy::Str),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-        }
-    }
-
-    <span class="doccomment">/// If `self` is a primitive, return its [`Symbol`].
-    </span><span class="kw">pub fn </span>primitive_symbol(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Symbol&gt; {
-        <span class="kw">match </span><span class="self">self </span>{
-            BaseTy::Bool =&gt; <span class="prelude-val">Some</span>(sym::bool),
-            BaseTy::Char =&gt; <span class="prelude-val">Some</span>(sym::char),
-            BaseTy::Float(f) =&gt; {
-                <span class="kw">match </span>f {
-                    FloatTy::F16 =&gt; <span class="prelude-val">Some</span>(sym::f16),
-                    FloatTy::F32 =&gt; <span class="prelude-val">Some</span>(sym::f32),
-                    FloatTy::F64 =&gt; <span class="prelude-val">Some</span>(sym::f64),
-                    FloatTy::F128 =&gt; <span class="prelude-val">Some</span>(sym::f128),
-                }
-            }
-            BaseTy::Int(f) =&gt; {
-                <span class="kw">match </span>f {
-                    IntTy::Isize =&gt; <span class="prelude-val">Some</span>(sym::isize),
-                    IntTy::I8 =&gt; <span class="prelude-val">Some</span>(sym::i8),
-                    IntTy::I16 =&gt; <span class="prelude-val">Some</span>(sym::i16),
-                    IntTy::I32 =&gt; <span class="prelude-val">Some</span>(sym::i32),
-                    IntTy::I64 =&gt; <span class="prelude-val">Some</span>(sym::i64),
-                    IntTy::I128 =&gt; <span class="prelude-val">Some</span>(sym::i128),
-                }
-            }
-            BaseTy::Uint(f) =&gt; {
-                <span class="kw">match </span>f {
-                    UintTy::Usize =&gt; <span class="prelude-val">Some</span>(sym::usize),
-                    UintTy::U8 =&gt; <span class="prelude-val">Some</span>(sym::u8),
-                    UintTy::U16 =&gt; <span class="prelude-val">Some</span>(sym::u16),
-                    UintTy::U32 =&gt; <span class="prelude-val">Some</span>(sym::u32),
-                    UintTy::U64 =&gt; <span class="prelude-val">Some</span>(sym::u64),
-                    UintTy::U128 =&gt; <span class="prelude-val">Some</span>(sym::u128),
-                }
-            }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-        }
-    }
-
-    <span class="kw">pub fn </span>is_integral(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Int(<span class="kw">_</span>) | BaseTy::Uint(<span class="kw">_</span>))
-    }
-
-    <span class="kw">pub fn </span>is_numeric(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Int(<span class="kw">_</span>) | BaseTy::Uint(<span class="kw">_</span>) | BaseTy::Float(<span class="kw">_</span>))
-    }
-
-    <span class="kw">pub fn </span>is_signed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Int(<span class="kw">_</span>))
-    }
-
-    <span class="kw">pub fn </span>is_unsigned(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Uint(<span class="kw">_</span>))
-    }
-
-    <span class="kw">pub fn </span>is_float(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Float(<span class="kw">_</span>))
-    }
-
-    <span class="kw">pub fn </span>is_bool(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Bool)
-    }
-
-    <span class="kw">fn </span>is_struct(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Adt(adt_def, <span class="kw">_</span>) <span class="kw">if </span>adt_def.is_struct())
-    }
-
-    <span class="kw">fn </span>is_array(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Array(..))
-    }
-
-    <span class="kw">fn </span>is_slice(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Slice(..))
-    }
-
-    <span class="kw">fn </span>is_adt(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Adt(..))
-    }
-
-    <span class="kw">pub fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Adt(adt_def, <span class="kw">_</span>) <span class="kw">if </span>adt_def.is_box())
-    }
-
-    <span class="kw">pub fn </span>invariants(<span class="kw-2">&amp;</span><span class="self">self</span>, overflow_checking: bool) -&gt; <span class="kw-2">&amp;</span>[Invariant] {
-        <span class="kw">match </span><span class="self">self </span>{
-            BaseTy::Adt(adt_def, <span class="kw">_</span>) =&gt; adt_def.invariants(),
-            BaseTy::Uint(uint_ty) =&gt; uint_invariants(<span class="kw-2">*</span>uint_ty, overflow_checking),
-            BaseTy::Int(int_ty) =&gt; int_invariants(<span class="kw-2">*</span>int_ty, overflow_checking),
-            <span class="kw">_ </span>=&gt; <span class="kw-2">&amp;</span>[],
-        }
-    }
-
-    <span class="kw">pub fn </span>to_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
-        <span class="kw">let </span>sort = <span class="self">self</span>.sort();
-        <span class="kw">if </span>sort.is_unit() {
-            Ty::indexed(<span class="self">self</span>.clone(), Expr::unit())
-        } <span class="kw">else </span>{
-            Ty::exists(Binder::with_sort(Ty::indexed(<span class="self">self</span>.clone(), Expr::nu()), sort))
-        }
-    }
-
-    <span class="kw">pub fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Sort {
-        <span class="kw">match </span><span class="self">self </span>{
-            BaseTy::Int(<span class="kw">_</span>) | BaseTy::Uint(<span class="kw">_</span>) | BaseTy::Slice(<span class="kw">_</span>) =&gt; Sort::Int,
-            BaseTy::Bool =&gt; Sort::Bool,
-            BaseTy::Adt(adt_def, args) =&gt; adt_def.sort(args),
-            BaseTy::Param(param_ty) =&gt; Sort::Param(<span class="kw-2">*</span>param_ty),
-            BaseTy::Float(<span class="kw">_</span>)
-            | BaseTy::Str
-            | BaseTy::Char
-            | BaseTy::RawPtr(..)
-            | BaseTy::Ref(..)
-            | BaseTy::Tuple(<span class="kw">_</span>)
-            | BaseTy::Array(<span class="kw">_</span>, <span class="kw">_</span>)
-            | BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>)
-            | BaseTy::Coroutine(..)
-            | BaseTy::Never =&gt; Sort::unit(),
-        }
-    }
-
-    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt; {
-        <span class="kw">use </span>rustc_middle::ty;
-        <span class="kw">match </span><span class="self">self </span>{
-            BaseTy::Int(i) =&gt; ty::Ty::new_int(tcx, <span class="kw-2">*</span>i),
-            BaseTy::Uint(i) =&gt; ty::Ty::new_uint(tcx, <span class="kw-2">*</span>i),
-            BaseTy::Param(pty) =&gt; pty.to_ty(tcx),
-            BaseTy::Slice(ty) =&gt; ty::Ty::new_slice(tcx, ty.to_rustc(tcx)),
-            BaseTy::Bool =&gt; tcx.types.bool,
-            BaseTy::Char =&gt; tcx.types.char,
-            BaseTy::Str =&gt; tcx.types.str_,
-            BaseTy::Adt(adt_def, args) =&gt; {
-                <span class="kw">let </span>did = adt_def.did();
-                <span class="kw">let </span>adt_def = tcx.adt_def(did);
-                <span class="kw">let </span>args = args.to_rustc(tcx);
-                ty::Ty::new_adt(tcx, adt_def, args)
-            }
-            BaseTy::Float(f) =&gt; ty::Ty::new_float(tcx, <span class="kw-2">*</span>f),
-            BaseTy::RawPtr(ty, mutbl) =&gt; ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), <span class="kw-2">*</span>mutbl),
-            BaseTy::Ref(re, ty, mutbl) =&gt; {
-                ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), <span class="kw-2">*</span>mutbl)
-            }
-            BaseTy::Tuple(tys) =&gt; {
-                <span class="kw">let </span>ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
-                ty::Ty::new_tup(tcx, <span class="kw-2">&amp;</span>ts)
-            }
-            BaseTy::Array(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
-            BaseTy::Never =&gt; tcx.types.never,
-            BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
-            BaseTy::Coroutine(def_id, resume_ty, upvars) =&gt; {
-                <span class="macro">todo!</span>(<span class="string">"Generator {def_id:?} {resume_ty:?} {upvars:?}"</span>)
-                <span class="comment">// let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
-                // let args = tcx.mk_args_from_iter(args);
-                // ty::Ty::new_generator(*tcx, *def_id, args, mov)
-            </span>}
-        }
     }
 }
 
