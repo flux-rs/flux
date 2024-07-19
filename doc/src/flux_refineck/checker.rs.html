@@ -1563,6 +1563,47 @@
 <a href="#1563" id="1563">1563</a>
 <a href="#1564" id="1564">1564</a>
 <a href="#1565" id="1565">1565</a>
+<a href="#1566" id="1566">1566</a>
+<a href="#1567" id="1567">1567</a>
+<a href="#1568" id="1568">1568</a>
+<a href="#1569" id="1569">1569</a>
+<a href="#1570" id="1570">1570</a>
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
+<a href="#1575" id="1575">1575</a>
+<a href="#1576" id="1576">1576</a>
+<a href="#1577" id="1577">1577</a>
+<a href="#1578" id="1578">1578</a>
+<a href="#1579" id="1579">1579</a>
+<a href="#1580" id="1580">1580</a>
+<a href="#1581" id="1581">1581</a>
+<a href="#1582" id="1582">1582</a>
+<a href="#1583" id="1583">1583</a>
+<a href="#1584" id="1584">1584</a>
+<a href="#1585" id="1585">1585</a>
+<a href="#1586" id="1586">1586</a>
+<a href="#1587" id="1587">1587</a>
+<a href="#1588" id="1588">1588</a>
+<a href="#1589" id="1589">1589</a>
+<a href="#1590" id="1590">1590</a>
+<a href="#1591" id="1591">1591</a>
+<a href="#1592" id="1592">1592</a>
+<a href="#1593" id="1593">1593</a>
+<a href="#1594" id="1594">1594</a>
+<a href="#1595" id="1595">1595</a>
+<a href="#1596" id="1596">1596</a>
+<a href="#1597" id="1597">1597</a>
+<a href="#1598" id="1598">1598</a>
+<a href="#1599" id="1599">1599</a>
+<a href="#1600" id="1600">1600</a>
+<a href="#1601" id="1601">1601</a>
+<a href="#1602" id="1602">1602</a>
+<a href="#1603" id="1603">1603</a>
+<a href="#1604" id="1604">1604</a>
+<a href="#1605" id="1605">1605</a>
+<a href="#1606" id="1606">1606</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -1680,6 +1721,9 @@
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">trait </span>Mode: Sized {
+    <span class="attr">#[allow(dead_code)] </span><span class="comment">// used for debugging
+    </span><span class="kw">const </span>NAME: <span class="kw-2">&amp;</span>str;
+
     <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(
         ck: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Checker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="self">Self</span>&gt;,
         rcx: <span class="kw-2">&amp;</span>RefineCtxt,
@@ -1733,17 +1777,20 @@
         config: CheckerConfig,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;ShapeResult&gt; {
         <span class="macro">dbg::shape_mode_span!</span>(genv.tcx(), def_id).in_scope(|| {
+            <span class="kw">let </span>span = genv.tcx().def_span(def_id);
             <span class="kw">let </span><span class="kw-2">mut </span>mode = ShapeMode { bb_envs: FxHashMap::default() };
             <span class="kw">let </span><span class="kw-2">mut </span>refine_tree = RefineTree::new(List::default());
             <span class="kw">let </span><span class="kw-2">mut </span>rcx = refine_tree.refine_ctxt_at_root();
             <span class="kw">let </span>inherited = Inherited::new(genv, <span class="kw-2">&amp;mut </span>rcx, def_id, <span class="kw-2">&amp;mut </span>mode, ghost_stmts, config)<span class="question-mark">?</span>;
-            Checker::run(
+
+            <span class="kw">let </span>body = genv.mir(def_id).with_span(span)<span class="question-mark">?</span>;
+            <span class="kw">let </span>poly_sig = instantiate_and_normalize_fn_sig(
                 genv,
-                rcx.as_subtree(),
-                def_id,
-                inherited,
+                <span class="kw-2">&amp;</span>inherited,
+                <span class="kw-2">&amp;</span>body,
                 genv.fn_sig(def_id).with_span(genv.tcx().def_span(def_id))<span class="question-mark">?</span>,
             )<span class="question-mark">?</span>;
+            Checker::run(genv, rcx.as_subtree(), def_id, inherited, poly_sig)<span class="question-mark">?</span>;
 
             <span class="prelude-val">Ok</span>(ShapeResult(mode.bb_envs))
         })
@@ -1771,7 +1818,11 @@
             <span class="kw">let </span><span class="kw-2">mut </span>mode = RefineMode { bb_envs, kvars: RefCell::new(kvars) };
             <span class="kw">let </span><span class="kw-2">mut </span>rcx = refine_tree.refine_ctxt_at_root();
             <span class="kw">let </span>inherited = Inherited::new(genv, <span class="kw-2">&amp;mut </span>rcx, def_id, <span class="kw-2">&amp;mut </span>mode, ghost_stmts, config)<span class="question-mark">?</span>;
-            Checker::run(genv, rcx.as_subtree(), def_id, inherited, fn_sig)<span class="question-mark">?</span>;
+
+            <span class="kw">let </span>body = genv.mir(def_id).with_span(span)<span class="question-mark">?</span>;
+            <span class="kw">let </span>poly_sig = instantiate_and_normalize_fn_sig(genv, <span class="kw-2">&amp;</span>inherited, <span class="kw-2">&amp;</span>body, fn_sig)<span class="question-mark">?</span>;
+
+            Checker::run(genv, rcx.as_subtree(), def_id, inherited, poly_sig)<span class="question-mark">?</span>;
 
             <span class="prelude-val">Ok</span>((refine_tree, mode.kvars.into_inner()))
         })
@@ -1785,7 +1836,7 @@
         <span class="kw-2">mut </span>refine_tree: RefineSubtree,
         def_id: LocalDefId,
         inherited: Inherited&lt;<span class="lifetime">'ck</span>, M&gt;,
-        poly_sig: EarlyBinder&lt;PolyFnSig&gt;,
+        poly_sig: PolyFnSig,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>span = genv.tcx().def_span(def_id);
 
@@ -1794,12 +1845,9 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>rcx = refine_tree.refine_ctxt_at_root();
 
-        <span class="kw">let </span>poly_sig: Binder&lt;FnSig&gt; = poly_sig
-            .instantiate_identity(<span class="kw-2">&amp;</span>inherited.refine_params)
-            .normalize_projections(genv, <span class="kw-2">&amp;</span>body.infcx, def_id.to_def_id(), <span class="kw-2">&amp;</span>inherited.refine_params)
-            .with_span(span)<span class="question-mark">?</span>;
-
-        <span class="kw">let </span>fn_sig = poly_sig.replace_bound_vars(
+        <span class="comment">// The regions we assign here are not relevant because we would map them to local regions
+        // when assigning to locals. See [`TypeEnv::assign`]. Maybe, we should erase regions instead.
+        </span><span class="kw">let </span>fn_sig = poly_sig.replace_bound_vars(
             |<span class="kw">_</span>| {
                 rty::ReVar(
                     body.infcx
@@ -2104,14 +2152,19 @@
         snapshot: <span class="kw-2">&amp;</span>Snapshot,
         gen_pred: CoroutineObligPredicate,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span>poly_sig = gen_pred.to_poly_fn_sig();
-        <span class="kw">let </span>refine_tree = rcx.subtree_at(snapshot).unwrap();
+        <span class="comment">// See comment for [`Checker::check_oblig_fn_trait_pred`]
+        </span><span class="kw">let </span>poly_sig = instantiate_and_normalize_fn_sig(
+            <span class="self">self</span>.genv,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.inherited,
+            <span class="self">self</span>.body,
+            EarlyBinder(gen_pred.to_poly_fn_sig()),
+        )<span class="question-mark">?</span>;
         Checker::run(
             <span class="self">self</span>.genv,
-            refine_tree,
+            rcx.subtree_at(snapshot).unwrap(),
             gen_pred.def_id.expect_local(),
             <span class="self">self</span>.inherited.reborrow(),
-            EarlyBinder(poly_sig),
+            poly_sig,
         )
     }
 
@@ -2124,14 +2177,27 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(BaseTy::Closure(def_id, tys)) =
             fn_trait_pred.self_ty.as_bty_skipping_existentials()
         {
-            <span class="kw">let </span>refine_tree = rcx.subtree_at(snapshot).unwrap();
-            <span class="kw">let </span>poly_sig = fn_trait_pred.to_poly_fn_sig(<span class="kw-2">*</span>def_id, tys.clone());
+            <span class="comment">// The closure signature may contain region variables generated in the `InferCtxt` of the
+            // current function so we normalize it before passing it to `Checker::run`. After
+            // normalization, the signature could still contain region variables wich haven't been
+            // declared in the closure's `InferCtxt`, but this is fine because we would map them to
+            // local regions when assigning to locals. See [`TypeEnv::assign`]
+            //
+            // After writing this, I realize it may be better to erase regions before normalization.
+            // We should revisit this at some point.
+            </span><span class="kw">let </span>poly_sig = instantiate_and_normalize_fn_sig(
+                <span class="self">self</span>.genv,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.inherited,
+                <span class="self">self</span>.body,
+                EarlyBinder(fn_trait_pred.to_poly_fn_sig(<span class="kw-2">*</span>def_id, tys.clone())),
+            )<span class="question-mark">?</span>;
+
             Checker::run(
                 <span class="self">self</span>.genv,
-                refine_tree,
+                rcx.subtree_at(snapshot).unwrap(),
                 def_id.expect_local(),
                 <span class="self">self</span>.inherited.reborrow(),
-                EarlyBinder(poly_sig),
+                poly_sig,
             )<span class="question-mark">?</span>;
         } <span class="kw">else </span>{
             <span class="macro">panic!</span>(<span class="string">"check_oblig_fn_trait_pred: unexpected self_ty {:?}"</span>, fn_trait_pred.self_ty);
@@ -2659,6 +2725,18 @@
     }
 }
 
+<span class="kw">fn </span>instantiate_and_normalize_fn_sig&lt;<span class="lifetime">'tcx</span>, M&gt;(
+    genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
+    inherited: <span class="kw-2">&amp;</span>Inherited&lt;M&gt;,
+    body: <span class="kw-2">&amp;</span>Body&lt;<span class="lifetime">'tcx</span>&gt;,
+    fn_sig: EarlyBinder&lt;PolyFnSig&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;PolyFnSig&gt; {
+    fn_sig
+        .instantiate_identity(<span class="kw-2">&amp;</span>inherited.refine_params)
+        .normalize_projections(genv, <span class="kw-2">&amp;</span>body.infcx, body.def_id(), <span class="kw-2">&amp;</span>inherited.refine_params)
+        .with_span(body.span())
+}
+
 <span class="kw">fn </span>init_env&lt;<span class="lifetime">'a</span>&gt;(
     rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
     body: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Body,
@@ -2839,6 +2917,8 @@
 }
 
 <span class="kw">impl </span>Mode <span class="kw">for </span>ShapeMode {
+    <span class="kw">const </span>NAME: <span class="kw-2">&amp;</span>str = <span class="string">"shape"</span>;
+
     <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(
         ck: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Checker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="self">Self</span>&gt;,
         _rcx: <span class="kw-2">&amp;</span>RefineCtxt,
@@ -2905,6 +2985,8 @@
 }
 
 <span class="kw">impl </span>Mode <span class="kw">for </span>RefineMode {
+    <span class="kw">const </span>NAME: <span class="kw-2">&amp;</span>str = <span class="string">"refine"</span>;
+
     <span class="kw">fn </span>constr_gen&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(
         ck: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Checker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="self">Self</span>&gt;,
         rcx: <span class="kw-2">&amp;</span>RefineCtxt,

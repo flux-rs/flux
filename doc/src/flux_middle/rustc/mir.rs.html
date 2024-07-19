@@ -758,6 +758,10 @@
 <a href="#758" id="758">758</a>
 <a href="#759" id="759">759</a>
 <a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
@@ -1076,6 +1080,10 @@
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>fake_predecessors = mk_fake_predecessors(<span class="kw-2">&amp;</span>basic_blocks);
         <span class="self">Self </span>{ basic_blocks, local_decls, infcx, fake_predecessors, body_with_facts }
+    }
+
+    <span class="kw">pub fn </span>def_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DefId {
+        <span class="self">self</span>.inner().source.def_id()
     }
 
     <span class="kw">pub fn </span>span(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Span {

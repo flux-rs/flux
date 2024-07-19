@@ -996,6 +996,11 @@
 <a href="#996" id="996">996</a>
 <a href="#997" id="997">997</a>
 <a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
+<a href="#1000" id="1000">1000</a>
+<a href="#1001" id="1001">1001</a>
+<a href="#1002" id="1002">1002</a>
+<a href="#1003" id="1003">1003</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1867,13 +1872,10 @@
         .try_collect()
 }
 
-<span class="kw">fn </span>lower_clause&lt;<span class="lifetime">'tcx</span>&gt;(
+<span class="kw">fn </span>lower_clause_kind&lt;<span class="lifetime">'tcx</span>&gt;(
     tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-    clause: <span class="kw-2">&amp;</span>rustc_ty::Clause&lt;<span class="lifetime">'tcx</span>&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;Clause, UnsupportedReason&gt; {
-    <span class="kw">let </span><span class="prelude-val">Some</span>(kind) = clause.kind().no_bound_vars() <span class="kw">else </span>{
-        <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="string">"higher-rank trait bounds are not supported"</span>));
-    };
+    kind: <span class="kw-2">&amp;</span>rustc_ty::ClauseKind&lt;<span class="lifetime">'tcx</span>&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;ClauseKind, UnsupportedReason&gt; {
     <span class="kw">let </span>kind = <span class="kw">match </span>kind {
         rustc_ty::ClauseKind::Trait(trait_pred) =&gt; {
             ClauseKind::Trait(TraitPredicate {
@@ -1894,15 +1896,23 @@
             ClauseKind::Projection(ProjectionPredicate { projection_ty, term })
         }
         rustc_ty::ClauseKind::TypeOutlives(outlives_pred) =&gt; {
-            ClauseKind::TypeOutlives(lower_type_outlives(tcx, outlives_pred)<span class="question-mark">?</span>)
+            ClauseKind::TypeOutlives(lower_type_outlives(tcx, <span class="kw-2">*</span>outlives_pred)<span class="question-mark">?</span>)
         }
         rustc_ty::ClauseKind::ConstArgHasType(const_, ty) =&gt; {
-            ClauseKind::ConstArgHasType(lower_const(tcx, const_)<span class="question-mark">?</span>, lower_ty(tcx, ty)<span class="question-mark">?</span>)
+            ClauseKind::ConstArgHasType(lower_const(tcx, <span class="kw-2">*</span>const_)<span class="question-mark">?</span>, lower_ty(tcx, <span class="kw-2">*</span>ty)<span class="question-mark">?</span>)
         }
         <span class="kw">_ </span>=&gt; {
             <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported clause kind `{kind:?}`"</span>)));
         }
     };
+    <span class="prelude-val">Ok</span>(kind)
+}
+
+<span class="kw">fn </span>lower_clause&lt;<span class="lifetime">'tcx</span>&gt;(
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    clause: <span class="kw-2">&amp;</span>rustc_ty::Clause&lt;<span class="lifetime">'tcx</span>&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Clause, UnsupportedReason&gt; {
+    <span class="kw">let </span>kind = lower_binder(clause.kind(), |kind| lower_clause_kind(tcx, <span class="kw-2">&amp;</span>kind))<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(Clause::new(kind))
 }
 

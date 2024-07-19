@@ -432,6 +432,7 @@
 <a href="#432" id="432">432</a>
 <a href="#433" id="433">433</a>
 <a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
@@ -541,7 +542,7 @@
         clauses: <span class="kw-2">&amp;</span>[rustc::ty::Clause],
         clause: <span class="kw-2">&amp;</span>rustc::ty::Clause,
     ) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::Clause&gt;&gt; {
-        <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>clause.kind {
+        <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>clause.kind.as_ref().skip_binder() {
             rustc::ty::ClauseKind::Trait(trait_pred) =&gt; {
                 <span class="kw">let </span>trait_ref = <span class="kw-2">&amp;</span>trait_pred.trait_ref;
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(kind) = <span class="self">self</span>.genv.tcx().fn_trait_kind_from_def_id(trait_ref.def_id) {
@@ -584,7 +585,8 @@
     ) -&gt; QueryResult&lt;rty::ClauseKind&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>candidates = <span class="macro">vec!</span>[];
         <span class="kw">for </span>clause <span class="kw">in </span>clauses {
-            <span class="kw">if let </span>rustc::ty::ClauseKind::Projection(trait_pred) = <span class="kw-2">&amp;</span>clause.kind
+            <span class="kw">if let </span>rustc::ty::ClauseKind::Projection(trait_pred) =
+                <span class="kw-2">&amp;</span>clause.kind.as_ref().skip_binder()
                 &amp;&amp; <span class="self">self</span>.genv.is_fn_once_output(trait_pred.projection_ty.def_id)
                 &amp;&amp; trait_pred.projection_ty.self_ty() == trait_ref.self_ty()
             {

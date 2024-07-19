@@ -935,7 +935,7 @@
 
 <span class="attr">#[derive(PartialEq, Eq, Hash, Debug)]
 </span><span class="kw">pub struct </span>Clause {
-    <span class="kw">pub </span>kind: ClauseKind,
+    <span class="kw">pub </span>kind: Binder&lt;ClauseKind&gt;,
 }
 
 <span class="attr">#[derive(PartialEq, Eq, Hash, Debug)]
@@ -1204,7 +1204,7 @@
 }
 
 <span class="kw">impl </span>Clause {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(kind: ClauseKind) -&gt; Clause {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(kind: Binder&lt;ClauseKind&gt;) -&gt; Clause {
         Clause { kind }
     }
 }
