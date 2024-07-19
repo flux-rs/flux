@@ -115,6 +115,9 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
 }
 
 pub(crate) trait Mode: Sized {
+    #[allow(dead_code)] // used for debugging
+    const NAME: &str;
+
     fn constr_gen<'a, 'genv, 'tcx>(
         ck: &'a Checker<'_, 'genv, 'tcx, Self>,
         rcx: &RefineCtxt,
@@ -168,17 +171,20 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
         config: CheckerConfig,
     ) -> Result<ShapeResult> {
         dbg::shape_mode_span!(genv.tcx(), def_id).in_scope(|| {
+            let span = genv.tcx().def_span(def_id);
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
             let mut refine_tree = RefineTree::new(List::default());
             let mut rcx = refine_tree.refine_ctxt_at_root();
             let inherited = Inherited::new(genv, &mut rcx, def_id, &mut mode, ghost_stmts, config)?;
-            Checker::run(
+
+            let body = genv.mir(def_id).with_span(span)?;
+            let poly_sig = instantiate_and_normalize_fn_sig(
                 genv,
-                rcx.as_subtree(),
-                def_id,
-                inherited,
+                &inherited,
+                &body,
                 genv.fn_sig(def_id).with_span(genv.tcx().def_span(def_id))?,
             )?;
+            Checker::run(genv, rcx.as_subtree(), def_id, inherited, poly_sig)?;
 
             Ok(ShapeResult(mode.bb_envs))
         })
@@ -206,7 +212,11 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
             let mut mode = RefineMode { bb_envs, kvars: RefCell::new(kvars) };
             let mut rcx = refine_tree.refine_ctxt_at_root();
             let inherited = Inherited::new(genv, &mut rcx, def_id, &mut mode, ghost_stmts, config)?;
-            Checker::run(genv, rcx.as_subtree(), def_id, inherited, fn_sig)?;
+
+            let body = genv.mir(def_id).with_span(span)?;
+            let poly_sig = instantiate_and_normalize_fn_sig(genv, &inherited, &body, fn_sig)?;
+
+            Checker::run(genv, rcx.as_subtree(), def_id, inherited, poly_sig)?;
 
             Ok((refine_tree, mode.kvars.into_inner()))
         })
@@ -220,7 +230,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         mut refine_tree: RefineSubtree,
         def_id: LocalDefId,
         inherited: Inherited<'ck, M>,
-        poly_sig: EarlyBinder<PolyFnSig>,
+        poly_sig: PolyFnSig,
     ) -> Result {
         let span = genv.tcx().def_span(def_id);
 
@@ -229,11 +239,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let mut rcx = refine_tree.refine_ctxt_at_root();
 
-        let poly_sig: Binder<FnSig> = poly_sig
-            .instantiate_identity(&inherited.refine_params)
-            .normalize_projections(genv, &body.infcx, def_id.to_def_id(), &inherited.refine_params)
-            .with_span(span)?;
-
+        // The regions we assign here are not relevant because we would map them to local regions
+        // when assigning to locals. See [`TypeEnv::assign`]. Maybe, we should erase regions instead.
         let fn_sig = poly_sig.replace_bound_vars(
             |_| {
                 rty::ReVar(
@@ -539,14 +546,19 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         snapshot: &Snapshot,
         gen_pred: CoroutineObligPredicate,
     ) -> Result {
-        let poly_sig = gen_pred.to_poly_fn_sig();
-        let refine_tree = rcx.subtree_at(snapshot).unwrap();
+        // See comment for [`Checker::check_oblig_fn_trait_pred`]
+        let poly_sig = instantiate_and_normalize_fn_sig(
+            self.genv,
+            &self.inherited,
+            self.body,
+            EarlyBinder(gen_pred.to_poly_fn_sig()),
+        )?;
         Checker::run(
             self.genv,
-            refine_tree,
+            rcx.subtree_at(snapshot).unwrap(),
             gen_pred.def_id.expect_local(),
             self.inherited.reborrow(),
-            EarlyBinder(poly_sig),
+            poly_sig,
         )
     }
 
@@ -559,14 +571,27 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         if let Some(BaseTy::Closure(def_id, tys)) =
             fn_trait_pred.self_ty.as_bty_skipping_existentials()
         {
-            let refine_tree = rcx.subtree_at(snapshot).unwrap();
-            let poly_sig = fn_trait_pred.to_poly_fn_sig(*def_id, tys.clone());
+            // The closure signature may contain region variables generated in the `InferCtxt` of the
+            // current function so we normalize it before passing it to `Checker::run`. After
+            // normalization, the signature could still contain region variables wich haven't been
+            // declared in the closure's `InferCtxt`, but this is fine because we would map them to
+            // local regions when assigning to locals. See [`TypeEnv::assign`]
+            //
+            // After writing this, I realize it may be better to erase regions before normalization.
+            // We should revisit this at some point.
+            let poly_sig = instantiate_and_normalize_fn_sig(
+                self.genv,
+                &self.inherited,
+                self.body,
+                EarlyBinder(fn_trait_pred.to_poly_fn_sig(*def_id, tys.clone())),
+            )?;
+
             Checker::run(
                 self.genv,
-                refine_tree,
+                rcx.subtree_at(snapshot).unwrap(),
                 def_id.expect_local(),
                 self.inherited.reborrow(),
-                EarlyBinder(poly_sig),
+                poly_sig,
             )?;
         } else {
             panic!("check_oblig_fn_trait_pred: unexpected self_ty {:?}", fn_trait_pred.self_ty);
@@ -1094,6 +1119,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 }
 
+fn instantiate_and_normalize_fn_sig<'tcx, M>(
+    genv: GlobalEnv<'_, 'tcx>,
+    inherited: &Inherited<M>,
+    body: &Body<'tcx>,
+    fn_sig: EarlyBinder<PolyFnSig>,
+) -> Result<PolyFnSig> {
+    fn_sig
+        .instantiate_identity(&inherited.refine_params)
+        .normalize_projections(genv, &body.infcx, body.def_id(), &inherited.refine_params)
+        .with_span(body.span())
+}
+
 fn init_env<'a>(
     rcx: &mut RefineCtxt,
     body: &'a Body,
@@ -1274,6 +1311,8 @@ fn infer_under_mut_ref_hack(
 }
 
 impl Mode for ShapeMode {
+    const NAME: &str = "shape";
+
     fn constr_gen<'a, 'genv, 'tcx>(
         ck: &'a Checker<'_, 'genv, 'tcx, Self>,
         _rcx: &RefineCtxt,
@@ -1340,6 +1379,8 @@ impl Mode for ShapeMode {
 }
 
 impl Mode for RefineMode {
+    const NAME: &str = "refine";
+
     fn constr_gen<'a, 'genv, 'tcx>(
         ck: &'a Checker<'_, 'genv, 'tcx, Self>,
         rcx: &RefineCtxt,
