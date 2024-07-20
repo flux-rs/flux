@@ -435,6 +435,20 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(clauses)
     }
 
+    fn conv_poly_trait_ref_dyn(
+        poly_trait_ref: &fhir::PolyTraitRef,
+    ) -> QueryResult<rty::PolyTraitRef> {
+        let trait_segment = poly_trait_ref.trait_ref.last_segment();
+
+        if !poly_trait_ref.bound_generic_params.is_empty() || !trait_segment.args.is_empty() {
+            bug!("unexpected! conv_poly_dyn_trait_ref")
+        }
+
+        let trait_ref =
+            rty::TraitRef { def_id: poly_trait_ref.trait_def_id(), args: List::empty() };
+        Ok(rty::PolyTraitRef { trait_ref, bound_generic_params: List::empty() })
+    }
+
     /// Converts a `T: Trait<T0, ..., A0 = S0, ...>` bound
     fn conv_poly_trait_ref(
         &mut self,
@@ -453,8 +467,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             vec![self.ty_to_generic_arg(self_param.kind, bounded_ty_span, bounded_ty)?];
         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
         self.fill_generic_args_defaults(trait_id, &mut args)?;
-
         let trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
+
         let pred = rty::TraitPredicate { trait_ref: trait_ref.clone() };
         let vars = poly_trait_ref
             .bound_generic_params
@@ -788,6 +802,23 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 let alias_ty = rty::AliasTy::new(def_id, args, refine_args);
                 Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
             }
+            fhir::TyKind::TraitObject(poly_traits, lft, syn) => {
+                let poly_traits: List<rty::PolyTraitRef> = poly_traits
+                    .iter()
+                    .map(|poly_trait| Self::conv_poly_trait_ref_dyn(poly_trait))
+                    .try_collect()?;
+                let region = self.conv_lifetime(env, *lft);
+                let syn = Self::conv_trait_object_syntax(syn);
+                Ok(rty::Ty::trait_object(poly_traits, region, syn))
+            }
+        }
+    }
+
+    fn conv_trait_object_syntax(syn: &rustc_ast::TraitObjectSyntax) -> rty::TraitObjectSyntax {
+        match syn {
+            rustc_ast::TraitObjectSyntax::Dyn => rty::TraitObjectSyntax::Dyn,
+            rustc_ast::TraitObjectSyntax::DynStar => rty::TraitObjectSyntax::DynStar,
+            rustc_ast::TraitObjectSyntax::None => rty::TraitObjectSyntax::None,
         }
     }
 

@@ -394,6 +394,15 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                 let args = self.lift_generic_args(args)?;
                 fhir::TyKind::OpaqueDef(item_id, args, &[], in_trait_def)
             }
+            hir::TyKind::TraitObject(poly_traits, lft, syntax) => {
+                let poly_traits = try_alloc_slice!(self.genv, poly_traits, |poly_trait| {
+                    self.lift_poly_trait_ref(*poly_trait)
+                })?;
+
+                let lft = self.lift_lifetime(lft)?;
+                fhir::TyKind::TraitObject(poly_traits, lft, syntax)
+                // return self.emit_unsupported(&format!("unsupported type: {ty:#?}",));
+            }
             _ => {
                 return self.emit_unsupported(&format!(
                     "unsupported type: `{}`",

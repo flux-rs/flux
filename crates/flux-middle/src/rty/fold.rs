@@ -17,8 +17,8 @@ use super::{
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Const,
     CoroutineObligPredicate, Ensures, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
     GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
-    ProjectionPredicate, PtrKind, Qualifier, ReBound, Region, Sort, SubsetTy, TraitPredicate,
-    TraitRef, Ty, TyKind,
+    PolyTraitRef, ProjectionPredicate, PtrKind, Qualifier, ReBound, Region, Sort, SubsetTy,
+    TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -488,6 +488,21 @@ impl TypeFoldable for TraitRef {
     }
 }
 
+impl TypeVisitable for PolyTraitRef {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        self.trait_ref.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for PolyTraitRef {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(PolyTraitRef {
+            bound_generic_params: self.bound_generic_params.clone(),
+            trait_ref: self.trait_ref.try_fold_with(folder)?,
+        })
+    }
+}
+
 impl TypeVisitable for CoroutineObligPredicate {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.upvar_tys.visit_with(visitor)?;
@@ -940,6 +955,7 @@ impl TypeSuperVisitable for BaseTy {
             | BaseTy::Closure(_, _)
             | BaseTy::Never
             | BaseTy::Param(_) => ControlFlow::Continue(()),
+            BaseTy::TraitObject(poly_traits, _, _) => poly_traits.visit_with(visitor),
         }
     }
 }
@@ -977,6 +993,13 @@ impl TypeSuperFoldable for BaseTy {
                     *did,
                     resume_ty.try_fold_with(folder)?,
                     args.try_fold_with(folder)?,
+                )
+            }
+            BaseTy::TraitObject(poly_traits, region, syn) => {
+                BaseTy::TraitObject(
+                    poly_traits.try_fold_with(folder)?,
+                    region.try_fold_with(folder)?,
+                    *syn,
                 )
             }
         };

@@ -337,6 +337,18 @@ impl Pretty for List<Ty> {
     }
 }
 
+impl Pretty for PolyTraitRef {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(cx, f);
+        // let vars = &self.bound_generic_params;
+        // TODO
+        // if !vars.is_empty() {
+        //     w!("for <{:?}>", join!(", ", vars))
+        // }
+        w!("{:?}", &self.trait_ref.def_id)
+    }
+}
+
 impl Pretty for BaseTy {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
@@ -387,6 +399,9 @@ impl Pretty for BaseTy {
                     w!("<{:?}>", join!(", ", upvars))?;
                 }
                 Ok(())
+            }
+            BaseTy::TraitObject(poly_traits, _, _) => {
+                w!("dyn {:?}", join!(", ", poly_traits))
             }
         }
     }

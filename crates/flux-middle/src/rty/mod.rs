@@ -13,7 +13,6 @@ mod pretty;
 pub mod projections;
 pub mod refining;
 pub mod subst;
-
 use std::{borrow::Cow, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
@@ -228,6 +227,19 @@ impl TraitRef {
     pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::TraitRef<'tcx> {
         rustc_middle::ty::TraitRef::new(tcx, self.def_id, self.args.to_rustc(tcx))
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct PolyTraitRef {
+    pub bound_generic_params: List<GenericParamDef>,
+    pub trait_ref: TraitRef,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum TraitObjectSyntax {
+    Dyn,
+    DynStar,
+    None,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable)]
@@ -622,6 +634,14 @@ impl Ty {
         Self::alias(AliasKind::Projection, alias_ty)
     }
 
+    pub fn trait_object(
+        poly_traits: impl Into<List<PolyTraitRef>>,
+        region: Region,
+        syn: TraitObjectSyntax,
+    ) -> Ty {
+        BaseTy::TraitObject(poly_traits.into(), region, syn).to_ty()
+    }
+
     pub fn strg_ref(re: Region, path: Path, ty: Ty) -> Ty {
         TyKind::StrgRef(re, path, ty).intern()
     }
@@ -951,6 +971,7 @@ pub enum BaseTy {
     Never,
     Closure(DefId, /* upvar_tys */ List<Ty>),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
+    TraitObject(List<PolyTraitRef>, Region, TraitObjectSyntax),
     Param(ParamTy),
 }
 
@@ -1099,6 +1120,7 @@ impl BaseTy {
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
             | BaseTy::Coroutine(..)
+            | BaseTy::TraitObject(_, _, _)
             | BaseTy::Never => Sort::unit(),
         }
     }
@@ -1131,6 +1153,7 @@ impl BaseTy {
             BaseTy::Array(_, _) => todo!(),
             BaseTy::Never => tcx.types.never,
             BaseTy::Closure(_, _) => todo!(),
+            BaseTy::TraitObject(_, _, _) => todo!(),
             BaseTy::Coroutine(def_id, resume_ty, upvars) => {
                 todo!("Generator {def_id:?} {resume_ty:?} {upvars:?}")
                 // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
@@ -2055,6 +2078,8 @@ impl_slice_internable!(
     InferMode,
     Sort,
     GenericParamDef,
+    TraitRef,
+    PolyTraitRef,
     Clause,
     PolyVariant,
     Invariant,
