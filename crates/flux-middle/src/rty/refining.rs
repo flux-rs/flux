@@ -6,7 +6,7 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::{ClosureKind, ParamTy};
 
-use super::fold::TypeFoldable;
+use super::{fold::TypeFoldable, PolyTraitRef};
 use crate::{
     global_env::GlobalEnv,
     intern::List,
@@ -168,6 +168,16 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             output: self.refine_ty(&pred.term)?,
         };
         Ok(rty::ClauseKind::FnTrait(pred))
+    }
+
+    pub fn refine_poly_trait_ref(
+        &self,
+        poly_trait_ref: &rustc::ty::PolyTraitRef,
+    ) -> QueryResult<rty::PolyTraitRef> {
+        assert!(poly_trait_ref.bound_generic_params.is_empty());
+        let bound_generic_params = List::empty();
+        let trait_ref = self.refine_trait_ref(&poly_trait_ref.trait_ref)?;
+        Ok(PolyTraitRef { bound_generic_params, trait_ref })
     }
 
     pub fn refine_trait_ref(&self, trait_ref: &rustc::ty::TraitRef) -> QueryResult<rty::TraitRef> {
@@ -357,6 +367,13 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             rustc::ty::TyKind::FnPtr(_) => todo!("refine_ty: FnSig"),
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
+            }
+            rustc::ty::TyKind::TraitObject(poly_traits, r, syntax) => {
+                let poly_traits = poly_traits
+                    .iter()
+                    .map(|ty| self.refine_poly_trait_ref(ty))
+                    .try_collect()?;
+                rty::BaseTy::TraitObject(poly_traits, *r, *syntax)
             }
         };
         Ok(TyOrBase::Base((self.refine)(bty)))

@@ -24,7 +24,7 @@ use flux_middle::{
         refining::{self, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
-    rustc,
+    rustc::{self, ty::TraitObjectSyntax},
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -814,11 +814,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_trait_object_syntax(syn: &rustc_ast::TraitObjectSyntax) -> rty::TraitObjectSyntax {
+    fn conv_trait_object_syntax(syn: &rustc_ast::TraitObjectSyntax) -> TraitObjectSyntax {
         match syn {
-            rustc_ast::TraitObjectSyntax::Dyn => rty::TraitObjectSyntax::Dyn,
-            rustc_ast::TraitObjectSyntax::DynStar => rty::TraitObjectSyntax::DynStar,
-            rustc_ast::TraitObjectSyntax::None => rty::TraitObjectSyntax::None,
+            rustc_ast::TraitObjectSyntax::Dyn => TraitObjectSyntax::Dyn,
+            rustc_ast::TraitObjectSyntax::DynStar => TraitObjectSyntax::DynStar,
+            rustc_ast::TraitObjectSyntax::None => TraitObjectSyntax::None,
         }
     }
 

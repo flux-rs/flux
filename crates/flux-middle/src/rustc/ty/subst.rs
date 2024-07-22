@@ -1,5 +1,8 @@
 use super::{Binder, Const, ConstKind, FnSig, GenericArg, Region, Ty, TyKind};
-use crate::intern::{Internable, List};
+use crate::{
+    intern::{Internable, List},
+    rustc::ty::{PolyTraitRef, TraitRef},
+};
 
 pub(super) trait Subst {
     fn subst(&self, args: &[GenericArg]) -> Self;
@@ -40,6 +43,9 @@ impl Subst for Ty {
             TyKind::RawPtr(ty, mutbl) => Ty::mk_raw_ptr(ty.subst(args), *mutbl),
             TyKind::Param(param_ty) => args[param_ty.index as usize].expect_type().clone(),
             TyKind::FnPtr(fn_sig) => Ty::mk_fn_ptr(fn_sig.subst(args)),
+            TyKind::TraitObject(poly_trait_refs, re, syn) => {
+                Ty::mk_trait_object(poly_trait_refs.subst(args), *re, *syn)
+            }
             TyKind::Bool
             | TyKind::Uint(_)
             | TyKind::Str
@@ -48,6 +54,20 @@ impl Subst for Ty {
             | TyKind::Int(_)
             | TyKind::Never => self.clone(),
         }
+    }
+}
+
+impl Subst for TraitRef {
+    fn subst(&self, args: &[GenericArg]) -> Self {
+        let def_id = self.def_id;
+        TraitRef { def_id, args: self.args.subst(args) }
+    }
+}
+
+impl Subst for PolyTraitRef {
+    fn subst(&self, args: &[GenericArg]) -> Self {
+        assert!(self.bound_generic_params.is_empty());
+        PolyTraitRef { trait_ref: self.trait_ref.subst(args), bound_generic_params: List::empty() }
     }
 }
 

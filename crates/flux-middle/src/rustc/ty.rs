@@ -43,7 +43,7 @@ pub enum BoundVariableKind {
     Region(BoundRegionKind),
 }
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Debug, Hash, Eq, PartialEq, TyEncodable, TyDecodable)]
 pub struct GenericParamDef {
     pub def_id: DefId,
     pub index: u32,
@@ -57,7 +57,7 @@ impl GenericParamDef {
     }
 }
 
-#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy, TyEncodable, TyDecodable)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
     Lifetime,
@@ -93,7 +93,7 @@ pub struct TraitPredicate {
     pub trait_ref: TraitRef,
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct TraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
@@ -182,6 +182,20 @@ pub enum TyKind {
     CoroutineWitness(DefId, GenericArgs),
     Alias(AliasKind, AliasTy),
     RawPtr(Ty, Mutability),
+    TraitObject(List<PolyTraitRef>, Region, TraitObjectSyntax),
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct PolyTraitRef {
+    pub bound_generic_params: List<GenericParamDef>,
+    pub trait_ref: TraitRef,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum TraitObjectSyntax {
+    Dyn,
+    DynStar,
+    None,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -630,6 +644,14 @@ impl Ty {
         TyKind::Param(param).intern()
     }
 
+    pub fn mk_trait_object(
+        poly_traits: impl Into<List<PolyTraitRef>>,
+        r: Region,
+        syn: TraitObjectSyntax,
+    ) -> Ty {
+        TyKind::TraitObject(poly_traits.into(), r, syn).intern()
+    }
+
     pub fn mk_ref(region: Region, ty: Ty, mutability: Mutability) -> Ty {
         TyKind::Ref(region, ty, mutability).intern()
     }
@@ -721,13 +743,14 @@ impl Ty {
             TyKind::Coroutine(_, _) => todo!(),
             TyKind::CoroutineWitness(_, _) => todo!(),
             TyKind::Alias(_, _) => todo!(),
+            TyKind::TraitObject(_, _, _) => todo!(),
         };
         rustc_ty::Ty::new(tcx, kind)
     }
 }
 
 impl_internable!(TyS, AdtDefData);
-impl_slice_internable!(Ty, GenericArg, GenericParamDef, BoundVariableKind, Clause);
+impl_slice_internable!(Ty, GenericArg, GenericParamDef, BoundVariableKind, Clause, PolyTraitRef);
 
 impl fmt::Debug for GenericArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -835,6 +858,9 @@ impl fmt::Debug for Ty {
                 }
                 write!(f, ")")?;
                 Ok(())
+            }
+            TyKind::TraitObject(poly_traits, _r, _syn) => {
+                write!(f, "dyn {poly_traits:?}")
             }
         }
     }

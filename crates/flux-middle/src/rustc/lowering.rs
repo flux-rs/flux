@@ -740,6 +740,11 @@ pub(crate) fn lower_ty<'tcx>(
             let args = lower_generic_args(tcx, args)?;
             Ok(Ty::mk_generator_witness(*did, args))
         }
+        rustc_ty::Dynamic(predicates, region, kind) => {
+            Err(UnsupportedReason::new(format!(
+                "DYN preds=`{predicates:?}`, reg={region:?}, kind={kind:?}"
+            )))
+        }
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
     }
 }

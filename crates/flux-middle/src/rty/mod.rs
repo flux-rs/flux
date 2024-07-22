@@ -57,7 +57,11 @@ use crate::{
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
     rty::subst::SortSubst,
-    rustc::{self, mir::Place, ty::VariantDef},
+    rustc::{
+        self,
+        mir::Place,
+        ty::{TraitObjectSyntax, VariantDef},
+    },
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -235,12 +239,12 @@ pub struct PolyTraitRef {
     pub trait_ref: TraitRef,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub enum TraitObjectSyntax {
-    Dyn,
-    DynStar,
-    None,
-}
+// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+// pub enum TraitObjectSyntax {
+//     Dyn,
+//     DynStar,
+//     None,
+// }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable)]
 pub struct ProjectionPredicate {
