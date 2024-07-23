@@ -440,8 +440,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     ) -> QueryResult<rty::PolyTraitRef> {
         let trait_segment = poly_trait_ref.trait_ref.last_segment();
 
-        if !poly_trait_ref.bound_generic_params.is_empty() || !trait_segment.args.is_empty() {
-            bug!("unexpected! conv_poly_dyn_trait_ref");
+        if !poly_trait_ref.bound_generic_params.is_empty() {
+            bug!("unexpected! conv_poly_dyn_trait_ref {:?}", poly_trait_ref.bound_generic_params);
+        }
+        if !trait_segment.args.is_empty() {
+            bug!("unexpected! conv_poly_dyn_trait_ref {:?}", trait_segment.args);
         }
 
         let trait_ref =
