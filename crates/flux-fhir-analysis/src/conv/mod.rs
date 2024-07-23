@@ -441,7 +441,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let trait_segment = poly_trait_ref.trait_ref.last_segment();
 
         if !poly_trait_ref.bound_generic_params.is_empty() || !trait_segment.args.is_empty() {
-            bug!("unexpected! conv_poly_dyn_trait_ref")
+            bug!("unexpected! conv_poly_dyn_trait_ref");
         }
 
         let trait_ref =
