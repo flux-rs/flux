@@ -9,7 +9,6 @@
 //! 3. Refinements are well-sorted.
 
 mod fill_holes;
-
 use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
@@ -24,7 +23,10 @@ use flux_middle::{
         refining::{self, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
-    rustc::{self, ty::TraitObjectSyntax},
+    rustc::{
+        self,
+        ty::{Region, TraitObjectSyntax},
+    },
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -35,7 +37,7 @@ use rustc_hir::{
 };
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
-    ty::{self, AssocItem, AssocKind, BoundVar},
+    ty::{self, AssocItem, AssocKind, BoundVar, EarlyParamRegion},
 };
 use rustc_span::{
     symbol::{kw, Ident},
@@ -436,19 +438,25 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     }
 
     fn conv_poly_trait_ref_dyn(
+        &mut self,
+        env: &mut Env,
         poly_trait_ref: &fhir::PolyTraitRef,
     ) -> QueryResult<rty::PolyTraitRef> {
         let trait_segment = poly_trait_ref.trait_ref.last_segment();
 
         if !poly_trait_ref.bound_generic_params.is_empty() {
-            bug!("unexpected! conv_poly_dyn_trait_ref {:?}", poly_trait_ref.bound_generic_params);
+            bug!(
+                "unexpected! conv_poly_dyn_trait_ref bound_generic_params={:?}",
+                poly_trait_ref.bound_generic_params
+            );
         }
-        if !trait_segment.args.is_empty() {
-            bug!("unexpected! conv_poly_dyn_trait_ref {:?}", trait_segment.args);
-        }
+        // if !trait_segment.args.is_empty() {
+        //     bug!("unexpected! conv_poly_dyn_trait_ref args={:?}", trait_segment.args);
+        // }
 
-        let trait_ref =
-            rty::TraitRef { def_id: poly_trait_ref.trait_def_id(), args: List::empty() };
+        let def_id = poly_trait_ref.trait_def_id();
+        let args = self.conv_generic_args(env, def_id, trait_segment.args)?;
+        let trait_ref = rty::TraitRef { def_id, args: args.into() };
         Ok(rty::PolyTraitRef { trait_ref, bound_generic_params: List::empty() })
     }
 
@@ -808,7 +816,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::TyKind::TraitObject(poly_traits, lft, syn) => {
                 let poly_traits: List<rty::PolyTraitRef> = poly_traits
                     .iter()
-                    .map(|poly_trait| Self::conv_poly_trait_ref_dyn(poly_trait))
+                    .map(|poly_trait| self.conv_poly_trait_ref_dyn(env, poly_trait))
                     .try_collect()?;
                 let region = self.conv_lifetime(env, *lft);
                 let syn = Self::conv_trait_object_syntax(syn);
@@ -1182,20 +1190,29 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     ) -> QueryResult {
         let generics = self.genv.generics_of(def_id)?;
         for param in generics.params.iter().skip(into.len()) {
-            if let rty::GenericParamDefKind::Type { has_default } = param.kind {
-                debug_assert!(has_default);
-                let tcx = self.genv.tcx();
-                let ty = self
-                    .genv
-                    .type_of(param.def_id)?
-                    .instantiate(tcx, into, &[])
-                    .to_ty();
-                into.push(rty::GenericArg::Ty(ty));
-            } else {
-                bug!("unexpected generic param: {param:?}");
+            match param.kind {
+                rty::GenericParamDefKind::Type { has_default } => {
+                    debug_assert!(has_default);
+                    let tcx = self.genv.tcx();
+                    let ty = self
+                        .genv
+                        .type_of(param.def_id)?
+                        .instantiate(tcx, into, &[])
+                        .to_ty();
+                    into.push(rty::GenericArg::Ty(ty));
+                }
+                rty::GenericParamDefKind::Lifetime => {
+                    let region = Region::ReEarlyParam(EarlyParamRegion {
+                        index: param.index,
+                        name: param.name,
+                    });
+                    into.push(rty::GenericArg::Lifetime(region));
+                }
+                _ => {
+                    bug!("unexpected generic param: {param:?}");
+                }
             }
         }
-
         Ok(())
     }
 
