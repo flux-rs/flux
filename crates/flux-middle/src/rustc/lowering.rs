@@ -26,8 +26,8 @@ use super::{
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
         Const, ConstKind, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
-        GenericPredicates, Generics, OutlivesPredicate, PolyFnSig, TraitPredicate, TraitRef, Ty,
-        TypeOutlivesPredicate, VariantDef,
+        GenericPredicates, Generics, OutlivesPredicate, PolyFnSig, PolyTraitRef, TraitObjectSyntax,
+        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, VariantDef,
     },
 };
 use crate::{
@@ -741,9 +741,19 @@ pub(crate) fn lower_ty<'tcx>(
             Ok(Ty::mk_generator_witness(*did, args))
         }
         rustc_ty::Dynamic(predicates, region, kind) => {
-            Err(UnsupportedReason::new(format!(
-                "DYN preds=`{predicates:?}`, reg={region:?}, kind={kind:?}"
-            )))
+            let region = lower_region(region)?;
+            let kind = lower_dyn_kind(kind)?;
+            let poly_traits = List::from_vec(
+                predicates
+                    .iter()
+                    .map(|pred| lower_existential_predicate(tcx, pred))
+                    .try_collect()?,
+            );
+
+            Ok(Ty::mk_trait_object(poly_traits, region, kind))
+            // Err(UnsupportedReason::new(format!(
+            //     "DYN preds=`{predicates:?}`, reg={region:?}, kind={kind:?}"
+            // )))
         }
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
     }
@@ -777,6 +787,23 @@ fn lower_field(f: &rustc_ty::FieldDef) -> FieldDef {
     FieldDef { did: f.did, name: f.name }
 }
 
+pub fn lower_existential_predicate<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    pred: rustc_ty::Binder<rustc_ty::ExistentialPredicate<'tcx>>,
+) -> Result<PolyTraitRef, UnsupportedReason> {
+    assert!(pred.bound_vars().is_empty());
+    let pred = pred.skip_binder();
+    let bound_generic_params = List::empty();
+    if let rustc_ty::ExistentialPredicate::Trait(trait_ref) = pred {
+        let def_id = trait_ref.def_id;
+        let args = lower_generic_args(tcx, trait_ref.args)?;
+        let trait_ref = TraitRef { def_id, args };
+        Ok(PolyTraitRef { bound_generic_params, trait_ref })
+    } else {
+        Err(UnsupportedReason::new(format!("unsupported existential predicate `{pred:?}`")))
+    }
+}
+
 pub fn lower_generic_args<'tcx>(
     tcx: TyCtxt<'tcx>,
     args: rustc_middle::ty::GenericArgsRef<'tcx>,
@@ -796,6 +823,13 @@ fn lower_generic_arg<'tcx>(
         GenericArgKind::Type(ty) => Ok(GenericArg::Ty(lower_ty(tcx, ty)?)),
         GenericArgKind::Lifetime(region) => Ok(GenericArg::Lifetime(lower_region(&region)?)),
         GenericArgKind::Const(c) => Ok(GenericArg::Const(lower_const(tcx, c)?)),
+    }
+}
+
+fn lower_dyn_kind(kind: &rustc_ty::DynKind) -> Result<TraitObjectSyntax, UnsupportedReason> {
+    match kind {
+        rustc_ty::DynKind::Dyn => Ok(TraitObjectSyntax::Dyn),
+        rustc_ty::DynKind::DynStar => Ok(TraitObjectSyntax::DynStar),
     }
 }
 
