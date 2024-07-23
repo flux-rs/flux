@@ -12,7 +12,6 @@ impl Animal for Cow {
     }
 }
 
-#[flux::trusted]
 fn make_two_noises(animal: &dyn Animal) {
     animal.noise();
     animal.noise();
