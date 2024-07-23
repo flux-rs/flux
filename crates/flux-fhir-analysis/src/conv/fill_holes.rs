@@ -216,6 +216,18 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             (rty::BaseTy::Param(pty_a), ty::TyKind::Param(pty_b)) => {
                 debug_assert_eq!(pty_a, pty_b);
             }
+            (
+                rty::BaseTy::TraitObject(poly_trait_refs, re_a, _),
+                ty::TyKind::TraitObject(poly_trait_refs_b, re_b, _),
+            ) => {
+                self.zip_region(re_a, re_b);
+                debug_assert_eq!(poly_trait_refs.len(), poly_trait_refs_b.len());
+                // for (poly_trait_ref_a, poly_trait_ref_b) in
+                //     iter::zip(poly_trait_refs, poly_trait_refs_b)
+                // {
+                //     self.zip_poly_trait_ref(poly_trait_ref_a, poly_trait_ref_b)?;
+                // }
+            }
             (rty::BaseTy::Closure(..), _) => {
                 bug!("unexpected closure {a:?}");
             }
