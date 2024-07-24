@@ -450,15 +450,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 poly_trait_ref.bound_generic_params
             );
         }
-        if !trait_segment.args.is_empty() {
-            bug!("unexpected! conv_poly_dyn_trait_ref args={:?}", trait_segment.args);
-        }
 
         let def_id = poly_trait_ref.trait_def_id();
-
         let mut into = vec![];
         self.conv_generic_args_into(env, def_id, trait_segment.args, &mut into)?;
-        // let args = self.conv_generic_args(env, def_id, trait_segment.args)?;
 
         let trait_ref = rty::TraitRef { def_id, args: into.into() };
         Ok(rty::PolyTraitRef { trait_ref, bound_generic_params: List::empty() })
