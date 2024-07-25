@@ -116,8 +116,8 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::rustc::{<span class="self">self</span>, lowering::lower_ty, mir::Constant};
 
-<span class="comment">// FIXME(nilehmann) We are using this during lowering to evaluate constants annotated. We should
-// do the evaluation later in the pipeline.
+<span class="comment">// FIXME(nilehmann) We are using this during desugaring to evaluate constants annotated with
+// `#[flux::constant]`. We should do the evaluation later in the pipeline.
 </span><span class="kw">pub fn </span>scalar_int_to_rty_constant&lt;<span class="lifetime">'tcx</span>&gt;(
     tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     scalar: rustc_ty::ScalarInt,
