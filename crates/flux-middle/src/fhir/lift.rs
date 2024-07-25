@@ -401,7 +401,6 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
 
                 let lft = self.lift_lifetime(lft)?;
                 fhir::TyKind::TraitObject(poly_traits, lft, syntax)
-                // return self.emit_unsupported(&format!("unsupported type: {ty:#?}",));
             }
             _ => {
                 return self.emit_unsupported(&format!(
