@@ -230,14 +230,27 @@ impl TraitRef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct PolyTraitRef {
-    pub bound_generic_params: List<GenericParamDef>,
-    pub trait_ref: TraitRef,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ExistentialPredicate {
     Trait(ExistentialTraitRef),
+}
+
+impl Binder<ExistentialPredicate> {
+    fn to_rustc<'tcx>(
+        &self,
+        tcx: TyCtxt<'tcx>,
+    ) -> rustc_middle::ty::Binder<'tcx, rustc_middle::ty::ExistentialPredicate<'tcx>> {
+        assert!(self.vars.is_empty());
+        match self.value {
+            ExistentialPredicate::Trait(ref exi_trait_ref) => {
+                let exi_trait_ref = rustc_middle::ty::ExistentialTraitRef {
+                    def_id: exi_trait_ref.def_id,
+                    args: exi_trait_ref.args.to_rustc(tcx),
+                };
+                let exi_pred = rustc_middle::ty::ExistentialPredicate::Trait(exi_trait_ref);
+                rustc_middle::ty::Binder::bind_with_vars(exi_pred, rustc_middle::ty::List::empty())
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -1153,13 +1166,13 @@ impl BaseTy {
             BaseTy::Array(_, _) => todo!(),
             BaseTy::Never => tcx.types.never,
             BaseTy::Closure(_, _) => todo!(),
-            BaseTy::Dynamic(_exi_preds, _re) => {
-                todo!()
-                // let preds = exi_preds
-                //     .iter()
-                //     .map(|pred| pred.to_rustc(tcx))
-                //     .collect_vec();
-                // ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_middle::ty::DynKind::Dyn)
+            BaseTy::Dynamic(exi_preds, re) => {
+                let preds: Vec<_> = exi_preds
+                    .iter()
+                    .map(|pred| pred.to_rustc(tcx))
+                    .collect_vec();
+                let preds = tcx.mk_poly_existential_predicates(&preds);
+                ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_middle::ty::DynKind::Dyn)
             }
             BaseTy::Coroutine(def_id, resume_ty, upvars) => {
                 todo!("Generator {def_id:?} {resume_ty:?} {upvars:?}")
