@@ -549,7 +549,7 @@ impl BindKind {
     }
 }
 
-/// A punctuated sequence of vlaues of type `T` separated by punctuation of type `P`
+/// A punctuated sequence of values of type `T` separated by punctuation of type `P`
 pub struct Punctuated<T, P> {
     inner: Vec<(T, P)>,
     last: Option<Box<T>>,
