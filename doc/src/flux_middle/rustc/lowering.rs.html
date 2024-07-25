@@ -998,9 +998,6 @@
 <a href="#998" id="998">998</a>
 <a href="#999" id="999">999</a>
 <a href="#1000" id="1000">1000</a>
-<a href="#1001" id="1001">1001</a>
-<a href="#1002" id="1002">1002</a>
-<a href="#1003" id="1003">1003</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1827,25 +1824,22 @@
             .own_params
             .iter()
             .map(lower_generic_param_def)
-            .try_collect()<span class="question-mark">?</span>,
+            .collect(),
     );
     <span class="prelude-val">Ok</span>(Generics { params, orig: generics })
 }
 
-<span class="kw">fn </span>lower_generic_param_def(
-    generic: <span class="kw-2">&amp;</span>rustc_ty::GenericParamDef,
-) -&gt; <span class="prelude-ty">Result</span>&lt;GenericParamDef, UnsupportedReason&gt; {
+<span class="kw">fn </span>lower_generic_param_def(generic: <span class="kw-2">&amp;</span>rustc_ty::GenericParamDef) -&gt; GenericParamDef {
     <span class="kw">let </span>kind = <span class="kw">match </span>generic.kind {
-        rustc_ty::GenericParamDefKind::Type { has_default, synthetic: <span class="bool-val">false </span>} =&gt; {
+        rustc_ty::GenericParamDefKind::Type { has_default, .. } =&gt; {
             GenericParamDefKind::Type { has_default }
         }
         rustc_ty::GenericParamDefKind::Lifetime =&gt; GenericParamDefKind::Lifetime,
         rustc_ty::GenericParamDefKind::Const { has_default, is_host_effect, .. } =&gt; {
             GenericParamDefKind::Const { has_default, is_host_effect }
         }
-        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="string">"unsupported generic param"</span>)),
     };
-    <span class="prelude-val">Ok</span>(GenericParamDef { def_id: generic.def_id, index: generic.index, name: generic.name, kind })
+    GenericParamDef { def_id: generic.def_id, index: generic.index, name: generic.name, kind }
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_generic_predicates&lt;<span class="lifetime">'tcx</span>&gt;(

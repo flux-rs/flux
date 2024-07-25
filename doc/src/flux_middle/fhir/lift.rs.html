@@ -630,13 +630,6 @@
 <a href="#630" id="630">630</a>
 <a href="#631" id="631">631</a>
 <a href="#632" id="632">632</a>
-<a href="#633" id="633">633</a>
-<a href="#634" id="634">634</a>
-<a href="#635" id="635">635</a>
-<a href="#636" id="636">636</a>
-<a href="#637" id="637">637</a>
-<a href="#638" id="638">638</a>
-<a href="#639" id="639">639</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 //!
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
@@ -772,17 +765,10 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::GenericParam&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>kind = <span class="kw">match </span>param.kind {
             hir::GenericParamKind::Lifetime { .. } =&gt; fhir::GenericParamKind::Lifetime,
-            hir::GenericParamKind::Type { default, synthetic: <span class="bool-val">false </span>} =&gt; {
+            hir::GenericParamKind::Type { default, .. } =&gt; {
                 fhir::GenericParamKind::Type {
                     default: default.map(|ty| <span class="self">self</span>.lift_ty(ty)).transpose()<span class="question-mark">?</span>,
                 }
-            }
-            hir::GenericParamKind::Type { synthetic: <span class="bool-val">true</span>, .. } =&gt; {
-                <span class="kw">return </span><span class="self">self</span>.emit_err(errors::UnsupportedHir::new(
-                    <span class="self">self</span>.genv.tcx(),
-                    param.def_id,
-                    <span class="string">"`impl Trait` in argument position not supported"</span>,
-                ))
             }
             hir::GenericParamKind::Const { ty, is_host_effect, .. } =&gt; {
                 <span class="kw">let </span>ty = <span class="self">self</span>.lift_ty(ty)<span class="question-mark">?</span>;
