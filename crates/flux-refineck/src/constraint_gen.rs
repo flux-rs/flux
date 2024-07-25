@@ -584,7 +584,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _))
-            | (BaseTy::Dynamic(_, _, _), BaseTy::Dynamic(_, _, _)) => Ok(()),
+            | (BaseTy::Dynamic(_, _), BaseTy::Dynamic(_, _)) => Ok(()),
             (BaseTy::Closure(did1, tys1), BaseTy::Closure(did2, tys2)) if did1 == did2 => {
                 debug_assert_eq!(tys1.len(), tys2.len());
                 for (ty1, ty2) in iter::zip(tys1, tys2) {

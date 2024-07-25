@@ -399,7 +399,7 @@ impl Pretty for BaseTy {
                 }
                 Ok(())
             }
-            BaseTy::Dynamic(exi_preds, _, _) => {
+            BaseTy::Dynamic(exi_preds, _) => {
                 w!("dyn {:?}", join!(", ", exi_preds))
             }
         }

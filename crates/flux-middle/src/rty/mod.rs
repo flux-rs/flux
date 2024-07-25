@@ -57,11 +57,7 @@ use crate::{
     intern::{impl_internable, impl_slice_internable, Interned, List},
     queries::QueryResult,
     rty::subst::SortSubst,
-    rustc::{
-        self,
-        mir::Place,
-        ty::{DynKind, VariantDef},
-    },
+    rustc::{self, mir::Place, ty::VariantDef},
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -642,12 +638,8 @@ impl Ty {
         Self::alias(AliasKind::Projection, alias_ty)
     }
 
-    pub fn dynamic(
-        preds: impl Into<List<Binder<ExistentialPredicate>>>,
-        region: Region,
-        kind: DynKind,
-    ) -> Ty {
-        BaseTy::Dynamic(preds.into(), region, kind).to_ty()
+    pub fn dynamic(preds: impl Into<List<Binder<ExistentialPredicate>>>, region: Region) -> Ty {
+        BaseTy::Dynamic(preds.into(), region).to_ty()
     }
 
     pub fn strg_ref(re: Region, path: Path, ty: Ty) -> Ty {
@@ -979,7 +971,7 @@ pub enum BaseTy {
     Never,
     Closure(DefId, /* upvar_tys */ List<Ty>),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
-    Dynamic(List<Binder<ExistentialPredicate>>, Region, DynKind),
+    Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
 }
 
@@ -1128,7 +1120,7 @@ impl BaseTy {
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
             | BaseTy::Coroutine(..)
-            | BaseTy::Dynamic(_, _, _)
+            | BaseTy::Dynamic(_, _)
             | BaseTy::Never => Sort::unit(),
         }
     }
@@ -1161,7 +1153,14 @@ impl BaseTy {
             BaseTy::Array(_, _) => todo!(),
             BaseTy::Never => tcx.types.never,
             BaseTy::Closure(_, _) => todo!(),
-            BaseTy::Dynamic(_, _, _) => todo!(),
+            BaseTy::Dynamic(_exi_preds, _re) => {
+                todo!()
+                // let preds = exi_preds
+                //     .iter()
+                //     .map(|pred| pred.to_rustc(tcx))
+                //     .collect_vec();
+                // ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_middle::ty::DynKind::Dyn)
+            }
             BaseTy::Coroutine(def_id, resume_ty, upvars) => {
                 todo!("Generator {def_id:?} {resume_ty:?} {upvars:?}")
                 // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));

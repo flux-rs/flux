@@ -23,10 +23,7 @@ use flux_middle::{
         refining::{self, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
-    rustc::{
-        self,
-        ty::{DynKind, Region},
-    },
+    rustc::{self, ty::Region},
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -819,18 +816,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .map(|poly_trait| self.conv_poly_trait_ref_dyn(env, poly_trait))
                     .try_collect()?;
                 let region = self.conv_lifetime(env, *lft);
-                let kind = Self::conv_trait_object_syntax(syn);
-                Ok(rty::Ty::dynamic(exi_preds, region, kind))
-            }
-        }
-    }
-
-    fn conv_trait_object_syntax(syn: &rustc_ast::TraitObjectSyntax) -> DynKind {
-        match syn {
-            rustc_ast::TraitObjectSyntax::Dyn => DynKind::Dyn,
-            rustc_ast::TraitObjectSyntax::None => DynKind::None,
-            rustc_ast::TraitObjectSyntax::DynStar => {
-                tracked_span_bug!("dyn* traits not supported yet")
+                if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
+                    Ok(rty::Ty::dynamic(exi_preds, region))
+                } else {
+                    tracked_span_bug!("dyn* traits not supported yet")
+                }
             }
         }
     }

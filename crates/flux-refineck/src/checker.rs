@@ -974,7 +974,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         Ty::mk_ref(*dst_re, dst_slice, *dst_mut)
                     } else
                     // &T  -> & dyn U
-                    if let rustc::ty::TyKind::Dynamic(_, _, _) = dst_ty.kind() {
+                    if let rustc::ty::TyKind::Dynamic(_, _) = dst_ty.kind() {
                         self.genv
                             .refine_default(&self.generics, to)
                             .with_span(self.body.span())?

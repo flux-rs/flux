@@ -971,7 +971,7 @@ impl TypeSuperVisitable for BaseTy {
             | BaseTy::Closure(_, _)
             | BaseTy::Never
             | BaseTy::Param(_) => ControlFlow::Continue(()),
-            BaseTy::Dynamic(exi_preds, _, _) => exi_preds.visit_with(visitor),
+            BaseTy::Dynamic(exi_preds, _) => exi_preds.visit_with(visitor),
         }
     }
 }
@@ -1011,12 +1011,8 @@ impl TypeSuperFoldable for BaseTy {
                     args.try_fold_with(folder)?,
                 )
             }
-            BaseTy::Dynamic(exi_preds, region, syn) => {
-                BaseTy::Dynamic(
-                    exi_preds.try_fold_with(folder)?,
-                    region.try_fold_with(folder)?,
-                    *syn,
-                )
+            BaseTy::Dynamic(exi_preds, region) => {
+                BaseTy::Dynamic(exi_preds.try_fold_with(folder)?, region.try_fold_with(folder)?)
             }
         };
         Ok(bty)

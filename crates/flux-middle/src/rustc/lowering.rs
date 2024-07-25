@@ -25,9 +25,9 @@ use super::{
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
-        Const, ConstKind, DynKind, ExistentialPredicate, FieldDef, FnSig, GenericArg,
-        GenericParamDef, GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate,
-        PolyFnSig, TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, VariantDef,
+        Const, ConstKind, ExistentialPredicate, FieldDef, FnSig, GenericArg, GenericParamDef,
+        GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate, PolyFnSig,
+        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, VariantDef,
     },
 };
 use crate::{
@@ -740,9 +740,9 @@ pub(crate) fn lower_ty<'tcx>(
             let args = lower_generic_args(tcx, args)?;
             Ok(Ty::mk_generator_witness(*did, args))
         }
-        rustc_ty::Dynamic(predicates, region, kind) => {
+        rustc_ty::Dynamic(predicates, region, rustc_ty::DynKind::Dyn) => {
             let region = lower_region(region)?;
-            let kind = lower_dyn_kind(kind)?;
+
             let exi_preds = List::from_vec(
                 predicates
                     .iter()
@@ -750,7 +750,7 @@ pub(crate) fn lower_ty<'tcx>(
                     .try_collect()?,
             );
 
-            Ok(Ty::mk_dynamic(exi_preds, region, kind))
+            Ok(Ty::mk_dynamic(exi_preds, region))
         }
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
     }
@@ -822,14 +822,14 @@ fn lower_generic_arg<'tcx>(
     }
 }
 
-fn lower_dyn_kind(kind: &rustc_ty::DynKind) -> Result<DynKind, UnsupportedReason> {
-    match kind {
-        rustc_ty::DynKind::Dyn => Ok(DynKind::Dyn),
-        rustc_ty::DynKind::DynStar => {
-            Err(UnsupportedReason::new(format!("unsupported dyn kind `{kind:?}`")))
-        }
-    }
-}
+// fn lower_dyn_kind(kind: &rustc_ty::DynKind) -> Result<DynKind, UnsupportedReason> {
+//     match kind {
+//         rustc_ty::DynKind::Dyn => Ok(DynKind::Dyn),
+//         rustc_ty::DynKind::DynStar => {
+//             Err(UnsupportedReason::new(format!("unsupported dyn kind `{kind:?}`")))
+//         }
+//     }
+// }
 
 fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, UnsupportedReason> {
     use rustc_middle::ty::RegionKind;

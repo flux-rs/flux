@@ -217,8 +217,8 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 debug_assert_eq!(pty_a, pty_b);
             }
             (
-                rty::BaseTy::Dynamic(poly_trait_refs, re_a, _),
-                ty::TyKind::Dynamic(poly_trait_refs_b, re_b, _),
+                rty::BaseTy::Dynamic(poly_trait_refs, re_a),
+                ty::TyKind::Dynamic(poly_trait_refs_b, re_b),
             ) => {
                 self.zip_region(re_a, re_b);
                 debug_assert_eq!(poly_trait_refs.len(), poly_trait_refs_b.len());

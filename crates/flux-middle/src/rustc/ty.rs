@@ -182,7 +182,7 @@ pub enum TyKind {
     CoroutineWitness(DefId, GenericArgs),
     Alias(AliasKind, AliasTy),
     RawPtr(Ty, Mutability),
-    Dynamic(List<Binder<ExistentialPredicate>>, Region, DynKind),
+    Dynamic(List<Binder<ExistentialPredicate>>, Region),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -194,12 +194,6 @@ pub enum ExistentialPredicate {
 pub struct ExistentialTraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub enum DynKind {
-    Dyn,
-    None,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -648,12 +642,8 @@ impl Ty {
         TyKind::Param(param).intern()
     }
 
-    pub fn mk_dynamic(
-        exi_preds: impl Into<List<Binder<ExistentialPredicate>>>,
-        r: Region,
-        kind: DynKind,
-    ) -> Ty {
-        TyKind::Dynamic(exi_preds.into(), r, kind).intern()
+    pub fn mk_dynamic(exi_preds: impl Into<List<Binder<ExistentialPredicate>>>, r: Region) -> Ty {
+        TyKind::Dynamic(exi_preds.into(), r).intern()
     }
 
     pub fn mk_ref(region: Region, ty: Ty, mutability: Mutability) -> Ty {
@@ -747,7 +737,7 @@ impl Ty {
             TyKind::Coroutine(_, _) => todo!(),
             TyKind::CoroutineWitness(_, _) => todo!(),
             TyKind::Alias(_, _) => todo!(),
-            TyKind::Dynamic(_, _, _) => todo!(),
+            TyKind::Dynamic(_, _) => todo!(),
         };
         rustc_ty::Ty::new(tcx, kind)
     }
@@ -870,7 +860,7 @@ impl fmt::Debug for Ty {
                 write!(f, ")")?;
                 Ok(())
             }
-            TyKind::Dynamic(exi_preds, _r, _syn) => {
+            TyKind::Dynamic(exi_preds, _r) => {
                 write!(f, "dyn {exi_preds:?}")
             }
         }

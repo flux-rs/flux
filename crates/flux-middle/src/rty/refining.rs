@@ -382,12 +382,12 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
             }
-            rustc::ty::TyKind::Dynamic(exi_preds, r, kind) => {
+            rustc::ty::TyKind::Dynamic(exi_preds, r) => {
                 let exi_preds = exi_preds
                     .iter()
                     .map(|ty| self.refine_existential_predicate(ty))
                     .try_collect()?;
-                rty::BaseTy::Dynamic(exi_preds, *r, *kind)
+                rty::BaseTy::Dynamic(exi_preds, *r)
             }
         };
         Ok(TyOrBase::Base((self.refine)(bty)))
