@@ -177,7 +177,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         assert!(exi_pred.vars().is_empty());
         let exi_pred = match exi_pred.as_ref().skip_binder() {
             rustc::ty::ExistentialPredicate::Trait(exi_trait_ref) => {
-                rty::ExistentialPredicate::Trait(self.refine_exi_trait_ref(&exi_trait_ref)?)
+                rty::ExistentialPredicate::Trait(self.refine_exi_trait_ref(exi_trait_ref)?)
             }
         };
         Ok(rty::Binder::new(exi_pred, List::empty()))
