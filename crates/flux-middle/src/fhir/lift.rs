@@ -133,17 +133,10 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     ) -> Result<fhir::GenericParam<'genv>> {
         let kind = match param.kind {
             hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamKind::Lifetime,
-            hir::GenericParamKind::Type { default, synthetic: false } => {
+            hir::GenericParamKind::Type { default, .. } => {
                 fhir::GenericParamKind::Type {
                     default: default.map(|ty| self.lift_ty(ty)).transpose()?,
                 }
-            }
-            hir::GenericParamKind::Type { synthetic: true, .. } => {
-                return self.emit_err(errors::UnsupportedHir::new(
-                    self.genv.tcx(),
-                    param.def_id,
-                    "`impl Trait` in argument position not supported",
-                ))
             }
             hir::GenericParamKind::Const { ty, is_host_effect, .. } => {
                 let ty = self.lift_ty(ty)?;
