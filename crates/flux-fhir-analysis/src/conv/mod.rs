@@ -11,7 +11,7 @@
 mod fill_holes;
 use std::{borrow::Borrow, iter};
 
-use flux_common::{bug, iter::IterExt, span_bug};
+use flux_common::{bug, iter::IterExt, span_bug, tracked_span_bug};
 use flux_middle::{
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
@@ -25,7 +25,7 @@ use flux_middle::{
     },
     rustc::{
         self,
-        ty::{Region, TraitObjectSyntax},
+        ty::{DynKind, Region},
     },
 };
 use itertools::Itertools;
@@ -441,7 +441,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         &mut self,
         env: &mut Env,
         poly_trait_ref: &fhir::PolyTraitRef,
-    ) -> QueryResult<rty::PolyTraitRef> {
+    ) -> QueryResult<rty::Binder<rty::ExistentialPredicate>> {
         let trait_segment = poly_trait_ref.trait_ref.last_segment();
 
         if !poly_trait_ref.bound_generic_params.is_empty() {
@@ -455,8 +455,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let mut into = vec![];
         self.conv_generic_args_into(env, def_id, trait_segment.args, &mut into)?;
 
-        let trait_ref = rty::TraitRef { def_id, args: into.into() };
-        Ok(rty::PolyTraitRef { trait_ref, bound_generic_params: List::empty() })
+        let exi_trait_ref = rty::ExistentialTraitRef { def_id, args: into.into() };
+        let exi_pred = rty::ExistentialPredicate::Trait(exi_trait_ref);
+        Ok(rty::Binder::new(exi_pred, List::empty()))
     }
 
     /// Converts a `T: Trait<T0, ..., A0 = S0, ...>` bound
@@ -813,22 +814,24 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
             }
             fhir::TyKind::TraitObject(poly_traits, lft, syn) => {
-                let poly_traits: List<rty::PolyTraitRef> = poly_traits
+                let exi_preds: List<_> = poly_traits
                     .iter()
                     .map(|poly_trait| self.conv_poly_trait_ref_dyn(env, poly_trait))
                     .try_collect()?;
                 let region = self.conv_lifetime(env, *lft);
-                let syn = Self::conv_trait_object_syntax(syn);
-                Ok(rty::Ty::trait_object(poly_traits, region, syn))
+                let kind = Self::conv_trait_object_syntax(syn);
+                Ok(rty::Ty::dynamic(exi_preds, region, kind))
             }
         }
     }
 
-    fn conv_trait_object_syntax(syn: &rustc_ast::TraitObjectSyntax) -> TraitObjectSyntax {
+    fn conv_trait_object_syntax(syn: &rustc_ast::TraitObjectSyntax) -> DynKind {
         match syn {
-            rustc_ast::TraitObjectSyntax::Dyn => TraitObjectSyntax::Dyn,
-            rustc_ast::TraitObjectSyntax::DynStar => TraitObjectSyntax::DynStar,
-            rustc_ast::TraitObjectSyntax::None => TraitObjectSyntax::None,
+            rustc_ast::TraitObjectSyntax::Dyn => DynKind::Dyn,
+            rustc_ast::TraitObjectSyntax::None => DynKind::None,
+            rustc_ast::TraitObjectSyntax::DynStar => {
+                tracked_span_bug!("dyn* traits not supported yet")
+            }
         }
     }
 

@@ -182,19 +182,23 @@ pub enum TyKind {
     CoroutineWitness(DefId, GenericArgs),
     Alias(AliasKind, AliasTy),
     RawPtr(Ty, Mutability),
-    TraitObject(List<PolyTraitRef>, Region, TraitObjectSyntax),
+    Dynamic(List<Binder<ExistentialPredicate>>, Region, DynKind),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct PolyTraitRef {
-    pub bound_generic_params: List<GenericParamDef>,
-    pub trait_ref: TraitRef,
+pub enum ExistentialPredicate {
+    Trait(ExistentialTraitRef),
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub enum TraitObjectSyntax {
+#[derive(PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+pub struct ExistentialTraitRef {
+    pub def_id: DefId,
+    pub args: GenericArgs,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum DynKind {
     Dyn,
-    DynStar,
     None,
 }
 
@@ -644,12 +648,12 @@ impl Ty {
         TyKind::Param(param).intern()
     }
 
-    pub fn mk_trait_object(
-        poly_traits: impl Into<List<PolyTraitRef>>,
+    pub fn mk_dynamic(
+        exi_preds: impl Into<List<Binder<ExistentialPredicate>>>,
         r: Region,
-        syn: TraitObjectSyntax,
+        kind: DynKind,
     ) -> Ty {
-        TyKind::TraitObject(poly_traits.into(), r, syn).intern()
+        TyKind::Dynamic(exi_preds.into(), r, kind).intern()
     }
 
     pub fn mk_ref(region: Region, ty: Ty, mutability: Mutability) -> Ty {
@@ -743,14 +747,21 @@ impl Ty {
             TyKind::Coroutine(_, _) => todo!(),
             TyKind::CoroutineWitness(_, _) => todo!(),
             TyKind::Alias(_, _) => todo!(),
-            TyKind::TraitObject(_, _, _) => todo!(),
+            TyKind::Dynamic(_, _, _) => todo!(),
         };
         rustc_ty::Ty::new(tcx, kind)
     }
 }
 
 impl_internable!(TyS, AdtDefData);
-impl_slice_internable!(Ty, GenericArg, GenericParamDef, BoundVariableKind, Clause, PolyTraitRef);
+impl_slice_internable!(
+    Ty,
+    GenericArg,
+    GenericParamDef,
+    BoundVariableKind,
+    Clause,
+    Binder<ExistentialPredicate>,
+);
 
 impl fmt::Debug for GenericArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -859,8 +870,8 @@ impl fmt::Debug for Ty {
                 write!(f, ")")?;
                 Ok(())
             }
-            TyKind::TraitObject(poly_traits, _r, _syn) => {
-                write!(f, "dyn {poly_traits:?}")
+            TyKind::Dynamic(exi_preds, _r, _syn) => {
+                write!(f, "dyn {exi_preds:?}")
             }
         }
     }

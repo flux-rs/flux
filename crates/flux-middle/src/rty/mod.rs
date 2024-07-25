@@ -60,7 +60,7 @@ use crate::{
     rustc::{
         self,
         mir::Place,
-        ty::{TraitObjectSyntax, VariantDef},
+        ty::{DynKind, VariantDef},
     },
 };
 
@@ -239,12 +239,16 @@ pub struct PolyTraitRef {
     pub trait_ref: TraitRef,
 }
 
-// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-// pub enum TraitObjectSyntax {
-//     Dyn,
-//     DynStar,
-//     None,
-// }
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum ExistentialPredicate {
+    Trait(ExistentialTraitRef),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct ExistentialTraitRef {
+    pub def_id: DefId,
+    pub args: GenericArgs,
+}
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable)]
 pub struct ProjectionPredicate {
@@ -638,12 +642,12 @@ impl Ty {
         Self::alias(AliasKind::Projection, alias_ty)
     }
 
-    pub fn trait_object(
-        poly_traits: impl Into<List<PolyTraitRef>>,
+    pub fn dynamic(
+        preds: impl Into<List<Binder<ExistentialPredicate>>>,
         region: Region,
-        syn: TraitObjectSyntax,
+        kind: DynKind,
     ) -> Ty {
-        BaseTy::TraitObject(poly_traits.into(), region, syn).to_ty()
+        BaseTy::Dynamic(preds.into(), region, kind).to_ty()
     }
 
     pub fn strg_ref(re: Region, path: Path, ty: Ty) -> Ty {
@@ -975,7 +979,7 @@ pub enum BaseTy {
     Never,
     Closure(DefId, /* upvar_tys */ List<Ty>),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
-    TraitObject(List<PolyTraitRef>, Region, TraitObjectSyntax),
+    Dynamic(List<Binder<ExistentialPredicate>>, Region, DynKind),
     Param(ParamTy),
 }
 
@@ -1124,7 +1128,7 @@ impl BaseTy {
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
             | BaseTy::Coroutine(..)
-            | BaseTy::TraitObject(_, _, _)
+            | BaseTy::Dynamic(_, _, _)
             | BaseTy::Never => Sort::unit(),
         }
     }
@@ -1157,7 +1161,7 @@ impl BaseTy {
             BaseTy::Array(_, _) => todo!(),
             BaseTy::Never => tcx.types.never,
             BaseTy::Closure(_, _) => todo!(),
-            BaseTy::TraitObject(_, _, _) => todo!(),
+            BaseTy::Dynamic(_, _, _) => todo!(),
             BaseTy::Coroutine(def_id, resume_ty, upvars) => {
                 todo!("Generator {def_id:?} {resume_ty:?} {upvars:?}")
                 // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
@@ -2083,7 +2087,7 @@ impl_slice_internable!(
     Sort,
     GenericParamDef,
     TraitRef,
-    PolyTraitRef,
+    Binder<ExistentialPredicate>,
     Clause,
     PolyVariant,
     Invariant,

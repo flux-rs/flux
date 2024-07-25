@@ -6,7 +6,7 @@ use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::{ClosureKind, ParamTy};
 
-use super::{fold::TypeFoldable, PolyTraitRef};
+use super::fold::TypeFoldable;
 use crate::{
     global_env::GlobalEnv,
     intern::List,
@@ -170,14 +170,28 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         Ok(rty::ClauseKind::FnTrait(pred))
     }
 
-    pub fn refine_poly_trait_ref(
+    pub fn refine_existential_predicate(
         &self,
-        poly_trait_ref: &rustc::ty::PolyTraitRef,
-    ) -> QueryResult<rty::PolyTraitRef> {
-        assert!(poly_trait_ref.bound_generic_params.is_empty());
-        let bound_generic_params = List::empty();
-        let trait_ref = self.refine_trait_ref(&poly_trait_ref.trait_ref)?;
-        Ok(PolyTraitRef { bound_generic_params, trait_ref })
+        exi_pred: &rustc::ty::Binder<rustc::ty::ExistentialPredicate>,
+    ) -> QueryResult<rty::Binder<rty::ExistentialPredicate>> {
+        assert!(exi_pred.vars().is_empty());
+        let exi_pred = match exi_pred.as_ref().skip_binder() {
+            rustc::ty::ExistentialPredicate::Trait(exi_trait_ref) => {
+                rty::ExistentialPredicate::Trait(self.refine_exi_trait_ref(&exi_trait_ref)?)
+            }
+        };
+        Ok(rty::Binder::new(exi_pred, List::empty()))
+    }
+
+    pub fn refine_exi_trait_ref(
+        &self,
+        exi_trait_ref: &rustc::ty::ExistentialTraitRef,
+    ) -> QueryResult<rty::ExistentialTraitRef> {
+        let exi_trait_ref = rty::ExistentialTraitRef {
+            def_id: exi_trait_ref.def_id,
+            args: self.refine_generic_args(exi_trait_ref.def_id, &exi_trait_ref.args)?,
+        };
+        Ok(exi_trait_ref)
     }
 
     pub fn refine_trait_ref(&self, trait_ref: &rustc::ty::TraitRef) -> QueryResult<rty::TraitRef> {
@@ -368,12 +382,12 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
             }
-            rustc::ty::TyKind::TraitObject(poly_traits, r, syntax) => {
-                let poly_traits = poly_traits
+            rustc::ty::TyKind::Dynamic(exi_preds, r, kind) => {
+                let exi_preds = exi_preds
                     .iter()
-                    .map(|ty| self.refine_poly_trait_ref(ty))
+                    .map(|ty| self.refine_existential_predicate(ty))
                     .try_collect()?;
-                rty::BaseTy::TraitObject(poly_traits, *r, *syntax)
+                rty::BaseTy::Dynamic(exi_preds, *r, *kind)
             }
         };
         Ok(TyOrBase::Base((self.refine)(bty)))

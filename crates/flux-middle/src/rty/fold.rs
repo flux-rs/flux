@@ -15,10 +15,10 @@ use super::{
     projections,
     subst::EVarSubstFolder,
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Const,
-    CoroutineObligPredicate, Ensures, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
-    GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
-    PolyTraitRef, ProjectionPredicate, PtrKind, Qualifier, ReBound, Region, Sort, SubsetTy,
-    TraitPredicate, TraitRef, Ty, TyKind,
+    CoroutineObligPredicate, Ensures, ExistentialPredicate, ExistentialTraitRef, Expr, ExprKind,
+    FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg, Invariant, KVar, Lambda, Name,
+    Opaqueness, OutlivesPredicate, PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReBound,
+    Region, Sort, SubsetTy, TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -488,18 +488,34 @@ impl TypeFoldable for TraitRef {
     }
 }
 
-impl TypeVisitable for PolyTraitRef {
+impl TypeVisitable for ExistentialTraitRef {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.trait_ref.visit_with(visitor)
+        self.args.visit_with(visitor)
     }
 }
 
-impl TypeFoldable for PolyTraitRef {
+impl TypeFoldable for ExistentialTraitRef {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(PolyTraitRef {
-            bound_generic_params: self.bound_generic_params.clone(),
-            trait_ref: self.trait_ref.try_fold_with(folder)?,
-        })
+        Ok(ExistentialTraitRef { def_id: self.def_id, args: self.args.try_fold_with(folder)? })
+    }
+}
+
+impl TypeVisitable for ExistentialPredicate {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        match self {
+            ExistentialPredicate::Trait(exi_trait_ref) => exi_trait_ref.visit_with(visitor),
+        }
+    }
+}
+
+impl TypeFoldable for ExistentialPredicate {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        match self {
+            ExistentialPredicate::Trait(exi_trait_ref) => {
+                let exi_trait_ref = exi_trait_ref.try_fold_with(folder)?;
+                Ok(ExistentialPredicate::Trait(exi_trait_ref))
+            }
+        }
     }
 }
 
@@ -955,7 +971,7 @@ impl TypeSuperVisitable for BaseTy {
             | BaseTy::Closure(_, _)
             | BaseTy::Never
             | BaseTy::Param(_) => ControlFlow::Continue(()),
-            BaseTy::TraitObject(poly_traits, _, _) => poly_traits.visit_with(visitor),
+            BaseTy::Dynamic(exi_preds, _, _) => exi_preds.visit_with(visitor),
         }
     }
 }
@@ -995,9 +1011,9 @@ impl TypeSuperFoldable for BaseTy {
                     args.try_fold_with(folder)?,
                 )
             }
-            BaseTy::TraitObject(poly_traits, region, syn) => {
-                BaseTy::TraitObject(
-                    poly_traits.try_fold_with(folder)?,
+            BaseTy::Dynamic(exi_preds, region, syn) => {
+                BaseTy::Dynamic(
+                    exi_preds.try_fold_with(folder)?,
                     region.try_fold_with(folder)?,
                     *syn,
                 )
