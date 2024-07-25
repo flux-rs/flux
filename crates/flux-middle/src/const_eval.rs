@@ -3,8 +3,8 @@ use rustc_type_ir::{IntTy, UintTy};
 
 use crate::rustc::{self, lowering::lower_ty, mir::Constant};
 
-// FIXME(nilehmann) We are using this during lowering to evaluate constants annotated. We should
-// do the evaluation later in the pipeline.
+// FIXME(nilehmann) We are using this during desugaring to evaluate constants annotated with
+// `#[flux::constant]`. We should do the evaluation later in the pipeline.
 pub fn scalar_int_to_rty_constant<'tcx>(
     tcx: TyCtxt<'tcx>,
     scalar: rustc_ty::ScalarInt,
