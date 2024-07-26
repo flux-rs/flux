@@ -343,6 +343,18 @@ pub Ty: surface::Ty = {
         kind,
         node_id: cx.next_node_id(),
         span: cx.map_span(lo, hi)
+    },
+    <lo:@L> "(" <tys:Punctuated<Ty, ",">> ")" <hi:@R> => {
+        if tys.len() == 1 && !tys.trailing_punct() {
+            tys.into_values().pop().unwrap()
+        } else {
+            let kind = surface::TyKind::Tuple(tys.into_values());
+            surface::Ty {
+                kind,
+                node_id: cx.next_node_id(),
+                span: cx.map_span(lo, hi),
+            }
+        }
     }
 }
 
@@ -355,7 +367,6 @@ TyKind: surface::TyKind = {
     "{" <params:Comma1<RefineParam<"?">>> "." <ty:Ty> <pred:("|" <Expr>)?> "}" => {
         surface::TyKind::GeneralExists { params, ty: Box::new(ty), pred }
     },
-    "(" <tys:Comma<Ty>> ")"         => surface::TyKind::Tuple(tys),
 
     "&" <ty:Ty>                     => surface::TyKind::Ref(surface::Mutability::Not, Box::new(ty)),
     "&" "mut" <ty:Ty>               => surface::TyKind::Ref(surface::Mutability::Mut, Box::new(ty)),
@@ -620,19 +631,14 @@ Ident: surface::Ident = {
 }
 
 Sep<S, T>: Vec<T> = {
-    <v:(<T> S)*> <e:T?> => match e {
-        None => v,
-        Some(e) => {
-            let mut v = v;
-            v.push(e);
-            v
-        }
+    <mut v:(<T> S)*> <e:T?> => {
+        if let Some(e) = e { v.push(e); }
+        v
     }
 }
 
 Sep1<S, T>: Vec<T> = {
-    <v:(<T> S)*> <e:T> => {
-        let mut v = v;
+    <mut v:(<T> S)*> <e:T> => {
         v.push(e);
         v
     }
@@ -640,6 +646,15 @@ Sep1<S, T>: Vec<T> = {
 
 Comma<T> = Sep<",", T>;
 Comma1<T> = Sep1<",", T>;
+
+Punctuated<T, S>: surface::Punctuated<T, S> = {
+    <v:(T S)*> <e:T?> => {
+        let mut v = surface::Punctuated::from(v);
+        if let Some(e) = e { v.push_value(e); }
+        v
+    }
+}
+
 
 Binding<A, B>: (A, B) = <A> ":" <B>;
 

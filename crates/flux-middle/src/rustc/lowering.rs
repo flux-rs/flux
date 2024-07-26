@@ -824,25 +824,22 @@ pub(crate) fn lower_generics(generics: &rustc_ty::Generics) -> Result<Generics, 
             .own_params
             .iter()
             .map(lower_generic_param_def)
-            .try_collect()?,
+            .collect(),
     );
     Ok(Generics { params, orig: generics })
 }
 
-fn lower_generic_param_def(
-    generic: &rustc_ty::GenericParamDef,
-) -> Result<GenericParamDef, UnsupportedReason> {
+fn lower_generic_param_def(generic: &rustc_ty::GenericParamDef) -> GenericParamDef {
     let kind = match generic.kind {
-        rustc_ty::GenericParamDefKind::Type { has_default, synthetic: false } => {
+        rustc_ty::GenericParamDefKind::Type { has_default, .. } => {
             GenericParamDefKind::Type { has_default }
         }
         rustc_ty::GenericParamDefKind::Lifetime => GenericParamDefKind::Lifetime,
         rustc_ty::GenericParamDefKind::Const { has_default, is_host_effect, .. } => {
             GenericParamDefKind::Const { has_default, is_host_effect }
         }
-        _ => return Err(UnsupportedReason::new("unsupported generic param")),
     };
-    Ok(GenericParamDef { def_id: generic.def_id, index: generic.index, name: generic.name, kind })
+    GenericParamDef { def_id: generic.def_id, index: generic.index, name: generic.name, kind }
 }
 
 pub(crate) fn lower_generic_predicates<'tcx>(
