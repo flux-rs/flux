@@ -716,7 +716,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let mut generic_args = vec![self_ty];
         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut generic_args)?;
 
-        // println!("TRACE: conv_alias_reft: {trait_id:?} / {} / args = {generic_args:?}", alias.name);
         Ok(rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) })
     }
 

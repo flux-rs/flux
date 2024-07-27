@@ -8,8 +8,9 @@ impl MyTrait for Foo {}
 
 struct Bar;
 
-#[flux::assoc(fn piglet(x: int) -> int { x + 1 })]
 impl MyTrait for Bar {}
+//~^ ERROR associated refinement `eval` is not a member of trait `MyTrait`
+//~^ ERROR undefined associated refinement `eval`
 
 #[flux::sig(fn(x: i32) -> i32[<T as MyTrait>::eval(x)])]
 fn test01<T: MyTrait>(x: i32) -> i32 {

@@ -193,11 +193,18 @@ fn assoc_refinement_def(
         .map()
         .expect_item(impl_id)?
         .expect_impl()
-        .find_assoc_reft(name)
-        .unwrap_or_else(|| bug!("assoc reft `{name}` not found in impl `{impl_id:?}`"));
+        .find_assoc_reft(name);
+    // .unwrap_or_else(|| bug!("assoc reft `{name}` not found in impl `{impl_id:?}`"));
 
-    let wfckresults = genv.check_wf(impl_id)?;
-    Ok(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?))
+    if let Some(assoc_reft) = assoc_reft {
+        let wfckresults = genv.check_wf(impl_id)?;
+        Ok(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?))
+    } else {
+        let span = genv.tcx().def_span(impl_id);
+        Err(genv
+            .sess()
+            .emit_err(errors::UndefinedAssocReft::new(span, name)))?
+    }
 }
 
 fn sort_of_assoc_reft(
@@ -475,6 +482,20 @@ mod errors {
             let names: Vec<String> = cycle.iter().map(|s| format!("`{s}`")).collect();
             let msg = format!("{} -> {}", names.join(" -> "), root);
             Self { span, msg }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_undefined_assoc_reft, code = E0999)]
+    pub struct UndefinedAssocReft {
+        #[primary_span]
+        span: Span,
+        name: Symbol,
+    }
+
+    impl UndefinedAssocReft {
+        pub(super) fn new(span: Span, name: Symbol) -> Self {
+            Self { span, name }
         }
     }
 }

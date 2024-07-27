@@ -3,15 +3,15 @@ use flux_middle::{global_env::GlobalEnv, pretty};
 use rustc_hash::FxHashSet;
 use rustc_span::{
     def_id::{DefId, LocalDefId},
-    ErrorGuaranteed, Span, Symbol,
+    ErrorGuaranteed, Symbol,
 };
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-fn impl_span(genv: &GlobalEnv, impl_id: LocalDefId) -> Span {
-    let hir_id = genv.tcx().local_def_id_to_hir_id(impl_id);
-    let span = genv.tcx().hir().span(hir_id);
-    span
-}
+// fn impl_span(genv: &GlobalEnv, impl_id: LocalDefId) -> Span {
+//     let hir_id = genv.tcx().local_def_id_to_hir_id(impl_id);
+//     let span = genv.tcx().hir().span(hir_id);
+//     span
+// }
 
 pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result {
     let trait_id = genv.tcx().trait_id_of_impl(impl_id.to_def_id()).unwrap();
@@ -23,7 +23,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result 
     for trait_assoc_reft in &trait_assoc_refts.items {
         let name = trait_assoc_reft.name;
         if !impl_names.contains(&name) {
-            let span = impl_span(&genv, impl_id);
+            let span = genv.tcx().def_span(impl_id);
             return Err(genv.sess().emit_err(errors::MissingAssocReft::new(
                 span,
                 name,
