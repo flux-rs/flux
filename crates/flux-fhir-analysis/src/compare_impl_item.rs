@@ -1,17 +1,36 @@
 use flux_common::result::ResultExt;
 use flux_middle::{global_env::GlobalEnv, pretty};
+use rustc_hash::FxHashSet;
 use rustc_span::{
     def_id::{DefId, LocalDefId},
-    ErrorGuaranteed, Symbol,
+    ErrorGuaranteed, Span, Symbol,
 };
-
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
+
+fn impl_span(genv: &GlobalEnv, impl_id: LocalDefId) -> Span {
+    let hir_id = genv.tcx().local_def_id_to_hir_id(impl_id);
+    let span = genv.tcx().hir().span(hir_id);
+    span
+}
 
 pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result {
     let trait_id = genv.tcx().trait_id_of_impl(impl_id.to_def_id()).unwrap();
 
     let impl_assoc_refts = genv.assoc_refinements_of(impl_id).emit(&genv)?;
     let trait_assoc_refts = genv.assoc_refinements_of(trait_id).emit(&genv)?;
+    let impl_names: FxHashSet<_> = impl_assoc_refts.items.iter().map(|x| x.name).collect();
+
+    for trait_assoc_reft in &trait_assoc_refts.items {
+        let name = trait_assoc_reft.name;
+        if !impl_names.contains(&name) {
+            let span = impl_span(&genv, impl_id);
+            return Err(genv.sess().emit_err(errors::MissingAssocReft::new(
+                span,
+                name,
+                pretty::def_id_to_string(trait_id),
+            )));
+        }
+    }
 
     for impl_assoc_reft in &impl_assoc_refts.items {
         let name = impl_assoc_reft.name;
@@ -121,7 +140,22 @@ pub(crate) mod errors {
     }
 
     impl InvalidAssocReft {
-        pub(crate) fn new(span: Span, name: Symbol, trait_: String) -> InvalidAssocReft {
+        pub(crate) fn new(span: Span, name: Symbol, trait_: String) -> Self {
+            Self { span, trait_, name }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_invalid_assoc_reft, code = E0999)]
+    pub struct MissingAssocReft {
+        #[primary_span]
+        span: Span,
+        trait_: String,
+        name: Symbol,
+    }
+
+    impl MissingAssocReft {
+        pub(crate) fn new(span: Span, name: Symbol, trait_: String) -> Self {
             Self { span, trait_, name }
         }
     }
