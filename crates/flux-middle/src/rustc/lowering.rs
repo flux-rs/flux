@@ -822,15 +822,6 @@ fn lower_generic_arg<'tcx>(
     }
 }
 
-// fn lower_dyn_kind(kind: &rustc_ty::DynKind) -> Result<DynKind, UnsupportedReason> {
-//     match kind {
-//         rustc_ty::DynKind::Dyn => Ok(DynKind::Dyn),
-//         rustc_ty::DynKind::DynStar => {
-//             Err(UnsupportedReason::new(format!("unsupported dyn kind `{kind:?}`")))
-//         }
-//     }
-// }
-
 fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, UnsupportedReason> {
     use rustc_middle::ty::RegionKind;
     match region.kind() {
