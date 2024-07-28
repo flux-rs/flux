@@ -23,7 +23,7 @@ use flux_middle::{
         refining::{self, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
-    rustc::{self, ty::Region},
+    rustc::{self},
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -34,7 +34,7 @@ use rustc_hir::{
 };
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
-    ty::{self, AssocItem, AssocKind, BoundVar, EarlyParamRegion},
+    ty::{self, AssocItem, AssocKind, BoundVar},
 };
 use rustc_span::{
     symbol::{kw, Ident},
