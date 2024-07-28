@@ -1182,28 +1182,17 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     ) -> QueryResult {
         let generics = self.genv.generics_of(def_id)?;
         for param in generics.params.iter().skip(into.len()) {
-            match param.kind {
-                rty::GenericParamDefKind::Type { has_default } => {
-                    // println!("TRACE: fill_generic_args_defaults: {def_id:?} param = {:?}", param);
-                    debug_assert!(has_default);
-                    let tcx = self.genv.tcx();
-                    let ty = self
-                        .genv
-                        .type_of(param.def_id)?
-                        .instantiate(tcx, into, &[])
-                        .to_ty();
-                    into.push(rty::GenericArg::Ty(ty));
-                }
-                rty::GenericParamDefKind::Lifetime => {
-                    let region = Region::ReEarlyParam(EarlyParamRegion {
-                        index: param.index,
-                        name: param.name,
-                    });
-                    into.push(rty::GenericArg::Lifetime(region));
-                }
-                _ => {
-                    bug!("unexpected generic param: {param:?}");
-                }
+            if let rty::GenericParamDefKind::Type { has_default } = param.kind {
+                debug_assert!(has_default);
+                let tcx = self.genv.tcx();
+                let ty = self
+                    .genv
+                    .type_of(param.def_id)?
+                    .instantiate(tcx, into, &[])
+                    .to_ty();
+                into.push(rty::GenericArg::Ty(ty));
+            } else {
+                bug!("unexpected generic param: {param:?}");
             }
         }
         Ok(())
