@@ -9,10 +9,9 @@
 //! 3. Refinements are well-sorted.
 
 mod fill_holes;
-
 use std::{borrow::Borrow, iter};
 
-use flux_common::{bug, iter::IterExt, span_bug};
+use flux_common::{bug, iter::IterExt, span_bug, tracked_span_bug};
 use flux_middle::{
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
@@ -24,7 +23,7 @@ use flux_middle::{
         refining::{self, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
-    rustc,
+    rustc::{self, ty::Region},
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
@@ -35,7 +34,7 @@ use rustc_hir::{
 };
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
-    ty::{self, AssocItem, AssocKind, BoundVar},
+    ty::{self, AssocItem, AssocKind, BoundVar, EarlyParamRegion},
 };
 use rustc_span::{
     symbol::{kw, Ident},
@@ -435,6 +434,29 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(clauses)
     }
 
+    fn conv_poly_trait_ref_dyn(
+        &mut self,
+        env: &mut Env,
+        poly_trait_ref: &fhir::PolyTraitRef,
+    ) -> QueryResult<rty::Binder<rty::ExistentialPredicate>> {
+        let trait_segment = poly_trait_ref.trait_ref.last_segment();
+
+        if !poly_trait_ref.bound_generic_params.is_empty() {
+            bug!(
+                "unexpected! conv_poly_dyn_trait_ref bound_generic_params={:?}",
+                poly_trait_ref.bound_generic_params
+            );
+        }
+
+        let def_id = poly_trait_ref.trait_def_id();
+        let mut into = vec![];
+        self.conv_generic_args_into(env, def_id, trait_segment.args, &mut into)?;
+
+        let exi_trait_ref = rty::ExistentialTraitRef { def_id, args: into.into() };
+        let exi_pred = rty::ExistentialPredicate::Trait(exi_trait_ref);
+        Ok(rty::Binder::new(exi_pred, List::empty()))
+    }
+
     /// Converts a `T: Trait<T0, ..., A0 = S0, ...>` bound
     fn conv_poly_trait_ref(
         &mut self,
@@ -453,8 +475,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             vec![self.ty_to_generic_arg(self_param.kind, bounded_ty_span, bounded_ty)?];
         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
         self.fill_generic_args_defaults(trait_id, &mut args)?;
-
         let trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
+
         let pred = rty::TraitPredicate { trait_ref: trait_ref.clone() };
         let vars = poly_trait_ref
             .bound_generic_params
@@ -787,6 +809,18 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     .try_collect()?;
                 let alias_ty = rty::AliasTy::new(def_id, args, refine_args);
                 Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
+            }
+            fhir::TyKind::TraitObject(poly_traits, lft, syn) => {
+                let exi_preds: List<_> = poly_traits
+                    .iter()
+                    .map(|poly_trait| self.conv_poly_trait_ref_dyn(env, poly_trait))
+                    .try_collect()?;
+                let region = self.conv_lifetime(env, *lft);
+                if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
+                    Ok(rty::Ty::dynamic(exi_preds, region))
+                } else {
+                    tracked_span_bug!("dyn* traits not supported yet")
+                }
             }
         }
     }
@@ -1148,20 +1182,30 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     ) -> QueryResult {
         let generics = self.genv.generics_of(def_id)?;
         for param in generics.params.iter().skip(into.len()) {
-            if let rty::GenericParamDefKind::Type { has_default } = param.kind {
-                debug_assert!(has_default);
-                let tcx = self.genv.tcx();
-                let ty = self
-                    .genv
-                    .type_of(param.def_id)?
-                    .instantiate(tcx, into, &[])
-                    .to_ty();
-                into.push(rty::GenericArg::Ty(ty));
-            } else {
-                bug!("unexpected generic param: {param:?}");
+            match param.kind {
+                rty::GenericParamDefKind::Type { has_default } => {
+                    // println!("TRACE: fill_generic_args_defaults: {def_id:?} param = {:?}", param);
+                    debug_assert!(has_default);
+                    let tcx = self.genv.tcx();
+                    let ty = self
+                        .genv
+                        .type_of(param.def_id)?
+                        .instantiate(tcx, into, &[])
+                        .to_ty();
+                    into.push(rty::GenericArg::Ty(ty));
+                }
+                rty::GenericParamDefKind::Lifetime => {
+                    let region = Region::ReEarlyParam(EarlyParamRegion {
+                        index: param.index,
+                        name: param.name,
+                    });
+                    into.push(rty::GenericArg::Lifetime(region));
+                }
+                _ => {
+                    bug!("unexpected generic param: {param:?}");
+                }
             }
         }
-
         Ok(())
     }
 
