@@ -11,7 +11,7 @@
 mod fill_holes;
 use std::{borrow::Borrow, iter};
 
-use flux_common::{bug, iter::IterExt, span_bug, tracked_span_bug};
+use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
@@ -819,7 +819,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
                     Ok(rty::Ty::dynamic(exi_preds, region))
                 } else {
-                    tracked_span_bug!("dyn* traits not supported yet")
+                    span_bug!(ty.span, "dyn* traits not supported yet")
                 }
             }
         }
