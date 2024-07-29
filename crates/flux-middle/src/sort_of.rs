@@ -104,6 +104,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             | fhir::TyKind::Ref(_, _)
             | fhir::TyKind::Tuple(_)
             | fhir::TyKind::Array(_, _)
+            | fhir::TyKind::TraitObject(_, _, _)
             | fhir::TyKind::Never => Ok(Some(rty::Sort::unit())),
             fhir::TyKind::Hole(_)
             | fhir::TyKind::StrgRef(..)

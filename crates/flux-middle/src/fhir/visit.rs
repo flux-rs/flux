@@ -385,6 +385,10 @@ pub fn walk_ty<'v, V: Visitor<'v>>(vis: &mut V, ty: &Ty<'v>) {
         }
         TyKind::Never => {}
         TyKind::Hole(_) => {}
+        TyKind::TraitObject(poly_traits, lft, _) => {
+            walk_list!(vis, visit_poly_trait_ref, poly_traits);
+            vis.visit_lifetime(&lft);
+        }
     }
 }
 

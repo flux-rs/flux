@@ -25,6 +25,7 @@ use flux_common::{bug, span_bug};
 use flux_syntax::surface::ParamMode;
 pub use flux_syntax::surface::{BinOp, UnOp};
 use itertools::Itertools;
+use rustc_ast::TraitObjectSyntax;
 use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 use rustc_hash::FxHashMap;
 pub use rustc_hir::PrimTy;
@@ -538,6 +539,7 @@ pub enum TyKind<'fhir> {
     Array(&'fhir Ty<'fhir>, ConstArg),
     RawPtr(&'fhir Ty<'fhir>, Mutability),
     OpaqueDef(ItemId, &'fhir [GenericArg<'fhir>], &'fhir [RefineArg<'fhir>], bool),
+    TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
     Never,
     Hole(FhirId),
 }
@@ -1242,6 +1244,9 @@ impl fmt::Debug for Ty<'_> {
                     f,
                     "impl trait <def_id = {def_id:?}, args = {args:?}, refine = {refine_args:?}>"
                 )
+            }
+            TyKind::TraitObject(poly_traits, _lft, _syntax) => {
+                write!(f, "dyn {poly_traits:?}")
             }
         }
     }
