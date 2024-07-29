@@ -715,6 +715,7 @@
 <a href="#715" id="715">715</a>
 <a href="#716" id="716">716</a>
 <a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -1090,6 +1091,7 @@
             | BaseTy::Char
             | BaseTy::Never
             | BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>)
+            | BaseTy::Dynamic(<span class="kw">_</span>, <span class="kw">_</span>)
             | BaseTy::Coroutine(..) =&gt; bty.clone(),
         }
     }

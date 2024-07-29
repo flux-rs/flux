@@ -152,6 +152,7 @@
 <a href="#152" id="152">152</a>
 <a href="#153" id="153">153</a>
 <a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>rustc_hir::{def::DefKind, PrimTy};
 <span class="kw">use </span>rustc_span::def_id::{DefId, LocalDefId};
@@ -258,6 +259,7 @@
             | fhir::TyKind::Ref(<span class="kw">_</span>, <span class="kw">_</span>)
             | fhir::TyKind::Tuple(<span class="kw">_</span>)
             | fhir::TyKind::Array(<span class="kw">_</span>, <span class="kw">_</span>)
+            | fhir::TyKind::TraitObject(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
             | fhir::TyKind::Never =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::Sort::unit())),
             fhir::TyKind::Hole(<span class="kw">_</span>)
             | fhir::TyKind::StrgRef(..)

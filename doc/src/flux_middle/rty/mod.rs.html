@@ -2180,6 +2180,51 @@
 <a href="#2180" id="2180">2180</a>
 <a href="#2181" id="2181">2181</a>
 <a href="#2182" id="2182">2182</a>
+<a href="#2183" id="2183">2183</a>
+<a href="#2184" id="2184">2184</a>
+<a href="#2185" id="2185">2185</a>
+<a href="#2186" id="2186">2186</a>
+<a href="#2187" id="2187">2187</a>
+<a href="#2188" id="2188">2188</a>
+<a href="#2189" id="2189">2189</a>
+<a href="#2190" id="2190">2190</a>
+<a href="#2191" id="2191">2191</a>
+<a href="#2192" id="2192">2192</a>
+<a href="#2193" id="2193">2193</a>
+<a href="#2194" id="2194">2194</a>
+<a href="#2195" id="2195">2195</a>
+<a href="#2196" id="2196">2196</a>
+<a href="#2197" id="2197">2197</a>
+<a href="#2198" id="2198">2198</a>
+<a href="#2199" id="2199">2199</a>
+<a href="#2200" id="2200">2200</a>
+<a href="#2201" id="2201">2201</a>
+<a href="#2202" id="2202">2202</a>
+<a href="#2203" id="2203">2203</a>
+<a href="#2204" id="2204">2204</a>
+<a href="#2205" id="2205">2205</a>
+<a href="#2206" id="2206">2206</a>
+<a href="#2207" id="2207">2207</a>
+<a href="#2208" id="2208">2208</a>
+<a href="#2209" id="2209">2209</a>
+<a href="#2210" id="2210">2210</a>
+<a href="#2211" id="2211">2211</a>
+<a href="#2212" id="2212">2212</a>
+<a href="#2213" id="2213">2213</a>
+<a href="#2214" id="2214">2214</a>
+<a href="#2215" id="2215">2215</a>
+<a href="#2216" id="2216">2216</a>
+<a href="#2217" id="2217">2217</a>
+<a href="#2218" id="2218">2218</a>
+<a href="#2219" id="2219">2219</a>
+<a href="#2220" id="2220">2220</a>
+<a href="#2221" id="2221">2221</a>
+<a href="#2222" id="2222">2222</a>
+<a href="#2223" id="2223">2223</a>
+<a href="#2224" id="2224">2224</a>
+<a href="#2225" id="2225">2225</a>
+<a href="#2226" id="2226">2226</a>
+<a href="#2227" id="2227">2227</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2195,7 +2240,6 @@
 <span class="kw">pub mod </span>projections;
 <span class="kw">pub mod </span>refining;
 <span class="kw">pub mod </span>subst;
-
 <span class="kw">use </span>std::{borrow::Cow, hash::Hash, iter, slice, sync::LazyLock};
 
 <span class="kw">pub use </span>evars::{EVar, EVarGen};
@@ -2410,6 +2454,36 @@
     <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_middle::ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt; {
         rustc_middle::ty::TraitRef::new(tcx, <span class="self">self</span>.def_id, <span class="self">self</span>.args.to_rustc(tcx))
     }
+}
+
+<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+</span><span class="kw">pub enum </span>ExistentialPredicate {
+    Trait(ExistentialTraitRef),
+}
+
+<span class="kw">impl </span>Binder&lt;ExistentialPredicate&gt; {
+    <span class="kw">fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+    ) -&gt; rustc_middle::ty::Binder&lt;<span class="lifetime">'tcx</span>, rustc_middle::ty::ExistentialPredicate&lt;<span class="lifetime">'tcx</span>&gt;&gt; {
+        <span class="macro">assert!</span>(<span class="self">self</span>.vars.is_empty());
+        <span class="kw">match </span><span class="self">self</span>.value {
+            ExistentialPredicate::Trait(<span class="kw-2">ref </span>exi_trait_ref) =&gt; {
+                <span class="kw">let </span>exi_trait_ref = rustc_middle::ty::ExistentialTraitRef {
+                    def_id: exi_trait_ref.def_id,
+                    args: exi_trait_ref.args.to_rustc(tcx),
+                };
+                <span class="kw">let </span>exi_pred = rustc_middle::ty::ExistentialPredicate::Trait(exi_trait_ref);
+                rustc_middle::ty::Binder::bind_with_vars(exi_pred, rustc_middle::ty::List::empty())
+            }
+        }
+    }
+}
+
+<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+</span><span class="kw">pub struct </span>ExistentialTraitRef {
+    <span class="kw">pub </span>def_id: DefId,
+    <span class="kw">pub </span>args: GenericArgs,
 }
 
 <span class="attr">#[derive(PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable)]
@@ -2804,6 +2878,10 @@
         <span class="self">Self</span>::alias(AliasKind::Projection, alias_ty)
     }
 
+    <span class="kw">pub fn </span>dynamic(preds: <span class="kw">impl </span>Into&lt;List&lt;Binder&lt;ExistentialPredicate&gt;&gt;&gt;, region: Region) -&gt; Ty {
+        BaseTy::Dynamic(preds.into(), region).to_ty()
+    }
+
     <span class="kw">pub fn </span>strg_ref(re: Region, path: Path, ty: Ty) -&gt; Ty {
         TyKind::StrgRef(re, path, ty).intern()
     }
@@ -3133,6 +3211,7 @@
     Never,
     Closure(DefId, <span class="comment">/* upvar_tys */ </span>List&lt;Ty&gt;),
     Coroutine(DefId, <span class="comment">/*resume_ty: */ </span>Ty, <span class="comment">/* upvar_tys: */ </span>List&lt;Ty&gt;),
+    Dynamic(List&lt;Binder&lt;ExistentialPredicate&gt;&gt;, Region),
     Param(ParamTy),
 }
 
@@ -3281,6 +3360,7 @@
             | BaseTy::Array(<span class="kw">_</span>, <span class="kw">_</span>)
             | BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>)
             | BaseTy::Coroutine(..)
+            | BaseTy::Dynamic(<span class="kw">_</span>, <span class="kw">_</span>)
             | BaseTy::Never =&gt; Sort::unit(),
         }
     }
@@ -3313,6 +3393,14 @@
             BaseTy::Array(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
             BaseTy::Never =&gt; tcx.types.never,
             BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
+            BaseTy::Dynamic(exi_preds, re) =&gt; {
+                <span class="kw">let </span>preds: Vec&lt;<span class="kw">_</span>&gt; = exi_preds
+                    .iter()
+                    .map(|pred| pred.to_rustc(tcx))
+                    .collect_vec();
+                <span class="kw">let </span>preds = tcx.mk_poly_existential_predicates(<span class="kw-2">&amp;</span>preds);
+                ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_middle::ty::DynKind::Dyn)
+            }
             BaseTy::Coroutine(def_id, resume_ty, upvars) =&gt; {
                 <span class="macro">todo!</span>(<span class="string">"Generator {def_id:?} {resume_ty:?} {upvars:?}"</span>)
                 <span class="comment">// let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
@@ -4237,6 +4325,8 @@
     InferMode,
     Sort,
     GenericParamDef,
+    TraitRef,
+    Binder&lt;ExistentialPredicate&gt;,
     Clause,
     PolyVariant,
     Invariant,

@@ -808,6 +808,10 @@
 <a href="#808" id="808">808</a>
 <a href="#809" id="809">809</a>
 <a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, iter};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
@@ -1394,6 +1398,10 @@
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
             | (BaseTy::RawPtr(<span class="kw">_</span>, <span class="kw">_</span>), BaseTy::RawPtr(<span class="kw">_</span>, <span class="kw">_</span>)) =&gt; <span class="prelude-val">Ok</span>(()),
+            (BaseTy::Dynamic(preds1, <span class="kw">_</span>), BaseTy::Dynamic(preds2, <span class="kw">_</span>)) =&gt; {
+                <span class="macro">assert_eq!</span>(preds1, preds2);
+                <span class="prelude-val">Ok</span>(())
+            }
             (BaseTy::Closure(did1, tys1), BaseTy::Closure(did2, tys2)) <span class="kw">if </span>did1 == did2 =&gt; {
                 <span class="macro">debug_assert_eq!</span>(tys1.len(), tys2.len());
                 <span class="kw">for </span>(ty1, ty2) <span class="kw">in </span>iter::zip(tys1, tys2) {

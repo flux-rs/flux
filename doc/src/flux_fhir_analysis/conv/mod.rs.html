@@ -1730,6 +1730,39 @@
 <a href="#1730" id="1730">1730</a>
 <a href="#1731" id="1731">1731</a>
 <a href="#1732" id="1732">1732</a>
+<a href="#1733" id="1733">1733</a>
+<a href="#1734" id="1734">1734</a>
+<a href="#1735" id="1735">1735</a>
+<a href="#1736" id="1736">1736</a>
+<a href="#1737" id="1737">1737</a>
+<a href="#1738" id="1738">1738</a>
+<a href="#1739" id="1739">1739</a>
+<a href="#1740" id="1740">1740</a>
+<a href="#1741" id="1741">1741</a>
+<a href="#1742" id="1742">1742</a>
+<a href="#1743" id="1743">1743</a>
+<a href="#1744" id="1744">1744</a>
+<a href="#1745" id="1745">1745</a>
+<a href="#1746" id="1746">1746</a>
+<a href="#1747" id="1747">1747</a>
+<a href="#1748" id="1748">1748</a>
+<a href="#1749" id="1749">1749</a>
+<a href="#1750" id="1750">1750</a>
+<a href="#1751" id="1751">1751</a>
+<a href="#1752" id="1752">1752</a>
+<a href="#1753" id="1753">1753</a>
+<a href="#1754" id="1754">1754</a>
+<a href="#1755" id="1755">1755</a>
+<a href="#1756" id="1756">1756</a>
+<a href="#1757" id="1757">1757</a>
+<a href="#1758" id="1758">1758</a>
+<a href="#1759" id="1759">1759</a>
+<a href="#1760" id="1760">1760</a>
+<a href="#1761" id="1761">1761</a>
+<a href="#1762" id="1762">1762</a>
+<a href="#1763" id="1763">1763</a>
+<a href="#1764" id="1764">1764</a>
+<a href="#1765" id="1765">1765</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -1741,7 +1774,6 @@
 //! 3. Refinements are well-sorted.
 
 </span><span class="kw">mod </span>fill_holes;
-
 <span class="kw">use </span>std::{borrow::Borrow, iter};
 
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, span_bug};
@@ -1756,7 +1788,7 @@
         refining::{<span class="self">self</span>, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
-    rustc,
+    rustc::{<span class="self">self</span>},
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::fx::FxIndexMap;
@@ -2167,6 +2199,29 @@
         <span class="prelude-val">Ok</span>(clauses)
     }
 
+    <span class="kw">fn </span>conv_poly_trait_ref_dyn(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        env: <span class="kw-2">&amp;mut </span>Env,
+        poly_trait_ref: <span class="kw-2">&amp;</span>fhir::PolyTraitRef,
+    ) -&gt; QueryResult&lt;rty::Binder&lt;rty::ExistentialPredicate&gt;&gt; {
+        <span class="kw">let </span>trait_segment = poly_trait_ref.trait_ref.last_segment();
+
+        <span class="kw">if </span>!poly_trait_ref.bound_generic_params.is_empty() {
+            <span class="macro">bug!</span>(
+                <span class="string">"unexpected! conv_poly_dyn_trait_ref bound_generic_params={:?}"</span>,
+                poly_trait_ref.bound_generic_params
+            );
+        }
+
+        <span class="kw">let </span>def_id = poly_trait_ref.trait_def_id();
+        <span class="kw">let </span><span class="kw-2">mut </span>into = <span class="macro">vec!</span>[];
+        <span class="self">self</span>.conv_generic_args_into(env, def_id, trait_segment.args, <span class="kw-2">&amp;mut </span>into)<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>exi_trait_ref = rty::ExistentialTraitRef { def_id, args: into.into() };
+        <span class="kw">let </span>exi_pred = rty::ExistentialPredicate::Trait(exi_trait_ref);
+        <span class="prelude-val">Ok</span>(rty::Binder::new(exi_pred, List::empty()))
+    }
+
     <span class="doccomment">/// Converts a `T: Trait&lt;T0, ..., A0 = S0, ...&gt;` bound
     </span><span class="kw">fn </span>conv_poly_trait_ref(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
@@ -2185,8 +2240,8 @@
             <span class="macro">vec!</span>[<span class="self">self</span>.ty_to_generic_arg(self_param.kind, bounded_ty_span, bounded_ty)<span class="question-mark">?</span>];
         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment.args, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
         <span class="self">self</span>.fill_generic_args_defaults(trait_id, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
-
         <span class="kw">let </span>trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
+
         <span class="kw">let </span>pred = rty::TraitPredicate { trait_ref: trait_ref.clone() };
         <span class="kw">let </span>vars = poly_trait_ref
             .bound_generic_params
@@ -2519,6 +2574,18 @@
                     .try_collect()<span class="question-mark">?</span>;
                 <span class="kw">let </span>alias_ty = rty::AliasTy::new(def_id, args, refine_args);
                 <span class="prelude-val">Ok</span>(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
+            }
+            fhir::TyKind::TraitObject(poly_traits, lft, syn) =&gt; {
+                <span class="kw">let </span>exi_preds: List&lt;<span class="kw">_</span>&gt; = poly_traits
+                    .iter()
+                    .map(|poly_trait| <span class="self">self</span>.conv_poly_trait_ref_dyn(env, poly_trait))
+                    .try_collect()<span class="question-mark">?</span>;
+                <span class="kw">let </span>region = <span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft);
+                <span class="kw">if </span><span class="macro">matches!</span>(syn, rustc_ast::TraitObjectSyntax::Dyn) {
+                    <span class="prelude-val">Ok</span>(rty::Ty::dynamic(exi_preds, region))
+                } <span class="kw">else </span>{
+                    <span class="macro">span_bug!</span>(ty.span, <span class="string">"dyn* traits not supported yet"</span>)
+                }
             }
         }
     }
@@ -2893,7 +2960,6 @@
                 <span class="macro">bug!</span>(<span class="string">"unexpected generic param: {param:?}"</span>);
             }
         }
-
         <span class="prelude-val">Ok</span>(())
     }
 

@@ -1604,6 +1604,17 @@
 <a href="#1604" id="1604">1604</a>
 <a href="#1605" id="1605">1605</a>
 <a href="#1606" id="1606">1606</a>
+<a href="#1607" id="1607">1607</a>
+<a href="#1608" id="1608">1608</a>
+<a href="#1609" id="1609">1609</a>
+<a href="#1610" id="1610">1610</a>
+<a href="#1611" id="1611">1611</a>
+<a href="#1612" id="1612">1612</a>
+<a href="#1613" id="1613">1613</a>
+<a href="#1614" id="1614">1614</a>
+<a href="#1615" id="1615">1615</a>
+<a href="#1616" id="1616">1616</a>
+<a href="#1617" id="1617">1617</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -2565,19 +2576,30 @@
                     }
                 }
             }
-            <span class="comment">// &amp;mut [T; n] -&gt; &amp;mut [T][n] and &amp;[T; n] -&gt; &amp;[T][n]
-            </span>CastKind::Pointer(mir::PointerCast::Unsize) =&gt; {
+            CastKind::Pointer(mir::PointerCast::Unsize) =&gt; {
                 <span class="kw">if let </span>TyKind::Indexed(BaseTy::Ref(<span class="kw">_</span>, src_ty, src_mut), <span class="kw">_</span>) = from.kind()
-                    &amp;&amp; <span class="kw">let </span>TyKind::Indexed(BaseTy::Array(src_arr_ty, src_n), <span class="kw">_</span>) = src_ty.kind()
+                    &amp;&amp; <span class="kw">let </span>TyKind::Indexed(src_base_ty, <span class="kw">_</span>) = src_ty.kind()
                     &amp;&amp; <span class="kw">let </span>rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
-                    &amp;&amp; <span class="kw">let </span>rustc::ty::TyKind::Slice(<span class="kw">_</span>) = dst_ty.kind()
-                    &amp;&amp; src_mut == dst_mut
                 {
-                    <span class="kw">let </span>idx = Expr::from_const(<span class="self">self</span>.genv.tcx(), src_n);
-                    <span class="kw">let </span>dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), idx);
-                    Ty::mk_ref(<span class="kw-2">*</span>dst_re, dst_slice, <span class="kw-2">*</span>dst_mut)
+                    <span class="comment">// &amp;mut [T; n] -&gt; &amp;mut [T][n] and &amp;[T; n] -&gt; &amp;[T][n]
+                    </span><span class="kw">if let </span>rustc::ty::TyKind::Slice(<span class="kw">_</span>) = dst_ty.kind()
+                        &amp;&amp; <span class="kw">let </span>BaseTy::Array(src_arr_ty, src_n) = src_base_ty
+                        &amp;&amp; src_mut == dst_mut
+                    {
+                        <span class="kw">let </span>idx = Expr::from_const(<span class="self">self</span>.genv.tcx(), src_n);
+                        <span class="kw">let </span>dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), idx);
+                        Ty::mk_ref(<span class="kw-2">*</span>dst_re, dst_slice, <span class="kw-2">*</span>dst_mut)
+                    } <span class="kw">else
+                    </span><span class="comment">// &amp;T  -&gt; &amp; dyn U
+                    </span><span class="kw">if let </span>rustc::ty::TyKind::Dynamic(<span class="kw">_</span>, <span class="kw">_</span>) = dst_ty.kind() {
+                        <span class="self">self</span>.genv
+                            .refine_default(<span class="kw-2">&amp;</span><span class="self">self</span>.generics, to)
+                            .with_span(<span class="self">self</span>.body.span())<span class="question-mark">?
+                    </span>} <span class="kw">else </span>{
+                        <span class="macro">tracked_span_bug!</span>(<span class="string">"unsupported Unsize cast: from {from:?} to {to:?}"</span>)
+                    }
                 } <span class="kw">else </span>{
-                    <span class="macro">tracked_span_bug!</span>(<span class="string">"unsupported Unsize cast"</span>)
+                    <span class="macro">tracked_span_bug!</span>(<span class="string">"unsupported Unsize cast: from {from:?} to {to:?}"</span>)
                 }
             }
             CastKind::FloatToInt

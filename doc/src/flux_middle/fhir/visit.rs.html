@@ -490,6 +490,10 @@
 <a href="#490" id="490">490</a>
 <a href="#491" id="491">491</a>
 <a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind, FieldDef, FnDecl, FnOutput,
     FnSig, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem,
@@ -877,6 +881,10 @@
         }
         TyKind::Never =&gt; {}
         TyKind::Hole(<span class="kw">_</span>) =&gt; {}
+        TyKind::TraitObject(poly_traits, lft, <span class="kw">_</span>) =&gt; {
+            <span class="macro">walk_list!</span>(vis, visit_poly_trait_ref, poly_traits);
+            vis.visit_lifetime(<span class="kw-2">&amp;</span>lft);
+        }
     }
 }
 

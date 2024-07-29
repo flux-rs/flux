@@ -1460,6 +1460,11 @@
 <a href="#1460" id="1460">1460</a>
 <a href="#1461" id="1461">1461</a>
 <a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1487,6 +1492,7 @@
 <span class="kw">use </span>flux_syntax::surface::ParamMode;
 <span class="kw">pub use </span>flux_syntax::surface::{BinOp, UnOp};
 <span class="kw">use </span>itertools::Itertools;
+<span class="kw">use </span>rustc_ast::TraitObjectSyntax;
 <span class="kw">use </span>rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">pub use </span>rustc_hir::PrimTy;
@@ -2000,6 +2006,7 @@
     Array(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;, ConstArg),
     RawPtr(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;, Mutability),
     OpaqueDef(ItemId, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[GenericArg&lt;<span class="lifetime">'fhir</span>&gt;], <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineArg&lt;<span class="lifetime">'fhir</span>&gt;], bool),
+    TraitObject(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[PolyTraitRef&lt;<span class="lifetime">'fhir</span>&gt;], Lifetime, TraitObjectSyntax),
     Never,
     Hole(FhirId),
 }
@@ -2704,6 +2711,9 @@
                     f,
                     <span class="string">"impl trait &lt;def_id = {def_id:?}, args = {args:?}, refine = {refine_args:?}&gt;"
                 </span>)
+            }
+            TyKind::TraitObject(poly_traits, _lft, _syntax) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">"dyn {poly_traits:?}"</span>)
             }
         }
     }

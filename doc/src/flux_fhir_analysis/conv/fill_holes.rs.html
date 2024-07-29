@@ -310,6 +310,13 @@
 <a href="#310" id="310">310</a>
 <a href="#311" id="311">311</a>
 <a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::bug;
@@ -527,6 +534,13 @@
             (rty::BaseTy::Never, ty::TyKind::Never) =&gt; {}
             (rty::BaseTy::Param(pty_a), ty::TyKind::Param(pty_b)) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(pty_a, pty_b);
+            }
+            (
+                rty::BaseTy::Dynamic(poly_trait_refs, re_a),
+                ty::TyKind::Dynamic(poly_trait_refs_b, re_b),
+            ) =&gt; {
+                <span class="self">self</span>.zip_region(re_a, re_b);
+                <span class="macro">debug_assert_eq!</span>(poly_trait_refs.len(), poly_trait_refs_b.len());
             }
             (rty::BaseTy::Closure(..), <span class="kw">_</span>) =&gt; {
                 <span class="macro">bug!</span>(<span class="string">"unexpected closure {a:?}"</span>);
