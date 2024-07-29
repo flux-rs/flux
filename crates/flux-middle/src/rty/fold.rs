@@ -15,10 +15,10 @@ use super::{
     projections,
     subst::EVarSubstFolder,
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Const,
-    CoroutineObligPredicate, Ensures, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
-    GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
-    ProjectionPredicate, PtrKind, Qualifier, ReBound, Region, Sort, SubsetTy, TraitPredicate,
-    TraitRef, Ty, TyKind,
+    CoroutineObligPredicate, Ensures, ExistentialPredicate, ExistentialTraitRef, Expr, ExprKind,
+    FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg, Invariant, KVar, Lambda, Name,
+    Opaqueness, OutlivesPredicate, PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReBound,
+    Region, Sort, SubsetTy, TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -488,6 +488,37 @@ impl TypeFoldable for TraitRef {
     }
 }
 
+impl TypeVisitable for ExistentialTraitRef {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        self.args.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for ExistentialTraitRef {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(ExistentialTraitRef { def_id: self.def_id, args: self.args.try_fold_with(folder)? })
+    }
+}
+
+impl TypeVisitable for ExistentialPredicate {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        match self {
+            ExistentialPredicate::Trait(exi_trait_ref) => exi_trait_ref.visit_with(visitor),
+        }
+    }
+}
+
+impl TypeFoldable for ExistentialPredicate {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        match self {
+            ExistentialPredicate::Trait(exi_trait_ref) => {
+                let exi_trait_ref = exi_trait_ref.try_fold_with(folder)?;
+                Ok(ExistentialPredicate::Trait(exi_trait_ref))
+            }
+        }
+    }
+}
+
 impl TypeVisitable for CoroutineObligPredicate {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.upvar_tys.visit_with(visitor)?;
@@ -940,6 +971,7 @@ impl TypeSuperVisitable for BaseTy {
             | BaseTy::Closure(_, _)
             | BaseTy::Never
             | BaseTy::Param(_) => ControlFlow::Continue(()),
+            BaseTy::Dynamic(exi_preds, _) => exi_preds.visit_with(visitor),
         }
     }
 }
@@ -978,6 +1010,9 @@ impl TypeSuperFoldable for BaseTy {
                     resume_ty.try_fold_with(folder)?,
                     args.try_fold_with(folder)?,
                 )
+            }
+            BaseTy::Dynamic(exi_preds, region) => {
+                BaseTy::Dynamic(exi_preds.try_fold_with(folder)?, region.try_fold_with(folder)?)
             }
         };
         Ok(bty)

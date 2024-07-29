@@ -43,7 +43,7 @@ pub enum BoundVariableKind {
     Region(BoundRegionKind),
 }
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Debug, Hash, Eq, PartialEq, TyEncodable, TyDecodable)]
 pub struct GenericParamDef {
     pub def_id: DefId,
     pub index: u32,
@@ -57,7 +57,7 @@ impl GenericParamDef {
     }
 }
 
-#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy, TyEncodable, TyDecodable)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
     Lifetime,
@@ -93,7 +93,7 @@ pub struct TraitPredicate {
     pub trait_ref: TraitRef,
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct TraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
@@ -182,6 +182,18 @@ pub enum TyKind {
     CoroutineWitness(DefId, GenericArgs),
     Alias(AliasKind, AliasTy),
     RawPtr(Ty, Mutability),
+    Dynamic(List<Binder<ExistentialPredicate>>, Region),
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum ExistentialPredicate {
+    Trait(ExistentialTraitRef),
+}
+
+#[derive(PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+pub struct ExistentialTraitRef {
+    pub def_id: DefId,
+    pub args: GenericArgs,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -630,6 +642,10 @@ impl Ty {
         TyKind::Param(param).intern()
     }
 
+    pub fn mk_dynamic(exi_preds: impl Into<List<Binder<ExistentialPredicate>>>, r: Region) -> Ty {
+        TyKind::Dynamic(exi_preds.into(), r).intern()
+    }
+
     pub fn mk_ref(region: Region, ty: Ty, mutability: Mutability) -> Ty {
         TyKind::Ref(region, ty, mutability).intern()
     }
@@ -721,13 +737,21 @@ impl Ty {
             TyKind::Coroutine(_, _) => todo!(),
             TyKind::CoroutineWitness(_, _) => todo!(),
             TyKind::Alias(_, _) => todo!(),
+            TyKind::Dynamic(_, _) => todo!(),
         };
         rustc_ty::Ty::new(tcx, kind)
     }
 }
 
 impl_internable!(TyS, AdtDefData);
-impl_slice_internable!(Ty, GenericArg, GenericParamDef, BoundVariableKind, Clause);
+impl_slice_internable!(
+    Ty,
+    GenericArg,
+    GenericParamDef,
+    BoundVariableKind,
+    Clause,
+    Binder<ExistentialPredicate>,
+);
 
 impl fmt::Debug for GenericArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -835,6 +859,9 @@ impl fmt::Debug for Ty {
                 }
                 write!(f, ")")?;
                 Ok(())
+            }
+            TyKind::Dynamic(exi_preds, _r) => {
+                write!(f, "dyn {exi_preds:?}")
             }
         }
     }
