@@ -337,6 +337,17 @@ impl Pretty for List<Ty> {
     }
 }
 
+impl Pretty for ExistentialPredicate {
+    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(_cx, f);
+        match self {
+            ExistentialPredicate::Trait(exi_trait_ref) => {
+                w!("{exi_trait_ref:?}")
+            }
+        }
+    }
+}
+
 impl Pretty for BaseTy {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
@@ -387,6 +398,9 @@ impl Pretty for BaseTy {
                     w!("<{:?}>", join!(", ", upvars))?;
                 }
                 Ok(())
+            }
+            BaseTy::Dynamic(exi_preds, _) => {
+                w!("dyn {:?}", join!(", ", exi_preds))
             }
         }
     }

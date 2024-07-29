@@ -373,6 +373,7 @@ impl BasicBlockEnvShape {
             | BaseTy::Char
             | BaseTy::Never
             | BaseTy::Closure(_, _)
+            | BaseTy::Dynamic(_, _)
             | BaseTy::Coroutine(..) => bty.clone(),
         }
     }

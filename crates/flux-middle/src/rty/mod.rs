@@ -13,7 +13,6 @@ mod pretty;
 pub mod projections;
 pub mod refining;
 pub mod subst;
-
 use std::{borrow::Cow, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
@@ -228,6 +227,36 @@ impl TraitRef {
     pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::TraitRef<'tcx> {
         rustc_middle::ty::TraitRef::new(tcx, self.def_id, self.args.to_rustc(tcx))
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum ExistentialPredicate {
+    Trait(ExistentialTraitRef),
+}
+
+impl Binder<ExistentialPredicate> {
+    fn to_rustc<'tcx>(
+        &self,
+        tcx: TyCtxt<'tcx>,
+    ) -> rustc_middle::ty::Binder<'tcx, rustc_middle::ty::ExistentialPredicate<'tcx>> {
+        assert!(self.vars.is_empty());
+        match self.value {
+            ExistentialPredicate::Trait(ref exi_trait_ref) => {
+                let exi_trait_ref = rustc_middle::ty::ExistentialTraitRef {
+                    def_id: exi_trait_ref.def_id,
+                    args: exi_trait_ref.args.to_rustc(tcx),
+                };
+                let exi_pred = rustc_middle::ty::ExistentialPredicate::Trait(exi_trait_ref);
+                rustc_middle::ty::Binder::bind_with_vars(exi_pred, rustc_middle::ty::List::empty())
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct ExistentialTraitRef {
+    pub def_id: DefId,
+    pub args: GenericArgs,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable)]
@@ -622,6 +651,10 @@ impl Ty {
         Self::alias(AliasKind::Projection, alias_ty)
     }
 
+    pub fn dynamic(preds: impl Into<List<Binder<ExistentialPredicate>>>, region: Region) -> Ty {
+        BaseTy::Dynamic(preds.into(), region).to_ty()
+    }
+
     pub fn strg_ref(re: Region, path: Path, ty: Ty) -> Ty {
         TyKind::StrgRef(re, path, ty).intern()
     }
@@ -951,6 +984,7 @@ pub enum BaseTy {
     Never,
     Closure(DefId, /* upvar_tys */ List<Ty>),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
+    Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
 }
 
@@ -1099,6 +1133,7 @@ impl BaseTy {
             | BaseTy::Array(_, _)
             | BaseTy::Closure(_, _)
             | BaseTy::Coroutine(..)
+            | BaseTy::Dynamic(_, _)
             | BaseTy::Never => Sort::unit(),
         }
     }
@@ -1131,6 +1166,14 @@ impl BaseTy {
             BaseTy::Array(_, _) => todo!(),
             BaseTy::Never => tcx.types.never,
             BaseTy::Closure(_, _) => todo!(),
+            BaseTy::Dynamic(exi_preds, re) => {
+                let preds: Vec<_> = exi_preds
+                    .iter()
+                    .map(|pred| pred.to_rustc(tcx))
+                    .collect_vec();
+                let preds = tcx.mk_poly_existential_predicates(&preds);
+                ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_middle::ty::DynKind::Dyn)
+            }
             BaseTy::Coroutine(def_id, resume_ty, upvars) => {
                 todo!("Generator {def_id:?} {resume_ty:?} {upvars:?}")
                 // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
@@ -2055,6 +2098,8 @@ impl_slice_internable!(
     InferMode,
     Sort,
     GenericParamDef,
+    TraitRef,
+    Binder<ExistentialPredicate>,
     Clause,
     PolyVariant,
     Invariant,

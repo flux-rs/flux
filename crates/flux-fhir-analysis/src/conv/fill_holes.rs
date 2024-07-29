@@ -216,6 +216,13 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             (rty::BaseTy::Param(pty_a), ty::TyKind::Param(pty_b)) => {
                 debug_assert_eq!(pty_a, pty_b);
             }
+            (
+                rty::BaseTy::Dynamic(poly_trait_refs, re_a),
+                ty::TyKind::Dynamic(poly_trait_refs_b, re_b),
+            ) => {
+                self.zip_region(re_a, re_b);
+                debug_assert_eq!(poly_trait_refs.len(), poly_trait_refs_b.len());
+            }
             (rty::BaseTy::Closure(..), _) => {
                 bug!("unexpected closure {a:?}");
             }

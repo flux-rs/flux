@@ -25,15 +25,15 @@ use super::{
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
-        Const, ConstKind, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
-        GenericPredicates, Generics, OutlivesPredicate, PolyFnSig, TraitPredicate, TraitRef, Ty,
-        TypeOutlivesPredicate, VariantDef,
+        Const, ConstKind, ExistentialPredicate, FieldDef, FnSig, GenericArg, GenericParamDef,
+        GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate, PolyFnSig,
+        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, VariantDef,
     },
 };
 use crate::{
     const_eval::scalar_int_to_constant,
     intern::List,
-    rustc::ty::{AliasTy, ProjectionPredicate, Region},
+    rustc::ty::{AliasTy, ExistentialTraitRef, ProjectionPredicate, Region},
 };
 
 pub struct LoweringCtxt<'a, 'sess, 'tcx> {
@@ -740,6 +740,18 @@ pub(crate) fn lower_ty<'tcx>(
             let args = lower_generic_args(tcx, args)?;
             Ok(Ty::mk_generator_witness(*did, args))
         }
+        rustc_ty::Dynamic(predicates, region, rustc_ty::DynKind::Dyn) => {
+            let region = lower_region(region)?;
+
+            let exi_preds = List::from_vec(
+                predicates
+                    .iter()
+                    .map(|pred| lower_existential_predicate(tcx, pred))
+                    .try_collect()?,
+            );
+
+            Ok(Ty::mk_dynamic(exi_preds, region))
+        }
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
     }
 }
@@ -770,6 +782,22 @@ fn lower_variant(variant: &rustc_ty::VariantDef) -> VariantDef {
 
 fn lower_field(f: &rustc_ty::FieldDef) -> FieldDef {
     FieldDef { did: f.did, name: f.name }
+}
+
+pub fn lower_existential_predicate<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    pred: rustc_ty::Binder<rustc_ty::ExistentialPredicate<'tcx>>,
+) -> Result<Binder<ExistentialPredicate>, UnsupportedReason> {
+    assert!(pred.bound_vars().is_empty());
+    let pred = pred.skip_binder();
+    if let rustc_ty::ExistentialPredicate::Trait(exi_trait_ref) = pred {
+        let def_id = exi_trait_ref.def_id;
+        let args = lower_generic_args(tcx, exi_trait_ref.args)?;
+        let exi_trait_ref = ExistentialTraitRef { def_id, args };
+        Ok(Binder::bind_with_vars(ExistentialPredicate::Trait(exi_trait_ref), List::empty()))
+    } else {
+        Err(UnsupportedReason::new(format!("Unsupported existential predicate `{pred:?}`")))
+    }
 }
 
 pub fn lower_generic_args<'tcx>(
