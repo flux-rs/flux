@@ -514,21 +514,37 @@ impl<D> GenericsSubstFolder<'_, D> {
 }
 
 pub(crate) struct SortSubst<'a> {
-    args: &'a [Sort],
+    args: &'a [SortArg],
 }
 
 impl<'a> SortSubst<'a> {
-    pub(crate) fn new(args: &'a [Sort]) -> Self {
+    pub(crate) fn new(args: &'a [SortArg]) -> Self {
         Self { args }
+    }
+}
+
+impl SortSubst<'_> {
+    fn sort_for_param(&self, var: ParamSort) -> Sort {
+        match &self.args[var.index] {
+            SortArg::Sort(sort) => sort.clone(),
+            SortArg::BvSize(_) => tracked_span_bug!("unexpected bv size for sort param"),
+        }
+    }
+
+    fn bv_size_for_param(&self, var: ParamSort) -> BvSize {
+        match self.args[var.index] {
+            SortArg::BvSize(size) => size,
+            SortArg::Sort(_) => tracked_span_bug!("unexpected sort for bv size param"),
+        }
     }
 }
 
 impl TypeFolder for SortSubst<'_> {
     fn fold_sort(&mut self, sort: &Sort) -> Sort {
-        if let Sort::Var(var) = sort {
-            self.args[var.index].clone()
-        } else {
-            sort.super_fold_with(self)
+        match sort {
+            Sort::Var(var) => self.sort_for_param(*var),
+            Sort::BitVec(BvSize::Param(var)) => Sort::BitVec(self.bv_size_for_param(*var)),
+            _ => sort.super_fold_with(self),
         }
     }
 }

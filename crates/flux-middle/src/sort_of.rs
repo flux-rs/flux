@@ -46,7 +46,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                 let generic_args = path.segments.last().unwrap().args;
                 for arg in sort_def.filter_generic_args(generic_args) {
                     let Some(sort) = self.sort_of_ty(arg.expect_type())? else { return Ok(None) };
-                    sort_args.push(sort);
+                    sort_args.push(rty::SortArg::Sort(sort));
                 }
                 let ctor = rty::SortCtor::Adt(self.adt_sort_def_of(def_id)?);
                 Some(rty::Sort::App(ctor, List::from_vec(sort_args)))
@@ -128,7 +128,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
                     let Some(sort) = self.sort_of_self_ty(def_id, arg.expect_ty())? else {
                         return Ok(None);
                     };
-                    sort_args.push(sort);
+                    sort_args.push(rty::SortArg::Sort(sort));
                 }
                 let ctor = rty::SortCtor::Adt(self.adt_sort_def_of(adt_def.did())?);
                 Some(rty::Sort::App(ctor, List::from_vec(sort_args)))

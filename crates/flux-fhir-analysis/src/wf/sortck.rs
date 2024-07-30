@@ -12,7 +12,7 @@ use flux_middle::{
         WfckResults,
     },
 };
-use itertools::izip;
+use itertools::{izip, Itertools};
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
 use rustc_span::{def_id::DefId, symbol::Ident, Span};
@@ -27,6 +27,7 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     pub params: UnordMap<fhir::ParamId, (rty::Sort, fhir::ParamKind)>,
     pub(super) sort_unification_table: InPlaceUnificationTable<rty::SortVid>,
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
+    bv_size_unification_table: InPlaceUnificationTable<rty::BvSizeVid>,
     pub wfckresults: WfckResults,
 }
 
@@ -37,6 +38,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             wfckresults: WfckResults::new(owner),
             sort_unification_table: InPlaceUnificationTable::new(),
             num_unification_table: InPlaceUnificationTable::new(),
+            bv_size_unification_table: InPlaceUnificationTable::new(),
             params: Default::default(),
         }
     }
@@ -326,9 +328,15 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 
     fn instantiate_func_sort(&mut self, fsort: rty::PolyFuncSort) -> rty::FuncSort {
-        let args: Vec<rty::Sort> = std::iter::repeat_with(|| self.next_sort_var())
-            .take(fsort.params())
-            .collect();
+        let args = fsort
+            .params()
+            .map(|kind| {
+                match kind {
+                    rty::SortParamKind::Sort => rty::SortArg::Sort(self.next_sort_var()),
+                    rty::SortParamKind::BvSize => rty::SortArg::BvSize(self.next_bv_size_var()),
+                }
+            })
+            .collect_vec();
         fsort.instantiate(&args)
     }
 }
@@ -454,13 +462,55 @@ impl<'genv> InferCtxt<'genv, '_> {
                 }
                 let mut args = vec![];
                 for (t1, t2) in args1.iter().zip(args2.iter()) {
-                    args.push(self.try_equate_inner(t1, t2)?);
+                    args.push(self.try_equate_sort_args(t1, t2)?);
                 }
+            }
+            (rty::Sort::BitVec(size1), rty::Sort::BitVec(size2)) => {
+                self.try_equate_bv_sizes(*size1, *size2)?;
             }
             _ if sort1 == sort2 => {}
             _ => return None,
         }
         Some(sort1.clone())
+    }
+
+    fn try_equate_sort_args(
+        &mut self,
+        arg1: &rty::SortArg,
+        arg2: &rty::SortArg,
+    ) -> Option<rty::SortArg> {
+        match (arg1, arg2) {
+            (rty::SortArg::Sort(sort1), rty::SortArg::Sort(sort2)) => {
+                self.try_equate_inner(sort1, sort2).map(rty::SortArg::Sort)
+            }
+            (rty::SortArg::BvSize(size1), rty::SortArg::BvSize(size2)) => {
+                self.try_equate_bv_sizes(*size1, *size2)
+                    .map(rty::SortArg::BvSize)
+            }
+            _ => None,
+        }
+    }
+
+    fn try_equate_bv_sizes(
+        &mut self,
+        size1: rty::BvSize,
+        size2: rty::BvSize,
+    ) -> Option<rty::BvSize> {
+        match (size1, size2) {
+            (rty::BvSize::Infer(vid1), rty::BvSize::Infer(vid2)) => {
+                self.bv_size_unification_table
+                    .unify_var_var(vid1, vid2)
+                    .ok()?;
+            }
+            (rty::BvSize::Infer(vid), size) | (size, rty::BvSize::Infer(vid)) => {
+                self.bv_size_unification_table
+                    .unify_var_value(vid, Some(size))
+                    .ok()?;
+            }
+            _ if size1 == size2 => {}
+            _ => return None,
+        }
+        Some(size1)
     }
 
     fn equate(&mut self, sort1: &rty::Sort, sort2: &rty::Sort) -> rty::Sort {
@@ -482,6 +532,14 @@ impl<'genv> InferCtxt<'genv, '_> {
 
     fn next_num_vid(&mut self) -> rty::NumVid {
         self.num_unification_table.new_key(None)
+    }
+
+    fn next_bv_size_var(&mut self) -> rty::BvSize {
+        rty::BvSize::Infer(self.next_bv_size_vid())
+    }
+
+    fn next_bv_size_vid(&mut self) -> rty::BvSizeVid {
+        self.bv_size_unification_table.new_key(None)
     }
 
     pub(crate) fn resolve_param_sort(&mut self, param: &fhir::RefineParam) -> Result {
@@ -665,6 +723,13 @@ impl TypeFolder for ShallowResolver<'_, '_, '_> {
                     .num_unification_table
                     .probe_value(*vid)
                     .map(rty::NumVarValue::to_sort)
+                    .unwrap_or(sort.clone())
+            }
+            rty::Sort::BitVec(rty::BvSize::Infer(vid)) => {
+                self.infcx
+                    .bv_size_unification_table
+                    .probe_value(*vid)
+                    .map(rty::Sort::BitVec)
                     .unwrap_or(sort.clone())
             }
             _ => sort.clone(),

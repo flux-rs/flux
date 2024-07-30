@@ -94,12 +94,12 @@ impl AdtSortDef {
         (0..self.fields()).map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
     }
 
-    pub fn field_sort(&self, args: &[Sort], name: Symbol) -> Option<Sort> {
+    pub fn field_sort(&self, args: &[SortArg], name: Symbol) -> Option<Sort> {
         let idx = self.field_index(name)?;
         Some(self.0.sorts[idx].fold_with(&mut SortSubst::new(args)))
     }
 
-    pub fn sorts(&self, args: &[Sort]) -> List<Sort> {
+    pub fn sorts(&self, args: &[SortArg]) -> List<Sort> {
         self.0.sorts.fold_with(&mut SortSubst::new(args))
     }
 
@@ -109,9 +109,9 @@ impl AdtSortDef {
         self.0.params.iter().map(|p| &args[p.index as usize])
     }
 
-    pub fn identity_args(&self) -> List<Sort> {
+    pub fn identity_args(&self) -> List<SortArg> {
         (0..self.0.params.len())
-            .map(|i| Sort::Var(ParamSort::from(i)))
+            .map(|i| SortArg::Sort(Sort::Var(ParamSort::from(i))))
             .collect()
     }
 
@@ -313,10 +313,10 @@ pub enum SortCtor {
     User { name: Symbol },
 }
 
-/// [ParamSort] are used for polymorphic sorts (Set, Map etc.) and they should occur
-/// "bound" under a PolyFuncSort; i.e. should be < than the number of params in the
-/// PolyFuncSort.
-#[derive(Clone, PartialEq, Eq, Debug, Hash, Encodable, Decodable)]
+/// [ParamSort] are used for polymorphic sorts (Set, Map etc.) and bit vector size parameters. They
+/// should occur "bound" under a [`PolyFuncSort`]; i.e. should be < than the number of params in the
+/// [`PolyFuncSort`].
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, Encodable, Decodable)]
 pub struct ParamSort {
     pub index: usize,
 }
@@ -405,20 +405,58 @@ pub enum SortInfer {
     NumVar(NumVid),
 }
 
+newtype_index! {
+    /// A *b*it *v*ector *size* *v*variable *id*
+    #[debug_format = "?{}size"]
+    #[encodable]
+    pub struct BvSizeVid {}
+}
+
+impl ena::unify::UnifyKey for BvSizeVid {
+    type Value = Option<BvSize>;
+
+    #[inline]
+    fn index(&self) -> u32 {
+        self.as_u32()
+    }
+
+    #[inline]
+    fn from_index(u: u32) -> Self {
+        BvSizeVid::from_u32(u)
+    }
+
+    fn tag() -> &'static str {
+        "BvSizeVid"
+    }
+}
+
+impl ena::unify::EqUnifyValue for BvSize {}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
     Bool,
     Real,
-    BitVec(usize),
+    BitVec(BvSize),
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
     Func(PolyFuncSort),
-    App(SortCtor, List<Sort>),
+    App(SortCtor, List<SortArg>),
     Var(ParamSort),
     Infer(SortInfer),
     Err,
+}
+
+/// The size of a bit vector
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum BvSize {
+    /// A fixed size
+    Fixed(usize),
+    /// A size tat has been parameterized, e.g., bound under a [`PolyFuncSort`]
+    Param(ParamSort),
+    /// A size that needs to be inferred
+    Infer(BvSizeVid),
 }
 
 impl rustc_errors::IntoDiagArg for Sort {
@@ -453,18 +491,28 @@ impl FuncSort {
     }
 
     pub fn to_poly(&self) -> PolyFuncSort {
-        PolyFuncSort::new(0, self.clone())
+        PolyFuncSort::new(List::empty(), self.clone())
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+pub enum SortParamKind {
+    Sort,
+    BvSize,
+}
+
+/// A polymorphic function sort that can parameterize over sorts or [bit vector sizes]
+///
+/// [bit vector sizes]: BvSize::Param
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct PolyFuncSort {
-    params: usize,
+    /// The number parameters including sorts and bit vector sizes
+    params: List<SortParamKind>,
     fsort: FuncSort,
 }
 
 impl PolyFuncSort {
-    pub fn new(params: usize, fsort: FuncSort) -> Self {
+    pub fn new(params: List<SortParamKind>, fsort: FuncSort) -> Self {
         PolyFuncSort { params, fsort }
     }
 
@@ -477,17 +525,23 @@ impl PolyFuncSort {
     }
 
     pub fn expect_mono(&self) -> FuncSort {
-        assert!(self.params == 0);
+        assert!(self.params.is_empty());
         self.fsort.clone()
     }
 
-    pub fn params(&self) -> usize {
-        self.params
+    pub fn params(&self) -> impl ExactSizeIterator<Item = SortParamKind> + '_ {
+        self.params.iter().copied()
     }
 
-    pub fn instantiate(&self, args: &[Sort]) -> FuncSort {
+    pub fn instantiate(&self, args: &[SortArg]) -> FuncSort {
         self.fsort.fold_with(&mut SortSubst::new(args))
     }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+pub enum SortArg {
+    Sort(Sort),
+    BvSize(BvSize),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -1515,8 +1569,8 @@ impl Sort {
         Sort::Tuple(sorts.into())
     }
 
-    pub fn app(ctor: SortCtor, sorts: impl Into<List<Sort>>) -> Self {
-        Sort::App(ctor, sorts.into())
+    pub fn app(ctor: SortCtor, sorts: List<SortArg>) -> Self {
+        Sort::App(ctor, sorts)
     }
 
     pub fn unit() -> Self {
@@ -1888,7 +1942,7 @@ impl AdtDef {
         let sorts = self
             .sort_def()
             .filter_generic_args(args)
-            .map(|arg| arg.expect_base().sort())
+            .map(|arg| SortArg::Sort(arg.expect_base().sort()))
             .collect();
 
         Sort::App(SortCtor::Adt(self.sort_def().clone()), sorts)
@@ -2106,6 +2160,8 @@ impl_slice_internable!(
     BoundVariableKind,
     RefineParam,
     AssocRefinement,
+    SortParamKind,
+    SortArg,
     (ParamConst, Sort)
 );
 
