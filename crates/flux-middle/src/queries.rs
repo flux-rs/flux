@@ -336,8 +336,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let def_id = extern_id.unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_sort_def_of)(genv, local_id)
-            } else if let Some(adt_def) = genv.cstore().adt_def(def_id) {
-                adt_def.map(|it| it.sort_def().clone())
+            } else if let Some(adt_sort_def) = genv.cstore().adt_sort_def(def_id) {
+                adt_sort_def
             } else {
                 Ok(rty::AdtSortDef::new(def_id, vec![], vec![]))
             }

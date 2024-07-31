@@ -7,6 +7,7 @@ pub type OptResult<T> = Option<QueryResult<T>>;
 pub trait CrateStore {
     fn fn_sig(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::PolyFnSig>>;
     fn adt_def(&self, def_id: DefId) -> OptResult<rty::AdtDef>;
+    fn adt_sort_def(&self, def_id: DefId) -> OptResult<rty::AdtSortDef>;
     fn generics_of(&self, def_id: DefId) -> OptResult<rty::Generics>;
     fn refinement_generics_of(&self, def_id: DefId) -> OptResult<rty::RefinementGenerics>;
     fn item_bounds(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<List<rty::Clause>>>;

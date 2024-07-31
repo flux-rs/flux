@@ -66,6 +66,7 @@ pub struct CrateMetadata {
         FxHashMap<(DefIndex, Symbol), QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>>>,
     fn_sigs: FxHashMap<DefIndex, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     adt_defs: FxHashMap<DefIndex, QueryResult<rty::AdtDef>>,
+    adt_sort_defs: FxHashMap<DefIndex, QueryResult<rty::AdtSortDef>>,
     variants:
         FxHashMap<DefIndex, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     type_of: FxHashMap<DefIndex, QueryResult<rty::EarlyBinder<rty::TyCtor>>>,
@@ -99,6 +100,14 @@ impl CrateStore for CStore {
         self.meta
             .get(&def_id.krate)?
             .adt_defs
+            .get(&def_id.index)
+            .cloned()
+    }
+
+    fn adt_sort_def(&self, def_id: DefId) -> OptResult<rty::AdtSortDef> {
+        self.meta
+            .get(&def_id.krate)?
+            .adt_sort_defs
             .get(&def_id.index)
             .cloned()
     }
@@ -257,6 +266,8 @@ impl CrateMetadata {
                     data.refinement_generics_of
                         .insert(def_id.index, genv.refinement_generics_of(def_id));
                     data.adt_defs.insert(def_id.index, genv.adt_def(def_id));
+                    data.adt_sort_defs
+                        .insert(def_id.index, genv.adt_sort_def_of(def_id));
                     data.variants.insert(def_id.index, genv.variants_of(def_id));
                     data.type_of.insert(def_id.index, genv.type_of(def_id));
                 }
@@ -267,6 +278,8 @@ impl CrateMetadata {
                         .insert(def_id.index, genv.predicates_of(def_id));
                     data.refinement_generics_of
                         .insert(def_id.index, genv.refinement_generics_of(def_id));
+                    data.adt_sort_defs
+                        .insert(def_id.index, genv.adt_sort_def_of(def_id));
                     data.type_of.insert(def_id.index, genv.type_of(def_id));
                 }
                 DefKind::OpaqueTy => {
