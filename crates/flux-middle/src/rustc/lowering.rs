@@ -494,8 +494,13 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         aggregate_kind: &rustc_mir::AggregateKind<'tcx>,
     ) -> Result<AggregateKind, UnsupportedReason> {
         match aggregate_kind {
-            rustc_mir::AggregateKind::Adt(def_id, variant_idx, args, None, None) => {
-                Ok(AggregateKind::Adt(*def_id, *variant_idx, lower_generic_args(self.tcx, args)?))
+            rustc_mir::AggregateKind::Adt(def_id, variant_idx, args, user_type_annot_idx, None) => {
+                Ok(AggregateKind::Adt(
+                    *def_id,
+                    *variant_idx,
+                    lower_generic_args(self.tcx, args)?,
+                    *user_type_annot_idx,
+                ))
             }
             rustc_mir::AggregateKind::Array(ty) => {
                 Ok(AggregateKind::Array(lower_ty(self.tcx, *ty)?))
