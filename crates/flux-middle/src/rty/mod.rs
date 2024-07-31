@@ -313,9 +313,11 @@ pub enum SortCtor {
     User { name: Symbol },
 }
 
-/// [ParamSort] are used for polymorphic sorts (Set, Map etc.) and bit vector size parameters. They
+/// [ParamSort] is used for polymorphic sorts (Set, Map etc.) and [bit-vector size parameters]. They
 /// should occur "bound" under a [`PolyFuncSort`]; i.e. should be < than the number of params in the
 /// [`PolyFuncSort`].
+///
+/// [bit-vector size parameters]: BvSize::Param
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, Encodable, Decodable)]
 pub struct ParamSort {
     pub index: usize,
@@ -448,14 +450,17 @@ pub enum Sort {
     Err,
 }
 
-/// The size of a bit vector
+/// The size of a [bit-vector]
+///
+/// [bit-vector]: Sort::BitVec
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum BvSize {
     /// A fixed size
     Fixed(usize),
-    /// A size tat has been parameterized, e.g., bound under a [`PolyFuncSort`]
+    /// A size that has been parameterized, e.g., bound under a [`PolyFuncSort`]
     Param(ParamSort),
-    /// A size that needs to be inferred
+    /// A size that needs to be inferred. Used during sort checking to instantiate bit-vector
+    /// sizes at call-sites.
     Infer(BvSizeVid),
 }
 
@@ -495,18 +500,25 @@ impl FuncSort {
     }
 }
 
+/// See [`PolyFuncSort`]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub enum SortParamKind {
     Sort,
     BvSize,
 }
 
-/// A polymorphic function sort that can parameterize over sorts or [bit vector sizes]
+/// A polymorphic function sort parametric over [sorts] or [bit-vector sizes].
 ///
-/// [bit vector sizes]: BvSize::Param
+/// Parameterizing over bit-vector sizes is a bit of a stretch, because smtlib doesn't support full
+/// parametric reasoning over them. As long as we used functions parameterized over a size monomorphically
+/// we should be fine. Right now, we can guarantee this, because size parameters are not exposed in
+/// the surface syntax and they are only used for predefined (interpreted) theory functions.
+///
+/// [sorts]: Sort
+/// [bit-vector sizes]: BvSize::Param
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct PolyFuncSort {
-    /// The number parameters including sorts and bit vector sizes
+    /// The list of parameters including sorts and bit vector sizes
     params: List<SortParamKind>,
     fsort: FuncSort,
 }
@@ -538,6 +550,8 @@ impl PolyFuncSort {
     }
 }
 
+/// An argument for a generic parameter in a [`Sort`] which can be either a generic sort or a
+/// generic bit-vector size.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
 pub enum SortArg {
     Sort(Sort),
@@ -582,11 +596,11 @@ impl Invariant {
 
     pub fn apply(&self, idx: &Expr) -> Expr {
         // The predicate may have sort variables but we don't explicitly instantiate them. This
-        // works because within an expression, sort variables can only appear inside a lambda and
-        // invariants cannot have lambdas. It remains to instantiate variables in the sort of the
-        // binder itself, but since we are removing it, we can avoid the explicit instantiation.
-        // Ultimately, this works because the expression we generate in fixpoint don't need
-        // sort annotations (sorts are re-inferred).
+        // works because within an expression, sort variables can only appear inside the sort
+        // annotation for a lambda and invariants cannot have lambdas. It remains to instantiate
+        // variables in the sort of the binder itself, but since we are removing it, we can avoid
+        // the explicit instantiation. Ultimately, this works because the expression we generate in
+        // fixpoint don't need sort annotations (sorts are re-inferred).
         self.pred.replace_bound_reft(idx)
     }
 }

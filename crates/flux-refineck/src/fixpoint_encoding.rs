@@ -866,8 +866,14 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
 fn bv_size_to_fixpoint(size: rty::BvSize) -> fixpoint::Sort {
     match size {
         rty::BvSize::Fixed(size) => fixpoint::Sort::BvSize(size),
-        rty::BvSize::Param(var) => fixpoint::Sort::Var(var.index),
-        rty::BvSize::Infer(_) => bug!("unexpected infer variable for bit vector size"),
+        rty::BvSize::Param(_var) => {
+            // I think we could encode the size as a sort variable, but this would require some care
+            // because smtlib doesn't really support parametric sizes. Fixpoint is probably already
+            // too liberal about this and it'd be easy to make it crash.
+            // fixpoint::Sort::Var(var.index)
+            bug!("unexpected parametric bit-vector size")
+        }
+        rty::BvSize::Infer(_) => bug!("unexpected infer variable for bit-vector size"),
     }
 }
 
