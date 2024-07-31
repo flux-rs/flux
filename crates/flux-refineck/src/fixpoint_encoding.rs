@@ -828,7 +828,7 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         rty::Sort::Int => fixpoint::Sort::Int,
         rty::Sort::Real => fixpoint::Sort::Real,
         rty::Sort::Bool => fixpoint::Sort::Bool,
-        rty::Sort::BitVec(w) => fixpoint::Sort::BitVec(*w),
+        rty::Sort::BitVec(size) => fixpoint::Sort::BitVec(Box::new(bv_size_to_fixpoint(*size))),
         // There's no way to declare user defined sorts in the fixpoint horn syntax so we encode
         // user declared opaque sorts and type variable sorts as integers. Well-formedness should
         // ensure values of these sorts are properly used.
@@ -863,12 +863,26 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
     }
 }
 
+fn bv_size_to_fixpoint(size: rty::BvSize) -> fixpoint::Sort {
+    match size {
+        rty::BvSize::Fixed(size) => fixpoint::Sort::BvSize(size),
+        rty::BvSize::Param(_var) => {
+            // I think we could encode the size as a sort variable, but this would require some care
+            // because smtlib doesn't really support parametric sizes. Fixpoint is probably already
+            // too liberal about this and it'd be easy to make it crash.
+            // fixpoint::Sort::Var(var.index)
+            bug!("unexpected parametric bit-vector size")
+        }
+        rty::BvSize::Infer(_) => bug!("unexpected infer variable for bit-vector size"),
+    }
+}
+
 fn tuple_sort_name(arity: usize) -> String {
     format!("Tuple{arity}")
 }
 
 fn func_sort_to_fixpoint(fsort: &rty::PolyFuncSort) -> fixpoint::Sort {
-    let params = fsort.params();
+    let params = fsort.params().len();
     let fsort = fsort.skip_binders();
     fixpoint::Sort::mk_func(
         params,
@@ -1230,7 +1244,8 @@ fn alias_reft_sort(arity: usize) -> rty::PolyFuncSort {
         sorts.push(rty::Sort::Var(rty::ParamSort::from(i)));
     }
     sorts.push(rty::Sort::Bool);
-    rty::PolyFuncSort::new(arity, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
+    let params = iter::repeat(rty::SortParamKind::Sort).take(arity).collect();
+    rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
 }
 
 fn mk_implies(assumption: fixpoint::Pred, cstr: fixpoint::Constraint) -> fixpoint::Constraint {
