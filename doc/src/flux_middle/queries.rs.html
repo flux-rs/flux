@@ -1044,8 +1044,8 @@
             <span class="kw">let </span>def_id = extern_id.unwrap_or(def_id);
             <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() {
                 (<span class="self">self</span>.providers.adt_sort_def_of)(genv, local_id)
-            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(adt_def) = genv.cstore().adt_def(def_id) {
-                adt_def.map(|it| it.sort_def().clone())
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(adt_sort_def) = genv.cstore().adt_sort_def(def_id) {
+                adt_sort_def
             } <span class="kw">else </span>{
                 <span class="prelude-val">Ok</span>(rty::AdtSortDef::new(def_id, <span class="macro">vec!</span>[], <span class="macro">vec!</span>[]))
             }

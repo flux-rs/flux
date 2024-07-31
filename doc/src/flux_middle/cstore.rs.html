@@ -30,6 +30,7 @@
 <a href="#30" id="30">30</a>
 <a href="#31" id="31">31</a>
 <a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::{def_id::DefId, Symbol};
 
 <span class="kw">use crate</span>::{intern::List, queries::QueryResult, rty};
@@ -39,6 +40,7 @@
 <span class="kw">pub trait </span>CrateStore {
     <span class="kw">fn </span>fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt;;
     <span class="kw">fn </span>adt_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::AdtDef&gt;;
+    <span class="kw">fn </span>adt_sort_def(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::AdtSortDef&gt;;
     <span class="kw">fn </span>generics_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::Generics&gt;;
     <span class="kw">fn </span>refinement_generics_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::RefinementGenerics&gt;;
     <span class="kw">fn </span>item_bounds(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;List&lt;rty::Clause&gt;&gt;&gt;;
