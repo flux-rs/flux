@@ -23,7 +23,7 @@ pub use rustc_middle::{
         BasicBlock, Local, LocalKind, Location, SourceInfo, SwitchTargets, UnOp, UnwindAction,
         RETURN_PLACE, START_BLOCK,
     },
-    ty::Variance,
+    ty::{UserTypeAnnotationIndex, Variance},
 };
 use rustc_span::{Span, Symbol};
 pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
@@ -219,7 +219,7 @@ pub enum PointerCast {
 
 #[derive(Debug)]
 pub enum AggregateKind {
-    Adt(DefId, VariantIdx, GenericArgs),
+    Adt(DefId, VariantIdx, GenericArgs, Option<UserTypeAnnotationIndex>),
     Array(Ty),
     Tuple,
     Closure(DefId, GenericArgs),
@@ -654,7 +654,7 @@ impl fmt::Debug for Rvalue {
                 write!(f, "Checked{bin_op:?}({op1:?}, {op2:?})")
             }
             Rvalue::UnaryOp(un_op, op) => write!(f, "{un_op:?}({op:?})"),
-            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args), operands) => {
+            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _), operands) => {
                 let (fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {
                     let variant_name = tcx.adt_def(*def_id).variant(*variant_idx).name;
                     let fname = tcx.def_path(*def_id).data.iter().join("::");
