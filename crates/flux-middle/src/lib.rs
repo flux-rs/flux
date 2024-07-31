@@ -70,7 +70,6 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
         use rty::{
             BvSize, ParamSort,
             Sort::{self, *},
-            SortArg,
             SortCtor::*,
             SortParamKind,
         };
@@ -185,10 +184,7 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                 fixpoint_name: Symbol::intern("Set_empty"),
                 sort: rty::PolyFuncSort::new(
                     List::from_arr([SortParamKind::Sort]),
-                    rty::FuncSort::new(
-                        vec![Int],
-                        Sort::app(Set, List::from_arr([SortArg::Sort(Var(param0))])),
-                    ),
+                    rty::FuncSort::new(vec![Int], Sort::app(Set, List::singleton(Var(param0)))),
                 ),
             },
             TheoryFunc {
@@ -198,7 +194,7 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                     List::from_arr([SortParamKind::Sort]),
                     rty::FuncSort::new(
                         vec![Var(param0)],
-                        Sort::app(Set, List::from_arr([SortArg::Sort(Var(param0))])),
+                        Sort::app(Set, List::singleton(Var(param0))),
                     ),
                 ),
             },
@@ -209,10 +205,10 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                     List::from_arr([SortParamKind::Sort]),
                     rty::FuncSort::new(
                         vec![
-                            Sort::app(Set, List::from_arr([SortArg::Sort(Var(param0))])),
-                            Sort::app(Set, List::from_arr([SortArg::Sort(Var(param0))])),
+                            Sort::app(Set, List::singleton(Var(param0))),
+                            Sort::app(Set, List::singleton(Var(param0))),
                         ],
-                        Sort::app(Set, List::from_arr([SortArg::Sort(Var(param0))])),
+                        Sort::app(Set, List::singleton(Var(param0))),
                     ),
                 ),
             },
@@ -222,10 +218,7 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                 sort: rty::PolyFuncSort::new(
                     List::from_arr([SortParamKind::Sort]),
                     rty::FuncSort::new(
-                        vec![
-                            Var(param0),
-                            Sort::app(Set, List::from_arr([SortArg::Sort(Var(param0))])),
-                        ],
+                        vec![Var(param0), Sort::app(Set, List::singleton(Var(param0)))],
                         Bool,
                     ),
                 ),
@@ -238,13 +231,7 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                     List::from_arr([SortParamKind::Sort, SortParamKind::Sort]),
                     rty::FuncSort::new(
                         vec![Var(param1)],
-                        Sort::app(
-                            Map,
-                            List::from_arr([
-                                SortArg::Sort(Var(param0)),
-                                SortArg::Sort(Var(param1)),
-                            ]),
-                        ),
+                        Sort::app(Map, List::from_arr([Var(param0), Var(param1)])),
                     ),
                 ),
             },
@@ -255,13 +242,7 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                     List::from_arr([SortParamKind::Sort, SortParamKind::Sort]),
                     rty::FuncSort::new(
                         vec![
-                            Sort::app(
-                                Map,
-                                List::from_arr([
-                                    SortArg::Sort(Var(param0)),
-                                    SortArg::Sort(Var(param1)),
-                                ]),
-                            ),
+                            Sort::app(Map, List::from_arr([Var(param0), Var(param1)])),
                             Var(param0),
                         ],
                         Var(param1),
@@ -275,23 +256,11 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                     List::from_arr([SortParamKind::Sort, SortParamKind::Sort]),
                     rty::FuncSort::new(
                         vec![
-                            Sort::app(
-                                Map,
-                                List::from_arr([
-                                    SortArg::Sort(Var(param0)),
-                                    SortArg::Sort(Var(param1)),
-                                ]),
-                            ),
+                            Sort::app(Map, List::from_arr([Var(param0), Var(param1)])),
                             Var(param0),
                             Var(param1),
                         ],
-                        Sort::app(
-                            Map,
-                            List::from_arr([
-                                SortArg::Sort(Var(param0)),
-                                SortArg::Sort(Var(param1)),
-                            ]),
-                        ),
+                        Sort::app(Map, List::from_arr([Var(param0), Var(param1)])),
                     ),
                 ),
             },

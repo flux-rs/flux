@@ -94,12 +94,12 @@ impl AdtSortDef {
         (0..self.fields()).map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
     }
 
-    pub fn field_sort(&self, args: &[SortArg], name: Symbol) -> Option<Sort> {
+    pub fn field_sort(&self, args: &[Sort], name: Symbol) -> Option<Sort> {
         let idx = self.field_index(name)?;
         Some(self.0.sorts[idx].fold_with(&mut SortSubst::new(args)))
     }
 
-    pub fn sorts(&self, args: &[SortArg]) -> List<Sort> {
+    pub fn sorts(&self, args: &[Sort]) -> List<Sort> {
         self.0.sorts.fold_with(&mut SortSubst::new(args))
     }
 
@@ -109,9 +109,9 @@ impl AdtSortDef {
         self.0.params.iter().map(|p| &args[p.index as usize])
     }
 
-    pub fn identity_args(&self) -> List<SortArg> {
+    pub fn identity_args(&self) -> List<Sort> {
         (0..self.0.params.len())
-            .map(|i| SortArg::Sort(Sort::Var(ParamSort::from(i))))
+            .map(|i| Sort::Var(ParamSort::from(i)))
             .collect()
     }
 
@@ -442,7 +442,7 @@ pub enum Sort {
     Param(ParamTy),
     Tuple(List<Sort>),
     Func(PolyFuncSort),
-    App(SortCtor, List<SortArg>),
+    App(SortCtor, List<Sort>),
     Var(ParamSort),
     Infer(SortInfer),
     Err,
@@ -1569,7 +1569,7 @@ impl Sort {
         Sort::Tuple(sorts.into())
     }
 
-    pub fn app(ctor: SortCtor, sorts: List<SortArg>) -> Self {
+    pub fn app(ctor: SortCtor, sorts: List<Sort>) -> Self {
         Sort::App(ctor, sorts)
     }
 
@@ -1942,7 +1942,7 @@ impl AdtDef {
         let sorts = self
             .sort_def()
             .filter_generic_args(args)
-            .map(|arg| SortArg::Sort(arg.expect_base().sort()))
+            .map(|arg| arg.expect_base().sort())
             .collect();
 
         Sort::App(SortCtor::Adt(self.sort_def().clone()), sorts)
@@ -2161,7 +2161,6 @@ impl_slice_internable!(
     RefineParam,
     AssocRefinement,
     SortParamKind,
-    SortArg,
     (ParamConst, Sort)
 );
 

@@ -1676,7 +1676,7 @@ fn conv_sort_path(
     let args = path
         .args
         .iter()
-        .map(|t| conv_sort(genv, t, next_infer_sort).map(rty::SortArg::Sort))
+        .map(|t| conv_sort(genv, t, next_infer_sort))
         .try_collect()?;
     Ok(rty::Sort::app(ctor, args))
 }

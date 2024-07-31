@@ -461,8 +461,8 @@ impl<'genv> InferCtxt<'genv, '_> {
                     return None;
                 }
                 let mut args = vec![];
-                for (t1, t2) in args1.iter().zip(args2.iter()) {
-                    args.push(self.try_equate_sort_args(t1, t2)?);
+                for (s1, s2) in args1.iter().zip(args2.iter()) {
+                    args.push(self.try_equate_inner(s1, s2)?);
                 }
             }
             (rty::Sort::BitVec(size1), rty::Sort::BitVec(size2)) => {
@@ -472,23 +472,6 @@ impl<'genv> InferCtxt<'genv, '_> {
             _ => return None,
         }
         Some(sort1.clone())
-    }
-
-    fn try_equate_sort_args(
-        &mut self,
-        arg1: &rty::SortArg,
-        arg2: &rty::SortArg,
-    ) -> Option<rty::SortArg> {
-        match (arg1, arg2) {
-            (rty::SortArg::Sort(sort1), rty::SortArg::Sort(sort2)) => {
-                self.try_equate_inner(sort1, sort2).map(rty::SortArg::Sort)
-            }
-            (rty::SortArg::BvSize(size1), rty::SortArg::BvSize(size2)) => {
-                self.try_equate_bv_sizes(*size1, *size2)
-                    .map(rty::SortArg::BvSize)
-            }
-            _ => None,
-        }
     }
 
     fn try_equate_bv_sizes(

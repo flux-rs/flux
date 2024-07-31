@@ -834,11 +834,11 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         // ensure values of these sorts are properly used.
         rty::Sort::App(rty::SortCtor::User { .. }, _) | rty::Sort::Param(_) => fixpoint::Sort::Int,
         rty::Sort::App(rty::SortCtor::Set, args) => {
-            let args = args.iter().map(sort_arg_to_fixpoint).collect_vec();
+            let args = args.iter().map(sort_to_fixpoint).collect_vec();
             fixpoint::Sort::App(fixpoint::SortCtor::Set, args)
         }
         rty::Sort::App(rty::SortCtor::Map, args) => {
-            let args = args.iter().map(sort_arg_to_fixpoint).collect_vec();
+            let args = args.iter().map(sort_to_fixpoint).collect_vec();
             fixpoint::Sort::App(fixpoint::SortCtor::Map, args)
         }
         rty::Sort::App(rty::SortCtor::Adt(sort_def), args) => {
@@ -860,13 +860,6 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         rty::Sort::Err | rty::Sort::Infer(_) | rty::Sort::Loc => {
             bug!("unexpected sort {sort:?}")
         }
-    }
-}
-
-fn sort_arg_to_fixpoint(arg: &rty::SortArg) -> fixpoint::Sort {
-    match arg {
-        rty::SortArg::Sort(sort) => sort_to_fixpoint(sort),
-        rty::SortArg::BvSize(size) => bv_size_to_fixpoint(*size),
     }
 }
 
