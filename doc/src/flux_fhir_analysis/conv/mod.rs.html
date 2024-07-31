@@ -1763,6 +1763,12 @@
 <a href="#1763" id="1763">1763</a>
 <a href="#1764" id="1764">1764</a>
 <a href="#1765" id="1765">1765</a>
+<a href="#1766" id="1766">1766</a>
+<a href="#1767" id="1767">1767</a>
+<a href="#1768" id="1768">1768</a>
+<a href="#1769" id="1769">1769</a>
+<a href="#1770" id="1770">1770</a>
+<a href="#1771" id="1771">1771</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -3358,7 +3364,10 @@
         .chain(iter::once(<span class="kw-2">&amp;</span>func.sort))
         .map(|sort| conv_sort(genv, sort, <span class="kw-2">&amp;mut </span>bug_on_infer_sort))
         .try_collect()<span class="question-mark">?</span>;
-    <span class="kw">let </span>sort = rty::PolyFuncSort::new(func.params, rty::FuncSort { inputs_and_output });
+    <span class="kw">let </span>params = iter::repeat(rty::SortParamKind::Sort)
+        .take(func.params)
+        .collect();
+    <span class="kw">let </span>sort = rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output });
     <span class="kw">let </span>kind = <span class="kw">if </span>func.body.is_some() { fhir::SpecFuncKind::Def } <span class="kw">else </span>{ fhir::SpecFuncKind::Uif };
     <span class="prelude-val">Ok</span>(rty::SpecFuncDecl { name: func.name, sort, kind })
 }
@@ -3398,7 +3407,7 @@
 ) -&gt; QueryResult&lt;rty::Sort&gt; {
     <span class="kw">let </span>sort = <span class="kw">match </span>sort {
         fhir::Sort::Path(path) =&gt; conv_sort_path(genv, path, next_infer_sort)<span class="question-mark">?</span>,
-        fhir::Sort::BitVec(w) =&gt; rty::Sort::BitVec(<span class="kw-2">*</span>w),
+        fhir::Sort::BitVec(size) =&gt; rty::Sort::BitVec(rty::BvSize::Fixed(<span class="kw-2">*</span>size)),
         fhir::Sort::Loc =&gt; rty::Sort::Loc,
         fhir::Sort::Func(fsort) =&gt; {
             rty::Sort::Func(conv_poly_func_sort(genv, fsort, next_infer_sort)<span class="question-mark">?</span>)
@@ -3439,7 +3448,7 @@
         .args
         .iter()
         .map(|t| conv_sort(genv, t, next_infer_sort))
-        .try_collect_vec()<span class="question-mark">?</span>;
+        .try_collect()<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(rty::Sort::app(ctor, args))
 }
 
@@ -3448,7 +3457,10 @@
     sort: <span class="kw-2">&amp;</span>fhir::PolyFuncSort,
     next_infer_sort: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>FnMut() -&gt; rty::Sort,
 ) -&gt; QueryResult&lt;rty::PolyFuncSort&gt; {
-    <span class="prelude-val">Ok</span>(rty::PolyFuncSort::new(sort.params, conv_func_sort(genv, <span class="kw-2">&amp;</span>sort.fsort, next_infer_sort)<span class="question-mark">?</span>))
+    <span class="kw">let </span>params = iter::repeat(rty::SortParamKind::Sort)
+        .take(sort.params)
+        .collect();
+    <span class="prelude-val">Ok</span>(rty::PolyFuncSort::new(params, conv_func_sort(genv, <span class="kw-2">&amp;</span>sort.fsort, next_infer_sort)<span class="question-mark">?</span>))
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_func_sort(

@@ -1243,6 +1243,21 @@
 <a href="#1243" id="1243">1243</a>
 <a href="#1244" id="1244">1244</a>
 <a href="#1245" id="1245">1245</a>
+<a href="#1246" id="1246">1246</a>
+<a href="#1247" id="1247">1247</a>
+<a href="#1248" id="1248">1248</a>
+<a href="#1249" id="1249">1249</a>
+<a href="#1250" id="1250">1250</a>
+<a href="#1251" id="1251">1251</a>
+<a href="#1252" id="1252">1252</a>
+<a href="#1253" id="1253">1253</a>
+<a href="#1254" id="1254">1254</a>
+<a href="#1255" id="1255">1255</a>
+<a href="#1256" id="1256">1256</a>
+<a href="#1257" id="1257">1257</a>
+<a href="#1258" id="1258">1258</a>
+<a href="#1259" id="1259">1259</a>
+<a href="#1260" id="1260">1260</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter, ops::ControlFlow};
@@ -2073,7 +2088,7 @@
         rty::Sort::Int =&gt; fixpoint::Sort::Int,
         rty::Sort::Real =&gt; fixpoint::Sort::Real,
         rty::Sort::Bool =&gt; fixpoint::Sort::Bool,
-        rty::Sort::BitVec(w) =&gt; fixpoint::Sort::BitVec(<span class="kw-2">*</span>w),
+        rty::Sort::BitVec(size) =&gt; fixpoint::Sort::BitVec(Box::new(bv_size_to_fixpoint(<span class="kw-2">*</span>size))),
         <span class="comment">// There's no way to declare user defined sorts in the fixpoint horn syntax so we encode
         // user declared opaque sorts and type variable sorts as integers. Well-formedness should
         // ensure values of these sorts are properly used.
@@ -2108,12 +2123,26 @@
     }
 }
 
+<span class="kw">fn </span>bv_size_to_fixpoint(size: rty::BvSize) -&gt; fixpoint::Sort {
+    <span class="kw">match </span>size {
+        rty::BvSize::Fixed(size) =&gt; fixpoint::Sort::BvSize(size),
+        rty::BvSize::Param(_var) =&gt; {
+            <span class="comment">// I think we could encode the size as a sort variable, but this would require some care
+            // because smtlib doesn't really support parametric sizes. Fixpoint is probably already
+            // too liberal about this and it'd be easy to make it crash.
+            // fixpoint::Sort::Var(var.index)
+            </span><span class="macro">bug!</span>(<span class="string">"unexpected parametric bit-vector size"</span>)
+        }
+        rty::BvSize::Infer(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected infer variable for bit-vector size"</span>),
+    }
+}
+
 <span class="kw">fn </span>tuple_sort_name(arity: usize) -&gt; String {
     <span class="macro">format!</span>(<span class="string">"Tuple{arity}"</span>)
 }
 
 <span class="kw">fn </span>func_sort_to_fixpoint(fsort: <span class="kw-2">&amp;</span>rty::PolyFuncSort) -&gt; fixpoint::Sort {
-    <span class="kw">let </span>params = fsort.params();
+    <span class="kw">let </span>params = fsort.params().len();
     <span class="kw">let </span>fsort = fsort.skip_binders();
     fixpoint::Sort::mk_func(
         params,
@@ -2475,7 +2504,8 @@
         sorts.push(rty::Sort::Var(rty::ParamSort::from(i)));
     }
     sorts.push(rty::Sort::Bool);
-    rty::PolyFuncSort::new(arity, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
+    <span class="kw">let </span>params = iter::repeat(rty::SortParamKind::Sort).take(arity).collect();
+    rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
 }
 
 <span class="kw">fn </span>mk_implies(assumption: fixpoint::Pred, cstr: fixpoint::Constraint) -&gt; fixpoint::Constraint {

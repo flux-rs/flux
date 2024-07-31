@@ -247,6 +247,79 @@
 <a href="#247" id="247">247</a>
 <a href="#248" id="248">248</a>
 <a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(
     associated_type_defaults,
     box_patterns,
@@ -294,6 +367,7 @@
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, NodeId};
+<span class="kw">use </span>intern::List;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir <span class="kw">as </span>hir;
@@ -316,39 +390,114 @@
     <span class="kw">static </span>THEORY_FUNCS: OnceLock&lt;Vec&lt;TheoryFunc&gt;&gt; = OnceLock::new();
     THEORY_FUNCS.get_or_init(|| {
         <span class="kw">use </span>rty::{
-            ParamSort,
+            BvSize, ParamSort,
             Sort::{<span class="self">self</span>, <span class="kw-2">*</span>},
             SortCtor::<span class="kw-2">*</span>,
+            SortParamKind,
         };
+        <span class="kw">let </span>param0 = ParamSort::from(<span class="number">0</span>);
+        <span class="kw">let </span>param1 = ParamSort::from(<span class="number">1</span>);
+        <span class="kw">let </span>bv_param0 = BvSize::Param(ParamSort::from(<span class="number">0</span>));
         <span class="macro">vec!</span>[
-            <span class="comment">// Bitvector operations
+            <span class="comment">// BitVector &lt;-&gt; int
             </span>TheoryFunc {
                 name: Symbol::intern(<span class="string">"bv_int_to_bv32"</span>),
                 fixpoint_name: Symbol::intern(<span class="string">"int_to_bv32"</span>),
                 sort: rty::PolyFuncSort::new(
-                    <span class="number">0</span>,
-                    rty::FuncSort::new(<span class="macro">vec!</span>[rty::Sort::Int], BitVec(<span class="number">32</span>)),
+                    List::empty(),
+                    rty::FuncSort::new(<span class="macro">vec!</span>[rty::Sort::Int], BitVec(BvSize::Fixed(<span class="number">32</span>))),
                 ),
             },
             TheoryFunc {
                 name: Symbol::intern(<span class="string">"bv_bv32_to_int"</span>),
                 fixpoint_name: Symbol::intern(<span class="string">"bv32_to_int"</span>),
-                sort: rty::PolyFuncSort::new(<span class="number">0</span>, rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(<span class="number">32</span>)], Int)),
+                sort: rty::PolyFuncSort::new(
+                    List::empty(),
+                    rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(BvSize::Fixed(<span class="number">32</span>))], Int),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern(<span class="string">"bv_int_to_bv64"</span>),
+                fixpoint_name: Symbol::intern(<span class="string">"int_to_bv64"</span>),
+                sort: rty::PolyFuncSort::new(
+                    List::empty(),
+                    rty::FuncSort::new(<span class="macro">vec!</span>[rty::Sort::Int], BitVec(BvSize::Fixed(<span class="number">64</span>))),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern(<span class="string">"bv_bv64_to_int"</span>),
+                fixpoint_name: Symbol::intern(<span class="string">"bv64_to_int"</span>),
+                sort: rty::PolyFuncSort::new(
+                    List::empty(),
+                    rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(BvSize::Fixed(<span class="number">64</span>))], Int),
+                ),
+            },
+            <span class="comment">// BitVector arith
+            </span>TheoryFunc {
+                name: Symbol::intern(<span class="string">"bv_add"</span>),
+                fixpoint_name: Symbol::intern(<span class="string">"bvadd"</span>),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        <span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
             },
             TheoryFunc {
                 name: Symbol::intern(<span class="string">"bv_sub"</span>),
                 fixpoint_name: Symbol::intern(<span class="string">"bvsub"</span>),
                 sort: rty::PolyFuncSort::new(
-                    <span class="number">0</span>,
-                    rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(<span class="number">32</span>), BitVec(<span class="number">32</span>)], BitVec(<span class="number">32</span>)),
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        <span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
                 ),
             },
             TheoryFunc {
+                name: Symbol::intern(<span class="string">"bv_lshr"</span>),
+                fixpoint_name: Symbol::intern(<span class="string">"bvlshr"</span>),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        <span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern(<span class="string">"bv_ashr"</span>),
+                fixpoint_name: Symbol::intern(<span class="string">"bvashr"</span>),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        <span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern(<span class="string">"bv_mul"</span>),
+                fixpoint_name: Symbol::intern(<span class="string">"bvmul"</span>),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        <span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
+            <span class="comment">// BitVector bitwise
+            </span>TheoryFunc {
                 name: Symbol::intern(<span class="string">"bv_and"</span>),
                 fixpoint_name: Symbol::intern(<span class="string">"bvand"</span>),
                 sort: rty::PolyFuncSort::new(
-                    <span class="number">0</span>,
-                    rty::FuncSort::new(<span class="macro">vec!</span>[BitVec(<span class="number">32</span>), BitVec(<span class="number">32</span>)], BitVec(<span class="number">32</span>)),
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        <span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
                 ),
             },
             <span class="comment">// Set operations
@@ -356,18 +505,18 @@
                 name: Symbol::intern(<span class="string">"set_empty"</span>),
                 fixpoint_name: Symbol::intern(<span class="string">"Set_empty"</span>),
                 sort: rty::PolyFuncSort::new(
-                    <span class="number">1</span>,
-                    rty::FuncSort::new(<span class="macro">vec!</span>[Int], Sort::app(Set, <span class="macro">vec!</span>[Var(ParamSort::from(<span class="number">0</span>))])),
+                    List::from_arr([SortParamKind::Sort]),
+                    rty::FuncSort::new(<span class="macro">vec!</span>[Int], Sort::app(Set, List::singleton(Var(param0)))),
                 ),
             },
             TheoryFunc {
                 name: Symbol::intern(<span class="string">"set_singleton"</span>),
                 fixpoint_name: Symbol::intern(<span class="string">"Set_sng"</span>),
                 sort: rty::PolyFuncSort::new(
-                    <span class="number">1</span>,
+                    List::from_arr([SortParamKind::Sort]),
                     rty::FuncSort::new(
-                        <span class="macro">vec!</span>[Var(ParamSort::from(<span class="number">0</span>))],
-                        Sort::app(Set, <span class="macro">vec!</span>[Var(ParamSort::from(<span class="number">0</span>))]),
+                        <span class="macro">vec!</span>[Var(param0)],
+                        Sort::app(Set, List::singleton(Var(param0))),
                     ),
                 ),
             },
@@ -375,13 +524,13 @@
                 name: Symbol::intern(<span class="string">"set_union"</span>),
                 fixpoint_name: Symbol::intern(<span class="string">"Set_cup"</span>),
                 sort: rty::PolyFuncSort::new(
-                    <span class="number">1</span>,
+                    List::from_arr([SortParamKind::Sort]),
                     rty::FuncSort::new(
                         <span class="macro">vec!</span>[
-                            Sort::app(Set, <span class="macro">vec!</span>[Var(ParamSort::from(<span class="number">0</span>))]),
-                            Sort::app(Set, <span class="macro">vec!</span>[Var(ParamSort::from(<span class="number">0</span>))]),
+                            Sort::app(Set, List::singleton(Var(param0))),
+                            Sort::app(Set, List::singleton(Var(param0))),
                         ],
-                        Sort::app(Set, <span class="macro">vec!</span>[Var(ParamSort::from(<span class="number">0</span>))]),
+                        Sort::app(Set, List::singleton(Var(param0))),
                     ),
                 ),
             },
@@ -389,12 +538,9 @@
                 name: Symbol::intern(<span class="string">"set_is_in"</span>),
                 fixpoint_name: Symbol::intern(<span class="string">"Set_mem"</span>),
                 sort: rty::PolyFuncSort::new(
-                    <span class="number">1</span>,
+                    List::from_arr([SortParamKind::Sort]),
                     rty::FuncSort::new(
-                        <span class="macro">vec!</span>[
-                            Var(ParamSort::from(<span class="number">0</span>)),
-                            Sort::app(Set, <span class="macro">vec!</span>[Var(ParamSort::from(<span class="number">0</span>))]),
-                        ],
+                        <span class="macro">vec!</span>[Var(param0), Sort::app(Set, List::singleton(Var(param0)))],
                         Bool,
                     ),
                 ),
@@ -404,10 +550,10 @@
                 name: Symbol::intern(<span class="string">"map_default"</span>),
                 fixpoint_name: Symbol::intern(<span class="string">"Map_default"</span>),
                 sort: rty::PolyFuncSort::new(
-                    <span class="number">2</span>,
+                    List::from_arr([SortParamKind::Sort, SortParamKind::Sort]),
                     rty::FuncSort::new(
-                        <span class="macro">vec!</span>[Var(ParamSort::from(<span class="number">1</span>))],
-                        Sort::app(Map, <span class="macro">vec!</span>[Var(ParamSort::from(<span class="number">0</span>)), Var(ParamSort::from(<span class="number">1</span>))]),
+                        <span class="macro">vec!</span>[Var(param1)],
+                        Sort::app(Map, List::from_arr([Var(param0), Var(param1)])),
                     ),
                 ),
             },
@@ -415,13 +561,13 @@
                 name: Symbol::intern(<span class="string">"map_select"</span>),
                 fixpoint_name: Symbol::intern(<span class="string">"Map_select"</span>),
                 sort: rty::PolyFuncSort::new(
-                    <span class="number">2</span>,
+                    List::from_arr([SortParamKind::Sort, SortParamKind::Sort]),
                     rty::FuncSort::new(
                         <span class="macro">vec!</span>[
-                            Sort::app(Map, <span class="macro">vec!</span>[Var(ParamSort::from(<span class="number">0</span>)), Var(ParamSort::from(<span class="number">1</span>))]),
-                            Var(ParamSort::from(<span class="number">0</span>)),
+                            Sort::app(Map, List::from_arr([Var(param0), Var(param1)])),
+                            Var(param0),
                         ],
-                        Var(ParamSort::from(<span class="number">1</span>)),
+                        Var(param1),
                     ),
                 ),
             },
@@ -429,14 +575,14 @@
                 name: Symbol::intern(<span class="string">"map_store"</span>),
                 fixpoint_name: Symbol::intern(<span class="string">"Map_store"</span>),
                 sort: rty::PolyFuncSort::new(
-                    <span class="number">2</span>,
+                    List::from_arr([SortParamKind::Sort, SortParamKind::Sort]),
                     rty::FuncSort::new(
                         <span class="macro">vec!</span>[
-                            Sort::app(Map, <span class="macro">vec!</span>[Var(ParamSort::from(<span class="number">0</span>)), Var(ParamSort::from(<span class="number">1</span>))]),
-                            Var(ParamSort::from(<span class="number">0</span>)),
-                            Var(ParamSort::from(<span class="number">1</span>)),
+                            Sort::app(Map, List::from_arr([Var(param0), Var(param1)])),
+                            Var(param0),
+                            Var(param1),
                         ],
-                        Sort::app(Map, <span class="macro">vec!</span>[Var(ParamSort::from(<span class="number">0</span>)), Var(ParamSort::from(<span class="number">1</span>))]),
+                        Sort::app(Map, List::from_arr([Var(param0), Var(param1)])),
                     ),
                 ),
             },

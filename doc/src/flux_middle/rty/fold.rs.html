@@ -1375,6 +1375,25 @@
 <a href="#1375" id="1375">1375</a>
 <a href="#1376" id="1376">1376</a>
 <a href="#1377" id="1377">1377</a>
+<a href="#1378" id="1378">1378</a>
+<a href="#1379" id="1379">1379</a>
+<a href="#1380" id="1380">1380</a>
+<a href="#1381" id="1381">1381</a>
+<a href="#1382" id="1382">1382</a>
+<a href="#1383" id="1383">1383</a>
+<a href="#1384" id="1384">1384</a>
+<a href="#1385" id="1385">1385</a>
+<a href="#1386" id="1386">1386</a>
+<a href="#1387" id="1387">1387</a>
+<a href="#1388" id="1388">1388</a>
+<a href="#1389" id="1389">1389</a>
+<a href="#1390" id="1390">1390</a>
+<a href="#1391" id="1391">1391</a>
+<a href="#1392" id="1392">1392</a>
+<a href="#1393" id="1393">1393</a>
+<a href="#1394" id="1394">1394</a>
+<a href="#1395" id="1395">1395</a>
+<a href="#1396" id="1396">1396</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1395,7 +1414,7 @@
     CoroutineObligPredicate, Ensures, ExistentialPredicate, ExistentialTraitRef, Expr, ExprKind,
     FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg, Invariant, KVar, Lambda, Name,
     Opaqueness, OutlivesPredicate, PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReBound,
-    Region, Sort, SubsetTy, TraitPredicate, TraitRef, Ty, TyKind,
+    Region, Sort, SortArg, SubsetTy, TraitPredicate, TraitRef, Ty, TyKind,
 };
 <span class="kw">use crate</span>::{
     global_env::GlobalEnv,
@@ -1949,6 +1968,15 @@
     }
 }
 
+<span class="kw">impl </span>TypeVisitable <span class="kw">for </span>SortArg {
+    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            SortArg::Sort(sort) =&gt; sort.visit_with(visitor),
+            SortArg::BvSize(<span class="kw">_</span>) =&gt; ControlFlow::Continue(()),
+        }
+    }
+}
+
 <span class="kw">impl </span>TypeVisitable <span class="kw">for </span>Sort {
     <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         visitor.visit_sort(<span class="self">self</span>)
@@ -1958,7 +1986,8 @@
 <span class="kw">impl </span>TypeSuperVisitable <span class="kw">for </span>Sort {
     <span class="kw">fn </span>super_visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            Sort::Tuple(sorts) | Sort::App(<span class="kw">_</span>, sorts) =&gt; sorts.visit_with(visitor),
+            Sort::Tuple(sorts) =&gt; sorts.visit_with(visitor),
+            Sort::App(<span class="kw">_</span>, args) =&gt; args.visit_with(visitor),
             Sort::Func(fsort) =&gt; fsort.visit_with(visitor),
             Sort::Int
             | Sort::Bool
@@ -1969,6 +1998,15 @@
             | Sort::Var(<span class="kw">_</span>)
             | Sort::Infer(<span class="kw">_</span>)
             | Sort::Err =&gt; ControlFlow::Continue(()),
+        }
+    }
+}
+
+<span class="kw">impl </span>TypeFoldable <span class="kw">for </span>SortArg {
+    <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            SortArg::Sort(sort) =&gt; <span class="prelude-val">Ok</span>(SortArg::Sort(sort.try_fold_with(folder)<span class="question-mark">?</span>)),
+            SortArg::BvSize(size) =&gt; <span class="prelude-val">Ok</span>(SortArg::BvSize(<span class="kw-2">*</span>size)),
         }
     }
 }
@@ -2007,7 +2045,7 @@
 
 <span class="kw">impl </span>TypeFoldable <span class="kw">for </span>PolyFuncSort {
     <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
-        <span class="prelude-val">Ok</span>(PolyFuncSort { params: <span class="self">self</span>.params, fsort: <span class="self">self</span>.fsort.try_fold_with(folder)<span class="question-mark">? </span>})
+        <span class="prelude-val">Ok</span>(PolyFuncSort { params: <span class="self">self</span>.params.clone(), fsort: <span class="self">self</span>.fsort.try_fold_with(folder)<span class="question-mark">? </span>})
     }
 }
 

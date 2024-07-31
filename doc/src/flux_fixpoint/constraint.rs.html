@@ -646,6 +646,8 @@
 <a href="#646" id="646">646</a>
 <a href="#647" id="647">647</a>
 <a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     fmt::{<span class="self">self</span>, Write},
     sync::LazyLock,
@@ -696,7 +698,8 @@
     Int,
     Bool,
     Real,
-    BitVec(usize),
+    BitVec(Box&lt;Sort&lt;T&gt;&gt;),
+    BvSize(usize),
     Var(usize),
     Func(Box&lt;[<span class="self">Self</span>; <span class="number">2</span>]&gt;),
     Abs(usize, Box&lt;<span class="self">Self</span>&gt;),
@@ -928,7 +931,8 @@
             Sort::Bool =&gt; <span class="macro">write!</span>(f, <span class="string">"bool"</span>),
             Sort::Real =&gt; <span class="macro">write!</span>(f, <span class="string">"real"</span>),
             Sort::Var(i) =&gt; <span class="macro">write!</span>(f, <span class="string">"@({i})"</span>),
-            Sort::BitVec(size) =&gt; <span class="macro">write!</span>(f, <span class="string">"(BitVec Size{})"</span>, size),
+            Sort::BitVec(size) =&gt; <span class="macro">write!</span>(f, <span class="string">"(BitVec {size})"</span>),
+            Sort::BvSize(size) =&gt; <span class="macro">write!</span>(f, <span class="string">"Size{size}"</span>),
             Sort::Abs(..) =&gt; {
                 <span class="kw">let </span>(params, sort) = <span class="self">self</span>.peel_out_abs();
                 fmt_func(params, sort, f)

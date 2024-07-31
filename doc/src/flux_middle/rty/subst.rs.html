@@ -532,6 +532,37 @@
 <a href="#532" id="532">532</a>
 <a href="#533" id="533">533</a>
 <a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cmp::Ordering, collections::hash_map};
 
 <span class="kw">use </span>flux_common::{bug, tracked_span_bug};
@@ -1047,23 +1078,54 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>SortSubst&lt;<span class="lifetime">'a</span>&gt; {
-    args: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Sort],
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>SortSubst&lt;D&gt; {
+    delegate: D,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; SortSubst&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(args: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Sort]) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ args }
+<span class="kw">impl</span>&lt;D&gt; SortSubst&lt;D&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(delegate: D) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ delegate }
     }
 }
 
-<span class="kw">impl </span>TypeFolder <span class="kw">for </span>SortSubst&lt;<span class="lifetime">'_</span>&gt; {
+<span class="kw">impl</span>&lt;D: SortSubstDelegate&gt; TypeFolder <span class="kw">for </span>SortSubst&lt;D&gt; {
     <span class="kw">fn </span>fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Sort {
-        <span class="kw">if let </span>Sort::Var(var) = sort {
-            <span class="self">self</span>.args[var.index].clone()
-        } <span class="kw">else </span>{
-            sort.super_fold_with(<span class="self">self</span>)
+        <span class="kw">match </span>sort {
+            Sort::Var(var) =&gt; <span class="self">self</span>.delegate.sort_for_param(<span class="kw-2">*</span>var),
+            Sort::BitVec(BvSize::Param(var)) =&gt; Sort::BitVec(<span class="self">self</span>.delegate.bv_size_for_param(<span class="kw-2">*</span>var)),
+            <span class="kw">_ </span>=&gt; sort.super_fold_with(<span class="self">self</span>),
         }
+    }
+}
+
+<span class="kw">trait </span>SortSubstDelegate {
+    <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;</span><span class="self">self</span>, var: ParamSort) -&gt; Sort;
+    <span class="kw">fn </span>bv_size_for_param(<span class="kw-2">&amp;</span><span class="self">self</span>, var: ParamSort) -&gt; BvSize;
+}
+
+<span class="kw">impl </span>SortSubstDelegate <span class="kw">for </span><span class="kw-2">&amp;</span>[SortArg] {
+    <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;</span><span class="self">self</span>, var: ParamSort) -&gt; Sort {
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>[var.index] {
+            SortArg::Sort(sort) =&gt; sort.clone(),
+            SortArg::BvSize(<span class="kw">_</span>) =&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected bv size for sort param"</span>),
+        }
+    }
+
+    <span class="kw">fn </span>bv_size_for_param(<span class="kw-2">&amp;</span><span class="self">self</span>, var: ParamSort) -&gt; BvSize {
+        <span class="kw">match </span><span class="self">self</span>[var.index] {
+            SortArg::BvSize(size) =&gt; size,
+            SortArg::Sort(<span class="kw">_</span>) =&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected sort for bv size param"</span>),
+        }
+    }
+}
+
+<span class="kw">impl </span>SortSubstDelegate <span class="kw">for </span><span class="kw-2">&amp;</span>[Sort] {
+    <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;</span><span class="self">self</span>, var: ParamSort) -&gt; Sort {
+        <span class="self">self</span>[var.index].clone()
+    }
+
+    <span class="kw">fn </span>bv_size_for_param(<span class="kw-2">&amp;</span><span class="self">self</span>, _var: ParamSort) -&gt; BvSize {
+        <span class="macro">tracked_span_bug!</span>(<span class="string">"unexpected bv size parameter"</span>)
     }
 }
 </code></pre></div></section></main></body></html>

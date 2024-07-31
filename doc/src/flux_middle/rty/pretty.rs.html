@@ -468,6 +468,28 @@
 <a href="#468" id="468">468</a>
 <a href="#469" id="469">469</a>
 <a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -563,7 +585,7 @@
             Sort::Bool =&gt; <span class="macro">w!</span>(<span class="string">"bool"</span>),
             Sort::Int =&gt; <span class="macro">w!</span>(<span class="string">"int"</span>),
             Sort::Real =&gt; <span class="macro">w!</span>(<span class="string">"real"</span>),
-            Sort::BitVec(w) =&gt; <span class="macro">w!</span>(<span class="string">"bitvec({})"</span>, ^w),
+            Sort::BitVec(size) =&gt; <span class="macro">w!</span>(<span class="string">"bitvec({:?})"</span>, size),
             Sort::Loc =&gt; <span class="macro">w!</span>(<span class="string">"loc"</span>),
             Sort::Var(n) =&gt; <span class="macro">w!</span>(<span class="string">"@{}"</span>, ^n.index),
             Sort::Func(sort) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, sort),
@@ -584,6 +606,27 @@
             Sort::Param(param_ty) =&gt; <span class="macro">w!</span>(<span class="string">"{}::sort"</span>, ^param_ty),
             Sort::Infer(svar) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, svar),
             Sort::Err =&gt; <span class="macro">w!</span>(<span class="string">"err"</span>),
+        }
+    }
+}
+
+<span class="kw">impl </span>Pretty <span class="kw">for </span>SortArg {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">define_scoped!</span>(cx, f);
+        <span class="kw">match </span><span class="self">self </span>{
+            SortArg::Sort(sort) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, sort),
+            SortArg::BvSize(size) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, size),
+        }
+    }
+}
+
+<span class="kw">impl </span>Pretty <span class="kw">for </span>BvSize {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">define_scoped!</span>(cx, f);
+        <span class="kw">match </span><span class="self">self </span>{
+            BvSize::Fixed(size) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^size),
+            BvSize::Param(param) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^param),
+            BvSize::Infer(size_vid) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^size_vid),
         }
     }
 }
@@ -611,10 +654,10 @@
 <span class="kw">impl </span>Pretty <span class="kw">for </span>PolyFuncSort {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(cx, f);
-        <span class="kw">if </span><span class="self">self</span>.params == <span class="number">0 </span>{
+        <span class="kw">if </span><span class="self">self</span>.params.is_empty() {
             <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.fsort)
         } <span class="kw">else </span>{
-            <span class="macro">w!</span>(<span class="string">"for&lt;{}&gt; {:?}"</span>, ^<span class="self">self</span>.params, <span class="kw-2">&amp;</span><span class="self">self</span>.fsort)
+            <span class="macro">w!</span>(<span class="string">"for&lt;{}&gt; {:?}"</span>, ^<span class="self">self</span>.params.len(), <span class="kw-2">&amp;</span><span class="self">self</span>.fsort)
         }
     }
 }
@@ -937,5 +980,6 @@
     SortCtor,
     SubsetTy,
     Const,
+    BvSize,
 );
 </code></pre></div></section></main></body></html>
