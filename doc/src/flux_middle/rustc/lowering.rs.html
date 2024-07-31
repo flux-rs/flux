@@ -1026,6 +1026,11 @@
 <a href="#1026" id="1026">1026</a>
 <a href="#1027" id="1027">1027</a>
 <a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a>
+<a href="#1033" id="1033">1033</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1522,8 +1527,13 @@
         aggregate_kind: <span class="kw-2">&amp;</span>rustc_mir::AggregateKind&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;AggregateKind, UnsupportedReason&gt; {
         <span class="kw">match </span>aggregate_kind {
-            rustc_mir::AggregateKind::Adt(def_id, variant_idx, args, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>) =&gt; {
-                <span class="prelude-val">Ok</span>(AggregateKind::Adt(<span class="kw-2">*</span>def_id, <span class="kw-2">*</span>variant_idx, lower_generic_args(<span class="self">self</span>.tcx, args)<span class="question-mark">?</span>))
+            rustc_mir::AggregateKind::Adt(def_id, variant_idx, args, user_type_annot_idx, <span class="prelude-val">None</span>) =&gt; {
+                <span class="prelude-val">Ok</span>(AggregateKind::Adt(
+                    <span class="kw-2">*</span>def_id,
+                    <span class="kw-2">*</span>variant_idx,
+                    lower_generic_args(<span class="self">self</span>.tcx, args)<span class="question-mark">?</span>,
+                    <span class="kw-2">*</span>user_type_annot_idx,
+                ))
             }
             rustc_mir::AggregateKind::Array(ty) =&gt; {
                 <span class="prelude-val">Ok</span>(AggregateKind::Array(lower_ty(<span class="self">self</span>.tcx, <span class="kw-2">*</span>ty)<span class="question-mark">?</span>))

@@ -2406,7 +2406,7 @@
                     .with_span(stmt_span)
             }
             Rvalue::UnaryOp(un_op, op) =&gt; <span class="self">self</span>.check_unary_op(rcx, env, stmt_span, <span class="kw-2">*</span>un_op, op),
-            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args), operands) =&gt; {
+            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, <span class="kw">_</span>), operands) =&gt; {
                 <span class="kw">let </span>actuals = <span class="self">self</span>.check_operands(rcx, env, stmt_span, operands)<span class="question-mark">?</span>;
                 <span class="kw">let </span>sig = genv
                     .variant_sig(<span class="kw-2">*</span>def_id, <span class="kw-2">*</span>variant_idx)
