@@ -76,7 +76,6 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
         let param0 = ParamSort::from(0);
         let param1 = ParamSort::from(1);
         let bv_param0 = BvSize::Param(ParamSort::from(0));
-        let bv_param1 = BvSize::Param(ParamSort::from(1));
         vec![
             // BitVector <-> int
             TheoryFunc {
