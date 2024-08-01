@@ -737,12 +737,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             self.conv_ty_to_generic_arg(env, &generics.param_at(0, self.genv)?, alias.qself)?;
         let mut generic_args = vec![self_ty];
         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut generic_args)?;
-        // TODO: get_impl_id_of_alias_reft_EXPORTME
+        // TODO: get_impl_id_of_alias_reft_EXPORTME HEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
         // NEED: current def_id = self.wfckresults.owner_id...
         //       let span = alias.path.span;
         //       let body = genv.mir(def_id).with_span(span)?;
         //       let selcx = SelectionContext::new(body.infcx);
-        //       let rustc_param_env = self.selcx.tcx().param_env(self.def_id)
         //
         let res = rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
         Ok(res)
