@@ -320,6 +320,17 @@
 <a href="#320" id="320">320</a>
 <a href="#321" id="321">321</a>
 <a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(
     associated_type_defaults,
     box_patterns,
@@ -447,6 +458,17 @@
             TheoryFunc {
                 name: Symbol::intern(<span class="string">"bv_sub"</span>),
                 fixpoint_name: Symbol::intern(<span class="string">"bvsub"</span>),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        <span class="macro">vec!</span>[BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern(<span class="string">"bv_shl"</span>),
+                fixpoint_name: Symbol::intern(<span class="string">"bvshl"</span>),
                 sort: rty::PolyFuncSort::new(
                     List::from_arr([SortParamKind::BvSize]),
                     rty::FuncSort::new(
