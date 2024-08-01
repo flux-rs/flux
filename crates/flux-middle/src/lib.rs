@@ -110,6 +110,29 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                     rty::FuncSort::new(vec![BitVec(BvSize::Fixed(64))], Int),
                 ),
             },
+            // Bitvector extension
+            TheoryFunc {
+                name: Symbol::intern("bv_zero_extend"),
+                fixpoint_name: Symbol::intern("zero_extend"),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        vec![rty::Sort::Int, BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("bv_sign_extend"),
+                fixpoint_name: Symbol::intern("sign_extend"),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        vec![rty::Sort::Int, BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
             // BitVector arith
             TheoryFunc {
                 name: Symbol::intern("bv_add"),
@@ -118,6 +141,18 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                     List::from_arr([SortParamKind::BvSize]),
                     rty::FuncSort::new(
                         vec![BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
+
+            TheoryFunc {
+                name: Symbol::intern("bv_neg"),
+                fixpoint_name: Symbol::intern("bvneg"),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        vec![BitVec(bv_param0)],
                         BitVec(bv_param0),
                     ),
                 ),
@@ -177,6 +212,61 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                     ),
                 ),
             },
+            TheoryFunc {
+                name: Symbol::intern("bv_udiv"),
+                fixpoint_name: Symbol::intern("bvudiv"),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        vec![BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("bv_urem"),
+                fixpoint_name: Symbol::intern("bvurem"),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        vec![BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("bv_sdiv"),
+                fixpoint_name: Symbol::intern("bvsdiv"),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        vec![BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("bv_srem"),
+                fixpoint_name: Symbol::intern("bvsrem"),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        vec![BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("bv_smod"),
+                fixpoint_name: Symbol::intern("bvsmod"),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        vec![BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
             // BitVector bitwise
             TheoryFunc {
                 name: Symbol::intern("bv_and"),
@@ -185,6 +275,39 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                     List::from_arr([SortParamKind::BvSize]),
                     rty::FuncSort::new(
                         vec![BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("bv_or"),
+                fixpoint_name: Symbol::intern("bvor"),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        vec![BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("bv_xor"),
+                fixpoint_name: Symbol::intern("bvxor"),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        vec![BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
+            TheoryFunc {
+                name: Symbol::intern("bv_not"),
+                fixpoint_name: Symbol::intern("bvnot"),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        vec![BitVec(bv_param0)],
                         BitVec(bv_param0),
                     ),
                 ),
