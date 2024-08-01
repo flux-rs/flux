@@ -174,18 +174,38 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         Ok(())
     }
 
-    fn impl_id_of_alias_reft(&mut self, alias: &AliasReft) -> QueryResult<Option<DefId>> {
+    fn get_impl_id_of_alias_reft_export_me(
+        tcx: &TyCtxt<'tcx>,
+        def_id: DefId,
+        selcx: &mut SelectionContext<'_, 'tcx>,
+        alias: &AliasReft,
+    ) -> QueryResult<Option<DefId>> {
         let trait_pred = Obligation::new(
-            self.tcx(),
+            *tcx,
             ObligationCause::dummy(),
-            self.rustc_param_env(),
-            alias.to_rustc_trait_ref(self.tcx()),
+            tcx.param_env(def_id),
+            alias.to_rustc_trait_ref(*tcx),
         );
-        match self.selcx.select(&trait_pred) {
+        match selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data.impl_def_id)),
             Ok(_) => Ok(None),
             Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
         }
+    }
+
+    fn impl_id_of_alias_reft(&mut self, alias: &AliasReft) -> QueryResult<Option<DefId>> {
+        Self::get_impl_id_of_alias_reft_export_me(&self.tcx(), self.def_id, &mut self.selcx, alias)
+        // let trait_pred = Obligation::new(
+        //     self.tcx(),
+        //     ObligationCause::dummy(),
+        //     self.rustc_param_env(),
+        //     alias.to_rustc_trait_ref(self.tcx()),
+        // );
+        // match self.selcx.select(&trait_pred) {
+        //     Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data.impl_def_id)),
+        //     Ok(_) => Ok(None),
+        //     Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
+        // }
     }
 
     fn assemble_candidates_from_impls(
