@@ -134,6 +134,17 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                 ),
             },
             TheoryFunc {
+                name: Symbol::intern("bv_shl"),
+                fixpoint_name: Symbol::intern("bvshl"),
+                sort: rty::PolyFuncSort::new(
+                    List::from_arr([SortParamKind::BvSize]),
+                    rty::FuncSort::new(
+                        vec![BitVec(bv_param0), BitVec(bv_param0)],
+                        BitVec(bv_param0),
+                    ),
+                ),
+            },
+            TheoryFunc {
                 name: Symbol::intern("bv_lshr"),
                 fixpoint_name: Symbol::intern("bvlshr"),
                 sort: rty::PolyFuncSort::new(
