@@ -76,6 +76,7 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
         let param0 = ParamSort::from(0);
         let param1 = ParamSort::from(1);
         let bv_param0 = BvSize::Param(ParamSort::from(0));
+        let bv_param1 = BvSize::Param(ParamSort::from(1));
         vec![
             // BitVector <-> int
             TheoryFunc {
@@ -108,23 +109,6 @@ pub fn theory_funcs() -> &'static [TheoryFunc] {
                 sort: rty::PolyFuncSort::new(
                     List::empty(),
                     rty::FuncSort::new(vec![BitVec(BvSize::Fixed(64))], Int),
-                ),
-            },
-            // Bitvector extension
-            TheoryFunc {
-                name: Symbol::intern("bv_zero_extend"),
-                fixpoint_name: Symbol::intern("zero_extend"),
-                sort: rty::PolyFuncSort::new(
-                    List::from_arr([SortParamKind::BvSize]),
-                    rty::FuncSort::new(vec![rty::Sort::Int, BitVec(bv_param0)], BitVec(bv_param0)),
-                ),
-            },
-            TheoryFunc {
-                name: Symbol::intern("bv_sign_extend"),
-                fixpoint_name: Symbol::intern("sign_extend"),
-                sort: rty::PolyFuncSort::new(
-                    List::from_arr([SortParamKind::BvSize]),
-                    rty::FuncSort::new(vec![rty::Sort::Int, BitVec(bv_param0)], BitVec(bv_param0)),
                 ),
             },
             // BitVector arith
