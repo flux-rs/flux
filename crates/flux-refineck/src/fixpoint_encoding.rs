@@ -15,9 +15,11 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_fixpoint::FixpointResult;
 use flux_middle::{
+    const_eval,
     fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     intern::List,
+    pretty,
     queries::{QueryErr, QueryResult},
     rty::{
         self,
@@ -892,7 +894,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 fixpoint::Expr::App(ctor, args)
             }
             rty::ExprKind::ConstDefId(did) => {
-                let var = self.register_const_def_id(*did);
+                let var = self.register_rust_const(*did);
                 fixpoint::Expr::Var(var.into())
             }
             rty::ExprKind::App(func, args) => {
@@ -1162,17 +1164,32 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .name
     }
 
-    fn register_const_def_id(&mut self, def_id: DefId) -> fixpoint::GlobalVar {
+    fn register_rust_const(&mut self, def_id: DefId) -> fixpoint::GlobalVar {
         let key = Key::Const(def_id);
         self.const_map
             .entry(key)
             .or_insert_with(|| {
-                let const_info = self.genv.map().get_const(def_id);
+                // TODO(nilehmann) generalize const sorts
+                let ty = self.genv.tcx().type_of(def_id).no_bound_vars().unwrap();
+                assert!(ty.is_integral());
+
+                // FIXME(nilehmann) we should probably report an error in case const evaluation
+                // fails instead of silently ignore it.
+                let val = self
+                    .genv
+                    .tcx()
+                    .const_eval_poly(def_id)
+                    .ok()
+                    .and_then(|val| {
+                        let val = val.try_to_scalar_int()?;
+                        const_eval::scalar_int_to_rty_constant(self.genv.tcx(), val, ty)
+                    });
+
                 ConstInfo {
                     name: self.global_var_gen.fresh(),
-                    orig: const_info.sym.to_string(),
+                    orig: pretty::def_id_to_string(def_id),
                     sort: fixpoint::Sort::Int,
-                    val: Some(const_info.val),
+                    val,
                 }
             })
             .name

@@ -494,10 +494,6 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         })
     }
 
-    pub fn get_const(&self, def_id: DefId) -> fhir::ConstInfo {
-        self.fhir.consts[&def_id]
-    }
-
     pub fn fn_quals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [Ident]> {
         // This is called on adts when checking invariants
         if let Some(fn_sig) = self.node(def_id)?.fn_sig() {
