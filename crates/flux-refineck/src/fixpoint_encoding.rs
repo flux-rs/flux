@@ -31,7 +31,7 @@ use rustc_data_structures::{
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
-use rustc_span::Span;
+use rustc_span::{Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 
 use crate::{refine_tree::Scope, CheckerConfig};
@@ -195,7 +195,7 @@ type ConstMap<'tcx> = FxIndexMap<Key<'tcx>, ConstInfo>;
 
 #[derive(Eq, Hash, PartialEq)]
 enum Key<'tcx> {
-    Uif(rustc_span::Symbol),
+    Uif(Symbol),
     Const(DefId),
     Alias(rustc_middle::ty::TraitRef<'tcx>),
     Lambda(Lambda),
@@ -1125,6 +1125,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::Var(var) => env.get_var(var, self.dbg_span),
             rty::ExprKind::GlobalFunc(_, SpecFuncKind::Thy(sym)) => fixpoint::Var::Itf(*sym),
             rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) => {
+                // let func = self.register_uif(sym, )
                 let cinfo = self.const_map.get(&Key::Uif(*sym)).unwrap_or_else(|| {
                     span_bug!(
                         self.dbg_span,
@@ -1161,6 +1162,23 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 Ok(fresh.into())
             }
         }
+    }
+
+    fn register_uif(&mut self, name: Symbol) -> fixpoint::GlobalVar {
+        todo!()
+        // let key = Key::Uif(name);
+        // self.const_map
+        //     .entry(key)
+        //     .or_insert_with(|| {
+        //         self.ge
+        //         ConstInfo {
+        //             name: self.global_var_gen.fresh(),
+        //             orig: name.to_string(),
+        //             sort: func_sort_to_fixpoint(&sort),
+        //             val: None,
+        //         }
+        //     })
+        //     .name
     }
 
     fn register_const_def_id(&mut self, def_id: DefId) -> fixpoint::GlobalVar {

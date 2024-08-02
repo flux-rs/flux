@@ -1047,13 +1047,6 @@ pub struct SpecFunc<'fhir> {
     pub body: Option<Expr<'fhir>>,
 }
 
-#[derive(Debug)]
-pub struct SpecFuncDecl<'fhir> {
-    pub name: Symbol,
-    pub sort: PolyFuncSort<'fhir>,
-    pub kind: SpecFuncKind,
-}
-
 #[derive(Debug, Clone, Copy, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
 pub enum SpecFuncKind {
     /// Theory symbols "interpreted" by the SMT solver: `Symbol` is Fixpoint's name for the operation e.g. `set_cup` for flux's `set_union`
