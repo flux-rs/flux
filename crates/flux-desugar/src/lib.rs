@@ -372,9 +372,10 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
             && let Some(val) = const_eval::scalar_int_to_rty_constant(self.genv.tcx(), val, ty)
         {
             let sym = def_id_symbol(self.genv.tcx(), def_id);
+            let def_id = def_id.to_def_id();
             self.fhir
                 .consts
-                .insert(sym, fhir::ConstInfo { def_id: def_id.to_def_id(), sym, val });
+                .insert(def_id, fhir::ConstInfo { def_id, sym, val });
             Ok(val)
         } else {
             let span = self.genv.tcx().def_span(def_id);

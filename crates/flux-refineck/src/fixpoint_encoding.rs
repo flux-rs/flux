@@ -704,20 +704,7 @@ fn fixpoint_const_map<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     global_var_gen: &IndexGen<fixpoint::GlobalVar>,
 ) -> QueryResult<ConstMap<'tcx>> {
-    let consts = genv
-        .map()
-        .consts()
-        .sorted_by(|a, b| Ord::cmp(&a.sym, &b.sym))
-        .map(|const_info| {
-            let cinfo = ConstInfo {
-                name: global_var_gen.fresh(),
-                orig: const_info.sym.to_string(),
-                sort: fixpoint::Sort::Int,
-                val: Some(const_info.val),
-            };
-            (Key::Const(const_info.def_id), cinfo)
-        });
-    let uifs = genv
+    Ok(genv
         .func_decls()?
         .sorted_by(|a, b| Ord::cmp(&a.name, &b.name))
         .filter_map(|decl| {
@@ -733,8 +720,8 @@ fn fixpoint_const_map<'tcx>(
                 }
                 _ => None,
             }
-        });
-    Ok(itertools::chain(consts, uifs).collect())
+        })
+        .collect())
 }
 
 impl KVarStore {
@@ -924,10 +911,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 fixpoint::Expr::App(ctor, args)
             }
             rty::ExprKind::ConstDefId(did) => {
-                let const_info = self.const_map.get(&Key::Const(*did)).unwrap_or_else(|| {
-                    span_bug!(self.dbg_span, "no entry found in const_map for def_id: `{did:?}`")
-                });
-                fixpoint::Expr::Var(const_info.name.into())
+                let var = self.register_const_def_id(*did);
+                fixpoint::Expr::Var(var.into())
             }
             rty::ExprKind::App(func, args) => {
                 let func = self.func_to_fixpoint(func, env);
@@ -1176,6 +1161,22 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 Ok(fresh.into())
             }
         }
+    }
+
+    fn register_const_def_id(&mut self, def_id: DefId) -> fixpoint::GlobalVar {
+        let key = Key::Const(def_id);
+        self.const_map
+            .entry(key)
+            .or_insert_with(|| {
+                let const_info = self.genv.map().get_const(def_id);
+                ConstInfo {
+                    name: self.global_var_gen.fresh(),
+                    orig: const_info.sym.to_string(),
+                    sort: fixpoint::Sort::Int,
+                    val: Some(const_info.val),
+                }
+            })
+            .name
     }
 
     /// returns the 'constant' UIF for Var used to represent the alias_pred, creating and adding it

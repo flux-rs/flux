@@ -26,7 +26,10 @@ use flux_syntax::surface::ParamMode;
 pub use flux_syntax::surface::{BinOp, UnOp};
 use itertools::Itertools;
 use rustc_ast::TraitObjectSyntax;
-use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
+use rustc_data_structures::{
+    fx::{FxIndexMap, FxIndexSet},
+    unord::UnordMap,
+};
 use rustc_hash::FxHashMap;
 pub use rustc_hir::PrimTy;
 use rustc_hir::{
@@ -390,7 +393,7 @@ pub type Arena = bumpalo::Bump;
 /// We should eventually get rid of this or change its name.
 #[derive(Default)]
 pub struct Crate<'fhir> {
-    pub consts: FxHashMap<Symbol, ConstInfo>,
+    pub consts: UnordMap<DefId, ConstInfo>,
     pub flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
 }
 

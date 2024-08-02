@@ -498,8 +498,8 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         })
     }
 
-    pub fn consts(self) -> impl Iterator<Item = fhir::ConstInfo> + 'genv {
-        self.fhir.consts.values().copied()
+    pub fn get_const(&self, def_id: DefId) -> fhir::ConstInfo {
+        self.fhir.consts[&def_id]
     }
 
     pub fn fn_quals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [Ident]> {
