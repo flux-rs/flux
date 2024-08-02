@@ -31,6 +31,7 @@ use flux_middle::{
     rustc::lowering,
 };
 use itertools::Itertools;
+use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{def::DefKind, def_id::LocalDefId};
@@ -61,8 +62,8 @@ fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtS
     conv::conv_adt_sort_def(genv, def_id, genv.map().refined_by(def_id)?)
 }
 
-fn spec_func_decls(genv: GlobalEnv) -> QueryResult<FxHashMap<Symbol, rty::SpecFuncDecl>> {
-    let mut func_decls = FxHashMap::default();
+fn spec_func_decls(genv: GlobalEnv) -> QueryResult<UnordMap<Symbol, rty::SpecFuncDecl>> {
+    let mut func_decls = UnordMap::default();
     for func in genv.map().spec_funcs() {
         func_decls.insert(func.name, conv::conv_func_decl(genv, func)?);
     }

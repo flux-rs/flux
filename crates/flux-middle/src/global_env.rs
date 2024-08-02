@@ -150,10 +150,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .filter(move |qualifier| qualifier.global || names.contains(&qualifier.name)))
     }
 
-    pub fn func_decls(self) -> QueryResult<impl Iterator<Item = &'genv rty::SpecFuncDecl>> {
-        Ok(self.inner.queries.func_decls(self)?.values())
-    }
-
     pub fn func_decl(self, name: Symbol) -> QueryResult<rty::SpecFuncDecl> {
         Ok(self.inner.queries.func_decls(self)?[&name].clone())
     }

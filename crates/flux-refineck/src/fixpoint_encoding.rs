@@ -12,9 +12,10 @@ use flux_common::{
     span_bug,
 };
 use flux_config as config;
+use flux_errors::Errors;
 use flux_fixpoint::FixpointResult;
 use flux_middle::{
-    fhir::SpecFuncKind,
+    fhir::{self, SpecFuncKind},
     global_env::GlobalEnv,
     intern::List,
     queries::{QueryErr, QueryResult},
@@ -337,8 +338,8 @@ struct ExprEncodingCtxt<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     global_var_gen: IndexGen<fixpoint::GlobalVar>,
     const_map: ConstMap<'tcx>,
-    /// Used to report bugs
-    dbg_span: Span,
+    errors: Errors<'genv>,
+    def_span: Span,
 }
 
 struct ConstInfo {
@@ -369,24 +370,20 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        def_id: LocalDefId,
-        kvars: KVarStore,
-    ) -> QueryResult<Self> {
-        let dbg_span = genv.tcx().def_span(def_id);
-        Ok(Self {
+    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: LocalDefId, kvars: KVarStore) -> Self {
+        let def_span = genv.tcx().def_span(def_id);
+        Self {
             comments: vec![],
             kvars,
             sorts: SortStore::default(),
             genv,
             env: Env::new(),
-            ecx: ExprEncodingCtxt::new(genv, dbg_span)?,
+            ecx: ExprEncodingCtxt::new(genv, def_span),
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
             def_id,
-        })
+        }
     }
 
     /// Collect all the sorts that need to be defined in fixpoint to encode `t`
@@ -470,6 +467,7 @@ where
     ) -> QueryResult<Vec<Tag>> {
         if !constraint.is_concrete() {
             // skip checking trivial constraints
+            self.ecx.errors.into_result()?;
             return Ok(vec![]);
         }
         let span = self.def_span();
@@ -516,6 +514,9 @@ where
                 orig: None,
             });
         }
+
+        // Check if the encoding produced any errors
+        self.ecx.errors.into_result()?;
 
         let task = fixpoint::Task {
             comments: self.comments,
@@ -700,30 +701,6 @@ impl FixpointKVar {
     }
 }
 
-fn fixpoint_const_map<'tcx>(
-    genv: GlobalEnv<'_, 'tcx>,
-    global_var_gen: &IndexGen<fixpoint::GlobalVar>,
-) -> QueryResult<ConstMap<'tcx>> {
-    Ok(genv
-        .func_decls()?
-        .sorted_by(|a, b| Ord::cmp(&a.name, &b.name))
-        .filter_map(|decl| {
-            match decl.kind {
-                SpecFuncKind::Uif => {
-                    let cinfo = ConstInfo {
-                        name: global_var_gen.fresh(),
-                        orig: decl.name.to_string(),
-                        sort: func_sort_to_fixpoint(&decl.sort),
-                        val: None,
-                    };
-                    Some((Key::Uif(decl.name), cinfo))
-                }
-                _ => None,
-            }
-        })
-        .collect())
-}
-
 impl KVarStore {
     pub fn new() -> Self {
         Self { kvars: IndexVec::new() }
@@ -879,15 +856,19 @@ fn func_sort_to_fixpoint(fsort: &rty::PolyFuncSort) -> fixpoint::Sort {
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, dbg_span: Span) -> QueryResult<Self> {
-        let global_var_gen = IndexGen::new();
-        let const_map = fixpoint_const_map(genv, &global_var_gen)?;
-        Ok(Self { genv, global_var_gen, const_map, dbg_span })
+    fn new(genv: GlobalEnv<'genv, 'tcx>, dbg_span: Span) -> Self {
+        Self {
+            genv,
+            errors: Errors::new(genv.sess()),
+            global_var_gen: IndexGen::new(),
+            const_map: Default::default(),
+            def_span: dbg_span,
+        }
     }
 
     fn expr_to_fixpoint(&mut self, expr: &rty::Expr, env: &Env) -> QueryResult<fixpoint::Expr> {
         let e = match expr.kind() {
-            rty::ExprKind::Var(var) => fixpoint::Expr::Var(env.get_var(var, self.dbg_span)),
+            rty::ExprKind::Var(var) => fixpoint::Expr::Var(env.get_var(var, self.def_span)),
             rty::ExprKind::Constant(c) => fixpoint::Expr::Constant(*c),
             rty::ExprKind::BinaryOp(op, e1, e2) => self.bin_op_to_fixpoint(op, e1, e2, env)?,
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, env)?,
@@ -944,7 +925,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::ExprKind::GlobalFunc(..)
             | rty::ExprKind::PathProj(..)
             | rty::ExprKind::ForAll(_) => {
-                span_bug!(self.dbg_span, "unexpected expr: `{expr:?}`")
+                span_bug!(self.def_span, "unexpected expr: `{expr:?}`")
             }
         };
         Ok(e)
@@ -1122,23 +1103,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
     fn func_to_fixpoint(&mut self, func: &rty::Expr, env: &Env) -> fixpoint::Var {
         match func.kind() {
-            rty::ExprKind::Var(var) => env.get_var(var, self.dbg_span),
+            rty::ExprKind::Var(var) => env.get_var(var, self.def_span),
             rty::ExprKind::GlobalFunc(_, SpecFuncKind::Thy(sym)) => fixpoint::Var::Itf(*sym),
-            rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) => {
-                // let func = self.register_uif(sym, )
-                let cinfo = self.const_map.get(&Key::Uif(*sym)).unwrap_or_else(|| {
-                    span_bug!(
-                        self.dbg_span,
-                        "no constant found for uninterpreted function `{sym}` in `const_map`"
-                    )
-                });
-                cinfo.name.into()
-            }
+            rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) => self.register_uif(*sym).into(),
             rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Def) => {
-                span_bug!(self.dbg_span, "unexpected global function `{sym}`. Function must be normalized away at this point")
+                span_bug!(self.def_span, "unexpected global function `{sym}`. Function must be normalized away at this point")
             }
             _ => {
-                span_bug!(self.dbg_span, "unexpected expr `{func:?}` in function position")
+                span_bug!(self.def_span, "unexpected expr `{func:?}` in function position")
             }
         }
     }
@@ -1151,7 +1123,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         bindings: &mut Vec<(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)>,
     ) -> QueryResult<fixpoint::Var> {
         match arg.kind() {
-            rty::ExprKind::Var(var) => Ok(env.get_var(var, self.dbg_span)),
+            rty::ExprKind::Var(var) => Ok(env.get_var(var, self.def_span)),
             _ => {
                 let fresh = env.fresh_name();
                 let pred = fixpoint::Expr::eq(
@@ -1165,20 +1137,29 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     }
 
     fn register_uif(&mut self, name: Symbol) -> fixpoint::GlobalVar {
-        todo!()
-        // let key = Key::Uif(name);
-        // self.const_map
-        //     .entry(key)
-        //     .or_insert_with(|| {
-        //         self.ge
-        //         ConstInfo {
-        //             name: self.global_var_gen.fresh(),
-        //             orig: name.to_string(),
-        //             sort: func_sort_to_fixpoint(&sort),
-        //             val: None,
-        //         }
-        //     })
-        //     .name
+        let key = Key::Uif(name);
+        self.const_map
+            .entry(key)
+            .or_insert_with(|| {
+                let sort = self
+                    .genv
+                    .func_decl(name)
+                    .map(|decl| {
+                        debug_assert_eq!(decl.kind, fhir::SpecFuncKind::Uif);
+                        func_sort_to_fixpoint(&decl.sort)
+                    })
+                    .unwrap_or_else(|err| {
+                        self.errors.emit(err.at(self.def_span));
+                        fixpoint::Sort::Int
+                    });
+                ConstInfo {
+                    name: self.global_var_gen.fresh(),
+                    orig: name.to_string(),
+                    sort,
+                    val: None,
+                }
+            })
+            .name
     }
 
     fn register_const_def_id(&mut self, def_id: DefId) -> fixpoint::GlobalVar {
