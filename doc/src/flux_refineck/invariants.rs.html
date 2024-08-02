@@ -148,7 +148,7 @@
         <span class="kw">let </span>pred = invariant.apply(<span class="kw-2">&amp;</span>variant.idx);
         rcx.check_pred(<span class="kw-2">&amp;</span>pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
-    <span class="kw">let </span><span class="kw-2">mut </span>fcx = FixpointCtxt::new(genv, def_id, KVarStore::default()).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>fcx = FixpointCtxt::new(genv, def_id, KVarStore::default());
     <span class="kw">if </span>config::dump_constraint() {
         dbg::dump_item_info(genv.tcx(), def_id, <span class="string">"fluxc"</span>, <span class="kw-2">&amp;</span>refine_tree).unwrap();
     }

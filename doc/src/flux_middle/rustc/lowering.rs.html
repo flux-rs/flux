@@ -1064,7 +1064,7 @@
     },
 };
 <span class="kw">use crate</span>::{
-    const_eval::scalar_int_to_constant,
+    const_eval::scalar_int_to_mir_constant,
     intern::List,
     rustc::ty::{AliasTy, ExistentialTraitRef, ProjectionPredicate, Region},
 };
@@ -1612,7 +1612,7 @@
         <span class="kw">let </span>ty = constant.ty();
         <span class="kw">match </span>(val, ty.kind()) {
             (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), <span class="kw">_</span>) =&gt; {
-                scalar_int_to_constant(tcx, scalar, ty)
+                scalar_int_to_mir_constant(tcx, scalar, ty)
             }
             (Const::Val(ConstValue::Slice { .. }, <span class="kw">_</span>), TyKind::Ref(<span class="kw">_</span>, ref_ty, <span class="kw">_</span>))
                 <span class="kw">if </span>ref_ty.is_str() =&gt;
@@ -1622,7 +1622,7 @@
             (Const::Ty(ty, c), <span class="kw">_</span>) =&gt; {
                 <span class="kw">match </span>c.kind() {
                     rustc_ty::ConstKind::Value(ty, rustc_ty::ValTree::Leaf(scalar)) =&gt; {
-                        scalar_int_to_constant(tcx, scalar, ty)
+                        scalar_int_to_mir_constant(tcx, scalar, ty)
                     }
                     rustc_ty::ConstKind::Param(param_const) =&gt; {
                         <span class="kw">let </span>ty = lower_ty(tcx, ty)<span class="question-mark">?</span>;

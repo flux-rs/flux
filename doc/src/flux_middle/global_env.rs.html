@@ -534,14 +534,6 @@
 <a href="#534" id="534">534</a>
 <a href="#535" id="535">535</a>
 <a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -694,12 +686,8 @@
             .filter(<span class="kw">move </span>|qualifier| qualifier.global || names.contains(<span class="kw-2">&amp;</span>qualifier.name)))
     }
 
-    <span class="kw">pub fn </span>func_decls(<span class="self">self</span>) -&gt; QueryResult&lt;<span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>rty::SpecFuncDecl&gt;&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.inner.queries.func_decls(<span class="self">self</span>)<span class="question-mark">?</span>.values())
-    }
-
     <span class="kw">pub fn </span>func_decl(<span class="self">self</span>, name: Symbol) -&gt; QueryResult&lt;rty::SpecFuncDecl&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.inner.queries.func_decls(<span class="self">self</span>)<span class="question-mark">?</span>[<span class="kw-2">&amp;</span>name].clone())
+        <span class="self">self</span>.inner.queries.func_decl(<span class="self">self</span>, name)
     }
 
     <span class="kw">pub fn </span>variances_of(<span class="self">self</span>, did: DefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>[Variance] {
@@ -1040,10 +1028,6 @@
                 <span class="prelude-val">None
             </span>}
         })
-    }
-
-    <span class="kw">pub fn </span>consts(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = fhir::ConstInfo&gt; + <span class="lifetime">'genv </span>{
-        <span class="self">self</span>.fhir.consts.values().copied()
     }
 
     <span class="kw">pub fn </span>fn_quals_for(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[Ident]&gt; {

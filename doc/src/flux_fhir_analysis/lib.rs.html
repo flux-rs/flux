@@ -473,10 +473,6 @@
 <a href="#473" id="473">473</a>
 <a href="#474" id="474">474</a>
 <a href="#475" id="475">475</a>
-<a href="#476" id="476">476</a>
-<a href="#477" id="477">477</a>
-<a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -519,7 +515,7 @@
 
 <span class="kw">pub fn </span>provide(providers: <span class="kw-2">&amp;mut </span>Providers) {
     providers.spec_func_defns = spec_func_defns;
-    providers.spec_func_decls = spec_func_decls;
+    providers.spec_func_decl = spec_func_decl;
     providers.qualifiers = qualifiers;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
@@ -540,21 +536,17 @@
     conv::conv_adt_sort_def(genv, def_id, genv.map().refined_by(def_id)<span class="question-mark">?</span>)
 }
 
-<span class="kw">fn </span>spec_func_decls(genv: GlobalEnv) -&gt; QueryResult&lt;FxHashMap&lt;Symbol, rty::SpecFuncDecl&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>func_decls = FxHashMap::default();
-    <span class="kw">for </span>func <span class="kw">in </span>genv.map().spec_funcs() {
-        func_decls.insert(func.name, conv::conv_func_decl(genv, func)<span class="question-mark">?</span>);
-    }
-    <span class="kw">for </span>itf <span class="kw">in </span>flux_middle::theory_funcs() {
-        <span class="kw">let </span>func_decl = rty::SpecFuncDecl {
+<span class="kw">fn </span>spec_func_decl(genv: GlobalEnv, name: Symbol) -&gt; QueryResult&lt;rty::SpecFuncDecl&gt; {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(func) = genv.map().spec_func(name) {
+        conv::conv_func_decl(genv, func)
+    } <span class="kw">else </span>{
+        <span class="kw">let </span>itf = flux_middle::THEORY_FUNCS.get(<span class="kw-2">&amp;</span>name).unwrap();
+        <span class="prelude-val">Ok</span>(rty::SpecFuncDecl {
             name: itf.name,
             sort: itf.sort.clone(),
             kind: fhir::SpecFuncKind::Thy(itf.fixpoint_name),
-        };
-        func_decls.insert(itf.name, func_decl);
+        })
     }
-
-    <span class="prelude-val">Ok</span>(func_decls)
 }
 
 <span class="kw">fn </span>spec_func_defns(genv: GlobalEnv) -&gt; QueryResult&lt;rty::SpecFuncDefns&gt; {

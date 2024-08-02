@@ -389,30 +389,6 @@
 <a href="#389" id="389">389</a>
 <a href="#390" id="390">390</a>
 <a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
 </span><span class="attr">#![feature(rustc_private, min_specialization, box_patterns, let_chains, never_type)]
@@ -437,10 +413,10 @@
 <span class="kw">pub mod </span>resolver;
 
 <span class="kw">use </span>flux_middle::{
-    const_eval, fhir,
+    fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
-    rty, ResolverOutput, Specs,
+    ResolverOutput, Specs,
 };
 <span class="kw">use </span>flux_syntax::surface;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
@@ -771,32 +747,8 @@
             <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.desugar_func_defn(defn));
         }
 
-        <span class="kw">for </span>def_id <span class="kw">in </span><span class="kw-2">&amp;</span>specs.consts {
-            <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.desugar_const(<span class="kw-2">*</span>def_id));
-        }
-
         <span class="kw">for </span>qualifier <span class="kw">in </span><span class="kw-2">&amp;</span>specs.qualifs {
             <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.desugar_qualifier(qualifier));
-        }
-    }
-
-    <span class="kw">fn </span>desugar_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Result</span>&lt;rty::Constant&gt; {
-        <span class="kw">let </span>ty = <span class="self">self</span>.genv.tcx().type_of(def_id).instantiate_identity();
-        <span class="kw">if let </span><span class="prelude-val">Ok</span>(const_result) = <span class="self">self</span>.genv.tcx().const_eval_poly(def_id.to_def_id())
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(val) = const_result.try_to_scalar_int()
-            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(val) = const_eval::scalar_int_to_rty_constant(<span class="self">self</span>.genv.tcx(), val, ty)
-        {
-            <span class="kw">let </span>sym = def_id_symbol(<span class="self">self</span>.genv.tcx(), def_id);
-            <span class="self">self</span>.fhir
-                .consts
-                .insert(sym, fhir::ConstInfo { def_id: def_id.to_def_id(), sym, val });
-            <span class="prelude-val">Ok</span>(val)
-        } <span class="kw">else </span>{
-            <span class="kw">let </span>span = <span class="self">self</span>.genv.tcx().def_span(def_id);
-            <span class="prelude-val">Err</span>(<span class="self">self
-                </span>.genv
-                .sess()
-                .emit_err(errors::InvalidConstant::new(span)))
         }
     }
 

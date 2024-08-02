@@ -114,11 +114,9 @@
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_middle::ty::{<span class="self">self </span><span class="kw">as </span>rustc_ty, ParamEnv, TyCtxt, TyKind};
 <span class="kw">use </span>rustc_type_ir::{IntTy, UintTy};
 
-<span class="kw">use </span><span class="kw">crate</span>::rustc::{<span class="self">self</span>, lowering::lower_ty, mir::Constant};
+<span class="kw">use </span><span class="kw">crate</span>::rustc::{<span class="self">self</span>, lowering::lower_ty, mir};
 
-<span class="comment">// FIXME(nilehmann) We are using this during desugaring to evaluate constants annotated with
-// `#[flux::constant]`. We should do the evaluation later in the pipeline.
-</span><span class="kw">pub fn </span>scalar_int_to_rty_constant&lt;<span class="lifetime">'tcx</span>&gt;(
+<span class="kw">pub fn </span>scalar_int_to_rty_constant&lt;<span class="lifetime">'tcx</span>&gt;(
     tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     scalar: rustc_ty::ScalarInt,
     ty: rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;,
@@ -157,26 +155,28 @@
     }
 }
 
-<span class="kw">pub fn </span>scalar_int_to_constant&lt;<span class="lifetime">'tcx</span>&gt;(
+<span class="kw">pub fn </span>scalar_int_to_mir_constant&lt;<span class="lifetime">'tcx</span>&gt;(
     tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     scalar: rustc_ty::ScalarInt,
     ty: rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;,
-) -&gt; <span class="prelude-ty">Option</span>&lt;Constant&gt; {
+) -&gt; <span class="prelude-ty">Option</span>&lt;mir::Constant&gt; {
     <span class="kw">let </span>kind = ty.kind();
     <span class="kw">match </span>kind {
-        TyKind::Int(int_ty) =&gt; <span class="prelude-val">Some</span>(Constant::Int(scalar_to_int(tcx, scalar, <span class="kw-2">*</span>int_ty), <span class="kw-2">*</span>int_ty)),
+        TyKind::Int(int_ty) =&gt; {
+            <span class="prelude-val">Some</span>(mir::Constant::Int(scalar_to_int(tcx, scalar, <span class="kw-2">*</span>int_ty), <span class="kw-2">*</span>int_ty))
+        }
         TyKind::Uint(uint_ty) =&gt; {
-            <span class="prelude-val">Some</span>(Constant::Uint(scalar_to_uint(tcx, scalar, <span class="kw-2">*</span>uint_ty), <span class="kw-2">*</span>uint_ty))
+            <span class="prelude-val">Some</span>(mir::Constant::Uint(scalar_to_uint(tcx, scalar, <span class="kw-2">*</span>uint_ty), <span class="kw-2">*</span>uint_ty))
         }
         TyKind::Float(float_ty) =&gt; {
-            <span class="prelude-val">Some</span>(Constant::Float(scalar_to_bits(tcx, scalar, ty).unwrap(), <span class="kw-2">*</span>float_ty))
+            <span class="prelude-val">Some</span>(mir::Constant::Float(scalar_to_bits(tcx, scalar, ty).unwrap(), <span class="kw-2">*</span>float_ty))
         }
-        TyKind::Char =&gt; <span class="prelude-val">Some</span>(Constant::Char),
-        TyKind::Bool =&gt; <span class="prelude-val">Some</span>(Constant::Bool(scalar.try_to_bool().unwrap())),
-        TyKind::Tuple(tys) <span class="kw">if </span>tys.is_empty() =&gt; <span class="prelude-val">Some</span>(Constant::Unit),
+        TyKind::Char =&gt; <span class="prelude-val">Some</span>(mir::Constant::Char),
+        TyKind::Bool =&gt; <span class="prelude-val">Some</span>(mir::Constant::Bool(scalar.try_to_bool().unwrap())),
+        TyKind::Tuple(tys) <span class="kw">if </span>tys.is_empty() =&gt; <span class="prelude-val">Some</span>(mir::Constant::Unit),
         <span class="kw">_ </span>=&gt; {
             <span class="kw">match </span>lower_ty(tcx, ty) {
-                <span class="prelude-val">Ok</span>(ty) =&gt; <span class="prelude-val">Some</span>(Constant::Opaque(ty)),
+                <span class="prelude-val">Ok</span>(ty) =&gt; <span class="prelude-val">Some</span>(mir::Constant::Opaque(ty)),
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
             }
         }

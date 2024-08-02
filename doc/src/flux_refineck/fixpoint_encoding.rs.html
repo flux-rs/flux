@@ -1258,6 +1258,23 @@
 <a href="#1258" id="1258">1258</a>
 <a href="#1259" id="1259">1259</a>
 <a href="#1260" id="1260">1260</a>
+<a href="#1261" id="1261">1261</a>
+<a href="#1262" id="1262">1262</a>
+<a href="#1263" id="1263">1263</a>
+<a href="#1264" id="1264">1264</a>
+<a href="#1265" id="1265">1265</a>
+<a href="#1266" id="1266">1266</a>
+<a href="#1267" id="1267">1267</a>
+<a href="#1268" id="1268">1268</a>
+<a href="#1269" id="1269">1269</a>
+<a href="#1270" id="1270">1270</a>
+<a href="#1271" id="1271">1271</a>
+<a href="#1272" id="1272">1272</a>
+<a href="#1273" id="1273">1273</a>
+<a href="#1274" id="1274">1274</a>
+<a href="#1275" id="1275">1275</a>
+<a href="#1276" id="1276">1276</a>
+<a href="#1277" id="1277">1277</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter, ops::ControlFlow};
@@ -1272,11 +1289,14 @@
     span_bug,
 };
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
+<span class="kw">use </span>flux_errors::Errors;
 <span class="kw">use </span>flux_fixpoint::FixpointResult;
 <span class="kw">use </span>flux_middle::{
-    fhir::SpecFuncKind,
+    const_eval,
+    fhir::{<span class="self">self</span>, SpecFuncKind},
     global_env::GlobalEnv,
     intern::List,
+    pretty,
     queries::{QueryErr, QueryResult},
     rty::{
         <span class="self">self</span>,
@@ -1291,7 +1311,7 @@
 };
 <span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
 <span class="kw">use </span>rustc_index::newtype_index;
-<span class="kw">use </span>rustc_span::Span;
+<span class="kw">use </span>rustc_span::{Span, Symbol};
 <span class="kw">use </span>rustc_type_ir::{BoundVar, DebruijnIndex};
 
 <span class="kw">use crate</span>::{refine_tree::Scope, CheckerConfig};
@@ -1455,7 +1475,7 @@
 
 <span class="attr">#[derive(Eq, Hash, PartialEq)]
 </span><span class="kw">enum </span>Key&lt;<span class="lifetime">'tcx</span>&gt; {
-    Uif(rustc_span::Symbol),
+    Uif(Symbol),
     Const(DefId),
     Alias(rustc_middle::ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;),
     Lambda(Lambda),
@@ -1597,8 +1617,8 @@
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     global_var_gen: IndexGen&lt;fixpoint::GlobalVar&gt;,
     const_map: ConstMap&lt;<span class="lifetime">'tcx</span>&gt;,
-    <span class="doccomment">/// Used to report bugs
-    </span>dbg_span: Span,
+    errors: Errors&lt;<span class="lifetime">'genv</span>&gt;,
+    def_span: Span,
 }
 
 <span class="kw">struct </span>ConstInfo {
@@ -1629,24 +1649,20 @@
 <span class="kw">where
     </span>Tag: std::hash::Hash + Eq + Copy,
 {
-    <span class="kw">pub fn </span>new(
-        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        def_id: LocalDefId,
-        kvars: KVarStore,
-    ) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>dbg_span = genv.tcx().def_span(def_id);
-        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, def_id: LocalDefId, kvars: KVarStore) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>def_span = genv.tcx().def_span(def_id);
+        <span class="self">Self </span>{
             comments: <span class="macro">vec!</span>[],
             kvars,
             sorts: SortStore::default(),
             genv,
             env: Env::new(),
-            ecx: ExprEncodingCtxt::new(genv, dbg_span)<span class="question-mark">?</span>,
+            ecx: ExprEncodingCtxt::new(genv, def_span),
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
             def_id,
-        })
+        }
     }
 
     <span class="doccomment">/// Collect all the sorts that need to be defined in fixpoint to encode `t`
@@ -1730,7 +1746,8 @@
     ) -&gt; QueryResult&lt;Vec&lt;Tag&gt;&gt; {
         <span class="kw">if </span>!constraint.is_concrete() {
             <span class="comment">// skip checking trivial constraints
-            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[]);
+            </span><span class="self">self</span>.ecx.errors.into_result()<span class="question-mark">?</span>;
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[]);
         }
         <span class="kw">let </span>span = <span class="self">self</span>.def_span();
 
@@ -1776,6 +1793,9 @@
                 orig: <span class="prelude-val">None</span>,
             });
         }
+
+        <span class="comment">// Check if the encoding produced any errors
+        </span><span class="self">self</span>.ecx.errors.into_result()<span class="question-mark">?</span>;
 
         <span class="kw">let </span>task = fixpoint::Task {
             comments: <span class="self">self</span>.comments,
@@ -1960,43 +1980,6 @@
     }
 }
 
-<span class="kw">fn </span>fixpoint_const_map&lt;<span class="lifetime">'tcx</span>&gt;(
-    genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
-    global_var_gen: <span class="kw-2">&amp;</span>IndexGen&lt;fixpoint::GlobalVar&gt;,
-) -&gt; QueryResult&lt;ConstMap&lt;<span class="lifetime">'tcx</span>&gt;&gt; {
-    <span class="kw">let </span>consts = genv
-        .map()
-        .consts()
-        .sorted_by(|a, b| Ord::cmp(<span class="kw-2">&amp;</span>a.sym, <span class="kw-2">&amp;</span>b.sym))
-        .map(|const_info| {
-            <span class="kw">let </span>cinfo = ConstInfo {
-                name: global_var_gen.fresh(),
-                orig: const_info.sym.to_string(),
-                sort: fixpoint::Sort::Int,
-                val: <span class="prelude-val">Some</span>(const_info.val),
-            };
-            (Key::Const(const_info.def_id), cinfo)
-        });
-    <span class="kw">let </span>uifs = genv
-        .func_decls()<span class="question-mark">?
-        </span>.sorted_by(|a, b| Ord::cmp(<span class="kw-2">&amp;</span>a.name, <span class="kw-2">&amp;</span>b.name))
-        .filter_map(|decl| {
-            <span class="kw">match </span>decl.kind {
-                SpecFuncKind::Uif =&gt; {
-                    <span class="kw">let </span>cinfo = ConstInfo {
-                        name: global_var_gen.fresh(),
-                        orig: decl.name.to_string(),
-                        sort: func_sort_to_fixpoint(<span class="kw-2">&amp;</span>decl.sort),
-                        val: <span class="prelude-val">None</span>,
-                    };
-                    <span class="prelude-val">Some</span>((Key::Uif(decl.name), cinfo))
-                }
-                <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-            }
-        });
-    <span class="prelude-val">Ok</span>(itertools::chain(consts, uifs).collect())
-}
-
 <span class="kw">impl </span>KVarStore {
     <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ kvars: IndexVec::new() }
@@ -2152,15 +2135,19 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; ExprEncodingCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, dbg_span: Span) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>global_var_gen = IndexGen::new();
-        <span class="kw">let </span>const_map = fixpoint_const_map(genv, <span class="kw-2">&amp;</span>global_var_gen)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ genv, global_var_gen, const_map, dbg_span })
+    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, dbg_span: Span) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            genv,
+            errors: Errors::new(genv.sess()),
+            global_var_gen: IndexGen::new(),
+            const_map: Default::default(),
+            def_span: dbg_span,
+        }
     }
 
     <span class="kw">fn </span>expr_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>rty::Expr, env: <span class="kw-2">&amp;</span>Env) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
         <span class="kw">let </span>e = <span class="kw">match </span>expr.kind() {
-            rty::ExprKind::Var(var) =&gt; fixpoint::Expr::Var(env.get_var(var, <span class="self">self</span>.dbg_span)),
+            rty::ExprKind::Var(var) =&gt; fixpoint::Expr::Var(env.get_var(var, <span class="self">self</span>.def_span)),
             rty::ExprKind::Constant(c) =&gt; fixpoint::Expr::Constant(<span class="kw-2">*</span>c),
             rty::ExprKind::BinaryOp(op, e1, e2) =&gt; <span class="self">self</span>.bin_op_to_fixpoint(op, e1, e2, env)<span class="question-mark">?</span>,
             rty::ExprKind::UnaryOp(op, e) =&gt; <span class="self">self</span>.un_op_to_fixpoint(<span class="kw-2">*</span>op, e, env)<span class="question-mark">?</span>,
@@ -2184,10 +2171,8 @@
                 fixpoint::Expr::App(ctor, args)
             }
             rty::ExprKind::ConstDefId(did) =&gt; {
-                <span class="kw">let </span>const_info = <span class="self">self</span>.const_map.get(<span class="kw-2">&amp;</span>Key::Const(<span class="kw-2">*</span>did)).unwrap_or_else(|| {
-                    <span class="macro">span_bug!</span>(<span class="self">self</span>.dbg_span, <span class="string">"no entry found in const_map for def_id: `{did:?}`"</span>)
-                });
-                fixpoint::Expr::Var(const_info.name.into())
+                <span class="kw">let </span>var = <span class="self">self</span>.register_rust_const(<span class="kw-2">*</span>did);
+                fixpoint::Expr::Var(var.into())
             }
             rty::ExprKind::App(func, args) =&gt; {
                 <span class="kw">let </span>func = <span class="self">self</span>.func_to_fixpoint(func, env);
@@ -2219,7 +2204,7 @@
             | rty::ExprKind::GlobalFunc(..)
             | rty::ExprKind::PathProj(..)
             | rty::ExprKind::ForAll(<span class="kw">_</span>) =&gt; {
-                <span class="macro">span_bug!</span>(<span class="self">self</span>.dbg_span, <span class="string">"unexpected expr: `{expr:?}`"</span>)
+                <span class="macro">span_bug!</span>(<span class="self">self</span>.def_span, <span class="string">"unexpected expr: `{expr:?}`"</span>)
             }
         };
         <span class="prelude-val">Ok</span>(e)
@@ -2397,22 +2382,14 @@
 
     <span class="kw">fn </span>func_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>rty::Expr, env: <span class="kw-2">&amp;</span>Env) -&gt; fixpoint::Var {
         <span class="kw">match </span>func.kind() {
-            rty::ExprKind::Var(var) =&gt; env.get_var(var, <span class="self">self</span>.dbg_span),
+            rty::ExprKind::Var(var) =&gt; env.get_var(var, <span class="self">self</span>.def_span),
             rty::ExprKind::GlobalFunc(<span class="kw">_</span>, SpecFuncKind::Thy(sym)) =&gt; fixpoint::Var::Itf(<span class="kw-2">*</span>sym),
-            rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) =&gt; {
-                <span class="kw">let </span>cinfo = <span class="self">self</span>.const_map.get(<span class="kw-2">&amp;</span>Key::Uif(<span class="kw-2">*</span>sym)).unwrap_or_else(|| {
-                    <span class="macro">span_bug!</span>(
-                        <span class="self">self</span>.dbg_span,
-                        <span class="string">"no constant found for uninterpreted function `{sym}` in `const_map`"
-                    </span>)
-                });
-                cinfo.name.into()
-            }
+            rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Uif) =&gt; <span class="self">self</span>.register_uif(<span class="kw-2">*</span>sym).into(),
             rty::ExprKind::GlobalFunc(sym, SpecFuncKind::Def) =&gt; {
-                <span class="macro">span_bug!</span>(<span class="self">self</span>.dbg_span, <span class="string">"unexpected global function `{sym}`. Function must be normalized away at this point"</span>)
+                <span class="macro">span_bug!</span>(<span class="self">self</span>.def_span, <span class="string">"unexpected global function `{sym}`. Function must be normalized away at this point"</span>)
             }
             <span class="kw">_ </span>=&gt; {
-                <span class="macro">span_bug!</span>(<span class="self">self</span>.dbg_span, <span class="string">"unexpected expr `{func:?}` in function position"</span>)
+                <span class="macro">span_bug!</span>(<span class="self">self</span>.def_span, <span class="string">"unexpected expr `{func:?}` in function position"</span>)
             }
         }
     }
@@ -2425,7 +2402,7 @@
         bindings: <span class="kw-2">&amp;mut </span>Vec&lt;(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)&gt;,
     ) -&gt; QueryResult&lt;fixpoint::Var&gt; {
         <span class="kw">match </span>arg.kind() {
-            rty::ExprKind::Var(var) =&gt; <span class="prelude-val">Ok</span>(env.get_var(var, <span class="self">self</span>.dbg_span)),
+            rty::ExprKind::Var(var) =&gt; <span class="prelude-val">Ok</span>(env.get_var(var, <span class="self">self</span>.def_span)),
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">let </span>fresh = env.fresh_name();
                 <span class="kw">let </span>pred = fixpoint::Expr::eq(
@@ -2436,6 +2413,63 @@
                 <span class="prelude-val">Ok</span>(fresh.into())
             }
         }
+    }
+
+    <span class="kw">fn </span>register_uif(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: Symbol) -&gt; fixpoint::GlobalVar {
+        <span class="kw">let </span>key = Key::Uif(name);
+        <span class="self">self</span>.const_map
+            .entry(key)
+            .or_insert_with(|| {
+                <span class="kw">let </span>sort = <span class="self">self
+                    </span>.genv
+                    .func_decl(name)
+                    .map(|decl| {
+                        <span class="macro">debug_assert_eq!</span>(decl.kind, fhir::SpecFuncKind::Uif);
+                        func_sort_to_fixpoint(<span class="kw-2">&amp;</span>decl.sort)
+                    })
+                    .unwrap_or_else(|err| {
+                        <span class="self">self</span>.errors.emit(err.at(<span class="self">self</span>.def_span));
+                        fixpoint::Sort::Int
+                    });
+                ConstInfo {
+                    name: <span class="self">self</span>.global_var_gen.fresh(),
+                    orig: name.to_string(),
+                    sort,
+                    val: <span class="prelude-val">None</span>,
+                }
+            })
+            .name
+    }
+
+    <span class="kw">fn </span>register_rust_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: DefId) -&gt; fixpoint::GlobalVar {
+        <span class="kw">let </span>key = Key::Const(def_id);
+        <span class="self">self</span>.const_map
+            .entry(key)
+            .or_insert_with(|| {
+                <span class="comment">// TODO(nilehmann) generalize const sorts
+                </span><span class="kw">let </span>ty = <span class="self">self</span>.genv.tcx().type_of(def_id).no_bound_vars().unwrap();
+                <span class="macro">assert!</span>(ty.is_integral());
+
+                <span class="comment">// FIXME(nilehmann) we should probably report an error in case const evaluation
+                // fails instead of silently ignore it.
+                </span><span class="kw">let </span>val = <span class="self">self
+                    </span>.genv
+                    .tcx()
+                    .const_eval_poly(def_id)
+                    .ok()
+                    .and_then(|val| {
+                        <span class="kw">let </span>val = val.try_to_scalar_int()<span class="question-mark">?</span>;
+                        const_eval::scalar_int_to_rty_constant(<span class="self">self</span>.genv.tcx(), val, ty)
+                    });
+
+                ConstInfo {
+                    name: <span class="self">self</span>.global_var_gen.fresh(),
+                    orig: pretty::def_id_to_string(def_id),
+                    sort: fixpoint::Sort::Int,
+                    val,
+                }
+            })
+            .name
     }
 
     <span class="doccomment">/// returns the 'constant' UIF for Var used to represent the alias_pred, creating and adding it

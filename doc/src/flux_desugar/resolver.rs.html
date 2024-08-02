@@ -783,6 +783,7 @@
 <a href="#783" id="783">783</a>
 <a href="#784" id="784">784</a>
 <a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
 </pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>std::collections::hash_map::Entry;
@@ -800,7 +801,7 @@
     intravisit::Visitor <span class="kw">as _</span>,
     ItemId, ItemKind, OwnerId,
 };
-<span class="kw">use </span>rustc_data_structures::unord::UnordMap;
+<span class="kw">use </span>rustc_data_structures::unord::{ExtendUnord, UnordMap};
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, ParamName, PrimTy};
@@ -1056,10 +1057,11 @@
             <span class="self">self</span>.func_decls.insert(defn.name.name, kind);
         }
 
-        <span class="kw">for </span>itf <span class="kw">in </span>flux_middle::theory_funcs() {
-            <span class="self">self</span>.func_decls
-                .insert(itf.name, fhir::SpecFuncKind::Thy(itf.fixpoint_name));
-        }
+        <span class="self">self</span>.func_decls.extend_unord(
+            flux_middle::THEORY_FUNCS
+                .items()
+                .map(|(name, itf)| (<span class="kw-2">*</span>name, fhir::SpecFuncKind::Thy(itf.fixpoint_name))),
+        );
     }
 
     <span class="kw">fn </span>push_rib(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
