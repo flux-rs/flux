@@ -113,7 +113,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_add"),
             fixpoint_name: Symbol::intern("bvadd"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -121,7 +121,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_neg"),
             fixpoint_name: Symbol::intern("bvneg"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -129,7 +129,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_sub"),
             fixpoint_name: Symbol::intern("bvsub"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -137,7 +137,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_shl"),
             fixpoint_name: Symbol::intern("bvshl"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -145,7 +145,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_lshr"),
             fixpoint_name: Symbol::intern("bvlshr"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -153,7 +153,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_ashr"),
             fixpoint_name: Symbol::intern("bvashr"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -161,7 +161,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_mul"),
             fixpoint_name: Symbol::intern("bvmul"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -169,7 +169,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_udiv"),
             fixpoint_name: Symbol::intern("bvudiv"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -177,7 +177,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_urem"),
             fixpoint_name: Symbol::intern("bvurem"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -185,7 +185,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_sdiv"),
             fixpoint_name: Symbol::intern("bvsdiv"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -193,7 +193,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_srem"),
             fixpoint_name: Symbol::intern("bvsrem"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -201,7 +201,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_smod"),
             fixpoint_name: Symbol::intern("bvsmod"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -210,7 +210,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_and"),
             fixpoint_name: Symbol::intern("bvand"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -218,7 +218,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_or"),
             fixpoint_name: Symbol::intern("bvor"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -226,7 +226,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_xor"),
             fixpoint_name: Symbol::intern("bvxor"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0), BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -234,7 +234,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("bv_not"),
             fixpoint_name: Symbol::intern("bvnot"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::BvSize]),
+                List::singleton(SortParamKind::BvSize),
                 rty::FuncSort::new(vec![BitVec(bv_param0)], BitVec(bv_param0)),
             ),
         },
@@ -243,7 +243,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("set_empty"),
             fixpoint_name: Symbol::intern("Set_empty"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::Sort]),
+                List::singleton(SortParamKind::Sort),
                 rty::FuncSort::new(vec![Int], Sort::app(Set, List::singleton(Var(param0)))),
             ),
         },
@@ -251,7 +251,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("set_singleton"),
             fixpoint_name: Symbol::intern("Set_sng"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::Sort]),
+                List::singleton(SortParamKind::Sort),
                 rty::FuncSort::new(vec![Var(param0)], Sort::app(Set, List::singleton(Var(param0)))),
             ),
         },
@@ -259,7 +259,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("set_union"),
             fixpoint_name: Symbol::intern("Set_cup"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::Sort]),
+                List::singleton(SortParamKind::Sort),
                 rty::FuncSort::new(
                     vec![
                         Sort::app(Set, List::singleton(Var(param0))),
@@ -273,7 +273,7 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
             name: Symbol::intern("set_is_in"),
             fixpoint_name: Symbol::intern("Set_mem"),
             sort: rty::PolyFuncSort::new(
-                List::from_arr([SortParamKind::Sort]),
+                List::singleton(SortParamKind::Sort),
                 rty::FuncSort::new(
                     vec![Var(param0), Sort::app(Set, List::singleton(Var(param0)))],
                     Bool,
