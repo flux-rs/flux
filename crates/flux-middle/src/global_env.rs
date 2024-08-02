@@ -151,7 +151,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn func_decl(self, name: Symbol) -> QueryResult<rty::SpecFuncDecl> {
-        Ok(self.inner.queries.func_decls(self)?[&name].clone())
+        self.inner.queries.func_decl(self, name)
     }
 
     pub fn variances_of(self, did: DefId) -> &'tcx [Variance] {
