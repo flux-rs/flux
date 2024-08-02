@@ -60,7 +60,7 @@ fn check_invariant(
         let pred = invariant.apply(&variant.idx);
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
-    let mut fcx = FixpointCtxt::new(genv, def_id, KVarStore::default()).emit(&genv)?;
+    let mut fcx = FixpointCtxt::new(genv, def_id, KVarStore::default());
     if config::dump_constraint() {
         dbg::dump_item_info(genv.tcx(), def_id, "fluxc", &refine_tree).unwrap();
     }

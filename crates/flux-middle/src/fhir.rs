@@ -41,7 +41,7 @@ use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{symbol::Ident, Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
-use crate::{global_env::GlobalEnv, pretty, rty::Constant};
+use crate::{global_env::GlobalEnv, pretty};
 
 /// A boolean used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -95,13 +95,6 @@ pub enum GenericParamKind<'fhir> {
     Base,
     Lifetime,
     Const { ty: Ty<'fhir>, is_host_effect: bool },
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ConstInfo {
-    pub def_id: DefId,
-    pub sym: Symbol,
-    pub val: Constant,
 }
 
 #[derive(Debug)]
@@ -390,13 +383,12 @@ pub type Arena = bumpalo::Bump;
 /// We should eventually get rid of this or change its name.
 #[derive(Default)]
 pub struct Crate<'fhir> {
-    pub consts: FxHashMap<Symbol, ConstInfo>,
     pub flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
 }
 
 impl<'fhir> Crate<'fhir> {
     pub fn new() -> Self {
-        Self { consts: Default::default(), flux_items: Default::default() }
+        Self { flux_items: Default::default() }
     }
 }
 
@@ -1042,13 +1034,6 @@ pub struct SpecFunc<'fhir> {
     pub args: &'fhir [RefineParam<'fhir>],
     pub sort: Sort<'fhir>,
     pub body: Option<Expr<'fhir>>,
-}
-
-#[derive(Debug)]
-pub struct SpecFuncDecl<'fhir> {
-    pub name: Symbol,
-    pub sort: PolyFuncSort<'fhir>,
-    pub kind: SpecFuncKind,
 }
 
 #[derive(Debug, Clone, Copy, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]

@@ -193,7 +193,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     fn synth_var(&mut self, path: &fhir::PathExpr) -> rty::Sort {
         match path.res {
             ExprRes::Param(_, id) => self.param_sort(id),
-            ExprRes::Const(_) => rty::Sort::Int, // TODO: generalize const sorts
+            ExprRes::Const(def_id) => {
+                // TODO(nilehmann) generalize const sorts
+                let ty = self.genv.tcx().type_of(def_id).no_bound_vars().unwrap();
+                assert!(ty.is_integral());
+                rty::Sort::Int
+            }
             ExprRes::ConstGeneric(_) => rty::Sort::Int, // TODO: generalize generic-const sorts
             ExprRes::NumConst(_) => rty::Sort::Int,
             ExprRes::GlobalFunc(_, _) => {

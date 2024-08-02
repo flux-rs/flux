@@ -15,7 +15,7 @@ use hir::{
     intravisit::Visitor as _,
     ItemId, ItemKind, OwnerId,
 };
-use rustc_data_structures::unord::UnordMap;
+use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, ParamName, PrimTy};
@@ -271,10 +271,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             self.func_decls.insert(defn.name.name, kind);
         }
 
-        for itf in flux_middle::theory_funcs() {
-            self.func_decls
-                .insert(itf.name, fhir::SpecFuncKind::Thy(itf.fixpoint_name));
-        }
+        self.func_decls.extend_unord(
+            flux_middle::THEORY_FUNCS
+                .items()
+                .map(|(name, itf)| (*name, fhir::SpecFuncKind::Thy(itf.fixpoint_name))),
+        );
     }
 
     fn push_rib(&mut self) {

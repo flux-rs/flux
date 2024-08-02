@@ -31,7 +31,7 @@ use super::{
     },
 };
 use crate::{
-    const_eval::scalar_int_to_constant,
+    const_eval::scalar_int_to_mir_constant,
     intern::List,
     rustc::ty::{AliasTy, ExistentialTraitRef, ProjectionPredicate, Region},
 };
@@ -579,7 +579,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         let ty = constant.ty();
         match (val, ty.kind()) {
             (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
-                scalar_int_to_constant(tcx, scalar, ty)
+                scalar_int_to_mir_constant(tcx, scalar, ty)
             }
             (Const::Val(ConstValue::Slice { .. }, _), TyKind::Ref(_, ref_ty, _))
                 if ref_ty.is_str() =>
@@ -589,7 +589,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             (Const::Ty(ty, c), _) => {
                 match c.kind() {
                     rustc_ty::ConstKind::Value(ty, rustc_ty::ValTree::Leaf(scalar)) => {
-                        scalar_int_to_constant(tcx, scalar, ty)
+                        scalar_int_to_mir_constant(tcx, scalar, ty)
                     }
                     rustc_ty::ConstKind::Param(param_const) => {
                         let ty = lower_ty(tcx, ty)?;
