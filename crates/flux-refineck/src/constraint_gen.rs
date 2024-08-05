@@ -173,7 +173,6 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
         let fn_sig = match fn_sig {
             Ok(fn_sig) => fn_sig,
             Err(err) => {
-                println!("TRACE: normalize-errorr {err:?}");
                 let err = InvalidAssocReft { span };
                 return Err(CheckerErrKind::Query(err));
             }
