@@ -44,10 +44,15 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
 
     fn normalize_alias_reft(
         &mut self,
-        obligation: &AliasReft,
+        alias_reft: &AliasReft,
         refine_args: &RefineArgs,
     ) -> QueryResult<Expr> {
-        if let Some(impl_def_id) = self.impl_id_of_alias_reft(obligation)? {
+        if let Some(impl_def_id) = get_impl_id_of_alias_reft_export_me(
+            &self.tcx(),
+            self.def_id,
+            &mut self.selcx,
+            alias_reft,
+        )? {
             let impl_trait_ref = self
                 .genv
                 .impl_trait_ref(impl_def_id)?
@@ -56,7 +61,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
             let generics = self.tcx().generics_of(impl_def_id);
 
             let mut subst = TVarSubst::new(generics);
-            for (a, b) in iter::zip(&impl_trait_ref.args, &obligation.args) {
+            for (a, b) in iter::zip(&impl_trait_ref.args, &alias_reft.args) {
                 subst.generic_args(a, b);
             }
             let args = subst.finish(self.tcx(), generics);
@@ -65,12 +70,12 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
 
             let pred = self
                 .genv
-                .assoc_refinement_def(impl_def_id, obligation.name)?
+                .assoc_refinement_def(impl_def_id, alias_reft.name)?
                 .instantiate(tcx, &args, &[]);
 
             pred.apply(refine_args).try_fold_with(self)
         } else {
-            Ok(Expr::alias(obligation.clone(), refine_args.clone()))
+            Ok(Expr::alias(alias_reft.clone(), refine_args.clone()))
         }
     }
 
@@ -172,40 +177,6 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
             );
         }
         Ok(())
-    }
-
-    fn get_impl_id_of_alias_reft_export_me(
-        tcx: &TyCtxt<'tcx>,
-        def_id: DefId,
-        selcx: &mut SelectionContext<'_, 'tcx>,
-        alias: &AliasReft,
-    ) -> QueryResult<Option<DefId>> {
-        let trait_pred = Obligation::new(
-            *tcx,
-            ObligationCause::dummy(),
-            tcx.param_env(def_id),
-            alias.to_rustc_trait_ref(*tcx),
-        );
-        match selcx.select(&trait_pred) {
-            Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data.impl_def_id)),
-            Ok(_) => Ok(None),
-            Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
-        }
-    }
-
-    fn impl_id_of_alias_reft(&mut self, alias: &AliasReft) -> QueryResult<Option<DefId>> {
-        Self::get_impl_id_of_alias_reft_export_me(&self.tcx(), self.def_id, &mut self.selcx, alias)
-        // let trait_pred = Obligation::new(
-        //     self.tcx(),
-        //     ObligationCause::dummy(),
-        //     self.rustc_param_env(),
-        //     alias.to_rustc_trait_ref(self.tcx()),
-        // );
-        // match self.selcx.select(&trait_pred) {
-        //     Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data.impl_def_id)),
-        //     Ok(_) => Ok(None),
-        //     Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
-        // }
     }
 
     fn assemble_candidates_from_impls(
@@ -385,5 +356,24 @@ impl TVarSubst {
         if self.args[idx as usize].replace(arg).is_some() {
             bug!("duplicate insert");
         }
+    }
+}
+
+pub fn get_impl_id_of_alias_reft_export_me<'tcx>(
+    tcx: &TyCtxt<'tcx>,
+    def_id: DefId,
+    selcx: &mut SelectionContext<'_, 'tcx>,
+    alias: &AliasReft,
+) -> QueryResult<Option<DefId>> {
+    let trait_pred = Obligation::new(
+        *tcx,
+        ObligationCause::dummy(),
+        tcx.param_env(def_id),
+        alias.to_rustc_trait_ref(*tcx),
+    );
+    match selcx.select(&trait_pred) {
+        Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data.impl_def_id)),
+        Ok(_) => Ok(None),
+        Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
     }
 }
