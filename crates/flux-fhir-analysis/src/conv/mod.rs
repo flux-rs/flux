@@ -1595,7 +1595,10 @@ pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> QueryResult<rty
         .chain(iter::once(&func.sort))
         .map(|sort| conv_sort(genv, sort, &mut bug_on_infer_sort))
         .try_collect()?;
-    let sort = rty::PolyFuncSort::new(func.params, rty::FuncSort { inputs_and_output });
+    let params = iter::repeat(rty::SortParamKind::Sort)
+        .take(func.params)
+        .collect();
+    let sort = rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output });
     let kind = if func.body.is_some() { fhir::SpecFuncKind::Def } else { fhir::SpecFuncKind::Uif };
     Ok(rty::SpecFuncDecl { name: func.name, sort, kind })
 }
@@ -1635,7 +1638,7 @@ pub(crate) fn conv_sort(
 ) -> QueryResult<rty::Sort> {
     let sort = match sort {
         fhir::Sort::Path(path) => conv_sort_path(genv, path, next_infer_sort)?,
-        fhir::Sort::BitVec(w) => rty::Sort::BitVec(*w),
+        fhir::Sort::BitVec(size) => rty::Sort::BitVec(rty::BvSize::Fixed(*size)),
         fhir::Sort::Loc => rty::Sort::Loc,
         fhir::Sort::Func(fsort) => {
             rty::Sort::Func(conv_poly_func_sort(genv, fsort, next_infer_sort)?)
@@ -1676,7 +1679,7 @@ fn conv_sort_path(
         .args
         .iter()
         .map(|t| conv_sort(genv, t, next_infer_sort))
-        .try_collect_vec()?;
+        .try_collect()?;
     Ok(rty::Sort::app(ctor, args))
 }
 
@@ -1685,7 +1688,10 @@ fn conv_poly_func_sort(
     sort: &fhir::PolyFuncSort,
     next_infer_sort: &mut impl FnMut() -> rty::Sort,
 ) -> QueryResult<rty::PolyFuncSort> {
-    Ok(rty::PolyFuncSort::new(sort.params, conv_func_sort(genv, &sort.fsort, next_infer_sort)?))
+    let params = iter::repeat(rty::SortParamKind::Sort)
+        .take(sort.params)
+        .collect();
+    Ok(rty::PolyFuncSort::new(params, conv_func_sort(genv, &sort.fsort, next_infer_sort)?))
 }
 
 pub(crate) fn conv_func_sort(

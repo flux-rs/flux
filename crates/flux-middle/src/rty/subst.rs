@@ -513,22 +513,53 @@ impl<D> GenericsSubstFolder<'_, D> {
     }
 }
 
-pub(crate) struct SortSubst<'a> {
-    args: &'a [Sort],
+pub(crate) struct SortSubst<D> {
+    delegate: D,
 }
 
-impl<'a> SortSubst<'a> {
-    pub(crate) fn new(args: &'a [Sort]) -> Self {
-        Self { args }
+impl<D> SortSubst<D> {
+    pub(crate) fn new(delegate: D) -> Self {
+        Self { delegate }
     }
 }
 
-impl TypeFolder for SortSubst<'_> {
+impl<D: SortSubstDelegate> TypeFolder for SortSubst<D> {
     fn fold_sort(&mut self, sort: &Sort) -> Sort {
-        if let Sort::Var(var) = sort {
-            self.args[var.index].clone()
-        } else {
-            sort.super_fold_with(self)
+        match sort {
+            Sort::Var(var) => self.delegate.sort_for_param(*var),
+            Sort::BitVec(BvSize::Param(var)) => Sort::BitVec(self.delegate.bv_size_for_param(*var)),
+            _ => sort.super_fold_with(self),
         }
+    }
+}
+
+trait SortSubstDelegate {
+    fn sort_for_param(&self, var: ParamSort) -> Sort;
+    fn bv_size_for_param(&self, var: ParamSort) -> BvSize;
+}
+
+impl SortSubstDelegate for &[SortArg] {
+    fn sort_for_param(&self, var: ParamSort) -> Sort {
+        match &self[var.index] {
+            SortArg::Sort(sort) => sort.clone(),
+            SortArg::BvSize(_) => tracked_span_bug!("unexpected bv size for sort param"),
+        }
+    }
+
+    fn bv_size_for_param(&self, var: ParamSort) -> BvSize {
+        match self[var.index] {
+            SortArg::BvSize(size) => size,
+            SortArg::Sort(_) => tracked_span_bug!("unexpected sort for bv size param"),
+        }
+    }
+}
+
+impl SortSubstDelegate for &[Sort] {
+    fn sort_for_param(&self, var: ParamSort) -> Sort {
+        self[var.index].clone()
+    }
+
+    fn bv_size_for_param(&self, _var: ParamSort) -> BvSize {
+        tracked_span_bug!("unexpected bv size parameter")
     }
 }

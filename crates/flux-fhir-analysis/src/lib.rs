@@ -40,7 +40,7 @@ fluent_messages! { "../locales/en-US.ftl" }
 
 pub fn provide(providers: &mut Providers) {
     providers.spec_func_defns = spec_func_defns;
-    providers.spec_func_decls = spec_func_decls;
+    providers.spec_func_decl = spec_func_decl;
     providers.qualifiers = qualifiers;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
@@ -61,21 +61,17 @@ fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtS
     conv::conv_adt_sort_def(genv, def_id, genv.map().refined_by(def_id)?)
 }
 
-fn spec_func_decls(genv: GlobalEnv) -> QueryResult<FxHashMap<Symbol, rty::SpecFuncDecl>> {
-    let mut func_decls = FxHashMap::default();
-    for func in genv.map().spec_funcs() {
-        func_decls.insert(func.name, conv::conv_func_decl(genv, func)?);
-    }
-    for itf in flux_middle::theory_funcs() {
-        let func_decl = rty::SpecFuncDecl {
+fn spec_func_decl(genv: GlobalEnv, name: Symbol) -> QueryResult<rty::SpecFuncDecl> {
+    if let Some(func) = genv.map().spec_func(name) {
+        conv::conv_func_decl(genv, func)
+    } else {
+        let itf = flux_middle::THEORY_FUNCS.get(&name).unwrap();
+        Ok(rty::SpecFuncDecl {
             name: itf.name,
             sort: itf.sort.clone(),
             kind: fhir::SpecFuncKind::Thy(itf.fixpoint_name),
-        };
-        func_decls.insert(itf.name, func_decl);
+        })
     }
-
-    Ok(func_decls)
 }
 
 fn spec_func_defns(genv: GlobalEnv) -> QueryResult<rty::SpecFuncDefns> {

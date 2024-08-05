@@ -8,7 +8,6 @@ use flux_errors::{ErrorGuaranteed, E0999};
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::Diagnostic;
-use rustc_hash::FxHashMap;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
@@ -68,7 +67,7 @@ pub struct Providers {
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::Crate<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub spec_func_defns: fn(GlobalEnv) -> QueryResult<rty::SpecFuncDefns>,
-    pub spec_func_decls: fn(GlobalEnv) -> QueryResult<FxHashMap<Symbol, rty::SpecFuncDecl>>,
+    pub spec_func_decl: fn(GlobalEnv, Symbol) -> QueryResult<rty::SpecFuncDecl>,
     pub adt_sort_def_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtSortDef>,
     pub check_wf: for<'genv> fn(GlobalEnv, FluxLocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
@@ -104,7 +103,7 @@ impl Default for Providers {
             desugar: |_, _| empty_query!(),
             fhir_crate: |_| empty_query!(),
             spec_func_defns: |_| empty_query!(),
-            spec_func_decls: |_| empty_query!(),
+            spec_func_decl: |_, _| empty_query!(),
             qualifiers: |_| empty_query!(),
             adt_sort_def_of: |_, _| empty_query!(),
             check_wf: |_, _| empty_query!(),
@@ -135,7 +134,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
     defns: OnceCell<QueryResult<rty::SpecFuncDefns>>,
-    func_decls: OnceCell<QueryResult<FxHashMap<Symbol, rty::SpecFuncDecl>>>,
+    func_decls: Cache<Symbol, QueryResult<rty::SpecFuncDecl>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
     check_wf: Cache<FluxLocalDefId, QueryResult<Rc<rty::WfckResults>>>,
@@ -310,14 +309,12 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             .map_err(Clone::clone)
     }
 
-    pub(crate) fn func_decls(
+    pub(crate) fn func_decl(
         &self,
         genv: GlobalEnv,
-    ) -> QueryResult<&FxHashMap<Symbol, rty::SpecFuncDecl>> {
-        self.func_decls
-            .get_or_init(|| (self.providers.spec_func_decls)(genv))
-            .as_ref()
-            .map_err(Clone::clone)
+        name: Symbol,
+    ) -> QueryResult<rty::SpecFuncDecl> {
+        run_with_cache(&self.func_decls, name, || (self.providers.spec_func_decl)(genv, name))
     }
 
     pub(crate) fn qualifiers(&self, genv: GlobalEnv) -> QueryResult<&[rty::Qualifier]> {
@@ -337,8 +334,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let def_id = extern_id.unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_sort_def_of)(genv, local_id)
-            } else if let Some(adt_def) = genv.cstore().adt_def(def_id) {
-                adt_def.map(|it| it.sort_def().clone())
+            } else if let Some(adt_sort_def) = genv.cstore().adt_sort_def(def_id) {
+                adt_sort_def
             } else {
                 Ok(rty::AdtSortDef::new(def_id, vec![], vec![]))
             }

@@ -4,9 +4,6 @@ desugar_invalid_alias_reft =
     invalid alias refinement
     .label = this must be a trait
 
-desugar_invalid_constant =
-    invalid constant
-
 desugar_int_too_large =
     integer literal is too large
 

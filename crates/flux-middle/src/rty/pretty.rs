@@ -93,7 +93,7 @@ impl Pretty for Sort {
             Sort::Bool => w!("bool"),
             Sort::Int => w!("int"),
             Sort::Real => w!("real"),
-            Sort::BitVec(w) => w!("bitvec({})", ^w),
+            Sort::BitVec(size) => w!("bitvec({:?})", size),
             Sort::Loc => w!("loc"),
             Sort::Var(n) => w!("@{}", ^n.index),
             Sort::Func(sort) => w!("{:?}", sort),
@@ -114,6 +114,27 @@ impl Pretty for Sort {
             Sort::Param(param_ty) => w!("{}::sort", ^param_ty),
             Sort::Infer(svar) => w!("{:?}", svar),
             Sort::Err => w!("err"),
+        }
+    }
+}
+
+impl Pretty for SortArg {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(cx, f);
+        match self {
+            SortArg::Sort(sort) => w!("{:?}", sort),
+            SortArg::BvSize(size) => w!("{:?}", size),
+        }
+    }
+}
+
+impl Pretty for BvSize {
+    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(cx, f);
+        match self {
+            BvSize::Fixed(size) => w!("{}", ^size),
+            BvSize::Param(param) => w!("{:?}", ^param),
+            BvSize::Infer(size_vid) => w!("{:?}", ^size_vid),
         }
     }
 }
@@ -141,10 +162,10 @@ impl Pretty for FuncSort {
 impl Pretty for PolyFuncSort {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
-        if self.params == 0 {
+        if self.params.is_empty() {
             w!("{:?}", &self.fsort)
         } else {
-            w!("for<{}> {:?}", ^self.params, &self.fsort)
+            w!("for<{}> {:?}", ^self.params.len(), &self.fsort)
         }
     }
 }
@@ -467,4 +488,5 @@ impl_debug_with_default_cx!(
     SortCtor,
     SubsetTy,
     Const,
+    BvSize,
 );

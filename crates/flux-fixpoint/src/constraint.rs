@@ -48,7 +48,8 @@ pub enum Sort<T: Types> {
     Int,
     Bool,
     Real,
-    BitVec(usize),
+    BitVec(Box<Sort<T>>),
+    BvSize(usize),
     Var(usize),
     Func(Box<[Self; 2]>),
     Abs(usize, Box<Self>),
@@ -280,7 +281,8 @@ impl<T: Types> fmt::Display for Sort<T> {
             Sort::Bool => write!(f, "bool"),
             Sort::Real => write!(f, "real"),
             Sort::Var(i) => write!(f, "@({i})"),
-            Sort::BitVec(size) => write!(f, "(BitVec Size{})", size),
+            Sort::BitVec(size) => write!(f, "(BitVec {size})"),
+            Sort::BvSize(size) => write!(f, "Size{size}"),
             Sort::Abs(..) => {
                 let (params, sort) = self.peel_out_abs();
                 fmt_func(params, sort, f)

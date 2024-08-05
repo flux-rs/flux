@@ -18,7 +18,7 @@ use super::{
     CoroutineObligPredicate, Ensures, ExistentialPredicate, ExistentialTraitRef, Expr, ExprKind,
     FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg, Invariant, KVar, Lambda, Name,
     Opaqueness, OutlivesPredicate, PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReBound,
-    Region, Sort, SubsetTy, TraitPredicate, TraitRef, Ty, TyKind,
+    Region, Sort, SortArg, SubsetTy, TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -572,6 +572,15 @@ impl TypeFoldable for FnTraitPredicate {
     }
 }
 
+impl TypeVisitable for SortArg {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        match self {
+            SortArg::Sort(sort) => sort.visit_with(visitor),
+            SortArg::BvSize(_) => ControlFlow::Continue(()),
+        }
+    }
+}
+
 impl TypeVisitable for Sort {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         visitor.visit_sort(self)
@@ -581,7 +590,8 @@ impl TypeVisitable for Sort {
 impl TypeSuperVisitable for Sort {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
-            Sort::Tuple(sorts) | Sort::App(_, sorts) => sorts.visit_with(visitor),
+            Sort::Tuple(sorts) => sorts.visit_with(visitor),
+            Sort::App(_, args) => args.visit_with(visitor),
             Sort::Func(fsort) => fsort.visit_with(visitor),
             Sort::Int
             | Sort::Bool
@@ -592,6 +602,15 @@ impl TypeSuperVisitable for Sort {
             | Sort::Var(_)
             | Sort::Infer(_)
             | Sort::Err => ControlFlow::Continue(()),
+        }
+    }
+}
+
+impl TypeFoldable for SortArg {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        match self {
+            SortArg::Sort(sort) => Ok(SortArg::Sort(sort.try_fold_with(folder)?)),
+            SortArg::BvSize(size) => Ok(SortArg::BvSize(*size)),
         }
     }
 }
@@ -630,7 +649,7 @@ impl TypeVisitable for PolyFuncSort {
 
 impl TypeFoldable for PolyFuncSort {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(PolyFuncSort { params: self.params, fsort: self.fsort.try_fold_with(folder)? })
+        Ok(PolyFuncSort { params: self.params.clone(), fsort: self.fsort.try_fold_with(folder)? })
     }
 }
 
