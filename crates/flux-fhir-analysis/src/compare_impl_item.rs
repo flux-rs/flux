@@ -7,12 +7,6 @@ use rustc_span::{
 };
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-// fn impl_span(genv: &GlobalEnv, impl_id: LocalDefId) -> Span {
-//     let hir_id = genv.tcx().local_def_id_to_hir_id(impl_id);
-//     let span = genv.tcx().hir().span(hir_id);
-//     span
-// }
-
 pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -> Result {
     let trait_id = genv.tcx().trait_id_of_impl(impl_id.to_def_id()).unwrap();
 
