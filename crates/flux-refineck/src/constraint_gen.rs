@@ -4,6 +4,7 @@ use flux_common::{bug, tracked_span_bug};
 use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
+    queries::QueryErr::InvalidAssocReft,
     rty::{
         self, evars::EVarSol, fold::TypeFoldable, AliasTy, BaseTy, Binder, CoroutineObligPredicate,
         ESpan, EVarGen, EarlyBinder, Ensures, Expr, ExprKind, FnOutput, GenericArg, HoleKind,
@@ -167,7 +168,15 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
                 |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
             )
-            .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)?;
+            .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams);
+
+        let fn_sig = match fn_sig {
+            Ok(fn_sig) => fn_sig,
+            Err(_err) => {
+                let err = InvalidAssocReft { span };
+                return Err(CheckerErrKind::Query(err));
+            }
+        };
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &refine_args)?

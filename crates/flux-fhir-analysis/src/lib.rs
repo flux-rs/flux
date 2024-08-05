@@ -194,7 +194,6 @@ fn assoc_refinement_def(
         .expect_item(impl_id)?
         .expect_impl()
         .find_assoc_reft(name);
-    // .unwrap_or_else(|| bug!("assoc reft `{name}` not found in impl `{impl_id:?}`"));
 
     if let Some(assoc_reft) = assoc_reft {
         let wfckresults = genv.check_wf(impl_id)?;

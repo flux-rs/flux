@@ -20,7 +20,6 @@ use flux_middle::{
     rty::{
         self,
         fold::TypeFoldable,
-        projections::get_impl_id_of_alias_reft_export_me,
         refining::{self, Refiner},
         AdtSortDef, ESpan, WfckResults, INNERMOST,
     },
@@ -41,7 +40,7 @@ use rustc_span::{
     symbol::{kw, Ident},
     ErrorGuaranteed, Span, Symbol, DUMMY_SP,
 };
-use rustc_trait_selection::{traits, traits::SelectionContext};
+use rustc_trait_selection::traits;
 use rustc_type_ir::DebruijnIndex;
 
 pub struct ConvCtxt<'a, 'genv, 'tcx> {
@@ -723,20 +722,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn check_alias_reft(&self, alias_reft: &rty::AliasReft, _span: Span) -> QueryResult {
-        if let Some(def_id) = self.wfckresults.owner.def_id() {
-            let body = self.genv.mir(def_id)?;
-            let mut selcx = SelectionContext::new(&body.infcx);
-            let _impl_def_id = get_impl_id_of_alias_reft_export_me(
-                &self.genv.tcx(),
-                def_id.to_def_id(),
-                &mut selcx,
-                &alias_reft,
-            )?;
-        }
-        Ok(())
-    }
-
     fn conv_alias_reft(
         &mut self,
         env: &mut Env,
@@ -753,11 +738,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let mut generic_args = vec![self_ty];
         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut generic_args)?;
 
-        // TODO: get_impl_id_of_alias_reft_EXPORTME HEREHEREHEREHEREHEREHEREHEREHEREHEREHERE
         let alias_reft =
             rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
-        let span = alias.path.span;
-        self.check_alias_reft(&alias_reft, span)?;
         Ok(alias_reft)
     }
 

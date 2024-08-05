@@ -157,7 +157,7 @@ fhir_analysis_definition_cycle =
     .label = {$msg}
 
 fhir_analysis_undefined_assoc_reft =
-    undefined associated refinement `{$name}`
+    associated refinement `{$name}` is not defined in this trait implementation
 
 # Conv errors
 

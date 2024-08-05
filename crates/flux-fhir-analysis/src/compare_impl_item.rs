@@ -146,7 +146,7 @@ pub(crate) mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_assoc_reft, code = E0999)]
+    #[diag(fhir_analysis_missing_assoc_reft, code = E0999)]
     pub struct MissingAssocReft {
         #[primary_span]
         span: Span,

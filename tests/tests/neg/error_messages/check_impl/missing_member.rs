@@ -5,7 +5,7 @@ pub trait MyTrait {
 }
 
 impl MyTrait for u32 {
-    //~^ ERROR associated refinement `f` is not a member of trait `MyTrait`
+    //~^ ERROR associated refinement `f` is not defined in implementation of trait `MyTrait`
     fn method(&self) -> i32 {
         10
     }
