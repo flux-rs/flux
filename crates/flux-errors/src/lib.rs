@@ -130,7 +130,7 @@ impl ErrorEmitter for FluxSession {
     }
 }
 
-/// Convience struct implementing [`ErrorEmitter`] and [`ErrorCollector`]
+/// Convenience struct implementing [`ErrorEmitter`] and [`ErrorCollector`]
 pub struct Errors<'sess> {
     sess: &'sess FluxSession,
     err: Cell<Option<ErrorGuaranteed>>,

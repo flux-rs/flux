@@ -789,7 +789,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
-            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args), operands) => {
+            Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _), operands) => {
                 let actuals = self.check_operands(rcx, env, stmt_span, operands)?;
                 let sig = genv
                     .variant_sig(*def_id, *variant_idx)
