@@ -306,7 +306,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
 
 struct ImplicitParamCollector<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
-    path_res_map: &'a UnordMap<surface::NodeId, fhir::Res>,
+    path_res_map: &'a UnordMap<surface::NodeId, fhir::PartialRes>,
     kind: ScopeKind,
     params: Vec<(Ident, fhir::ParamKind, NodeId)>,
 }
@@ -314,7 +314,7 @@ struct ImplicitParamCollector<'a, 'tcx> {
 impl<'a, 'tcx> ImplicitParamCollector<'a, 'tcx> {
     fn new(
         tcx: TyCtxt<'tcx>,
-        path_res_map: &'a UnordMap<surface::NodeId, fhir::Res>,
+        path_res_map: &'a UnordMap<surface::NodeId, fhir::PartialRes>,
         kind: ScopeKind,
     ) -> Self {
         Self { tcx, path_res_map, kind, params: vec![] }

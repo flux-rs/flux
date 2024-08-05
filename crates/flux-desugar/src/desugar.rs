@@ -281,10 +281,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         trait_ref: &surface::TraitRef,
     ) -> Result<fhir::PolyTraitRef<'genv>> {
-        Ok(fhir::PolyTraitRef {
-            bound_generic_params: &[],
-            trait_ref: self.desugar_path(&trait_ref.path)?,
-        })
+        let fhir::QPath::Resolved(None, path) = self.desugar_qpath(None, &trait_ref.path)? else {
+            span_bug!(trait_ref.path.span, "desugar_alias_reft: unexpected qpath")
+        };
+        Ok(fhir::PolyTraitRef { bound_generic_params: &[], trait_ref: path })
     }
 
     fn desugar_refined_by(
@@ -1043,7 +1043,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
     fn desugar_bty(&mut self, bty: &surface::BaseTy) -> Result<fhir::BaseTy<'genv>> {
         match &bty.kind {
             surface::BaseTyKind::Path(qself, path) => {
-                self.desugar_path_to_bty(qself.as_deref(), path)
+                let qpath = self.desugar_qpath(qself.as_deref(), path)?;
+                Ok(fhir::BaseTy::from(qpath))
             }
             surface::BaseTyKind::Slice(ty) => {
                 let ty = self.desugar_ty(ty)?;
@@ -1058,32 +1059,86 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         qself: Option<&surface::Ty>,
         path: &surface::Path,
     ) -> Result<fhir::BaseTy<'genv>> {
+        let qpath = self.desugar_qpath(qself.as_deref(), path)?;
+        Ok(fhir::BaseTy::from(qpath))
+    }
+
+    fn desugar_qpath(
+        &mut self,
+        qself: Option<&surface::Ty>,
+        path: &surface::Path,
+    ) -> Result<fhir::QPath<'genv>> {
         let qself = qself
             .map(|ty| {
                 let ty = self.desugar_ty(ty)?;
                 Ok(self.genv().alloc(ty))
             })
             .transpose()?;
-        Ok(fhir::BaseTy::from(fhir::QPath::Resolved(qself, self.desugar_path(path)?)))
-    }
+        let partial_res = self.resolver_output().path_res_map[&path.last().node_id];
 
-    fn desugar_path(&mut self, path: &surface::Path) -> Result<fhir::Path<'genv>> {
-        let segments = try_alloc_slice!(self.genv(), &path.segments, |segment| {
-            self.desugar_path_segment(segment)
-        })?;
-        let res = segments.last().unwrap().res;
-        let refine =
-            try_alloc_slice!(self.genv(), &path.refine, |arg| self.desugar_refine_arg(arg))?;
-        Ok(fhir::Path { res, segments, refine, span: path.span })
+        let unresolved_segments = partial_res.unresolved_segments();
+
+        let proj_start = path.segments.len() - unresolved_segments;
+        let fhir_path = fhir::Path {
+            res: partial_res.base_res(),
+            segments: try_alloc_slice!(self.genv(), &path.segments[..proj_start], |segment| {
+                self.desugar_path_segment(segment)
+            })?,
+            refine: try_alloc_slice!(self.genv(), &path.refine, |arg| {
+                self.desugar_refine_arg(arg)
+            })?,
+            span: path.span,
+        };
+
+        // Simple case, either no projections, or only fully-qualified.
+        // E.g., `std::mem::size_of` or `<I as Iterator>::Item`.
+        if unresolved_segments == 0 {
+            return Ok(fhir::QPath::Resolved(qself, fhir_path));
+        }
+
+        // Create the innermost type that we're projecting from.
+        let mut ty = if fhir_path.segments.is_empty() {
+            // If the base path is empty that means there exists a
+            // syntactical `Self`, e.g., `&i32` in `<&i32>::clone`.
+            qself.expect("missing QSelf for <T>::...")
+        } else {
+            // Otherwise, the base path is an implicit `Self` type path,
+            // e.g., `Vec` in `Vec::new` or `<I as Iterator>::Item` in
+            // `<I as Iterator>::Item::default`.
+            self.genv()
+                .alloc(self.ty_path(fhir::QPath::Resolved(qself, fhir_path)))
+        };
+
+        for (i, segment) in path.segments.iter().enumerate().skip(proj_start) {
+            let hir_segment = self.desugar_path_segment(segment)?;
+            let qpath = fhir::QPath::TypeRelative(ty, self.genv().alloc(hir_segment));
+
+            if i == path.segments.len() - 1 {
+                return Ok(qpath);
+            }
+
+            ty = self.genv().alloc(self.ty_path(qpath));
+        }
+
+        span_bug!(
+            path.span,
+            "desugar_qpath: no final extension segment in {}..{}",
+            proj_start,
+            path.segments.len()
+        );
     }
 
     fn desugar_path_segment(
         &mut self,
         segment: &surface::PathSegment,
     ) -> Result<fhir::PathSegment<'genv>> {
-        let res = self.resolver_output().path_res_map[&segment.node_id];
+        let res = self.resolver_output().path_res_map[&segment.node_id].expect_full_res();
         let (args, bindings) = self.desugar_generic_args(res, &segment.args)?;
         Ok(fhir::PathSegment { ident: segment.ident, res, args, bindings })
+    }
+
+    fn ty_path(&self, qpath: fhir::QPath<'genv>) -> fhir::Ty<'genv> {
+        fhir::Ty { span: qpath.span(), kind: fhir::TyKind::BaseTy(fhir::BaseTy::from(qpath)) }
     }
 
     fn mk_lft_hole(&self) -> fhir::Lifetime {
@@ -1159,7 +1214,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         alias_reft: &surface::AliasReft,
     ) -> Result<fhir::AliasReft<'genv>> {
         let self_ty = self.desugar_ty(&alias_reft.qself)?;
-        let path = self.desugar_path(&alias_reft.path)?;
+        let fhir::QPath::Resolved(None, path) = self.desugar_qpath(None, &alias_reft.path)? else {
+            span_bug!(alias_reft.path.span, "desugar_alias_reft: unexpected qpath")
+        };
         if let Res::Def(DefKind::Trait, _) = path.res {
             Ok(fhir::AliasReft {
                 qself: self.genv().alloc(self_ty),

@@ -379,7 +379,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 return None;
             }
 
-            self.output.path_res_map.insert(segment.node_id, res);
+            self.output
+                .path_res_map
+                .insert(segment.node_id, fhir::PartialRes::new(res));
         }
         Some(())
     }
@@ -527,7 +529,10 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
 
     fn try_resolve_with_table(&mut self, path: &surface::Path) -> bool {
         self.table.visit_path(path, |segment_id, res| {
-            self.resolver.output.path_res_map.insert(segment_id, res);
+            self.resolver
+                .output
+                .path_res_map
+                .insert(segment_id, fhir::PartialRes::new(res));
         })
     }
 }

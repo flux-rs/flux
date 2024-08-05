@@ -691,6 +691,42 @@ pub enum Res {
     Err,
 }
 
+/// See [`rustc_hir::def::PartialRes`]
+#[derive(Copy, Clone, Debug)]
+pub struct PartialRes {
+    base_res: Res,
+    unresolved_segments: usize,
+}
+
+impl PartialRes {
+    pub fn new(base_res: Res) -> Self {
+        Self { base_res, unresolved_segments: 0 }
+    }
+
+    #[inline]
+    pub fn base_res(&self) -> Res {
+        self.base_res
+    }
+
+    pub fn unresolved_segments(&self) -> usize {
+        self.unresolved_segments
+    }
+
+    #[inline]
+    pub fn full_res(&self) -> Option<Res> {
+        (self.unresolved_segments == 0).then_some(self.base_res)
+    }
+
+    #[inline]
+    pub fn expect_full_res(&self) -> Res {
+        self.full_res().unwrap_or_else(|| bug!("expected full res"))
+    }
+
+    pub fn is_box(&self, tcx: TyCtxt) -> bool {
+        self.full_res().map_or(false, |res| res.is_box(tcx))
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct RefineParam<'fhir> {
     pub id: ParamId,
