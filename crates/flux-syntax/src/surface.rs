@@ -576,11 +576,6 @@ impl<T, P> Punctuated<T, P> {
     /// Appends a syntax tree node onto the end of this punctuated sequence. The
     /// sequence must already have a trailing punctuation, or be empty.
     ///
-    /// Use [`push`] instead if the punctuated sequence may or may not already
-    /// have trailing punctuation.
-    ///
-    /// [`push`]: Punctuated::push
-    ///
     /// # Panics
     ///
     /// Panics if the sequence is nonempty and does not already have a trailing

@@ -1059,7 +1059,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         qself: Option<&surface::Ty>,
         path: &surface::Path,
     ) -> Result<fhir::BaseTy<'genv>> {
-        let qpath = self.desugar_qpath(qself.as_deref(), path)?;
+        let qpath = self.desugar_qpath(qself, path)?;
         Ok(fhir::BaseTy::from(qpath))
     }
 
