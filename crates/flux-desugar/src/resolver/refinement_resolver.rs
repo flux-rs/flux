@@ -15,7 +15,11 @@ use rustc_data_structures::{
     unord::UnordMap,
 };
 use rustc_hash::FxHashMap;
-use rustc_hir::{self as hir, def::DefKind, OwnerId};
+use rustc_hir::{
+    self as hir,
+    def::{DefKind, Namespace::TypeNS},
+    OwnerId,
+};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{sym, symbol::kw, ErrorGuaranteed, Symbol};
 
@@ -613,7 +617,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         } else if let Some(hir::def::Res::Def(
             DefKind::Struct | DefKind::Enum | DefKind::TyAlias,
             def_id,
-        )) = self.resolver.resolve_ident(segment)
+        )) = self.resolver.resolve_ident_with_ribs(segment, TypeNS)
         {
             fhir::SortRes::Adt(def_id)
         } else {
