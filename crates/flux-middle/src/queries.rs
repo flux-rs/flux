@@ -56,11 +56,11 @@ pub type QueryResult<T = ()> = Result<T, QueryErr>;
 ///
 /// Both [`QueryErr`] and [`QueryErrAt`] implement [`Diagnostic`]. The implementation for [`QueryErr`]
 /// reports the error at the definition site, while the implementation for [`QueryErrAt`] reports it at
-/// the (attached) use-site span. This allows to play a bit lose because we don't need to attach a span
-/// every time an error is raised, but this means we may forget to attach spans at some places. We
-/// should consider not implementing [`Diagnostic`] for [`QueryErr`] such that we always make the
-/// distinction between use-site and def-site explicit, e.g., we could have methods `QueryErr::at_use_site`
-/// and `QueryErr::at_def_site` returning types with different implementations of [`Diagnostic`].
+/// the (attached) use-site span. This allows to play a bit lose because we can emit an error without
+/// attatching an span, but this means we may forget to attach spans at some places. We should consider
+/// not implementing [`Diagnostic`] for [`QueryErr`] such that we always make the distinction between
+/// use-site and def-site explicit, e.g., we could have methods `QueryErr::at_use_site` and
+/// `QueryErr::at_def_site` returning types with different implementations of [`Diagnostic`].
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub enum QueryErr {
     Unsupported { def_id: DefId, err: UnsupportedErr },
