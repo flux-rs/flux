@@ -27,6 +27,13 @@ impl BigInt {
     pub const ZERO: BigInt = BigInt { sign: Sign::NonNegative, val: 0 };
     pub const ONE: BigInt = BigInt { sign: Sign::NonNegative, val: 1 };
 
+    pub fn is_negative(&self) -> bool {
+        self.sign == Sign::Negative
+    }
+
+    pub fn val(&self) -> u128 {
+        self.val
+    }
     /// Given the bit width of a signed integer type, produces the minimum integer for
     /// that type, i.e., -2^(bit_width - 1).
     pub fn int_min(bit_width: u32) -> BigInt {

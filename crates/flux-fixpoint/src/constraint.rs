@@ -533,6 +533,7 @@ impl fmt::Debug for BinOp {
 impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Constant::Int(n) if n.is_negative() => write!(f, "(- {})", n.val()),
             Constant::Int(n) => write!(f, "{n}"),
             Constant::Real(r) => write!(f, "{r}.0"),
             Constant::Bool(b) => write!(f, "{b}"),
