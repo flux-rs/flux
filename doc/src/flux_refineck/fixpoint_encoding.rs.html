@@ -1264,17 +1264,6 @@
 <a href="#1264" id="1264">1264</a>
 <a href="#1265" id="1265">1265</a>
 <a href="#1266" id="1266">1266</a>
-<a href="#1267" id="1267">1267</a>
-<a href="#1268" id="1268">1268</a>
-<a href="#1269" id="1269">1269</a>
-<a href="#1270" id="1270">1270</a>
-<a href="#1271" id="1271">1271</a>
-<a href="#1272" id="1272">1272</a>
-<a href="#1273" id="1273">1273</a>
-<a href="#1274" id="1274">1274</a>
-<a href="#1275" id="1275">1275</a>
-<a href="#1276" id="1276">1276</a>
-<a href="#1277" id="1277">1277</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter, ops::ControlFlow};
@@ -2187,7 +2176,12 @@
                 ]))
             }
             rty::ExprKind::Alias(alias_pred, args) =&gt; {
-                <span class="kw">let </span>func = <span class="self">self</span>.register_const_for_alias_reft(alias_pred, args.len());
+                <span class="kw">let </span>sort = <span class="self">self
+                    </span>.genv
+                    .sort_of_assoc_reft(alias_pred.trait_id, alias_pred.name)<span class="question-mark">?
+                    </span>.unwrap();
+                <span class="kw">let </span>sort = sort.instantiate_identity(<span class="kw-2">&amp;</span>[]);
+                <span class="kw">let </span>func = <span class="self">self</span>.register_const_for_alias_reft(alias_pred, sort);
                 <span class="kw">let </span>args = args
                     .iter()
                     .map(|expr| <span class="self">self</span>.expr_to_fixpoint(expr, env))
@@ -2477,7 +2471,7 @@
     </span><span class="kw">fn </span>register_const_for_alias_reft(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         alias_reft: <span class="kw-2">&amp;</span>rty::AliasReft,
-        arity: usize,
+        fsort: rty::FuncSort,
     ) -&gt; fixpoint::GlobalVar {
         <span class="kw">let </span>key = Key::Alias(alias_reft.to_rustc_trait_ref(<span class="self">self</span>.genv.tcx()));
         <span class="self">self</span>.const_map
@@ -2485,7 +2479,7 @@
             .or_insert_with(|| {
                 <span class="kw">let </span>orig = <span class="macro">format!</span>(<span class="string">"{alias_reft:?}"</span>);
                 <span class="kw">let </span>name = <span class="self">self</span>.global_var_gen.fresh();
-                <span class="kw">let </span>fsort = alias_reft_sort(arity);
+                <span class="kw">let </span>fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 <span class="kw">let </span>sort = func_sort_to_fixpoint(<span class="kw-2">&amp;</span>fsort);
                 ConstInfo { name, orig, sort, val: <span class="prelude-val">None </span>}
             })
@@ -2524,22 +2518,6 @@
 
         <span class="prelude-val">Ok</span>(fixpoint::Qualifier { name, args, body })
     }
-}
-
-<span class="doccomment">/// This function returns a very polymorphic sort for the UIF encoding an associated refinement.
-/// This is ok, as well-formedness in previous phases will ensure the function is always
-/// instantiated with the same sorts. However, the proper thing is to compute the *actual*
-/// mono-sort at which the associated refinement is being used see [`GlobalEnv::sort_of_alias_reft`]
-/// but that is a bit tedious as its done using the `fhir` (not `rty`). Alternatively, we might
-/// stash the computed mono-sort *in* the [`rty::AliasReft`] during `conv`?
-</span><span class="kw">fn </span>alias_reft_sort(arity: usize) -&gt; rty::PolyFuncSort {
-    <span class="kw">let </span><span class="kw-2">mut </span>sorts = <span class="macro">vec!</span>[];
-    <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..arity {
-        sorts.push(rty::Sort::Var(rty::ParamSort::from(i)));
-    }
-    sorts.push(rty::Sort::Bool);
-    <span class="kw">let </span>params = iter::repeat(rty::SortParamKind::Sort).take(arity).collect();
-    rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
 }
 
 <span class="kw">fn </span>mk_implies(assumption: fixpoint::Pred, cstr: fixpoint::Constraint) -&gt; fixpoint::Constraint {

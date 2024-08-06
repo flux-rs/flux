@@ -703,6 +703,15 @@
 <a href="#703" id="703">703</a>
 <a href="#704" id="704">704</a>
 <a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -747,6 +756,7 @@
     Unsupported { def_id: DefId, err: UnsupportedErr },
     Ignored { def_id: DefId },
     InvalidGenericArg { def_id: DefId },
+    InvalidAssocReft { span: Span },
     Emitted(ErrorGuaranteed),
 }
 
@@ -1359,6 +1369,12 @@
                     diag.downgrade_to_delayed_bug();
                     diag
                 }
+                QueryErr::InvalidAssocReft { span } =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>diag =
+                        dcx.struct_span_err(span, fluent::middle_query_invalid_assoc_reft);
+                    diag.code(E0999);
+                    diag
+                }
             }
         })
     }
@@ -1391,7 +1407,9 @@
                     diag.span_label(<span class="self">self</span>.span, fluent::_subdiag::label);
                     diag
                 }
-                QueryErr::InvalidGenericArg { .. } | QueryErr::Emitted(<span class="kw">_</span>) =&gt; {
+                QueryErr::InvalidGenericArg { .. }
+                | QueryErr::Emitted(<span class="kw">_</span>)
+                | QueryErr::InvalidAssocReft { .. } =&gt; {
                     <span class="kw">let </span><span class="kw-2">mut </span>diag = <span class="self">self</span>.err.into_diag(dcx, level);
                     diag.span(<span class="self">self</span>.span);
                     diag

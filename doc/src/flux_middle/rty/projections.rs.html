@@ -367,6 +367,10 @@
 <a href="#367" id="367">367</a>
 <a href="#368" id="368">368</a>
 <a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="attr">#[allow(unused_imports)]
@@ -411,12 +415,30 @@
         <span class="prelude-val">Ok</span>(Normalizer { genv, selcx, def_id: callsite_def_id, param_env })
     }
 
+    <span class="kw">fn </span>get_impl_id_of_alias_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, alias_reft: <span class="kw-2">&amp;</span>AliasReft) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;DefId&gt;&gt; {
+        <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
+        <span class="kw">let </span>def_id = <span class="self">self</span>.def_id;
+        <span class="kw">let </span>selcx = <span class="kw-2">&amp;mut </span><span class="self">self</span>.selcx;
+
+        <span class="kw">let </span>trait_pred = Obligation::new(
+            tcx,
+            ObligationCause::dummy(),
+            tcx.param_env(def_id),
+            alias_reft.to_rustc_trait_ref(tcx),
+        );
+        <span class="kw">match </span>selcx.select(<span class="kw-2">&amp;</span>trait_pred) {
+            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(ImplSource::UserDefined(impl_data))) =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(impl_data.impl_def_id)),
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
+            <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">bug!</span>(<span class="string">"error selecting {trait_pred:?}: {e:?}"</span>),
+        }
+    }
+
     <span class="kw">fn </span>normalize_alias_reft(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        obligation: <span class="kw-2">&amp;</span>AliasReft,
+        alias_reft: <span class="kw-2">&amp;</span>AliasReft,
         refine_args: <span class="kw-2">&amp;</span>RefineArgs,
     ) -&gt; QueryResult&lt;Expr&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(impl_def_id) = <span class="self">self</span>.impl_id_of_alias_reft(obligation)<span class="question-mark">? </span>{
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(impl_def_id) = <span class="self">self</span>.get_impl_id_of_alias_reft(alias_reft)<span class="question-mark">? </span>{
             <span class="kw">let </span>impl_trait_ref = <span class="self">self
                 </span>.genv
                 .impl_trait_ref(impl_def_id)<span class="question-mark">?
@@ -425,7 +447,7 @@
             <span class="kw">let </span>generics = <span class="self">self</span>.tcx().generics_of(impl_def_id);
 
             <span class="kw">let </span><span class="kw-2">mut </span>subst = TVarSubst::new(generics);
-            <span class="kw">for </span>(a, b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>impl_trait_ref.args, <span class="kw-2">&amp;</span>obligation.args) {
+            <span class="kw">for </span>(a, b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>impl_trait_ref.args, <span class="kw-2">&amp;</span>alias_reft.args) {
                 subst.generic_args(a, b);
             }
             <span class="kw">let </span>args = subst.finish(<span class="self">self</span>.tcx(), generics);
@@ -434,12 +456,12 @@
 
             <span class="kw">let </span>pred = <span class="self">self
                 </span>.genv
-                .assoc_refinement_def(impl_def_id, obligation.name)<span class="question-mark">?
+                .assoc_refinement_def(impl_def_id, alias_reft.name)<span class="question-mark">?
                 </span>.instantiate(tcx, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[]);
 
             pred.apply(refine_args).try_fold_with(<span class="self">self</span>)
         } <span class="kw">else </span>{
-            <span class="prelude-val">Ok</span>(Expr::alias(obligation.clone(), refine_args.clone()))
+            <span class="prelude-val">Ok</span>(Expr::alias(alias_reft.clone(), refine_args.clone()))
         }
     }
 
@@ -541,20 +563,6 @@
             );
         }
         <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>impl_id_of_alias_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, alias: <span class="kw-2">&amp;</span>AliasReft) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;DefId&gt;&gt; {
-        <span class="kw">let </span>trait_pred = Obligation::new(
-            <span class="self">self</span>.tcx(),
-            ObligationCause::dummy(),
-            <span class="self">self</span>.rustc_param_env(),
-            alias.to_rustc_trait_ref(<span class="self">self</span>.tcx()),
-        );
-        <span class="kw">match </span><span class="self">self</span>.selcx.select(<span class="kw-2">&amp;</span>trait_pred) {
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(ImplSource::UserDefined(impl_data))) =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(impl_data.impl_def_id)),
-            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
-            <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">bug!</span>(<span class="string">"error selecting {trait_pred:?}: {e:?}"</span>),
-        }
     }
 
     <span class="kw">fn </span>assemble_candidates_from_impls(

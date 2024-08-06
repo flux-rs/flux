@@ -1450,6 +1450,15 @@
 <a href="#1450" id="1450">1450</a>
 <a href="#1451" id="1451">1451</a>
 <a href="#1452" id="1452">1452</a>
+<a href="#1453" id="1453">1453</a>
+<a href="#1454" id="1454">1454</a>
+<a href="#1455" id="1455">1455</a>
+<a href="#1456" id="1456">1456</a>
+<a href="#1457" id="1457">1457</a>
+<a href="#1458" id="1458">1458</a>
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -2017,6 +2026,15 @@
 </span><span class="kw">pub enum </span>FluxOwnerId {
     Flux(Symbol),
     Rust(OwnerId),
+}
+
+<span class="kw">impl </span>FluxOwnerId {
+    <span class="kw">pub fn </span>def_id(<span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;LocalDefId&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            FluxOwnerId::Flux(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+            FluxOwnerId::Rust(owner_id) =&gt; <span class="prelude-val">Some</span>(owner_id.def_id),
+        }
+    }
 }
 
 <span class="doccomment">/// A unique identifier for a node in the AST. Like [`HirId`] it is composed of an `owner` and a

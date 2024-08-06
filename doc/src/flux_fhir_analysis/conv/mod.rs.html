@@ -1769,6 +1769,8 @@
 <a href="#1769" id="1769">1769</a>
 <a href="#1770" id="1770">1770</a>
 <a href="#1771" id="1771">1771</a>
+<a href="#1772" id="1772">1772</a>
+<a href="#1773" id="1773">1773</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2509,7 +2511,9 @@
         <span class="kw">let </span><span class="kw-2">mut </span>generic_args = <span class="macro">vec!</span>[self_ty];
         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment.args, <span class="kw-2">&amp;mut </span>generic_args)<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) })
+        <span class="kw">let </span>alias_reft =
+            rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
+        <span class="prelude-val">Ok</span>(alias_reft)
     }
 
     <span class="kw">fn </span>conv_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, ty: <span class="kw-2">&amp;</span>fhir::Ty) -&gt; QueryResult&lt;rty::Ty&gt; {

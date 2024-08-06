@@ -126,13 +126,41 @@
 <a href="#126" id="126">126</a>
 <a href="#127" id="127">127</a>
 <a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_middle::{global_env::GlobalEnv, pretty};
+<span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_span::{
     def_id::{DefId, LocalDefId},
     ErrorGuaranteed, Symbol,
 };
-
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
 <span class="kw">pub fn </span>check_impl_against_trait(genv: GlobalEnv, impl_id: LocalDefId) -&gt; <span class="prelude-ty">Result </span>{
@@ -140,6 +168,19 @@
 
     <span class="kw">let </span>impl_assoc_refts = genv.assoc_refinements_of(impl_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
     <span class="kw">let </span>trait_assoc_refts = genv.assoc_refinements_of(trait_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+    <span class="kw">let </span>impl_names: FxHashSet&lt;<span class="kw">_</span>&gt; = impl_assoc_refts.items.iter().map(|x| x.name).collect();
+
+    <span class="kw">for </span>trait_assoc_reft <span class="kw">in </span><span class="kw-2">&amp;</span>trait_assoc_refts.items {
+        <span class="kw">let </span>name = trait_assoc_reft.name;
+        <span class="kw">if </span>!impl_names.contains(<span class="kw-2">&amp;</span>name) {
+            <span class="kw">let </span>span = genv.tcx().def_span(impl_id);
+            <span class="kw">return </span><span class="prelude-val">Err</span>(genv.sess().emit_err(errors::MissingAssocReft::new(
+                span,
+                name,
+                pretty::def_id_to_string(trait_id),
+            )));
+        }
+    }
 
     <span class="kw">for </span>impl_assoc_reft <span class="kw">in </span><span class="kw-2">&amp;</span>impl_assoc_refts.items {
         <span class="kw">let </span>name = impl_assoc_reft.name;
@@ -249,7 +290,22 @@
     }
 
     <span class="kw">impl </span>InvalidAssocReft {
-        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(span: Span, name: Symbol, trait_: String) -&gt; InvalidAssocReft {
+        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(span: Span, name: Symbol, trait_: String) -&gt; <span class="self">Self </span>{
+            <span class="self">Self </span>{ span, trait_, name }
+        }
+    }
+
+    <span class="attr">#[derive(Diagnostic)]
+    #[diag(fhir_analysis_missing_assoc_reft, code = E0999)]
+    </span><span class="kw">pub struct </span>MissingAssocReft {
+        <span class="attr">#[primary_span]
+        </span>span: Span,
+        trait_: String,
+        name: Symbol,
+    }
+
+    <span class="kw">impl </span>MissingAssocReft {
+        <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(span: Span, name: Symbol, trait_: String) -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{ span, trait_, name }
         }
     }

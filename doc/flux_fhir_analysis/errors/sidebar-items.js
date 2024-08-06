@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["DefinitionCycle"]};
+window.SIDEBAR_ITEMS = {"struct":["DefinitionCycle","UndefinedAssocReft"]};
