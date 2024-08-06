@@ -362,7 +362,7 @@ impl Specs {
 
 #[derive(Default)]
 pub struct ResolverOutput {
-    pub path_res_map: UnordMap<NodeId, fhir::Res>,
+    pub path_res_map: UnordMap<NodeId, fhir::PartialRes>,
     pub impl_trait_res_map: UnordMap<NodeId, hir::ItemId>,
     /// Resolution of explicit and implicit parameters. The [`fhir::ParamId`] is unique per item.
     /// The [`NodeId`] used as the key corresponds to the node introducing the parameter. When explicit,

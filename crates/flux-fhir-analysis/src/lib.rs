@@ -26,7 +26,7 @@ use flux_middle::{
     fhir::{self, FluxLocalDefId},
     global_env::GlobalEnv,
     intern::List,
-    queries::{Providers, QueryResult},
+    queries::{Providers, QueryErr, QueryResult},
     rty::{self, fold::TypeFoldable, refining::Refiner, WfckResults},
     rustc::lowering,
 };
@@ -189,10 +189,14 @@ fn assoc_refinement_def(
         .map()
         .expect_item(impl_id)?
         .expect_impl()
-        .find_assoc_reft(name)
-        .unwrap_or_else(|| bug!("assoc reft `{name}` not found in impl `{impl_id:?}`"));
-    let wfckresults = genv.check_wf(impl_id)?;
-    Ok(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?))
+        .find_assoc_reft(name);
+
+    if let Some(assoc_reft) = assoc_reft {
+        let wfckresults = genv.check_wf(impl_id)?;
+        Ok(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?))
+    } else {
+        Err(QueryErr::InvalidAssocReft { impl_id: impl_id.to_def_id(), name })?
+    }
 }
 
 fn sort_of_assoc_reft(

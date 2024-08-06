@@ -362,26 +362,31 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         Ok(())
     }
 
-    fn try_resolve_path(&mut self, path: &surface::Path) -> Option<()> {
+    fn try_resolve_path(&mut self, path: &surface::Path) -> Option<fhir::PartialRes> {
         let mut module: Option<DefId> = None;
-        for (i, segment) in path.segments.iter().enumerate() {
+        for (segment_idx, segment) in path.segments.iter().enumerate() {
             let res = if let Some(module) = module {
                 self.resolve_ident_in_module(module, segment.ident)?
             } else {
                 self.resolve_ident(segment.ident)?
             };
 
-            let res = Res::try_from(res).ok()?;
+            let base_res = Res::try_from(res).ok()?;
 
-            if let Res::Def(DefKind::Mod, module_id) = res {
+            self.output
+                .path_res_map
+                .insert(segment.node_id, fhir::PartialRes::new(base_res));
+
+            if let Res::Def(DefKind::Mod, module_id) = base_res {
                 module = Some(module_id);
-            } else if i < path.segments.len() - 1 {
-                return None;
+            } else {
+                return Some(fhir::PartialRes::with_unresolved_segments(
+                    base_res,
+                    path.segments.len() - segment_idx - 1,
+                ));
             }
-
-            self.output.path_res_map.insert(segment.node_id, res);
         }
-        Some(())
+        None
     }
 
     fn resolve_ident(&self, ident: Ident) -> Option<hir::def::Res> {
@@ -516,10 +521,14 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     fn resolve_path(&mut self, path: &surface::Path) {
         // This could insert stuff in `path_res_map` twice if table resolution fails midway. This
         // is ok because we will only proceed to further stages if the entire path is resolved.
-        if self.try_resolve_with_table(path) {
+        if let Some(partial_res) = self.resolver.try_resolve_path(path) {
+            self.resolver
+                .output
+                .path_res_map
+                .insert(path.node_id, partial_res);
             return;
         }
-        if self.resolver.try_resolve_path(path).is_some() {
+        if self.try_resolve_with_table(path) {
             return;
         }
         self.errors.emit(errors::UnresolvedPath::new(path));
@@ -527,7 +536,10 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
 
     fn try_resolve_with_table(&mut self, path: &surface::Path) -> bool {
         self.table.visit_path(path, |segment_id, res| {
-            self.resolver.output.path_res_map.insert(segment_id, res);
+            self.resolver
+                .output
+                .path_res_map
+                .insert(segment_id, fhir::PartialRes::new(res));
         })
     }
 }

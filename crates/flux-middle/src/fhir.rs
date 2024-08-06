@@ -567,6 +567,15 @@ pub enum FluxOwnerId {
     Rust(OwnerId),
 }
 
+impl FluxOwnerId {
+    pub fn def_id(self) -> Option<LocalDefId> {
+        match self {
+            FluxOwnerId::Flux(_) => None,
+            FluxOwnerId::Rust(owner_id) => Some(owner_id.def_id),
+        }
+    }
+}
+
 /// A unique identifier for a node in the AST. Like [`HirId`] it is composed of an `owner` and a
 /// `local_id`. We don't generate ids for all nodes, but only for those we need to remember
 /// information elaborated during well-formedness checking to later be used during conversion into
@@ -689,6 +698,46 @@ pub enum Res {
     SelfTyAlias { alias_to: DefId, is_trait_impl: bool },
     SelfTyParam { trait_: DefId },
     Err,
+}
+
+/// See [`rustc_hir::def::PartialRes`]
+#[derive(Copy, Clone, Debug)]
+pub struct PartialRes {
+    base_res: Res,
+    unresolved_segments: usize,
+}
+
+impl PartialRes {
+    pub fn new(base_res: Res) -> Self {
+        Self { base_res, unresolved_segments: 0 }
+    }
+
+    pub fn with_unresolved_segments(base_res: Res, unresolved_segments: usize) -> Self {
+        Self { base_res, unresolved_segments }
+    }
+
+    #[inline]
+    pub fn base_res(&self) -> Res {
+        self.base_res
+    }
+
+    pub fn unresolved_segments(&self) -> usize {
+        self.unresolved_segments
+    }
+
+    #[inline]
+    pub fn full_res(&self) -> Option<Res> {
+        (self.unresolved_segments == 0).then_some(self.base_res)
+    }
+
+    #[inline]
+    pub fn expect_full_res(&self) -> Res {
+        self.full_res().unwrap_or_else(|| bug!("expected full res"))
+    }
+
+    pub fn is_box(&self, tcx: TyCtxt) -> bool {
+        self.full_res().map_or(false, |res| res.is_box(tcx))
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

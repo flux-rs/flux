@@ -836,11 +836,9 @@ impl Ty {
     }
 
     /// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
-    /// to have a unique var identifying each position such that we can infer a [region substitution]
+    /// to have a unique var identifying each position such that we can infer a region substitution
     /// when assigning a type to a place. This way we can recover the regions in the original rust
     /// type. See `flux_refineck::type_env::TypeEnv::assign`
-    ///
-    /// [region substitution]: subst::RegionSubst
     pub fn replace_regions_with_unique_vars(&self) -> Ty {
         struct Replacer {
             next_rvid: u32,

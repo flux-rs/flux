@@ -428,6 +428,7 @@ pub enum BindKind {
 pub struct Path {
     pub segments: Vec<PathSegment>,
     pub refine: Vec<RefineArg>,
+    pub node_id: NodeId,
     pub span: Span,
 }
 
@@ -574,11 +575,6 @@ impl<T, P> Punctuated<T, P> {
 
     /// Appends a syntax tree node onto the end of this punctuated sequence. The
     /// sequence must already have a trailing punctuation, or be empty.
-    ///
-    /// Use [`push`] instead if the punctuated sequence may or may not already
-    /// have trailing punctuation.
-    ///
-    /// [`push`]: Punctuated::push
     ///
     /// # Panics
     ///
