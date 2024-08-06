@@ -193,19 +193,19 @@ impl<T: Types> Pred<T> {
 
 impl<T: Types> fmt::Display for DataDecl<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(data {} {} = [{}])", self.name, self.vars, self.ctors.iter().format(" "))
+        write!(f, "(datatype ({} {}) ({}))", self.name, self.vars, self.ctors.iter().format(" "))
     }
 }
 
 impl<T: Types> fmt::Display for DataCtor<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "| {} {{ {} }}", self.name, self.fields.iter().format(", "))
+        write!(f, "({} ({}))", self.name, self.fields.iter().format(" "))
     }
 }
 
 impl<T: Types> fmt::Display for DataField<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.name, self.sort)
+        write!(f, "({} {})", self.name, self.sort)
     }
 }
 
