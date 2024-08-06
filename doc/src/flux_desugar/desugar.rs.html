@@ -2505,7 +2505,7 @@
         qself: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>surface::Ty&gt;,
         path: <span class="kw-2">&amp;</span>surface::Path,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::BaseTy&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>qpath = <span class="self">self</span>.desugar_qpath(qself.as_deref(), path)<span class="question-mark">?</span>;
+        <span class="kw">let </span>qpath = <span class="self">self</span>.desugar_qpath(qself, path)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(fhir::BaseTy::from(qpath))
     }
 
