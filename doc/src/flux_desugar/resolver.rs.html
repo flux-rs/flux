@@ -790,12 +790,6 @@
 <a href="#790" id="790">790</a>
 <a href="#791" id="791">791</a>
 <a href="#792" id="792">792</a>
-<a href="#793" id="793">793</a>
-<a href="#794" id="794">794</a>
-<a href="#795" id="795">795</a>
-<a href="#796" id="796">796</a>
-<a href="#797" id="797">797</a>
-<a href="#798" id="798">798</a>
 </pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>std::collections::hash_map::Entry;
@@ -818,11 +812,7 @@
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, ParamName, PrimTy};
 <span class="kw">use </span>rustc_middle::{metadata::ModChild, ty::TyCtxt};
-<span class="kw">use </span>rustc_span::{
-    def_id::{CrateNum, DefId},
-    symbol::kw,
-    Span, Symbol,
-};
+<span class="kw">use </span>rustc_span::{def_id::DefId, symbol::kw, Span, Symbol};
 
 <span class="kw">use </span><span class="self">self</span>::refinement_resolver::RefinementResolver;
 
@@ -867,7 +857,6 @@
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     specs: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>Specs,
     output: ResolverOutput,
-    extern_crates: UnordMap&lt;Symbol, CrateNum&gt;,
     ribs: Vec&lt;Rib&gt;,
     func_decls: UnordMap&lt;Symbol, fhir::SpecFuncKind&gt;,
     sort_decls: UnordMap&lt;Symbol, fhir::SortDecl&gt;,
@@ -1026,22 +1015,11 @@
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, specs: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>Specs) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>extern_crates = UnordMap::default();
-        <span class="kw">for </span>cnum <span class="kw">in </span>genv.tcx().crates(()) {
-            <span class="kw">let </span>name = genv.tcx().crate_name(<span class="kw-2">*</span>cnum);
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_crate) = genv.tcx().extern_crate(cnum.as_def_id())
-                &amp;&amp; extern_crate.is_direct()
-            {
-                extern_crates.insert(name, <span class="kw-2">*</span>cnum);
-            }
-        }
-
         <span class="self">Self </span>{
             genv,
             output: ResolverOutput::default(),
             specs,
-            ribs: <span class="macro">vec!</span>[builtin_types()],
-            extern_crates,
+            ribs: <span class="macro">vec!</span>[builtin_types_rib(), extern_crates_rib(genv.tcx())],
             err: <span class="prelude-val">None</span>,
             func_decls: Default::default(),
             sort_decls: Default::default(),
@@ -1160,7 +1138,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>try_resolve_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::PartialRes&gt; {
+    <span class="kw">fn </span>resolve_path_with_ribs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::PartialRes&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>module: <span class="prelude-ty">Option</span>&lt;DefId&gt; = <span class="prelude-val">None</span>;
         <span class="kw">for </span>(segment_idx, segment) <span class="kw">in </span>path.segments.iter().enumerate() {
             <span class="kw">let </span>res = <span class="kw">if let </span><span class="prelude-val">Some</span>(module) = module {
@@ -1192,9 +1170,6 @@
             <span class="kw">if let </span><span class="prelude-val">Some</span>(res) = rib.type_ns_bindings.get(<span class="kw-2">&amp;</span>ident.name) {
                 <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="kw-2">*</span>res);
             }
-        }
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(cnum) = <span class="self">self</span>.extern_crates.get(<span class="kw-2">&amp;</span>ident.name) {
-            <span class="kw">return </span><span class="prelude-val">Some</span>(hir::def::Res::Def(DefKind::Mod, cnum.as_def_id()));
         }
         <span class="prelude-val">None
     </span>}
@@ -1317,9 +1292,9 @@
     }
 
     <span class="kw">fn </span>resolve_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) {
-        <span class="comment">// This could insert stuff in `path_res_map` twice if table resolution fails midway. This
-        // is ok because we will only proceed to further stages if the entire path is resolved.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(partial_res) = <span class="self">self</span>.resolver.try_resolve_path(path) {
+        <span class="comment">// This could insert stuff in `path_res_map` twice if resolve_path_with_ribs fails midway.
+        // This is ok because we will only proceed to further stages if the entire path is resolved.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(partial_res) = <span class="self">self</span>.resolver.resolve_path_with_ribs(path) {
             <span class="self">self</span>.resolver
                 .output
                 .path_res_map
@@ -1545,13 +1520,26 @@
     }
 }
 
-<span class="kw">fn </span>builtin_types() -&gt; Rib {
+<span class="kw">fn </span>builtin_types_rib() -&gt; Rib {
     Rib {
         type_ns_bindings: PrimTy::ALL
             .into_iter()
             .map(|pty| (pty.name(), hir::def::Res::PrimTy(pty)))
             .collect(),
     }
+}
+
+<span class="kw">fn </span>extern_crates_rib(tcx: TyCtxt) -&gt; Rib {
+    <span class="kw">let </span><span class="kw-2">mut </span>bindings = FxHashMap::default();
+    <span class="kw">for </span>cnum <span class="kw">in </span>tcx.crates(()) {
+        <span class="kw">let </span>name = tcx.crate_name(<span class="kw-2">*</span>cnum);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_crate) = tcx.extern_crate(cnum.as_def_id())
+            &amp;&amp; extern_crate.is_direct()
+        {
+            bindings.insert(name, hir::def::Res::Def(DefKind::Mod, cnum.as_def_id()));
+        }
+    }
+    Rib { type_ns_bindings: bindings }
 }
 
 <span class="kw">mod </span>errors {

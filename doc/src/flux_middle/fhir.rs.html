@@ -2763,9 +2763,9 @@
                     <span class="macro">write!</span>(f, <span class="string">". {ty:?}}}"</span>)
                 }
             }
-            TyKind::StrgRef(lft, loc, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"&amp;{lft:?} strg &lt;{loc:?}: {ty:?}&gt;"</span>),
-            TyKind::Ref(lft, mut_ty) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"&amp;{lft:?} {}{:?}"</span>, mut_ty.mutbl.prefix_str(), mut_ty.ty)
+            TyKind::StrgRef(_lft, loc, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"&amp;strg &lt;{loc:?}: {ty:?}&gt;"</span>),
+            TyKind::Ref(_lft, mut_ty) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">"&amp;{}{:?}"</span>, mut_ty.mutbl.prefix_str(), mut_ty.ty)
             }
             TyKind::Tuple(tys) =&gt; <span class="macro">write!</span>(f, <span class="string">"({:?})"</span>, tys.iter().format(<span class="string">", "</span>)),
             TyKind::Array(ty, len) =&gt; <span class="macro">write!</span>(f, <span class="string">"[{ty:?}; {len:?}]"</span>),
