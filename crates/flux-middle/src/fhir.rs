@@ -1262,9 +1262,9 @@ impl fmt::Debug for Ty<'_> {
                     write!(f, ". {ty:?}}}")
                 }
             }
-            TyKind::StrgRef(lft, loc, ty) => write!(f, "&{lft:?} strg <{loc:?}: {ty:?}>"),
-            TyKind::Ref(lft, mut_ty) => {
-                write!(f, "&{lft:?} {}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
+            TyKind::StrgRef(_lft, loc, ty) => write!(f, "&strg <{loc:?}: {ty:?}>"),
+            TyKind::Ref(_lft, mut_ty) => {
+                write!(f, "&{}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
             }
             TyKind::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
