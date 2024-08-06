@@ -300,13 +300,13 @@ impl<T: Types> fmt::Display for Sort<T> {
 }
 
 fn fmt_func<T: Types>(params: usize, sort: &Sort<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "(func({params}, [")?;
+    write!(f, "(func {params} (")?;
     let mut curr = sort;
     while let Sort::Func(box [input, output]) = curr {
-        write!(f, "{input};")?;
+        write!(f, "{input} ")?;
         curr = output;
     }
-    write!(f, "{curr}]))")
+    write!(f, ") {curr})")
 }
 
 impl<T: Types> fmt::Display for Pred<T> {
@@ -322,7 +322,7 @@ impl<T: Types> fmt::Display for Pred<T> {
             Pred::KVar(kvid, vars) => {
                 write!(f, "(${kvid} {})", vars.iter().format(" "))
             }
-            Pred::Expr(expr) => write!(f, "({expr})"),
+            Pred::Expr(expr) => write!(f, "{expr}"),
         }
     }
 }
@@ -360,31 +360,31 @@ impl<T: Types> fmt::Display for Expr<T> {
                 write!(f, "({func} {})", args.iter().map(FmtParens).format(" "),)
             }
             Expr::Neg(e) => {
-                write!(f, "-{}", FmtParens(e))
+                write!(f, "(- 0 {})", FmtParens(e))
             }
             Expr::BinaryOp(op, box [e1, e2]) => {
-                write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))
+                write!(f, "({op} {} {})", FmtParens(e1), FmtParens(e2))
             }
             Expr::IfThenElse(box [p, e1, e2]) => {
-                write!(f, "if {p} then {e1} else {e2}")
+                write!(f, "(if {} {} {})", FmtParens(p), FmtParens(e1), FmtParens(e2))
             }
             Expr::And(exprs) => {
-                write!(f, "{}", exprs.iter().map(FmtParens).format(" && "))
+                write!(f, "(and {})", exprs.iter().map(FmtParens).format(" "))
             }
             Expr::Or(exprs) => {
-                write!(f, "{}", exprs.iter().map(FmtParens).format(" || "))
+                write!(f, "(or {})", exprs.iter().map(FmtParens).format(" "))
             }
             Expr::Not(e) => {
-                write!(f, "~{}", FmtParens(e))
+                write!(f, "(not {})", FmtParens(e))
             }
             Expr::Imp(box [e1, e2]) => {
-                write!(f, "{} => {}", FmtParens(e1), FmtParens(e2))
+                write!(f, "(=> {} {})", FmtParens(e1), FmtParens(e2))
             }
             Expr::Iff(box [e1, e2]) => {
-                write!(f, "{} <=> {}", FmtParens(e1), FmtParens(e2))
+                write!(f, "(<=> {} {})", FmtParens(e1), FmtParens(e2))
             }
             Expr::Atom(rel, box [e1, e2]) => {
-                write!(f, "{} {rel} {}", FmtParens(e1), FmtParens(e2))
+                write!(f, "({rel} {} {})", FmtParens(e1), FmtParens(e2))
             }
         }
     }

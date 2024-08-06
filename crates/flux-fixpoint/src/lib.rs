@@ -166,7 +166,7 @@ impl<T: Types> Task<T> {
             .arg("-q")
             .arg("--stdin")
             .arg("--json")
-            .arg("--nosmthorn")
+            // .arg("--nosmthorn")
             .arg("--allowho")
             .arg("--allowhoqs")
             .stdin(Stdio::piped())
