@@ -37,12 +37,37 @@ type Cache<K, V> = RefCell<UnordMap<K, V>>;
 
 pub type QueryResult<T = ()> = Result<T, QueryErr>;
 
+/// An error produced by a query.
+///
+/// We make a distinction between errors reported at def-site and errors reported at use-site.
+///
+/// For most errors reported at the def-site of an item, it makes little sense to check the definition
+/// of other items that depend on it. For example, if a function signature is ill-formed, checking the
+/// body of another function that calls it, can produce confusing errors. We can even fail to produce
+/// a signature for a function in which case we can't even check its call sites. For these cases, we
+/// emit an error at the definition site and return a [`QueryErr::Emitted`]. When checking a dependant,
+/// we detect this and early return without reporting any errors at the use-site.
+///
+/// Other errors are better reported at the use-site. For example, if some code calls a function from
+/// an external crate that has unsupported features, we ought to report the error at the call-site,
+/// because it would be confusing to only mention the definition of the external function without
+/// showing which part of the code is calling it. To attach a span to error one can use [`QueryErr::at`]
+/// to get a [`QueryErrAt`].
+///
+/// Both [`QueryErr`] and [`QueryErrAt`] implement [`Diagnostic`]. The implementation for [`QueryErr`]
+/// reports the error at the definition site, while the implementation for [`QueryErrAt`] reports it at
+/// the (attached) use-site span. This allows to play a bit lose because we don't need to attach a span
+/// every time an error is raised, but this means we may forget to attach spans at some places. We
+/// should consider not implementing [`Diagnostic`] for [`QueryErr`] such that we always make the
+/// distinction between use-site and def-site explicit, e.g., we could have methods `QueryErr::at_use_site`
+/// and `QueryErr::at_def_site` returning types with different implementations of [`Diagnostic`].
+///
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub enum QueryErr {
     Unsupported { def_id: DefId, err: UnsupportedErr },
     Ignored { def_id: DefId },
     InvalidGenericArg { def_id: DefId },
-    InvalidAssocReft { span: Span },
+    InvalidAssocReft { impl_id: DefId, name: Symbol },
     Emitted(ErrorGuaranteed),
 }
 
@@ -52,6 +77,7 @@ impl QueryErr {
     }
 }
 
+/// See [`QueryErr`]
 pub struct QueryErrAt {
     span: Span,
     err: QueryErr,
@@ -655,9 +681,11 @@ impl<'a> Diagnostic<'a> for QueryErr {
                     diag.downgrade_to_delayed_bug();
                     diag
                 }
-                QueryErr::InvalidAssocReft { span } => {
+                QueryErr::InvalidAssocReft { impl_id, name } => {
+                    let def_span = tcx.def_span(impl_id);
                     let mut diag =
-                        dcx.struct_span_err(span, fluent::middle_query_invalid_assoc_reft);
+                        dcx.struct_span_err(def_span, fluent::middle_query_invalid_assoc_reft);
+                    diag.arg("name", name);
                     diag.code(E0999);
                     diag
                 }
@@ -693,9 +721,13 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                     diag.span_label(self.span, fluent::_subdiag::label);
                     diag
                 }
-                QueryErr::InvalidGenericArg { .. }
-                | QueryErr::Emitted(_)
-                | QueryErr::InvalidAssocReft { .. } => {
+                QueryErr::InvalidAssocReft { .. } => {
+                    let mut diag =
+                        dcx.struct_span_err(self.span, fluent::middle_query_invalid_assoc_reft_at);
+                    diag.code(E0999);
+                    diag
+                }
+                QueryErr::InvalidGenericArg { .. } | QueryErr::Emitted(_) => {
                     let mut diag = self.err.into_diag(dcx, level);
                     diag.span(self.span);
                     diag

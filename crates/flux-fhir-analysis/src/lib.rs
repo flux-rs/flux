@@ -26,7 +26,7 @@ use flux_middle::{
     fhir::{self, FluxLocalDefId},
     global_env::GlobalEnv,
     intern::List,
-    queries::{Providers, QueryResult},
+    queries::{Providers, QueryErr, QueryResult},
     rty::{self, fold::TypeFoldable, refining::Refiner, WfckResults},
     rustc::lowering,
 };
@@ -195,10 +195,7 @@ fn assoc_refinement_def(
         let wfckresults = genv.check_wf(impl_id)?;
         Ok(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, &wfckresults)?))
     } else {
-        let span = genv.tcx().def_span(impl_id);
-        Err(genv
-            .sess()
-            .emit_err(errors::UndefinedAssocReft::new(span, name)))?
+        Err(QueryErr::InvalidAssocReft { impl_id: impl_id.to_def_id(), name })?
     }
 }
 
@@ -477,20 +474,6 @@ mod errors {
             let names: Vec<String> = cycle.iter().map(|s| format!("`{s}`")).collect();
             let msg = format!("{} -> {}", names.join(" -> "), root);
             Self { span, msg }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(fhir_analysis_undefined_assoc_reft, code = E0999)]
-    pub struct UndefinedAssocReft {
-        #[primary_span]
-        span: Span,
-        name: Symbol,
-    }
-
-    impl UndefinedAssocReft {
-        pub(super) fn new(span: Span, name: Symbol) -> Self {
-            Self { span, name }
         }
     }
 }

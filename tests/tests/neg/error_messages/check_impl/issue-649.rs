@@ -9,7 +9,6 @@ impl MyTrait for Foo {}
 struct Bar;
 
 impl MyTrait for Bar {} //~ ERROR  associated refinement `eval` is not defined in implementation of trait `MyTrait`
-                        //~^ ERROR associated refinement `eval` is not defined in this trait implementation
 
 #[flux::sig(fn(x: i32) -> i32[<T as MyTrait>::eval(x)])]
 fn test01<T: MyTrait>(x: i32) -> i32 {
