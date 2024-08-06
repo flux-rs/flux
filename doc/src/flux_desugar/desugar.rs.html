@@ -1383,6 +1383,67 @@
 <a href="#1383" id="1383">1383</a>
 <a href="#1384" id="1384">1384</a>
 <a href="#1385" id="1385">1385</a>
+<a href="#1386" id="1386">1386</a>
+<a href="#1387" id="1387">1387</a>
+<a href="#1388" id="1388">1388</a>
+<a href="#1389" id="1389">1389</a>
+<a href="#1390" id="1390">1390</a>
+<a href="#1391" id="1391">1391</a>
+<a href="#1392" id="1392">1392</a>
+<a href="#1393" id="1393">1393</a>
+<a href="#1394" id="1394">1394</a>
+<a href="#1395" id="1395">1395</a>
+<a href="#1396" id="1396">1396</a>
+<a href="#1397" id="1397">1397</a>
+<a href="#1398" id="1398">1398</a>
+<a href="#1399" id="1399">1399</a>
+<a href="#1400" id="1400">1400</a>
+<a href="#1401" id="1401">1401</a>
+<a href="#1402" id="1402">1402</a>
+<a href="#1403" id="1403">1403</a>
+<a href="#1404" id="1404">1404</a>
+<a href="#1405" id="1405">1405</a>
+<a href="#1406" id="1406">1406</a>
+<a href="#1407" id="1407">1407</a>
+<a href="#1408" id="1408">1408</a>
+<a href="#1409" id="1409">1409</a>
+<a href="#1410" id="1410">1410</a>
+<a href="#1411" id="1411">1411</a>
+<a href="#1412" id="1412">1412</a>
+<a href="#1413" id="1413">1413</a>
+<a href="#1414" id="1414">1414</a>
+<a href="#1415" id="1415">1415</a>
+<a href="#1416" id="1416">1416</a>
+<a href="#1417" id="1417">1417</a>
+<a href="#1418" id="1418">1418</a>
+<a href="#1419" id="1419">1419</a>
+<a href="#1420" id="1420">1420</a>
+<a href="#1421" id="1421">1421</a>
+<a href="#1422" id="1422">1422</a>
+<a href="#1423" id="1423">1423</a>
+<a href="#1424" id="1424">1424</a>
+<a href="#1425" id="1425">1425</a>
+<a href="#1426" id="1426">1426</a>
+<a href="#1427" id="1427">1427</a>
+<a href="#1428" id="1428">1428</a>
+<a href="#1429" id="1429">1429</a>
+<a href="#1430" id="1430">1430</a>
+<a href="#1431" id="1431">1431</a>
+<a href="#1432" id="1432">1432</a>
+<a href="#1433" id="1433">1433</a>
+<a href="#1434" id="1434">1434</a>
+<a href="#1435" id="1435">1435</a>
+<a href="#1436" id="1436">1436</a>
+<a href="#1437" id="1437">1437</a>
+<a href="#1438" id="1438">1438</a>
+<a href="#1439" id="1439">1439</a>
+<a href="#1440" id="1440">1440</a>
+<a href="#1441" id="1441">1441</a>
+<a href="#1442" id="1442">1442</a>
+<a href="#1443" id="1443">1443</a>
+<a href="#1444" id="1444">1444</a>
+<a href="#1445" id="1445">1445</a>
+<a href="#1446" id="1446">1446</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -1666,10 +1727,10 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         trait_ref: <span class="kw-2">&amp;</span>surface::TraitRef,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PolyTraitRef&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="prelude-val">Ok</span>(fhir::PolyTraitRef {
-            bound_generic_params: <span class="kw-2">&amp;</span>[],
-            trait_ref: <span class="self">self</span>.desugar_path(<span class="kw-2">&amp;</span>trait_ref.path)<span class="question-mark">?</span>,
-        })
+        <span class="kw">let </span>fhir::QPath::Resolved(<span class="prelude-val">None</span>, path) = <span class="self">self</span>.desugar_qpath(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>trait_ref.path)<span class="question-mark">? </span><span class="kw">else </span>{
+            <span class="macro">span_bug!</span>(trait_ref.path.span, <span class="string">"desugar_alias_reft: unexpected qpath"</span>)
+        };
+        <span class="prelude-val">Ok</span>(fhir::PolyTraitRef { bound_generic_params: <span class="kw-2">&amp;</span>[], trait_ref: path })
     }
 
     <span class="kw">fn </span>desugar_refined_by(
@@ -2428,7 +2489,8 @@
     <span class="kw">fn </span>desugar_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>surface::BaseTy) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::BaseTy&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span>bty.kind {
             surface::BaseTyKind::Path(qself, path) =&gt; {
-                <span class="self">self</span>.desugar_path_to_bty(qself.as_deref(), path)
+                <span class="kw">let </span>qpath = <span class="self">self</span>.desugar_qpath(qself.as_deref(), path)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(fhir::BaseTy::from(qpath))
             }
             surface::BaseTyKind::Slice(ty) =&gt; {
                 <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(ty)<span class="question-mark">?</span>;
@@ -2443,32 +2505,90 @@
         qself: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>surface::Ty&gt;,
         path: <span class="kw-2">&amp;</span>surface::Path,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::BaseTy&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+        <span class="kw">let </span>qpath = <span class="self">self</span>.desugar_qpath(qself.as_deref(), path)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(fhir::BaseTy::from(qpath))
+    }
+
+    <span class="kw">fn </span>desugar_qpath(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        qself: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>surface::Ty&gt;,
+        path: <span class="kw-2">&amp;</span>surface::Path,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::QPath&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>qself = qself
             .map(|ty| {
                 <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(ty)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(<span class="self">self</span>.genv().alloc(ty))
             })
             .transpose()<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::BaseTy::from(fhir::QPath::Resolved(qself, <span class="self">self</span>.desugar_path(path)<span class="question-mark">?</span>)))
-    }
+        <span class="kw">let </span>partial_res = <span class="self">self</span>.resolver_output().path_res_map[<span class="kw-2">&amp;</span>path.node_id];
 
-    <span class="kw">fn </span>desugar_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::Path&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>segments = <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv(), <span class="kw-2">&amp;</span>path.segments, |segment| {
-            <span class="self">self</span>.desugar_path_segment(segment)
-        })<span class="question-mark">?</span>;
-        <span class="kw">let </span>res = segments.last().unwrap().res;
-        <span class="kw">let </span>refine =
-            <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv(), <span class="kw-2">&amp;</span>path.refine, |arg| <span class="self">self</span>.desugar_refine_arg(arg))<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::Path { res, segments, refine, span: path.span })
+        <span class="kw">let </span>unresolved_segments = partial_res.unresolved_segments();
+
+        <span class="kw">let </span>proj_start = path.segments.len() - unresolved_segments;
+        <span class="kw">let </span>fhir_path = fhir::Path {
+            res: partial_res.base_res(),
+            segments: <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv(), <span class="kw-2">&amp;</span>path.segments[..proj_start], |segment| {
+                <span class="self">self</span>.desugar_path_segment(segment)
+            })<span class="question-mark">?</span>,
+            refine: <span class="macro">try_alloc_slice!</span>(<span class="self">self</span>.genv(), <span class="kw-2">&amp;</span>path.refine, |arg| {
+                <span class="self">self</span>.desugar_refine_arg(arg)
+            })<span class="question-mark">?</span>,
+            span: path.span,
+        };
+
+        <span class="comment">// Simple case, either no projections, or only fully-qualified.
+        // E.g., `std::mem::size_of` or `&lt;I as Iterator&gt;::Item`.
+        </span><span class="kw">if </span>unresolved_segments == <span class="number">0 </span>{
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(fhir::QPath::Resolved(qself, fhir_path));
+        }
+
+        <span class="comment">// Create the innermost type that we're projecting from.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>ty = <span class="kw">if </span>fhir_path.segments.is_empty() {
+            <span class="comment">// If the base path is empty that means there exists a
+            // syntactical `Self`, e.g., `&amp;i32` in `&lt;&amp;i32&gt;::clone`.
+            </span>qself.expect(<span class="string">"missing QSelf for &lt;T&gt;::..."</span>)
+        } <span class="kw">else </span>{
+            <span class="comment">// Otherwise, the base path is an implicit `Self` type path,
+            // e.g., `Vec` in `Vec::new` or `&lt;I as Iterator&gt;::Item` in
+            // `&lt;I as Iterator&gt;::Item::default`.
+            </span><span class="self">self</span>.genv()
+                .alloc(<span class="self">self</span>.ty_path(fhir::QPath::Resolved(qself, fhir_path)))
+        };
+
+        <span class="kw">for </span>(i, segment) <span class="kw">in </span>path.segments.iter().enumerate().skip(proj_start) {
+            <span class="kw">let </span>hir_segment = <span class="self">self</span>.desugar_path_segment(segment)<span class="question-mark">?</span>;
+            <span class="kw">let </span>qpath = fhir::QPath::TypeRelative(ty, <span class="self">self</span>.genv().alloc(hir_segment));
+
+            <span class="kw">if </span>i == path.segments.len() - <span class="number">1 </span>{
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(qpath);
+            }
+
+            ty = <span class="self">self</span>.genv().alloc(<span class="self">self</span>.ty_path(qpath));
+        }
+
+        <span class="macro">span_bug!</span>(
+            path.span,
+            <span class="string">"desugar_qpath: no final extension segment in {}..{}"</span>,
+            proj_start,
+            path.segments.len()
+        );
     }
 
     <span class="kw">fn </span>desugar_path_segment(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         segment: <span class="kw-2">&amp;</span>surface::PathSegment,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PathSegment&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().path_res_map[<span class="kw-2">&amp;</span>segment.node_id];
+        <span class="kw">let </span>res = <span class="self">self
+            </span>.resolver_output()
+            .path_res_map
+            .get(<span class="kw-2">&amp;</span>segment.node_id)
+            .map_or(Res::Err, |r| r.expect_full_res());
         <span class="kw">let </span>(args, bindings) = <span class="self">self</span>.desugar_generic_args(res, <span class="kw-2">&amp;</span>segment.args)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(fhir::PathSegment { ident: segment.ident, res, args, bindings })
+    }
+
+    <span class="kw">fn </span>ty_path(<span class="kw-2">&amp;</span><span class="self">self</span>, qpath: fhir::QPath&lt;<span class="lifetime">'genv</span>&gt;) -&gt; fhir::Ty&lt;<span class="lifetime">'genv</span>&gt; {
+        fhir::Ty { span: qpath.span(), kind: fhir::TyKind::BaseTy(fhir::BaseTy::from(qpath)) }
     }
 
     <span class="kw">fn </span>mk_lft_hole(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; fhir::Lifetime {
@@ -2544,7 +2664,9 @@
         alias_reft: <span class="kw-2">&amp;</span>surface::AliasReft,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::AliasReft&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>self_ty = <span class="self">self</span>.desugar_ty(<span class="kw-2">&amp;</span>alias_reft.qself)<span class="question-mark">?</span>;
-        <span class="kw">let </span>path = <span class="self">self</span>.desugar_path(<span class="kw-2">&amp;</span>alias_reft.path)<span class="question-mark">?</span>;
+        <span class="kw">let </span>fhir::QPath::Resolved(<span class="prelude-val">None</span>, path) = <span class="self">self</span>.desugar_qpath(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>alias_reft.path)<span class="question-mark">? </span><span class="kw">else </span>{
+            <span class="macro">span_bug!</span>(alias_reft.path.span, <span class="string">"desugar_alias_reft: unexpected qpath"</span>)
+        };
         <span class="kw">if let </span>Res::Def(DefKind::Trait, <span class="kw">_</span>) = path.res {
             <span class="prelude-val">Ok</span>(fhir::AliasReft {
                 qself: <span class="self">self</span>.genv().alloc(self_ty),

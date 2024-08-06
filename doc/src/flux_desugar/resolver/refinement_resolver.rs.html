@@ -970,6 +970,15 @@
 <a href="#970" id="970">970</a>
 <a href="#971" id="971">971</a>
 <a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -1278,7 +1287,7 @@
 
 <span class="kw">struct </span>ImplicitParamCollector&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; {
     tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-    path_res_map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>UnordMap&lt;surface::NodeId, fhir::Res&gt;,
+    path_res_map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>UnordMap&lt;surface::NodeId, fhir::PartialRes&gt;,
     kind: ScopeKind,
     params: Vec&lt;(Ident, fhir::ParamKind, NodeId)&gt;,
 }
@@ -1286,7 +1295,7 @@
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; ImplicitParamCollector&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">fn </span>new(
         tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-        path_res_map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>UnordMap&lt;surface::NodeId, fhir::Res&gt;,
+        path_res_map: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>UnordMap&lt;surface::NodeId, fhir::PartialRes&gt;,
         kind: ScopeKind,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ tcx, path_res_map, kind, params: <span class="macro">vec!</span>[] }
@@ -1304,8 +1313,10 @@
 
 <span class="kw">impl </span>ScopedVisitor <span class="kw">for </span>ImplicitParamCollector&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>surface::PathSegment) -&gt; bool {
-        <span class="kw">let </span>res = <span class="self">self</span>.path_res_map[<span class="kw-2">&amp;</span>segment.node_id];
-        res.is_box(<span class="self">self</span>.tcx)
+        <span class="self">self</span>.path_res_map
+            .get(<span class="kw-2">&amp;</span>segment.node_id)
+            .map(|r| r.is_box(<span class="self">self</span>.tcx))
+            .unwrap_or(<span class="bool-val">false</span>)
     }
 
     <span class="kw">fn </span>enter_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>, kind: ScopeKind) -&gt; ControlFlow&lt;()&gt; {
@@ -1655,8 +1666,11 @@
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>&gt; ScopedVisitor <span class="kw">for </span>RefinementResolver&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>surface::PathSegment) -&gt; bool {
-        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().path_res_map[<span class="kw-2">&amp;</span>segment.node_id];
-        res.is_box(<span class="self">self</span>.resolver.genv.tcx())
+        <span class="self">self</span>.resolver_output()
+            .path_res_map
+            .get(<span class="kw-2">&amp;</span>segment.node_id)
+            .map(|r| r.is_box(<span class="self">self</span>.resolver.genv.tcx()))
+            .unwrap_or(<span class="bool-val">false</span>)
     }
 
     <span class="kw">fn </span>enter_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>, kind: ScopeKind) -&gt; ControlFlow&lt;()&gt; {
@@ -1807,8 +1821,12 @@
 
 <span class="kw">impl </span>ScopedVisitor <span class="kw">for </span>IllegalBinderVisitor&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>surface::PathSegment) -&gt; bool {
-        <span class="kw">let </span>res = <span class="self">self</span>.resolver.output.path_res_map[<span class="kw-2">&amp;</span>segment.node_id];
-        res.is_box(<span class="self">self</span>.resolver.genv.tcx())
+        <span class="self">self</span>.resolver
+            .output
+            .path_res_map
+            .get(<span class="kw-2">&amp;</span>segment.node_id)
+            .map(|r| r.is_box(<span class="self">self</span>.resolver.genv.tcx()))
+            .unwrap_or(<span class="bool-val">false</span>)
     }
 
     <span class="kw">fn </span>enter_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>, kind: ScopeKind) -&gt; ControlFlow&lt;()&gt; {

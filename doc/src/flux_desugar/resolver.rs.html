@@ -784,6 +784,18 @@
 <a href="#784" id="784">784</a>
 <a href="#785" id="785">785</a>
 <a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
 </pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>std::collections::hash_map::Entry;
@@ -1148,27 +1160,32 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>try_resolve_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="prelude-ty">Option</span>&lt;()&gt; {
+    <span class="kw">fn </span>try_resolve_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::PartialRes&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>module: <span class="prelude-ty">Option</span>&lt;DefId&gt; = <span class="prelude-val">None</span>;
-        <span class="kw">for </span>(i, segment) <span class="kw">in </span>path.segments.iter().enumerate() {
+        <span class="kw">for </span>(segment_idx, segment) <span class="kw">in </span>path.segments.iter().enumerate() {
             <span class="kw">let </span>res = <span class="kw">if let </span><span class="prelude-val">Some</span>(module) = module {
                 <span class="self">self</span>.resolve_ident_in_module(module, segment.ident)<span class="question-mark">?
             </span>} <span class="kw">else </span>{
                 <span class="self">self</span>.resolve_ident(segment.ident)<span class="question-mark">?
             </span>};
 
-            <span class="kw">let </span>res = Res::try_from(res).ok()<span class="question-mark">?</span>;
+            <span class="kw">let </span>base_res = Res::try_from(res).ok()<span class="question-mark">?</span>;
 
-            <span class="kw">if let </span>Res::Def(DefKind::Mod, module_id) = res {
+            <span class="self">self</span>.output
+                .path_res_map
+                .insert(segment.node_id, fhir::PartialRes::new(base_res));
+
+            <span class="kw">if let </span>Res::Def(DefKind::Mod, module_id) = base_res {
                 module = <span class="prelude-val">Some</span>(module_id);
-            } <span class="kw">else if </span>i &lt; path.segments.len() - <span class="number">1 </span>{
-                <span class="kw">return </span><span class="prelude-val">None</span>;
+            } <span class="kw">else </span>{
+                <span class="kw">return </span><span class="prelude-val">Some</span>(fhir::PartialRes::with_unresolved_segments(
+                    base_res,
+                    path.segments.len() - segment_idx - <span class="number">1</span>,
+                ));
             }
-
-            <span class="self">self</span>.output.path_res_map.insert(segment.node_id, res);
         }
-        <span class="prelude-val">Some</span>(())
-    }
+        <span class="prelude-val">None
+    </span>}
 
     <span class="kw">fn </span>resolve_ident(<span class="kw-2">&amp;</span><span class="self">self</span>, ident: Ident) -&gt; <span class="prelude-ty">Option</span>&lt;hir::def::Res&gt; {
         <span class="kw">for </span>rib <span class="kw">in </span><span class="self">self</span>.ribs.iter().rev() {
@@ -1302,10 +1319,14 @@
     <span class="kw">fn </span>resolve_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) {
         <span class="comment">// This could insert stuff in `path_res_map` twice if table resolution fails midway. This
         // is ok because we will only proceed to further stages if the entire path is resolved.
-        </span><span class="kw">if </span><span class="self">self</span>.try_resolve_with_table(path) {
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(partial_res) = <span class="self">self</span>.resolver.try_resolve_path(path) {
+            <span class="self">self</span>.resolver
+                .output
+                .path_res_map
+                .insert(path.node_id, partial_res);
             <span class="kw">return</span>;
         }
-        <span class="kw">if </span><span class="self">self</span>.resolver.try_resolve_path(path).is_some() {
+        <span class="kw">if </span><span class="self">self</span>.try_resolve_with_table(path) {
             <span class="kw">return</span>;
         }
         <span class="self">self</span>.errors.emit(errors::UnresolvedPath::new(path));
@@ -1313,7 +1334,10 @@
 
     <span class="kw">fn </span>try_resolve_with_table(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; bool {
         <span class="self">self</span>.table.visit_path(path, |segment_id, res| {
-            <span class="self">self</span>.resolver.output.path_res_map.insert(segment_id, res);
+            <span class="self">self</span>.resolver
+                .output
+                .path_res_map
+                .insert(segment_id, fhir::PartialRes::new(res));
         })
     }
 }

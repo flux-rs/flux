@@ -1459,6 +1459,46 @@
 <a href="#1459" id="1459">1459</a>
 <a href="#1460" id="1460">1460</a>
 <a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
+<a href="#1468" id="1468">1468</a>
+<a href="#1469" id="1469">1469</a>
+<a href="#1470" id="1470">1470</a>
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
+<a href="#1477" id="1477">1477</a>
+<a href="#1478" id="1478">1478</a>
+<a href="#1479" id="1479">1479</a>
+<a href="#1480" id="1480">1480</a>
+<a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
+<a href="#1488" id="1488">1488</a>
+<a href="#1489" id="1489">1489</a>
+<a href="#1490" id="1490">1490</a>
+<a href="#1491" id="1491">1491</a>
+<a href="#1492" id="1492">1492</a>
+<a href="#1493" id="1493">1493</a>
+<a href="#1494" id="1494">1494</a>
+<a href="#1495" id="1495">1495</a>
+<a href="#1496" id="1496">1496</a>
+<a href="#1497" id="1497">1497</a>
+<a href="#1498" id="1498">1498</a>
+<a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
+<a href="#1501" id="1501">1501</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -2159,6 +2199,46 @@
     SelfTyAlias { alias_to: DefId, is_trait_impl: bool },
     SelfTyParam { trait_: DefId },
     <span class="prelude-val">Err</span>,
+}
+
+<span class="doccomment">/// See [`rustc_hir::def::PartialRes`]
+</span><span class="attr">#[derive(Copy, Clone, Debug)]
+</span><span class="kw">pub struct </span>PartialRes {
+    base_res: Res,
+    unresolved_segments: usize,
+}
+
+<span class="kw">impl </span>PartialRes {
+    <span class="kw">pub fn </span>new(base_res: Res) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ base_res, unresolved_segments: <span class="number">0 </span>}
+    }
+
+    <span class="kw">pub fn </span>with_unresolved_segments(base_res: Res, unresolved_segments: usize) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ base_res, unresolved_segments }
+    }
+
+    <span class="attr">#[inline]
+    </span><span class="kw">pub fn </span>base_res(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Res {
+        <span class="self">self</span>.base_res
+    }
+
+    <span class="kw">pub fn </span>unresolved_segments(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.unresolved_segments
+    }
+
+    <span class="attr">#[inline]
+    </span><span class="kw">pub fn </span>full_res(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Res&gt; {
+        (<span class="self">self</span>.unresolved_segments == <span class="number">0</span>).then_some(<span class="self">self</span>.base_res)
+    }
+
+    <span class="attr">#[inline]
+    </span><span class="kw">pub fn </span>expect_full_res(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Res {
+        <span class="self">self</span>.full_res().unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"expected full res"</span>))
+    }
+
+    <span class="kw">pub fn </span>is_box(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt) -&gt; bool {
+        <span class="self">self</span>.full_res().map_or(<span class="bool-val">false</span>, |res| res.is_box(tcx))
+    }
 }
 
 <span class="attr">#[derive(Debug, Clone, Copy)]

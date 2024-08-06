@@ -615,6 +615,7 @@
 <a href="#615" id="615">615</a>
 <a href="#616" id="616">616</a>
 <a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
 </pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
@@ -1045,6 +1046,7 @@
 </span><span class="kw">pub struct </span>Path {
     <span class="kw">pub </span>segments: Vec&lt;PathSegment&gt;,
     <span class="kw">pub </span>refine: Vec&lt;RefineArg&gt;,
+    <span class="kw">pub </span>node_id: NodeId,
     <span class="kw">pub </span>span: Span,
 }
 

@@ -740,7 +740,7 @@
 
 <span class="attr">#[derive(Default)]
 </span><span class="kw">pub struct </span>ResolverOutput {
-    <span class="kw">pub </span>path_res_map: UnordMap&lt;NodeId, fhir::Res&gt;,
+    <span class="kw">pub </span>path_res_map: UnordMap&lt;NodeId, fhir::PartialRes&gt;,
     <span class="kw">pub </span>impl_trait_res_map: UnordMap&lt;NodeId, hir::ItemId&gt;,
     <span class="doccomment">/// Resolution of explicit and implicit parameters. The [`fhir::ParamId`] is unique per item.
     /// The [`NodeId`] used as the key corresponds to the node introducing the parameter. When explicit,
