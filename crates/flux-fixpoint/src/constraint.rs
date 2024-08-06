@@ -360,7 +360,7 @@ impl<T: Types> fmt::Display for Expr<T> {
                 write!(f, "({func} {})", args.iter().map(FmtParens).format(" "),)
             }
             Expr::Neg(e) => {
-                write!(f, "(- 0 {})", FmtParens(e))
+                write!(f, "(- {})", FmtParens(e))
             }
             Expr::BinaryOp(op, box [e1, e2]) => {
                 write!(f, "({op} {} {})", FmtParens(e1), FmtParens(e2))
@@ -533,7 +533,7 @@ impl fmt::Debug for BinOp {
 impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constant::Int(n) => write!(f, "{n}"),
+            Constant::Int(n) => n.fmt_sexp(f),
             Constant::Real(r) => write!(f, "{r}.0"),
             Constant::Bool(b) => write!(f, "{b}"),
         }
