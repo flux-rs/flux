@@ -20,11 +20,7 @@ use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{self as hir, ParamName, PrimTy};
 use rustc_middle::{metadata::ModChild, ty::TyCtxt};
-use rustc_span::{
-    def_id::{CrateNum, DefId},
-    symbol::kw,
-    Span, Symbol,
-};
+use rustc_span::{def_id::DefId, symbol::kw, Span, Symbol};
 
 use self::refinement_resolver::RefinementResolver;
 
@@ -69,7 +65,6 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     specs: &'genv Specs,
     output: ResolverOutput,
-    extern_crates: UnordMap<Symbol, CrateNum>,
     ribs: Vec<Rib>,
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
     sort_decls: UnordMap<Symbol, fhir::SortDecl>,
@@ -228,22 +223,11 @@ fn module_children(tcx: TyCtxt, def_id: DefId) -> &[ModChild] {
 
 impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     pub fn new(genv: GlobalEnv<'genv, 'tcx>, specs: &'genv Specs) -> Self {
-        let mut extern_crates = UnordMap::default();
-        for cnum in genv.tcx().crates(()) {
-            let name = genv.tcx().crate_name(*cnum);
-            if let Some(extern_crate) = genv.tcx().extern_crate(cnum.as_def_id())
-                && extern_crate.is_direct()
-            {
-                extern_crates.insert(name, *cnum);
-            }
-        }
-
         Self {
             genv,
             output: ResolverOutput::default(),
             specs,
-            ribs: vec![builtin_types()],
-            extern_crates,
+            ribs: vec![builtin_types_rib(), extern_crates_rib(genv.tcx())],
             err: None,
             func_decls: Default::default(),
             sort_decls: Default::default(),
@@ -362,7 +346,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         Ok(())
     }
 
-    fn try_resolve_path(&mut self, path: &surface::Path) -> Option<fhir::PartialRes> {
+    fn resolve_path_with_ribs(&mut self, path: &surface::Path) -> Option<fhir::PartialRes> {
         let mut module: Option<DefId> = None;
         for (segment_idx, segment) in path.segments.iter().enumerate() {
             let res = if let Some(module) = module {
@@ -394,9 +378,6 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             if let Some(res) = rib.type_ns_bindings.get(&ident.name) {
                 return Some(*res);
             }
-        }
-        if let Some(cnum) = self.extern_crates.get(&ident.name) {
-            return Some(hir::def::Res::Def(DefKind::Mod, cnum.as_def_id()));
         }
         None
     }
@@ -519,9 +500,9 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     }
 
     fn resolve_path(&mut self, path: &surface::Path) {
-        // This could insert stuff in `path_res_map` twice if table resolution fails midway. This
-        // is ok because we will only proceed to further stages if the entire path is resolved.
-        if let Some(partial_res) = self.resolver.try_resolve_path(path) {
+        // This could insert stuff in `path_res_map` twice if resolve_path_with_ribs fails midway.
+        // This is ok because we will only proceed to further stages if the entire path is resolved.
+        if let Some(partial_res) = self.resolver.resolve_path_with_ribs(path) {
             self.resolver
                 .output
                 .path_res_map
@@ -747,13 +728,26 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for NameResCollector<'_, 'tcx> {
     }
 }
 
-fn builtin_types() -> Rib {
+fn builtin_types_rib() -> Rib {
     Rib {
         type_ns_bindings: PrimTy::ALL
             .into_iter()
             .map(|pty| (pty.name(), hir::def::Res::PrimTy(pty)))
             .collect(),
     }
+}
+
+fn extern_crates_rib(tcx: TyCtxt) -> Rib {
+    let mut bindings = FxHashMap::default();
+    for cnum in tcx.crates(()) {
+        let name = tcx.crate_name(*cnum);
+        if let Some(extern_crate) = tcx.extern_crate(cnum.as_def_id())
+            && extern_crate.is_direct()
+        {
+            bindings.insert(name, hir::def::Res::Def(DefKind::Mod, cnum.as_def_id()));
+        }
+    }
+    Rib { type_ns_bindings: bindings }
 }
 
 mod errors {
