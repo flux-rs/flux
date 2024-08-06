@@ -796,13 +796,13 @@
 /// Other errors are better reported at the use-site. For example, if some code calls a function from
 /// an external crate that has unsupported features, we ought to report the error at the call-site,
 /// because it would be confusing to only mention the definition of the external function without
-/// showing which part of the code is calling it. To attach a span to error one can use [`QueryErr::at`]
+/// showing which part of the code is calling it. To attach a span to an error one can use [`QueryErr::at`]
 /// to get a [`QueryErrAt`].
 ///
 /// Both [`QueryErr`] and [`QueryErrAt`] implement [`Diagnostic`]. The implementation for [`QueryErr`]
 /// reports the error at the definition site, while the implementation for [`QueryErrAt`] reports it at
 /// the (attached) use-site span. This allows to play a bit lose because we can emit an error without
-/// attatching an span, but this means we may forget to attach spans at some places. We should consider
+/// attatching a span, but this means we may forget to attach spans at some places. We should consider
 /// not implementing [`Diagnostic`] for [`QueryErr`] such that we always make the distinction between
 /// use-site and def-site explicit, e.g., we could have methods `QueryErr::at_use_site` and
 /// `QueryErr::at_def_site` returning types with different implementations of [`Diagnostic`].

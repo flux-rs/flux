@@ -25,12 +25,12 @@ we detect this and early return without reporting any errors at the use-site.</p
 <p>Other errors are better reported at the use-site. For example, if some code calls a function from
 an external crate that has unsupported features, we ought to report the error at the call-site,
 because it would be confusing to only mention the definition of the external function without
-showing which part of the code is calling it. To attach a span to error one can use <a href="enum.QueryErr.html#method.at" title="method flux_middle::queries::QueryErr::at"><code>QueryErr::at</code></a>
+showing which part of the code is calling it. To attach a span to an error one can use <a href="enum.QueryErr.html#method.at" title="method flux_middle::queries::QueryErr::at"><code>QueryErr::at</code></a>
 to get a <a href="struct.QueryErrAt.html" title="struct flux_middle::queries::QueryErrAt"><code>QueryErrAt</code></a>.</p>
 <p>Both <a href="enum.QueryErr.html" title="enum flux_middle::queries::QueryErr"><code>QueryErr</code></a> and <a href="struct.QueryErrAt.html" title="struct flux_middle::queries::QueryErrAt"><code>QueryErrAt</code></a> implement <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_errors/diagnostic/trait.Diagnostic.html" title="trait rustc_errors::diagnostic::Diagnostic"><code>Diagnostic</code></a>. The implementation for <a href="enum.QueryErr.html" title="enum flux_middle::queries::QueryErr"><code>QueryErr</code></a>
 reports the error at the definition site, while the implementation for <a href="struct.QueryErrAt.html" title="struct flux_middle::queries::QueryErrAt"><code>QueryErrAt</code></a> reports it at
 the (attached) use-site span. This allows to play a bit lose because we can emit an error without
-attatching an span, but this means we may forget to attach spans at some places. We should consider
+attatching a span, but this means we may forget to attach spans at some places. We should consider
 not implementing <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_errors/diagnostic/trait.Diagnostic.html" title="trait rustc_errors::diagnostic::Diagnostic"><code>Diagnostic</code></a> for <a href="enum.QueryErr.html" title="enum flux_middle::queries::QueryErr"><code>QueryErr</code></a> such that we always make the distinction between
 use-site and def-site explicit, e.g., we could have methods <code>QueryErr::at_use_site</code> and
 <code>QueryErr::at_def_site</code> returning types with different implementations of <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_errors/diagnostic/trait.Diagnostic.html" title="trait rustc_errors::diagnostic::Diagnostic"><code>Diagnostic</code></a>.</p>
