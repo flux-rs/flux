@@ -42,6 +42,7 @@ pub enum QueryErr {
     Unsupported { def_id: DefId, err: UnsupportedErr },
     Ignored { def_id: DefId },
     InvalidGenericArg { def_id: DefId },
+    InvalidAssocReft { span: Span },
     Emitted(ErrorGuaranteed),
 }
 
@@ -654,6 +655,12 @@ impl<'a> Diagnostic<'a> for QueryErr {
                     diag.downgrade_to_delayed_bug();
                     diag
                 }
+                QueryErr::InvalidAssocReft { span } => {
+                    let mut diag =
+                        dcx.struct_span_err(span, fluent::middle_query_invalid_assoc_reft);
+                    diag.code(E0999);
+                    diag
+                }
             }
         })
     }
@@ -686,7 +693,9 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                     diag.span_label(self.span, fluent::_subdiag::label);
                     diag
                 }
-                QueryErr::InvalidGenericArg { .. } | QueryErr::Emitted(_) => {
+                QueryErr::InvalidGenericArg { .. }
+                | QueryErr::Emitted(_)
+                | QueryErr::InvalidAssocReft { .. } => {
                     let mut diag = self.err.into_diag(dcx, level);
                     diag.span(self.span);
                     diag

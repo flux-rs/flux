@@ -28,6 +28,9 @@ middle_query_unsupported =
 middle_query_invalid_generic_arg =
     cannot instantiate base generic with opaque type or a type parameter of kind type
 
+middle_query_invalid_assoc_reft =
+    invalid associated refinement for this function call
+
 middle_query_ignored_item =
     use of ignored item
 

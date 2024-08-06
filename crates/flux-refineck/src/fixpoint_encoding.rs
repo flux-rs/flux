@@ -910,7 +910,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 ]))
             }
             rty::ExprKind::Alias(alias_pred, args) => {
-                let func = self.register_const_for_alias_reft(alias_pred, args.len());
+                let sort = self
+                    .genv
+                    .sort_of_assoc_reft(alias_pred.trait_id, alias_pred.name)?
+                    .unwrap();
+                let sort = sort.instantiate_identity(&[]);
+                let func = self.register_const_for_alias_reft(alias_pred, sort);
                 let args = args
                     .iter()
                     .map(|expr| self.expr_to_fixpoint(expr, env))
@@ -1200,7 +1205,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     fn register_const_for_alias_reft(
         &mut self,
         alias_reft: &rty::AliasReft,
-        arity: usize,
+        fsort: rty::FuncSort,
     ) -> fixpoint::GlobalVar {
         let key = Key::Alias(alias_reft.to_rustc_trait_ref(self.genv.tcx()));
         self.const_map
@@ -1208,7 +1213,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .or_insert_with(|| {
                 let orig = format!("{alias_reft:?}");
                 let name = self.global_var_gen.fresh();
-                let fsort = alias_reft_sort(arity);
+                let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 let sort = func_sort_to_fixpoint(&fsort);
                 ConstInfo { name, orig, sort, val: None }
             })
@@ -1247,22 +1252,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
         Ok(fixpoint::Qualifier { name, args, body })
     }
-}
-
-/// This function returns a very polymorphic sort for the UIF encoding an associated refinement.
-/// This is ok, as well-formedness in previous phases will ensure the function is always
-/// instantiated with the same sorts. However, the proper thing is to compute the *actual*
-/// mono-sort at which the associated refinement is being used see [`GlobalEnv::sort_of_alias_reft`]
-/// but that is a bit tedious as its done using the `fhir` (not `rty`). Alternatively, we might
-/// stash the computed mono-sort *in* the [`rty::AliasReft`] during `conv`?
-fn alias_reft_sort(arity: usize) -> rty::PolyFuncSort {
-    let mut sorts = vec![];
-    for i in 0..arity {
-        sorts.push(rty::Sort::Var(rty::ParamSort::from(i)));
-    }
-    sorts.push(rty::Sort::Bool);
-    let params = iter::repeat(rty::SortParamKind::Sort).take(arity).collect();
-    rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output: List::from_vec(sorts) })
 }
 
 fn mk_implies(assumption: fixpoint::Pred, cstr: fixpoint::Constraint) -> fixpoint::Constraint {

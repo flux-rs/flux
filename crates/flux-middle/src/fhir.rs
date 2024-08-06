@@ -567,6 +567,15 @@ pub enum FluxOwnerId {
     Rust(OwnerId),
 }
 
+impl FluxOwnerId {
+    pub fn def_id(self) -> Option<LocalDefId> {
+        match self {
+            FluxOwnerId::Flux(_) => None,
+            FluxOwnerId::Rust(owner_id) => Some(owner_id.def_id),
+        }
+    }
+}
+
 /// A unique identifier for a node in the AST. Like [`HirId`] it is composed of an `owner` and a
 /// `local_id`. We don't generate ids for all nodes, but only for those we need to remember
 /// information elaborated during well-formedness checking to later be used during conversion into
