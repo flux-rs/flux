@@ -712,6 +712,37 @@
 <a href="#712" id="712">712</a>
 <a href="#713" id="713">713</a>
 <a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -751,12 +782,36 @@
 
 <span class="kw">pub type </span>QueryResult&lt;T = ()&gt; = <span class="prelude-ty">Result</span>&lt;T, QueryErr&gt;;
 
-<span class="attr">#[derive(Debug, Clone, Encodable, Decodable)]
+<span class="doccomment">/// An error produced by a query.
+///
+/// We make a distinction between errors reported at def-site and errors reported at use-site.
+///
+/// For most errors reported at the def-site of an item, it makes little sense to check the definition
+/// of dependent items. For example, if a function signature is ill-formed, checking the body of another
+/// function that calls it, can produce confusing errors. In some cases, we can even fail to produce
+/// a signature for a function in which case we can't even check its call sites. For these cases, we
+/// emit an error at the definition site and return a [`QueryErr::Emitted`]. When checking a dependent,
+/// we detect this and early return without reporting any errors at the use-site.
+///
+/// Other errors are better reported at the use-site. For example, if some code calls a function from
+/// an external crate that has unsupported features, we ought to report the error at the call-site,
+/// because it would be confusing to only mention the definition of the external function without
+/// showing which part of the code is calling it. To attach a span to error one can use [`QueryErr::at`]
+/// to get a [`QueryErrAt`].
+///
+/// Both [`QueryErr`] and [`QueryErrAt`] implement [`Diagnostic`]. The implementation for [`QueryErr`]
+/// reports the error at the definition site, while the implementation for [`QueryErrAt`] reports it at
+/// the (attached) use-site span. This allows to play a bit lose because we can emit an error without
+/// attatching an span, but this means we may forget to attach spans at some places. We should consider
+/// not implementing [`Diagnostic`] for [`QueryErr`] such that we always make the distinction between
+/// use-site and def-site explicit, e.g., we could have methods `QueryErr::at_use_site` and
+/// `QueryErr::at_def_site` returning types with different implementations of [`Diagnostic`].
+</span><span class="attr">#[derive(Debug, Clone, Encodable, Decodable)]
 </span><span class="kw">pub enum </span>QueryErr {
     Unsupported { def_id: DefId, err: UnsupportedErr },
     Ignored { def_id: DefId },
     InvalidGenericArg { def_id: DefId },
-    InvalidAssocReft { span: Span },
+    InvalidAssocReft { impl_id: DefId, name: Symbol },
     Emitted(ErrorGuaranteed),
 }
 
@@ -766,7 +821,8 @@
     }
 }
 
-<span class="kw">pub struct </span>QueryErrAt {
+<span class="doccomment">/// See [`QueryErr`]
+</span><span class="kw">pub struct </span>QueryErrAt {
     span: Span,
     err: QueryErr,
 }
@@ -1369,9 +1425,11 @@
                     diag.downgrade_to_delayed_bug();
                     diag
                 }
-                QueryErr::InvalidAssocReft { span } =&gt; {
+                QueryErr::InvalidAssocReft { impl_id, name } =&gt; {
+                    <span class="kw">let </span>def_span = tcx.def_span(impl_id);
                     <span class="kw">let </span><span class="kw-2">mut </span>diag =
-                        dcx.struct_span_err(span, fluent::middle_query_invalid_assoc_reft);
+                        dcx.struct_span_err(def_span, fluent::middle_query_invalid_assoc_reft);
+                    diag.arg(<span class="string">"name"</span>, name);
                     diag.code(E0999);
                     diag
                 }
@@ -1407,9 +1465,13 @@
                     diag.span_label(<span class="self">self</span>.span, fluent::_subdiag::label);
                     diag
                 }
-                QueryErr::InvalidGenericArg { .. }
-                | QueryErr::Emitted(<span class="kw">_</span>)
-                | QueryErr::InvalidAssocReft { .. } =&gt; {
+                QueryErr::InvalidAssocReft { .. } =&gt; {
+                    <span class="kw">let </span><span class="kw-2">mut </span>diag =
+                        dcx.struct_span_err(<span class="self">self</span>.span, fluent::middle_query_invalid_assoc_reft_at);
+                    diag.code(E0999);
+                    diag
+                }
+                QueryErr::InvalidGenericArg { .. } | QueryErr::Emitted(<span class="kw">_</span>) =&gt; {
                     <span class="kw">let </span><span class="kw-2">mut </span>diag = <span class="self">self</span>.err.into_diag(dcx, level);
                     diag.span(<span class="self">self</span>.span);
                     diag

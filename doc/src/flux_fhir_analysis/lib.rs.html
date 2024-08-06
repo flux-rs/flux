@@ -477,23 +477,6 @@
 <a href="#477" id="477">477</a>
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a>
-<a href="#487" id="487">487</a>
-<a href="#488" id="488">488</a>
-<a href="#489" id="489">489</a>
-<a href="#490" id="490">490</a>
-<a href="#491" id="491">491</a>
-<a href="#492" id="492">492</a>
-<a href="#493" id="493">493</a>
-<a href="#494" id="494">494</a>
-<a href="#495" id="495">495</a>
-<a href="#496" id="496">496</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -522,7 +505,7 @@
     fhir::{<span class="self">self</span>, FluxLocalDefId},
     global_env::GlobalEnv,
     intern::List,
-    queries::{Providers, QueryResult},
+    queries::{Providers, QueryErr, QueryResult},
     rty::{<span class="self">self</span>, fold::TypeFoldable, refining::Refiner, WfckResults},
     rustc::lowering,
 };
@@ -691,10 +674,7 @@
         <span class="kw">let </span>wfckresults = genv.check_wf(impl_id)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(rty::EarlyBinder(conv::conv_assoc_reft_def(genv, assoc_reft, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>))
     } <span class="kw">else </span>{
-        <span class="kw">let </span>span = genv.tcx().def_span(impl_id);
-        <span class="prelude-val">Err</span>(genv
-            .sess()
-            .emit_err(errors::UndefinedAssocReft::new(span, name)))<span class="question-mark">?
+        <span class="prelude-val">Err</span>(QueryErr::InvalidAssocReft { impl_id: impl_id.to_def_id(), name })<span class="question-mark">?
     </span>}
 }
 
@@ -973,20 +953,6 @@
             <span class="kw">let </span>names: Vec&lt;String&gt; = cycle.iter().map(|s| <span class="macro">format!</span>(<span class="string">"`{s}`"</span>)).collect();
             <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{} -&gt; {}"</span>, names.join(<span class="string">" -&gt; "</span>), root);
             <span class="self">Self </span>{ span, msg }
-        }
-    }
-
-    <span class="attr">#[derive(Diagnostic)]
-    #[diag(fhir_analysis_undefined_assoc_reft, code = E0999)]
-    </span><span class="kw">pub struct </span>UndefinedAssocReft {
-        <span class="attr">#[primary_span]
-        </span>span: Span,
-        name: Symbol,
-    }
-
-    <span class="kw">impl </span>UndefinedAssocReft {
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, name: Symbol) -&gt; <span class="self">Self </span>{
-            <span class="self">Self </span>{ span, name }
         }
     }
 }
