@@ -166,7 +166,6 @@ impl<T: Types> Task<T> {
             .arg("-q")
             .arg("--stdin")
             .arg("--json")
-            .arg("--nosmthorn")
             .arg("--allowho")
             .arg("--allowhoqs")
             .stdin(Stdio::piped())
@@ -200,7 +199,7 @@ impl<T: Types> fmt::Display for Task<T> {
             writeln!(f, "(fixpoint \"--scrape=both\")")?;
         }
         for line in &self.comments {
-            writeln!(f, "// {line}")?;
+            writeln!(f, ";; {line}")?;
         }
         writeln!(f)?;
 
@@ -233,15 +232,7 @@ impl<T: Types> fmt::Display for Task<T> {
 
 impl<T: Types> fmt::Display for KVar<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "(var ${} ({})) // {}",
-            self.kvid,
-            self.sorts
-                .iter()
-                .format_with(" ", |sort, f| f(&format_args!("({sort})"))),
-            self.comment
-        )
+        write!(f, "(var ${} ({})) ;; {}", self.kvid, self.sorts.iter().join(" "), self.comment)
     }
 }
 
@@ -249,7 +240,7 @@ impl<T: Types> fmt::Display for ConstInfo<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(constant {} {})", self.name, self.sort)?;
         if let Some(orig) = &self.orig {
-            write!(f, "  // orig: {orig}")?;
+            write!(f, "  ;; orig: {orig}")?;
         }
         Ok(())
     }

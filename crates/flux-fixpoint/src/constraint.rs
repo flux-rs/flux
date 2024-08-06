@@ -193,19 +193,19 @@ impl<T: Types> Pred<T> {
 
 impl<T: Types> fmt::Display for DataDecl<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(data {} {} = [{}])", self.name, self.vars, self.ctors.iter().format(" "))
+        write!(f, "(datatype ({} {}) ({}))", self.name, self.vars, self.ctors.iter().format(" "))
     }
 }
 
 impl<T: Types> fmt::Display for DataCtor<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "| {} {{ {} }}", self.name, self.fields.iter().format(", "))
+        write!(f, "({} ({}))", self.name, self.fields.iter().format(" "))
     }
 }
 
 impl<T: Types> fmt::Display for DataField<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.name, self.sort)
+        write!(f, "({} {})", self.name, self.sort)
     }
 }
 
@@ -257,7 +257,7 @@ impl<T: Types> fmt::Display for PredTag<'_, T> {
                 if let Some(tag) = tag {
                     write!(f, "(tag {pred} \"{tag}\")")
                 } else {
-                    write!(f, "({pred})")
+                    write!(f, "{pred}")
                 }
             }
         }
@@ -300,13 +300,13 @@ impl<T: Types> fmt::Display for Sort<T> {
 }
 
 fn fmt_func<T: Types>(params: usize, sort: &Sort<T>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "(func({params}, [")?;
+    write!(f, "(func {params} (")?;
     let mut curr = sort;
     while let Sort::Func(box [input, output]) = curr {
-        write!(f, "{input};")?;
+        write!(f, "{input} ")?;
         curr = output;
     }
-    write!(f, "{curr}]))")
+    write!(f, ") {curr})")
 }
 
 impl<T: Types> fmt::Display for Pred<T> {
@@ -360,31 +360,31 @@ impl<T: Types> fmt::Display for Expr<T> {
                 write!(f, "({func} {})", args.iter().map(FmtParens).format(" "),)
             }
             Expr::Neg(e) => {
-                write!(f, "-{}", FmtParens(e))
+                write!(f, "(- {})", FmtParens(e))
             }
             Expr::BinaryOp(op, box [e1, e2]) => {
-                write!(f, "{} {op} {}", FmtParens(e1), FmtParens(e2))
+                write!(f, "({op} {} {})", FmtParens(e1), FmtParens(e2))
             }
             Expr::IfThenElse(box [p, e1, e2]) => {
-                write!(f, "if {p} then {e1} else {e2}")
+                write!(f, "(if {} {} {})", FmtParens(p), FmtParens(e1), FmtParens(e2))
             }
             Expr::And(exprs) => {
-                write!(f, "{}", exprs.iter().map(FmtParens).format(" && "))
+                write!(f, "(and {})", exprs.iter().map(FmtParens).format(" "))
             }
             Expr::Or(exprs) => {
-                write!(f, "{}", exprs.iter().map(FmtParens).format(" || "))
+                write!(f, "(or {})", exprs.iter().map(FmtParens).format(" "))
             }
             Expr::Not(e) => {
-                write!(f, "~{}", FmtParens(e))
+                write!(f, "(not {})", FmtParens(e))
             }
             Expr::Imp(box [e1, e2]) => {
-                write!(f, "{} => {}", FmtParens(e1), FmtParens(e2))
+                write!(f, "(=> {} {})", FmtParens(e1), FmtParens(e2))
             }
             Expr::Iff(box [e1, e2]) => {
-                write!(f, "{} <=> {}", FmtParens(e1), FmtParens(e2))
+                write!(f, "(<=> {} {})", FmtParens(e1), FmtParens(e2))
             }
             Expr::Atom(rel, box [e1, e2]) => {
-                write!(f, "{} {rel} {}", FmtParens(e1), FmtParens(e2))
+                write!(f, "({rel} {} {})", FmtParens(e1), FmtParens(e2))
             }
         }
     }
@@ -515,7 +515,7 @@ impl fmt::Display for BinRel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             BinRel::Eq => write!(f, "="),
-            BinRel::Ne => write!(f, "/="),
+            BinRel::Ne => write!(f, "!="),
             BinRel::Gt => write!(f, ">"),
             BinRel::Ge => write!(f, ">="),
             BinRel::Lt => write!(f, "<"),
@@ -533,7 +533,7 @@ impl fmt::Debug for BinOp {
 impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constant::Int(n) => write!(f, "{n}"),
+            Constant::Int(n) => n.fmt_sexp(f),
             Constant::Real(r) => write!(f, "{r}.0"),
             Constant::Bool(b) => write!(f, "{b}"),
         }
