@@ -515,7 +515,7 @@ impl fmt::Display for BinRel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             BinRel::Eq => write!(f, "="),
-            BinRel::Ne => write!(f, "/="),
+            BinRel::Ne => write!(f, "!="),
             BinRel::Gt => write!(f, ">"),
             BinRel::Ge => write!(f, ">="),
             BinRel::Lt => write!(f, "<"),
