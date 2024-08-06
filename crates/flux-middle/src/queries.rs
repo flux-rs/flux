@@ -42,10 +42,10 @@ pub type QueryResult<T = ()> = Result<T, QueryErr>;
 /// We make a distinction between errors reported at def-site and errors reported at use-site.
 ///
 /// For most errors reported at the def-site of an item, it makes little sense to check the definition
-/// of other items that depend on it. For example, if a function signature is ill-formed, checking the
-/// body of another function that calls it, can produce confusing errors. We can even fail to produce
+/// of dependent items. For example, if a function signature is ill-formed, checking the body of another
+/// function that calls it, can produce confusing errors. In some cases, we can even fail to produce
 /// a signature for a function in which case we can't even check its call sites. For these cases, we
-/// emit an error at the definition site and return a [`QueryErr::Emitted`]. When checking a dependant,
+/// emit an error at the definition site and return a [`QueryErr::Emitted`]. When checking a dependent,
 /// we detect this and early return without reporting any errors at the use-site.
 ///
 /// Other errors are better reported at the use-site. For example, if some code calls a function from
@@ -61,7 +61,6 @@ pub type QueryResult<T = ()> = Result<T, QueryErr>;
 /// should consider not implementing [`Diagnostic`] for [`QueryErr`] such that we always make the
 /// distinction between use-site and def-site explicit, e.g., we could have methods `QueryErr::at_use_site`
 /// and `QueryErr::at_def_site` returning types with different implementations of [`Diagnostic`].
-///
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub enum QueryErr {
     Unsupported { def_id: DefId, err: UnsupportedErr },
