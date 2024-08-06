@@ -306,7 +306,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
 
 struct ImplicitParamCollector<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
-    path_res_map: &'a UnordMap<surface::NodeId, fhir::Res>,
+    path_res_map: &'a UnordMap<surface::NodeId, fhir::PartialRes>,
     kind: ScopeKind,
     params: Vec<(Ident, fhir::ParamKind, NodeId)>,
 }
@@ -314,7 +314,7 @@ struct ImplicitParamCollector<'a, 'tcx> {
 impl<'a, 'tcx> ImplicitParamCollector<'a, 'tcx> {
     fn new(
         tcx: TyCtxt<'tcx>,
-        path_res_map: &'a UnordMap<surface::NodeId, fhir::Res>,
+        path_res_map: &'a UnordMap<surface::NodeId, fhir::PartialRes>,
         kind: ScopeKind,
     ) -> Self {
         Self { tcx, path_res_map, kind, params: vec![] }
@@ -332,8 +332,10 @@ impl<'a, 'tcx> ImplicitParamCollector<'a, 'tcx> {
 
 impl ScopedVisitor for ImplicitParamCollector<'_, '_> {
     fn is_box(&self, segment: &surface::PathSegment) -> bool {
-        let res = self.path_res_map[&segment.node_id];
-        res.is_box(self.tcx)
+        self.path_res_map
+            .get(&segment.node_id)
+            .map(|r| r.is_box(self.tcx))
+            .unwrap_or(false)
     }
 
     fn enter_scope(&mut self, kind: ScopeKind) -> ControlFlow<()> {
@@ -683,8 +685,11 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
 impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
     fn is_box(&self, segment: &surface::PathSegment) -> bool {
-        let res = self.resolver_output().path_res_map[&segment.node_id];
-        res.is_box(self.resolver.genv.tcx())
+        self.resolver_output()
+            .path_res_map
+            .get(&segment.node_id)
+            .map(|r| r.is_box(self.resolver.genv.tcx()))
+            .unwrap_or(false)
     }
 
     fn enter_scope(&mut self, kind: ScopeKind) -> ControlFlow<()> {
@@ -835,8 +840,12 @@ impl<'a, 'genv, 'tcx> IllegalBinderVisitor<'a, 'genv, 'tcx> {
 
 impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
     fn is_box(&self, segment: &surface::PathSegment) -> bool {
-        let res = self.resolver.output.path_res_map[&segment.node_id];
-        res.is_box(self.resolver.genv.tcx())
+        self.resolver
+            .output
+            .path_res_map
+            .get(&segment.node_id)
+            .map(|r| r.is_box(self.resolver.genv.tcx()))
+            .unwrap_or(false)
     }
 
     fn enter_scope(&mut self, kind: ScopeKind) -> ControlFlow<()> {

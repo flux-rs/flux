@@ -402,6 +402,7 @@ BaseTyKind: surface::BaseTyKind = {
         let path  = surface::Path {
             segments,
             refine: vec![],
+            node_id: cx.next_node_id(),
             span: cx.map_span(lo, hi),
         };
         surface::BaseTyKind::Path(Some(Box::new(qself)), path)
@@ -438,6 +439,7 @@ Path: surface::Path = {
     <lo:@L> <segments:PathSegments> <refine:RefineArgs?> <hi:@R> => {
         surface::Path {
             segments,
+            node_id: cx.next_node_id(),
             refine: refine.unwrap_or_default(),
             span: cx.map_span(lo, hi),
         }

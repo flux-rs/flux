@@ -428,6 +428,7 @@ pub enum BindKind {
 pub struct Path {
     pub segments: Vec<PathSegment>,
     pub refine: Vec<RefineArg>,
+    pub node_id: NodeId,
     pub span: Span,
 }
 
