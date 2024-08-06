@@ -703,6 +703,10 @@ impl PartialRes {
         Self { base_res, unresolved_segments: 0 }
     }
 
+    pub fn with_unresolved_segments(base_res: Res, unresolved_segments: usize) -> Self {
+        Self { base_res, unresolved_segments }
+    }
+
     #[inline]
     pub fn base_res(&self) -> Res {
         self.base_res

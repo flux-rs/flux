@@ -337,6 +337,11 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 self.zip_ty(self_ty, expected_self_ty)?;
                 self.zip_path(path, expected_path)
             }
+            (fhir::QPath::TypeRelative(ty, _), fhir::QPath::TypeRelative(expected_ty, _)) => {
+                // FIXME(nilehmann) we should be checking the segments here, but since we are moving
+                // annot_check to rty we can live without it for now.
+                self.zip_ty(ty, expected_ty)
+            }
             _ => Err(self.emit_err(errors::InvalidRefinement::from_qpaths(qpath, expected_qpath))),
         }
     }

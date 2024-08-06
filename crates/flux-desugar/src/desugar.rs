@@ -1074,7 +1074,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 Ok(self.genv().alloc(ty))
             })
             .transpose()?;
-        let partial_res = self.resolver_output().path_res_map[&path.last().node_id];
+        let partial_res = self.resolver_output().path_res_map[&path.node_id];
 
         let unresolved_segments = partial_res.unresolved_segments();
 
@@ -1132,7 +1132,11 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         &mut self,
         segment: &surface::PathSegment,
     ) -> Result<fhir::PathSegment<'genv>> {
-        let res = self.resolver_output().path_res_map[&segment.node_id].expect_full_res();
+        let res = self
+            .resolver_output()
+            .path_res_map
+            .get(&segment.node_id)
+            .map_or(Res::Err, |r| r.expect_full_res());
         let (args, bindings) = self.desugar_generic_args(res, &segment.args)?;
         Ok(fhir::PathSegment { ident: segment.ident, res, args, bindings })
     }
