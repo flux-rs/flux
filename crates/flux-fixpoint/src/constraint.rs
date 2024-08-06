@@ -257,7 +257,7 @@ impl<T: Types> fmt::Display for PredTag<'_, T> {
                 if let Some(tag) = tag {
                     write!(f, "(tag {pred} \"{tag}\")")
                 } else {
-                    write!(f, "({pred})")
+                    write!(f, "{pred}")
                 }
             }
         }
@@ -322,7 +322,7 @@ impl<T: Types> fmt::Display for Pred<T> {
             Pred::KVar(kvid, vars) => {
                 write!(f, "(${kvid} {})", vars.iter().format(" "))
             }
-            Pred::Expr(expr) => write!(f, "{expr}"),
+            Pred::Expr(expr) => write!(f, "({expr})"),
         }
     }
 }
