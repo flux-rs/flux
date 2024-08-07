@@ -30,7 +30,6 @@ use flux_middle::{
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{self as hir, def_id::DefId, OwnerId};
-use rustc_middle::ty::TyCtxt;
 use rustc_span::def_id::LocalDefId;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -376,16 +375,4 @@ impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
             .insert(qualifier.name, fhir::FluxItem::Qualifier(qualifier));
         Ok(())
     }
-}
-
-fn def_id_symbol(tcx: TyCtxt, def_id: LocalDefId) -> rustc_span::Symbol {
-    let did = def_id.to_def_id();
-    // TODO(RJ) use fully qualified names: Symbol::intern(&tcx.def_path_str(did))
-    let def_path = tcx.def_path(did);
-    if let Some(dp) = def_path.data.last() {
-        if let rustc_hir::definitions::DefPathData::ValueNs(sym) = dp.data {
-            return sym;
-        }
-    }
-    panic!("def_id_symbol fails on {did:?}")
 }

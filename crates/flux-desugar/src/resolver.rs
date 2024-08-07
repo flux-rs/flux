@@ -71,7 +71,6 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     ribs: PerNS<Vec<Rib>>,
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
     sort_decls: UnordMap<Symbol, fhir::SortDecl>,
-    consts: UnordMap<Symbol, DefId>,
     err: Option<ErrorGuaranteed>,
 }
 
@@ -95,6 +94,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
 
     fn visit_mod(&mut self, module: &'tcx hir::Mod<'tcx>, _s: Span, hir_id: hir::HirId) {
         self.push_rib(TypeNS);
+        self.push_rib(ValueNS);
         for item_id in module.item_ids {
             let item = self.genv.hir().item(*item_id);
             let def_kind = match item.kind {
@@ -113,12 +113,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                                 continue;
                             };
                             for child in module_children(self.genv.tcx(), module_id) {
-                                if child.res.ns() == Some(TypeNS) {
-                                    self.define_res_in(
-                                        child.ident.name,
-                                        map_res(child.res),
-                                        TypeNS,
-                                    );
+                                if let Some(ns @ (TypeNS | ValueNS)) = child.res.ns() {
+                                    self.define_res_in(child.ident.name, map_res(child.res), ns);
                                 }
                             }
                         }
@@ -131,20 +127,25 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                 ItemKind::Struct(..) => DefKind::Struct,
                 ItemKind::Trait(..) => DefKind::Trait,
                 ItemKind::Mod(..) => DefKind::Mod,
+                ItemKind::Const(..) => DefKind::Const,
                 _ => continue,
             };
-            self.define_res_in(
-                item.ident.name,
-                hir::def::Res::Def(def_kind, item.owner_id.to_def_id()),
-                TypeNS,
-            );
+            if let Some(ns) = def_kind.ns() {
+                self.define_res_in(
+                    item.ident.name,
+                    hir::def::Res::Def(def_kind, item.owner_id.to_def_id()),
+                    ns,
+                );
+            }
         }
         hir::intravisit::walk_mod(self, module, hir_id);
+        self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
     }
 
     fn visit_item(&mut self, item: &'tcx hir::Item<'tcx>) {
         self.push_rib(TypeNS);
+        self.push_rib(ValueNS);
         match item.kind {
             ItemKind::Trait(_, _, generics, ..) => {
                 self.define_generics(generics);
@@ -205,6 +206,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             _ => {}
         }
         hir::intravisit::walk_item(self, item);
+        self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
     }
 
@@ -251,7 +253,6 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             err: None,
             func_decls: Default::default(),
             sort_decls: Default::default(),
-            consts: Default::default(),
         }
     }
 
@@ -261,12 +262,6 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 sort_decl.name.name,
                 fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
             );
-        }
-
-        for def_id in &self.specs.consts {
-            let did = def_id.to_def_id();
-            let sym = super::def_id_symbol(self.genv.tcx(), *def_id);
-            self.consts.insert(sym, did);
         }
 
         for defn in &self.specs.func_defs {
@@ -296,11 +291,15 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn define_generics(&mut self, generics: &hir::Generics) {
         for param in generics.params {
-            if let ParamName::Plain(name) = param.name {
+            let def_kind = self.genv.tcx().def_kind(param.def_id);
+            if let ParamName::Plain(name) = param.name
+                && let Some(ns) = def_kind.ns()
+            {
+                debug_assert!(matches!(def_kind, DefKind::TyParam | DefKind::ConstParam));
                 self.define_res_in(
                     name.name,
-                    hir::def::Res::Def(DefKind::TyParam, param.def_id.to_def_id()),
-                    TypeNS,
+                    hir::def::Res::Def(def_kind, param.def_id.to_def_id()),
+                    ns,
                 );
             }
         }
@@ -436,6 +435,22 @@ impl Segment for surface::PathSegment {
 
     fn ident(&self) -> Ident {
         self.ident
+    }
+}
+
+impl Segment for surface::PathExprSegment {
+    fn record_segment_res(_resolver: &mut CrateResolver, _segment: &Self, _res: fhir::Res) {}
+
+    fn ident(&self) -> Ident {
+        self.ident
+    }
+}
+
+impl Segment for Ident {
+    fn record_segment_res(_resolver: &mut CrateResolver, _segment: &Self, _res: fhir::Res) {}
+
+    fn ident(&self) -> Ident {
+        *self
     }
 }
 
