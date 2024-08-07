@@ -13,13 +13,13 @@ use rustc_middle::ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundRegionKind, BoundVar, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy, ParamTy,
-        RegionVid, ScalarInt, UintTy,
+        BoundRegionKind, BoundVar, ConstVid, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy,
+        ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
 use rustc_span::{symbol::kw, Symbol};
 use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
-use rustc_type_ir::InferConst;
+pub use rustc_type_ir::InferConst;
 
 use self::subst::Subst;
 use crate::{

@@ -45,8 +45,8 @@ use self::{
 pub use crate::{
     fhir::InferMode,
     rustc::ty::{
-        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, EarlyParamRegion,
-        LateParamRegion, OutlivesPredicate,
+        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid,
+        EarlyParamRegion, LateParamRegion, OutlivesPredicate,
         Region::{self, *},
         RegionVid,
     },

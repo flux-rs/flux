@@ -685,10 +685,9 @@ pub struct ConstArg {
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum ConstArgKind {
-    /// The length of the array is a constant
     Lit(usize),
-    /// The length of the array is a type parameter
     Param(DefId),
+    Infer,
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -1306,6 +1305,7 @@ impl fmt::Debug for ConstArgKind {
         match self {
             ConstArgKind::Lit(n) => write!(f, "{n}"),
             ConstArgKind::Param(p) => write!(f, "{:?}", p),
+            ConstArgKind::Infer => write!(f, "_"),
         }
     }
 }
