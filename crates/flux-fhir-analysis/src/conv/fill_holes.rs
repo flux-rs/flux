@@ -211,7 +211,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 }
             }
             (rty::BaseTy::Array(ty_a, len_a), ty::TyKind::Array(ty_b, len_b)) => {
-                debug_assert_eq!(len_a, len_b);
+                self.zip_const(len_a, len_b)?;
                 self.zip_ty(ty_a, ty_b)?;
             }
             (rty::BaseTy::Never, ty::TyKind::Never) => {}
