@@ -77,19 +77,6 @@ impl UnresolvedGenericParam {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_constant, code = E0999)]
-pub(super) struct InvalidConstant {
-    #[primary_span]
-    span: Span,
-}
-
-impl InvalidConstant {
-    pub(super) fn new(span: Span) -> Self {
-        Self { span }
-    }
-}
-
-#[derive(Diagnostic)]
 #[diag(desugar_invalid_alias_reft, code = E0999)]
 pub(super) struct InvalidAliasReft {
     #[primary_span]

@@ -25,6 +25,7 @@ use flux_common::{bug, span_bug};
 use flux_syntax::surface::ParamMode;
 pub use flux_syntax::surface::{BinOp, UnOp};
 use itertools::Itertools;
+use rustc_ast::TraitObjectSyntax;
 use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 use rustc_hash::FxHashMap;
 pub use rustc_hir::PrimTy;
@@ -40,7 +41,7 @@ use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{symbol::Ident, Span, Symbol};
 pub use rustc_target::abi::VariantIdx;
 
-use crate::{global_env::GlobalEnv, pretty, rty::Constant};
+use crate::{global_env::GlobalEnv, pretty};
 
 /// A boolean used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -94,13 +95,6 @@ pub enum GenericParamKind<'fhir> {
     Base,
     Lifetime,
     Const { ty: Ty<'fhir>, is_host_effect: bool },
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ConstInfo {
-    pub def_id: DefId,
-    pub sym: Symbol,
-    pub val: Constant,
 }
 
 #[derive(Debug)]
@@ -389,13 +383,12 @@ pub type Arena = bumpalo::Bump;
 /// We should eventually get rid of this or change its name.
 #[derive(Default)]
 pub struct Crate<'fhir> {
-    pub consts: FxHashMap<Symbol, ConstInfo>,
     pub flux_items: FxHashMap<Symbol, FluxItem<'fhir>>,
 }
 
 impl<'fhir> Crate<'fhir> {
     pub fn new() -> Self {
-        Self { consts: Default::default(), flux_items: Default::default() }
+        Self { flux_items: Default::default() }
     }
 }
 
@@ -538,6 +531,7 @@ pub enum TyKind<'fhir> {
     Array(&'fhir Ty<'fhir>, ConstArg),
     RawPtr(&'fhir Ty<'fhir>, Mutability),
     OpaqueDef(ItemId, &'fhir [GenericArg<'fhir>], &'fhir [RefineArg<'fhir>], bool),
+    TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
     Never,
     Hole(FhirId),
 }
@@ -571,6 +565,15 @@ pub enum FluxLocalDefId {
 pub enum FluxOwnerId {
     Flux(Symbol),
     Rust(OwnerId),
+}
+
+impl FluxOwnerId {
+    pub fn def_id(self) -> Option<LocalDefId> {
+        match self {
+            FluxOwnerId::Flux(_) => None,
+            FluxOwnerId::Rust(owner_id) => Some(owner_id.def_id),
+        }
+    }
 }
 
 /// A unique identifier for a node in the AST. Like [`HirId`] it is composed of an `owner` and a
@@ -682,10 +685,9 @@ pub struct ConstArg {
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum ConstArgKind {
-    /// The length of the array is a constant
     Lit(usize),
-    /// The length of the array is a type parameter
     Param(DefId),
+    Infer,
 }
 
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -695,6 +697,46 @@ pub enum Res {
     SelfTyAlias { alias_to: DefId, is_trait_impl: bool },
     SelfTyParam { trait_: DefId },
     Err,
+}
+
+/// See [`rustc_hir::def::PartialRes`]
+#[derive(Copy, Clone, Debug)]
+pub struct PartialRes {
+    base_res: Res,
+    unresolved_segments: usize,
+}
+
+impl PartialRes {
+    pub fn new(base_res: Res) -> Self {
+        Self { base_res, unresolved_segments: 0 }
+    }
+
+    pub fn with_unresolved_segments(base_res: Res, unresolved_segments: usize) -> Self {
+        Self { base_res, unresolved_segments }
+    }
+
+    #[inline]
+    pub fn base_res(&self) -> Res {
+        self.base_res
+    }
+
+    pub fn unresolved_segments(&self) -> usize {
+        self.unresolved_segments
+    }
+
+    #[inline]
+    pub fn full_res(&self) -> Option<Res> {
+        (self.unresolved_segments == 0).then_some(self.base_res)
+    }
+
+    #[inline]
+    pub fn expect_full_res(&self) -> Res {
+        self.full_res().unwrap_or_else(|| bug!("expected full res"))
+    }
+
+    pub fn is_box(&self, tcx: TyCtxt) -> bool {
+        self.full_res().map_or(false, |res| res.is_box(tcx))
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1042,13 +1084,6 @@ pub struct SpecFunc<'fhir> {
     pub body: Option<Expr<'fhir>>,
 }
 
-#[derive(Debug)]
-pub struct SpecFuncDecl<'fhir> {
-    pub name: Symbol,
-    pub sort: PolyFuncSort<'fhir>,
-    pub kind: SpecFuncKind,
-}
-
 #[derive(Debug, Clone, Copy, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
 pub enum SpecFuncKind {
     /// Theory symbols "interpreted" by the SMT solver: `Symbol` is Fixpoint's name for the operation e.g. `set_cup` for flux's `set_union`
@@ -1226,9 +1261,9 @@ impl fmt::Debug for Ty<'_> {
                     write!(f, ". {ty:?}}}")
                 }
             }
-            TyKind::StrgRef(lft, loc, ty) => write!(f, "&{lft:?} strg <{loc:?}: {ty:?}>"),
-            TyKind::Ref(lft, mut_ty) => {
-                write!(f, "&{lft:?} {}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
+            TyKind::StrgRef(_lft, loc, ty) => write!(f, "&strg <{loc:?}: {ty:?}>"),
+            TyKind::Ref(_lft, mut_ty) => {
+                write!(f, "&{}{:?}", mut_ty.mutbl.prefix_str(), mut_ty.ty)
             }
             TyKind::Tuple(tys) => write!(f, "({:?})", tys.iter().format(", ")),
             TyKind::Array(ty, len) => write!(f, "[{ty:?}; {len:?}]"),
@@ -1242,6 +1277,9 @@ impl fmt::Debug for Ty<'_> {
                     f,
                     "impl trait <def_id = {def_id:?}, args = {args:?}, refine = {refine_args:?}>"
                 )
+            }
+            TyKind::TraitObject(poly_traits, _lft, _syntax) => {
+                write!(f, "dyn {poly_traits:?}")
             }
         }
     }
@@ -1267,6 +1305,7 @@ impl fmt::Debug for ConstArgKind {
         match self {
             ConstArgKind::Lit(n) => write!(f, "{n}"),
             ConstArgKind::Param(p) => write!(f, "{:?}", p),
+            ConstArgKind::Infer => write!(f, "_"),
         }
     }
 }

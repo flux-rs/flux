@@ -366,9 +366,9 @@ impl Ty {
             fn visit_ty(&mut self, ty: &Ty) {
                 match &ty.kind {
                     TyKind::Tuple(_)
-                    | TyKind::Ref(_, _)
-                    | TyKind::Array(_, _)
-                    | TyKind::ImplTrait(_, _)
+                    | TyKind::Ref(..)
+                    | TyKind::Array(..)
+                    | TyKind::ImplTrait(..)
                     | TyKind::Hole
                     | TyKind::Base(_) => {
                         visit::walk_ty(self, ty);
@@ -428,6 +428,7 @@ pub enum BindKind {
 pub struct Path {
     pub segments: Vec<PathSegment>,
     pub refine: Vec<RefineArg>,
+    pub node_id: NodeId,
     pub span: Span,
 }
 
@@ -479,9 +480,15 @@ pub enum ExprKind {
 
 #[derive(Debug, Clone)]
 pub struct PathExpr {
-    pub segments: Vec<Ident>,
+    pub segments: Vec<PathExprSegment>,
     pub node_id: NodeId,
     pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub struct PathExprSegment {
+    pub ident: Ident,
+    pub node_id: NodeId,
 }
 
 #[derive(Copy, Clone)]
@@ -546,5 +553,67 @@ impl BindKind {
             BindKind::At => "@",
             BindKind::Pound => "#",
         }
+    }
+}
+
+/// A punctuated sequence of values of type `T` separated by punctuation of type `P`
+pub struct Punctuated<T, P> {
+    inner: Vec<(T, P)>,
+    last: Option<Box<T>>,
+}
+
+impl<T, P> From<Vec<(T, P)>> for Punctuated<T, P> {
+    fn from(inner: Vec<(T, P)>) -> Self {
+        Self { inner, last: None }
+    }
+}
+
+impl<T, P> Punctuated<T, P> {
+    pub fn len(&self) -> usize {
+        self.inner.len() + self.last.is_some() as usize
+    }
+
+    /// Determines whether this punctuated sequence is empty, meaning it
+    /// contains no syntax tree nodes or punctuation.
+    pub fn is_empty(&self) -> bool {
+        self.inner.len() == 0 && self.last.is_none()
+    }
+
+    /// Appends a syntax tree node onto the end of this punctuated sequence. The
+    /// sequence must already have a trailing punctuation, or be empty.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the sequence is nonempty and does not already have a trailing
+    /// punctuation.
+    pub fn push_value(&mut self, value: T) {
+        assert!(
+            self.empty_or_trailing(),
+            "Punctuated::push_value: cannot push value if Punctuated is missing trailing punctuation",
+        );
+
+        self.last = Some(Box::new(value));
+    }
+
+    /// Returns true if either this `Punctuated` is empty, or it has a trailing
+    /// punctuation.
+    ///
+    /// Equivalent to `punctuated.is_empty() || punctuated.trailing_punct()`.
+    pub fn empty_or_trailing(&self) -> bool {
+        self.last.is_none()
+    }
+
+    /// Determines whether this punctuated sequence ends with a trailing
+    /// punctuation.
+    pub fn trailing_punct(&self) -> bool {
+        self.last.is_none() && !self.is_empty()
+    }
+
+    pub fn into_values(self) -> Vec<T> {
+        let mut v: Vec<T> = self.inner.into_iter().map(|(v, _)| v).collect();
+        if let Some(last) = self.last {
+            v.push(*last);
+        }
+        v
     }
 }

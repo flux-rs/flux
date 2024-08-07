@@ -107,7 +107,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         clauses: &[rustc::ty::Clause],
         clause: &rustc::ty::Clause,
     ) -> QueryResult<Option<rty::Clause>> {
-        let kind = match &clause.kind {
+        let kind = match &clause.kind.as_ref().skip_binder() {
             rustc::ty::ClauseKind::Trait(trait_pred) => {
                 let trait_ref = &trait_pred.trait_ref;
                 if let Some(kind) = self.genv.tcx().fn_trait_kind_from_def_id(trait_ref.def_id) {
@@ -150,7 +150,8 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     ) -> QueryResult<rty::ClauseKind> {
         let mut candidates = vec![];
         for clause in clauses {
-            if let rustc::ty::ClauseKind::Projection(trait_pred) = &clause.kind
+            if let rustc::ty::ClauseKind::Projection(trait_pred) =
+                &clause.kind.as_ref().skip_binder()
                 && self.genv.is_fn_once_output(trait_pred.projection_ty.def_id)
                 && trait_pred.projection_ty.self_ty() == trait_ref.self_ty()
             {
@@ -167,6 +168,30 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             output: self.refine_ty(&pred.term)?,
         };
         Ok(rty::ClauseKind::FnTrait(pred))
+    }
+
+    pub fn refine_existential_predicate(
+        &self,
+        exi_pred: &rustc::ty::Binder<rustc::ty::ExistentialPredicate>,
+    ) -> QueryResult<rty::Binder<rty::ExistentialPredicate>> {
+        assert!(exi_pred.vars().is_empty());
+        let exi_pred = match exi_pred.as_ref().skip_binder() {
+            rustc::ty::ExistentialPredicate::Trait(exi_trait_ref) => {
+                rty::ExistentialPredicate::Trait(self.refine_exi_trait_ref(exi_trait_ref)?)
+            }
+        };
+        Ok(rty::Binder::new(exi_pred, List::empty()))
+    }
+
+    pub fn refine_exi_trait_ref(
+        &self,
+        exi_trait_ref: &rustc::ty::ExistentialTraitRef,
+    ) -> QueryResult<rty::ExistentialTraitRef> {
+        let exi_trait_ref = rty::ExistentialTraitRef {
+            def_id: exi_trait_ref.def_id,
+            args: self.refine_generic_args(exi_trait_ref.def_id, &exi_trait_ref.args)?,
+        };
+        Ok(exi_trait_ref)
     }
 
     pub fn refine_trait_ref(&self, trait_ref: &rustc::ty::TraitRef) -> QueryResult<rty::TraitRef> {
@@ -353,6 +378,13 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             rustc::ty::TyKind::FnPtr(_) => todo!("refine_ty: FnSig"),
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
+            }
+            rustc::ty::TyKind::Dynamic(exi_preds, r) => {
+                let exi_preds = exi_preds
+                    .iter()
+                    .map(|ty| self.refine_existential_predicate(ty))
+                    .try_collect()?;
+                rty::BaseTy::Dynamic(exi_preds, *r)
             }
         };
         Ok(TyOrBase::Base((self.refine)(bty)))

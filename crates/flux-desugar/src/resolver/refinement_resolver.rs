@@ -15,11 +15,18 @@ use rustc_data_structures::{
     unord::UnordMap,
 };
 use rustc_hash::FxHashMap;
-use rustc_hir::{self as hir, def::DefKind, OwnerId};
+use rustc_hir::{
+    self as hir,
+    def::{
+        DefKind,
+        Namespace::{TypeNS, ValueNS},
+    },
+    OwnerId,
+};
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{sym, symbol::kw, ErrorGuaranteed, Symbol};
 
-use super::CrateResolver;
+use super::{CrateResolver, Segment};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -306,7 +313,7 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
 
 struct ImplicitParamCollector<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
-    path_res_map: &'a UnordMap<surface::NodeId, fhir::Res>,
+    path_res_map: &'a UnordMap<surface::NodeId, fhir::PartialRes>,
     kind: ScopeKind,
     params: Vec<(Ident, fhir::ParamKind, NodeId)>,
 }
@@ -314,7 +321,7 @@ struct ImplicitParamCollector<'a, 'tcx> {
 impl<'a, 'tcx> ImplicitParamCollector<'a, 'tcx> {
     fn new(
         tcx: TyCtxt<'tcx>,
-        path_res_map: &'a UnordMap<surface::NodeId, fhir::Res>,
+        path_res_map: &'a UnordMap<surface::NodeId, fhir::PartialRes>,
         kind: ScopeKind,
     ) -> Self {
         Self { tcx, path_res_map, kind, params: vec![] }
@@ -332,8 +339,10 @@ impl<'a, 'tcx> ImplicitParamCollector<'a, 'tcx> {
 
 impl ScopedVisitor for ImplicitParamCollector<'_, '_> {
     fn is_box(&self, segment: &surface::PathSegment) -> bool {
-        let res = self.path_res_map[&segment.node_id];
-        res.is_box(self.tcx)
+        self.path_res_map
+            .get(&segment.node_id)
+            .map(|r| r.is_box(self.tcx))
+            .unwrap_or(false)
     }
 
     fn enter_scope(&mut self, kind: ScopeKind) -> ControlFlow<()> {
@@ -385,7 +394,6 @@ fn self_res(tcx: TyCtxt, owner: OwnerId) -> Option<fhir::SortRes> {
 pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     scopes: Vec<Scope>,
     sorts_res: UnordMap<Symbol, fhir::SortRes>,
-    const_generics: UnordMap<Symbol, (crate::DefId, u32)>,
     param_defs: FxIndexMap<NodeId, ParamDef>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
     path_res_map: FxHashMap<NodeId, ExprRes<NodeId>>,
@@ -402,7 +410,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             .enumerate()
             .map(|(i, v)| (v.name, fhir::SortRes::SortParam(i)))
             .collect();
-        Self::new(resolver, sort_res, Default::default())
+        Self::new(resolver, sort_res)
     }
 
     pub(crate) fn for_rust_item(
@@ -420,20 +428,11 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 None
             })
             .collect();
-        let const_generics = (0..generics.count())
-            .filter_map(|idx| {
-                let p = generics.param_at(idx, tcx);
-                if let rustc_middle::ty::GenericParamDefKind::Const { .. } = p.kind {
-                    return Some((p.name, (p.def_id, p.index)));
-                }
-                None
-            })
-            .collect();
 
         if let Some(self_res) = self_res(tcx, owner) {
             sort_res.insert(kw::SelfUpper, self_res);
         }
-        Self::new(resolver, sort_res, const_generics)
+        Self::new(resolver, sort_res)
     }
 
     pub(crate) fn resolve_qualifier(
@@ -507,14 +506,12 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     fn new(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         sort_res: UnordMap<Symbol, fhir::SortRes>,
-        const_generics: UnordMap<Symbol, (crate::DefId, u32)>,
     ) -> Self {
         let errors = Errors::new(resolver.genv.sess());
         Self {
             resolver,
             sorts_res: sort_res,
             param_defs: Default::default(),
-            const_generics,
             scopes: Default::default(),
             path_res_map: Default::default(),
             errors,
@@ -563,33 +560,72 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         None
     }
 
+    fn resolve_path(&mut self, path: &surface::PathExpr) {
+        if let [segment] = &path.segments[..]
+            && let Some(res) = self.try_resolve_param(segment.ident)
+        {
+            self.path_res_map.insert(path.node_id, res);
+            return;
+        }
+        if let Some(res) = self.try_resolve_with_ribs(&path.segments) {
+            self.path_res_map.insert(path.node_id, res);
+            return;
+        }
+        // TODO(nilehmann) move this to resolve_with_ribs
+        if let [typ, name] = &path.segments[..]
+            && let Some(res) = resolve_num_const(typ.ident, name.ident)
+        {
+            self.path_res_map.insert(path.node_id, res);
+            return;
+        }
+        if let [segment] = &path.segments[..]
+            && let Some(res) = self.try_resolve_global_func(segment.ident)
+        {
+            self.path_res_map.insert(path.node_id, res);
+            return;
+        }
+        self.errors.emit(errors::UnresolvedVar::from_path(path));
+    }
+
     fn resolve_ident(&mut self, ident: Ident, node_id: NodeId) {
-        if let Some(res) = self.find(ident) {
-            if let fhir::ParamKind::Error = res.kind() {
-                self.errors.emit(errors::InvalidUnrefinedParam::new(ident));
-                return;
-            }
-            self.path_res_map
-                .insert(node_id, ExprRes::Param(res.kind(), res.param_id()));
+        if let Some(res) = self.try_resolve_param(ident) {
+            self.path_res_map.insert(node_id, res);
             return;
         }
-        if let Some(const_def_id) = self.resolver.consts.get(&ident.name) {
-            self.path_res_map
-                .insert(node_id, ExprRes::Const(*const_def_id));
+        if let Some(res) = self.try_resolve_with_ribs(&[ident]) {
+            self.path_res_map.insert(node_id, res);
             return;
         }
-        if let Some(decl) = self.resolver.func_decls.get(&ident.name) {
-            self.path_res_map
-                .insert(node_id, ExprRes::GlobalFunc(*decl, ident.name));
+        if let Some(res) = self.try_resolve_global_func(ident) {
+            self.path_res_map.insert(node_id, res);
             return;
         }
-        if let Some((def_id, _index)) = self.const_generics.get(&ident.name) {
-            self.path_res_map
-                .insert(node_id, ExprRes::ConstGeneric(*def_id));
-            return;
+        self.errors.emit(errors::UnresolvedVar::from_ident(ident));
+    }
+
+    fn try_resolve_with_ribs<S: Segment>(&mut self, segments: &[S]) -> Option<ExprRes<NodeId>> {
+        let res = self
+            .resolver
+            .resolve_path_with_ribs(segments, ValueNS)?
+            .full_res()?;
+        match res {
+            fhir::Res::Def(DefKind::ConstParam, def_id) => Some(ExprRes::ConstGeneric(def_id)),
+            fhir::Res::Def(DefKind::Const, def_id) => Some(ExprRes::Const(def_id)),
+            _ => None,
         }
-        self.errors
-            .emit(errors::UnresolvedVar::from_ident(ident, "name"));
+    }
+
+    fn try_resolve_param(&mut self, ident: Ident) -> Option<ExprRes<NodeId>> {
+        let res = self.find(ident)?;
+        if let fhir::ParamKind::Error = res.kind() {
+            self.errors.emit(errors::InvalidUnrefinedParam::new(ident));
+        }
+        Some(ExprRes::Param(res.kind(), res.param_id()))
+    }
+
+    fn try_resolve_global_func(&mut self, ident: Ident) -> Option<ExprRes<NodeId>> {
+        let kind = self.resolver.func_decls.get(&ident.name)?;
+        Some(ExprRes::GlobalFunc(*kind, ident.name))
     }
 
     fn resolve_sort_path(&mut self, path: &surface::SortPath) {
@@ -611,7 +647,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         } else if let Some(hir::def::Res::Def(
             DefKind::Struct | DefKind::Enum | DefKind::TyAlias,
             def_id,
-        )) = self.resolver.resolve_ident(segment)
+        )) = self.resolver.resolve_ident_with_ribs(segment, TypeNS)
         {
             fhir::SortRes::Adt(def_id)
         } else {
@@ -683,8 +719,11 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
 impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
     fn is_box(&self, segment: &surface::PathSegment) -> bool {
-        let res = self.resolver_output().path_res_map[&segment.node_id];
-        res.is_box(self.resolver.genv.tcx())
+        self.resolver_output()
+            .path_res_map
+            .get(&segment.node_id)
+            .map(|r| r.is_box(self.resolver.genv.tcx()))
+            .unwrap_or(false)
     }
 
     fn enter_scope(&mut self, kind: ScopeKind) -> ControlFlow<()> {
@@ -745,26 +784,7 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
     }
 
     fn on_path(&mut self, path: &surface::PathExpr) {
-        match &path.segments[..] {
-            [var] => {
-                self.resolve_ident(*var, path.node_id);
-            }
-            [typ, name] => {
-                if let Some(res) = resolve_num_const(*typ, *name) {
-                    self.resolver
-                        .output
-                        .path_expr_res_map
-                        .insert(path.node_id, res);
-                } else {
-                    self.errors
-                        .emit(errors::UnresolvedVar::from_path(path, "path"));
-                }
-            }
-            _ => {
-                self.errors
-                    .emit(errors::UnresolvedVar::from_path(path, "path"));
-            }
-        }
+        self.resolve_path(path);
     }
 
     fn on_base_sort(&mut self, sort: &surface::BaseSort) {
@@ -779,7 +799,7 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
 
 macro_rules! define_resolve_num_const {
     ($($typ:ident),*) => {
-        fn resolve_num_const(typ: surface::Ident, name: surface::Ident) -> Option<ExprRes> {
+        fn resolve_num_const(typ: surface::Ident, name: surface::Ident) -> Option<ExprRes<NodeId>> {
             match typ.name.as_str() {
                 $(
                     stringify!($typ) => {
@@ -835,8 +855,12 @@ impl<'a, 'genv, 'tcx> IllegalBinderVisitor<'a, 'genv, 'tcx> {
 
 impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
     fn is_box(&self, segment: &surface::PathSegment) -> bool {
-        let res = self.resolver.output.path_res_map[&segment.node_id];
-        res.is_box(self.resolver.genv.tcx())
+        self.resolver
+            .output
+            .path_res_map
+            .get(&segment.node_id)
+            .map(|r| r.is_box(self.resolver.genv.tcx()))
+            .unwrap_or(false)
     }
 
     fn enter_scope(&mut self, kind: ScopeKind) -> ControlFlow<()> {
@@ -919,24 +943,23 @@ mod errors {
         #[label]
         span: Span,
         var: String,
-        kind: String,
     }
 
     impl UnresolvedVar {
-        pub(super) fn from_path(path: &surface::PathExpr, kind: &str) -> Self {
-            Self::from_segments(&path.segments, kind, path.span)
-        }
-
-        pub(super) fn from_ident(ident: Ident, kind: &str) -> Self {
-            Self { span: ident.span, kind: kind.to_string(), var: format!("{ident}") }
-        }
-
-        fn from_segments(segments: &[Ident], kind: &str, span: Span) -> Self {
+        pub(super) fn from_path(path: &surface::PathExpr) -> Self {
             Self {
-                span,
-                kind: kind.to_string(),
-                var: format!("{}", segments.iter().format_with("::", |s, f| f(&s.name))),
+                span: path.span,
+                var: format!(
+                    "{}",
+                    path.segments
+                        .iter()
+                        .format_with("::", |s, f| f(&s.ident.name))
+                ),
             }
+        }
+
+        pub(super) fn from_ident(ident: Ident) -> Self {
+            Self { span: ident.span, var: format!("{ident}") }
         }
     }
 

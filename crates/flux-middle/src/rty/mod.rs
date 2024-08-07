@@ -13,7 +13,6 @@ mod pretty;
 pub mod projections;
 pub mod refining;
 pub mod subst;
-
 use std::{borrow::Cow, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
@@ -22,13 +21,14 @@ pub use expr::{
     HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
 use flux_common::bug;
+use fold::TypeFolder;
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::ty::{ParamConst, TyCtxt, ValTree};
+use rustc_middle::ty::{ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
@@ -45,8 +45,8 @@ use self::{
 pub use crate::{
     fhir::InferMode,
     rustc::ty::{
-        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, EarlyParamRegion,
-        FreeRegion, OutlivesPredicate,
+        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid,
+        EarlyParamRegion, LateParamRegion, OutlivesPredicate,
         Region::{self, *},
         RegionVid,
     },
@@ -229,6 +229,36 @@ impl TraitRef {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum ExistentialPredicate {
+    Trait(ExistentialTraitRef),
+}
+
+impl Binder<ExistentialPredicate> {
+    fn to_rustc<'tcx>(
+        &self,
+        tcx: TyCtxt<'tcx>,
+    ) -> rustc_middle::ty::Binder<'tcx, rustc_middle::ty::ExistentialPredicate<'tcx>> {
+        assert!(self.vars.is_empty());
+        match self.value {
+            ExistentialPredicate::Trait(ref exi_trait_ref) => {
+                let exi_trait_ref = rustc_middle::ty::ExistentialTraitRef {
+                    def_id: exi_trait_ref.def_id,
+                    args: exi_trait_ref.args.to_rustc(tcx),
+                };
+                let exi_pred = rustc_middle::ty::ExistentialPredicate::Trait(exi_trait_ref);
+                rustc_middle::ty::Binder::bind_with_vars(exi_pred, rustc_middle::ty::List::empty())
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct ExistentialTraitRef {
+    pub def_id: DefId,
+    pub args: GenericArgs,
+}
+
 #[derive(PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable)]
 pub struct ProjectionPredicate {
     pub projection_ty: AliasTy,
@@ -283,10 +313,12 @@ pub enum SortCtor {
     User { name: Symbol },
 }
 
-/// [ParamSort] are used for polymorphic sorts (Set, Map etc.) and they should occur
-/// "bound" under a PolyFuncSort; i.e. should be < than the number of params in the
-/// PolyFuncSort.
-#[derive(Clone, PartialEq, Eq, Debug, Hash, Encodable, Decodable)]
+/// [ParamSort] is used for polymorphic sorts (Set, Map etc.) and [bit-vector size parameters]. They
+/// should occur "bound" under a [`PolyFuncSort`]; i.e. should be < than the number of params in the
+/// [`PolyFuncSort`].
+///
+/// [bit-vector size parameters]: BvSize::Param
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, Encodable, Decodable)]
 pub struct ParamSort {
     pub index: usize,
 }
@@ -375,12 +407,39 @@ pub enum SortInfer {
     NumVar(NumVid),
 }
 
+newtype_index! {
+    /// A *b*it *v*ector *size* *v*variable *id*
+    #[debug_format = "?{}size"]
+    #[encodable]
+    pub struct BvSizeVid {}
+}
+
+impl ena::unify::UnifyKey for BvSizeVid {
+    type Value = Option<BvSize>;
+
+    #[inline]
+    fn index(&self) -> u32 {
+        self.as_u32()
+    }
+
+    #[inline]
+    fn from_index(u: u32) -> Self {
+        BvSizeVid::from_u32(u)
+    }
+
+    fn tag() -> &'static str {
+        "BvSizeVid"
+    }
+}
+
+impl ena::unify::EqUnifyValue for BvSize {}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Sort {
     Int,
     Bool,
     Real,
-    BitVec(usize),
+    BitVec(BvSize),
     Loc,
     Param(ParamTy),
     Tuple(List<Sort>),
@@ -389,6 +448,20 @@ pub enum Sort {
     Var(ParamSort),
     Infer(SortInfer),
     Err,
+}
+
+/// The size of a [bit-vector]
+///
+/// [bit-vector]: Sort::BitVec
+#[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum BvSize {
+    /// A fixed size
+    Fixed(usize),
+    /// A size that has been parameterized, e.g., bound under a [`PolyFuncSort`]
+    Param(ParamSort),
+    /// A size that needs to be inferred. Used during sort checking to instantiate bit-vector
+    /// sizes at call-sites.
+    Infer(BvSizeVid),
 }
 
 impl rustc_errors::IntoDiagArg for Sort {
@@ -423,18 +496,35 @@ impl FuncSort {
     }
 
     pub fn to_poly(&self) -> PolyFuncSort {
-        PolyFuncSort::new(0, self.clone())
+        PolyFuncSort::new(List::empty(), self.clone())
     }
 }
 
+/// See [`PolyFuncSort`]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+pub enum SortParamKind {
+    Sort,
+    BvSize,
+}
+
+/// A polymorphic function sort parametric over [sorts] or [bit-vector sizes].
+///
+/// Parameterizing over bit-vector sizes is a bit of a stretch, because smtlib doesn't support full
+/// parametric reasoning over them. As long as we used functions parameterized over a size monomorphically
+/// we should be fine. Right now, we can guarantee this, because size parameters are not exposed in
+/// the surface syntax and they are only used for predefined (interpreted) theory functions.
+///
+/// [sorts]: Sort
+/// [bit-vector sizes]: BvSize::Param
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct PolyFuncSort {
-    params: usize,
+    /// The list of parameters including sorts and bit vector sizes
+    params: List<SortParamKind>,
     fsort: FuncSort,
 }
 
 impl PolyFuncSort {
-    pub fn new(params: usize, fsort: FuncSort) -> Self {
+    pub fn new(params: List<SortParamKind>, fsort: FuncSort) -> Self {
         PolyFuncSort { params, fsort }
     }
 
@@ -447,17 +537,25 @@ impl PolyFuncSort {
     }
 
     pub fn expect_mono(&self) -> FuncSort {
-        assert!(self.params == 0);
+        assert!(self.params.is_empty());
         self.fsort.clone()
     }
 
-    pub fn params(&self) -> usize {
-        self.params
+    pub fn params(&self) -> impl ExactSizeIterator<Item = SortParamKind> + '_ {
+        self.params.iter().copied()
     }
 
-    pub fn instantiate(&self, args: &[Sort]) -> FuncSort {
+    pub fn instantiate(&self, args: &[SortArg]) -> FuncSort {
         self.fsort.fold_with(&mut SortSubst::new(args))
     }
+}
+
+/// An argument for a generic parameter in a [`Sort`] which can be either a generic sort or a
+/// generic bit-vector size.
+#[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
+pub enum SortArg {
+    Sort(Sort),
+    BvSize(BvSize),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, TyEncodable, TyDecodable)]
@@ -498,11 +596,11 @@ impl Invariant {
 
     pub fn apply(&self, idx: &Expr) -> Expr {
         // The predicate may have sort variables but we don't explicitly instantiate them. This
-        // works because within an expression, sort variables can only appear inside a lambda and
-        // invariants cannot have lambdas. It remains to instantiate variables in the sort of the
-        // binder itself, but since we are removing it, we can avoid the explicit instantiation.
-        // Ultimately, this works because the expression we generate in fixpoint don't need
-        // sort annotations (sorts are re-inferred).
+        // works because within an expression, sort variables can only appear inside the sort
+        // annotation for a lambda and invariants cannot have lambdas. It remains to instantiate
+        // variables in the sort of the binder itself, but since we are removing it, we can avoid
+        // the explicit instantiation. Ultimately, this works because the expression we generate in
+        // fixpoint don't need sort annotations (sorts are re-inferred).
         self.pred.replace_bound_reft(idx)
     }
 }
@@ -621,6 +719,10 @@ impl Ty {
         Self::alias(AliasKind::Projection, alias_ty)
     }
 
+    pub fn dynamic(preds: impl Into<List<Binder<ExistentialPredicate>>>, region: Region) -> Ty {
+        BaseTy::Dynamic(preds.into(), region).to_ty()
+    }
+
     pub fn strg_ref(re: Region, path: Path, ty: Ty) -> Ty {
         TyKind::StrgRef(re, path, ty).intern()
     }
@@ -733,6 +835,25 @@ impl Ty {
         TyKind::Hole(fhir_id).intern()
     }
 
+    /// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
+    /// to have a unique var identifying each position such that we can infer a region substitution
+    /// when assigning a type to a place. This way we can recover the regions in the original rust
+    /// type. See `flux_refineck::type_env::TypeEnv::assign`
+    pub fn replace_regions_with_unique_vars(&self) -> Ty {
+        struct Replacer {
+            next_rvid: u32,
+        }
+        impl TypeFolder for Replacer {
+            fn fold_region(&mut self, _: &Region) -> Region {
+                let rvid = self.next_rvid;
+                self.next_rvid += 1;
+                Region::ReVar(RegionVid::from_u32(rvid))
+            }
+        }
+
+        self.fold_with(&mut Replacer { next_rvid: 0 })
+    }
+
     pub fn unconstr(&self) -> (Ty, Expr) {
         fn go(this: &Ty, preds: &mut Vec<Expr>) -> Ty {
             if let TyKind::Constr(pred, ty) = this.kind() {
@@ -743,7 +864,7 @@ impl Ty {
             }
         }
         let mut preds = vec![];
-        (go(self, &mut preds), Expr::and_from_iter(preds))
+        (go(self, &mut preds), Expr::and_iter(preds))
     }
 
     pub fn unblocked(&self) -> Ty {
@@ -836,6 +957,48 @@ pub struct TyS {
     kind: TyKind,
 }
 
+impl TyS {
+    pub fn kind(&self) -> &TyKind {
+        &self.kind
+    }
+
+    #[track_caller]
+    pub fn expect_discr(&self) -> (&AdtDef, &Place) {
+        if let TyKind::Discr(adt_def, place) = self.kind() {
+            (adt_def, place)
+        } else {
+            bug!("expected discr")
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Expr) {
+        if let TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = self.kind() {
+            (adt_def, args, idx)
+        } else {
+            bug!("expected adt")
+        }
+    }
+
+    #[track_caller]
+    pub(crate) fn expect_tuple(&self) -> &[Ty] {
+        if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
+            tys
+        } else {
+            bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
+        }
+    }
+
+    #[track_caller]
+    pub fn expect_base(&self) -> BaseTy {
+        match self.kind() {
+            TyKind::Indexed(base_ty, _) => base_ty.clone(),
+            TyKind::Exists(bty) => bty.clone().skip_binder().expect_base(),
+            _ => bug!("expected indexed type"),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub enum TyKind {
     Indexed(BaseTy, Expr),
@@ -846,10 +1009,12 @@ pub enum TyKind {
     Ptr(PtrKind, Path),
     /// This is a bit of a hack. We use this type internally to represent the result of
     /// [`Rvalue::Discriminant`] in a way that we can recover the necessary control information
-    /// when checking [`TerminatorKind::SwitchInt`].
+    /// when checking a [`match`]. The hack is that we assume the dicriminant remains the same from
+    /// the creation of this type until we use it in a [`match`].
+    ///
     ///
     /// [`Rvalue::Discriminant`]: crate::rustc::mir::Rvalue::Discriminant
-    /// [`TerminatorKind::SwitchInt`]: crate::rustc::mir::TerminatorKind::SwitchInt
+    /// [`match`]: crate::rustc::mir::TerminatorKind::SwitchInt
     Discr(AdtDef, Place),
     Param(ParamTy),
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
@@ -885,7 +1050,204 @@ pub enum BaseTy {
     Never,
     Closure(DefId, /* upvar_tys */ List<Ty>),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
+    Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
+}
+
+impl BaseTy {
+    pub fn adt(adt_def: AdtDef, args: impl Into<GenericArgs>) -> BaseTy {
+        BaseTy::Adt(adt_def, args.into())
+    }
+
+    pub fn from_primitive_str(s: &str) -> Option<BaseTy> {
+        match s {
+            "i8" => Some(BaseTy::Int(IntTy::I8)),
+            "i16" => Some(BaseTy::Int(IntTy::I16)),
+            "i32" => Some(BaseTy::Int(IntTy::I32)),
+            "i64" => Some(BaseTy::Int(IntTy::I64)),
+            "i128" => Some(BaseTy::Int(IntTy::I128)),
+            "u8" => Some(BaseTy::Uint(UintTy::U8)),
+            "u16" => Some(BaseTy::Uint(UintTy::U16)),
+            "u32" => Some(BaseTy::Uint(UintTy::U32)),
+            "u64" => Some(BaseTy::Uint(UintTy::U64)),
+            "u128" => Some(BaseTy::Uint(UintTy::U128)),
+            "f16" => Some(BaseTy::Float(FloatTy::F16)),
+            "f32" => Some(BaseTy::Float(FloatTy::F32)),
+            "f64" => Some(BaseTy::Float(FloatTy::F64)),
+            "f128" => Some(BaseTy::Float(FloatTy::F128)),
+            "isize" => Some(BaseTy::Int(IntTy::Isize)),
+            "usize" => Some(BaseTy::Uint(UintTy::Usize)),
+            "bool" => Some(BaseTy::Bool),
+            "char" => Some(BaseTy::Char),
+            "str" => Some(BaseTy::Str),
+            _ => None,
+        }
+    }
+
+    /// If `self` is a primitive, return its [`Symbol`].
+    pub fn primitive_symbol(&self) -> Option<Symbol> {
+        match self {
+            BaseTy::Bool => Some(sym::bool),
+            BaseTy::Char => Some(sym::char),
+            BaseTy::Float(f) => {
+                match f {
+                    FloatTy::F16 => Some(sym::f16),
+                    FloatTy::F32 => Some(sym::f32),
+                    FloatTy::F64 => Some(sym::f64),
+                    FloatTy::F128 => Some(sym::f128),
+                }
+            }
+            BaseTy::Int(f) => {
+                match f {
+                    IntTy::Isize => Some(sym::isize),
+                    IntTy::I8 => Some(sym::i8),
+                    IntTy::I16 => Some(sym::i16),
+                    IntTy::I32 => Some(sym::i32),
+                    IntTy::I64 => Some(sym::i64),
+                    IntTy::I128 => Some(sym::i128),
+                }
+            }
+            BaseTy::Uint(f) => {
+                match f {
+                    UintTy::Usize => Some(sym::usize),
+                    UintTy::U8 => Some(sym::u8),
+                    UintTy::U16 => Some(sym::u16),
+                    UintTy::U32 => Some(sym::u32),
+                    UintTy::U64 => Some(sym::u64),
+                    UintTy::U128 => Some(sym::u128),
+                }
+            }
+            BaseTy::Str => Some(sym::str),
+            _ => None,
+        }
+    }
+
+    pub fn is_integral(&self) -> bool {
+        matches!(self, BaseTy::Int(_) | BaseTy::Uint(_))
+    }
+
+    pub fn is_numeric(&self) -> bool {
+        matches!(self, BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Float(_))
+    }
+
+    pub fn is_signed(&self) -> bool {
+        matches!(self, BaseTy::Int(_))
+    }
+
+    pub fn is_unsigned(&self) -> bool {
+        matches!(self, BaseTy::Uint(_))
+    }
+
+    pub fn is_float(&self) -> bool {
+        matches!(self, BaseTy::Float(_))
+    }
+
+    pub fn is_bool(&self) -> bool {
+        matches!(self, BaseTy::Bool)
+    }
+
+    fn is_struct(&self) -> bool {
+        matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_struct())
+    }
+
+    fn is_array(&self) -> bool {
+        matches!(self, BaseTy::Array(..))
+    }
+
+    fn is_slice(&self) -> bool {
+        matches!(self, BaseTy::Slice(..))
+    }
+
+    fn is_adt(&self) -> bool {
+        matches!(self, BaseTy::Adt(..))
+    }
+
+    pub fn is_box(&self) -> bool {
+        matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_box())
+    }
+
+    pub fn invariants(&self, overflow_checking: bool) -> &[Invariant] {
+        match self {
+            BaseTy::Adt(adt_def, _) => adt_def.invariants(),
+            BaseTy::Uint(uint_ty) => uint_invariants(*uint_ty, overflow_checking),
+            BaseTy::Int(int_ty) => int_invariants(*int_ty, overflow_checking),
+            _ => &[],
+        }
+    }
+
+    pub fn to_ty(&self) -> Ty {
+        let sort = self.sort();
+        if sort.is_unit() {
+            Ty::indexed(self.clone(), Expr::unit())
+        } else {
+            Ty::exists(Binder::with_sort(Ty::indexed(self.clone(), Expr::nu()), sort))
+        }
+    }
+
+    pub fn sort(&self) -> Sort {
+        match self {
+            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
+            BaseTy::Bool => Sort::Bool,
+            BaseTy::Adt(adt_def, args) => adt_def.sort(args),
+            BaseTy::Param(param_ty) => Sort::Param(*param_ty),
+            BaseTy::Float(_)
+            | BaseTy::Str
+            | BaseTy::Char
+            | BaseTy::RawPtr(..)
+            | BaseTy::Ref(..)
+            | BaseTy::Tuple(_)
+            | BaseTy::Array(_, _)
+            | BaseTy::Closure(_, _)
+            | BaseTy::Coroutine(..)
+            | BaseTy::Dynamic(_, _)
+            | BaseTy::Never => Sort::unit(),
+        }
+    }
+
+    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
+        use rustc_middle::ty;
+        match self {
+            BaseTy::Int(i) => ty::Ty::new_int(tcx, *i),
+            BaseTy::Uint(i) => ty::Ty::new_uint(tcx, *i),
+            BaseTy::Param(pty) => pty.to_ty(tcx),
+            BaseTy::Slice(ty) => ty::Ty::new_slice(tcx, ty.to_rustc(tcx)),
+            BaseTy::Bool => tcx.types.bool,
+            BaseTy::Char => tcx.types.char,
+            BaseTy::Str => tcx.types.str_,
+            BaseTy::Adt(adt_def, args) => {
+                let did = adt_def.did();
+                let adt_def = tcx.adt_def(did);
+                let args = args.to_rustc(tcx);
+                ty::Ty::new_adt(tcx, adt_def, args)
+            }
+            BaseTy::Float(f) => ty::Ty::new_float(tcx, *f),
+            BaseTy::RawPtr(ty, mutbl) => ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), *mutbl),
+            BaseTy::Ref(re, ty, mutbl) => {
+                ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), *mutbl)
+            }
+            BaseTy::Tuple(tys) => {
+                let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
+                ty::Ty::new_tup(tcx, &ts)
+            }
+            BaseTy::Array(_, _) => todo!(),
+            BaseTy::Never => tcx.types.never,
+            BaseTy::Closure(_, _) => todo!(),
+            BaseTy::Dynamic(exi_preds, re) => {
+                let preds: Vec<_> = exi_preds
+                    .iter()
+                    .map(|pred| pred.to_rustc(tcx))
+                    .collect_vec();
+                let preds = tcx.mk_poly_existential_predicates(&preds);
+                ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_middle::ty::DynKind::Dyn)
+            }
+            BaseTy::Coroutine(def_id, resume_ty, upvars) => {
+                todo!("Generator {def_id:?} {resume_ty:?} {upvars:?}")
+                // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
+                // let args = tcx.mk_args_from_iter(args);
+                // ty::Ty::new_generator(*tcx, *def_id, args, mov)
+            }
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
@@ -988,7 +1350,7 @@ impl SubsetTy {
 
     pub fn strengthen(&self, pred: impl Into<Expr>) -> Self {
         let this = self.clone();
-        Self { bty: this.bty, idx: this.idx, pred: Expr::and_from_iter([this.pred, pred.into()]) }
+        Self { bty: this.bty, idx: this.idx, pred: Expr::and(this.pred, pred.into()) }
     }
 
     fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
@@ -1046,7 +1408,7 @@ impl GenericArg {
             }
             GenericParamDefKind::Lifetime => {
                 let region = EarlyParamRegion { index: param.index, name: param.name };
-                GenericArg::Lifetime(Region::ReEarlyBound(region))
+                GenericArg::Lifetime(Region::ReEarlyParam(region))
             }
             GenericParamDefKind::Const { .. } => {
                 let param_const = ParamConst { index: param.index, name: param.name };
@@ -1064,21 +1426,7 @@ impl GenericArg {
                 ty::GenericArg::from(ctor.as_ref().skip_binder().to_rustc(tcx))
             }
             GenericArg::Lifetime(re) => ty::GenericArg::from(re.to_rustc(tcx)),
-            GenericArg::Const(c) => {
-                let kind = match &c.kind {
-                    ConstKind::Param(param_const) => {
-                        rustc_middle::ty::ConstKind::Param(*param_const)
-                    }
-                    ConstKind::Value(ty, scalar_int) => {
-                        rustc_middle::ty::ConstKind::Value(
-                            ty.to_rustc(tcx),
-                            ValTree::Leaf(*scalar_int),
-                        )
-                    }
-                };
-                let c = rustc_middle::ty::Const::new(tcx, kind);
-                ty::GenericArg::from(c)
-            }
+            GenericArg::Const(c) => ty::GenericArg::from(c.to_rustc(tcx)),
         }
     }
 }
@@ -1144,7 +1492,7 @@ impl FnTraitPredicate {
                     var: BoundVar::from_usize(vars.len() - 1),
                     kind: BoundRegionKind::BrEnv,
                 };
-                Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Not)
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
             }
             ClosureKind::FnMut => {
                 vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
@@ -1152,7 +1500,7 @@ impl FnTraitPredicate {
                     var: BoundVar::from_usize(vars.len() - 1),
                     kind: BoundRegionKind::BrEnv,
                 };
-                Ty::mk_ref(ReLateBound(INNERMOST, br), closure_ty, Mutability::Mut)
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
             }
             ClosureKind::FnOnce => closure_ty,
         };
@@ -1219,8 +1567,8 @@ impl Sort {
         Sort::Tuple(sorts.into())
     }
 
-    pub fn app(ctor: SortCtor, sorts: impl Into<List<Sort>>) -> Self {
-        Sort::App(ctor, sorts.into())
+    pub fn app(ctor: SortCtor, sorts: List<Sort>) -> Self {
+        Sort::App(ctor, sorts)
     }
 
     pub fn unit() -> Self {
@@ -1404,21 +1752,26 @@ where
 {
     pub fn replace_bound_vars(
         &self,
-        replace_region: impl FnMut(BoundRegion) -> Region,
+        mut replace_region: impl FnMut(BoundRegion) -> Region,
         mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
     ) -> T {
         let mut exprs = UnordMap::default();
+        let mut regions = UnordMap::default();
         let delegate = FnMutDelegate::new(
-            |var| {
+            |breft| {
                 exprs
-                    .entry(var.index)
+                    .entry(breft.var)
                     .or_insert_with(|| {
-                        let (sort, mode, _) = self.vars[var.index as usize].expect_refine();
+                        let (sort, mode, _) = self.vars[breft.var.as_usize()].expect_refine();
                         replace_expr(sort, mode)
                     })
                     .clone()
             },
-            replace_region,
+            |bre| {
+                *regions
+                    .entry(bre.var)
+                    .or_insert_with(|| replace_region(bre))
+            },
         );
 
         self.value
@@ -1428,7 +1781,7 @@ where
 
     pub fn replace_bound_refts(&self, exprs: &[Expr]) -> T {
         let delegate = FnMutDelegate::new(
-            |var| exprs[var.index as usize].clone(),
+            |breft| exprs[breft.var.as_usize()].clone(),
             |_| bug!("unexpected escaping region"),
         );
         self.value
@@ -1695,48 +2048,6 @@ impl TyKind {
     }
 }
 
-impl TyS {
-    pub fn kind(&self) -> &TyKind {
-        &self.kind
-    }
-
-    #[track_caller]
-    pub fn expect_discr(&self) -> (&AdtDef, &Place) {
-        if let TyKind::Discr(adt_def, place) = self.kind() {
-            (adt_def, place)
-        } else {
-            bug!("expected discr")
-        }
-    }
-
-    #[track_caller]
-    pub fn expect_adt(&self) -> (&AdtDef, &[GenericArg], &Expr) {
-        if let TyKind::Indexed(BaseTy::Adt(adt_def, args), idx) = self.kind() {
-            (adt_def, args, idx)
-        } else {
-            bug!("expected adt")
-        }
-    }
-
-    #[track_caller]
-    pub(crate) fn expect_tuple(&self) -> &[Ty] {
-        if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
-            tys
-        } else {
-            bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
-        }
-    }
-
-    #[track_caller]
-    pub fn expect_base(&self) -> BaseTy {
-        match self.kind() {
-            TyKind::Indexed(base_ty, _) => base_ty.clone(),
-            TyKind::Exists(bty) => bty.clone().skip_binder().expect_base(),
-            _ => bug!("expected indexed type"),
-        }
-    }
-}
-
 impl AliasTy {
     pub fn new(def_id: DefId, args: GenericArgs, refine_args: RefineArgs) -> Self {
         AliasTy { args, refine_args, def_id }
@@ -1749,190 +2060,6 @@ impl AliasTy {
 
     fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::AliasTy<'tcx> {
         rustc_middle::ty::AliasTy::new(tcx, self.def_id, self.args.to_rustc(tcx))
-    }
-}
-
-impl BaseTy {
-    pub fn adt(adt_def: AdtDef, args: impl Into<GenericArgs>) -> BaseTy {
-        BaseTy::Adt(adt_def, args.into())
-    }
-
-    pub fn from_primitive_str(s: &str) -> Option<BaseTy> {
-        match s {
-            "i8" => Some(BaseTy::Int(IntTy::I8)),
-            "i16" => Some(BaseTy::Int(IntTy::I16)),
-            "i32" => Some(BaseTy::Int(IntTy::I32)),
-            "i64" => Some(BaseTy::Int(IntTy::I64)),
-            "i128" => Some(BaseTy::Int(IntTy::I128)),
-            "u8" => Some(BaseTy::Uint(UintTy::U8)),
-            "u16" => Some(BaseTy::Uint(UintTy::U16)),
-            "u32" => Some(BaseTy::Uint(UintTy::U32)),
-            "u64" => Some(BaseTy::Uint(UintTy::U64)),
-            "u128" => Some(BaseTy::Uint(UintTy::U128)),
-            "f32" => Some(BaseTy::Float(FloatTy::F32)),
-            "f64" => Some(BaseTy::Float(FloatTy::F64)),
-            "isize" => Some(BaseTy::Int(IntTy::Isize)),
-            "usize" => Some(BaseTy::Uint(UintTy::Usize)),
-            "bool" => Some(BaseTy::Bool),
-            "char" => Some(BaseTy::Char),
-            "str" => Some(BaseTy::Str),
-            _ => None,
-        }
-    }
-
-    /// If `self` is a primitive, return its [`Symbol`].
-    pub fn primitive_symbol(&self) -> Option<Symbol> {
-        match self {
-            BaseTy::Bool => Some(sym::bool),
-            BaseTy::Char => Some(sym::char),
-            BaseTy::Float(f) => {
-                match f {
-                    FloatTy::F16 => Some(sym::f16),
-                    FloatTy::F32 => Some(sym::f32),
-                    FloatTy::F64 => Some(sym::f64),
-                    FloatTy::F128 => Some(sym::f128),
-                }
-            }
-            BaseTy::Int(f) => {
-                match f {
-                    IntTy::Isize => Some(sym::isize),
-                    IntTy::I8 => Some(sym::i8),
-                    IntTy::I16 => Some(sym::i16),
-                    IntTy::I32 => Some(sym::i32),
-                    IntTy::I64 => Some(sym::i64),
-                    IntTy::I128 => Some(sym::i128),
-                }
-            }
-            BaseTy::Uint(f) => {
-                match f {
-                    UintTy::Usize => Some(sym::usize),
-                    UintTy::U8 => Some(sym::u8),
-                    UintTy::U16 => Some(sym::u16),
-                    UintTy::U32 => Some(sym::u32),
-                    UintTy::U64 => Some(sym::u64),
-                    UintTy::U128 => Some(sym::u128),
-                }
-            }
-            _ => None,
-        }
-    }
-
-    pub fn is_integral(&self) -> bool {
-        matches!(self, BaseTy::Int(_) | BaseTy::Uint(_))
-    }
-
-    pub fn is_numeric(&self) -> bool {
-        matches!(self, BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Float(_))
-    }
-
-    pub fn is_signed(&self) -> bool {
-        matches!(self, BaseTy::Int(_))
-    }
-
-    pub fn is_unsigned(&self) -> bool {
-        matches!(self, BaseTy::Uint(_))
-    }
-
-    pub fn is_float(&self) -> bool {
-        matches!(self, BaseTy::Float(_))
-    }
-
-    pub fn is_bool(&self) -> bool {
-        matches!(self, BaseTy::Bool)
-    }
-
-    fn is_struct(&self) -> bool {
-        matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_struct())
-    }
-
-    fn is_array(&self) -> bool {
-        matches!(self, BaseTy::Array(..))
-    }
-
-    fn is_slice(&self) -> bool {
-        matches!(self, BaseTy::Slice(..))
-    }
-
-    fn is_adt(&self) -> bool {
-        matches!(self, BaseTy::Adt(..))
-    }
-
-    pub fn is_box(&self) -> bool {
-        matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_box())
-    }
-
-    pub fn invariants(&self, overflow_checking: bool) -> &[Invariant] {
-        match self {
-            BaseTy::Adt(adt_def, _) => adt_def.invariants(),
-            BaseTy::Uint(uint_ty) => uint_invariants(*uint_ty, overflow_checking),
-            BaseTy::Int(int_ty) => int_invariants(*int_ty, overflow_checking),
-            _ => &[],
-        }
-    }
-
-    pub fn to_ty(&self) -> Ty {
-        let sort = self.sort();
-        if sort.is_unit() {
-            Ty::indexed(self.clone(), Expr::unit())
-        } else {
-            Ty::exists(Binder::with_sort(Ty::indexed(self.clone(), Expr::nu()), sort))
-        }
-    }
-
-    pub fn sort(&self) -> Sort {
-        match self {
-            BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Slice(_) => Sort::Int,
-            BaseTy::Bool => Sort::Bool,
-            BaseTy::Adt(adt_def, args) => adt_def.sort(args),
-            BaseTy::Param(param_ty) => Sort::Param(*param_ty),
-            BaseTy::Float(_)
-            | BaseTy::Str
-            | BaseTy::Char
-            | BaseTy::RawPtr(..)
-            | BaseTy::Ref(..)
-            | BaseTy::Tuple(_)
-            | BaseTy::Array(_, _)
-            | BaseTy::Closure(_, _)
-            | BaseTy::Coroutine(..)
-            | BaseTy::Never => Sort::unit(),
-        }
-    }
-
-    fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::Ty<'tcx> {
-        use rustc_middle::ty;
-        match self {
-            BaseTy::Int(i) => ty::Ty::new_int(tcx, *i),
-            BaseTy::Uint(i) => ty::Ty::new_uint(tcx, *i),
-            BaseTy::Param(pty) => pty.to_ty(tcx),
-            BaseTy::Slice(ty) => ty::Ty::new_slice(tcx, ty.to_rustc(tcx)),
-            BaseTy::Bool => tcx.types.bool,
-            BaseTy::Char => tcx.types.char,
-            BaseTy::Str => tcx.types.str_,
-            BaseTy::Adt(adt_def, args) => {
-                let did = adt_def.did();
-                let adt_def = tcx.adt_def(did);
-                let args = args.to_rustc(tcx);
-                ty::Ty::new_adt(tcx, adt_def, args)
-            }
-            BaseTy::Float(f) => ty::Ty::new_float(tcx, *f),
-            BaseTy::RawPtr(ty, mutbl) => ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), *mutbl),
-            BaseTy::Ref(re, ty, mutbl) => {
-                ty::Ty::new_ref(tcx, re.to_rustc(tcx), ty.to_rustc(tcx), *mutbl)
-            }
-            BaseTy::Tuple(tys) => {
-                let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
-                ty::Ty::new_tup(tcx, &ts)
-            }
-            BaseTy::Array(_, _) => todo!(),
-            BaseTy::Never => tcx.types.never,
-            BaseTy::Closure(_, _) => todo!(),
-            BaseTy::Coroutine(def_id, resume_ty, upvars) => {
-                todo!("Generator {def_id:?} {resume_ty:?} {upvars:?}")
-                // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
-                // let args = tcx.mk_args_from_iter(args);
-                // ty::Ty::new_generator(*tcx, *def_id, args, mov)
-            }
-        }
     }
 }
 
@@ -2023,12 +2150,15 @@ impl_slice_internable!(
     InferMode,
     Sort,
     GenericParamDef,
+    TraitRef,
+    Binder<ExistentialPredicate>,
     Clause,
     PolyVariant,
     Invariant,
     BoundVariableKind,
     RefineParam,
     AssocRefinement,
+    SortParamKind,
     (ParamConst, Sort)
 );
 

@@ -154,7 +154,9 @@ impl<'a> PointsToAnalysis<'a> {
         state: &mut State,
     ) -> TerminatorEdges<'mir, 'tcx> {
         match &terminator.kind {
-            mir::TerminatorKind::Call { .. } | mir::TerminatorKind::InlineAsm { .. } => {
+            mir::TerminatorKind::TailCall { .. }
+            | mir::TerminatorKind::Call { .. }
+            | mir::TerminatorKind::InlineAsm { .. } => {
                 // Effect is applied by `handle_call_return`.
             }
             mir::TerminatorKind::Drop { place, .. } => {

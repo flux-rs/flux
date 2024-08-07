@@ -8,7 +8,7 @@ use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Pos, Span};
 use rustc_target::abi::FieldIdx;
-use rustc_type_ir::{DebruijnIndex, INNERMOST};
+use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use crate::intern::{Internable, Interned};
 
@@ -185,14 +185,14 @@ newtype_index! {
 #[derive(Default)]
 struct Env {
     name_gen: IndexGen<BoundVarName>,
-    layers: Vec<FxHashMap<u32, BoundVarName>>,
+    layers: Vec<FxHashMap<BoundVar, BoundVarName>>,
 }
 
 impl Env {
-    fn lookup(&self, debruijn: DebruijnIndex, index: u32) -> Option<BoundVarName> {
+    fn lookup(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<BoundVarName> {
         self.layers
             .get(self.layers.len().checked_sub(debruijn.as_usize() + 1)?)?
-            .get(&index)
+            .get(&var)
             .copied()
     }
 
@@ -200,7 +200,7 @@ impl Env {
         let mut layer = FxHashMap::default();
         for (idx, var) in vars.iter().enumerate() {
             if let BoundVariableKind::Refine(_, _, BoundReftKind::Annon) = var {
-                layer.insert(idx as u32, self.name_gen.fresh());
+                layer.insert(BoundVar::from_usize(idx), self.name_gen.fresh());
             }
         }
         self.layers.push(layer);
@@ -325,7 +325,8 @@ impl PrettyCx<'_> {
                 }
                 BoundVariableKind::Refine(_, mode, BoundReftKind::Annon) => {
                     w!("{}", ^mode.prefix_str())?;
-                    if let Some(name) = self.env.borrow().lookup(INNERMOST, i as u32) {
+                    if let Some(name) = self.env.borrow().lookup(INNERMOST, BoundVar::from_usize(i))
+                    {
                         w!("{:?}", ^name)?;
                     } else {
                         w!("_")?;
@@ -339,16 +340,16 @@ impl PrettyCx<'_> {
     pub fn fmt_bound_reft(
         &self,
         debruijn: DebruijnIndex,
-        var: BoundReft,
+        breft: BoundReft,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         define_scoped!(self, f);
-        match var.kind {
+        match breft.kind {
             BoundReftKind::Annon => {
-                if let Some(name) = self.env.borrow().lookup(debruijn, var.index) {
+                if let Some(name) = self.env.borrow().lookup(debruijn, breft.var) {
                     w!("{name:?}")
                 } else {
-                    w!("⭡{}/#{}", ^debruijn.as_usize(), ^var.index)
+                    w!("⭡{}/#{:?}", ^debruijn.as_usize(), ^breft.var)
                 }
             }
             BoundReftKind::Named(name) => w!("{name}"),

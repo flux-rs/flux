@@ -15,10 +15,10 @@ use super::{
     projections,
     subst::EVarSubstFolder,
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Const,
-    CoroutineObligPredicate, Ensures, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort,
-    GenericArg, Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
-    ProjectionPredicate, PtrKind, Qualifier, ReLateBound, Region, Sort, SubsetTy, TraitPredicate,
-    TraitRef, Ty, TyKind,
+    CoroutineObligPredicate, Ensures, ExistentialPredicate, ExistentialTraitRef, Expr, ExprKind,
+    FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg, Invariant, KVar, Lambda, Name,
+    Opaqueness, OutlivesPredicate, PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReBound,
+    Region, Sort, SortArg, SubsetTy, TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -159,6 +159,10 @@ where
 
     fn try_fold_region(&mut self, re: &Region) -> Result<Region, Self::Error> {
         Ok(self.fold_region(re))
+    }
+
+    fn try_fold_const(&mut self, c: &Const) -> Result<Const, Self::Error> {
+        Ok(self.fold_const(c))
     }
 
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
@@ -339,20 +343,20 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
-                if let ReLateBound(debruijn, br) = *re
+                if let ReBound(debruijn, br) = *re
                     && debruijn >= self.current_index
                 {
-                    ReLateBound(debruijn.shifted_in(self.amount), br)
+                    ReBound(debruijn.shifted_in(self.amount), br)
                 } else {
                     *re
                 }
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::Var(Var::Bound(debruijn, var)) = expr.kind()
+                if let ExprKind::Var(Var::Bound(debruijn, breft)) = expr.kind()
                     && *debruijn >= self.current_index
                 {
-                    Expr::bvar(debruijn.shifted_in(self.amount), var.index, var.kind)
+                    Expr::bvar(debruijn.shifted_in(self.amount), breft.var, breft.kind)
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -376,20 +380,20 @@ pub trait TypeFoldable: TypeVisitable {
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
-                if let ReLateBound(debruijn, br) = *re
+                if let ReBound(debruijn, br) = *re
                     && debruijn >= self.current_index
                 {
-                    ReLateBound(debruijn.shifted_out(self.amount), br)
+                    ReBound(debruijn.shifted_out(self.amount), br)
                 } else {
                     *re
                 }
             }
 
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::Var(Var::Bound(debruijn, var)) = expr.kind()
+                if let ExprKind::Var(Var::Bound(debruijn, breft)) = expr.kind()
                     && debruijn >= &self.current_index
                 {
-                    Expr::bvar(debruijn.shifted_out(self.amount), var.index, var.kind)
+                    Expr::bvar(debruijn.shifted_out(self.amount), breft.var, breft.kind)
                 } else {
                     expr.super_fold_with(self)
                 }
@@ -488,6 +492,37 @@ impl TypeFoldable for TraitRef {
     }
 }
 
+impl TypeVisitable for ExistentialTraitRef {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        self.args.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for ExistentialTraitRef {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(ExistentialTraitRef { def_id: self.def_id, args: self.args.try_fold_with(folder)? })
+    }
+}
+
+impl TypeVisitable for ExistentialPredicate {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        match self {
+            ExistentialPredicate::Trait(exi_trait_ref) => exi_trait_ref.visit_with(visitor),
+        }
+    }
+}
+
+impl TypeFoldable for ExistentialPredicate {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        match self {
+            ExistentialPredicate::Trait(exi_trait_ref) => {
+                let exi_trait_ref = exi_trait_ref.try_fold_with(folder)?;
+                Ok(ExistentialPredicate::Trait(exi_trait_ref))
+            }
+        }
+    }
+}
+
 impl TypeVisitable for CoroutineObligPredicate {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.upvar_tys.visit_with(visitor)?;
@@ -541,6 +576,15 @@ impl TypeFoldable for FnTraitPredicate {
     }
 }
 
+impl TypeVisitable for SortArg {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        match self {
+            SortArg::Sort(sort) => sort.visit_with(visitor),
+            SortArg::BvSize(_) => ControlFlow::Continue(()),
+        }
+    }
+}
+
 impl TypeVisitable for Sort {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         visitor.visit_sort(self)
@@ -550,7 +594,8 @@ impl TypeVisitable for Sort {
 impl TypeSuperVisitable for Sort {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
-            Sort::Tuple(sorts) | Sort::App(_, sorts) => sorts.visit_with(visitor),
+            Sort::Tuple(sorts) => sorts.visit_with(visitor),
+            Sort::App(_, args) => args.visit_with(visitor),
             Sort::Func(fsort) => fsort.visit_with(visitor),
             Sort::Int
             | Sort::Bool
@@ -561,6 +606,15 @@ impl TypeSuperVisitable for Sort {
             | Sort::Var(_)
             | Sort::Infer(_)
             | Sort::Err => ControlFlow::Continue(()),
+        }
+    }
+}
+
+impl TypeFoldable for SortArg {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        match self {
+            SortArg::Sort(sort) => Ok(SortArg::Sort(sort.try_fold_with(folder)?)),
+            SortArg::BvSize(size) => Ok(SortArg::BvSize(*size)),
         }
     }
 }
@@ -599,7 +653,7 @@ impl TypeVisitable for PolyFuncSort {
 
 impl TypeFoldable for PolyFuncSort {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(PolyFuncSort { params: self.params, fsort: self.fsort.try_fold_with(folder)? })
+        Ok(PolyFuncSort { params: self.params.clone(), fsort: self.fsort.try_fold_with(folder)? })
     }
 }
 
@@ -890,6 +944,7 @@ impl TypeSuperFoldable for Const {
         &self,
         _folder: &mut F,
     ) -> Result<Self, F::Error> {
+        // FIXME(nilehmann) we are not folding the type in `ConstKind::Value` because is a rustc::ty::Ty
         Ok(self.clone())
     }
 }
@@ -940,6 +995,7 @@ impl TypeSuperVisitable for BaseTy {
             | BaseTy::Closure(_, _)
             | BaseTy::Never
             | BaseTy::Param(_) => ControlFlow::Continue(()),
+            BaseTy::Dynamic(exi_preds, _) => exi_preds.visit_with(visitor),
         }
     }
 }
@@ -978,6 +1034,9 @@ impl TypeSuperFoldable for BaseTy {
                     resume_ty.try_fold_with(folder)?,
                     args.try_fold_with(folder)?,
                 )
+            }
+            BaseTy::Dynamic(exi_preds, region) => {
+                BaseTy::Dynamic(exi_preds.try_fold_with(folder)?, region.try_fold_with(folder)?)
             }
         };
         Ok(bty)
@@ -1041,7 +1100,7 @@ impl TypeFoldable for GenericArg {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.try_fold_with(folder)?),
             GenericArg::Base(sty) => GenericArg::Base(sty.try_fold_with(folder)?),
             GenericArg::Lifetime(re) => GenericArg::Lifetime(re.try_fold_with(folder)?),
-            GenericArg::Const(c) => GenericArg::Const(c.clone()),
+            GenericArg::Const(c) => GenericArg::Const(c.try_fold_with(folder)?),
         };
         Ok(arg)
     }

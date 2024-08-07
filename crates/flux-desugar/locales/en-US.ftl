@@ -4,9 +4,6 @@ desugar_invalid_alias_reft =
     invalid alias refinement
     .label = this must be a trait
 
-desugar_invalid_constant =
-    invalid constant
-
 desugar_int_too_large =
     integer literal is too large
 
@@ -51,7 +48,7 @@ desugar_unresolved_path =
     .help = flux can only resolve a path if it is present in the definition being refined
 
 desugar_unresolved_var =
-    cannot find {$kind} `{$var}` in this scope
+    cannot find value `{$var}` in this scope
     .label = not found in this scope
 
 desugar_unresolved_sort =

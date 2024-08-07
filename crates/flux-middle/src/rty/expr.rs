@@ -12,7 +12,7 @@ use rustc_middle::{
 };
 use rustc_span::{Span, Symbol};
 use rustc_target::abi::FieldIdx;
-use rustc_type_ir::{DebruijnIndex, INNERMOST};
+use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
     evars::EVar, BaseTy, Binder, BoundReftKind, BoundVariableKind, FuncSort, GenericArgs, IntTy,
@@ -255,7 +255,7 @@ pub struct EarlyReftParam {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable, Debug)]
 pub struct BoundReft {
-    pub index: u32,
+    pub var: BoundVar,
     pub kind: BoundReftKind,
 }
 
@@ -332,7 +332,7 @@ impl Expr {
             .clone()
     }
 
-    pub fn and_from_iter(exprs: impl IntoIterator<Item = Expr>) -> Expr {
+    pub fn and_iter(exprs: impl IntoIterator<Item = Expr>) -> Expr {
         exprs
             .into_iter()
             .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e, None))
@@ -340,7 +340,7 @@ impl Expr {
     }
 
     pub fn and(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        Expr::and_from_iter([e1.into(), e2.into()])
+        Expr::and_iter([e1.into(), e2.into()])
     }
 
     pub fn or_from_iter(exprs: impl IntoIterator<Item = Expr>) -> Expr {
@@ -382,12 +382,12 @@ impl Expr {
     }
 
     pub fn nu() -> Expr {
-        Expr::bvar(INNERMOST, 0, BoundReftKind::Annon)
+        Expr::bvar(INNERMOST, BoundVar::ZERO, BoundReftKind::Annon)
     }
 
     pub fn is_nu(&self) -> bool {
         if let ExprKind::Var(Var::Bound(INNERMOST, var)) = self.kind()
-            && var.index == 0
+            && var.var == BoundVar::ZERO
         {
             true
         } else {
@@ -420,8 +420,8 @@ impl Expr {
         Var::EVar(evar).to_expr()
     }
 
-    pub fn bvar(debruijn: DebruijnIndex, index: u32, kind: BoundReftKind) -> Expr {
-        Var::Bound(debruijn, BoundReft { index, kind }).to_expr()
+    pub fn bvar(debruijn: DebruijnIndex, var: BoundVar, kind: BoundReftKind) -> Expr {
+        Var::Bound(debruijn, BoundReft { var, kind }).to_expr()
     }
 
     pub fn early_param(index: u32, name: Symbol) -> Expr {
@@ -611,6 +611,7 @@ impl Expr {
                 let val = const_eval::scalar_int_to_rty_constant2(tcx, *scalar, ty).unwrap();
                 Expr::constant(val)
             }
+            ConstKind::Infer(_) => bug!("unexpected `ConstKind::Infer`"),
         }
     }
 
@@ -718,7 +719,7 @@ impl Expr {
 
     pub fn eta_expand_abs(&self, inputs: &[Sort], output: Sort) -> Lambda {
         let args = (0..inputs.len())
-            .map(|idx| Expr::bvar(INNERMOST, idx as u32, BoundReftKind::Annon))
+            .map(|idx| Expr::bvar(INNERMOST, BoundVar::from_usize(idx), BoundReftKind::Annon))
             .collect_vec();
         let body = Expr::app(self, args, None);
         Lambda::with_sorts(body, inputs, output)

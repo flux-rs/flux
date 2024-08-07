@@ -1,10 +1,8 @@
 use rustc_middle::ty::{self as rustc_ty, ParamEnv, TyCtxt, TyKind};
 use rustc_type_ir::{IntTy, UintTy};
 
-use crate::rustc::{self, lowering::lower_ty, mir::Constant};
+use crate::rustc::{self, lowering::lower_ty, mir};
 
-// FIXME(nilehmann) We are using this during lowering to evaluate constants annotated. We should
-// do the evaluation later in the pipeline.
 pub fn scalar_int_to_rty_constant<'tcx>(
     tcx: TyCtxt<'tcx>,
     scalar: rustc_ty::ScalarInt,
@@ -44,26 +42,28 @@ pub fn scalar_int_to_rty_constant2(
     }
 }
 
-pub fn scalar_int_to_constant<'tcx>(
+pub fn scalar_int_to_mir_constant<'tcx>(
     tcx: TyCtxt<'tcx>,
     scalar: rustc_ty::ScalarInt,
     ty: rustc_middle::ty::Ty<'tcx>,
-) -> Option<Constant> {
+) -> Option<mir::Constant> {
     let kind = ty.kind();
     match kind {
-        TyKind::Int(int_ty) => Some(Constant::Int(scalar_to_int(tcx, scalar, *int_ty), *int_ty)),
+        TyKind::Int(int_ty) => {
+            Some(mir::Constant::Int(scalar_to_int(tcx, scalar, *int_ty), *int_ty))
+        }
         TyKind::Uint(uint_ty) => {
-            Some(Constant::Uint(scalar_to_uint(tcx, scalar, *uint_ty), *uint_ty))
+            Some(mir::Constant::Uint(scalar_to_uint(tcx, scalar, *uint_ty), *uint_ty))
         }
         TyKind::Float(float_ty) => {
-            Some(Constant::Float(scalar_to_bits(tcx, scalar, ty).unwrap(), *float_ty))
+            Some(mir::Constant::Float(scalar_to_bits(tcx, scalar, ty).unwrap(), *float_ty))
         }
-        TyKind::Char => Some(Constant::Char),
-        TyKind::Bool => Some(Constant::Bool(scalar.try_to_bool().unwrap())),
-        TyKind::Tuple(tys) if tys.is_empty() => Some(Constant::Unit),
+        TyKind::Char => Some(mir::Constant::Char),
+        TyKind::Bool => Some(mir::Constant::Bool(scalar.try_to_bool().unwrap())),
+        TyKind::Tuple(tys) if tys.is_empty() => Some(mir::Constant::Unit),
         _ => {
             match lower_ty(tcx, ty) {
-                Ok(ty) => Some(Constant::Opaque(ty)),
+                Ok(ty) => Some(mir::Constant::Opaque(ty)),
                 Err(_) => None,
             }
         }

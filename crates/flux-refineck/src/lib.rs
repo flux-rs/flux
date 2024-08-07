@@ -100,7 +100,7 @@ pub fn check_fn(
         if config::dump_constraint() {
             dbg::dump_item_info(genv.tcx(), def_id, "simp.fluxc", &refine_tree).unwrap();
         }
-        let mut fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars).emit(&genv)?;
+        let mut fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars);
         fcx.collect_sorts(&refine_tree).emit(&genv)?;
         let cstr = refine_tree.into_fixpoint(&mut fcx).emit(&genv)?;
         let errors = fcx.check(cache, cstr, &config).emit(&genv)?;

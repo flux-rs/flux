@@ -13,12 +13,13 @@ use rustc_middle::ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundRegionKind, BoundVar, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy, ParamTy,
-        RegionVid, ScalarInt, UintTy,
+        BoundRegionKind, BoundVar, ConstVid, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy,
+        ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
 use rustc_span::{symbol::kw, Symbol};
 use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
+pub use rustc_type_ir::InferConst;
 
 use self::subst::Subst;
 use crate::{
@@ -43,7 +44,7 @@ pub enum BoundVariableKind {
     Region(BoundRegionKind),
 }
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Debug, Hash, Eq, PartialEq, TyEncodable, TyDecodable)]
 pub struct GenericParamDef {
     pub def_id: DefId,
     pub index: u32,
@@ -57,7 +58,7 @@ impl GenericParamDef {
     }
 }
 
-#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy, TyEncodable, TyDecodable)]
 pub enum GenericParamDefKind {
     Type { has_default: bool },
     Lifetime,
@@ -72,7 +73,7 @@ pub struct GenericPredicates {
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct Clause {
-    pub kind: ClauseKind,
+    pub kind: Binder<ClauseKind>,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]
@@ -93,7 +94,7 @@ pub struct TraitPredicate {
     pub trait_ref: TraitRef,
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct TraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
@@ -182,6 +183,18 @@ pub enum TyKind {
     CoroutineWitness(DefId, GenericArgs),
     Alias(AliasKind, AliasTy),
     RawPtr(Ty, Mutability),
+    Dynamic(List<Binder<ExistentialPredicate>>, Region),
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub enum ExistentialPredicate {
+    Trait(ExistentialTraitRef),
+}
+
+#[derive(PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+pub struct ExistentialTraitRef {
+    pub def_id: DefId,
+    pub args: GenericArgs,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -223,24 +236,24 @@ impl Const {
 
     pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_ty::Const<'tcx> {
         let kind = match &self.kind {
-            ConstKind::Param(param_const) => {
-                let param_const = ParamConst { name: param_const.name, index: param_const.index };
-                rustc_ty::ConstKind::Param(param_const)
-            }
+            ConstKind::Param(param_const) => rustc_ty::ConstKind::Param(*param_const),
             ConstKind::Value(ty, scalar_int) => {
                 rustc_ty::ConstKind::Value(
                     ty.to_rustc(tcx),
                     rustc_middle::ty::ValTree::Leaf(*scalar_int),
                 )
             }
+            ConstKind::Infer(infer_const) => rustc_ty::ConstKind::Infer(*infer_const),
         };
         rustc_ty::Const::new(tcx, kind)
     }
 }
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ConstKind {
     Param(ParamConst),
     Value(Ty, ScalarInt),
+    Infer(InferConst),
 }
 
 #[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -289,23 +302,23 @@ pub struct CoroutineArgsParts<'a> {
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum Region {
-    ReLateBound(DebruijnIndex, BoundRegion),
-    ReEarlyBound(EarlyParamRegion),
+    ReBound(DebruijnIndex, BoundRegion),
+    ReEarlyParam(EarlyParamRegion),
     ReStatic,
     ReVar(RegionVid),
-    ReFree(FreeRegion),
+    ReLateParam(LateParamRegion),
 }
 
 impl Region {
     pub fn to_rustc(self, tcx: TyCtxt) -> rustc_middle::ty::Region {
         match self {
-            Region::ReLateBound(debruijn, bound_region) => {
+            Region::ReBound(debruijn, bound_region) => {
                 rustc_middle::ty::Region::new_bound(tcx, debruijn, bound_region.to_rustc())
             }
-            Region::ReEarlyBound(epr) => rustc_middle::ty::Region::new_early_param(tcx, epr),
+            Region::ReEarlyParam(epr) => rustc_middle::ty::Region::new_early_param(tcx, epr),
             Region::ReStatic => tcx.lifetimes.re_static,
             Region::ReVar(rvid) => rustc_middle::ty::Region::new_var(tcx, rvid),
-            Region::ReFree(FreeRegion { scope, bound_region }) => {
+            Region::ReLateParam(LateParamRegion { scope, bound_region }) => {
                 rustc_middle::ty::Region::new_late_param(tcx, scope, bound_region)
             }
         }
@@ -313,7 +326,7 @@ impl Region {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct FreeRegion {
+pub struct LateParamRegion {
     pub scope: DefId,
     pub bound_region: BoundRegionKind,
 }
@@ -341,7 +354,7 @@ impl Generics<'_> {
 }
 
 impl Clause {
-    pub(crate) fn new(kind: ClauseKind) -> Clause {
+    pub(crate) fn new(kind: Binder<ClauseKind>) -> Clause {
         Clause { kind }
     }
 }
@@ -630,6 +643,10 @@ impl Ty {
         TyKind::Param(param).intern()
     }
 
+    pub fn mk_dynamic(exi_preds: impl Into<List<Binder<ExistentialPredicate>>>, r: Region) -> Ty {
+        TyKind::Dynamic(exi_preds.into(), r).intern()
+    }
+
     pub fn mk_ref(region: Region, ty: Ty, mutability: Mutability) -> Ty {
         TyKind::Ref(region, ty, mutability).intern()
     }
@@ -721,13 +738,21 @@ impl Ty {
             TyKind::Coroutine(_, _) => todo!(),
             TyKind::CoroutineWitness(_, _) => todo!(),
             TyKind::Alias(_, _) => todo!(),
+            TyKind::Dynamic(_, _) => todo!(),
         };
         rustc_ty::Ty::new(tcx, kind)
     }
 }
 
 impl_internable!(TyS, AdtDefData);
-impl_slice_internable!(Ty, GenericArg, GenericParamDef, BoundVariableKind, Clause);
+impl_slice_internable!(
+    Ty,
+    GenericArg,
+    GenericParamDef,
+    BoundVariableKind,
+    Clause,
+    Binder<ExistentialPredicate>,
+);
 
 impl fmt::Debug for GenericArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -836,13 +861,16 @@ impl fmt::Debug for Ty {
                 write!(f, ")")?;
                 Ok(())
             }
+            TyKind::Dynamic(exi_preds, _r) => {
+                write!(f, "dyn {exi_preds:?}")
+            }
         }
     }
 }
 
 pub(crate) fn region_to_string(region: Region) -> String {
     match region {
-        Region::ReLateBound(_, region) => {
+        Region::ReBound(_, region) => {
             match region.kind {
                 BoundRegionKind::BrAnon => "'<annon>".to_string(),
                 BoundRegionKind::BrNamed(_, sym) => {
@@ -855,9 +883,9 @@ pub(crate) fn region_to_string(region: Region) -> String {
                 BoundRegionKind::BrEnv => "'<env>".to_string(),
             }
         }
-        Region::ReEarlyBound(region) => region.name.to_string(),
+        Region::ReEarlyParam(region) => region.name.to_string(),
         Region::ReStatic => "'static".to_string(),
         Region::ReVar(rvid) => format!("{rvid:?}"),
-        Region::ReFree(..) => "'<free>".to_string(),
+        Region::ReLateParam(..) => "'<free>".to_string(),
     }
 }

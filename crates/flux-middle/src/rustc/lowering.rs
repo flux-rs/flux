@@ -25,15 +25,15 @@ use super::{
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
-        Const, ConstKind, FieldDef, FnSig, GenericArg, GenericParamDef, GenericParamDefKind,
-        GenericPredicates, Generics, OutlivesPredicate, PolyFnSig, TraitPredicate, TraitRef, Ty,
-        TypeOutlivesPredicate, VariantDef,
+        Const, ConstKind, ExistentialPredicate, FieldDef, FnSig, GenericArg, GenericParamDef,
+        GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate, PolyFnSig,
+        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, VariantDef,
     },
 };
 use crate::{
-    const_eval::scalar_int_to_constant,
+    const_eval::scalar_int_to_mir_constant,
     intern::List,
-    rustc::ty::{AliasTy, ProjectionPredicate, Region},
+    rustc::ty::{AliasTy, ExistentialTraitRef, ProjectionPredicate, Region},
 };
 
 pub struct LoweringCtxt<'a, 'sess, 'tcx> {
@@ -375,6 +375,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::TerminatorKind::CoroutineDrop => TerminatorKind::CoroutineDrop,
             rustc_mir::TerminatorKind::UnwindResume => TerminatorKind::UnwindResume,
             rustc_mir::TerminatorKind::UnwindTerminate(..)
+            | rustc_mir::TerminatorKind::TailCall { .. }
             | rustc_mir::TerminatorKind::InlineAsm { .. } => {
                 return Err(errors::UnsupportedMir::from(terminator)).emit(self.sess);
             }
@@ -494,8 +495,13 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         aggregate_kind: &rustc_mir::AggregateKind<'tcx>,
     ) -> Result<AggregateKind, UnsupportedReason> {
         match aggregate_kind {
-            rustc_mir::AggregateKind::Adt(def_id, variant_idx, args, None, None) => {
-                Ok(AggregateKind::Adt(*def_id, *variant_idx, lower_generic_args(self.tcx, args)?))
+            rustc_mir::AggregateKind::Adt(def_id, variant_idx, args, user_type_annot_idx, None) => {
+                Ok(AggregateKind::Adt(
+                    *def_id,
+                    *variant_idx,
+                    lower_generic_args(self.tcx, args)?,
+                    *user_type_annot_idx,
+                ))
             }
             rustc_mir::AggregateKind::Array(ty) => {
                 Ok(AggregateKind::Array(lower_ty(self.tcx, *ty)?))
@@ -574,7 +580,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         let ty = constant.ty();
         match (val, ty.kind()) {
             (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
-                scalar_int_to_constant(tcx, scalar, ty)
+                scalar_int_to_mir_constant(tcx, scalar, ty)
             }
             (Const::Val(ConstValue::Slice { .. }, _), TyKind::Ref(_, ref_ty, _))
                 if ref_ty.is_str() =>
@@ -584,7 +590,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             (Const::Ty(ty, c), _) => {
                 match c.kind() {
                     rustc_ty::ConstKind::Value(ty, rustc_ty::ValTree::Leaf(scalar)) => {
-                        scalar_int_to_constant(tcx, scalar, ty)
+                        scalar_int_to_mir_constant(tcx, scalar, ty)
                     }
                     rustc_ty::ConstKind::Param(param_const) => {
                         let ty = lower_ty(tcx, ty)?;
@@ -740,6 +746,18 @@ pub(crate) fn lower_ty<'tcx>(
             let args = lower_generic_args(tcx, args)?;
             Ok(Ty::mk_generator_witness(*did, args))
         }
+        rustc_ty::Dynamic(predicates, region, rustc_ty::DynKind::Dyn) => {
+            let region = lower_region(region)?;
+
+            let exi_preds = List::from_vec(
+                predicates
+                    .iter()
+                    .map(|pred| lower_existential_predicate(tcx, pred))
+                    .try_collect()?,
+            );
+
+            Ok(Ty::mk_dynamic(exi_preds, region))
+        }
         _ => Err(UnsupportedReason::new(format!("unsupported type `{ty:?}`"))),
     }
 }
@@ -772,6 +790,22 @@ fn lower_field(f: &rustc_ty::FieldDef) -> FieldDef {
     FieldDef { did: f.did, name: f.name }
 }
 
+pub fn lower_existential_predicate<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    pred: rustc_ty::Binder<rustc_ty::ExistentialPredicate<'tcx>>,
+) -> Result<Binder<ExistentialPredicate>, UnsupportedReason> {
+    assert!(pred.bound_vars().is_empty());
+    let pred = pred.skip_binder();
+    if let rustc_ty::ExistentialPredicate::Trait(exi_trait_ref) = pred {
+        let def_id = exi_trait_ref.def_id;
+        let args = lower_generic_args(tcx, exi_trait_ref.args)?;
+        let exi_trait_ref = ExistentialTraitRef { def_id, args };
+        Ok(Binder::bind_with_vars(ExistentialPredicate::Trait(exi_trait_ref), List::empty()))
+    } else {
+        Err(UnsupportedReason::new(format!("Unsupported existential predicate `{pred:?}`")))
+    }
+}
+
 pub fn lower_generic_args<'tcx>(
     tcx: TyCtxt<'tcx>,
     args: rustc_middle::ty::GenericArgsRef<'tcx>,
@@ -799,9 +833,9 @@ fn lower_region(region: &rustc_middle::ty::Region) -> Result<Region, Unsupported
     match region.kind() {
         RegionKind::ReVar(rvid) => Ok(Region::ReVar(rvid)),
         RegionKind::ReBound(debruijn, bregion) => {
-            Ok(Region::ReLateBound(debruijn, lower_bound_region(bregion)?))
+            Ok(Region::ReBound(debruijn, lower_bound_region(bregion)?))
         }
-        RegionKind::ReEarlyParam(bregion) => Ok(Region::ReEarlyBound(bregion)),
+        RegionKind::ReEarlyParam(bregion) => Ok(Region::ReEarlyParam(bregion)),
         RegionKind::ReStatic => Ok(Region::ReStatic),
         RegionKind::ReLateParam(_)
         | RegionKind::RePlaceholder(_)
@@ -824,25 +858,22 @@ pub(crate) fn lower_generics(generics: &rustc_ty::Generics) -> Result<Generics, 
             .own_params
             .iter()
             .map(lower_generic_param_def)
-            .try_collect()?,
+            .collect(),
     );
     Ok(Generics { params, orig: generics })
 }
 
-fn lower_generic_param_def(
-    generic: &rustc_ty::GenericParamDef,
-) -> Result<GenericParamDef, UnsupportedReason> {
+fn lower_generic_param_def(generic: &rustc_ty::GenericParamDef) -> GenericParamDef {
     let kind = match generic.kind {
-        rustc_ty::GenericParamDefKind::Type { has_default, synthetic: false } => {
+        rustc_ty::GenericParamDefKind::Type { has_default, .. } => {
             GenericParamDefKind::Type { has_default }
         }
         rustc_ty::GenericParamDefKind::Lifetime => GenericParamDefKind::Lifetime,
         rustc_ty::GenericParamDefKind::Const { has_default, is_host_effect, .. } => {
             GenericParamDefKind::Const { has_default, is_host_effect }
         }
-        _ => return Err(UnsupportedReason::new("unsupported generic param")),
     };
-    Ok(GenericParamDef { def_id: generic.def_id, index: generic.index, name: generic.name, kind })
+    GenericParamDef { def_id: generic.def_id, index: generic.index, name: generic.name, kind }
 }
 
 pub(crate) fn lower_generic_predicates<'tcx>(
@@ -869,13 +900,10 @@ pub(crate) fn lower_item_bounds<'tcx>(
         .try_collect()
 }
 
-fn lower_clause<'tcx>(
+fn lower_clause_kind<'tcx>(
     tcx: TyCtxt<'tcx>,
-    clause: &rustc_ty::Clause<'tcx>,
-) -> Result<Clause, UnsupportedReason> {
-    let Some(kind) = clause.kind().no_bound_vars() else {
-        return Err(UnsupportedReason::new("higher-rank trait bounds are not supported"));
-    };
+    kind: &rustc_ty::ClauseKind<'tcx>,
+) -> Result<ClauseKind, UnsupportedReason> {
     let kind = match kind {
         rustc_ty::ClauseKind::Trait(trait_pred) => {
             ClauseKind::Trait(TraitPredicate {
@@ -896,15 +924,23 @@ fn lower_clause<'tcx>(
             ClauseKind::Projection(ProjectionPredicate { projection_ty, term })
         }
         rustc_ty::ClauseKind::TypeOutlives(outlives_pred) => {
-            ClauseKind::TypeOutlives(lower_type_outlives(tcx, outlives_pred)?)
+            ClauseKind::TypeOutlives(lower_type_outlives(tcx, *outlives_pred)?)
         }
         rustc_ty::ClauseKind::ConstArgHasType(const_, ty) => {
-            ClauseKind::ConstArgHasType(lower_const(tcx, const_)?, lower_ty(tcx, ty)?)
+            ClauseKind::ConstArgHasType(lower_const(tcx, *const_)?, lower_ty(tcx, *ty)?)
         }
         _ => {
             return Err(UnsupportedReason::new(format!("unsupported clause kind `{kind:?}`")));
         }
     };
+    Ok(kind)
+}
+
+fn lower_clause<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    clause: &rustc_ty::Clause<'tcx>,
+) -> Result<Clause, UnsupportedReason> {
+    let kind = lower_binder(clause.kind(), |kind| lower_clause_kind(tcx, &kind))?;
     Ok(Clause::new(kind))
 }
 

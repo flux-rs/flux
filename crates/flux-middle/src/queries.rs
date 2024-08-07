@@ -8,7 +8,6 @@ use flux_errors::{ErrorGuaranteed, E0999};
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::Diagnostic;
-use rustc_hash::FxHashMap;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
@@ -38,11 +37,36 @@ type Cache<K, V> = RefCell<UnordMap<K, V>>;
 
 pub type QueryResult<T = ()> = Result<T, QueryErr>;
 
+/// An error produced by a query.
+///
+/// We make a distinction between errors reported at def-site and errors reported at use-site.
+///
+/// For most errors reported at the def-site of an item, it makes little sense to check the definition
+/// of dependent items. For example, if a function signature is ill-formed, checking the body of another
+/// function that calls it, can produce confusing errors. In some cases, we can even fail to produce
+/// a signature for a function in which case we can't even check its call sites. For these cases, we
+/// emit an error at the definition site and return a [`QueryErr::Emitted`]. When checking a dependent,
+/// we detect this and early return without reporting any errors at the use-site.
+///
+/// Other errors are better reported at the use-site. For example, if some code calls a function from
+/// an external crate that has unsupported features, we ought to report the error at the call-site,
+/// because it would be confusing to only mention the definition of the external function without
+/// showing which part of the code is calling it. To attach a span to an error one can use [`QueryErr::at`]
+/// to get a [`QueryErrAt`].
+///
+/// Both [`QueryErr`] and [`QueryErrAt`] implement [`Diagnostic`]. The implementation for [`QueryErr`]
+/// reports the error at the definition site, while the implementation for [`QueryErrAt`] reports it at
+/// the (attached) use-site span. This allows to play a bit lose because we can emit an error without
+/// attatching a span, but this means we may forget to attach spans at some places. We should consider
+/// not implementing [`Diagnostic`] for [`QueryErr`] such that we always make the distinction between
+/// use-site and def-site explicit, e.g., we could have methods `QueryErr::at_use_site` and
+/// `QueryErr::at_def_site` returning types with different implementations of [`Diagnostic`].
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub enum QueryErr {
     Unsupported { def_id: DefId, err: UnsupportedErr },
     Ignored { def_id: DefId },
     InvalidGenericArg { def_id: DefId },
+    InvalidAssocReft { impl_id: DefId, name: Symbol },
     Emitted(ErrorGuaranteed),
 }
 
@@ -52,6 +76,7 @@ impl QueryErr {
     }
 }
 
+/// See [`QueryErr`]
 pub struct QueryErrAt {
     span: Span,
     err: QueryErr,
@@ -67,7 +92,7 @@ pub struct Providers {
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::Crate<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub spec_func_defns: fn(GlobalEnv) -> QueryResult<rty::SpecFuncDefns>,
-    pub spec_func_decls: fn(GlobalEnv) -> QueryResult<FxHashMap<Symbol, rty::SpecFuncDecl>>,
+    pub spec_func_decl: fn(GlobalEnv, Symbol) -> QueryResult<rty::SpecFuncDecl>,
     pub adt_sort_def_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtSortDef>,
     pub check_wf: for<'genv> fn(GlobalEnv, FluxLocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
@@ -103,7 +128,7 @@ impl Default for Providers {
             desugar: |_, _| empty_query!(),
             fhir_crate: |_| empty_query!(),
             spec_func_defns: |_| empty_query!(),
-            spec_func_decls: |_| empty_query!(),
+            spec_func_decl: |_, _| empty_query!(),
             qualifiers: |_| empty_query!(),
             adt_sort_def_of: |_, _| empty_query!(),
             check_wf: |_, _| empty_query!(),
@@ -134,7 +159,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
     defns: OnceCell<QueryResult<rty::SpecFuncDefns>>,
-    func_decls: OnceCell<QueryResult<FxHashMap<Symbol, rty::SpecFuncDecl>>>,
+    func_decls: Cache<Symbol, QueryResult<rty::SpecFuncDecl>>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
     check_wf: Cache<FluxLocalDefId, QueryResult<Rc<rty::WfckResults>>>,
@@ -309,14 +334,12 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             .map_err(Clone::clone)
     }
 
-    pub(crate) fn func_decls(
+    pub(crate) fn func_decl(
         &self,
         genv: GlobalEnv,
-    ) -> QueryResult<&FxHashMap<Symbol, rty::SpecFuncDecl>> {
-        self.func_decls
-            .get_or_init(|| (self.providers.spec_func_decls)(genv))
-            .as_ref()
-            .map_err(Clone::clone)
+        name: Symbol,
+    ) -> QueryResult<rty::SpecFuncDecl> {
+        run_with_cache(&self.func_decls, name, || (self.providers.spec_func_decl)(genv, name))
     }
 
     pub(crate) fn qualifiers(&self, genv: GlobalEnv) -> QueryResult<&[rty::Qualifier]> {
@@ -336,8 +359,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             let def_id = extern_id.unwrap_or(def_id);
             if let Some(local_id) = def_id.as_local() {
                 (self.providers.adt_sort_def_of)(genv, local_id)
-            } else if let Some(adt_def) = genv.cstore().adt_def(def_id) {
-                adt_def.map(|it| it.sort_def().clone())
+            } else if let Some(adt_sort_def) = genv.cstore().adt_sort_def(def_id) {
+                adt_sort_def
             } else {
                 Ok(rty::AdtSortDef::new(def_id, vec![], vec![]))
             }
@@ -657,6 +680,14 @@ impl<'a> Diagnostic<'a> for QueryErr {
                     diag.downgrade_to_delayed_bug();
                     diag
                 }
+                QueryErr::InvalidAssocReft { impl_id, name } => {
+                    let def_span = tcx.def_span(impl_id);
+                    let mut diag =
+                        dcx.struct_span_err(def_span, fluent::middle_query_invalid_assoc_reft);
+                    diag.arg("name", name);
+                    diag.code(E0999);
+                    diag
+                }
             }
         })
     }
@@ -687,6 +718,12 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                     diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                     diag.arg("name", pretty::def_id_to_string(def_id));
                     diag.span_label(self.span, fluent::_subdiag::label);
+                    diag
+                }
+                QueryErr::InvalidAssocReft { .. } => {
+                    let mut diag =
+                        dcx.struct_span_err(self.span, fluent::middle_query_invalid_assoc_reft_at);
+                    diag.code(E0999);
                     diag
                 }
                 QueryErr::InvalidGenericArg { .. } | QueryErr::Emitted(_) => {
