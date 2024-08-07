@@ -1710,6 +1710,7 @@ fn conv_lit(lit: fhir::Lit) -> rty::Constant {
         fhir::Lit::Int(n) => rty::Constant::from(n),
         fhir::Lit::Real(r) => rty::Constant::Real(r),
         fhir::Lit::Bool(b) => rty::Constant::from(b),
+        fhir::Lit::Str(s) => rty::Constant::from(s),
     }
 }
 

@@ -169,6 +169,8 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             )
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)?;
 
+        println!("TRACE: check_fn_call {fn_sig:?}");
+
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &refine_args)?
         } else {

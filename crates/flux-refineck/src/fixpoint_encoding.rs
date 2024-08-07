@@ -794,6 +794,7 @@ pub fn sort_to_fixpoint(sort: &rty::Sort) -> fixpoint::Sort {
         rty::Sort::Int => fixpoint::Sort::Int,
         rty::Sort::Real => fixpoint::Sort::Real,
         rty::Sort::Bool => fixpoint::Sort::Bool,
+        rty::Sort::Str => fixpoint::Sort::Str,
         rty::Sort::BitVec(size) => fixpoint::Sort::BitVec(Box::new(bv_size_to_fixpoint(*size))),
         // There's no way to declare user defined sorts in the fixpoint horn syntax so we encode
         // user declared opaque sorts and type variable sorts as integers. Well-formedness should
