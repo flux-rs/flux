@@ -20,7 +20,7 @@ use rustc_hir::{
         Namespace::{self, *},
         PerNS,
     },
-    ParamName, PrimTy,
+    ParamName, PrimTy, CRATE_HIR_ID,
 };
 use rustc_middle::{metadata::ModChild, ty::TyCtxt};
 use rustc_span::{def_id::DefId, symbol::kw, Span, Symbol};
@@ -45,16 +45,6 @@ pub(crate) fn resolve_crate(genv: GlobalEnv) -> ResolverOutput {
 fn try_resolve_crate(genv: GlobalEnv) -> Result<ResolverOutput> {
     let specs = genv.collect_specs();
     let mut resolver = CrateResolver::new(genv, specs);
-
-    resolver.collect_flux_global_items();
-
-    for qualifier in &specs.qualifs {
-        collect_err!(resolver, resolver.resolve_qualifier(qualifier));
-    }
-
-    for defn in &specs.func_defs {
-        collect_err!(resolver, resolver.resolve_defn(defn));
-    }
 
     genv.hir().walk_toplevel_module(&mut resolver);
     if let Some(err) = resolver.err {
@@ -138,6 +128,18 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                 );
             }
         }
+        // Flux items are always defined at the top-level
+        if hir_id == CRATE_HIR_ID {
+            self.collect_flux_global_items();
+            for qualifier in &self.specs.qualifs {
+                collect_err!(self, self.resolve_qualifier(qualifier));
+            }
+
+            for defn in &self.specs.func_defs {
+                collect_err!(self, self.resolve_defn(defn));
+            }
+        }
+
         hir::intravisit::walk_mod(self, module, hir_id);
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);

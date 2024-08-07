@@ -584,8 +584,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             self.path_res_map.insert(path.node_id, res);
             return;
         }
-        self.errors
-            .emit(errors::UnresolvedVar::from_path(path, "path"));
+        self.errors.emit(errors::UnresolvedVar::from_path(path));
     }
 
     fn resolve_ident(&mut self, ident: Ident, node_id: NodeId) {
@@ -601,8 +600,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             self.path_res_map.insert(node_id, res);
             return;
         }
-        self.errors
-            .emit(errors::UnresolvedVar::from_ident(ident, "name"));
+        self.errors.emit(errors::UnresolvedVar::from_ident(ident));
     }
 
     fn try_resolve_with_ribs<S: Segment>(&mut self, segments: &[S]) -> Option<ExprRes<NodeId>> {
@@ -629,35 +627,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         let kind = self.resolver.func_decls.get(&ident.name)?;
         Some(ExprRes::GlobalFunc(*kind, ident.name))
     }
-
-    // fn resolve_ident(&mut self, ident: Ident, node_id: NodeId) {
-    //     if let Some(res) = self.find(ident) {
-    //         if let fhir::ParamKind::Error = res.kind() {
-    //             self.errors.emit(errors::InvalidUnrefinedParam::new(ident));
-    //             return;
-    //         }
-    //         self.path_res_map
-    //             .insert(node_id, ExprRes::Param(res.kind(), res.param_id()));
-    //         return;
-    //     }
-    //     if let Some(const_def_id) = self.resolver.consts.get(&ident.name) {
-    //         self.path_res_map
-    //             .insert(node_id, ExprRes::Const(*const_def_id));
-    //         return;
-    //     }
-    //     if let Some(decl) = self.resolver.func_decls.get(&ident.name) {
-    //         self.path_res_map
-    //             .insert(node_id, ExprRes::GlobalFunc(*decl, ident.name));
-    //         return;
-    //     }
-    //     if let Some((def_id, _index)) = self.const_generics.get(&ident.name) {
-    //         self.path_res_map
-    //             .insert(node_id, ExprRes::ConstGeneric(*def_id));
-    //         return;
-    //     }
-    //     self.errors
-    //         .emit(errors::UnresolvedVar::from_ident(ident, "name"));
-    // }
 
     fn resolve_sort_path(&mut self, path: &surface::SortPath) {
         let segment = path.segment;
@@ -974,14 +943,12 @@ mod errors {
         #[label]
         span: Span,
         var: String,
-        kind: String,
     }
 
     impl UnresolvedVar {
-        pub(super) fn from_path(path: &surface::PathExpr, kind: &str) -> Self {
+        pub(super) fn from_path(path: &surface::PathExpr) -> Self {
             Self {
                 span: path.span,
-                kind: kind.to_string(),
                 var: format!(
                     "{}",
                     path.segments
@@ -991,8 +958,8 @@ mod errors {
             }
         }
 
-        pub(super) fn from_ident(ident: Ident, kind: &str) -> Self {
-            Self { span: ident.span, kind: kind.to_string(), var: format!("{ident}") }
+        pub(super) fn from_ident(ident: Ident) -> Self {
+            Self { span: ident.span, var: format!("{ident}") }
         }
     }
 
