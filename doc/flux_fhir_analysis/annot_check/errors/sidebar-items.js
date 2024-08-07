@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["ArrayLenMismatch","FieldCountMismatch","FunArgCountMismatch","GenericArgCountMismatch","InvalidRefinement"]};
+window.SIDEBAR_ITEMS = {"struct":["FieldCountMismatch","FunArgCountMismatch","GenericArgCountMismatch","InvalidRefinement"]};

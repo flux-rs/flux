@@ -1143,6 +1143,7 @@
 <a href="#1143" id="1143">1143</a>
 <a href="#1144" id="1144">1144</a>
 <a href="#1145" id="1145">1145</a>
+<a href="#1146" id="1146">1146</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1756,6 +1757,7 @@
                 <span class="kw">let </span>val = const_eval::scalar_int_to_rty_constant2(tcx, <span class="kw-2">*</span>scalar, ty).unwrap();
                 Expr::constant(val)
             }
+            ConstKind::Infer(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected `ConstKind::Infer`"</span>),
         }
     }
 

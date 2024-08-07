@@ -630,43 +630,11 @@
 <a href="#630" id="630">630</a>
 <a href="#631" id="631">631</a>
 <a href="#632" id="632">632</a>
-<a href="#633" id="633">633</a>
-<a href="#634" id="634">634</a>
-<a href="#635" id="635">635</a>
-<a href="#636" id="636">636</a>
-<a href="#637" id="637">637</a>
-<a href="#638" id="638">638</a>
-<a href="#639" id="639">639</a>
-<a href="#640" id="640">640</a>
-<a href="#641" id="641">641</a>
-<a href="#642" id="642">642</a>
-<a href="#643" id="643">643</a>
-<a href="#644" id="644">644</a>
-<a href="#645" id="645">645</a>
-<a href="#646" id="646">646</a>
-<a href="#647" id="647">647</a>
-<a href="#648" id="648">648</a>
-<a href="#649" id="649">649</a>
-<a href="#650" id="650">650</a>
-<a href="#651" id="651">651</a>
-<a href="#652" id="652">652</a>
-<a href="#653" id="653">653</a>
-<a href="#654" id="654">654</a>
-<a href="#655" id="655">655</a>
-<a href="#656" id="656">656</a>
-<a href="#657" id="657">657</a>
-<a href="#658" id="658">658</a>
-<a href="#659" id="659">659</a>
-<a href="#660" id="660">660</a>
-<a href="#661" id="661">661</a>
-<a href="#662" id="662">662</a>
-<a href="#663" id="663">663</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 //!
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
 <span class="kw">use </span>flux_errors::ErrorGuaranteed;
 <span class="kw">use </span>hir::{def::DefKind, OwnerId};
-<span class="kw">use </span>rustc_ast::LitKind;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_errors::Diagnostic;
 <span class="kw">use </span>rustc_hir <span class="kw">as </span>hir;
@@ -1168,7 +1136,7 @@
                     <span class="prelude-val">Ok</span>(fhir::GenericArg::Type(<span class="self">self</span>.genv.alloc(ty)))
                 }
                 hir::GenericArg::Const(const_arg) =&gt; {
-                    <span class="prelude-val">Ok</span>(fhir::GenericArg::Const(<span class="self">self</span>.lift_const_arg(const_arg)<span class="question-mark">?</span>))
+                    <span class="prelude-val">Ok</span>(fhir::GenericArg::Const(<span class="self">self</span>.lift_const_arg(const_arg)))
                 }
                 hir::GenericArg::Infer(<span class="kw">_</span>) =&gt; {
                     <span class="macro">bug!</span>(<span class="string">"unexpected inference generic argument"</span>);
@@ -1195,43 +1163,13 @@
 
     <span class="kw">fn </span>lift_array_len(<span class="kw-2">&amp;mut </span><span class="self">self</span>, len: hir::ArrayLen) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ConstArg&gt; {
         <span class="kw">match </span>len {
-            hir::ArrayLen::Body(const_arg) =&gt; <span class="self">self</span>.lift_const_arg(const_arg),
+            hir::ArrayLen::Body(const_arg) =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.lift_const_arg(const_arg)),
             hir::ArrayLen::Infer(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected `ArrayLen::Infer`"</span>),
         }
     }
 
-    <span class="kw">fn </span>lift_const_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, const_arg: <span class="kw-2">&amp;</span>hir::ConstArg) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ConstArg&gt; {
-        <span class="kw">match </span>const_arg.kind {
-            rustc_hir::ConstArgKind::Path(qpath) =&gt; {
-                <span class="kw">if let </span>hir::QPath::Resolved(<span class="prelude-val">None</span>, path) = qpath
-                    &amp;&amp; <span class="kw">let </span>hir::def::Res::Def(DefKind::ConstParam, def_id) = path.res
-                {
-                    <span class="prelude-val">Ok</span>(fhir::ConstArg {
-                        kind: fhir::ConstArgKind::Param(def_id),
-                        span: const_arg.span(),
-                    })
-                } <span class="kw">else </span>{
-                    <span class="kw">return </span><span class="self">self</span>.emit_unsupported(
-                        <span class="string">"only integer literals or generic parameters are supported type constants"</span>,
-                    );
-                }
-            }
-            rustc_hir::ConstArgKind::Anon(anon_const) =&gt; <span class="self">self</span>.lift_anon_const(anon_const),
-        }
-    }
-
-    <span class="kw">fn </span>lift_anon_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, anon_const: <span class="kw-2">&amp;</span>hir::AnonConst) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::ConstArg&gt; {
-        <span class="kw">let </span>body = <span class="self">self</span>.genv.hir().body(anon_const.body);
-        <span class="kw">let </span>kind = <span class="kw">if let </span>hir::ExprKind::Lit(lit) = <span class="kw-2">&amp;</span>body.value.kind
-            &amp;&amp; <span class="kw">let </span>LitKind::Int(int_lit, <span class="kw">_</span>) = lit.node
-        {
-            fhir::ConstArgKind::Lit(int_lit.get().try_into().unwrap())
-        } <span class="kw">else </span>{
-            <span class="kw">return </span><span class="self">self</span>.emit_unsupported(
-                <span class="string">"only integer literals or generic parameters are supported type constants"</span>,
-            );
-        };
-        <span class="prelude-val">Ok</span>(fhir::ConstArg { kind, span: body.value.span })
+    <span class="kw">fn </span>lift_const_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, const_arg: <span class="kw-2">&amp;</span>hir::ConstArg) -&gt; fhir::ConstArg {
+        fhir::ConstArg { kind: fhir::ConstArgKind::Infer, span: const_arg.span() }
     }
 
     <span class="doccomment">/// HACK(nilehmann) do not use this function. See [`lift_self_ty_hack`].

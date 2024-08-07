@@ -2278,20 +2278,6 @@
 <a href="#2278" id="2278">2278</a>
 <a href="#2279" id="2279">2279</a>
 <a href="#2280" id="2280">2280</a>
-<a href="#2281" id="2281">2281</a>
-<a href="#2282" id="2282">2282</a>
-<a href="#2283" id="2283">2283</a>
-<a href="#2284" id="2284">2284</a>
-<a href="#2285" id="2285">2285</a>
-<a href="#2286" id="2286">2286</a>
-<a href="#2287" id="2287">2287</a>
-<a href="#2288" id="2288">2288</a>
-<a href="#2289" id="2289">2289</a>
-<a href="#2290" id="2290">2290</a>
-<a href="#2291" id="2291">2291</a>
-<a href="#2292" id="2292">2292</a>
-<a href="#2293" id="2293">2293</a>
-<a href="#2294" id="2294">2294</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2322,7 +2308,7 @@
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_index::{newtype_index, IndexSlice};
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-<span class="kw">use </span>rustc_middle::ty::{ParamConst, TyCtxt, ValTree};
+<span class="kw">use </span>rustc_middle::ty::{ParamConst, TyCtxt};
 <span class="kw">pub use </span>rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
@@ -2339,8 +2325,8 @@
 <span class="kw">pub use crate</span>::{
     fhir::InferMode,
     rustc::ty::{
-        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, EarlyParamRegion,
-        LateParamRegion, OutlivesPredicate,
+        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid,
+        EarlyParamRegion, LateParamRegion, OutlivesPredicate,
         Region::{<span class="self">self</span>, <span class="kw-2">*</span>},
         RegionVid,
     },
@@ -3720,21 +3706,7 @@
                 ty::GenericArg::from(ctor.as_ref().skip_binder().to_rustc(tcx))
             }
             GenericArg::Lifetime(re) =&gt; ty::GenericArg::from(re.to_rustc(tcx)),
-            GenericArg::Const(c) =&gt; {
-                <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>c.kind {
-                    ConstKind::Param(param_const) =&gt; {
-                        rustc_middle::ty::ConstKind::Param(<span class="kw-2">*</span>param_const)
-                    }
-                    ConstKind::Value(ty, scalar_int) =&gt; {
-                        rustc_middle::ty::ConstKind::Value(
-                            ty.to_rustc(tcx),
-                            ValTree::Leaf(<span class="kw-2">*</span>scalar_int),
-                        )
-                    }
-                };
-                <span class="kw">let </span>c = rustc_middle::ty::Const::new(tcx, kind);
-                ty::GenericArg::from(c)
-            }
+            GenericArg::Const(c) =&gt; ty::GenericArg::from(c.to_rustc(tcx)),
         }
     }
 }

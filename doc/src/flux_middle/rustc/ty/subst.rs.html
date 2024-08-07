@@ -123,7 +123,6 @@
 <a href="#123" id="123">123</a>
 <a href="#124" id="124">124</a>
 <a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
 </pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     Binder, Const, ConstKind, ExistentialPredicate, ExistentialTraitRef, FnSig, GenericArg, Region,
     Ty, TyKind,
@@ -220,11 +219,10 @@
 
 <span class="kw">impl </span>Subst <span class="kw">for </span>Const {
     <span class="kw">fn </span>subst(<span class="kw-2">&amp;</span><span class="self">self</span>, args: <span class="kw-2">&amp;</span>[GenericArg]) -&gt; <span class="self">Self </span>{
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            ConstKind::Param(param_const) =&gt; {
-                args[param_const.index <span class="kw">as </span>usize].expect_const().clone()
-            }
-            ConstKind::Value(..) =&gt; <span class="self">self</span>.clone(),
+        <span class="kw">if let </span>ConstKind::Param(param_const) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind {
+            args[param_const.index <span class="kw">as </span>usize].expect_const().clone()
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.clone()
         }
     }
 }

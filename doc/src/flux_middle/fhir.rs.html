@@ -2186,10 +2186,9 @@
 
 <span class="attr">#[derive(PartialEq, Eq, Clone, Copy)]
 </span><span class="kw">pub enum </span>ConstArgKind {
-    <span class="doccomment">/// The length of the array is a constant
-    </span>Lit(usize),
-    <span class="doccomment">/// The length of the array is a type parameter
-    </span>Param(DefId),
+    Lit(usize),
+    Param(DefId),
+    Infer,
 }
 
 <span class="attr">#[derive(Eq, PartialEq, Debug, Copy, Clone)]
@@ -2807,6 +2806,7 @@
         <span class="kw">match </span><span class="self">self </span>{
             ConstArgKind::Lit(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"{n}"</span>),
             ConstArgKind::Param(p) =&gt; <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, p),
+            ConstArgKind::Infer =&gt; <span class="macro">write!</span>(f, <span class="string">"_"</span>),
         }
     }
 }

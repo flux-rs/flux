@@ -888,6 +888,7 @@
 <a href="#888" id="888">888</a>
 <a href="#889" id="889">889</a>
 <a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
@@ -903,12 +904,13 @@
 <span class="kw">pub use </span>rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundRegionKind, BoundVar, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy, ParamTy,
-        RegionVid, ScalarInt, UintTy,
+        BoundRegionKind, BoundVar, ConstVid, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy,
+        ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
 <span class="kw">use </span>rustc_span::{symbol::kw, Symbol};
 <span class="kw">use </span>rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
+<span class="kw">pub use </span>rustc_type_ir::InferConst;
 
 <span class="kw">use </span><span class="self">self</span>::subst::Subst;
 <span class="kw">use crate</span>::{
@@ -1125,24 +1127,24 @@
 
     <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_ty::Const&lt;<span class="lifetime">'tcx</span>&gt; {
         <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
-            ConstKind::Param(param_const) =&gt; {
-                <span class="kw">let </span>param_const = ParamConst { name: param_const.name, index: param_const.index };
-                rustc_ty::ConstKind::Param(param_const)
-            }
+            ConstKind::Param(param_const) =&gt; rustc_ty::ConstKind::Param(<span class="kw-2">*</span>param_const),
             ConstKind::Value(ty, scalar_int) =&gt; {
                 rustc_ty::ConstKind::Value(
                     ty.to_rustc(tcx),
                     rustc_middle::ty::ValTree::Leaf(<span class="kw-2">*</span>scalar_int),
                 )
             }
+            ConstKind::Infer(infer_const) =&gt; rustc_ty::ConstKind::Infer(<span class="kw-2">*</span>infer_const),
         };
         rustc_ty::Const::new(tcx, kind)
     }
 }
+
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>ConstKind {
     Param(ParamConst),
     Value(Ty, ScalarInt),
+    Infer(InferConst),
 }
 
 <span class="attr">#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]

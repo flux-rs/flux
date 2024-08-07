@@ -1394,6 +1394,11 @@
 <a href="#1394" id="1394">1394</a>
 <a href="#1395" id="1395">1395</a>
 <a href="#1396" id="1396">1396</a>
+<a href="#1397" id="1397">1397</a>
+<a href="#1398" id="1398">1398</a>
+<a href="#1399" id="1399">1399</a>
+<a href="#1400" id="1400">1400</a>
+<a href="#1401" id="1401">1401</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This modules folows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
@@ -1555,6 +1560,10 @@
 
     <span class="kw">fn </span>try_fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>Region) -&gt; <span class="prelude-ty">Result</span>&lt;Region, <span class="self">Self</span>::Error&gt; {
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.fold_region(re))
+    }
+
+    <span class="kw">fn </span>try_fold_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, c: <span class="kw-2">&amp;</span>Const) -&gt; <span class="prelude-ty">Result</span>&lt;Const, <span class="self">Self</span>::Error&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.fold_const(c))
     }
 
     <span class="kw">fn </span>try_fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; <span class="prelude-ty">Result</span>&lt;Expr, <span class="self">Self</span>::Error&gt; {
@@ -2336,7 +2345,8 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         _folder: <span class="kw-2">&amp;mut </span>F,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.clone())
+        <span class="comment">// FIXME(nilehmann) we are not folding the type in `ConstKind::Value` because is a rustc::ty::Ty
+        </span><span class="prelude-val">Ok</span>(<span class="self">self</span>.clone())
     }
 }
 
@@ -2491,7 +2501,7 @@
             GenericArg::Ty(ty) =&gt; GenericArg::Ty(ty.try_fold_with(folder)<span class="question-mark">?</span>),
             GenericArg::Base(sty) =&gt; GenericArg::Base(sty.try_fold_with(folder)<span class="question-mark">?</span>),
             GenericArg::Lifetime(re) =&gt; GenericArg::Lifetime(re.try_fold_with(folder)<span class="question-mark">?</span>),
-            GenericArg::Const(c) =&gt; GenericArg::Const(c.clone()),
+            GenericArg::Const(c) =&gt; GenericArg::Const(c.try_fold_with(folder)<span class="question-mark">?</span>),
         };
         <span class="prelude-val">Ok</span>(arg)
     }

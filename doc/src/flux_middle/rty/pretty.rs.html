@@ -490,6 +490,7 @@
 <a href="#490" id="490">490</a>
 <a href="#491" id="491">491</a>
 <a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -925,6 +926,7 @@
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.kind {
             ConstKind::Param(p) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^p.name.as_str()),
             ConstKind::Value(<span class="kw">_</span>, v) =&gt; <span class="macro">w!</span>(<span class="string">"{}"</span>, ^v),
+            ConstKind::Infer(infer_const) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, ^infer_const),
         }
     }
 }

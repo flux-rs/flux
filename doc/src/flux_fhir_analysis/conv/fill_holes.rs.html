@@ -317,6 +317,34 @@
 <a href="#317" id="317">317</a>
 <a href="#318" id="318">318</a>
 <a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::bug;
@@ -336,7 +364,7 @@
 <span class="kw">use </span>rustc_ast::Mutability;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_hir::def_id::LocalDefId;
-<span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST};
+<span class="kw">use </span>rustc_type_ir::{DebruijnIndex, InferConst, INNERMOST};
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fn_sig(
     genv: GlobalEnv,
@@ -384,6 +412,7 @@
     locs: UnordMap&lt;rty::Loc, ty::Ty&gt;,
     type_holes: UnordMap&lt;FhirId, rty::Ty&gt;,
     region_holes: UnordMap&lt;rty::RegionVid, rty::Region&gt;,
+    const_holes: UnordMap&lt;rty::ConstVid, rty::Const&gt;,
     rty_index: DebruijnIndex,
     ty_index: DebruijnIndex,
 }
@@ -396,6 +425,7 @@
             locs: UnordMap::default(),
             type_holes: Default::default(),
             region_holes: Default::default(),
+            const_holes: Default::default(),
             rty_index: INNERMOST,
             ty_index: INNERMOST,
         })
@@ -528,7 +558,7 @@
                 }
             }
             (rty::BaseTy::Array(ty_a, len_a), ty::TyKind::Array(ty_b, len_b)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(len_a, len_b);
+                <span class="self">self</span>.zip_const(len_a, len_b)<span class="question-mark">?</span>;
                 <span class="self">self</span>.zip_ty(ty_a, ty_b)<span class="question-mark">?</span>;
             }
             (rty::BaseTy::Never, ty::TyKind::Never) =&gt; {}
@@ -565,11 +595,28 @@
                 <span class="self">self</span>.zip_region(re_a, re_b);
             }
             (rty::GenericArg::Const(ct_a), ty::GenericArg::Const(ct_b)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(ct_a, ct_b);
+                <span class="self">self</span>.zip_const(ct_a, ct_b)<span class="question-mark">?</span>;
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="macro">bug!</span>(<span class="string">"incompatible generic args `{a:?}` `{b:?}`"</span>);
             }
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>zip_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Const, b: <span class="kw-2">&amp;</span>ty::Const) -&gt; QueryResult {
+        <span class="kw">match </span>(<span class="kw-2">&amp;</span>a.kind, <span class="kw-2">&amp;</span>b.kind) {
+            (rty::ConstKind::Infer(ty::InferConst::Var(cid)), <span class="kw">_</span>) =&gt; {
+                <span class="self">self</span>.const_holes.insert(<span class="kw-2">*</span>cid, b.clone());
+            }
+            (rty::ConstKind::Param(param_const_a), ty::ConstKind::Param(param_const_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(param_const_a, param_const_b)
+            }
+            (rty::ConstKind::Value(ty_a, val_a), ty::ConstKind::Value(ty_b, val_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(ty_a, ty_b);
+                <span class="macro">debug_assert_eq!</span>(val_a, val_b)
+            }
+            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"incompatible consts"</span>),
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -632,7 +679,16 @@
                     r
                 }
             },
-            ct_op: |c| c,
+            ct_op: |c| {
+                <span class="kw">if let </span>rty::ConstKind::Infer(InferConst::Var(cid)) = c.kind {
+                    <span class="self">self</span>.const_holes
+                        .get(<span class="kw-2">&amp;</span>cid)
+                        .cloned()
+                        .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled const hole {cid:?}"</span>))
+                } <span class="kw">else </span>{
+                    c
+                }
+            },
         })
     }
 }
