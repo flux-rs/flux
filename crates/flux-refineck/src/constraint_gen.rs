@@ -169,8 +169,6 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             )
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)?;
 
-        // println!("TRACE: check_fn_call {callee_def_id:?} => {fn_sig:?}");
-
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &refine_args)?
         } else {
@@ -197,10 +195,7 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
                     let ty = env.block_with(genv, path, bound.clone())?;
                     infcx.subtyping(rcx, &ty, bound)?;
                 }
-                _ => {
-                    // println!("TRACE: check_fn_call (subtyping) {actual:?} <: {formal:?}");
-                    infcx.subtyping(rcx, actual, &formal)?
-                }
+                _ => infcx.subtyping(rcx, actual, &formal)?,
             }
         }
 

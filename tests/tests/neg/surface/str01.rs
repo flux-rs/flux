@@ -9,7 +9,7 @@ fn str_len(s: &str) -> usize {
 // move this test to pos
 #[flux::sig(fn() -> usize[3])]
 pub fn str01() -> usize {
-    let x = "str";
-    // x.len() //~ ERROR refinement type
-    str_len(x)
+    let x = "hog";
+    str_len(x);
+    x.len() //~ ERROR refinement type
 }

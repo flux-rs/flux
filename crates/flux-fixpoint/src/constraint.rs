@@ -540,7 +540,7 @@ impl fmt::Display for Constant {
             Constant::Int(n) => n.fmt_sexp(f),
             Constant::Real(r) => write!(f, "{r}.0"),
             Constant::Bool(b) => write!(f, "{b}"),
-            Constant::Str(s) => write!(f, "\"{:?}\"", s),
+            Constant::Str(s) => write!(f, "{:?}", s),
         }
     }
 }
