@@ -480,9 +480,15 @@ pub enum ExprKind {
 
 #[derive(Debug, Clone)]
 pub struct PathExpr {
-    pub segments: Vec<Ident>,
+    pub segments: Vec<PathExprSegment>,
     pub node_id: NodeId,
     pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub struct PathExprSegment {
+    pub ident: Ident,
+    pub node_id: NodeId,
 }
 
 #[derive(Copy, Clone)]
