@@ -756,10 +756,10 @@ impl<'genv> ScopedVisitor for RefinementResolver<'_, 'genv, '_> {
     fn on_path(&mut self, path: &surface::PathExpr) {
         match &path.segments[..] {
             [var] => {
-                self.resolve_ident(*var, path.node_id);
+                self.resolve_ident(var.ident, path.node_id);
             }
             [typ, name] => {
-                if let Some(res) = resolve_num_const(*typ, *name) {
+                if let Some(res) = resolve_num_const(typ.ident, name.ident) {
                     self.resolver
                         .output
                         .path_expr_res_map
@@ -937,19 +937,20 @@ mod errors {
 
     impl UnresolvedVar {
         pub(super) fn from_path(path: &surface::PathExpr, kind: &str) -> Self {
-            Self::from_segments(&path.segments, kind, path.span)
+            Self {
+                span: path.span,
+                kind: kind.to_string(),
+                var: format!(
+                    "{}",
+                    path.segments
+                        .iter()
+                        .format_with("::", |s, f| f(&s.ident.name))
+                ),
+            }
         }
 
         pub(super) fn from_ident(ident: Ident, kind: &str) -> Self {
             Self { span: ident.span, kind: kind.to_string(), var: format!("{ident}") }
-        }
-
-        fn from_segments(segments: &[Ident], kind: &str, span: Span) -> Self {
-            Self {
-                span,
-                kind: kind.to_string(),
-                var: format!("{}", segments.iter().format_with("::", |s, f| f(&s.name))),
-            }
         }
     }
 

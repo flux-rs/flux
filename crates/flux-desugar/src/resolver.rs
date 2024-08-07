@@ -363,9 +363,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         Ok(())
     }
 
-    fn resolve_path_with_ribs(
+    fn resolve_path_with_ribs<S: Segment>(
         &mut self,
-        segments: &[surface::PathSegment],
+        segments: &[S],
         ns: Namespace,
     ) -> Option<fhir::PartialRes> {
         let mut module: Option<DefId> = None;
@@ -374,16 +374,14 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             let ns = if is_last { ns } else { TypeNS };
 
             let res = if let Some(module) = module {
-                self.resolve_ident_in_module(module, segment.ident)?
+                self.resolve_ident_in_module(module, segment.ident())?
             } else {
-                self.resolve_ident_with_ribs(segment.ident, ns)?
+                self.resolve_ident_with_ribs(segment.ident(), ns)?
             };
 
             let base_res = Res::try_from(res).ok()?;
 
-            self.output
-                .path_res_map
-                .insert(segment.node_id, fhir::PartialRes::new(base_res));
+            S::record_segment_res(self, segment, base_res);
 
             if let Res::Def(DefKind::Mod, module_id) = base_res {
                 module = Some(module_id);
@@ -420,6 +418,24 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     pub fn into_output(self) -> ResolverOutput {
         self.output
+    }
+}
+
+trait Segment {
+    fn record_segment_res(resolver: &mut CrateResolver, segment: &Self, res: fhir::Res);
+    fn ident(&self) -> Ident;
+}
+
+impl Segment for surface::PathSegment {
+    fn record_segment_res(resolver: &mut CrateResolver, segment: &Self, res: fhir::Res) {
+        resolver
+            .output
+            .path_res_map
+            .insert(segment.node_id, fhir::PartialRes::new(res));
+    }
+
+    fn ident(&self) -> Ident {
+        self.ident
     }
 }
 

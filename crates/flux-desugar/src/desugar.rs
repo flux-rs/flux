@@ -783,7 +783,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
         }
 
         let path = fhir::PathExpr {
-            segments: self.genv().alloc_slice(&path.segments),
+            segments: self
+                .genv()
+                .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident)),
             res,
             fhir_id: self.next_fhir_id(),
             span: path.span,
@@ -1251,7 +1253,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             surface::ExprKind::Dot(path, fld) => {
                 let res = self.resolver_output().path_expr_res_map[&path.node_id];
                 if let ExprRes::Param(..) = res {
-                    let segments = self.genv().alloc_slice(&path.segments);
+                    let segments = self
+                        .genv()
+                        .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident));
                     let path = fhir::PathExpr {
                         segments,
                         res,
