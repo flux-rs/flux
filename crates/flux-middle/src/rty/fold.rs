@@ -161,6 +161,10 @@ where
         Ok(self.fold_region(re))
     }
 
+    fn try_fold_const(&mut self, c: &Const) -> Result<Const, Self::Error> {
+        Ok(self.fold_const(c))
+    }
+
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
         Ok(self.fold_expr(expr))
     }
@@ -940,6 +944,7 @@ impl TypeSuperFoldable for Const {
         &self,
         _folder: &mut F,
     ) -> Result<Self, F::Error> {
+        // FIXME(nilehmann) we are not folding the type in `ConstKind::Value` because is a rustc::ty::Ty
         Ok(self.clone())
     }
 }
@@ -1095,7 +1100,7 @@ impl TypeFoldable for GenericArg {
             GenericArg::Ty(ty) => GenericArg::Ty(ty.try_fold_with(folder)?),
             GenericArg::Base(sty) => GenericArg::Base(sty.try_fold_with(folder)?),
             GenericArg::Lifetime(re) => GenericArg::Lifetime(re.try_fold_with(folder)?),
-            GenericArg::Const(c) => GenericArg::Const(c.clone()),
+            GenericArg::Const(c) => GenericArg::Const(c.try_fold_with(folder)?),
         };
         Ok(arg)
     }

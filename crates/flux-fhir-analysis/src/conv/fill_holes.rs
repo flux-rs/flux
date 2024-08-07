@@ -17,7 +17,7 @@ use flux_middle::{
 use rustc_ast::Mutability;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::LocalDefId;
-use rustc_type_ir::{DebruijnIndex, INNERMOST};
+use rustc_type_ir::{DebruijnIndex, InferConst, INNERMOST};
 
 pub(crate) fn fn_sig(
     genv: GlobalEnv,
@@ -65,6 +65,7 @@ struct Zipper<'genv, 'tcx> {
     locs: UnordMap<rty::Loc, ty::Ty>,
     type_holes: UnordMap<FhirId, rty::Ty>,
     region_holes: UnordMap<rty::RegionVid, rty::Region>,
+    const_holes: UnordMap<rty::ConstVid, rty::Const>,
     rty_index: DebruijnIndex,
     ty_index: DebruijnIndex,
 }
@@ -77,6 +78,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             locs: UnordMap::default(),
             type_holes: Default::default(),
             region_holes: Default::default(),
+            const_holes: Default::default(),
             rty_index: INNERMOST,
             ty_index: INNERMOST,
         })
@@ -209,7 +211,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 }
             }
             (rty::BaseTy::Array(ty_a, len_a), ty::TyKind::Array(ty_b, len_b)) => {
-                debug_assert_eq!(len_a, len_b);
+                self.zip_const(len_a, len_b)?;
                 self.zip_ty(ty_a, ty_b)?;
             }
             (rty::BaseTy::Never, ty::TyKind::Never) => {}
@@ -246,11 +248,28 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 self.zip_region(re_a, re_b);
             }
             (rty::GenericArg::Const(ct_a), ty::GenericArg::Const(ct_b)) => {
-                debug_assert_eq!(ct_a, ct_b);
+                self.zip_const(ct_a, ct_b)?;
             }
             _ => {
                 bug!("incompatible generic args `{a:?}` `{b:?}`");
             }
+        }
+        Ok(())
+    }
+
+    fn zip_const(&mut self, a: &rty::Const, b: &ty::Const) -> QueryResult {
+        match (&a.kind, &b.kind) {
+            (rty::ConstKind::Infer(ty::InferConst::Var(cid)), _) => {
+                self.const_holes.insert(*cid, b.clone());
+            }
+            (rty::ConstKind::Param(param_const_a), ty::ConstKind::Param(param_const_b)) => {
+                debug_assert_eq!(param_const_a, param_const_b)
+            }
+            (rty::ConstKind::Value(ty_a, val_a), ty::ConstKind::Value(ty_b, val_b)) => {
+                debug_assert_eq!(ty_a, ty_b);
+                debug_assert_eq!(val_a, val_b)
+            }
+            _ => bug!("incompatible consts"),
         }
         Ok(())
     }
@@ -313,7 +332,16 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                     r
                 }
             },
-            ct_op: |c| c,
+            ct_op: |c| {
+                if let rty::ConstKind::Infer(InferConst::Var(cid)) = c.kind {
+                    self.const_holes
+                        .get(&cid)
+                        .cloned()
+                        .unwrap_or_else(|| bug!("unfilled const hole {cid:?}"))
+                } else {
+                    c
+                }
+            },
         })
     }
 }

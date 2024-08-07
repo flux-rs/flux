@@ -3,7 +3,6 @@
 use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::ErrorGuaranteed;
 use hir::{def::DefKind, OwnerId};
-use rustc_ast::LitKind;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
 use rustc_hir as hir;
@@ -505,7 +504,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     Ok(fhir::GenericArg::Type(self.genv.alloc(ty)))
                 }
                 hir::GenericArg::Const(const_arg) => {
-                    Ok(fhir::GenericArg::Const(self.lift_const_arg(const_arg)?))
+                    Ok(fhir::GenericArg::Const(self.lift_const_arg(const_arg)))
                 }
                 hir::GenericArg::Infer(_) => {
                     bug!("unexpected inference generic argument");
@@ -532,43 +531,13 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
 
     fn lift_array_len(&mut self, len: hir::ArrayLen) -> Result<fhir::ConstArg> {
         match len {
-            hir::ArrayLen::Body(const_arg) => self.lift_const_arg(const_arg),
+            hir::ArrayLen::Body(const_arg) => Ok(self.lift_const_arg(const_arg)),
             hir::ArrayLen::Infer(_) => bug!("unexpected `ArrayLen::Infer`"),
         }
     }
 
-    fn lift_const_arg(&mut self, const_arg: &hir::ConstArg) -> Result<fhir::ConstArg> {
-        match const_arg.kind {
-            rustc_hir::ConstArgKind::Path(qpath) => {
-                if let hir::QPath::Resolved(None, path) = qpath
-                    && let hir::def::Res::Def(DefKind::ConstParam, def_id) = path.res
-                {
-                    Ok(fhir::ConstArg {
-                        kind: fhir::ConstArgKind::Param(def_id),
-                        span: const_arg.span(),
-                    })
-                } else {
-                    return self.emit_unsupported(
-                        "only integer literals or generic parameters are supported type constants",
-                    );
-                }
-            }
-            rustc_hir::ConstArgKind::Anon(anon_const) => self.lift_anon_const(anon_const),
-        }
-    }
-
-    fn lift_anon_const(&mut self, anon_const: &hir::AnonConst) -> Result<fhir::ConstArg> {
-        let body = self.genv.hir().body(anon_const.body);
-        let kind = if let hir::ExprKind::Lit(lit) = &body.value.kind
-            && let LitKind::Int(int_lit, _) = lit.node
-        {
-            fhir::ConstArgKind::Lit(int_lit.get().try_into().unwrap())
-        } else {
-            return self.emit_unsupported(
-                "only integer literals or generic parameters are supported type constants",
-            );
-        };
-        Ok(fhir::ConstArg { kind, span: body.value.span })
+    fn lift_const_arg(&mut self, const_arg: &hir::ConstArg) -> fhir::ConstArg {
+        fhir::ConstArg { kind: fhir::ConstArgKind::Infer, span: const_arg.span() }
     }
 
     /// HACK(nilehmann) do not use this function. See [`lift_self_ty_hack`].

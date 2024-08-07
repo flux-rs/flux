@@ -433,6 +433,7 @@ impl Pretty for Const {
         match &self.kind {
             ConstKind::Param(p) => w!("{}", ^p.name.as_str()),
             ConstKind::Value(_, v) => w!("{}", ^v),
+            ConstKind::Infer(infer_const) => w!("{:?}", ^infer_const),
         }
     }
 }

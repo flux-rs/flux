@@ -47,6 +47,7 @@ pub struct ConvCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     wfckresults: &'a WfckResults,
     next_region_index: u32,
+    next_const_index: u32,
 }
 
 pub(crate) struct Env {
@@ -381,7 +382,7 @@ pub(crate) fn conv_ty(
 
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, wfckresults: &'a WfckResults) -> Self {
-        Self { genv, wfckresults, next_region_index: 0 }
+        Self { genv, wfckresults, next_region_index: 0, next_const_index: 0 }
     }
 
     fn conv_generic_bounds(
@@ -788,7 +789,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 Ok(rty::Ty::tuple(tys))
             }
             fhir::TyKind::Array(ty, len) => {
-                Ok(rty::Ty::array(self.conv_ty(env, ty)?, self.conv_const_arg(*len)?))
+                Ok(rty::Ty::array(self.conv_ty(env, ty)?, self.conv_const_arg(*len)))
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
             fhir::TyKind::Constr(pred, ty) => {
@@ -1052,12 +1053,16 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_const_arg(&mut self, cst: fhir::ConstArg) -> QueryResult<rty::Const> {
+    fn conv_const_arg(&mut self, cst: fhir::ConstArg) -> rty::Const {
         match cst.kind {
-            fhir::ConstArgKind::Lit(lit) => Ok(rty::Const::from_usize(self.genv.tcx(), lit)),
+            fhir::ConstArgKind::Lit(lit) => rty::Const::from_usize(self.genv.tcx(), lit),
             fhir::ConstArgKind::Param(def_id) => {
-                let kind = rty::ConstKind::Param(self.genv.def_id_to_param_const(def_id));
-                Ok(rty::Const { kind })
+                rty::Const { kind: rty::ConstKind::Param(self.genv.def_id_to_param_const(def_id)) }
+            }
+            fhir::ConstArgKind::Infer => {
+                rty::Const {
+                    kind: rty::ConstKind::Infer(ty::InferConst::Var(self.next_const_vid())),
+                }
             }
         }
     }
@@ -1170,7 +1175,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     into.push(self.conv_ty_to_generic_arg(env, &param, ty)?);
                 }
                 fhir::GenericArg::Const(cst) => {
-                    into.push(rty::GenericArg::Const(self.conv_const_arg(*cst)?));
+                    into.push(rty::GenericArg::Const(self.conv_const_arg(*cst)));
                 }
             }
         }
@@ -1248,6 +1253,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn next_region_vid(&mut self) -> rty::RegionVid {
         self.next_region_index = self.next_region_index.checked_add(1).unwrap();
         rty::RegionVid::from_u32(self.next_region_index - 1)
+    }
+
+    fn next_const_vid(&mut self) -> rty::ConstVid {
+        self.next_const_index = self.next_const_index.checked_add(1).unwrap();
+        rty::ConstVid::from_u32(self.next_const_index - 1)
     }
 }
 
