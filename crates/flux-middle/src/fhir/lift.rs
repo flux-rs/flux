@@ -388,9 +388,16 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                 fhir::TyKind::OpaqueDef(item_id, args, &[], in_trait_def)
             }
             hir::TyKind::TraitObject(poly_traits, lft, syntax) => {
-                let poly_traits = try_alloc_slice!(self.genv, poly_traits, |poly_trait| {
-                    self.lift_poly_trait_ref(*poly_trait)
-                })?;
+                let poly_traits =
+                    try_alloc_slice!(self.genv, poly_traits, |(poly_trait, modifier)| {
+                        if *modifier != hir::TraitBoundModifier::None {
+                            return self.emit_unsupported(&format!(
+                                "unsupported type: `{}`",
+                                rustc_hir_pretty::ty_to_string(&self.genv.tcx(), ty)
+                            ));
+                        }
+                        self.lift_poly_trait_ref(*poly_trait)
+                    })?;
 
                 let lft = self.lift_lifetime(lft)?;
                 fhir::TyKind::TraitObject(poly_traits, lft, syntax)
@@ -497,8 +504,8 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                     let ty = self.lift_ty(ty)?;
                     Ok(fhir::GenericArg::Type(self.genv.alloc(ty)))
                 }
-                hir::GenericArg::Const(const_) => {
-                    Ok(fhir::GenericArg::Const(self.lift_anon_const(const_.value)?))
+                hir::GenericArg::Const(const_arg) => {
+                    Ok(fhir::GenericArg::Const(self.lift_const_arg(const_arg)?))
                 }
                 hir::GenericArg::Infer(_) => {
                     bug!("unexpected inference generic argument");
@@ -525,8 +532,28 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
 
     fn lift_array_len(&mut self, len: hir::ArrayLen) -> Result<fhir::ConstArg> {
         match len {
-            hir::ArrayLen::Body(anon_const) => self.lift_anon_const(anon_const),
+            hir::ArrayLen::Body(const_arg) => self.lift_const_arg(const_arg),
             hir::ArrayLen::Infer(_) => bug!("unexpected `ArrayLen::Infer`"),
+        }
+    }
+
+    fn lift_const_arg(&mut self, const_arg: &hir::ConstArg) -> Result<fhir::ConstArg> {
+        match const_arg.kind {
+            rustc_hir::ConstArgKind::Path(qpath) => {
+                if let hir::QPath::Resolved(None, path) = qpath
+                    && let hir::def::Res::Def(DefKind::ConstParam, def_id) = path.res
+                {
+                    Ok(fhir::ConstArg {
+                        kind: fhir::ConstArgKind::Param(def_id),
+                        span: const_arg.span(),
+                    })
+                } else {
+                    return self.emit_unsupported(
+                        "only integer literals or generic parameters are supported type constants",
+                    );
+                }
+            }
+            rustc_hir::ConstArgKind::Anon(anon_const) => self.lift_anon_const(anon_const),
         }
     }
 
@@ -536,10 +563,6 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             && let LitKind::Int(int_lit, _) = lit.node
         {
             fhir::ConstArgKind::Lit(int_lit.get().try_into().unwrap())
-        } else if let hir::ExprKind::Path(hir::QPath::Resolved(_, path)) = &body.value.kind
-            && let hir::def::Res::Def(DefKind::ConstParam, def_id) = path.res
-        {
-            fhir::ConstArgKind::Param(def_id)
         } else {
             return self.emit_unsupported(
                 "only integer literals or generic parameters are supported type constants",
