@@ -1444,6 +1444,10 @@
 <a href="#1444" id="1444">1444</a>
 <a href="#1445" id="1445">1445</a>
 <a href="#1446" id="1446">1446</a>
+<a href="#1447" id="1447">1447</a>
+<a href="#1448" id="1448">1448</a>
+<a href="#1449" id="1449">1449</a>
+<a href="#1450" id="1450">1450</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -2229,7 +2233,9 @@
         }
 
         <span class="kw">let </span>path = fhir::PathExpr {
-            segments: <span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>path.segments),
+            segments: <span class="self">self
+                </span>.genv()
+                .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident)),
             res,
             fhir_id: <span class="self">self</span>.next_fhir_id(),
             span: path.span,
@@ -2697,7 +2703,9 @@
             surface::ExprKind::Dot(path, fld) =&gt; {
                 <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().path_expr_res_map[<span class="kw-2">&amp;</span>path.node_id];
                 <span class="kw">if let </span>ExprRes::Param(..) = res {
-                    <span class="kw">let </span>segments = <span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>path.segments);
+                    <span class="kw">let </span>segments = <span class="self">self
+                        </span>.genv()
+                        .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident));
                     <span class="kw">let </span>path = fhir::PathExpr {
                         segments,
                         res,

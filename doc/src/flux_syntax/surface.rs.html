@@ -611,6 +611,12 @@
 <a href="#611" id="611">611</a>
 <a href="#612" id="612">612</a>
 <a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
 </pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::fmt;
@@ -1093,9 +1099,15 @@
 
 <span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>PathExpr {
-    <span class="kw">pub </span>segments: Vec&lt;Ident&gt;,
+    <span class="kw">pub </span>segments: Vec&lt;PathExprSegment&gt;,
     <span class="kw">pub </span>node_id: NodeId,
     <span class="kw">pub </span>span: Span,
+}
+
+<span class="attr">#[derive(Debug, Clone)]
+</span><span class="kw">pub struct </span>PathExprSegment {
+    <span class="kw">pub </span>ident: Ident,
+    <span class="kw">pub </span>node_id: NodeId,
 }
 
 <span class="attr">#[derive(Copy, Clone)]

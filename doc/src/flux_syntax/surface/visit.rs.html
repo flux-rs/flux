@@ -488,14 +488,22 @@
 <a href="#488" id="488">488</a>
 <a href="#489" id="489">489</a>
 <a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
 
 <span class="kw">use super</span>::{
     AliasReft, ArrayLen, Async, BaseSort, BaseTy, BaseTyKind, Ensures, EnumDef, Expr, ExprKind,
     FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, Generics, Impl,
-    ImplAssocReft, Indices, Lit, Path, PathExpr, PathSegment, Qualifier, RefineArg, RefineParam,
-    Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind,
-    VariantDef, VariantRet, WhereBoundPredicate,
+    ImplAssocReft, Indices, Lit, Path, PathExpr, PathExprSegment, PathSegment, Qualifier,
+    RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait, TraitAssocReft, TraitRef,
+    Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
 
 <span class="attr">#[macro_export]
@@ -649,6 +657,10 @@
 
     <span class="kw">fn </span>vist_path_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, qpath: <span class="kw-2">&amp;</span>PathExpr) {
         walk_path_expr(<span class="self">self</span>, qpath);
+    }
+
+    <span class="kw">fn </span>visit_path_expr_segment(<span class="kw-2">&amp;mut </span><span class="self">self</span>, segment: <span class="kw-2">&amp;</span>PathExprSegment) {
+        walk_path_expr_segment(<span class="self">self</span>, segment);
     }
 
     <span class="kw">fn </span>visit_ident(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _ident: Ident) {}
@@ -976,6 +988,10 @@
 }
 
 <span class="kw">pub fn </span>walk_path_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, qpath: <span class="kw-2">&amp;</span>PathExpr) {
-    <span class="macro">walk_list!</span>(vis, visit_ident, qpath.segments.iter().copied());
+    <span class="macro">walk_list!</span>(vis, visit_path_expr_segment, <span class="kw-2">&amp;</span>qpath.segments);
+}
+
+<span class="kw">pub fn </span>walk_path_expr_segment&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>PathExprSegment) {
+    vis.visit_ident(segment.ident)
 }
 </code></pre></div></section></main></body></html>

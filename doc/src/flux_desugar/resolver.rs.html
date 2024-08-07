@@ -790,6 +790,64 @@
 <a href="#790" id="790">790</a>
 <a href="#791" id="791">791</a>
 <a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
 </pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 
 <span class="kw">use </span>std::collections::hash_map::Entry;
@@ -802,15 +860,18 @@
     ResolverOutput, Specs,
 };
 <span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, visit::Visitor <span class="kw">as _</span>, Ident, NodeId};
-<span class="kw">use </span>hir::{
-    def::{DefKind, Namespace::TypeNS},
-    intravisit::Visitor <span class="kw">as _</span>,
-    ItemId, ItemKind, OwnerId,
-};
+<span class="kw">use </span>hir::{def::DefKind, intravisit::Visitor <span class="kw">as _</span>, ItemId, ItemKind, OwnerId};
 <span class="kw">use </span>rustc_data_structures::unord::{ExtendUnord, UnordMap};
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hash::FxHashMap;
-<span class="kw">use </span>rustc_hir::{<span class="self">self </span><span class="kw">as </span>hir, ParamName, PrimTy};
+<span class="kw">use </span>rustc_hir::{
+    <span class="self">self </span><span class="kw">as </span>hir,
+    def::{
+        Namespace::{<span class="self">self</span>, <span class="kw-2">*</span>},
+        PerNS,
+    },
+    ParamName, PrimTy, CRATE_HIR_ID,
+};
 <span class="kw">use </span>rustc_middle::{metadata::ModChild, ty::TyCtxt};
 <span class="kw">use </span>rustc_span::{def_id::DefId, symbol::kw, Span, Symbol};
 
@@ -835,16 +896,6 @@
     <span class="kw">let </span>specs = genv.collect_specs();
     <span class="kw">let </span><span class="kw-2">mut </span>resolver = CrateResolver::new(genv, specs);
 
-    resolver.collect_flux_global_items();
-
-    <span class="kw">for </span>qualifier <span class="kw">in </span><span class="kw-2">&amp;</span>specs.qualifs {
-        <span class="macro">collect_err!</span>(resolver, resolver.resolve_qualifier(qualifier));
-    }
-
-    <span class="kw">for </span>defn <span class="kw">in </span><span class="kw-2">&amp;</span>specs.func_defs {
-        <span class="macro">collect_err!</span>(resolver, resolver.resolve_defn(defn));
-    }
-
     genv.hir().walk_toplevel_module(<span class="kw-2">&amp;mut </span>resolver);
     <span class="kw">if let </span><span class="prelude-val">Some</span>(err) = resolver.err {
         <span class="kw">return </span><span class="prelude-val">Err</span>(err);
@@ -857,16 +908,21 @@
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     specs: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>Specs,
     output: ResolverOutput,
-    ribs: Vec&lt;Rib&gt;,
+    ribs: PerNS&lt;Vec&lt;Rib&gt;&gt;,
     func_decls: UnordMap&lt;Symbol, fhir::SpecFuncKind&gt;,
     sort_decls: UnordMap&lt;Symbol, fhir::SortDecl&gt;,
-    consts: UnordMap&lt;Symbol, DefId&gt;,
     err: <span class="prelude-ty">Option</span>&lt;ErrorGuaranteed&gt;,
 }
 
 <span class="attr">#[derive(Debug, Default)]
 </span><span class="kw">struct </span>Rib {
-    type_ns_bindings: FxHashMap&lt;Symbol, hir::def::Res&gt;,
+    bindings: FxHashMap&lt;Symbol, hir::def::Res&gt;,
+}
+
+<span class="kw">impl </span>Rib {
+    <span class="kw">fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ bindings: Default::default() }
+    }
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; hir::intravisit::Visitor&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>CrateResolver&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -877,16 +933,18 @@
     }
 
     <span class="kw">fn </span>visit_mod(<span class="kw-2">&amp;mut </span><span class="self">self</span>, module: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::Mod&lt;<span class="lifetime">'tcx</span>&gt;, _s: Span, hir_id: hir::HirId) {
-        <span class="self">self</span>.push_rib();
+        <span class="self">self</span>.push_rib(TypeNS);
+        <span class="self">self</span>.push_rib(ValueNS);
         <span class="kw">for </span>item_id <span class="kw">in </span>module.item_ids {
             <span class="kw">let </span>item = <span class="self">self</span>.genv.hir().item(<span class="kw-2">*</span>item_id);
             <span class="kw">let </span>def_kind = <span class="kw">match </span>item.kind {
                 ItemKind::Use(path, kind) =&gt; {
                     <span class="kw">match </span>kind {
                         hir::UseKind::Single =&gt; {
-                            <span class="self">self</span>.define_res_in_type_ns(
+                            <span class="self">self</span>.define_res_in(
                                 path.segments.last().unwrap().ident.name,
                                 path.res[<span class="number">0</span>],
+                                TypeNS,
                             );
                         }
                         hir::UseKind::Glob =&gt; {
@@ -895,11 +953,8 @@
                                 <span class="kw">continue</span>;
                             };
                             <span class="kw">for </span>child <span class="kw">in </span>module_children(<span class="self">self</span>.genv.tcx(), module_id) {
-                                <span class="kw">if </span>child.res.ns() == <span class="prelude-val">Some</span>(TypeNS) {
-                                    <span class="self">self</span>.define_res_in_type_ns(
-                                        child.ident.name,
-                                        map_res(child.res),
-                                    );
+                                <span class="kw">if let </span><span class="prelude-val">Some</span>(ns @ (TypeNS | ValueNS)) = child.res.ns() {
+                                    <span class="self">self</span>.define_res_in(child.ident.name, map_res(child.res), ns);
                                 }
                             }
                         }
@@ -912,37 +967,57 @@
                 ItemKind::Struct(..) =&gt; DefKind::Struct,
                 ItemKind::Trait(..) =&gt; DefKind::Trait,
                 ItemKind::Mod(..) =&gt; DefKind::Mod,
+                ItemKind::Const(..) =&gt; DefKind::Const,
                 <span class="kw">_ </span>=&gt; <span class="kw">continue</span>,
             };
-            <span class="self">self</span>.define_res_in_type_ns(
-                item.ident.name,
-                hir::def::Res::Def(def_kind, item.owner_id.to_def_id()),
-            );
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(ns) = def_kind.ns() {
+                <span class="self">self</span>.define_res_in(
+                    item.ident.name,
+                    hir::def::Res::Def(def_kind, item.owner_id.to_def_id()),
+                    ns,
+                );
+            }
         }
+        <span class="comment">// Flux items are always defined at the top-level
+        </span><span class="kw">if </span>hir_id == CRATE_HIR_ID {
+            <span class="self">self</span>.collect_flux_global_items();
+            <span class="kw">for </span>qualifier <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.specs.qualifs {
+                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_qualifier(qualifier));
+            }
+
+            <span class="kw">for </span>defn <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.specs.func_defs {
+                <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_defn(defn));
+            }
+        }
+
         hir::intravisit::walk_mod(<span class="self">self</span>, module, hir_id);
-        <span class="self">self</span>.pop_rib();
+        <span class="self">self</span>.pop_rib(ValueNS);
+        <span class="self">self</span>.pop_rib(TypeNS);
     }
 
     <span class="kw">fn </span>visit_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::Item&lt;<span class="lifetime">'tcx</span>&gt;) {
-        <span class="self">self</span>.push_rib();
+        <span class="self">self</span>.push_rib(TypeNS);
+        <span class="self">self</span>.push_rib(ValueNS);
         <span class="kw">match </span>item.kind {
             ItemKind::Trait(<span class="kw">_</span>, <span class="kw">_</span>, generics, ..) =&gt; {
                 <span class="self">self</span>.define_generics(generics);
-                <span class="self">self</span>.define_res_in_type_ns(
+                <span class="self">self</span>.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyParam { trait_: item.owner_id.to_def_id() },
+                    TypeNS,
                 );
                 <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_trait(item.owner_id));
             }
             ItemKind::Impl(impl_) =&gt; {
                 <span class="self">self</span>.define_generics(impl_.generics);
-                <span class="self">self</span>.define_res_in_type_ns(
+                <span class="self">self</span>.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
                         alias_to: item.owner_id.to_def_id(),
                         forbid_generic: <span class="bool-val">false</span>,
                         is_trait_impl: impl_.of_trait.is_some(),
                     },
+                    TypeNS,
                 );
                 <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_impl(item.owner_id));
             }
@@ -952,25 +1027,27 @@
             }
             ItemKind::Enum(.., generics) =&gt; {
                 <span class="self">self</span>.define_generics(generics);
-                <span class="self">self</span>.define_res_in_type_ns(
+                <span class="self">self</span>.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
                         alias_to: item.owner_id.to_def_id(),
                         forbid_generic: <span class="bool-val">false</span>,
                         is_trait_impl: <span class="bool-val">false</span>,
                     },
+                    TypeNS,
                 );
                 <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_enum_def(item.owner_id));
             }
             ItemKind::Struct(.., generics) =&gt; {
                 <span class="self">self</span>.define_generics(generics);
-                <span class="self">self</span>.define_res_in_type_ns(
+                <span class="self">self</span>.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
                         alias_to: item.owner_id.to_def_id(),
                         forbid_generic: <span class="bool-val">false</span>,
                         is_trait_impl: <span class="bool-val">false</span>,
                     },
+                    TypeNS,
                 );
                 <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_struct_def(item.owner_id));
             }
@@ -981,27 +1058,28 @@
             <span class="kw">_ </span>=&gt; {}
         }
         hir::intravisit::walk_item(<span class="self">self</span>, item);
-        <span class="self">self</span>.pop_rib();
+        <span class="self">self</span>.pop_rib(ValueNS);
+        <span class="self">self</span>.pop_rib(TypeNS);
     }
 
     <span class="kw">fn </span>visit_impl_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, impl_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::ImplItem&lt;<span class="lifetime">'tcx</span>&gt;) {
-        <span class="self">self</span>.push_rib();
+        <span class="self">self</span>.push_rib(TypeNS);
         <span class="self">self</span>.define_generics(impl_item.generics);
         <span class="kw">if let </span>hir::ImplItemKind::Fn(..) = impl_item.kind {
             <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_fn_sig(impl_item.owner_id));
         }
         hir::intravisit::walk_impl_item(<span class="self">self</span>, impl_item);
-        <span class="self">self</span>.pop_rib();
+        <span class="self">self</span>.pop_rib(TypeNS);
     }
 
     <span class="kw">fn </span>visit_trait_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, trait_item: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::TraitItem&lt;<span class="lifetime">'tcx</span>&gt;) {
-        <span class="self">self</span>.push_rib();
+        <span class="self">self</span>.push_rib(TypeNS);
         <span class="self">self</span>.define_generics(trait_item.generics);
         <span class="kw">if let </span>hir::TraitItemKind::Fn(..) = trait_item.kind {
             <span class="macro">collect_err!</span>(<span class="self">self</span>, <span class="self">self</span>.resolve_fn_sig(trait_item.owner_id));
         }
         hir::intravisit::walk_trait_item(<span class="self">self</span>, trait_item);
-        <span class="self">self</span>.pop_rib();
+        <span class="self">self</span>.pop_rib(TypeNS);
     }
 }
 
@@ -1019,11 +1097,14 @@
             genv,
             output: ResolverOutput::default(),
             specs,
-            ribs: <span class="macro">vec!</span>[builtin_types_rib(), extern_crates_rib(genv.tcx())],
+            ribs: PerNS {
+                type_ns: <span class="macro">vec!</span>[builtin_types_rib(), extern_crates_rib(genv.tcx())],
+                value_ns: <span class="macro">vec!</span>[],
+                macro_ns: <span class="macro">vec!</span>[],
+            },
             err: <span class="prelude-val">None</span>,
             func_decls: Default::default(),
             sort_decls: Default::default(),
-            consts: Default::default(),
         }
     }
 
@@ -1033,12 +1114,6 @@
                 sort_decl.name.name,
                 fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
             );
-        }
-
-        <span class="kw">for </span>def_id <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.specs.consts {
-            <span class="kw">let </span>did = def_id.to_def_id();
-            <span class="kw">let </span>sym = <span class="kw">super</span>::def_id_symbol(<span class="self">self</span>.genv.tcx(), <span class="kw-2">*</span>def_id);
-            <span class="self">self</span>.consts.insert(sym, did);
         }
 
         <span class="kw">for </span>defn <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.specs.func_defs {
@@ -1054,28 +1129,29 @@
         );
     }
 
-    <span class="kw">fn </span>push_rib(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.ribs.push(Rib::default());
+    <span class="kw">fn </span>define_res_in(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: Symbol, res: hir::def::Res, ns: Namespace) {
+        <span class="self">self</span>.ribs[ns].last_mut().unwrap().bindings.insert(name, res);
     }
 
-    <span class="kw">fn </span>define_res_in_type_ns(<span class="kw-2">&amp;mut </span><span class="self">self</span>, name: Symbol, res: hir::def::Res) {
-        <span class="self">self</span>.ribs
-            .last_mut()
-            .unwrap()
-            .type_ns_bindings
-            .insert(name, res);
+    <span class="kw">fn </span>push_rib(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ns: Namespace) {
+        <span class="self">self</span>.ribs[ns].push(Rib::new());
     }
 
-    <span class="kw">fn </span>pop_rib(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.ribs.pop();
+    <span class="kw">fn </span>pop_rib(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ns: Namespace) {
+        <span class="self">self</span>.ribs[ns].pop();
     }
 
     <span class="kw">fn </span>define_generics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, generics: <span class="kw-2">&amp;</span>hir::Generics) {
         <span class="kw">for </span>param <span class="kw">in </span>generics.params {
-            <span class="kw">if let </span>ParamName::Plain(name) = param.name {
-                <span class="self">self</span>.define_res_in_type_ns(
+            <span class="kw">let </span>def_kind = <span class="self">self</span>.genv.tcx().def_kind(param.def_id);
+            <span class="kw">if let </span>ParamName::Plain(name) = param.name
+                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(ns) = def_kind.ns()
+            {
+                <span class="macro">debug_assert!</span>(<span class="macro">matches!</span>(def_kind, DefKind::TyParam | DefKind::ConstParam));
+                <span class="self">self</span>.define_res_in(
                     name.name,
-                    hir::def::Res::Def(DefKind::TyParam, param.def_id.to_def_id()),
+                    hir::def::Res::Def(def_kind, param.def_id.to_def_id()),
+                    ns,
                 );
             }
         }
@@ -1138,36 +1214,41 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>resolve_path_with_ribs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::PartialRes&gt; {
+    <span class="kw">fn </span>resolve_path_with_ribs&lt;S: Segment&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        segments: <span class="kw-2">&amp;</span>[S],
+        ns: Namespace,
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;fhir::PartialRes&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>module: <span class="prelude-ty">Option</span>&lt;DefId&gt; = <span class="prelude-val">None</span>;
-        <span class="kw">for </span>(segment_idx, segment) <span class="kw">in </span>path.segments.iter().enumerate() {
+        <span class="kw">for </span>(segment_idx, segment) <span class="kw">in </span>segments.iter().enumerate() {
+            <span class="kw">let </span>is_last = segment_idx + <span class="number">1 </span>== segments.len();
+            <span class="kw">let </span>ns = <span class="kw">if </span>is_last { ns } <span class="kw">else </span>{ TypeNS };
+
             <span class="kw">let </span>res = <span class="kw">if let </span><span class="prelude-val">Some</span>(module) = module {
-                <span class="self">self</span>.resolve_ident_in_module(module, segment.ident)<span class="question-mark">?
+                <span class="self">self</span>.resolve_ident_in_module(module, segment.ident())<span class="question-mark">?
             </span>} <span class="kw">else </span>{
-                <span class="self">self</span>.resolve_ident(segment.ident)<span class="question-mark">?
+                <span class="self">self</span>.resolve_ident_with_ribs(segment.ident(), ns)<span class="question-mark">?
             </span>};
 
             <span class="kw">let </span>base_res = Res::try_from(res).ok()<span class="question-mark">?</span>;
 
-            <span class="self">self</span>.output
-                .path_res_map
-                .insert(segment.node_id, fhir::PartialRes::new(base_res));
+            S::record_segment_res(<span class="self">self</span>, segment, base_res);
 
             <span class="kw">if let </span>Res::Def(DefKind::Mod, module_id) = base_res {
                 module = <span class="prelude-val">Some</span>(module_id);
             } <span class="kw">else </span>{
                 <span class="kw">return </span><span class="prelude-val">Some</span>(fhir::PartialRes::with_unresolved_segments(
                     base_res,
-                    path.segments.len() - segment_idx - <span class="number">1</span>,
+                    segments.len() - segment_idx - <span class="number">1</span>,
                 ));
             }
         }
         <span class="prelude-val">None
     </span>}
 
-    <span class="kw">fn </span>resolve_ident(<span class="kw-2">&amp;</span><span class="self">self</span>, ident: Ident) -&gt; <span class="prelude-ty">Option</span>&lt;hir::def::Res&gt; {
-        <span class="kw">for </span>rib <span class="kw">in </span><span class="self">self</span>.ribs.iter().rev() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(res) = rib.type_ns_bindings.get(<span class="kw-2">&amp;</span>ident.name) {
+    <span class="kw">fn </span>resolve_ident_with_ribs(<span class="kw-2">&amp;</span><span class="self">self</span>, ident: Ident, ns: Namespace) -&gt; <span class="prelude-ty">Option</span>&lt;hir::def::Res&gt; {
+        <span class="kw">for </span>rib <span class="kw">in </span><span class="self">self</span>.ribs[ns].iter().rev() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(res) = rib.bindings.get(<span class="kw-2">&amp;</span>ident.name) {
                 <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="kw-2">*</span>res);
             }
         }
@@ -1189,6 +1270,40 @@
     <span class="kw">pub fn </span>into_output(<span class="self">self</span>) -&gt; ResolverOutput {
         <span class="self">self</span>.output
     }
+}
+
+<span class="kw">trait </span>Segment {
+    <span class="kw">fn </span>record_segment_res(resolver: <span class="kw-2">&amp;mut </span>CrateResolver, segment: <span class="kw-2">&amp;</span><span class="self">Self</span>, res: fhir::Res);
+    <span class="kw">fn </span>ident(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ident;
+}
+
+<span class="kw">impl </span>Segment <span class="kw">for </span>surface::PathSegment {
+    <span class="kw">fn </span>record_segment_res(resolver: <span class="kw-2">&amp;mut </span>CrateResolver, segment: <span class="kw-2">&amp;</span><span class="self">Self</span>, res: fhir::Res) {
+        resolver
+            .output
+            .path_res_map
+            .insert(segment.node_id, fhir::PartialRes::new(res));
+    }
+
+    <span class="kw">fn </span>ident(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ident {
+        <span class="self">self</span>.ident
+    }
+}
+
+<span class="kw">impl </span>Segment <span class="kw">for </span>surface::PathExprSegment {
+    <span class="kw">fn </span>record_segment_res(_resolver: <span class="kw-2">&amp;mut </span>CrateResolver, _segment: <span class="kw-2">&amp;</span><span class="self">Self</span>, _res: fhir::Res) {}
+
+    <span class="kw">fn </span>ident(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ident {
+        <span class="self">self</span>.ident
+    }
+}
+
+<span class="kw">impl </span>Segment <span class="kw">for </span>Ident {
+    <span class="kw">fn </span>record_segment_res(_resolver: <span class="kw-2">&amp;mut </span>CrateResolver, _segment: <span class="kw-2">&amp;</span><span class="self">Self</span>, _res: fhir::Res) {}
+
+    <span class="kw">fn </span>ident(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ident {
+        <span class="kw-2">*</span><span class="self">self
+    </span>}
 }
 
 <span class="kw">struct </span>ItemResolver&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -1291,23 +1406,23 @@
         }
     }
 
-    <span class="kw">fn </span>resolve_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) {
+    <span class="kw">fn </span>resolve_type_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) {
         <span class="comment">// This could insert stuff in `path_res_map` twice if resolve_path_with_ribs fails midway.
         // This is ok because we will only proceed to further stages if the entire path is resolved.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(partial_res) = <span class="self">self</span>.resolver.resolve_path_with_ribs(path) {
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(partial_res) = <span class="self">self</span>.resolver.resolve_path_with_ribs(<span class="kw-2">&amp;</span>path.segments, TypeNS) {
             <span class="self">self</span>.resolver
                 .output
                 .path_res_map
                 .insert(path.node_id, partial_res);
             <span class="kw">return</span>;
         }
-        <span class="kw">if </span><span class="self">self</span>.try_resolve_with_table(path) {
+        <span class="kw">if </span><span class="self">self</span>.resolve_path_with_table(path) {
             <span class="kw">return</span>;
         }
         <span class="self">self</span>.errors.emit(errors::UnresolvedPath::new(path));
     }
 
-    <span class="kw">fn </span>try_resolve_with_table(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; bool {
+    <span class="kw">fn </span>resolve_path_with_table(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; bool {
         <span class="self">self</span>.table.visit_path(path, |segment_id, res| {
             <span class="self">self</span>.resolver
                 .output
@@ -1332,7 +1447,7 @@
     }
 
     <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) {
-        <span class="self">self</span>.resolve_path(path);
+        <span class="self">self</span>.resolve_type_path(path);
         surface::visit::walk_path(<span class="self">self</span>, path);
     }
 }
@@ -1522,7 +1637,7 @@
 
 <span class="kw">fn </span>builtin_types_rib() -&gt; Rib {
     Rib {
-        type_ns_bindings: PrimTy::ALL
+        bindings: PrimTy::ALL
             .into_iter()
             .map(|pty| (pty.name(), hir::def::Res::PrimTy(pty)))
             .collect(),
@@ -1530,16 +1645,17 @@
 }
 
 <span class="kw">fn </span>extern_crates_rib(tcx: TyCtxt) -&gt; Rib {
-    <span class="kw">let </span><span class="kw-2">mut </span>bindings = FxHashMap::default();
+    <span class="kw">let </span><span class="kw-2">mut </span>rib = Rib::new();
     <span class="kw">for </span>cnum <span class="kw">in </span>tcx.crates(()) {
         <span class="kw">let </span>name = tcx.crate_name(<span class="kw-2">*</span>cnum);
         <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_crate) = tcx.extern_crate(cnum.as_def_id())
             &amp;&amp; extern_crate.is_direct()
         {
-            bindings.insert(name, hir::def::Res::Def(DefKind::Mod, cnum.as_def_id()));
+            rib.bindings
+                .insert(name, hir::def::Res::Def(DefKind::Mod, cnum.as_def_id()));
         }
     }
-    Rib { type_ns_bindings: bindings }
+    rib
 }
 
 <span class="kw">mod </span>errors {
