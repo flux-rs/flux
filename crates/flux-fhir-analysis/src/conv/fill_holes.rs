@@ -45,12 +45,6 @@ pub(crate) fn fn_sig(
         zipper.zip_fn_sig(decl, fn_sig, expected)
     })?;
 
-    // let mut zipper = Zipper::new(genv, def_id)?;
-
-    // zipper.enter_binders(fn_sig, rust_fn_sig, |zipper, fn_sig, rust_fn_sig| {
-    //     zipper.zip_fn_sig(fn_sig, rust_fn_sig)
-    // })?;
-
     Ok(zipper.replace_holes(fn_sig))
 }
 
@@ -60,12 +54,19 @@ pub(crate) fn variants(
     adt_def_id: LocalDefId,
 ) -> QueryResult<Vec<rty::PolyVariant>> {
     let adt_def = genv.adt_def(adt_def_id)?;
-    let mut zipper = Zipper::new(genv, adt_def_id)?;
-    let def_id = genv.resolve_maybe_extern_id(adt_def_id.to_def_id());
-    let adt_ty = genv.lower_type_of(def_id)?.skip_binder();
-    for (variant, variant_def) in iter::zip(variants, adt_def.variants()) {
-        zipper.zip_variant(variant, variant_def, &adt_ty)?;
-    }
+    // let mut zipper = Zipper::new(genv, adt_def_id)?;
+    // let def_id = genv.resolve_maybe_extern_id(adt_def_id.to_def_id());
+    // let adt_ty = genv.lower_type_of(def_id)?.skip_binder();
+    // for (variant, variant_def) in iter::zip(variants, adt_def.variants()) {
+    //     zipper.zip_variant(variant, variant_def, &adt_ty)?;
+    // }
+
+    let mut zipper = TyZipper::new(genv, adt_def_id);
+    // let def_id = genv.resolve_maybe_extern_id(adt_def_id.to_def_id());
+    // let adt_ty = genv.lower_type_of(def_id)?.skip_binder();
+    // for (variant, variant_def) in iter::zip(variants, adt_def.variants()) {
+    //     zipper.zip_variant(variant, variant_def, &adt_ty)?;
+    // }
 
     Ok(variants.iter().map(|v| zipper.replace_holes(v)).collect())
 }
@@ -382,6 +383,17 @@ impl<'genv, 'tcx> TyZipper<'genv, 'tcx> {
         }
     }
 
+    fn zip_variant(&mut self, a: &rty::PolyVariant, b: &rty::PolyVariant) -> QueryResult {
+        self.enter_binders(a, b, |this, a, b| {
+            debug_assert_eq!(a.fields.len(), b.fields.len());
+            for (ty_a, ty_b) in iter::zip(&a.fields, &b.fields) {
+                this.zip_ty(ty_a, ty_b);
+            }
+            this.zip_ty(&a.ret(), &b.ret());
+            Ok(())
+        })
+    }
+
     fn zip_fn_sig(
         &mut self,
         decl: &fhir::FnDecl,
@@ -552,12 +564,17 @@ impl<'genv, 'tcx> TyZipper<'genv, 'tcx> {
                 Ok(())
             }
             (rty::BaseTy::Array(ty_a, len_a), rty::BaseTy::Array(ty_b, len_b)) => {
-                assert_eq_or_incompatible(len_a, len_b)?;
+                self.zip_const(len_a, len_b)?;
                 self.zip_ty(ty_a, ty_b)
             }
             (rty::BaseTy::Never, rty::BaseTy::Never) => Ok(()),
             (rty::BaseTy::Param(pty_a), rty::BaseTy::Param(pty_b)) => {
                 assert_eq_or_incompatible(pty_a, pty_b)
+            }
+            (rty::BaseTy::Dynamic(_, re_a), rty::BaseTy::Dynamic(_, re_b)) => {
+                // FIXME(nilehmann) we should check the existentials predicates
+                self.zip_region(re_a, re_b);
+                Ok(())
             }
             (rty::BaseTy::Closure(..) | rty::BaseTy::Coroutine(..), _) => {
                 bug!("unexpected type `{a:?}`");
@@ -579,7 +596,24 @@ impl<'genv, 'tcx> TyZipper<'genv, 'tcx> {
                 Ok(())
             }
             (rty::GenericArg::Const(ct_a), rty::GenericArg::Const(ct_b)) => {
-                assert_eq_or_incompatible(ct_a, ct_b)
+                self.zip_const(ct_a, ct_b)
+            }
+            _ => Err(Error::Incompatible),
+        }
+    }
+
+    fn zip_const(&mut self, a: &rty::Const, b: &ty::Const) -> Result<(), Error> {
+        match (&a.kind, &b.kind) {
+            (rty::ConstKind::Infer(ty::InferConst::Var(cid)), _) => {
+                self.const_holes.insert(*cid, b.clone());
+                Ok(())
+            }
+            (rty::ConstKind::Param(param_const_a), ty::ConstKind::Param(param_const_b)) => {
+                assert_eq_or_incompatible(param_const_a, param_const_b)
+            }
+            (rty::ConstKind::Value(ty_a, val_a), ty::ConstKind::Value(ty_b, val_b)) => {
+                assert_eq_or_incompatible(ty_a, ty_b)?;
+                assert_eq_or_incompatible(val_a, val_b)
             }
             _ => Err(Error::Incompatible),
         }
@@ -666,6 +700,7 @@ impl<'genv, 'tcx> TyZipper<'genv, 'tcx> {
         })
     }
 
+    #[track_caller]
     fn emit<'b>(&'b self, err: impl Diagnostic<'b>) -> ErrorGuaranteed {
         self.genv.sess().emit_err(err)
     }
