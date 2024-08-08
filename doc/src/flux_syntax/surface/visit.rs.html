@@ -992,6 +992,6 @@
 }
 
 <span class="kw">pub fn </span>walk_path_expr_segment&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>PathExprSegment) {
-    vis.visit_ident(segment.ident)
+    vis.visit_ident(segment.ident);
 }
 </code></pre></div></section></main></body></html>

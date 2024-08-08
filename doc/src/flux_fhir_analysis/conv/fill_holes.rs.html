@@ -610,11 +610,11 @@
                 <span class="self">self</span>.const_holes.insert(<span class="kw-2">*</span>cid, b.clone());
             }
             (rty::ConstKind::Param(param_const_a), ty::ConstKind::Param(param_const_b)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(param_const_a, param_const_b)
+                <span class="macro">debug_assert_eq!</span>(param_const_a, param_const_b);
             }
             (rty::ConstKind::Value(ty_a, val_a), ty::ConstKind::Value(ty_b, val_b)) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(ty_a, ty_b);
-                <span class="macro">debug_assert_eq!</span>(val_a, val_b)
+                <span class="macro">debug_assert_eq!</span>(val_a, val_b);
             }
             <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"incompatible consts"</span>),
         }
