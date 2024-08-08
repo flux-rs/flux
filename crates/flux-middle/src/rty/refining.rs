@@ -188,9 +188,19 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         &self,
         exi_trait_ref: &rustc::ty::ExistentialTraitRef,
     ) -> QueryResult<rty::ExistentialTraitRef> {
+        let trait_generics = self.generics_of(exi_trait_ref.def_id)?;
         let exi_trait_ref = rty::ExistentialTraitRef {
             def_id: exi_trait_ref.def_id,
-            args: self.refine_generic_args(exi_trait_ref.def_id, &exi_trait_ref.args)?,
+            args: exi_trait_ref
+                .args
+                .iter()
+                .enumerate()
+                .map(|(idx, arg)| {
+                    // We need to skip the generic for Self
+                    let param = trait_generics.param_at(idx + 1, self.genv)?;
+                    self.refine_generic_arg(&param, arg)
+                })
+                .try_collect()?,
         };
         Ok(exi_trait_ref)
     }
@@ -203,7 +213,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         Ok(trait_ref)
     }
 
-    pub(crate) fn refine_variant_def(
+    pub fn refine_variant_def(
         &self,
         adt_def_id: DefId,
         variant_idx: VariantIdx,
@@ -260,12 +270,13 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         args: &rustc::ty::GenericArgs,
     ) -> QueryResult<rty::GenericArgs> {
         let generics = self.generics_of(def_id)?;
-        let mut result = vec![];
-        for (idx, arg) in args.iter().enumerate() {
-            let param = generics.param_at(idx, self.genv)?;
-            result.push(self.refine_generic_arg(&param, arg)?);
-        }
-        Ok(List::from_vec(result))
+        args.iter()
+            .enumerate()
+            .map(|(idx, arg)| {
+                let param = generics.param_at(idx, self.genv)?;
+                self.refine_generic_arg(&param, arg)
+            })
+            .collect()
     }
 
     pub fn refine_generic_arg(

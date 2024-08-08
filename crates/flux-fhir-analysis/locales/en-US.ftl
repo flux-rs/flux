@@ -156,15 +156,12 @@ fhir_analysis_array_len_mismatch =
     .expected_label = expected length
 
 fhir_analysis_field_count_mismatch =
-    field count mismatch
-    .label = refined variant has {$fields} {$fields ->
+    variant has an incompatible refinement annotation
+    .label = expected {$expected_fields} {$expected_fields ->
         [one] field
         *[other] fields
-     }
-    .expected_label = rust variant has {$expected_fields} {$expected_fields ->
-        [one] field
-        *[other] fields
-    }
+     }, found {$fields}
+    .expected_label = corresponding unrefined definition
 
 # Definition cycle
 
