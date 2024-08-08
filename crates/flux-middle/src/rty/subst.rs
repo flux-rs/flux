@@ -346,15 +346,14 @@ impl<'a, 'tcx> GenericsSubstDelegate for GenericArgsDelegate<'a, 'tcx> {
     }
 
     fn const_for_param(&mut self, param: &Const) -> Const {
-        match &param.kind {
-            ConstKind::Value(..) => param.clone(),
-            ConstKind::Param(param_const) => {
-                match self.0.get(param_const.index as usize) {
-                    Some(GenericArg::Const(cst)) => cst.clone(),
-                    Some(arg) => bug!("expected const for generic parameter, found `{arg:?}`"),
-                    None => bug!("generic parameter out of range"),
-                }
+        if let ConstKind::Param(param_const) = &param.kind {
+            match self.0.get(param_const.index as usize) {
+                Some(GenericArg::Const(cst)) => cst.clone(),
+                Some(arg) => bug!("expected const for generic parameter, found `{arg:?}`"),
+                None => bug!("generic parameter out of range"),
             }
+        } else {
+            param.clone()
         }
     }
 

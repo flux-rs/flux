@@ -28,7 +28,7 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
-use rustc_middle::ty::{ParamConst, TyCtxt, ValTree};
+use rustc_middle::ty::{ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamTy, ScalarInt, UintTy},
@@ -45,8 +45,8 @@ use self::{
 pub use crate::{
     fhir::InferMode,
     rustc::ty::{
-        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, EarlyParamRegion,
-        LateParamRegion, OutlivesPredicate,
+        AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid,
+        EarlyParamRegion, LateParamRegion, OutlivesPredicate,
         Region::{self, *},
         RegionVid,
     },
@@ -1426,21 +1426,7 @@ impl GenericArg {
                 ty::GenericArg::from(ctor.as_ref().skip_binder().to_rustc(tcx))
             }
             GenericArg::Lifetime(re) => ty::GenericArg::from(re.to_rustc(tcx)),
-            GenericArg::Const(c) => {
-                let kind = match &c.kind {
-                    ConstKind::Param(param_const) => {
-                        rustc_middle::ty::ConstKind::Param(*param_const)
-                    }
-                    ConstKind::Value(ty, scalar_int) => {
-                        rustc_middle::ty::ConstKind::Value(
-                            ty.to_rustc(tcx),
-                            ValTree::Leaf(*scalar_int),
-                        )
-                    }
-                };
-                let c = rustc_middle::ty::Const::new(tcx, kind);
-                ty::GenericArg::from(c)
-            }
+            GenericArg::Const(c) => ty::GenericArg::from(c.to_rustc(tcx)),
         }
     }
 }

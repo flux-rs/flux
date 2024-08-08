@@ -94,11 +94,10 @@ impl Subst for GenericArg {
 
 impl Subst for Const {
     fn subst(&self, args: &[GenericArg]) -> Self {
-        match &self.kind {
-            ConstKind::Param(param_const) => {
-                args[param_const.index as usize].expect_const().clone()
-            }
-            ConstKind::Value(..) => self.clone(),
+        if let ConstKind::Param(param_const) = &self.kind {
+            args[param_const.index as usize].expect_const().clone()
+        } else {
+            self.clone()
         }
     }
 }

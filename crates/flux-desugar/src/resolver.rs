@@ -10,15 +10,18 @@ use flux_middle::{
     ResolverOutput, Specs,
 };
 use flux_syntax::surface::{self, visit::Visitor as _, Ident, NodeId};
-use hir::{
-    def::{DefKind, Namespace::TypeNS},
-    intravisit::Visitor as _,
-    ItemId, ItemKind, OwnerId,
-};
+use hir::{def::DefKind, intravisit::Visitor as _, ItemId, ItemKind, OwnerId};
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
-use rustc_hir::{self as hir, ParamName, PrimTy};
+use rustc_hir::{
+    self as hir,
+    def::{
+        Namespace::{self, *},
+        PerNS,
+    },
+    ParamName, PrimTy, CRATE_HIR_ID,
+};
 use rustc_middle::{metadata::ModChild, ty::TyCtxt};
 use rustc_span::{def_id::DefId, symbol::kw, Span, Symbol};
 
@@ -43,16 +46,6 @@ fn try_resolve_crate(genv: GlobalEnv) -> Result<ResolverOutput> {
     let specs = genv.collect_specs();
     let mut resolver = CrateResolver::new(genv, specs);
 
-    resolver.collect_flux_global_items();
-
-    for qualifier in &specs.qualifs {
-        collect_err!(resolver, resolver.resolve_qualifier(qualifier));
-    }
-
-    for defn in &specs.func_defs {
-        collect_err!(resolver, resolver.resolve_defn(defn));
-    }
-
     genv.hir().walk_toplevel_module(&mut resolver);
     if let Some(err) = resolver.err {
         return Err(err);
@@ -65,16 +58,21 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     specs: &'genv Specs,
     output: ResolverOutput,
-    ribs: Vec<Rib>,
+    ribs: PerNS<Vec<Rib>>,
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
     sort_decls: UnordMap<Symbol, fhir::SortDecl>,
-    consts: UnordMap<Symbol, DefId>,
     err: Option<ErrorGuaranteed>,
 }
 
 #[derive(Debug, Default)]
 struct Rib {
-    type_ns_bindings: FxHashMap<Symbol, hir::def::Res>,
+    bindings: FxHashMap<Symbol, hir::def::Res>,
+}
+
+impl Rib {
+    fn new() -> Self {
+        Self { bindings: Default::default() }
+    }
 }
 
 impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
@@ -85,16 +83,18 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     }
 
     fn visit_mod(&mut self, module: &'tcx hir::Mod<'tcx>, _s: Span, hir_id: hir::HirId) {
-        self.push_rib();
+        self.push_rib(TypeNS);
+        self.push_rib(ValueNS);
         for item_id in module.item_ids {
             let item = self.genv.hir().item(*item_id);
             let def_kind = match item.kind {
                 ItemKind::Use(path, kind) => {
                     match kind {
                         hir::UseKind::Single => {
-                            self.define_res_in_type_ns(
+                            self.define_res_in(
                                 path.segments.last().unwrap().ident.name,
                                 path.res[0],
+                                TypeNS,
                             );
                         }
                         hir::UseKind::Glob => {
@@ -103,11 +103,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                                 continue;
                             };
                             for child in module_children(self.genv.tcx(), module_id) {
-                                if child.res.ns() == Some(TypeNS) {
-                                    self.define_res_in_type_ns(
-                                        child.ident.name,
-                                        map_res(child.res),
-                                    );
+                                if let Some(ns @ (TypeNS | ValueNS)) = child.res.ns() {
+                                    self.define_res_in(child.ident.name, map_res(child.res), ns);
                                 }
                             }
                         }
@@ -120,37 +117,57 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                 ItemKind::Struct(..) => DefKind::Struct,
                 ItemKind::Trait(..) => DefKind::Trait,
                 ItemKind::Mod(..) => DefKind::Mod,
+                ItemKind::Const(..) => DefKind::Const,
                 _ => continue,
             };
-            self.define_res_in_type_ns(
-                item.ident.name,
-                hir::def::Res::Def(def_kind, item.owner_id.to_def_id()),
-            );
+            if let Some(ns) = def_kind.ns() {
+                self.define_res_in(
+                    item.ident.name,
+                    hir::def::Res::Def(def_kind, item.owner_id.to_def_id()),
+                    ns,
+                );
+            }
         }
+        // Flux items are always defined at the top-level
+        if hir_id == CRATE_HIR_ID {
+            self.collect_flux_global_items();
+            for qualifier in &self.specs.qualifs {
+                collect_err!(self, self.resolve_qualifier(qualifier));
+            }
+
+            for defn in &self.specs.func_defs {
+                collect_err!(self, self.resolve_defn(defn));
+            }
+        }
+
         hir::intravisit::walk_mod(self, module, hir_id);
-        self.pop_rib();
+        self.pop_rib(ValueNS);
+        self.pop_rib(TypeNS);
     }
 
     fn visit_item(&mut self, item: &'tcx hir::Item<'tcx>) {
-        self.push_rib();
+        self.push_rib(TypeNS);
+        self.push_rib(ValueNS);
         match item.kind {
             ItemKind::Trait(_, _, generics, ..) => {
                 self.define_generics(generics);
-                self.define_res_in_type_ns(
+                self.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyParam { trait_: item.owner_id.to_def_id() },
+                    TypeNS,
                 );
                 collect_err!(self, self.resolve_trait(item.owner_id));
             }
             ItemKind::Impl(impl_) => {
                 self.define_generics(impl_.generics);
-                self.define_res_in_type_ns(
+                self.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
                         alias_to: item.owner_id.to_def_id(),
                         forbid_generic: false,
                         is_trait_impl: impl_.of_trait.is_some(),
                     },
+                    TypeNS,
                 );
                 collect_err!(self, self.resolve_impl(item.owner_id));
             }
@@ -160,25 +177,27 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             }
             ItemKind::Enum(.., generics) => {
                 self.define_generics(generics);
-                self.define_res_in_type_ns(
+                self.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
                         alias_to: item.owner_id.to_def_id(),
                         forbid_generic: false,
                         is_trait_impl: false,
                     },
+                    TypeNS,
                 );
                 collect_err!(self, self.resolve_enum_def(item.owner_id));
             }
             ItemKind::Struct(.., generics) => {
                 self.define_generics(generics);
-                self.define_res_in_type_ns(
+                self.define_res_in(
                     kw::SelfUpper,
                     hir::def::Res::SelfTyAlias {
                         alias_to: item.owner_id.to_def_id(),
                         forbid_generic: false,
                         is_trait_impl: false,
                     },
+                    TypeNS,
                 );
                 collect_err!(self, self.resolve_struct_def(item.owner_id));
             }
@@ -189,27 +208,28 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             _ => {}
         }
         hir::intravisit::walk_item(self, item);
-        self.pop_rib();
+        self.pop_rib(ValueNS);
+        self.pop_rib(TypeNS);
     }
 
     fn visit_impl_item(&mut self, impl_item: &'tcx hir::ImplItem<'tcx>) {
-        self.push_rib();
+        self.push_rib(TypeNS);
         self.define_generics(impl_item.generics);
         if let hir::ImplItemKind::Fn(..) = impl_item.kind {
             collect_err!(self, self.resolve_fn_sig(impl_item.owner_id));
         }
         hir::intravisit::walk_impl_item(self, impl_item);
-        self.pop_rib();
+        self.pop_rib(TypeNS);
     }
 
     fn visit_trait_item(&mut self, trait_item: &'tcx hir::TraitItem<'tcx>) {
-        self.push_rib();
+        self.push_rib(TypeNS);
         self.define_generics(trait_item.generics);
         if let hir::TraitItemKind::Fn(..) = trait_item.kind {
             collect_err!(self, self.resolve_fn_sig(trait_item.owner_id));
         }
         hir::intravisit::walk_trait_item(self, trait_item);
-        self.pop_rib();
+        self.pop_rib(TypeNS);
     }
 }
 
@@ -227,11 +247,14 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             genv,
             output: ResolverOutput::default(),
             specs,
-            ribs: vec![builtin_types_rib(), extern_crates_rib(genv.tcx())],
+            ribs: PerNS {
+                type_ns: vec![builtin_types_rib(), extern_crates_rib(genv.tcx())],
+                value_ns: vec![],
+                macro_ns: vec![],
+            },
             err: None,
             func_decls: Default::default(),
             sort_decls: Default::default(),
-            consts: Default::default(),
         }
     }
 
@@ -241,12 +264,6 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 sort_decl.name.name,
                 fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
             );
-        }
-
-        for def_id in &self.specs.consts {
-            let did = def_id.to_def_id();
-            let sym = super::def_id_symbol(self.genv.tcx(), *def_id);
-            self.consts.insert(sym, did);
         }
 
         for defn in &self.specs.func_defs {
@@ -262,28 +279,29 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         );
     }
 
-    fn push_rib(&mut self) {
-        self.ribs.push(Rib::default());
+    fn define_res_in(&mut self, name: Symbol, res: hir::def::Res, ns: Namespace) {
+        self.ribs[ns].last_mut().unwrap().bindings.insert(name, res);
     }
 
-    fn define_res_in_type_ns(&mut self, name: Symbol, res: hir::def::Res) {
-        self.ribs
-            .last_mut()
-            .unwrap()
-            .type_ns_bindings
-            .insert(name, res);
+    fn push_rib(&mut self, ns: Namespace) {
+        self.ribs[ns].push(Rib::new());
     }
 
-    fn pop_rib(&mut self) {
-        self.ribs.pop();
+    fn pop_rib(&mut self, ns: Namespace) {
+        self.ribs[ns].pop();
     }
 
     fn define_generics(&mut self, generics: &hir::Generics) {
         for param in generics.params {
-            if let ParamName::Plain(name) = param.name {
-                self.define_res_in_type_ns(
+            let def_kind = self.genv.tcx().def_kind(param.def_id);
+            if let ParamName::Plain(name) = param.name
+                && let Some(ns) = def_kind.ns()
+            {
+                debug_assert!(matches!(def_kind, DefKind::TyParam | DefKind::ConstParam));
+                self.define_res_in(
                     name.name,
-                    hir::def::Res::Def(DefKind::TyParam, param.def_id.to_def_id()),
+                    hir::def::Res::Def(def_kind, param.def_id.to_def_id()),
+                    ns,
                 );
             }
         }
@@ -346,36 +364,41 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         Ok(())
     }
 
-    fn resolve_path_with_ribs(&mut self, path: &surface::Path) -> Option<fhir::PartialRes> {
+    fn resolve_path_with_ribs<S: Segment>(
+        &mut self,
+        segments: &[S],
+        ns: Namespace,
+    ) -> Option<fhir::PartialRes> {
         let mut module: Option<DefId> = None;
-        for (segment_idx, segment) in path.segments.iter().enumerate() {
+        for (segment_idx, segment) in segments.iter().enumerate() {
+            let is_last = segment_idx + 1 == segments.len();
+            let ns = if is_last { ns } else { TypeNS };
+
             let res = if let Some(module) = module {
-                self.resolve_ident_in_module(module, segment.ident)?
+                self.resolve_ident_in_module(module, segment.ident())?
             } else {
-                self.resolve_ident(segment.ident)?
+                self.resolve_ident_with_ribs(segment.ident(), ns)?
             };
 
             let base_res = Res::try_from(res).ok()?;
 
-            self.output
-                .path_res_map
-                .insert(segment.node_id, fhir::PartialRes::new(base_res));
+            S::record_segment_res(self, segment, base_res);
 
             if let Res::Def(DefKind::Mod, module_id) = base_res {
                 module = Some(module_id);
             } else {
                 return Some(fhir::PartialRes::with_unresolved_segments(
                     base_res,
-                    path.segments.len() - segment_idx - 1,
+                    segments.len() - segment_idx - 1,
                 ));
             }
         }
         None
     }
 
-    fn resolve_ident(&self, ident: Ident) -> Option<hir::def::Res> {
-        for rib in self.ribs.iter().rev() {
-            if let Some(res) = rib.type_ns_bindings.get(&ident.name) {
+    fn resolve_ident_with_ribs(&self, ident: Ident, ns: Namespace) -> Option<hir::def::Res> {
+        for rib in self.ribs[ns].iter().rev() {
+            if let Some(res) = rib.bindings.get(&ident.name) {
                 return Some(*res);
             }
         }
@@ -396,6 +419,40 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     pub fn into_output(self) -> ResolverOutput {
         self.output
+    }
+}
+
+trait Segment {
+    fn record_segment_res(resolver: &mut CrateResolver, segment: &Self, res: fhir::Res);
+    fn ident(&self) -> Ident;
+}
+
+impl Segment for surface::PathSegment {
+    fn record_segment_res(resolver: &mut CrateResolver, segment: &Self, res: fhir::Res) {
+        resolver
+            .output
+            .path_res_map
+            .insert(segment.node_id, fhir::PartialRes::new(res));
+    }
+
+    fn ident(&self) -> Ident {
+        self.ident
+    }
+}
+
+impl Segment for surface::PathExprSegment {
+    fn record_segment_res(_resolver: &mut CrateResolver, _segment: &Self, _res: fhir::Res) {}
+
+    fn ident(&self) -> Ident {
+        self.ident
+    }
+}
+
+impl Segment for Ident {
+    fn record_segment_res(_resolver: &mut CrateResolver, _segment: &Self, _res: fhir::Res) {}
+
+    fn ident(&self) -> Ident {
+        *self
     }
 }
 
@@ -499,23 +556,23 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         }
     }
 
-    fn resolve_path(&mut self, path: &surface::Path) {
+    fn resolve_type_path(&mut self, path: &surface::Path) {
         // This could insert stuff in `path_res_map` twice if resolve_path_with_ribs fails midway.
         // This is ok because we will only proceed to further stages if the entire path is resolved.
-        if let Some(partial_res) = self.resolver.resolve_path_with_ribs(path) {
+        if let Some(partial_res) = self.resolver.resolve_path_with_ribs(&path.segments, TypeNS) {
             self.resolver
                 .output
                 .path_res_map
                 .insert(path.node_id, partial_res);
             return;
         }
-        if self.try_resolve_with_table(path) {
+        if self.resolve_path_with_table(path) {
             return;
         }
         self.errors.emit(errors::UnresolvedPath::new(path));
     }
 
-    fn try_resolve_with_table(&mut self, path: &surface::Path) -> bool {
+    fn resolve_path_with_table(&mut self, path: &surface::Path) -> bool {
         self.table.visit_path(path, |segment_id, res| {
             self.resolver
                 .output
@@ -540,7 +597,7 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
     }
 
     fn visit_path(&mut self, path: &surface::Path) {
-        self.resolve_path(path);
+        self.resolve_type_path(path);
         surface::visit::walk_path(self, path);
     }
 }
@@ -730,7 +787,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for NameResCollector<'_, 'tcx> {
 
 fn builtin_types_rib() -> Rib {
     Rib {
-        type_ns_bindings: PrimTy::ALL
+        bindings: PrimTy::ALL
             .into_iter()
             .map(|pty| (pty.name(), hir::def::Res::PrimTy(pty)))
             .collect(),
@@ -738,16 +795,17 @@ fn builtin_types_rib() -> Rib {
 }
 
 fn extern_crates_rib(tcx: TyCtxt) -> Rib {
-    let mut bindings = FxHashMap::default();
+    let mut rib = Rib::new();
     for cnum in tcx.crates(()) {
         let name = tcx.crate_name(*cnum);
         if let Some(extern_crate) = tcx.extern_crate(cnum.as_def_id())
             && extern_crate.is_direct()
         {
-            bindings.insert(name, hir::def::Res::Def(DefKind::Mod, cnum.as_def_id()));
+            rib.bindings
+                .insert(name, hir::def::Res::Def(DefKind::Mod, cnum.as_def_id()));
         }
     }
-    Rib { type_ns_bindings: bindings }
+    rib
 }
 
 mod errors {

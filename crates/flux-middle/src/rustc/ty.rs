@@ -13,12 +13,13 @@ use rustc_middle::ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
-        BoundRegionKind, BoundVar, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy, ParamTy,
-        RegionVid, ScalarInt, UintTy,
+        BoundRegionKind, BoundVar, ConstVid, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy,
+        ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
 use rustc_span::{symbol::kw, Symbol};
 use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
+pub use rustc_type_ir::InferConst;
 
 use self::subst::Subst;
 use crate::{
@@ -235,24 +236,24 @@ impl Const {
 
     pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_ty::Const<'tcx> {
         let kind = match &self.kind {
-            ConstKind::Param(param_const) => {
-                let param_const = ParamConst { name: param_const.name, index: param_const.index };
-                rustc_ty::ConstKind::Param(param_const)
-            }
+            ConstKind::Param(param_const) => rustc_ty::ConstKind::Param(*param_const),
             ConstKind::Value(ty, scalar_int) => {
                 rustc_ty::ConstKind::Value(
                     ty.to_rustc(tcx),
                     rustc_middle::ty::ValTree::Leaf(*scalar_int),
                 )
             }
+            ConstKind::Infer(infer_const) => rustc_ty::ConstKind::Infer(*infer_const),
         };
         rustc_ty::Const::new(tcx, kind)
     }
 }
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ConstKind {
     Param(ParamConst),
     Value(Ty, ScalarInt),
+    Infer(InferConst),
 }
 
 #[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]

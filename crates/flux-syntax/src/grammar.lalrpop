@@ -549,7 +549,10 @@ ElseIf: surface::Expr = {
 
 PathExpr: surface::PathExpr = {
     <lo:@L> <segments:Sep1<"::", Ident>> <hi:@R> => surface::PathExpr {
-        segments,
+        segments: segments
+            .into_iter()
+            .map(|ident| surface::PathExprSegment { ident, node_id: cx.next_node_id() })
+            .collect(),
         node_id: cx.next_node_id(),
         span: cx.map_span(lo, hi),
     }

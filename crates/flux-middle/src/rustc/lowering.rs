@@ -375,6 +375,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::TerminatorKind::CoroutineDrop => TerminatorKind::CoroutineDrop,
             rustc_mir::TerminatorKind::UnwindResume => TerminatorKind::UnwindResume,
             rustc_mir::TerminatorKind::UnwindTerminate(..)
+            | rustc_mir::TerminatorKind::TailCall { .. }
             | rustc_mir::TerminatorKind::InlineAsm { .. } => {
                 return Err(errors::UnsupportedMir::from(terminator)).emit(self.sess);
             }

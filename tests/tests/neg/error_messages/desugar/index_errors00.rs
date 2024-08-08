@@ -6,7 +6,7 @@ pub struct Pair {
     pub y: i32,
 }
 
-#[flux::sig(fn(Pair[@p1]) -> i32[p.x])] //~ ERROR cannot find name `p` in this scope
+#[flux::sig(fn(Pair[@p1]) -> i32[p.x])] //~ ERROR cannot find value `p` in this scope
 pub fn mytuple3(p: Pair) -> i32 {
     p.x
 }
