@@ -176,7 +176,7 @@ pub mod fixpoint {
                 // these are actually not necessary because equality is interpreted for all sorts
                 Var::UIFRel(BinRel::Eq) => write!(f, "eq"),
                 Var::UIFRel(BinRel::Ne) => write!(f, "ne"),
-                Var::Underscore => write!(f, "_"),
+                Var::Underscore => write!(f, "_$"), // To avoid clashing with `_` used for `app (_ bv_op n)` for parametric SMT ops
                 Var::ConstGeneric(param_const) => {
                     write!(f, "constgen{}{}", param_const.name, param_const.index)
                 }
