@@ -1,15 +1,21 @@
-// TODO(nilehmann) think how to refine string slices and
+#![allow(dead_code)]
 
-#[flux::trusted]
-#[flux::sig(fn(&str[@s]) -> usize[str_len(s)])]
-fn str_len(s: &str) -> usize {
-    s.len()
+use flux_rs::extern_spec;
+
+#[extern_spec]
+impl str {
+    #[flux::sig(fn(&str[@s]) -> usize[str_len(s)])]
+    fn len(s: &str) -> usize;
 }
 
-// move this test to pos
 #[flux::sig(fn() -> usize[3])]
-pub fn str01() -> usize {
+pub fn str_len_good() -> usize {
     let x = "hog";
-    str_len(x);
+    x.len()
+}
+
+#[flux::sig(fn() -> usize[3])]
+pub fn str_len_bad() -> usize {
+    let x = "piglet";
     x.len() //~ ERROR refinement type
 }
