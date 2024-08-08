@@ -77,6 +77,22 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<Symbol, TheoryFunc>> = LazyLock::new(
     [
         // BitVector <-> int
         TheoryFunc {
+            name: Symbol::intern("bv_zero_extend_32_to_64"),
+            fixpoint_name: Symbol::intern("app (_ zero_extend 32)"),
+            sort: rty::PolyFuncSort::new(
+                List::empty(),
+                rty::FuncSort::new(vec![BitVec(BvSize::Fixed(32))], BitVec(BvSize::Fixed(64))),
+            ),
+        },
+        TheoryFunc {
+            name: Symbol::intern("bv_sign_extend_32_to_64"),
+            fixpoint_name: Symbol::intern("app (_ sign_extend 32)"),
+            sort: rty::PolyFuncSort::new(
+                List::empty(),
+                rty::FuncSort::new(vec![BitVec(BvSize::Fixed(32))], BitVec(BvSize::Fixed(64))),
+            ),
+        },
+        TheoryFunc {
             name: Symbol::intern("bv_int_to_bv32"),
             fixpoint_name: Symbol::intern("int_to_bv32"),
             sort: rty::PolyFuncSort::new(
