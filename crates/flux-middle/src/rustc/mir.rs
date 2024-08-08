@@ -280,7 +280,6 @@ pub enum Constant {
     Uint(u128, UintTy),
     Float(u128, FloatTy),
     Bool(bool),
-    /// We only support opaque string slices, so no data stored here for now.
     Str(Symbol),
     /// We only support opaque chars, so no data stored here for now
     Char,
