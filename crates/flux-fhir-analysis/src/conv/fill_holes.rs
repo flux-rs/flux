@@ -18,7 +18,10 @@ use flux_middle::{
 use rustc_ast::Mutability;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
-use rustc_hir::{self as hir, def_id::LocalDefId};
+use rustc_hir::{
+    self as hir,
+    def_id::{DefId, LocalDefId},
+};
 use rustc_span::ErrorGuaranteed;
 use rustc_type_ir::{DebruijnIndex, InferConst, INNERMOST};
 
@@ -40,7 +43,7 @@ pub(crate) fn fn_sig(
     let generics = genv.generics_of(def_id)?;
     let expected = Refiner::default(genv, &generics).refine_poly_fn_sig(&rust_fn_sig)?;
 
-    let mut zipper = TyZipper::new(genv, def_id);
+    let mut zipper = TyZipper::new(genv, def_id.to_def_id());
     zipper.enter_binders(fn_sig, &expected, |zipper, fn_sig, expected| {
         zipper.zip_fn_sig(decl, fn_sig, expected)
     })?;
@@ -60,9 +63,10 @@ pub(crate) fn variants(
     // for (variant, variant_def) in iter::zip(variants, adt_def.variants()) {
     //     zipper.zip_variant(variant, variant_def, &adt_ty)?;
     // }
-
+    let adt_def_id = genv.resolve_maybe_extern_id(adt_def_id.to_def_id());
+    let generics = genv.generics_of(adt_def_id)?;
+    let refiner = Refiner::default(genv, &generics);
     let mut zipper = TyZipper::new(genv, adt_def_id);
-    // let def_id = genv.resolve_maybe_extern_id(adt_def_id.to_def_id());
     // let adt_ty = genv.lower_type_of(def_id)?.skip_binder();
     // for (variant, variant_def) in iter::zip(variants, adt_def.variants()) {
     //     zipper.zip_variant(variant, variant_def, &adt_ty)?;
@@ -360,7 +364,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
 
 struct TyZipper<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    owner_id: LocalDefId,
+    owner_id: DefId,
     locs: UnordMap<rty::Loc, rty::Ty>,
     type_holes: UnordMap<FhirId, rty::Ty>,
     region_holes: UnordMap<rty::RegionVid, rty::Region>,
@@ -370,7 +374,7 @@ struct TyZipper<'genv, 'tcx> {
 }
 
 impl<'genv, 'tcx> TyZipper<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, owner_id: LocalDefId) -> Self {
+    fn new(genv: GlobalEnv<'genv, 'tcx>, owner_id: DefId) -> Self {
         Self {
             genv,
             owner_id,
@@ -425,7 +429,7 @@ impl<'genv, 'tcx> TyZipper<'genv, 'tcx> {
                 let spec_span = decl.inputs[pos].span;
                 Err(self.emit(errors::IncompatibleRefinement {
                     span: spec_span,
-                    def_descr: self.genv.tcx().def_descr(self.owner_id.to_def_id()),
+                    def_descr: self.genv.tcx().def_descr(self.owner_id),
                     expected_span: rust_ty.span,
                     expected_ty: rustc_hir_pretty::ty_to_string(&self.genv.tcx(), &rust_ty),
                 }))
@@ -722,7 +726,7 @@ mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use flux_middle::{fhir, global_env::GlobalEnv};
-    use rustc_hir::{self as hir, def_id::LocalDefId};
+    use rustc_hir::{self as hir, def_id::DefId};
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
@@ -754,8 +758,8 @@ mod errors {
     }
 
     impl IncompatiblParamCount {
-        pub(super) fn new(genv: GlobalEnv, decl: &fhir::FnDecl, def_id: LocalDefId) -> Self {
-            let def_descr = genv.tcx().def_descr(def_id.to_def_id());
+        pub(super) fn new(genv: GlobalEnv, decl: &fhir::FnDecl, def_id: DefId) -> Self {
+            let def_descr = genv.tcx().def_descr(def_id);
 
             let span = if decl.inputs.len() > 0 {
                 decl.inputs[decl.inputs.len() - 1]
@@ -765,8 +769,10 @@ mod errors {
                 decl.span
             };
 
-            let expected_decl = genv.tcx().hir_node_by_def_id(def_id).fn_decl().unwrap();
-            let expected_span = if expected_decl.inputs.len() > 0 {
+            let expected_span = if let Some(local_id) = def_id.as_local()
+                && let expected_decl = genv.tcx().hir_node_by_def_id(local_id).fn_decl().unwrap()
+                && expected_decl.inputs.len() > 0
+            {
                 expected_decl.inputs[expected_decl.inputs.len() - 1]
                     .span
                     .with_lo(expected_decl.inputs[0].span.lo())
@@ -774,13 +780,15 @@ mod errors {
                 genv.tcx().def_span(def_id)
             };
 
-            Self {
-                span,
-                found: decl.inputs.len(),
-                expected_span,
-                expected: expected_decl.inputs.len(),
-                def_descr,
-            }
+            let expected = genv
+                .tcx()
+                .fn_sig(def_id)
+                .skip_binder()
+                .skip_binder()
+                .inputs()
+                .len();
+
+            Self { span, found: decl.inputs.len(), expected_span, expected, def_descr }
         }
     }
 }

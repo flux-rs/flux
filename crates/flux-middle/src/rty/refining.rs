@@ -5,6 +5,7 @@ use flux_common::bug;
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::{ClosureKind, ParamTy};
+use rustc_target::abi::VariantIdx;
 
 use super::fold::TypeFoldable;
 use crate::{
@@ -205,10 +206,18 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     pub(crate) fn refine_variant_def(
         &self,
         adt_def_id: DefId,
-        fields: &[rustc::ty::Ty],
+        variant_idx: VariantIdx,
     ) -> QueryResult<rty::PolyVariant> {
         let adt_def = self.adt_def(adt_def_id)?;
-        let fields = fields.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
+        let fields = adt_def
+            .variant(variant_idx)
+            .fields
+            .iter()
+            .map(|fld| {
+                let ty = self.genv.lower_type_of(fld.did)?.instantiate_identity();
+                self.refine_ty(&ty)
+            })
+            .try_collect()?;
         let value = rty::VariantSig::new(
             adt_def,
             rty::GenericArgs::identity_for_item(self.genv, adt_def_id)?,
