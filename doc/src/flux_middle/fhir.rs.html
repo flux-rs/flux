@@ -1499,6 +1499,8 @@
 <a href="#1499" id="1499">1499</a>
 <a href="#1500" id="1500">1500</a>
 <a href="#1501" id="1501">1501</a>
+<a href="#1502" id="1502">1502</a>
+<a href="#1503" id="1503">1503</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -2420,6 +2422,7 @@
     Int(i128),
     Real(i128),
     Bool(bool),
+    Str(Symbol),
 }
 
 <span class="attr">#[derive(Clone, Copy, Debug)]
@@ -2930,6 +2933,7 @@
             Lit::Int(i) =&gt; <span class="macro">write!</span>(f, <span class="string">"{i}"</span>),
             Lit::Real(r) =&gt; <span class="macro">write!</span>(f, <span class="string">"{r}real"</span>),
             Lit::Bool(b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{b}"</span>),
+            Lit::Str(s) =&gt; <span class="macro">write!</span>(f, <span class="string">"\"{s:?}\""</span>),
         }
     }
 }

@@ -1448,6 +1448,7 @@
 <a href="#1448" id="1448">1448</a>
 <a href="#1449" id="1449">1449</a>
 <a href="#1450" id="1450">1450</a>
+<a href="#1451" id="1451">1451</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -2779,6 +2780,7 @@
                 }
             }
             surface::LitKind::Bool =&gt; <span class="prelude-val">Ok</span>(fhir::Lit::Bool(lit.symbol == kw::True)),
+            surface::LitKind::Str =&gt; <span class="prelude-val">Ok</span>(fhir::Lit::Str(lit.symbol)),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::UnexpectedLiteral { span })),
         }
     }

@@ -491,6 +491,7 @@
 <a href="#491" id="491">491</a>
 <a href="#492" id="492">492</a>
 <a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -586,6 +587,7 @@
             Sort::Bool =&gt; <span class="macro">w!</span>(<span class="string">"bool"</span>),
             Sort::Int =&gt; <span class="macro">w!</span>(<span class="string">"int"</span>),
             Sort::Real =&gt; <span class="macro">w!</span>(<span class="string">"real"</span>),
+            Sort::Str =&gt; <span class="macro">w!</span>(<span class="string">"str"</span>),
             Sort::BitVec(size) =&gt; <span class="macro">w!</span>(<span class="string">"bitvec({:?})"</span>, size),
             Sort::Loc =&gt; <span class="macro">w!</span>(<span class="string">"loc"</span>),
             Sort::Var(n) =&gt; <span class="macro">w!</span>(<span class="string">"@{}"</span>, ^n.index),

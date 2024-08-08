@@ -1781,6 +1781,7 @@
 <a href="#1781" id="1781">1781</a>
 <a href="#1782" id="1782">1782</a>
 <a href="#1783" id="1783">1783</a>
+<a href="#1784" id="1784">1784</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -3503,6 +3504,7 @@
         fhir::Lit::Int(n) =&gt; rty::Constant::from(n),
         fhir::Lit::Real(r) =&gt; rty::Constant::Real(r),
         fhir::Lit::Bool(b) =&gt; rty::Constant::from(b),
+        fhir::Lit::Str(s) =&gt; rty::Constant::from(s),
     }
 }
 

@@ -2278,6 +2278,7 @@
 <a href="#2278" id="2278">2278</a>
 <a href="#2279" id="2279">2279</a>
 <a href="#2280" id="2280">2280</a>
+<a href="#2281" id="2281">2281</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2720,6 +2721,7 @@
     Bool,
     Real,
     BitVec(BvSize),
+    Str,
     Loc,
     Param(ParamTy),
     Tuple(List&lt;Sort&gt;),

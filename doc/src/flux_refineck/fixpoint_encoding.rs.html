@@ -1264,6 +1264,7 @@
 <a href="#1264" id="1264">1264</a>
 <a href="#1265" id="1265">1265</a>
 <a href="#1266" id="1266">1266</a>
+<a href="#1267" id="1267">1267</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter, ops::ControlFlow};
@@ -2060,6 +2061,7 @@
         rty::Sort::Int =&gt; fixpoint::Sort::Int,
         rty::Sort::Real =&gt; fixpoint::Sort::Real,
         rty::Sort::Bool =&gt; fixpoint::Sort::Bool,
+        rty::Sort::Str =&gt; fixpoint::Sort::Str,
         rty::Sort::BitVec(size) =&gt; fixpoint::Sort::BitVec(Box::new(bv_size_to_fixpoint(<span class="kw-2">*</span>size))),
         <span class="comment">// There's no way to declare user defined sorts in the fixpoint horn syntax so we encode
         // user declared opaque sorts and type variable sorts as integers. Well-formedness should

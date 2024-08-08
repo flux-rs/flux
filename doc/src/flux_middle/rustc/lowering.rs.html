@@ -1032,6 +1032,11 @@
 <a href="#1032" id="1032">1032</a>
 <a href="#1033" id="1033">1033</a>
 <a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a>
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1048,7 +1053,7 @@
         TyCtxt, ValTree,
     },
 };
-<span class="kw">use </span>rustc_span::{def_id::LocalDefId, Span};
+<span class="kw">use </span>rustc_span::{def_id::LocalDefId, Span, Symbol};
 <span class="kw">use </span>rustc_trait_selection::traits::SelectionContext;
 
 <span class="kw">use super</span>::{
@@ -1616,10 +1621,15 @@
             (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), <span class="kw">_</span>) =&gt; {
                 scalar_int_to_mir_constant(tcx, scalar, ty)
             }
-            (Const::Val(ConstValue::Slice { .. }, <span class="kw">_</span>), TyKind::Ref(<span class="kw">_</span>, ref_ty, <span class="kw">_</span>))
+            (Const::Val(ct @ ConstValue::Slice { .. }, <span class="kw">_</span>), TyKind::Ref(<span class="kw">_</span>, ref_ty, <span class="kw">_</span>))
                 <span class="kw">if </span>ref_ty.is_str() =&gt;
             {
-                <span class="prelude-val">Some</span>(Constant::Str)
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(data) = ct.try_get_slice_bytes_for_diagnostics(tcx) {
+                    <span class="kw">let </span>str = String::from_utf8_lossy(data);
+                    <span class="prelude-val">Some</span>(Constant::Str(Symbol::intern(<span class="kw-2">&amp;</span>str)))
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">None
+                </span>}
             }
             (Const::Ty(ty, c), <span class="kw">_</span>) =&gt; {
                 <span class="kw">match </span>c.kind() {

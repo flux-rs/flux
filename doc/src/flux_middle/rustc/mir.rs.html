@@ -761,7 +761,6 @@
 <a href="#761" id="761">761</a>
 <a href="#762" id="762">762</a>
 <a href="#763" id="763">763</a>
-<a href="#764" id="764">764</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
@@ -1044,8 +1043,7 @@
     Uint(u128, UintTy),
     Float(u128, FloatTy),
     Bool(bool),
-    <span class="doccomment">/// We only support opaque string slices, so no data stored here for now.
-    </span>Str,
+    Str(Symbol),
     <span class="doccomment">/// We only support opaque chars, so no data stored here for now
     </span>Char,
     Unit,
@@ -1503,7 +1501,7 @@
             Constant::Float(bits, float_ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{bits}{}"</span>, float_ty.name_str()),
             Constant::Bool(b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{b}"</span>),
             Constant::Unit =&gt; <span class="macro">write!</span>(f, <span class="string">"()"</span>),
-            Constant::Str =&gt; <span class="macro">write!</span>(f, <span class="string">"\"&lt;opaque str&gt;\""</span>),
+            Constant::Str(s) =&gt; <span class="macro">write!</span>(f, <span class="string">"\"{s:?}\""</span>),
             Constant::Char =&gt; <span class="macro">write!</span>(f, <span class="string">"\"&lt;opaque char&gt;\""</span>),
             Constant::Opaque(ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;opaque {:?}&gt;"</span>, ty),
             Constant::Param(p, <span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, p),

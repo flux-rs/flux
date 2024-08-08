@@ -1615,6 +1615,9 @@
 <a href="#1615" id="1615">1615</a>
 <a href="#1616" id="1616">1616</a>
 <a href="#1617" id="1617">1617</a>
+<a href="#1618" id="1618">1618</a>
+<a href="#1619" id="1619">1619</a>
+<a href="#1620" id="1620">1620</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -2662,7 +2665,10 @@
             }
             Constant::Float(<span class="kw">_</span>, float_ty) =&gt; <span class="prelude-val">Ok</span>(Ty::float(<span class="kw-2">*</span>float_ty)),
             Constant::Unit =&gt; <span class="prelude-val">Ok</span>(Ty::unit()),
-            Constant::Str =&gt; <span class="prelude-val">Ok</span>(Ty::mk_ref(ReStatic, Ty::str(), Mutability::Not)),
+            Constant::Str(s) =&gt; {
+                <span class="kw">let </span>idx = Expr::constant(rty::Constant::from(<span class="kw-2">*</span>s));
+                <span class="prelude-val">Ok</span>(Ty::mk_ref(ReStatic, Ty::indexed(BaseTy::Str, idx), Mutability::Not))
+            }
             Constant::Char =&gt; <span class="prelude-val">Ok</span>(Ty::char()),
             Constant::Param(param_const, ty) =&gt; {
                 <span class="kw">let </span>idx = Expr::const_generic(<span class="kw-2">*</span>param_const, <span class="prelude-val">None</span>);

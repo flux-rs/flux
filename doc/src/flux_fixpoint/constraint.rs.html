@@ -648,6 +648,17 @@
 <a href="#648" id="648">648</a>
 <a href="#649" id="649">649</a>
 <a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     fmt::{<span class="self">self</span>, Write},
     sync::LazyLock,
@@ -657,6 +668,7 @@
 <span class="kw">use </span>flux_common::format::PadAdapter;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable};
+<span class="kw">use </span>rustc_span::Symbol;
 
 <span class="kw">use crate</span>::{big_int::BigInt, StringTypes, Types};
 
@@ -698,6 +710,7 @@
     Int,
     Bool,
     Real,
+    Str,
     BitVec(Box&lt;Sort&lt;T&gt;&gt;),
     BvSize(usize),
     Var(usize),
@@ -805,6 +818,7 @@
     Int(BigInt),
     Real(i128),
     Bool(bool),
+    Str(Symbol),
 }
 
 <span class="kw">impl</span>&lt;T: Types&gt; Constraint&lt;T&gt; {
@@ -930,6 +944,7 @@
             Sort::Int =&gt; <span class="macro">write!</span>(f, <span class="string">"int"</span>),
             Sort::Bool =&gt; <span class="macro">write!</span>(f, <span class="string">"bool"</span>),
             Sort::Real =&gt; <span class="macro">write!</span>(f, <span class="string">"real"</span>),
+            Sort::Str =&gt; <span class="macro">write!</span>(f, <span class="string">"Str"</span>),
             Sort::Var(i) =&gt; <span class="macro">write!</span>(f, <span class="string">"@({i})"</span>),
             Sort::BitVec(size) =&gt; <span class="macro">write!</span>(f, <span class="string">"(BitVec {size})"</span>),
             Sort::BvSize(size) =&gt; <span class="macro">write!</span>(f, <span class="string">"Size{size}"</span>),
@@ -1186,6 +1201,7 @@
             Constant::Int(n) =&gt; n.fmt_sexp(f),
             Constant::Real(r) =&gt; <span class="macro">write!</span>(f, <span class="string">"{r}.0"</span>),
             Constant::Bool(b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{b}"</span>),
+            Constant::Str(s) =&gt; <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, s),
         }
     }
 }
@@ -1296,6 +1312,12 @@
 <span class="kw">impl </span>From&lt;bool&gt; <span class="kw">for </span>Constant {
     <span class="kw">fn </span>from(b: bool) -&gt; <span class="self">Self </span>{
         Constant::Bool(b)
+    }
+}
+
+<span class="kw">impl </span>From&lt;Symbol&gt; <span class="kw">for </span>Constant {
+    <span class="kw">fn </span>from(s: Symbol) -&gt; <span class="self">Self </span>{
+        Constant::Str(s)
     }
 }
 </code></pre></div></section></main></body></html>

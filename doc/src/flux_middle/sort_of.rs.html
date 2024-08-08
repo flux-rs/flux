@@ -152,7 +152,6 @@
 <a href="#152" id="152">152</a>
 <a href="#153" id="153">153</a>
 <a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>rustc_hir::{def::DefKind, PrimTy};
 <span class="kw">use </span>rustc_span::def_id::{DefId, LocalDefId};
@@ -192,9 +191,8 @@
         <span class="kw">let </span>sort = <span class="kw">match </span>path.res {
             fhir::Res::PrimTy(PrimTy::Int(<span class="kw">_</span>) | PrimTy::Uint(<span class="kw">_</span>)) =&gt; <span class="prelude-val">Some</span>(rty::Sort::Int),
             fhir::Res::PrimTy(PrimTy::Bool) =&gt; <span class="prelude-val">Some</span>(rty::Sort::Bool),
-            fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) =&gt; {
-                <span class="prelude-val">Some</span>(rty::Sort::unit())
-            }
+            fhir::Res::PrimTy(PrimTy::Str) =&gt; <span class="prelude-val">Some</span>(rty::Sort::Str),
+            fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Char) =&gt; <span class="prelude-val">Some</span>(rty::Sort::unit()),
             fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) =&gt; {
                 <span class="kw">let </span><span class="kw-2">mut </span>sort_args = <span class="macro">vec!</span>[];
                 <span class="kw">let </span>sort_def = <span class="self">self</span>.adt_sort_def_of(def_id)<span class="question-mark">?</span>;

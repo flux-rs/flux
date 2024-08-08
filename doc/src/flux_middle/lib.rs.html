@@ -392,6 +392,15 @@
 <a href="#392" id="392">392</a>
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(
     associated_type_defaults,
     box_patterns,
@@ -469,6 +478,15 @@
     <span class="kw">let </span>param1 = ParamSort::from(<span class="number">1</span>);
     <span class="kw">let </span>bv_param0 = BvSize::Param(ParamSort::from(<span class="number">0</span>));
     [
+        <span class="comment">// String operations
+        </span>TheoryFunc {
+            name: Symbol::intern(<span class="string">"str_len"</span>),
+            fixpoint_name: Symbol::intern(<span class="string">"strLen"</span>),
+            sort: rty::PolyFuncSort::new(
+                List::empty(),
+                rty::FuncSort::new(<span class="macro">vec!</span>[rty::Sort::Str], Int),
+            ),
+        },
         <span class="comment">// BitVector &lt;-&gt; int
         </span>TheoryFunc {
             name: Symbol::intern(<span class="string">"bv_zero_extend_32_to_64"</span>),
