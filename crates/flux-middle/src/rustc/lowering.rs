@@ -14,7 +14,7 @@ use rustc_middle::{
         TyCtxt, ValTree,
     },
 };
-use rustc_span::{def_id::LocalDefId, Span};
+use rustc_span::{def_id::LocalDefId, Span, Symbol};
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
@@ -582,10 +582,15 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
                 scalar_int_to_mir_constant(tcx, scalar, ty)
             }
-            (Const::Val(ConstValue::Slice { .. }, _), TyKind::Ref(_, ref_ty, _))
+            (Const::Val(ct @ ConstValue::Slice { .. }, _), TyKind::Ref(_, ref_ty, _))
                 if ref_ty.is_str() =>
             {
-                Some(Constant::Str)
+                if let Some(data) = ct.try_get_slice_bytes_for_diagnostics(tcx) {
+                    let str = String::from_utf8_lossy(data);
+                    Some(Constant::Str(Symbol::intern(&str)))
+                } else {
+                    None
+                }
             }
             (Const::Ty(ty, c), _) => {
                 match c.kind() {
