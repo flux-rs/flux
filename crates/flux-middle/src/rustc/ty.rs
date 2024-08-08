@@ -18,7 +18,7 @@ pub use rustc_middle::{
     },
 };
 use rustc_span::{symbol::kw, Symbol};
-use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
+pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 pub use rustc_type_ir::InferConst;
 
 use self::subst::Subst;

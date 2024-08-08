@@ -10,18 +10,15 @@ use flux_middle::{
         self,
         fold::{BottomUpFolder, TypeFoldable},
         refining::Refiner,
-        VariantIdx,
     },
     rustc::{
         lowering::{self, UnsupportedReason},
-        ty,
+        ty::{self, FieldIdx, VariantIdx},
     },
 };
 use rustc_ast::Mutability;
 use rustc_data_structures::unord::UnordMap;
-use rustc_errors::Diagnostic;
 use rustc_hir::def_id::{DefId, LocalDefId};
-use rustc_span::ErrorGuaranteed;
 use rustc_type_ir::{DebruijnIndex, InferConst, INNERMOST};
 
 pub(crate) fn fn_sig(
@@ -145,6 +142,9 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
 
     fn zip_variant(&mut self, a: &rty::PolyVariant, b: &rty::PolyVariant, variant_idx: VariantIdx) {
         self.enter_binders(a, b, |this, a, b| {
+            // The args are always `GenericArgs::identity_for_item` inside the `EarlyBinder`
+            debug_assert_eq!(a.args, b.args);
+
             if a.fields.len() != b.fields.len() {
                 this.errors.emit(errors::FieldCountMismatch::new(
                     this.genv,
@@ -154,10 +154,17 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 ));
                 return;
             }
-            for (ty_a, ty_b) in iter::zip(&a.fields, &b.fields) {
-                this.zip_ty(ty_a, ty_b);
+            for (i, (ty_a, ty_b)) in iter::zip(&a.fields, &b.fields).enumerate() {
+                let field_idx = FieldIdx::from_usize(i);
+                if this.zip_ty(ty_a, ty_b).is_err() {
+                    this.errors.emit(errors::IncompatibleRefinement::field(
+                        this.genv,
+                        this.owner_id,
+                        variant_idx,
+                        field_idx,
+                    ));
+                }
             }
-            this.zip_ty(&a.ret(), &b.ret());
         })
     }
 
@@ -189,6 +196,10 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 self.owner_id,
                 decl,
             ));
+        }
+        // Skip ensure clauses if errors because we may not have a type for all locations
+        if self.errors.has_errors() {
+            return;
         }
         for ensures in &a.ensures {
             if let rty::Ensures::Type(path, ty_a) = ensures {
@@ -390,11 +401,6 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             t.shift_out_escaping(self.b_index.as_u32() - self.a_index.as_u32())
         }
     }
-
-    #[track_caller]
-    fn emit<'b>(&'b self, err: impl Diagnostic<'b>) -> ErrorGuaranteed {
-        self.genv.sess().emit_err(err)
-    }
 }
 
 fn assert_eq_or_incompatible<T: Eq>(a: T, b: T) -> Result<(), Error> {
@@ -416,7 +422,11 @@ enum Error {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use flux_middle::{fhir, global_env::GlobalEnv, rty::VariantIdx};
+    use flux_middle::{
+        fhir,
+        global_env::GlobalEnv,
+        rustc::ty::{FieldIdx, VariantIdx},
+    };
     use rustc_hir::def_id::DefId;
     use rustc_span::{Span, DUMMY_SP};
 
@@ -473,6 +483,40 @@ mod errors {
                 def_descr: genv.tcx().def_descr(def_id),
                 expected_span: expected_decl.output.span(),
                 expected_ty,
+            }
+        }
+
+        pub(super) fn field(
+            genv: GlobalEnv,
+            adt_def_id: DefId,
+            variant_idx: VariantIdx,
+            field_idx: FieldIdx,
+        ) -> Self {
+            let tcx = genv.tcx();
+            let adt_def = tcx.adt_def(adt_def_id);
+            let field_def = &adt_def.variant(variant_idx).fields[field_idx];
+
+            let local_id = local_id_for_maybe_extern(genv, adt_def_id);
+            let item = genv.map().expect_item(local_id).unwrap();
+            let span = match &item.kind {
+                fhir::ItemKind::Enum(enum_def) => {
+                    enum_def.variants[variant_idx.as_usize()].fields[field_idx.as_usize()]
+                        .ty
+                        .span
+                }
+                fhir::ItemKind::Struct(struct_def)
+                    if let fhir::StructKind::Transparent { fields } = &struct_def.kind =>
+                {
+                    fields[field_idx.as_usize()].ty.span
+                }
+                _ => DUMMY_SP,
+            };
+
+            Self {
+                span,
+                def_descr: tcx.def_descr(field_def.did),
+                expected_span: tcx.def_span(field_def.did),
+                expected_ty: format!("{}", tcx.type_of(field_def.did).skip_binder()),
             }
         }
     }
