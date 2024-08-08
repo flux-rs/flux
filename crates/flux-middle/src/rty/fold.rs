@@ -600,6 +600,7 @@ impl TypeSuperVisitable for Sort {
             Sort::Int
             | Sort::Bool
             | Sort::Real
+            | Sort::Str
             | Sort::BitVec(_)
             | Sort::Loc
             | Sort::Param(_)
@@ -635,6 +636,7 @@ impl TypeSuperFoldable for Sort {
             | Sort::Bool
             | Sort::Real
             | Sort::Loc
+            | Sort::Str
             | Sort::BitVec(_)
             | Sort::Param(_)
             | Sort::Var(_)

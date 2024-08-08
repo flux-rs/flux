@@ -1329,6 +1329,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 }
             }
             surface::LitKind::Bool => Ok(fhir::Lit::Bool(lit.symbol == kw::True)),
+            surface::LitKind::Str => Ok(fhir::Lit::Str(lit.symbol)),
             _ => Err(self.emit_err(errors::UnexpectedLiteral { span })),
         }
     }

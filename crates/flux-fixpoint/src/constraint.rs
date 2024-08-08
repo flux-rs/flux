@@ -7,6 +7,7 @@ use derive_where::derive_where;
 use flux_common::format::PadAdapter;
 use itertools::Itertools;
 use rustc_macros::{Decodable, Encodable};
+use rustc_span::Symbol;
 
 use crate::{big_int::BigInt, StringTypes, Types};
 
@@ -48,6 +49,7 @@ pub enum Sort<T: Types> {
     Int,
     Bool,
     Real,
+    Str,
     BitVec(Box<Sort<T>>),
     BvSize(usize),
     Var(usize),
@@ -155,6 +157,7 @@ pub enum Constant {
     Int(BigInt),
     Real(i128),
     Bool(bool),
+    Str(Symbol),
 }
 
 impl<T: Types> Constraint<T> {
@@ -280,6 +283,7 @@ impl<T: Types> fmt::Display for Sort<T> {
             Sort::Int => write!(f, "int"),
             Sort::Bool => write!(f, "bool"),
             Sort::Real => write!(f, "real"),
+            Sort::Str => write!(f, "Str"),
             Sort::Var(i) => write!(f, "@({i})"),
             Sort::BitVec(size) => write!(f, "(BitVec {size})"),
             Sort::BvSize(size) => write!(f, "Size{size}"),
@@ -536,6 +540,7 @@ impl fmt::Display for Constant {
             Constant::Int(n) => n.fmt_sexp(f),
             Constant::Real(r) => write!(f, "{r}.0"),
             Constant::Bool(b) => write!(f, "{b}"),
+            Constant::Str(s) => write!(f, "{:?}", s),
         }
     }
 }
@@ -646,5 +651,11 @@ impl From<i128> for Constant {
 impl From<bool> for Constant {
     fn from(b: bool) -> Self {
         Constant::Bool(b)
+    }
+}
+
+impl From<Symbol> for Constant {
+    fn from(s: Symbol) -> Self {
+        Constant::Str(s)
     }
 }

@@ -263,11 +263,11 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 self.const_holes.insert(*cid, b.clone());
             }
             (rty::ConstKind::Param(param_const_a), ty::ConstKind::Param(param_const_b)) => {
-                debug_assert_eq!(param_const_a, param_const_b)
+                debug_assert_eq!(param_const_a, param_const_b);
             }
             (rty::ConstKind::Value(ty_a, val_a), ty::ConstKind::Value(ty_b, val_b)) => {
                 debug_assert_eq!(ty_a, ty_b);
-                debug_assert_eq!(val_a, val_b)
+                debug_assert_eq!(val_a, val_b);
             }
             _ => bug!("incompatible consts"),
         }
