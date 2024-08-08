@@ -494,5 +494,5 @@ pub fn walk_path_expr<V: Visitor>(vis: &mut V, qpath: &PathExpr) {
 }
 
 pub fn walk_path_expr_segment<V: Visitor>(vis: &mut V, segment: &PathExprSegment) {
-    vis.visit_ident(segment.ident)
+    vis.visit_ident(segment.ident);
 }
