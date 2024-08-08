@@ -1442,8 +1442,8 @@
                 <span class="comment">// these are actually not necessary because equality is interpreted for all sorts
                 </span>Var::UIFRel(BinRel::Eq) =&gt; <span class="macro">write!</span>(f, <span class="string">"eq"</span>),
                 Var::UIFRel(BinRel::Ne) =&gt; <span class="macro">write!</span>(f, <span class="string">"ne"</span>),
-                Var::Underscore =&gt; <span class="macro">write!</span>(f, <span class="string">"_"</span>),
-                Var::ConstGeneric(param_const) =&gt; {
+                Var::Underscore =&gt; <span class="macro">write!</span>(f, <span class="string">"_$"</span>), <span class="comment">// To avoid clashing with `_` used for `app (_ bv_op n)` for parametric SMT ops
+                </span>Var::ConstGeneric(param_const) =&gt; {
                     <span class="macro">write!</span>(f, <span class="string">"constgen{}{}"</span>, param_const.name, param_const.index)
                 }
             }
