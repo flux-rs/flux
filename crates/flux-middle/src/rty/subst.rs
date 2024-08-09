@@ -12,11 +12,11 @@ use super::{
 };
 use crate::rty::*;
 
-pub fn match_regions(ty1: &Ty, ty2: &rustc::ty::Ty) -> Ty {
-    let ty1 = ty1.replace_regions_with_unique_vars();
+pub fn match_regions(a: &Ty, b: &rustc::ty::Ty) -> Ty {
+    let a = a.replace_regions_with_unique_vars();
     let mut subst = RegionSubst::default();
-    subst.infer_from_ty(&ty1, ty2);
-    subst.apply(&ty1)
+    subst.infer_from_ty(&a, b);
+    subst.apply(&a)
 }
 
 #[derive(Default, Debug)]
@@ -41,52 +41,41 @@ impl RegionSubst {
         t.fold_with(&mut Folder(self))
     }
 
-    fn infer_from_ty(&mut self, ty1: &Ty, ty2: &rustc::ty::Ty) {
+    fn infer_from_ty(&mut self, a: &Ty, b: &rustc::ty::Ty) {
         use rustc::ty;
-        match (ty1.kind(), ty2.kind()) {
-            (TyKind::Exists(ty1), _) => {
-                self.infer_from_ty(ty1.as_ref().skip_binder(), ty2);
+        match (a.kind(), b.kind()) {
+            (TyKind::Exists(ty_a), _) => {
+                self.infer_from_ty(ty_a.as_ref().skip_binder(), b);
             }
-            (TyKind::Constr(_, ty1), _) => {
-                self.infer_from_ty(ty1, ty2);
+            (TyKind::Constr(_, ty_a), _) => {
+                self.infer_from_ty(ty_a, b);
             }
-            (TyKind::Indexed(bty, _), _) => {
-                self.infer_from_bty(bty, ty2);
+            (TyKind::Indexed(bty_a, _), _) => {
+                self.infer_from_bty(bty_a, b);
             }
-            (TyKind::Ptr(PtrKind::Mut(r1), _), ty::TyKind::Ref(r2, _, mutbl)) => {
+            (TyKind::Ptr(PtrKind::Mut(re_a), _), ty::TyKind::Ref(re_b, _, mutbl)) => {
                 debug_assert!(mutbl.is_mut());
-                self.infer_from_region(*r1, *r2);
+                self.infer_from_region(*re_a, *re_b);
             }
-            (TyKind::StrgRef(r1, ..), ty::TyKind::Ref(r2, _, mutbl)) => {
+            (TyKind::StrgRef(re_a, ..), ty::TyKind::Ref(re_b, _, mutbl)) => {
                 debug_assert!(mutbl.is_mut());
-                self.infer_from_region(*r1, *r2);
+                self.infer_from_region(*re_a, *re_b);
             }
             _ => {}
         }
     }
 
-    fn infer_from_bty(&mut self, bty: &BaseTy, ty: &rustc::ty::Ty) {
+    fn infer_from_bty(&mut self, a: &BaseTy, ty: &rustc::ty::Ty) {
         use rustc::ty;
-        match (bty, ty.kind()) {
+        match (a, ty.kind()) {
             (BaseTy::Ref(r1, ty1, _), ty::TyKind::Ref(r2, ty2, _)) => {
                 self.infer_from_region(*r1, *r2);
                 self.infer_from_ty(ty1, ty2);
             }
-            (BaseTy::Adt(_, args1), ty::TyKind::Adt(_, args2)) => {
-                debug_assert_eq!(args1.len(), args2.len());
-                for (arg1, arg2) in iter::zip(args1, args2) {
-                    match (arg1, arg2) {
-                        (GenericArg::Base(ctor1), ty::GenericArg::Ty(ty2)) => {
-                            self.infer_from_bty(ctor1.as_bty_skipping_binder(), ty2);
-                        }
-                        (GenericArg::Ty(ty1), ty::GenericArg::Ty(ty2)) => {
-                            self.infer_from_ty(ty1, ty2);
-                        }
-                        (GenericArg::Lifetime(re1), ty::GenericArg::Lifetime(re2)) => {
-                            self.infer_from_region(*re1, *re2);
-                        }
-                        _ => {}
-                    }
+            (BaseTy::Adt(_, args_a), ty::TyKind::Adt(_, args_b)) => {
+                debug_assert_eq!(args_a.len(), args_b.len());
+                for (arg_a, arg_b) in iter::zip(args_a, args_b) {
+                    self.infer_from_generic_arg(arg_a, arg_b);
                 }
             }
             (BaseTy::Tuple(fields1), ty::TyKind::Tuple(fields2)) => {
@@ -99,21 +88,32 @@ impl RegionSubst {
         }
     }
 
-    fn infer_from_region(&mut self, re1: Region, re2: Region) {
-        let ReVar(var) = re1 else { return };
+    fn infer_from_generic_arg(&mut self, a: &GenericArg, b: &rustc::ty::GenericArg) {
+        use rustc::ty;
+        match (a, b) {
+            (GenericArg::Base(ctor_a), ty::GenericArg::Ty(ty_b)) => {
+                self.infer_from_bty(ctor_a.as_bty_skipping_binder(), ty_b);
+            }
+            (GenericArg::Ty(ty_a), ty::GenericArg::Ty(ty_b)) => {
+                self.infer_from_ty(ty_a, ty_b);
+            }
+            (GenericArg::Lifetime(re_a), ty::GenericArg::Lifetime(re_b)) => {
+                self.infer_from_region(*re_a, *re_b);
+            }
+            _ => {}
+        }
+    }
+
+    fn infer_from_region(&mut self, a: Region, b: Region) {
+        let ReVar(var) = a else { return };
         match self.map.entry(var) {
             hash_map::Entry::Occupied(entry) => {
-                if entry.get() != &re2 {
-                    bug!(
-                        "ambiguous region substitution: {:?} -> [{:?}, {:?}]",
-                        re1,
-                        entry.get(),
-                        re2
-                    );
+                if entry.get() != &b {
+                    bug!("ambiguous region substitution: {:?} -> [{:?}, {:?}]", a, entry.get(), b);
                 }
             }
             hash_map::Entry::Vacant(entry) => {
-                entry.insert(re2);
+                entry.insert(b);
             }
         }
     }

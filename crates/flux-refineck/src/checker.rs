@@ -784,7 +784,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 env.borrow(self.genv, rcx, *r, Mutability::Mut, place)
                     .with_span(stmt_span)
             }
-            Rvalue::Ref(r, BorrowKind::Shared, place) => {
+            Rvalue::Ref(r, BorrowKind::Shared | BorrowKind::Fake(..), place) => {
                 env.borrow(self.genv, rcx, *r, Mutability::Not, place)
                     .with_span(stmt_span)
             }
