@@ -133,6 +133,19 @@ impl Generics {
         self.parent_count + self.own_params.len()
     }
 
+    pub fn own_default_count(&self) -> usize {
+        self.own_params
+            .iter()
+            .filter(|param| {
+                match param.kind {
+                    GenericParamDefKind::Type { has_default } => has_default,
+                    GenericParamDefKind::Const { has_default } => has_default,
+                    GenericParamDefKind::Base | GenericParamDefKind::Lifetime => false,
+                }
+            })
+            .count()
+    }
+
     pub fn param_at(&self, param_index: usize, genv: GlobalEnv) -> QueryResult<GenericParamDef> {
         if let Some(index) = param_index.checked_sub(self.parent_count) {
             Ok(self.own_params[index].clone())
