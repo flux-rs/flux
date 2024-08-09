@@ -576,11 +576,11 @@
 };
 <span class="kw">use </span><span class="kw">crate</span>::rty::<span class="kw-2">*</span>;
 
-<span class="kw">pub fn </span>match_regions(ty1: <span class="kw-2">&amp;</span>Ty, ty2: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; Ty {
-    <span class="kw">let </span>ty1 = ty1.replace_regions_with_unique_vars();
+<span class="kw">pub fn </span>match_regions(a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; Ty {
+    <span class="kw">let </span>a = a.replace_regions_with_unique_vars();
     <span class="kw">let </span><span class="kw-2">mut </span>subst = RegionSubst::default();
-    subst.infer_from_ty(<span class="kw-2">&amp;</span>ty1, ty2);
-    subst.apply(<span class="kw-2">&amp;</span>ty1)
+    subst.infer_from_ty(<span class="kw-2">&amp;</span>a, b);
+    subst.apply(<span class="kw-2">&amp;</span>a)
 }
 
 <span class="attr">#[derive(Default, Debug)]
@@ -605,52 +605,41 @@
         t.fold_with(<span class="kw-2">&amp;mut </span>Folder(<span class="self">self</span>))
     }
 
-    <span class="kw">fn </span>infer_from_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty1: <span class="kw-2">&amp;</span>Ty, ty2: <span class="kw-2">&amp;</span>rustc::ty::Ty) {
+    <span class="kw">fn </span>infer_from_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>rustc::ty::Ty) {
         <span class="kw">use </span>rustc::ty;
-        <span class="kw">match </span>(ty1.kind(), ty2.kind()) {
-            (TyKind::Exists(ty1), <span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.infer_from_ty(ty1.as_ref().skip_binder(), ty2);
+        <span class="kw">match </span>(a.kind(), b.kind()) {
+            (TyKind::Exists(ty_a), <span class="kw">_</span>) =&gt; {
+                <span class="self">self</span>.infer_from_ty(ty_a.as_ref().skip_binder(), b);
             }
-            (TyKind::Constr(<span class="kw">_</span>, ty1), <span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.infer_from_ty(ty1, ty2);
+            (TyKind::Constr(<span class="kw">_</span>, ty_a), <span class="kw">_</span>) =&gt; {
+                <span class="self">self</span>.infer_from_ty(ty_a, b);
             }
-            (TyKind::Indexed(bty, <span class="kw">_</span>), <span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.infer_from_bty(bty, ty2);
+            (TyKind::Indexed(bty_a, <span class="kw">_</span>), <span class="kw">_</span>) =&gt; {
+                <span class="self">self</span>.infer_from_bty(bty_a, b);
             }
-            (TyKind::Ptr(PtrKind::Mut(r1), <span class="kw">_</span>), ty::TyKind::Ref(r2, <span class="kw">_</span>, mutbl)) =&gt; {
+            (TyKind::Ptr(PtrKind::Mut(re_a), <span class="kw">_</span>), ty::TyKind::Ref(re_b, <span class="kw">_</span>, mutbl)) =&gt; {
                 <span class="macro">debug_assert!</span>(mutbl.is_mut());
-                <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>r1, <span class="kw-2">*</span>r2);
+                <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>re_a, <span class="kw-2">*</span>re_b);
             }
-            (TyKind::StrgRef(r1, ..), ty::TyKind::Ref(r2, <span class="kw">_</span>, mutbl)) =&gt; {
+            (TyKind::StrgRef(re_a, ..), ty::TyKind::Ref(re_b, <span class="kw">_</span>, mutbl)) =&gt; {
                 <span class="macro">debug_assert!</span>(mutbl.is_mut());
-                <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>r1, <span class="kw-2">*</span>r2);
+                <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>re_a, <span class="kw-2">*</span>re_b);
             }
             <span class="kw">_ </span>=&gt; {}
         }
     }
 
-    <span class="kw">fn </span>infer_from_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy, ty: <span class="kw-2">&amp;</span>rustc::ty::Ty) {
+    <span class="kw">fn </span>infer_from_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>BaseTy, ty: <span class="kw-2">&amp;</span>rustc::ty::Ty) {
         <span class="kw">use </span>rustc::ty;
-        <span class="kw">match </span>(bty, ty.kind()) {
+        <span class="kw">match </span>(a, ty.kind()) {
             (BaseTy::Ref(r1, ty1, <span class="kw">_</span>), ty::TyKind::Ref(r2, ty2, <span class="kw">_</span>)) =&gt; {
                 <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>r1, <span class="kw-2">*</span>r2);
                 <span class="self">self</span>.infer_from_ty(ty1, ty2);
             }
-            (BaseTy::Adt(<span class="kw">_</span>, args1), ty::TyKind::Adt(<span class="kw">_</span>, args2)) =&gt; {
-                <span class="macro">debug_assert_eq!</span>(args1.len(), args2.len());
-                <span class="kw">for </span>(arg1, arg2) <span class="kw">in </span>iter::zip(args1, args2) {
-                    <span class="kw">match </span>(arg1, arg2) {
-                        (GenericArg::Base(ctor1), ty::GenericArg::Ty(ty2)) =&gt; {
-                            <span class="self">self</span>.infer_from_bty(ctor1.as_bty_skipping_binder(), ty2);
-                        }
-                        (GenericArg::Ty(ty1), ty::GenericArg::Ty(ty2)) =&gt; {
-                            <span class="self">self</span>.infer_from_ty(ty1, ty2);
-                        }
-                        (GenericArg::Lifetime(re1), ty::GenericArg::Lifetime(re2)) =&gt; {
-                            <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>re1, <span class="kw-2">*</span>re2);
-                        }
-                        <span class="kw">_ </span>=&gt; {}
-                    }
+            (BaseTy::Adt(<span class="kw">_</span>, args_a), ty::TyKind::Adt(<span class="kw">_</span>, args_b)) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(args_a.len(), args_b.len());
+                <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(args_a, args_b) {
+                    <span class="self">self</span>.infer_from_generic_arg(arg_a, arg_b);
                 }
             }
             (BaseTy::Tuple(fields1), ty::TyKind::Tuple(fields2)) =&gt; {
@@ -663,21 +652,32 @@
         }
     }
 
-    <span class="kw">fn </span>infer_from_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re1: Region, re2: Region) {
-        <span class="kw">let </span>ReVar(var) = re1 <span class="kw">else </span>{ <span class="kw">return </span>};
+    <span class="kw">fn </span>infer_from_generic_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>GenericArg, b: <span class="kw-2">&amp;</span>rustc::ty::GenericArg) {
+        <span class="kw">use </span>rustc::ty;
+        <span class="kw">match </span>(a, b) {
+            (GenericArg::Base(ctor_a), ty::GenericArg::Ty(ty_b)) =&gt; {
+                <span class="self">self</span>.infer_from_bty(ctor_a.as_bty_skipping_binder(), ty_b);
+            }
+            (GenericArg::Ty(ty_a), ty::GenericArg::Ty(ty_b)) =&gt; {
+                <span class="self">self</span>.infer_from_ty(ty_a, ty_b);
+            }
+            (GenericArg::Lifetime(re_a), ty::GenericArg::Lifetime(re_b)) =&gt; {
+                <span class="self">self</span>.infer_from_region(<span class="kw-2">*</span>re_a, <span class="kw-2">*</span>re_b);
+            }
+            <span class="kw">_ </span>=&gt; {}
+        }
+    }
+
+    <span class="kw">fn </span>infer_from_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: Region, b: Region) {
+        <span class="kw">let </span>ReVar(var) = a <span class="kw">else </span>{ <span class="kw">return </span>};
         <span class="kw">match </span><span class="self">self</span>.map.entry(var) {
             hash_map::Entry::Occupied(entry) =&gt; {
-                <span class="kw">if </span>entry.get() != <span class="kw-2">&amp;</span>re2 {
-                    <span class="macro">bug!</span>(
-                        <span class="string">"ambiguous region substitution: {:?} -&gt; [{:?}, {:?}]"</span>,
-                        re1,
-                        entry.get(),
-                        re2
-                    );
+                <span class="kw">if </span>entry.get() != <span class="kw-2">&amp;</span>b {
+                    <span class="macro">bug!</span>(<span class="string">"ambiguous region substitution: {:?} -&gt; [{:?}, {:?}]"</span>, a, entry.get(), b);
                 }
             }
             hash_map::Entry::Vacant(entry) =&gt; {
-                entry.insert(re2);
+                entry.insert(b);
             }
         }
     }

@@ -2403,7 +2403,7 @@
                 env.borrow(<span class="self">self</span>.genv, rcx, <span class="kw-2">*</span>r, Mutability::Mut, place)
                     .with_span(stmt_span)
             }
-            Rvalue::Ref(r, BorrowKind::Shared, place) =&gt; {
+            Rvalue::Ref(r, BorrowKind::Shared | BorrowKind::Fake(..), place) =&gt; {
                 env.borrow(<span class="self">self</span>.genv, rcx, <span class="kw-2">*</span>r, Mutability::Not, place)
                     .with_span(stmt_span)
             }

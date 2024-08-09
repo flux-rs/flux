@@ -1006,37 +1006,6 @@
 <a href="#1006" id="1006">1006</a>
 <a href="#1007" id="1007">1007</a>
 <a href="#1008" id="1008">1008</a>
-<a href="#1009" id="1009">1009</a>
-<a href="#1010" id="1010">1010</a>
-<a href="#1011" id="1011">1011</a>
-<a href="#1012" id="1012">1012</a>
-<a href="#1013" id="1013">1013</a>
-<a href="#1014" id="1014">1014</a>
-<a href="#1015" id="1015">1015</a>
-<a href="#1016" id="1016">1016</a>
-<a href="#1017" id="1017">1017</a>
-<a href="#1018" id="1018">1018</a>
-<a href="#1019" id="1019">1019</a>
-<a href="#1020" id="1020">1020</a>
-<a href="#1021" id="1021">1021</a>
-<a href="#1022" id="1022">1022</a>
-<a href="#1023" id="1023">1023</a>
-<a href="#1024" id="1024">1024</a>
-<a href="#1025" id="1025">1025</a>
-<a href="#1026" id="1026">1026</a>
-<a href="#1027" id="1027">1027</a>
-<a href="#1028" id="1028">1028</a>
-<a href="#1029" id="1029">1029</a>
-<a href="#1030" id="1030">1030</a>
-<a href="#1031" id="1031">1031</a>
-<a href="#1032" id="1032">1032</a>
-<a href="#1033" id="1033">1033</a>
-<a href="#1034" id="1034">1034</a>
-<a href="#1035" id="1035">1035</a>
-<a href="#1036" id="1036">1036</a>
-<a href="#1037" id="1037">1037</a>
-<a href="#1038" id="1038">1038</a>
-<a href="#1039" id="1039">1039</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1058,9 +1027,9 @@
 
 <span class="kw">use super</span>::{
     mir::{
-        replicate_infer_ctxt, AggregateKind, AssertKind, BasicBlockData, BinOp, Body, BorrowKind,
-        CallArgs, CastKind, Constant, FakeReadCause, LocalDecl, Operand, Place, PlaceElem,
-        PointerCast, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+        replicate_infer_ctxt, AggregateKind, AssertKind, BasicBlockData, BinOp, Body, CallArgs,
+        CastKind, Constant, LocalDecl, Operand, Place, PlaceElem, PointerCast, Rvalue, Statement,
+        StatementKind, Terminator, TerminatorKind,
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
@@ -1255,9 +1224,7 @@
             }
             rustc_mir::StatementKind::FakeRead(<span class="kw">box </span>(cause, place)) =&gt; {
                 StatementKind::FakeRead(Box::new((
-                    <span class="self">self</span>.lower_fake_read_cause(<span class="kw-2">*</span>cause)
-                        .ok_or_else(|| errors::UnsupportedMir::from(stmt))
-                        .emit(<span class="self">self</span>.sess)<span class="question-mark">?</span>,
+                    <span class="kw-2">*</span>cause,
                     lower_place(place)
                         .map_err(|reason| errors::UnsupportedMir::statement(span, reason))
                         .emit(<span class="self">self</span>.sess)<span class="question-mark">?</span>,
@@ -1294,18 +1261,6 @@
             }
         };
         <span class="prelude-val">Ok</span>(Statement { kind, source_info: stmt.source_info })
-    }
-
-    <span class="kw">fn </span>lower_fake_read_cause(<span class="kw-2">&amp;</span><span class="self">self</span>, cause: rustc_mir::FakeReadCause) -&gt; <span class="prelude-ty">Option</span>&lt;FakeReadCause&gt; {
-        <span class="kw">match </span>cause {
-            rustc_mir::FakeReadCause::ForLet(def_id) =&gt; <span class="prelude-val">Some</span>(FakeReadCause::ForLet(def_id)),
-            rustc_mir::FakeReadCause::ForMatchedPlace(def_id) =&gt; {
-                <span class="prelude-val">Some</span>(FakeReadCause::ForMatchedPlace(def_id))
-            }
-            rustc_mir::FakeReadCause::ForMatchGuard
-            | rustc_mir::FakeReadCause::ForGuardBinding
-            | rustc_mir::FakeReadCause::ForIndex { .. } =&gt; <span class="prelude-val">None</span>,
-        }
     }
 
     <span class="kw">fn </span>lower_terminator(
@@ -1446,11 +1401,7 @@
                 ))
             }
             rustc_mir::Rvalue::Ref(region, bk, p) =&gt; {
-                <span class="prelude-val">Ok</span>(Rvalue::Ref(
-                    lower_region(region)<span class="question-mark">?</span>,
-                    <span class="self">self</span>.lower_borrow_kind(<span class="kw-2">*</span>bk)<span class="question-mark">?</span>,
-                    lower_place(p)<span class="question-mark">?</span>,
-                ))
+                <span class="prelude-val">Ok</span>(Rvalue::Ref(lower_region(region)<span class="question-mark">?</span>, <span class="kw-2">*</span>bk, lower_place(p)<span class="question-mark">?</span>))
             }
             rustc_mir::Rvalue::UnaryOp(un_op, op) =&gt; {
                 <span class="prelude-val">Ok</span>(Rvalue::UnaryOp(<span class="kw-2">*</span>un_op, <span class="self">self</span>.lower_operand(op)<span class="question-mark">?</span>))
@@ -1481,19 +1432,6 @@
             | rustc_mir::Rvalue::CopyForDeref(<span class="kw">_</span>)
             | rustc_mir::Rvalue::ShallowInitBox(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
                 <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported rvalue `{rvalue:?}`"</span>)))
-            }
-        }
-    }
-
-    <span class="kw">fn </span>lower_borrow_kind(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        bk: rustc_mir::BorrowKind,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;BorrowKind, UnsupportedReason&gt; {
-        <span class="kw">match </span>bk {
-            rustc_mir::BorrowKind::Shared =&gt; <span class="prelude-val">Ok</span>(BorrowKind::Shared),
-            rustc_mir::BorrowKind::Mut { kind } =&gt; <span class="prelude-val">Ok</span>(BorrowKind::Mut { kind }),
-            rustc_mir::BorrowKind::Fake(<span class="kw">_</span>) =&gt; {
-                <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported borrow kind `{bk:?}`"</span>)))
             }
         }
     }

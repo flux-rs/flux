@@ -748,19 +748,6 @@
 <a href="#748" id="748">748</a>
 <a href="#749" id="749">749</a>
 <a href="#750" id="750">750</a>
-<a href="#751" id="751">751</a>
-<a href="#752" id="752">752</a>
-<a href="#753" id="753">753</a>
-<a href="#754" id="754">754</a>
-<a href="#755" id="755">755</a>
-<a href="#756" id="756">756</a>
-<a href="#757" id="757">757</a>
-<a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
-<a href="#762" id="762">762</a>
-<a href="#763" id="763">763</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
@@ -773,18 +760,18 @@
 <span class="kw">pub use </span>rustc_borrowck::borrow_set::BorrowData;
 <span class="kw">use </span>rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex};
 <span class="kw">use </span>rustc_data_structures::{fx::FxIndexMap, graph::dominators::Dominators};
-<span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
+<span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_index::IndexSlice;
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable};
 <span class="kw">use </span>rustc_middle::{
-    mir::{<span class="self">self</span>, MutBorrowKind},
+    mir,
     ty::{FloatTy, IntTy, ParamConst, TyCtxt, UintTy},
 };
 <span class="kw">pub use </span>rustc_middle::{
     mir::{
-        BasicBlock, Local, LocalKind, Location, SourceInfo, SwitchTargets, UnOp, UnwindAction,
-        RETURN_PLACE, START_BLOCK,
+        BasicBlock, BorrowKind, FakeBorrowKind, FakeReadCause, Local, LocalKind, Location,
+        SourceInfo, SwitchTargets, UnOp, UnwindAction, RETURN_PLACE, START_BLOCK,
     },
     ty::{UserTypeAnnotationIndex, Variance},
 };
@@ -958,11 +945,6 @@
     Repeat(Operand, Const),
 }
 
-<span class="kw">pub enum </span>BorrowKind {
-    Mut { kind: MutBorrowKind },
-    Shared,
-}
-
 <span class="attr">#[derive(Copy, Clone)]
 </span><span class="kw">pub enum </span>CastKind {
     IntToInt,
@@ -1050,11 +1032,6 @@
     Param(ParamConst, Ty),
     <span class="doccomment">/// General catch-all for constants of a given Ty
     </span>Opaque(Ty),
-}
-
-<span class="kw">pub enum </span>FakeReadCause {
-    ForLet(<span class="prelude-ty">Option</span>&lt;LocalDefId&gt;),
-    ForMatchedPlace(<span class="prelude-ty">Option</span>&lt;LocalDefId&gt;),
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; Terminator&lt;<span class="lifetime">'tcx</span>&gt; {
@@ -1410,6 +1387,12 @@
             Rvalue::Ref(r, BorrowKind::Shared, place) =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">"&amp;{} {place:?}"</span>, region_to_string(<span class="kw-2">*</span>r))
             }
+            Rvalue::Ref(r, BorrowKind::Fake(FakeBorrowKind::Shallow), place) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">"&amp;{} fake shallow {place:?}"</span>, region_to_string(<span class="kw-2">*</span>r))
+            }
+            Rvalue::Ref(r, BorrowKind::Fake(FakeBorrowKind::Deep), place) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">"&amp;{} fake deep {place:?}"</span>, region_to_string(<span class="kw-2">*</span>r))
+            }
             Rvalue::Discriminant(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"discriminant({place:?})"</span>),
             Rvalue::BinaryOp(bin_op, op1, op2) =&gt; <span class="macro">write!</span>(f, <span class="string">"{bin_op:?}({op1:?}, {op2:?})"</span>),
             Rvalue::CheckedBinaryOp(bin_op, op1, op2) =&gt; {
@@ -1505,15 +1488,6 @@
             Constant::Char =&gt; <span class="macro">write!</span>(f, <span class="string">"\"&lt;opaque char&gt;\""</span>),
             Constant::Opaque(ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"&lt;opaque {:?}&gt;"</span>, ty),
             Constant::Param(p, <span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, p),
-        }
-    }
-}
-
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>FakeReadCause {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="self">self </span>{
-            FakeReadCause::ForLet(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"ForLet({def_id:?})"</span>),
-            FakeReadCause::ForMatchedPlace(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"ForMatchedPlace({def_id:?})"</span>),
         }
     }
 }
