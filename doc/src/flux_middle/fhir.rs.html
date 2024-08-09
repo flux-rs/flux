@@ -2180,6 +2180,16 @@
     Const(ConstArg),
 }
 
+<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; GenericArg&lt;<span class="lifetime">'fhir</span>&gt; {
+    <span class="kw">pub fn </span>expect_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt; {
+        <span class="kw">if let </span>GenericArg::Type(ty) = <span class="self">self </span>{
+            ty
+        } <span class="kw">else </span>{
+            <span class="macro">bug!</span>(<span class="string">"expected `GenericArg::Type`"</span>)
+        }
+    }
+}
+
 <span class="attr">#[derive(PartialEq, Eq, Clone, Copy)]
 </span><span class="kw">pub struct </span>ConstArg {
     <span class="kw">pub </span>kind: ConstArgKind,
@@ -2655,16 +2665,6 @@
 <span class="kw">impl </span>rustc_errors::IntoDiagArg <span class="kw">for </span>Path&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>into_diag_arg(<span class="self">self</span>) -&gt; rustc_errors::DiagArgValue {
         rustc_errors::DiagArgValue::Str(Cow::Owned(<span class="macro">format!</span>(<span class="string">"{self:?}"</span>)))
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; GenericArg&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub fn </span>expect_type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt; {
-        <span class="kw">if let </span>GenericArg::Type(ty) = <span class="self">self </span>{
-            ty
-        } <span class="kw">else </span>{
-            <span class="macro">bug!</span>(<span class="string">"expected `GenericArg::Type`"</span>)
-        }
     }
 }
 

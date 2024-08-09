@@ -1790,6 +1790,25 @@
 <a href="#1790" id="1790">1790</a>
 <a href="#1791" id="1791">1791</a>
 <a href="#1792" id="1792">1792</a>
+<a href="#1793" id="1793">1793</a>
+<a href="#1794" id="1794">1794</a>
+<a href="#1795" id="1795">1795</a>
+<a href="#1796" id="1796">1796</a>
+<a href="#1797" id="1797">1797</a>
+<a href="#1798" id="1798">1798</a>
+<a href="#1799" id="1799">1799</a>
+<a href="#1800" id="1800">1800</a>
+<a href="#1801" id="1801">1801</a>
+<a href="#1802" id="1802">1802</a>
+<a href="#1803" id="1803">1803</a>
+<a href="#1804" id="1804">1804</a>
+<a href="#1805" id="1805">1805</a>
+<a href="#1806" id="1806">1806</a>
+<a href="#1807" id="1807">1807</a>
+<a href="#1808" id="1808">1808</a>
+<a href="#1809" id="1809">1809</a>
+<a href="#1810" id="1810">1810</a>
+<a href="#1811" id="1811">1811</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -1820,6 +1839,7 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::fx::FxIndexMap;
 <span class="kw">use </span>rustc_hir::{
+    <span class="self">self </span><span class="kw">as </span>hir,
     def::DefKind,
     def_id::{DefId, LocalDefId},
     PrimTy,
@@ -2551,7 +2571,7 @@
                         <span class="prelude-val">Ok</span>(<span class="self">self</span>.conv_ty_ctor(env, path)<span class="question-mark">?</span>.replace_bound_reft(<span class="kw-2">&amp;</span>idx))
                     }
                     fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(..)) =&gt; {
-                        <span class="macro">span_bug!</span>(ty.span, <span class="string">"Indexed type relative types are not yet supported"</span>);
+                        <span class="macro">span_bug!</span>(ty.span, <span class="string">"Indexed type relative paths are not yet supported"</span>);
                     }
                     fhir::BaseTyKind::Slice(ty) =&gt; {
                         <span class="kw">let </span>bty = rty::BaseTy::Slice(<span class="self">self</span>.conv_ty(env, ty)<span class="question-mark">?</span>);
@@ -2598,15 +2618,8 @@
                     rty::Expr::unit(),
                 ))
             }
-            fhir::TyKind::OpaqueDef(item_id, args0, refine_args, _in_trait) =&gt; {
-                <span class="kw">let </span>def_id = item_id.owner_id.to_def_id();
-                <span class="kw">let </span>args = List::from_vec(<span class="self">self</span>.conv_generic_args(env, def_id, args0)<span class="question-mark">?</span>);
-                <span class="kw">let </span>refine_args = refine_args
-                    .iter()
-                    .map(|arg| <span class="self">self</span>.conv_refine_arg(env, arg))
-                    .try_collect()<span class="question-mark">?</span>;
-                <span class="kw">let </span>alias_ty = rty::AliasTy::new(def_id, args, refine_args);
-                <span class="prelude-val">Ok</span>(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
+            fhir::TyKind::OpaqueDef(item_id, lifetimes, reft_args, _in_trait) =&gt; {
+                <span class="self">self</span>.conv_opaque_ty(env, <span class="kw-2">*</span>item_id, lifetimes, reft_args)
             }
             fhir::TyKind::TraitObject(poly_traits, lft, syn) =&gt; {
                 <span class="kw">let </span>exi_preds: List&lt;<span class="kw">_</span>&gt; = poly_traits
@@ -2622,6 +2635,31 @@
             }
             fhir::TyKind::Infer =&gt; <span class="prelude-val">Ok</span>(rty::Ty::infer(<span class="self">self</span>.next_type_vid())),
         }
+    }
+
+    <span class="kw">fn </span>conv_opaque_ty(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        env: <span class="kw-2">&amp;mut </span>Env,
+        item_id: hir::ItemId,
+        lifetimes: <span class="kw-2">&amp;</span>[fhir::GenericArg],
+        reft_args: <span class="kw-2">&amp;</span>[fhir::RefineArg],
+    ) -&gt; QueryResult&lt;rty::Ty&gt; {
+        <span class="kw">let </span>def_id = item_id.owner_id.to_def_id();
+        <span class="kw">let </span>args = lifetimes
+            .iter()
+            .map(|arg| {
+                <span class="kw">let </span>fhir::GenericArg::Lifetime(lft) = arg <span class="kw">else </span>{
+                    <span class="macro">bug!</span>(<span class="string">"only lifetimes supported for opaque types"</span>)
+                };
+                rty::GenericArg::Lifetime(<span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft))
+            })
+            .collect();
+        <span class="kw">let </span>reft_args = reft_args
+            .iter()
+            .map(|arg| <span class="self">self</span>.conv_refine_arg(env, arg))
+            .try_collect()<span class="question-mark">?</span>;
+        <span class="kw">let </span>alias_ty = rty::AliasTy::new(def_id, args, reft_args);
+        <span class="prelude-val">Ok</span>(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
     }
 
     <span class="kw">fn </span>conv_base_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, bty: <span class="kw-2">&amp;</span>fhir::BaseTy) -&gt; QueryResult&lt;rty::Ty&gt; {
