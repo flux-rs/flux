@@ -454,7 +454,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let def_id = poly_trait_ref.trait_def_id();
         let dummy_self = rty::GenericArg::Ty(rty::Ty::trait_object_dummy_self());
         let mut into = vec![dummy_self];
-        self.conv_generic_args_into(env, def_id, trait_segment.args, &mut into)?;
+        self.conv_generic_args_into(env, def_id, trait_segment, &mut into)?;
 
         // Remove dummy `Self`
         into.remove(0);
@@ -480,7 +480,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let self_param = generics.param_at(0, self.genv)?;
         let mut args =
             vec![self.ty_to_generic_arg(self_param.kind, bounded_ty_span, bounded_ty)?];
-        self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
+        self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
         let trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
 
         let pred = rty::TraitPredicate { trait_ref: trait_ref.clone() };
@@ -742,7 +742,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let self_ty =
             self.conv_ty_to_generic_arg(env, &generics.param_at(0, self.genv)?, alias.qself)?;
         let mut generic_args = vec![self_ty];
-        self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut generic_args)?;
+        self.conv_generic_args_into(env, trait_id, trait_segment, &mut generic_args)?;
 
         let alias_reft =
             rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
@@ -866,8 +866,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                         let qself =
                             self.conv_ty_to_generic_arg(env, &trait_generics.params[0], qself)?;
                         let mut args = vec![qself];
-                        self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
-                        self.conv_generic_args_into(env, assoc_id, assoc_segment.args, &mut args)?;
+                        self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
+                        self.conv_generic_args_into(env, assoc_id, assoc_segment, &mut args)?;
                         let args = List::from_vec(args);
 
                         let refine_args = List::empty();
@@ -972,7 +972,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let assoc_id = assoc_item.def_id;
 
         let mut args = trait_ref.args.to_vec();
-        self.conv_generic_args_into(env, assoc_id, assoc_segment.args, &mut args)?;
+        self.conv_generic_args_into(env, assoc_id, assoc_segment, &mut args)?;
 
         let args = List::from_vec(args);
         let refine_args = List::empty();
@@ -1135,7 +1135,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::Res::Def(DefKind::Struct | DefKind::Enum, did) => {
                 let adt_def = self.genv.adt_def(*did)?;
-                let args = self.conv_generic_args(env, *did, path.last_segment().args)?;
+                let args = self.conv_generic_args(env, *did, path.last_segment())?;
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) => {
@@ -1146,7 +1146,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 return Ok(self.genv.type_of(*alias_to)?.instantiate_identity(&[]));
             }
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
-                let generics = self.conv_generic_args(env, *def_id, path.last_segment().args)?;
+                let generics = self.conv_generic_args(env, *def_id, path.last_segment())?;
                 let refine = path
                     .refine
                     .iter()
@@ -1171,10 +1171,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         &mut self,
         env: &mut Env,
         def_id: DefId,
-        args: &[fhir::GenericArg],
+        segment: &fhir::PathSegment,
     ) -> QueryResult<Vec<rty::GenericArg>> {
         let mut into = vec![];
-        self.conv_generic_args_into(env, def_id, args, &mut into)?;
+        self.conv_generic_args_into(env, def_id, segment, &mut into)?;
         Ok(into)
     }
 
@@ -1182,12 +1182,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         &mut self,
         env: &mut Env,
         def_id: DefId,
-        args: &[fhir::GenericArg],
+        segment: &fhir::PathSegment,
         into: &mut Vec<rty::GenericArg>,
     ) -> QueryResult {
         let generics = self.genv.generics_of(def_id)?;
         let len = into.len();
-        for (idx, arg) in args.iter().enumerate() {
+        for (idx, arg) in segment.args.iter().enumerate() {
             let param = generics.param_at(idx + len, self.genv)?;
             match arg {
                 fhir::GenericArg::Lifetime(lft) => {
