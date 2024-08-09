@@ -124,17 +124,31 @@ impl AdtSortDef {
 pub struct Generics {
     pub parent: Option<DefId>,
     pub parent_count: usize,
-    pub params: List<GenericParamDef>,
+    pub own_params: List<GenericParamDef>,
+    pub has_self: bool,
 }
 
 impl Generics {
     pub fn count(&self) -> usize {
-        self.parent_count + self.params.len()
+        self.parent_count + self.own_params.len()
+    }
+
+    pub fn own_default_count(&self) -> usize {
+        self.own_params
+            .iter()
+            .filter(|param| {
+                match param.kind {
+                    GenericParamDefKind::Type { has_default } => has_default,
+                    GenericParamDefKind::Const { has_default } => has_default,
+                    GenericParamDefKind::Base | GenericParamDefKind::Lifetime => false,
+                }
+            })
+            .count()
     }
 
     pub fn param_at(&self, param_index: usize, genv: GlobalEnv) -> QueryResult<GenericParamDef> {
         if let Some(index) = param_index.checked_sub(self.parent_count) {
-            Ok(self.params[index].clone())
+            Ok(self.own_params[index].clone())
         } else {
             let parent = self.parent.expect("parent_count > 0 but no parent?");
             genv.generics_of(parent)?.param_at(param_index, genv)
@@ -1464,7 +1478,7 @@ impl GenericArgs {
             let parent_generics = genv.generics_of(def_id)?;
             Self::fill_item(genv, args, &parent_generics, mk_kind)?;
         }
-        for param in &generics.params {
+        for param in &generics.own_params {
             let kind = mk_kind(param, args);
             assert_eq!(param.index as usize, args.len(), "{args:#?}, {generics:#?}");
             args.push(kind);
@@ -2197,7 +2211,7 @@ pub use crate::_Bool as Bool;
 #[macro_export]
 macro_rules! _Ref {
     ($($pats:pat),+ $(,)?) => {
-        TyKind::Indexed(BaseTy::Ref($($pats),+), _)
+        $crate::rty::TyKind::Indexed($crate::rty::BaseTy::Ref($($pats),+), _)
     };
 }
 pub use crate::_Ref as Ref;

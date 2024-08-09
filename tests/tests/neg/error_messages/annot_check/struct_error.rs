@@ -1,5 +1,5 @@
 struct S1 {
-    #[flux::field(i64)] //~ ERROR invalid refinement annotation
+    #[flux::field(i64)] //~ ERROR incompatible refinement annotation
     x: i32,
     y: i64,
 }

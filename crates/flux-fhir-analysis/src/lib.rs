@@ -5,12 +5,12 @@ extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hash;
 extern crate rustc_hir;
+extern crate rustc_hir_pretty;
 extern crate rustc_middle;
 extern crate rustc_span;
 extern crate rustc_trait_selection;
 extern crate rustc_type_ir;
 
-mod annot_check;
 pub mod compare_impl_item;
 mod conv;
 mod wf;
@@ -265,9 +265,10 @@ fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generi
         }
         DefKind::Closure => {
             rty::Generics {
-                params: List::empty(),
+                own_params: List::empty(),
                 parent: rustc_generics.parent(),
                 parent_count: rustc_generics.parent_count(),
+                has_self: rustc_generics.orig.has_self,
             }
         }
         kind => bug!("generics_of called on `{def_id:?}` with kind `{kind:?}`"),
@@ -313,7 +314,7 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
         DefKind::TyAlias { .. } => {
             let alias = genv.map().expect_item(def_id)?.expect_type_alias();
             let wfckresults = genv.check_wf(def_id)?;
-            conv::expand_type_alias(genv, def_id.to_def_id(), alias, &wfckresults)?
+            conv::expand_type_alias(genv, def_id, alias, &wfckresults)?
         }
         DefKind::TyParam => {
             match &genv.get_generic_param(def_id)?.kind {
@@ -395,9 +396,7 @@ fn check_wf(genv: GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<Rc<WfckResu
         }
         FluxLocalDefId::Rust(def_id) => {
             let node = genv.desugar(def_id)?;
-            let wfckresults = wf::check_node(genv, &node)?;
-            annot_check::check_node(genv, &node)?;
-            wfckresults
+            wf::check_node(genv, &node)?
         }
     };
     Ok(Rc::new(wfckresults))

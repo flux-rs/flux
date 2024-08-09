@@ -98,7 +98,23 @@ fhir_analysis_cannot_infer_sort =
 fhir_analysis_refined_unrefinable_type =
     type cannot be refined
 
-# Annot check
+# Structural Compatibility
+
+fhir_analysis_incompatible_refinement =
+    {$def_descr} has an incompatible refinement annotation
+    .label = expected a refinement of `{$expected_ty}`
+    .expected_label = corresponding unrefined definition
+
+fhir_analysis_incompatible_param_count =
+    {$def_descr} has an incompatible refinement annotation
+    .label = refined signature has {$found} {$found ->
+        [one] parameter
+        *[other] parameters
+     }
+    .expected_label = unrefined signature has {$expected} {$expected ->
+        [one] parameter
+        *[other] parameters
+    }
 
 fhir_analysis_invalid_refinement =
     invalid refinement annotation
@@ -107,29 +123,12 @@ fhir_analysis_invalid_refinement =
     .note = {$note}
 
 fhir_analysis_fun_arg_count_mismatch =
-    argument count mismatch
+    {$def_descr} has an incompatible refinement annotation
     .label = refined signature has {$args} {$args ->
         [one] argument
         *[other] arguments
      }
-    .expected_label = rust signature has {$expected_args} {$expected_args ->
-        [one] argument
-        *[other] arguments
-    }
-
-fhir_analysis_generic_argument_count_mismatch =
-    this {$def_descr} must take {$expected} generic {$expected ->
-        [one] argument
-        *[other] arguments
-    } but {$found} generic {$found ->
-        [one] argument was
-        *[other] arguments were
-    } supplied
-    .label = expected {$expected} generic {$expected ->
-        [one] argument
-        *[other] arguments
-    }
-    .expected_label = {$def_descr} used here with {$expected} generic {$expected ->
+    .expected_label = unrefined signature has {$expected_args} {$expected_args ->
         [one] argument
         *[other] arguments
     }
@@ -140,15 +139,12 @@ fhir_analysis_array_len_mismatch =
     .expected_label = expected length
 
 fhir_analysis_field_count_mismatch =
-    field count mismatch
-    .label = refined variant has {$fields} {$fields ->
+    variant has an incompatible refinement annotation
+    .label = expected {$expected_fields} {$expected_fields ->
         [one] field
         *[other] fields
-     }
-    .expected_label = rust variant has {$expected_fields} {$expected_fields ->
-        [one] field
-        *[other] fields
-    }
+     }, found {$fields}
+    .expected_label = corresponding unrefined definition
 
 # Definition cycle
 
@@ -168,6 +164,45 @@ fhir_analysis_ambiguous_assoc_type =
 
 fhir_analysis_invalid_base_instance =
     values of this type cannot be used as base sorted instances
+
+fhir_analysis_generic_argument_count_mismatch =
+    this {$def_descr} takes {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    } but {$found} generic {$found ->
+        [one] argument was
+        *[other] arguments were
+    } supplied
+    .label = expected {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    }
+
+fhir_analysis_too_few_generic_args =
+    this {$def_descr} takes at least {$min} generic {$min ->
+        [one] argument
+        *[other] arguments
+    } but {$found} generic {$found ->
+        [one] argument was
+        *[other] arguments were
+    } supplied
+    .label = expected at least {$min} generic {$min ->
+        [one] argument
+        *[other] arguments
+    }
+
+fhir_analysis_too_many_generic_args =
+    this {$def_descr} takes at most {$max} generic {$max ->
+        [one] argument
+        *[other] arguments
+    } but {$found} generic {$found ->
+        [one] argument was
+        *[other] arguments were
+    } supplied
+    .label = expected at most {$max} generic {$max ->
+        [one] argument
+        *[other] arguments
+    }
 
 # Check impl against trait errors
 

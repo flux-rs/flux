@@ -828,7 +828,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let upvar_tys = self.check_aggregate_operands(rcx, env, stmt_span, ops)?;
                 Ok(Ty::coroutine(*did, resume_ty, upvar_tys))
             }
-
             Rvalue::Discriminant(place) => {
                 let ty = env
                     .lookup_place(self.genv, rcx, place)

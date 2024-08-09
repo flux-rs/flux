@@ -141,6 +141,10 @@ impl<'sess> Errors<'sess> {
         Self { sess, err: Cell::new(None) }
     }
 
+    pub fn has_errors(&self) -> bool {
+        self.err.get().is_some()
+    }
+
     #[track_caller]
     pub fn emit<'a>(&'a self, err: impl Diagnostic<'a>) -> ErrorGuaranteed {
         let err = self.sess.emit_err(err);

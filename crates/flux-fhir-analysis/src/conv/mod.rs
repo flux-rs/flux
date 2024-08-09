@@ -8,7 +8,7 @@
 //!    syntactic restrictions on predicates.
 //! 3. Refinements are well-sorted.
 
-mod fill_holes;
+mod struct_compat;
 use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
@@ -27,6 +27,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
+use rustc_errors::Diagnostic;
 use rustc_hir::{
     self as hir,
     def::DefKind,
@@ -132,16 +133,19 @@ pub(crate) fn conv_adt_sort_def(
 
 pub(crate) fn expand_type_alias(
     genv: GlobalEnv,
-    def_id: DefId,
+    def_id: LocalDefId,
     alias: &fhir::TyAlias,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let mut cx = ConvCtxt::new(genv, wfckresults);
 
     let mut env = Env::new(genv, alias.generics.refinement_params, wfckresults)?;
-    env.push_layer(Layer::coalesce(&cx, def_id, alias.params)?);
+    env.push_layer(Layer::coalesce(&cx, def_id.to_def_id(), alias.params)?);
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
+
+    let ty = struct_compat::type_alias(genv, alias, &ty, def_id)?;
+
     Ok(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)?))
 }
 
@@ -244,9 +248,10 @@ pub(crate) fn conv_generics(
     }
 
     Ok(rty::Generics {
-        params: List::from_vec(params),
+        own_params: List::from_vec(params),
         parent: rust_generics.parent(),
         parent_count: rust_generics.parent_count(),
+        has_self: rust_generics.orig.has_self,
     })
 }
 
@@ -353,7 +358,7 @@ pub(crate) fn conv_fn_decl(
         .collect();
 
     let fn_sig = rty::PolyFnSig::new(rty::FnSig::new(requires.into(), inputs.into(), output), vars);
-    let fn_sig = fill_holes::fn_sig(genv, &fn_sig, def_id)?;
+    let fn_sig = struct_compat::fn_sig(genv, decl, &fn_sig, def_id)?;
 
     Ok(rty::EarlyBinder(fn_sig))
 }
@@ -623,7 +628,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 ConvCtxt::conv_enum_variant(genv, adt_def_id, variant_def, wfckresults)
             })
             .try_collect_vec()?;
-        let variants = fill_holes::variants(genv, &variants, adt_def_id)?;
+        let variants = struct_compat::variants(genv, &variants, adt_def_id)?;
         Ok(variants)
     }
 
@@ -644,6 +649,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .iter()
             .map(|field| cx.conv_ty(&mut env, &field.ty))
             .try_collect()?;
+
         let idxs = cx.conv_refine_arg(&mut env, &variant.ret.idx)?;
         let variant = rty::VariantSig::new(
             adt_def,
@@ -693,7 +699,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 idx,
             );
             let variant = rty::Binder::new(variant, vars);
-            let variants = fill_holes::variants(genv, &[variant], adt_def_id)?;
+            let variants = struct_compat::variants(genv, &[variant], adt_def_id)?;
             Ok(rty::Opaqueness::Transparent(variants))
         } else {
             Ok(rty::Opaqueness::Opaque)
@@ -864,7 +870,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                         let trait_generics = self.genv.generics_of(trait_id)?;
                         let qself = qself.as_deref().unwrap();
                         let qself =
-                            self.conv_ty_to_generic_arg(env, &trait_generics.params[0], qself)?;
+                            self.conv_ty_to_generic_arg(env, &trait_generics.own_params[0], qself)?;
                         let mut args = vec![qself];
                         self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
                         self.conv_generic_args_into(env, assoc_id, assoc_segment, &mut args)?;
@@ -1186,6 +1192,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         into: &mut Vec<rty::GenericArg>,
     ) -> QueryResult {
         let generics = self.genv.generics_of(def_id)?;
+
+        self.check_generic_arg_count(&generics, def_id, segment)?;
+
         let len = into.len();
         for (idx, arg) in segment.args.iter().enumerate() {
             let param = generics.param_at(idx + len, self.genv)?;
@@ -1204,13 +1213,41 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         self.fill_generic_args_defaults(def_id, into)
     }
 
+    fn check_generic_arg_count(
+        &mut self,
+        generics: &rty::Generics,
+        def_id: DefId,
+        segment: &fhir::PathSegment,
+    ) -> QueryResult {
+        let found = segment.args.len();
+        let mut param_count = generics.own_params.len();
+
+        // The self parameter is not provided explicitly in the path so we skip it
+        if let DefKind::Trait = self.genv.def_kind(def_id) {
+            param_count -= 1;
+        }
+
+        let min = param_count - generics.own_default_count();
+        let max = param_count;
+        if min == max && found != min {
+            Err(self.emit(errors::GenericArgCountMismatch::new(self.genv, def_id, segment, min)))?;
+        }
+        if found < min {
+            Err(self.emit(errors::TooFewGenericArgs::new(self.genv, def_id, segment, min)))?;
+        }
+        if found > max {
+            Err(self.emit(errors::TooManyGenericArgs::new(self.genv, def_id, segment, min)))?;
+        }
+        Ok(())
+    }
+
     fn fill_generic_args_defaults(
         &self,
         def_id: DefId,
         into: &mut Vec<rty::GenericArg>,
     ) -> QueryResult {
         let generics = self.genv.generics_of(def_id)?;
-        for param in generics.params.iter().skip(into.len()) {
+        for param in generics.own_params.iter().skip(into.len()) {
             if let rty::GenericParamDefKind::Type { has_default } = param.kind {
                 debug_assert!(has_default);
                 let tcx = self.genv.tcx();
@@ -1285,6 +1322,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn next_const_vid(&mut self) -> rty::ConstVid {
         self.next_const_index = self.next_const_index.checked_add(1).unwrap();
         rty::ConstVid::from_u32(self.next_const_index - 1)
+    }
+
+    #[track_caller]
+    fn emit<'b>(&'b self, err: impl Diagnostic<'b>) -> ErrorGuaranteed {
+        self.genv.sess().emit_err(err)
     }
 }
 
@@ -1765,6 +1807,8 @@ fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
+    use flux_middle::{fhir, global_env::GlobalEnv};
+    use rustc_hir::def_id::DefId;
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(Diagnostic)]
@@ -1806,6 +1850,87 @@ mod errors {
     impl InvalidBaseInstance {
         pub(super) fn new(span: Span) -> Self {
             Self { span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_generic_argument_count_mismatch, code = E0999)]
+    pub(super) struct GenericArgCountMismatch {
+        #[primary_span]
+        #[label]
+        span: Span,
+        found: usize,
+        expected: usize,
+        def_descr: &'static str,
+    }
+
+    impl GenericArgCountMismatch {
+        pub(super) fn new(
+            genv: GlobalEnv,
+            def_id: DefId,
+            segment: &fhir::PathSegment,
+            expected: usize,
+        ) -> Self {
+            GenericArgCountMismatch {
+                span: segment.ident.span,
+                found: segment.args.len(),
+                expected,
+                def_descr: genv.tcx().def_descr(def_id),
+            }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_too_few_generic_args, code = E0999)]
+    pub(super) struct TooFewGenericArgs {
+        #[primary_span]
+        #[label]
+        span: Span,
+        found: usize,
+        min: usize,
+        def_descr: &'static str,
+    }
+
+    impl TooFewGenericArgs {
+        pub(super) fn new(
+            genv: GlobalEnv,
+            def_id: DefId,
+            segment: &fhir::PathSegment,
+            min: usize,
+        ) -> Self {
+            Self {
+                span: segment.ident.span,
+                found: segment.args.len(),
+                min,
+                def_descr: genv.tcx().def_descr(def_id),
+            }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_too_many_generic_args, code = E0999)]
+    pub(super) struct TooManyGenericArgs {
+        #[primary_span]
+        #[label]
+        span: Span,
+        found: usize,
+        max: usize,
+        def_descr: &'static str,
+    }
+
+    impl TooManyGenericArgs {
+        pub(super) fn new(
+            genv: GlobalEnv,
+            def_id: DefId,
+            segment: &fhir::PathSegment,
+            max: usize,
+        ) -> Self {
+            Self {
+                span: segment.ident.span,
+                found: segment.args.len(),
+                max,
+                def_descr: genv.tcx().def_descr(def_id),
+            }
         }
     }
 }
