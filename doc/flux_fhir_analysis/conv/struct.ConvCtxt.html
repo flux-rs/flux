@@ -115,12 +115,12 @@
     &amp;mut self,
     env: &amp;mut <a class="struct" href="struct.Env.html" title="struct flux_fhir_analysis::conv::Env">Env</a>,
     def_id: <a class="struct" href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_span/def_id/struct.DefId.html" title="struct rustc_span::def_id::DefId">DefId</a>,
-    args: &amp;[<a class="enum" href="../../flux_middle/fhir/enum.GenericArg.html" title="enum flux_middle::fhir::GenericArg">GenericArg</a>&lt;'_&gt;],
+    segment: &amp;<a class="struct" href="../../flux_middle/fhir/struct.PathSegment.html" title="struct flux_middle::fhir::PathSegment">PathSegment</a>&lt;'_&gt;,
 ) -&gt; <a class="type" href="../../flux_middle/queries/type.QueryResult.html" title="type flux_middle::queries::QueryResult">QueryResult</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../../flux_middle/rty/enum.GenericArg.html" title="enum flux_middle::rty::GenericArg">GenericArg</a>&gt;&gt;</h4></section><section id="method.conv_generic_args_into" class="method"><a class="src rightside" href="../../src/flux_fhir_analysis/conv/mod.rs.html#1181-1205">source</a><h4 class="code-header">fn <a href="#method.conv_generic_args_into" class="fn">conv_generic_args_into</a>(
     &amp;mut self,
     env: &amp;mut <a class="struct" href="struct.Env.html" title="struct flux_fhir_analysis::conv::Env">Env</a>,
     def_id: <a class="struct" href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_span/def_id/struct.DefId.html" title="struct rustc_span::def_id::DefId">DefId</a>,
-    args: &amp;[<a class="enum" href="../../flux_middle/fhir/enum.GenericArg.html" title="enum flux_middle::fhir::GenericArg">GenericArg</a>&lt;'_&gt;],
+    segment: &amp;<a class="struct" href="../../flux_middle/fhir/struct.PathSegment.html" title="struct flux_middle::fhir::PathSegment">PathSegment</a>&lt;'_&gt;,
     into: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../../flux_middle/rty/enum.GenericArg.html" title="enum flux_middle::rty::GenericArg">GenericArg</a>&gt;,
 ) -&gt; <a class="type" href="../../flux_middle/queries/type.QueryResult.html" title="type flux_middle::queries::QueryResult">QueryResult</a></h4></section><section id="method.fill_generic_args_defaults" class="method"><a class="src rightside" href="../../src/flux_fhir_analysis/conv/mod.rs.html#1207-1228">source</a><h4 class="code-header">fn <a href="#method.fill_generic_args_defaults" class="fn">fill_generic_args_defaults</a>(
     &amp;self,

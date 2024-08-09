@@ -2265,7 +2265,7 @@
         <span class="kw">let </span>def_id = poly_trait_ref.trait_def_id();
         <span class="kw">let </span>dummy_self = rty::GenericArg::Ty(rty::Ty::trait_object_dummy_self());
         <span class="kw">let </span><span class="kw-2">mut </span>into = <span class="macro">vec!</span>[dummy_self];
-        <span class="self">self</span>.conv_generic_args_into(env, def_id, trait_segment.args, <span class="kw-2">&amp;mut </span>into)<span class="question-mark">?</span>;
+        <span class="self">self</span>.conv_generic_args_into(env, def_id, trait_segment, <span class="kw-2">&amp;mut </span>into)<span class="question-mark">?</span>;
 
         <span class="comment">// Remove dummy `Self`
         </span>into.remove(<span class="number">0</span>);
@@ -2291,7 +2291,7 @@
         <span class="kw">let </span>self_param = generics.param_at(<span class="number">0</span>, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>args =
             <span class="macro">vec!</span>[<span class="self">self</span>.ty_to_generic_arg(self_param.kind, bounded_ty_span, bounded_ty)<span class="question-mark">?</span>];
-        <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment.args, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
+        <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
         <span class="kw">let </span>trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
 
         <span class="kw">let </span>pred = rty::TraitPredicate { trait_ref: trait_ref.clone() };
@@ -2553,7 +2553,7 @@
         <span class="kw">let </span>self_ty =
             <span class="self">self</span>.conv_ty_to_generic_arg(env, <span class="kw-2">&amp;</span>generics.param_at(<span class="number">0</span>, <span class="self">self</span>.genv)<span class="question-mark">?</span>, alias.qself)<span class="question-mark">?</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>generic_args = <span class="macro">vec!</span>[self_ty];
-        <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment.args, <span class="kw-2">&amp;mut </span>generic_args)<span class="question-mark">?</span>;
+        <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment, <span class="kw-2">&amp;mut </span>generic_args)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>alias_reft =
             rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
@@ -2677,8 +2677,8 @@
                         <span class="kw">let </span>qself =
                             <span class="self">self</span>.conv_ty_to_generic_arg(env, <span class="kw-2">&amp;</span>trait_generics.params[<span class="number">0</span>], qself)<span class="question-mark">?</span>;
                         <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[qself];
-                        <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment.args, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
-                        <span class="self">self</span>.conv_generic_args_into(env, assoc_id, assoc_segment.args, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
+                        <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
+                        <span class="self">self</span>.conv_generic_args_into(env, assoc_id, assoc_segment, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
                         <span class="kw">let </span>args = List::from_vec(args);
 
                         <span class="kw">let </span>refine_args = List::empty();
@@ -2783,7 +2783,7 @@
         <span class="kw">let </span>assoc_id = assoc_item.def_id;
 
         <span class="kw">let </span><span class="kw-2">mut </span>args = trait_ref.args.to_vec();
-        <span class="self">self</span>.conv_generic_args_into(env, assoc_id, assoc_segment.args, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
+        <span class="self">self</span>.conv_generic_args_into(env, assoc_id, assoc_segment, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>args = List::from_vec(args);
         <span class="kw">let </span>refine_args = List::empty();
@@ -2946,7 +2946,7 @@
             }
             fhir::Res::Def(DefKind::Struct | DefKind::Enum, did) =&gt; {
                 <span class="kw">let </span>adt_def = <span class="self">self</span>.genv.adt_def(<span class="kw-2">*</span>did)<span class="question-mark">?</span>;
-                <span class="kw">let </span>args = <span class="self">self</span>.conv_generic_args(env, <span class="kw-2">*</span>did, path.last_segment().args)<span class="question-mark">?</span>;
+                <span class="kw">let </span>args = <span class="self">self</span>.conv_generic_args(env, <span class="kw-2">*</span>did, path.last_segment())<span class="question-mark">?</span>;
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) =&gt; {
@@ -2957,7 +2957,7 @@
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="self">self</span>.genv.type_of(<span class="kw-2">*</span>alias_to)<span class="question-mark">?</span>.instantiate_identity(<span class="kw-2">&amp;</span>[]));
             }
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) =&gt; {
-                <span class="kw">let </span>generics = <span class="self">self</span>.conv_generic_args(env, <span class="kw-2">*</span>def_id, path.last_segment().args)<span class="question-mark">?</span>;
+                <span class="kw">let </span>generics = <span class="self">self</span>.conv_generic_args(env, <span class="kw-2">*</span>def_id, path.last_segment())<span class="question-mark">?</span>;
                 <span class="kw">let </span>refine = path
                     .refine
                     .iter()
@@ -2982,10 +2982,10 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         env: <span class="kw-2">&amp;mut </span>Env,
         def_id: DefId,
-        args: <span class="kw-2">&amp;</span>[fhir::GenericArg],
+        segment: <span class="kw-2">&amp;</span>fhir::PathSegment,
     ) -&gt; QueryResult&lt;Vec&lt;rty::GenericArg&gt;&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>into = <span class="macro">vec!</span>[];
-        <span class="self">self</span>.conv_generic_args_into(env, def_id, args, <span class="kw-2">&amp;mut </span>into)<span class="question-mark">?</span>;
+        <span class="self">self</span>.conv_generic_args_into(env, def_id, segment, <span class="kw-2">&amp;mut </span>into)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(into)
     }
 
@@ -2993,12 +2993,12 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         env: <span class="kw-2">&amp;mut </span>Env,
         def_id: DefId,
-        args: <span class="kw-2">&amp;</span>[fhir::GenericArg],
+        segment: <span class="kw-2">&amp;</span>fhir::PathSegment,
         into: <span class="kw-2">&amp;mut </span>Vec&lt;rty::GenericArg&gt;,
     ) -&gt; QueryResult {
         <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>len = into.len();
-        <span class="kw">for </span>(idx, arg) <span class="kw">in </span>args.iter().enumerate() {
+        <span class="kw">for </span>(idx, arg) <span class="kw">in </span>segment.args.iter().enumerate() {
             <span class="kw">let </span>param = generics.param_at(idx + len, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
             <span class="kw">match </span>arg {
                 fhir::GenericArg::Lifetime(lft) =&gt; {
