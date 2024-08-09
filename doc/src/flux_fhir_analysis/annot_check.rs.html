@@ -781,7 +781,7 @@
                 <span class="self">self</span>.zip_ty(ty, expected_ty)
             }
             (fhir::TyKind::Never, fhir::TyKind::Never) =&gt; <span class="prelude-val">Ok</span>(()),
-            (fhir::TyKind::Hole(<span class="kw">_</span>), <span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
+            (fhir::TyKind::Infer, <span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(()),
             (
                 fhir::TyKind::OpaqueDef(item_id, args, <span class="kw">_</span>, <span class="kw">_</span>),
                 fhir::TyKind::OpaqueDef(exp_item_id, exp_args, <span class="kw">_</span>, <span class="kw">_</span>),

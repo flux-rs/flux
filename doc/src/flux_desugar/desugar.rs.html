@@ -2488,7 +2488,7 @@
             surface::TyKind::ImplTrait(node_id, bounds) =&gt; {
                 <span class="self">self</span>.desugar_impl_trait(<span class="kw-2">*</span>node_id, bounds)<span class="question-mark">?
             </span>}
-            surface::TyKind::Hole =&gt; fhir::TyKind::Hole(<span class="self">self</span>.next_fhir_id()),
+            surface::TyKind::Hole =&gt; fhir::TyKind::Infer,
         };
         <span class="prelude-val">Ok</span>(fhir::Ty { kind, span })
     }

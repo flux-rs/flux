@@ -259,7 +259,7 @@
             | fhir::TyKind::Array(<span class="kw">_</span>, <span class="kw">_</span>)
             | fhir::TyKind::TraitObject(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
             | fhir::TyKind::Never =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::Sort::unit())),
-            fhir::TyKind::Hole(<span class="kw">_</span>)
+            fhir::TyKind::Infer
             | fhir::TyKind::StrgRef(..)
             | fhir::TyKind::OpaqueDef(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
         }

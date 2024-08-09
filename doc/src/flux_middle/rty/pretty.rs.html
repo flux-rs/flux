@@ -805,7 +805,7 @@
                     <span class="macro">join!</span>(<span class="string">", "</span>, <span class="kw-2">&amp;</span>alias_ty.refine_args)
                 )
             }
-            TyKind::Hole(<span class="kw">_</span>) =&gt; {
+            TyKind::Infer(<span class="kw">_</span>) =&gt; {
                 <span class="macro">w!</span>(<span class="string">"□"</span>)
             }
         }

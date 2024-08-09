@@ -2286,7 +2286,6 @@
 <a href="#2286" id="2286">2286</a>
 <a href="#2287" id="2287">2287</a>
 <a href="#2288" id="2288">2288</a>
-<a href="#2289" id="2289">2289</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2324,7 +2323,7 @@
 };
 <span class="kw">use </span>rustc_span::{sym, symbol::kw, Symbol};
 <span class="kw">pub use </span>rustc_target::abi::{VariantIdx, FIRST_VARIANT};
-<span class="kw">pub use </span>rustc_type_ir::INNERMOST;
+<span class="kw">pub use </span>rustc_type_ir::{TyVid, INNERMOST};
 <span class="kw">pub use </span>SortInfer::<span class="kw-2">*</span>;
 
 <span class="kw">use </span><span class="self">self</span>::{
@@ -3129,8 +3128,8 @@
         BaseTy::Never.to_ty()
     }
 
-    <span class="kw">pub fn </span>hole(fhir_id: FhirId) -&gt; Ty {
-        TyKind::Hole(fhir_id).intern()
+    <span class="kw">pub fn </span>infer(vid: TyVid) -&gt; Ty {
+        TyKind::Infer(vid).intern()
     }
 
     <span class="doccomment">/// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
@@ -3194,7 +3193,7 @@
             | TyKind::Discr(<span class="kw">_</span>, <span class="kw">_</span>)
             | TyKind::Downcast(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
             | TyKind::Blocked(<span class="kw">_</span>)
-            | TyKind::Hole(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(),
+            | TyKind::Infer(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(),
         }
     }
 
@@ -3318,11 +3317,10 @@
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List&lt;Ty&gt;),
     Blocked(Ty),
     Alias(AliasKind, AliasTy),
-    <span class="doccomment">/// A hole is a type that needs to be inferred by matching the signature against a rust signature.
-    /// Holes appear as an intermediate step during `conv` and should not be present in the final
-    /// signature. We use the [`FhirId`] of the `fhir` type to assign a unique id to the hole, but
-    /// we could alternatively have a dedicated variable id for this.
-    </span>Hole(FhirId),
+    <span class="doccomment">/// A type that needs to be inferred by matching the signature against a rust signature.
+    /// [`TyKind::Infer`] appear as an intermediate step during `conv` and should not be present in
+    /// the final signature.
+    </span>Infer(TyVid),
 }
 
 <span class="attr">#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]

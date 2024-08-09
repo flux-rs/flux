@@ -1055,7 +1055,7 @@
             | TyKind::Uninit
             | TyKind::Param(<span class="kw">_</span>)
             | TyKind::Constr(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; ty.clone(),
-            TyKind::Hole(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected hole whecn checking function body"</span>),
+            TyKind::Infer(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected hole whecn checking function body"</span>),
             TyKind::StrgRef(..) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected strong reference when checking function body"</span>),
         }
     }

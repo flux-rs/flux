@@ -344,12 +344,10 @@
 <a href="#344" id="344">344</a>
 <a href="#345" id="345">345</a>
 <a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_middle::{
-    fhir::FhirId,
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     rty::{
@@ -410,7 +408,7 @@
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     generics: rty::Generics,
     locs: UnordMap&lt;rty::Loc, ty::Ty&gt;,
-    type_holes: UnordMap&lt;FhirId, rty::Ty&gt;,
+    type_holes: UnordMap&lt;rty::TyVid, rty::Ty&gt;,
     region_holes: UnordMap&lt;rty::RegionVid, rty::Region&gt;,
     const_holes: UnordMap&lt;rty::ConstVid, rty::Const&gt;,
     rty_index: DebruijnIndex,
@@ -468,10 +466,10 @@
 
     <span class="kw">fn </span>zip_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Ty, b: <span class="kw-2">&amp;</span>ty::Ty) -&gt; QueryResult {
         <span class="kw">match </span>(a.kind(), b.kind()) {
-            (rty::TyKind::Hole(fhir_id), <span class="kw">_</span>) =&gt; {
+            (rty::TyKind::Infer(vid), <span class="kw">_</span>) =&gt; {
                 <span class="kw">let </span>ty = <span class="self">self</span>.genv.refine_default(<span class="kw-2">&amp;</span><span class="self">self</span>.generics, b)<span class="question-mark">?</span>;
                 <span class="kw">let </span>ty = <span class="self">self</span>.adjust_binders(<span class="kw-2">&amp;</span>ty);
-                <span class="self">self</span>.type_holes.insert(<span class="kw-2">*</span>fhir_id, ty);
+                <span class="self">self</span>.type_holes.insert(<span class="kw-2">*</span>vid, ty);
             }
             (rty::TyKind::Indexed(bty, <span class="kw">_</span>), <span class="kw">_</span>) =&gt; {
                 <span class="self">self</span>.zip_bty(bty, b)<span class="question-mark">?</span>;
@@ -660,7 +658,7 @@
     <span class="kw">fn </span>replace_holes&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; T {
         t.fold_with(<span class="kw-2">&amp;mut </span>BottomUpFolder {
             ty_op: |ty| {
-                <span class="kw">if let </span>rty::TyKind::Hole(fhir_id) = ty.kind() {
+                <span class="kw">if let </span>rty::TyKind::Infer(fhir_id) = ty.kind() {
                     <span class="self">self</span>.type_holes
                         .get(fhir_id)
                         .cloned()

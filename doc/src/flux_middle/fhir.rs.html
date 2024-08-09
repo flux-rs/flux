@@ -2036,7 +2036,7 @@
     OpaqueDef(ItemId, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[GenericArg&lt;<span class="lifetime">'fhir</span>&gt;], <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineArg&lt;<span class="lifetime">'fhir</span>&gt;], bool),
     TraitObject(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[PolyTraitRef&lt;<span class="lifetime">'fhir</span>&gt;], Lifetime, TraitObjectSyntax),
     Never,
-    Hole(FhirId),
+    Infer,
 }
 
 <span class="attr">#[derive(Clone, Copy)]
@@ -2775,7 +2775,7 @@
             TyKind::Constr(pred, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{{{ty:?} | {pred:?}}}"</span>),
             TyKind::RawPtr(ty, Mutability::Not) =&gt; <span class="macro">write!</span>(f, <span class="string">"*const {ty:?}"</span>),
             TyKind::RawPtr(ty, Mutability::Mut) =&gt; <span class="macro">write!</span>(f, <span class="string">"*mut {ty:?}"</span>),
-            TyKind::Hole(<span class="kw">_</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"_"</span>),
+            TyKind::Infer =&gt; <span class="macro">write!</span>(f, <span class="string">"_"</span>),
             TyKind::OpaqueDef(def_id, args, refine_args, <span class="kw">_</span>) =&gt; {
                 <span class="macro">write!</span>(
                     f,
