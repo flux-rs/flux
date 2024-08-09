@@ -396,9 +396,7 @@ fn check_wf(genv: GlobalEnv, flux_id: FluxLocalDefId) -> QueryResult<Rc<WfckResu
         }
         FluxLocalDefId::Rust(def_id) => {
             let node = genv.desugar(def_id)?;
-            let wfckresults = wf::check_node(genv, &node)?;
-            // annot_check::check_node(genv, &node)?;
-            wfckresults
+            wf::check_node(genv, &node)?
         }
     };
     Ok(Rc::new(wfckresults))
