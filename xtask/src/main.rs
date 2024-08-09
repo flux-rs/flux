@@ -135,11 +135,14 @@ fn install(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()> {
 fn install_driver(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()> {
     let out_dir = default_sysroot_dir();
     if args.is_release() {
-        cmd!(sh, "cargo build -Zunstable-options --bin flux-driver --release --out-dir {out_dir} {extra...}")
+        cmd!(sh, "cargo build -Zunstable-options --bin flux-driver --release --artifact-dir {out_dir} {extra...}")
             .run()?;
     } else {
-        cmd!(sh, "cargo build -Zunstable-options --bin flux-driver --out-dir {out_dir} {extra...}")
-            .run()?;
+        cmd!(
+            sh,
+            "cargo build -Zunstable-options --bin flux-driver --artifact-dir {out_dir} {extra...}"
+        )
+        .run()?;
     }
     Ok(())
 }
@@ -153,11 +156,11 @@ fn install_libs(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()
     if args.is_release() {
         cmd!(
             sh,
-            "cargo build -Zunstable-options --release -p flux-rs --out-dir {out_dir} {extra...}"
+            "cargo build -Zunstable-options --release -p flux-rs --artifact-dir {out_dir} {extra...}"
         )
         .run()?;
     } else {
-        cmd!(sh, "cargo build -Zunstable-options -p flux-rs --out-dir {out_dir} {extra...}")
+        cmd!(sh, "cargo build -Zunstable-options -p flux-rs --artifact-dir {out_dir} {extra...}")
             .run()?;
     }
     Ok(())
