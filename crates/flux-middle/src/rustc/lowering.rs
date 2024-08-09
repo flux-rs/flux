@@ -19,9 +19,9 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     mir::{
-        replicate_infer_ctxt, AggregateKind, AssertKind, BasicBlockData, BinOp, Body, BorrowKind,
-        CallArgs, CastKind, Constant, FakeReadCause, LocalDecl, Operand, Place, PlaceElem,
-        PointerCast, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+        replicate_infer_ctxt, AggregateKind, AssertKind, BasicBlockData, BinOp, Body, CallArgs,
+        CastKind, Constant, LocalDecl, Operand, Place, PlaceElem, PointerCast, Rvalue, Statement,
+        StatementKind, Terminator, TerminatorKind,
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
@@ -216,9 +216,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             }
             rustc_mir::StatementKind::FakeRead(box (cause, place)) => {
                 StatementKind::FakeRead(Box::new((
-                    self.lower_fake_read_cause(*cause)
-                        .ok_or_else(|| errors::UnsupportedMir::from(stmt))
-                        .emit(self.sess)?,
+                    *cause,
                     lower_place(place)
                         .map_err(|reason| errors::UnsupportedMir::statement(span, reason))
                         .emit(self.sess)?,
@@ -255,18 +253,6 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             }
         };
         Ok(Statement { kind, source_info: stmt.source_info })
-    }
-
-    fn lower_fake_read_cause(&self, cause: rustc_mir::FakeReadCause) -> Option<FakeReadCause> {
-        match cause {
-            rustc_mir::FakeReadCause::ForLet(def_id) => Some(FakeReadCause::ForLet(def_id)),
-            rustc_mir::FakeReadCause::ForMatchedPlace(def_id) => {
-                Some(FakeReadCause::ForMatchedPlace(def_id))
-            }
-            rustc_mir::FakeReadCause::ForMatchGuard
-            | rustc_mir::FakeReadCause::ForGuardBinding
-            | rustc_mir::FakeReadCause::ForIndex { .. } => None,
-        }
     }
 
     fn lower_terminator(
@@ -407,11 +393,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 ))
             }
             rustc_mir::Rvalue::Ref(region, bk, p) => {
-                Ok(Rvalue::Ref(
-                    lower_region(region)?,
-                    self.lower_borrow_kind(*bk)?,
-                    lower_place(p)?,
-                ))
+                Ok(Rvalue::Ref(lower_region(region)?, *bk, lower_place(p)?))
             }
             rustc_mir::Rvalue::UnaryOp(un_op, op) => {
                 Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?))
@@ -442,19 +424,6 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             | rustc_mir::Rvalue::CopyForDeref(_)
             | rustc_mir::Rvalue::ShallowInitBox(_, _) => {
                 Err(UnsupportedReason::new(format!("unsupported rvalue `{rvalue:?}`")))
-            }
-        }
-    }
-
-    fn lower_borrow_kind(
-        &self,
-        bk: rustc_mir::BorrowKind,
-    ) -> Result<BorrowKind, UnsupportedReason> {
-        match bk {
-            rustc_mir::BorrowKind::Shared => Ok(BorrowKind::Shared),
-            rustc_mir::BorrowKind::Mut { kind } => Ok(BorrowKind::Mut { kind }),
-            rustc_mir::BorrowKind::Fake(_) => {
-                Err(UnsupportedReason::new(format!("unsupported borrow kind `{bk:?}`")))
             }
         }
     }

@@ -9,8 +9,9 @@ use flux_middle::{
     rty,
     rustc::{
         mir::{
-            BasicBlock, Body, FieldIdx, Local, Location, Operand, Place, PlaceElem, Rvalue,
-            Statement, StatementKind, Terminator, TerminatorKind, VariantIdx, FIRST_VARIANT,
+            BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, Operand, Place, PlaceElem,
+            Rvalue, Statement, StatementKind, Terminator, TerminatorKind, VariantIdx,
+            FIRST_VARIANT,
         },
         ty::{AdtDef, GenericArgs, Ty, TyKind},
     },
@@ -304,8 +305,11 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                     Rvalue::Use(op) | Rvalue::Cast(_, op, _) | Rvalue::UnaryOp(_, op) => {
                         self.operand(op, env)?;
                     }
-                    Rvalue::Ref(.., place) => {
-                        M::projection(self, env, place, ProjKind::Other)?;
+                    Rvalue::Ref(.., bk, place) => {
+                        // Fake borrows should not cause the place to fold
+                        if !matches!(bk, BorrowKind::Fake(_)) {
+                            M::projection(self, env, place, ProjKind::Other)?;
+                        }
                     }
                     Rvalue::CheckedBinaryOp(_, op1, op2) | Rvalue::BinaryOp(_, op1, op2) => {
                         self.operand(op1, env)?;

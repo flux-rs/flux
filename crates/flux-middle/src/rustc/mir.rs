@@ -10,18 +10,18 @@ use itertools::Itertools;
 pub use rustc_borrowck::borrow_set::BorrowData;
 use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex};
 use rustc_data_structures::{fx::FxIndexMap, graph::dominators::Dominators};
-use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
-    mir::{self, MutBorrowKind},
+    mir,
     ty::{FloatTy, IntTy, ParamConst, TyCtxt, UintTy},
 };
 pub use rustc_middle::{
     mir::{
-        BasicBlock, Local, LocalKind, Location, SourceInfo, SwitchTargets, UnOp, UnwindAction,
-        RETURN_PLACE, START_BLOCK,
+        BasicBlock, BorrowKind, FakeBorrowKind, FakeReadCause, Local, LocalKind, Location,
+        SourceInfo, SwitchTargets, UnOp, UnwindAction, RETURN_PLACE, START_BLOCK,
     },
     ty::{UserTypeAnnotationIndex, Variance},
 };
@@ -195,11 +195,6 @@ pub enum Rvalue {
     Repeat(Operand, Const),
 }
 
-pub enum BorrowKind {
-    Mut { kind: MutBorrowKind },
-    Shared,
-}
-
 #[derive(Copy, Clone)]
 pub enum CastKind {
     IntToInt,
@@ -287,11 +282,6 @@ pub enum Constant {
     Param(ParamConst, Ty),
     /// General catch-all for constants of a given Ty
     Opaque(Ty),
-}
-
-pub enum FakeReadCause {
-    ForLet(Option<LocalDefId>),
-    ForMatchedPlace(Option<LocalDefId>),
 }
 
 impl<'tcx> Terminator<'tcx> {
@@ -647,6 +637,12 @@ impl fmt::Debug for Rvalue {
             Rvalue::Ref(r, BorrowKind::Shared, place) => {
                 write!(f, "&{} {place:?}", region_to_string(*r))
             }
+            Rvalue::Ref(r, BorrowKind::Fake(FakeBorrowKind::Shallow), place) => {
+                write!(f, "&{} fake shallow {place:?}", region_to_string(*r))
+            }
+            Rvalue::Ref(r, BorrowKind::Fake(FakeBorrowKind::Deep), place) => {
+                write!(f, "&{} fake deep {place:?}", region_to_string(*r))
+            }
             Rvalue::Discriminant(place) => write!(f, "discriminant({place:?})"),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
             Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {
@@ -742,15 +738,6 @@ impl fmt::Debug for Constant {
             Constant::Char => write!(f, "\"<opaque char>\""),
             Constant::Opaque(ty) => write!(f, "<opaque {:?}>", ty),
             Constant::Param(p, _) => write!(f, "{:?}", p),
-        }
-    }
-}
-
-impl fmt::Debug for FakeReadCause {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            FakeReadCause::ForLet(def_id) => write!(f, "ForLet({def_id:?})"),
-            FakeReadCause::ForMatchedPlace(def_id) => write!(f, "ForMatchedPlace({def_id:?})"),
         }
     }
 }
