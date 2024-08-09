@@ -1552,6 +1552,8 @@ pub(crate) mod errors {
         Inference,
         OpaqueStruct(DefId),
         Query(QueryErr),
+        /// A bug in Flux we can report without killing the entire process
+        Bug(String),
     }
 
     impl CheckerError {
@@ -1583,6 +1585,12 @@ pub(crate) mod errors {
                     diag
                 }
                 CheckerErrKind::Query(err) => err.at(self.span).into_diag(dcx, level),
+                CheckerErrKind::Bug(note) => {
+                    let mut diag = dcx.struct_span_err(self.span, fluent::refineck_bug);
+                    diag.note(note);
+                    diag.code(E0999);
+                    diag
+                }
             }
         }
     }
