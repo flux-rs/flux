@@ -219,15 +219,23 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 decl,
             ));
         }
-        // Skip ensure clauses if errors because we may not have a type for all locations
+        // Skip ensure clauses if there are any errors because we may not have a type for all locations
         if self.errors.has_errors() {
             return;
         }
-        for ensures in &a.ensures {
+        for (i, ensures) in a.ensures.iter().enumerate() {
             if let rty::Ensures::Type(path, ty_a) = ensures {
                 let loc = path.to_loc().unwrap();
                 let ty_b = self.locs.get(&loc).unwrap().clone();
-                self.zip_ty(ty_a, &ty_b);
+                if self.zip_ty(ty_a, &ty_b).is_err() {
+                    self.errors.emit(errors::IncompatibleRefinement::ensures(
+                        self.genv,
+                        self.owner_id,
+                        decl,
+                        &ty_b,
+                        i,
+                    ));
+                }
             }
         }
     }
@@ -442,11 +450,13 @@ enum Error {
 }
 
 mod errors {
+    use flux_common::span_bug;
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use flux_middle::{
         fhir,
         global_env::GlobalEnv,
+        rty,
         rustc::ty::{FieldIdx, VariantIdx},
     };
     use rustc_hir::def_id::DefId;
@@ -461,7 +471,7 @@ mod errors {
         #[label]
         span: Span,
         #[label(fhir_analysis_expected_label)]
-        expected_span: Span,
+        expected_span: Option<Span>,
         expected_ty: String,
         def_descr: &'static str,
     }
@@ -476,7 +486,7 @@ mod errors {
             Self {
                 span: type_alias.ty.span,
                 def_descr: tcx.def_descr(def_id),
-                expected_span: tcx.def_span(def_id),
+                expected_span: Some(tcx.def_span(def_id)),
                 expected_ty: format!("{}", tcx.type_of(def_id).skip_binder()),
             }
         }
@@ -497,7 +507,7 @@ mod errors {
             Self {
                 span: decl.inputs[pos].span,
                 def_descr: genv.tcx().def_descr(def_id),
-                expected_span: expected_ty.span,
+                expected_span: Some(expected_ty.span),
                 expected_ty: rustc_hir_pretty::ty_to_string(&genv.tcx(), &expected_ty),
             }
         }
@@ -517,8 +527,27 @@ mod errors {
             Self {
                 span: spec_span,
                 def_descr: genv.tcx().def_descr(def_id),
-                expected_span: expected_decl.output.span(),
+                expected_span: Some(expected_decl.output.span()),
                 expected_ty,
+            }
+        }
+
+        pub(super) fn ensures(
+            genv: GlobalEnv,
+            def_id: DefId,
+            decl: &fhir::FnDecl,
+            expected: &rty::Ty,
+            i: usize,
+        ) -> Self {
+            let fhir::Ensures::Type(_, ty) = &decl.output.ensures[i] else {
+                span_bug!(decl.span, "expected `fhir::Ensures::Type`");
+            };
+            let tcx = genv.tcx();
+            Self {
+                span: ty.span,
+                def_descr: tcx.def_descr(def_id),
+                expected_span: None,
+                expected_ty: format!("{}", expected.to_rustc(tcx)),
             }
         }
 
@@ -551,7 +580,7 @@ mod errors {
             Self {
                 span,
                 def_descr: tcx.def_descr(field_def.did),
-                expected_span: tcx.def_span(field_def.did),
+                expected_span: Some(tcx.def_span(field_def.did)),
                 expected_ty: format!("{}", tcx.type_of(field_def.did).skip_binder()),
             }
         }

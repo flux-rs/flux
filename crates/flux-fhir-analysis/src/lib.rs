@@ -11,7 +11,6 @@ extern crate rustc_span;
 extern crate rustc_trait_selection;
 extern crate rustc_type_ir;
 
-mod annot_check;
 pub mod compare_impl_item;
 mod conv;
 mod wf;
