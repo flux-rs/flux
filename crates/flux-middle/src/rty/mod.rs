@@ -35,7 +35,7 @@ pub use rustc_middle::{
 };
 use rustc_span::{sym, symbol::kw, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
-pub use rustc_type_ir::INNERMOST;
+pub use rustc_type_ir::{TyVid, INNERMOST};
 pub use SortInfer::*;
 
 use self::{
@@ -840,8 +840,8 @@ impl Ty {
         BaseTy::Never.to_ty()
     }
 
-    pub fn hole(fhir_id: FhirId) -> Ty {
-        TyKind::Hole(fhir_id).intern()
+    pub fn infer(vid: TyVid) -> Ty {
+        TyKind::Infer(vid).intern()
     }
 
     /// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
@@ -905,7 +905,7 @@ impl Ty {
             | TyKind::Discr(_, _)
             | TyKind::Downcast(_, _, _, _, _)
             | TyKind::Blocked(_)
-            | TyKind::Hole(_) => bug!(),
+            | TyKind::Infer(_) => bug!(),
         }
     }
 
@@ -1029,11 +1029,10 @@ pub enum TyKind {
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
     Blocked(Ty),
     Alias(AliasKind, AliasTy),
-    /// A hole is a type that needs to be inferred by matching the signature against a rust signature.
-    /// Holes appear as an intermediate step during `conv` and should not be present in the final
-    /// signature. We use the [`FhirId`] of the `fhir` type to assign a unique id to the hole, but
-    /// we could alternatively have a dedicated variable id for this.
-    Hole(FhirId),
+    /// A type that needs to be inferred by matching the signature against a rust signature.
+    /// [`TyKind::Infer`] appear as an intermediate step during `conv` and should not be present in
+    /// the final signature.
+    Infer(TyVid),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]

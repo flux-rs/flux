@@ -533,7 +533,7 @@ pub enum TyKind<'fhir> {
     OpaqueDef(ItemId, &'fhir [GenericArg<'fhir>], &'fhir [RefineArg<'fhir>], bool),
     TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
     Never,
-    Hole(FhirId),
+    Infer,
 }
 
 #[derive(Clone, Copy)]
@@ -1272,7 +1272,7 @@ impl fmt::Debug for Ty<'_> {
             TyKind::Constr(pred, ty) => write!(f, "{{{ty:?} | {pred:?}}}"),
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
-            TyKind::Hole(_) => write!(f, "_"),
+            TyKind::Infer => write!(f, "_"),
             TyKind::OpaqueDef(def_id, args, refine_args, _) => {
                 write!(
                     f,

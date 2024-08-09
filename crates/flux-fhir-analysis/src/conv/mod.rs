@@ -46,6 +46,7 @@ use rustc_type_ir::DebruijnIndex;
 pub struct ConvCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     wfckresults: &'a WfckResults,
+    next_type_index: u32,
     next_region_index: u32,
     next_const_index: u32,
 }
@@ -382,7 +383,7 @@ pub(crate) fn conv_ty(
 
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, wfckresults: &'a WfckResults) -> Self {
-        Self { genv, wfckresults, next_region_index: 0, next_const_index: 0 }
+        Self { genv, wfckresults, next_type_index: 0, next_region_index: 0, next_const_index: 0 }
     }
 
     fn conv_generic_bounds(
@@ -805,7 +806,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     rty::Expr::unit(),
                 ))
             }
-            fhir::TyKind::Hole(fhir_id) => Ok(rty::Ty::hole(*fhir_id)),
             fhir::TyKind::OpaqueDef(item_id, args0, refine_args, _in_trait) => {
                 let def_id = item_id.owner_id.to_def_id();
                 let args = List::from_vec(self.conv_generic_args(env, def_id, args0)?);
@@ -828,6 +828,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     span_bug!(ty.span, "dyn* traits not supported yet")
                 }
             }
+            fhir::TyKind::Infer => Ok(rty::Ty::infer(self.next_type_vid())),
         }
     }
 
@@ -1250,6 +1251,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
 
     fn resolve_param_sort(&self, param: &fhir::RefineParam) -> QueryResult<rty::Sort> {
         resolve_param_sort(self.genv, param, Some(self.wfckresults))
+    }
+
+    fn next_type_vid(&mut self) -> rty::TyVid {
+        self.next_type_index = self.next_type_index.checked_add(1).unwrap();
+        rty::TyVid::from_u32(self.next_type_index - 1)
     }
 
     fn next_region_vid(&mut self) -> rty::RegionVid {

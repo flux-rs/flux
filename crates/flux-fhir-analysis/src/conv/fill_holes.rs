@@ -2,7 +2,6 @@ use std::iter;
 
 use flux_common::bug;
 use flux_middle::{
-    fhir::FhirId,
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     rty::{
@@ -63,7 +62,7 @@ struct Zipper<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     generics: rty::Generics,
     locs: UnordMap<rty::Loc, ty::Ty>,
-    type_holes: UnordMap<FhirId, rty::Ty>,
+    type_holes: UnordMap<rty::TyVid, rty::Ty>,
     region_holes: UnordMap<rty::RegionVid, rty::Region>,
     const_holes: UnordMap<rty::ConstVid, rty::Const>,
     rty_index: DebruijnIndex,
@@ -121,10 +120,10 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
 
     fn zip_ty(&mut self, a: &rty::Ty, b: &ty::Ty) -> QueryResult {
         match (a.kind(), b.kind()) {
-            (rty::TyKind::Hole(fhir_id), _) => {
+            (rty::TyKind::Infer(vid), _) => {
                 let ty = self.genv.refine_default(&self.generics, b)?;
                 let ty = self.adjust_binders(&ty);
-                self.type_holes.insert(*fhir_id, ty);
+                self.type_holes.insert(*vid, ty);
             }
             (rty::TyKind::Indexed(bty, _), _) => {
                 self.zip_bty(bty, b)?;
@@ -313,7 +312,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
     fn replace_holes<T: TypeFoldable>(&self, t: &T) -> T {
         t.fold_with(&mut BottomUpFolder {
             ty_op: |ty| {
-                if let rty::TyKind::Hole(fhir_id) = ty.kind() {
+                if let rty::TyKind::Infer(fhir_id) = ty.kind() {
                     self.type_holes
                         .get(fhir_id)
                         .cloned()

@@ -311,7 +311,7 @@ impl Pretty for TyS {
                     join!(", ", &alias_ty.refine_args)
                 )
             }
-            TyKind::Hole(_) => {
+            TyKind::Infer(_) => {
                 w!("□")
             }
         }

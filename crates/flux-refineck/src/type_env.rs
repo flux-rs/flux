@@ -337,7 +337,7 @@ impl BasicBlockEnvShape {
             | TyKind::Uninit
             | TyKind::Param(_)
             | TyKind::Constr(_, _) => ty.clone(),
-            TyKind::Hole(_) => bug!("unexpected hole whecn checking function body"),
+            TyKind::Infer(_) => bug!("unexpected hole whecn checking function body"),
             TyKind::StrgRef(..) => bug!("unexpected strong reference when checking function body"),
         }
     }
