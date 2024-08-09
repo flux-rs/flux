@@ -464,6 +464,28 @@
 <a href="#464" id="464">464</a>
 <a href="#465" id="465">465</a>
 <a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
@@ -471,6 +493,7 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_middle::ty::{ClosureKind, ParamTy};
+<span class="kw">use </span>rustc_target::abi::VariantIdx;
 
 <span class="kw">use </span><span class="kw">super</span>::fold::TypeFoldable;
 <span class="kw">use crate</span>::{
@@ -494,7 +517,12 @@
         })
         .collect();
 
-    <span class="prelude-val">Ok</span>(rty::Generics { params, parent: generics.parent(), parent_count: generics.parent_count() })
+    <span class="prelude-val">Ok</span>(rty::Generics {
+        own_params: params,
+        parent: generics.parent(),
+        parent_count: generics.parent_count(),
+        has_self: generics.orig.has_self,
+    })
 }
 
 <span class="kw">pub fn </span>refine_generic_param_def_kind(
@@ -653,9 +681,19 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         exi_trait_ref: <span class="kw-2">&amp;</span>rustc::ty::ExistentialTraitRef,
     ) -&gt; QueryResult&lt;rty::ExistentialTraitRef&gt; {
+        <span class="kw">let </span>trait_generics = <span class="self">self</span>.generics_of(exi_trait_ref.def_id)<span class="question-mark">?</span>;
         <span class="kw">let </span>exi_trait_ref = rty::ExistentialTraitRef {
             def_id: exi_trait_ref.def_id,
-            args: <span class="self">self</span>.refine_generic_args(exi_trait_ref.def_id, <span class="kw-2">&amp;</span>exi_trait_ref.args)<span class="question-mark">?</span>,
+            args: exi_trait_ref
+                .args
+                .iter()
+                .enumerate()
+                .map(|(idx, arg)| {
+                    <span class="comment">// We need to skip the generic for Self
+                    </span><span class="kw">let </span>param = trait_generics.param_at(idx + <span class="number">1</span>, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
+                    <span class="self">self</span>.refine_generic_arg(<span class="kw-2">&amp;</span>param, arg)
+                })
+                .try_collect()<span class="question-mark">?</span>,
         };
         <span class="prelude-val">Ok</span>(exi_trait_ref)
     }
@@ -668,13 +706,21 @@
         <span class="prelude-val">Ok</span>(trait_ref)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_variant_def(
+    <span class="kw">pub fn </span>refine_variant_def(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         adt_def_id: DefId,
-        fields: <span class="kw-2">&amp;</span>[rustc::ty::Ty],
+        variant_idx: VariantIdx,
     ) -&gt; QueryResult&lt;rty::PolyVariant&gt; {
         <span class="kw">let </span>adt_def = <span class="self">self</span>.adt_def(adt_def_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span>fields = fields.iter().map(|ty| <span class="self">self</span>.refine_ty(ty)).try_collect()<span class="question-mark">?</span>;
+        <span class="kw">let </span>fields = adt_def
+            .variant(variant_idx)
+            .fields
+            .iter()
+            .map(|fld| {
+                <span class="kw">let </span>ty = <span class="self">self</span>.genv.lower_type_of(fld.did)<span class="question-mark">?</span>.instantiate_identity();
+                <span class="self">self</span>.refine_ty(<span class="kw-2">&amp;</span>ty)
+            })
+            .try_collect()<span class="question-mark">?</span>;
         <span class="kw">let </span>value = rty::VariantSig::new(
             adt_def,
             rty::GenericArgs::identity_for_item(<span class="self">self</span>.genv, adt_def_id)<span class="question-mark">?</span>,
@@ -698,10 +744,7 @@
         <span class="prelude-val">Ok</span>(rty::Binder::new(inner, vars))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>refine_poly_fn_sig(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        fn_sig: <span class="kw-2">&amp;</span>rustc::ty::PolyFnSig,
-    ) -&gt; QueryResult&lt;rty::PolyFnSig&gt; {
+    <span class="kw">pub fn </span>refine_poly_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, fn_sig: <span class="kw-2">&amp;</span>rustc::ty::PolyFnSig) -&gt; QueryResult&lt;rty::PolyFnSig&gt; {
         <span class="self">self</span>.refine_binders(fn_sig, |fn_sig| {
             <span class="kw">let </span>inputs = fn_sig
                 .inputs()
@@ -720,12 +763,13 @@
         args: <span class="kw-2">&amp;</span>rustc::ty::GenericArgs,
     ) -&gt; QueryResult&lt;rty::GenericArgs&gt; {
         <span class="kw">let </span>generics = <span class="self">self</span>.generics_of(def_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="macro">vec!</span>[];
-        <span class="kw">for </span>(idx, arg) <span class="kw">in </span>args.iter().enumerate() {
-            <span class="kw">let </span>param = generics.param_at(idx, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
-            result.push(<span class="self">self</span>.refine_generic_arg(<span class="kw-2">&amp;</span>param, arg)<span class="question-mark">?</span>);
-        }
-        <span class="prelude-val">Ok</span>(List::from_vec(result))
+        args.iter()
+            .enumerate()
+            .map(|(idx, arg)| {
+                <span class="kw">let </span>param = generics.param_at(idx, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
+                <span class="self">self</span>.refine_generic_arg(<span class="kw-2">&amp;</span>param, arg)
+            })
+            .collect()
     }
 
     <span class="kw">pub fn </span>refine_generic_arg(

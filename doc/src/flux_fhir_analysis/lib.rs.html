@@ -476,7 +476,6 @@
 <a href="#476" id="476">476</a>
 <a href="#477" id="477">477</a>
 <a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -484,12 +483,12 @@
 <span class="kw">extern crate </span>rustc_errors;
 <span class="kw">extern crate </span>rustc_hash;
 <span class="kw">extern crate </span>rustc_hir;
+<span class="kw">extern crate </span>rustc_hir_pretty;
 <span class="kw">extern crate </span>rustc_middle;
 <span class="kw">extern crate </span>rustc_span;
 <span class="kw">extern crate </span>rustc_trait_selection;
 <span class="kw">extern crate </span>rustc_type_ir;
 
-<span class="kw">mod </span>annot_check;
 <span class="kw">pub mod </span>compare_impl_item;
 <span class="kw">mod </span>conv;
 <span class="kw">mod </span>wf;
@@ -744,9 +743,10 @@
         </span>}
         DefKind::Closure =&gt; {
             rty::Generics {
-                params: List::empty(),
+                own_params: List::empty(),
                 parent: rustc_generics.parent(),
                 parent_count: rustc_generics.parent_count(),
+                has_self: rustc_generics.orig.has_self,
             }
         }
         kind =&gt; <span class="macro">bug!</span>(<span class="string">"generics_of called on `{def_id:?}` with kind `{kind:?}`"</span>),
@@ -792,7 +792,7 @@
         DefKind::TyAlias { .. } =&gt; {
             <span class="kw">let </span>alias = genv.map().expect_item(def_id)<span class="question-mark">?</span>.expect_type_alias();
             <span class="kw">let </span>wfckresults = genv.check_wf(def_id)<span class="question-mark">?</span>;
-            conv::expand_type_alias(genv, def_id.to_def_id(), alias, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
+            conv::expand_type_alias(genv, def_id, alias, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
         </span>}
         DefKind::TyParam =&gt; {
             <span class="kw">match </span><span class="kw-2">&amp;</span>genv.get_generic_param(def_id)<span class="question-mark">?</span>.kind {
@@ -874,10 +874,8 @@
         </span>}
         FluxLocalDefId::Rust(def_id) =&gt; {
             <span class="kw">let </span>node = genv.desugar(def_id)<span class="question-mark">?</span>;
-            <span class="kw">let </span>wfckresults = wf::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
-            annot_check::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
-            wfckresults
-        }
+            wf::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?
+        </span>}
     };
     <span class="prelude-val">Ok</span>(Rc::new(wfckresults))
 }

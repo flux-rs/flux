@@ -2286,6 +2286,20 @@
 <a href="#2286" id="2286">2286</a>
 <a href="#2287" id="2287">2287</a>
 <a href="#2288" id="2288">2288</a>
+<a href="#2289" id="2289">2289</a>
+<a href="#2290" id="2290">2290</a>
+<a href="#2291" id="2291">2291</a>
+<a href="#2292" id="2292">2292</a>
+<a href="#2293" id="2293">2293</a>
+<a href="#2294" id="2294">2294</a>
+<a href="#2295" id="2295">2295</a>
+<a href="#2296" id="2296">2296</a>
+<a href="#2297" id="2297">2297</a>
+<a href="#2298" id="2298">2298</a>
+<a href="#2299" id="2299">2299</a>
+<a href="#2300" id="2300">2300</a>
+<a href="#2301" id="2301">2301</a>
+<a href="#2302" id="2302">2302</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2412,17 +2426,31 @@
 </span><span class="kw">pub struct </span>Generics {
     <span class="kw">pub </span>parent: <span class="prelude-ty">Option</span>&lt;DefId&gt;,
     <span class="kw">pub </span>parent_count: usize,
-    <span class="kw">pub </span>params: List&lt;GenericParamDef&gt;,
+    <span class="kw">pub </span>own_params: List&lt;GenericParamDef&gt;,
+    <span class="kw">pub </span>has_self: bool,
 }
 
 <span class="kw">impl </span>Generics {
     <span class="kw">pub fn </span>count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.parent_count + <span class="self">self</span>.params.len()
+        <span class="self">self</span>.parent_count + <span class="self">self</span>.own_params.len()
+    }
+
+    <span class="kw">pub fn </span>own_default_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.own_params
+            .iter()
+            .filter(|param| {
+                <span class="kw">match </span>param.kind {
+                    GenericParamDefKind::Type { has_default } =&gt; has_default,
+                    GenericParamDefKind::Const { has_default } =&gt; has_default,
+                    GenericParamDefKind::Base | GenericParamDefKind::Lifetime =&gt; <span class="bool-val">false</span>,
+                }
+            })
+            .count()
     }
 
     <span class="kw">pub fn </span>param_at(<span class="kw-2">&amp;</span><span class="self">self</span>, param_index: usize, genv: GlobalEnv) -&gt; QueryResult&lt;GenericParamDef&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(index) = param_index.checked_sub(<span class="self">self</span>.parent_count) {
-            <span class="prelude-val">Ok</span>(<span class="self">self</span>.params[index].clone())
+            <span class="prelude-val">Ok</span>(<span class="self">self</span>.own_params[index].clone())
         } <span class="kw">else </span>{
             <span class="kw">let </span>parent = <span class="self">self</span>.parent.expect(<span class="string">"parent_count &gt; 0 but no parent?"</span>);
             genv.generics_of(parent)<span class="question-mark">?</span>.param_at(param_index, genv)
@@ -3752,7 +3780,7 @@
             <span class="kw">let </span>parent_generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
             <span class="self">Self</span>::fill_item(genv, args, <span class="kw-2">&amp;</span>parent_generics, mk_kind)<span class="question-mark">?</span>;
         }
-        <span class="kw">for </span>param <span class="kw">in </span><span class="kw-2">&amp;</span>generics.params {
+        <span class="kw">for </span>param <span class="kw">in </span><span class="kw-2">&amp;</span>generics.own_params {
             <span class="kw">let </span>kind = mk_kind(param, args);
             <span class="macro">assert_eq!</span>(param.index <span class="kw">as </span>usize, args.len(), <span class="string">"{args:#?}, {generics:#?}"</span>);
             args.push(kind);
@@ -4485,7 +4513,7 @@
 <span class="attr">#[macro_export]
 </span><span class="macro">macro_rules!</span> _Ref {
     ($(<span class="macro-nonterminal">$pats</span>:pat),+ $(,)<span class="question-mark">?</span>) =&gt; {
-        TyKind::Indexed(BaseTy::Ref($(<span class="macro-nonterminal">$pats</span>),+), <span class="kw">_</span>)
+        <span class="macro-nonterminal">$crate::rty::TyKind::Indexed</span>(<span class="macro-nonterminal">$crate::rty::BaseTy::Ref</span>($(<span class="macro-nonterminal">$pats</span>),+), <span class="kw">_</span>)
     };
 }
 <span class="kw">pub use </span><span class="kw">crate</span>::_Ref <span class="kw">as </span>Ref;

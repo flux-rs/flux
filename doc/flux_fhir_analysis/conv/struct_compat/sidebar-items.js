@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Error"],"fn":["assert_eq_or_incompatible","fn_sig","local_id_for_maybe_extern","type_alias","variants"],"mod":["errors"],"struct":["Holes","Zipper"]};

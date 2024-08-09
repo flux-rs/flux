@@ -737,18 +737,11 @@
 <a href="#737" id="737">737</a>
 <a href="#738" id="738">738</a>
 <a href="#739" id="739">739</a>
-<a href="#740" id="740">740</a>
-<a href="#741" id="741">741</a>
-<a href="#742" id="742">742</a>
-<a href="#743" id="743">743</a>
-<a href="#744" id="744">744</a>
-<a href="#745" id="745">745</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
 };
 
-<span class="kw">use </span>flux_common::iter::IterExt;
 <span class="kw">use </span>flux_errors::{ErrorGuaranteed, E0999};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::unord::{ExtendUnord, UnordMap};
@@ -1313,15 +1306,10 @@
                     .tcx()
                     .adt_def(def_id)
                     .variants()
-                    .iter()
-                    .map(|variant_def| {
-                        <span class="kw">let </span>fields = variant_def
-                            .fields
-                            .iter()
-                            .map(|field| <span class="prelude-val">Ok</span>(genv.lower_type_of(field.did)<span class="question-mark">?</span>.skip_binder()))
-                            .try_collect_vec::&lt;<span class="kw">_</span>, QueryErr&gt;()<span class="question-mark">?</span>;
+                    .indices()
+                    .map(|variant_idx| {
                         Refiner::default(genv, <span class="kw-2">&amp;</span>genv.generics_of(def_id)<span class="question-mark">?</span>)
-                            .refine_variant_def(def_id, <span class="kw-2">&amp;</span>fields)
+                            .refine_variant_def(def_id, variant_idx)
                     })
                     .try_collect()<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(rty::Opaqueness::Transparent(rty::EarlyBinder(variants)))

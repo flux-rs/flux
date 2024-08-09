@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["check_enum_def","check_fn_sig","check_impl_item","check_item","check_node","check_struct_def","check_trait_item","check_ty_alias"],"mod":["errors"],"struct":["Zipper"],"type":["LocsMap"]};

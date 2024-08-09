@@ -1617,7 +1617,6 @@
 <a href="#1617" id="1617">1617</a>
 <a href="#1618" id="1618">1618</a>
 <a href="#1619" id="1619">1619</a>
-<a href="#1620" id="1620">1620</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -2448,7 +2447,6 @@
                 <span class="kw">let </span>upvar_tys = <span class="self">self</span>.check_aggregate_operands(rcx, env, stmt_span, ops)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(Ty::coroutine(<span class="kw-2">*</span>did, resume_ty, upvar_tys))
             }
-
             Rvalue::Discriminant(place) =&gt; {
                 <span class="kw">let </span>ty = env
                     .lookup_place(<span class="self">self</span>.genv, rcx, place)
