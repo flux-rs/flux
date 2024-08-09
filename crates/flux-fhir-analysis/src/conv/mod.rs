@@ -28,6 +28,7 @@ use flux_middle::{
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hir::{
+    self as hir,
     def::DefKind,
     def_id::{DefId, LocalDefId},
     PrimTy,
@@ -759,7 +760,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                         Ok(self.conv_ty_ctor(env, path)?.replace_bound_reft(&idx))
                     }
                     fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(..)) => {
-                        span_bug!(ty.span, "Indexed type relative types are not yet supported");
+                        span_bug!(ty.span, "Indexed type relative paths are not yet supported");
                     }
                     fhir::BaseTyKind::Slice(ty) => {
                         let bty = rty::BaseTy::Slice(self.conv_ty(env, ty)?);
@@ -806,15 +807,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     rty::Expr::unit(),
                 ))
             }
-            fhir::TyKind::OpaqueDef(item_id, args0, refine_args, _in_trait) => {
-                let def_id = item_id.owner_id.to_def_id();
-                let args = List::from_vec(self.conv_generic_args(env, def_id, args0)?);
-                let refine_args = refine_args
-                    .iter()
-                    .map(|arg| self.conv_refine_arg(env, arg))
-                    .try_collect()?;
-                let alias_ty = rty::AliasTy::new(def_id, args, refine_args);
-                Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
+            fhir::TyKind::OpaqueDef(item_id, lifetimes, reft_args, _in_trait) => {
+                self.conv_opaque_ty(env, *item_id, lifetimes, reft_args)
             }
             fhir::TyKind::TraitObject(poly_traits, lft, syn) => {
                 let exi_preds: List<_> = poly_traits
@@ -830,6 +824,31 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::TyKind::Infer => Ok(rty::Ty::infer(self.next_type_vid())),
         }
+    }
+
+    fn conv_opaque_ty(
+        &mut self,
+        env: &mut Env,
+        item_id: hir::ItemId,
+        lifetimes: &[fhir::GenericArg],
+        reft_args: &[fhir::RefineArg],
+    ) -> QueryResult<rty::Ty> {
+        let def_id = item_id.owner_id.to_def_id();
+        let args = lifetimes
+            .iter()
+            .map(|arg| {
+                let fhir::GenericArg::Lifetime(lft) = arg else {
+                    bug!("only lifetimes supported for opaque types")
+                };
+                rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft))
+            })
+            .collect();
+        let reft_args = reft_args
+            .iter()
+            .map(|arg| self.conv_refine_arg(env, arg))
+            .try_collect()?;
+        let alias_ty = rty::AliasTy::new(def_id, args, reft_args);
+        Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
     }
 
     fn conv_base_ty(&mut self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {

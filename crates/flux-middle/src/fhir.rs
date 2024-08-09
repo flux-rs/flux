@@ -677,6 +677,16 @@ pub enum GenericArg<'fhir> {
     Const(ConstArg),
 }
 
+impl<'fhir> GenericArg<'fhir> {
+    pub fn expect_type(&self) -> &'fhir Ty<'fhir> {
+        if let GenericArg::Type(ty) = self {
+            ty
+        } else {
+            bug!("expected `GenericArg::Type`")
+        }
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub struct ConstArg {
     pub kind: ConstArgKind,
@@ -1152,16 +1162,6 @@ impl rustc_errors::IntoDiagArg for Ty<'_> {
 impl rustc_errors::IntoDiagArg for Path<'_> {
     fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
         rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
-    }
-}
-
-impl<'fhir> GenericArg<'fhir> {
-    pub fn expect_type(&self) -> &'fhir Ty<'fhir> {
-        if let GenericArg::Type(ty) = self {
-            ty
-        } else {
-            bug!("expected `GenericArg::Type`")
-        }
     }
 }
 
