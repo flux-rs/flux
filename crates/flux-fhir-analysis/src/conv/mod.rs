@@ -450,8 +450,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
 
         let def_id = poly_trait_ref.trait_def_id();
-        let mut into = vec![];
+        let dummy_self = rty::GenericArg::Ty(rty::Ty::trait_object_dummy_self());
+        let mut into = vec![dummy_self];
         self.conv_generic_args_into(env, def_id, trait_segment.args, &mut into)?;
+
+        // Remove dummy `Self`
+        into.remove(0);
 
         let exi_trait_ref = rty::ExistentialTraitRef { def_id, args: into.into() };
         let exi_pred = rty::ExistentialPredicate::Trait(exi_trait_ref);
@@ -475,7 +479,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let mut args =
             vec![self.ty_to_generic_arg(self_param.kind, bounded_ty_span, bounded_ty)?];
         self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
-        self.fill_generic_args_defaults(trait_id, &mut args)?;
         let trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
 
         let pred = rty::TraitPredicate { trait_ref: trait_ref.clone() };
@@ -1152,7 +1155,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     ) -> QueryResult<Vec<rty::GenericArg>> {
         let mut into = vec![];
         self.conv_generic_args_into(env, def_id, args, &mut into)?;
-        self.fill_generic_args_defaults(def_id, &mut into)?;
         Ok(into)
     }
 
@@ -1179,7 +1181,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 }
             }
         }
-        Ok(())
+        self.fill_generic_args_defaults(def_id, into)
     }
 
     fn fill_generic_args_defaults(

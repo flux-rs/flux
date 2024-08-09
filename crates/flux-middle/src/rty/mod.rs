@@ -707,6 +707,14 @@ impl TyCtor {
 pub type Ty = Interned<TyS>;
 
 impl Ty {
+    /// Dummy type used for the `Self` of a `TraitRef` created for converting
+    /// a trait object, and which gets removed in `ExistentialTraitRef`.
+    /// This type must not appear anywhere in other converted types.
+    /// `Ty::uninit` does the job, because it cannot appear in the surface.
+    pub fn trait_object_dummy_self() -> Ty {
+        Ty::uninit()
+    }
+
     pub fn alias(kind: AliasKind, alias_ty: AliasTy) -> Ty {
         TyKind::Alias(kind, alias_ty).intern()
     }
