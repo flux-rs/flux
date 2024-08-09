@@ -812,9 +812,12 @@
 <a href="#812" id="812">812</a>
 <a href="#813" id="813">813</a>
 <a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, iter};
 
-<span class="kw">use </span>flux_common::{bug, tracked_span_bug};
+<span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     intern::List,
@@ -1278,7 +1281,7 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>subtyping(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, ty1: <span class="kw-2">&amp;</span>Ty, ty2: <span class="kw-2">&amp;</span>Ty) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>rcx = <span class="kw-2">&amp;mut </span>rcx.branch();
 
-        <span class="comment">// We *fully* unpack the rhs before continuing to be able to prove goals like this
+        <span class="comment">// We *fully* unpack the lhs before continuing to be able to prove goals like this
         // ∃a. (i32[a], ∃b. {i32[b] | a &gt; b})} &lt;: ∃a,b. ({i32[a] | b &lt; a}, i32[b])
         // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
         </span><span class="kw">let </span>ty1 = rcx.unpack(ty1);
@@ -1343,7 +1346,7 @@
                 <span class="macro">debug_assert_eq!</span>(alias_ty1, alias_ty2);
                 <span class="prelude-val">Ok</span>(())
             }
-            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"`{ty1:?}` &lt;: `{ty2:?}`"</span>),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(CheckerErrKind::Bug(<span class="macro">format!</span>(<span class="string">"incompatible types: `{ty1:?}` - `{ty2:?}`"</span>))),
         }
     }
 
@@ -1410,7 +1413,8 @@
                 <span class="prelude-val">Ok</span>(())
             }
             <span class="kw">_ </span>=&gt; {
-                <span class="macro">panic!</span>(<span class="string">"unexpected base types: `{:?}` and `{:?}`"</span>, bty1, bty2,);
+                <span class="kw">let </span>note = <span class="macro">format!</span>(<span class="string">"incompatible base types: `{bty1:?}` - `{bty2:?}`"</span>);
+                <span class="prelude-val">Err</span>(CheckerErrKind::Bug(note))
             }
         }
     }
@@ -1472,8 +1476,10 @@
                 <span class="macro">debug_assert_eq!</span>(c1, c2);
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
-
-            <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"incompatible generic args: `{arg1:?}` `{arg2:?}"</span>),
+            <span class="kw">_ </span>=&gt; {
+                <span class="kw">let </span>note = <span class="macro">format!</span>(<span class="string">"incompatible generic args: `{arg1:?}` `{arg2:?}`"</span>);
+                <span class="kw">return </span><span class="prelude-val">Err</span>(CheckerErrKind::Bug(note));
+            }
         };
         <span class="kw">match </span>variance {
             Variance::Covariant =&gt; <span class="self">self</span>.subtyping(rcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2),
