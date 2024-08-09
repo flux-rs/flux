@@ -8,7 +8,7 @@
 //!    syntactic restrictions on predicates.
 //! 3. Refinements are well-sorted.
 
-mod fill_holes;
+mod struct_compat;
 use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
@@ -144,7 +144,7 @@ pub(crate) fn expand_type_alias(
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
 
-    let ty = fill_holes::type_alias(genv, alias, &ty, def_id)?;
+    let ty = struct_compat::type_alias(genv, alias, &ty, def_id)?;
 
     Ok(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)?))
 }
@@ -358,7 +358,7 @@ pub(crate) fn conv_fn_decl(
         .collect();
 
     let fn_sig = rty::PolyFnSig::new(rty::FnSig::new(requires.into(), inputs.into(), output), vars);
-    let fn_sig = fill_holes::fn_sig(genv, decl, &fn_sig, def_id)?;
+    let fn_sig = struct_compat::fn_sig(genv, decl, &fn_sig, def_id)?;
 
     Ok(rty::EarlyBinder(fn_sig))
 }
@@ -628,7 +628,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 ConvCtxt::conv_enum_variant(genv, adt_def_id, variant_def, wfckresults)
             })
             .try_collect_vec()?;
-        let variants = fill_holes::variants(genv, &variants, adt_def_id)?;
+        let variants = struct_compat::variants(genv, &variants, adt_def_id)?;
         Ok(variants)
     }
 
@@ -699,7 +699,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 idx,
             );
             let variant = rty::Binder::new(variant, vars);
-            let variants = fill_holes::variants(genv, &[variant], adt_def_id)?;
+            let variants = struct_compat::variants(genv, &[variant], adt_def_id)?;
             Ok(rty::Opaqueness::Transparent(variants))
         } else {
             Ok(rty::Opaqueness::Opaque)

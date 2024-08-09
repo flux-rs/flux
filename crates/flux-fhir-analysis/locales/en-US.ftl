@@ -98,7 +98,7 @@ fhir_analysis_cannot_infer_sort =
 fhir_analysis_refined_unrefinable_type =
     type cannot be refined
 
-# Annot check
+# Structural Compatibility
 
 fhir_analysis_incompatible_refinement =
     {$def_descr} has an incompatible refinement annotation

@@ -1,3 +1,8 @@
+//! Check whether two refinemnt types/signatures are structurally compatible.
+//!
+//! Used to check if a user spec is compatible with the underlying rust type. The code also
+//! infer types annotated with `_` in the surface syntax.
+
 use std::iter;
 
 use flux_common::bug;
