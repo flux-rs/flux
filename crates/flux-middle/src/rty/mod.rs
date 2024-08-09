@@ -125,11 +125,25 @@ pub struct Generics {
     pub parent: Option<DefId>,
     pub parent_count: usize,
     pub params: List<GenericParamDef>,
+    pub has_self: bool,
 }
 
 impl Generics {
     pub fn count(&self) -> usize {
         self.parent_count + self.params.len()
+    }
+
+    pub fn own_default_count(&self) -> usize {
+        self.params
+            .iter()
+            .filter(|param| {
+                match param.kind {
+                    GenericParamDefKind::Type { has_default } => has_default,
+                    GenericParamDefKind::Const { has_default } => has_default,
+                    GenericParamDefKind::Base | GenericParamDefKind::Lifetime => false,
+                }
+            })
+            .count()
     }
 
     pub fn param_at(&self, param_index: usize, genv: GlobalEnv) -> QueryResult<GenericParamDef> {

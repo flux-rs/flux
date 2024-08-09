@@ -269,6 +269,7 @@ fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generi
                 params: List::empty(),
                 parent: rustc_generics.parent(),
                 parent_count: rustc_generics.parent_count(),
+                has_self: rustc_generics.orig.has_self,
             }
         }
         kind => bug!("generics_of called on `{def_id:?}` with kind `{kind:?}`"),
@@ -314,7 +315,7 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
         DefKind::TyAlias { .. } => {
             let alias = genv.map().expect_item(def_id)?.expect_type_alias();
             let wfckresults = genv.check_wf(def_id)?;
-            conv::expand_type_alias(genv, def_id.to_def_id(), alias, &wfckresults)?
+            conv::expand_type_alias(genv, def_id, alias, &wfckresults)?
         }
         DefKind::TyParam => {
             match &genv.get_generic_param(def_id)?.kind {

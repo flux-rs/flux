@@ -21,6 +21,28 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_type_ir::{DebruijnIndex, InferConst, INNERMOST};
 
+pub(crate) fn type_alias(
+    genv: GlobalEnv,
+    alias: &fhir::TyAlias,
+    ty: &rty::Ty,
+    def_id: LocalDefId,
+) -> QueryResult<rty::Ty> {
+    let rust_ty = genv.lower_type_of(def_id)?.skip_binder();
+    let generics = genv.generics_of(def_id)?;
+    let expected = Refiner::default(genv, &generics).refine_ty(&rust_ty)?;
+    let mut zipper = Zipper::new(genv, def_id.to_def_id());
+
+    if zipper.zip_ty(ty, &expected).is_err() {
+        zipper
+            .errors
+            .emit(errors::IncompatibleRefinement::type_alias(genv, def_id.to_def_id(), alias));
+    }
+
+    zipper.errors.into_result()?;
+
+    Ok(zipper.holes.replace_holes(ty))
+}
+
 pub(crate) fn fn_sig(
     genv: GlobalEnv,
     decl: &fhir::FnDecl,
@@ -176,7 +198,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         }
         for (i, (ty_a, ty_b)) in iter::zip(a.inputs(), b.inputs()).enumerate() {
             if self.zip_ty(ty_a, ty_b).is_err() {
-                self.errors.emit(errors::IncompatibleRefinement::input(
+                self.errors.emit(errors::IncompatibleRefinement::fn_input(
                     self.genv,
                     self.owner_id,
                     decl,
@@ -191,7 +213,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
 
     fn zip_output(&mut self, decl: &fhir::FnDecl, a: &rty::FnOutput, b: &rty::FnOutput) {
         if self.zip_ty(&a.ret, &b.ret).is_err() {
-            self.errors.emit(errors::IncompatibleRefinement::output(
+            self.errors.emit(errors::IncompatibleRefinement::fn_output(
                 self.genv,
                 self.owner_id,
                 decl,
@@ -445,7 +467,21 @@ mod errors {
     }
 
     impl IncompatibleRefinement {
-        pub(super) fn input(
+        pub(super) fn type_alias(
+            genv: GlobalEnv,
+            def_id: DefId,
+            type_alias: &fhir::TyAlias,
+        ) -> Self {
+            let tcx = genv.tcx();
+            Self {
+                span: type_alias.ty.span,
+                def_descr: tcx.def_descr(def_id),
+                expected_span: tcx.def_span(def_id),
+                expected_ty: format!("{}", tcx.type_of(def_id).skip_binder()),
+            }
+        }
+
+        pub(super) fn fn_input(
             genv: GlobalEnv,
             def_id: DefId,
             decl: &fhir::FnDecl,
@@ -466,7 +502,7 @@ mod errors {
             }
         }
 
-        pub(super) fn output(genv: GlobalEnv, def_id: DefId, decl: &fhir::FnDecl) -> Self {
+        pub(super) fn fn_output(genv: GlobalEnv, def_id: DefId, decl: &fhir::FnDecl) -> Self {
             let expected_decl = genv
                 .tcx()
                 .hir_node_by_def_id(local_id_for_maybe_extern(genv, def_id))

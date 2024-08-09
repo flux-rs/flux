@@ -133,23 +133,6 @@ fhir_analysis_fun_arg_count_mismatch =
         *[other] arguments
     }
 
-fhir_analysis_generic_argument_count_mismatch =
-    this {$def_descr} must take {$expected} generic {$expected ->
-        [one] argument
-        *[other] arguments
-    } but {$found} generic {$found ->
-        [one] argument was
-        *[other] arguments were
-    } supplied
-    .label = expected {$expected} generic {$expected ->
-        [one] argument
-        *[other] arguments
-    }
-    .expected_label = {$def_descr} used here with {$expected} generic {$expected ->
-        [one] argument
-        *[other] arguments
-    }
-
 fhir_analysis_array_len_mismatch =
     array length mismatch
     .label = expected {$expected_len}, found {$len}
@@ -181,6 +164,45 @@ fhir_analysis_ambiguous_assoc_type =
 
 fhir_analysis_invalid_base_instance =
     values of this type cannot be used as base sorted instances
+
+fhir_analysis_generic_argument_count_mismatch =
+    this {$def_descr} takes {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    } but {$found} generic {$found ->
+        [one] argument was
+        *[other] arguments were
+    } supplied
+    .label = expected {$expected} generic {$expected ->
+        [one] argument
+        *[other] arguments
+    }
+
+fhir_analysis_too_few_generic_args =
+    this {$def_descr} takes at least {$min} generic {$min ->
+        [one] argument
+        *[other] arguments
+    } but {$found} generic {$found ->
+        [one] argument was
+        *[other] arguments were
+    } supplied
+    .label = expected at least {$min} generic {$min ->
+        [one] argument
+        *[other] arguments
+    }
+
+fhir_analysis_too_many_generic_args =
+    this {$def_descr} takes at most {$max} generic {$max ->
+        [one] argument
+        *[other] arguments
+    } but {$found} generic {$found ->
+        [one] argument was
+        *[other] arguments were
+    } supplied
+    .label = expected at most {$max} generic {$max ->
+        [one] argument
+        *[other] arguments
+    }
 
 # Check impl against trait errors
 
