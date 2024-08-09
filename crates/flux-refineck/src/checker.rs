@@ -1044,7 +1044,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             Constant::Float(_, float_ty) => Ok(Ty::float(*float_ty)),
             Constant::Unit => Ok(Ty::unit()),
-            Constant::Str => Ok(Ty::mk_ref(ReStatic, Ty::str(), Mutability::Not)),
+            Constant::Str(s) => {
+                let idx = Expr::constant(rty::Constant::from(*s));
+                Ok(Ty::mk_ref(ReStatic, Ty::indexed(BaseTy::Str, idx), Mutability::Not))
+            }
             Constant::Char => Ok(Ty::char()),
             Constant::Param(param_const, ty) => {
                 let idx = Expr::const_generic(*param_const, None);

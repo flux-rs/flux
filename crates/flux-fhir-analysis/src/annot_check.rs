@@ -252,7 +252,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 self.zip_ty(ty, expected_ty)
             }
             (fhir::TyKind::Never, fhir::TyKind::Never) => Ok(()),
-            (fhir::TyKind::Hole(_), _) => Ok(()),
+            (fhir::TyKind::Infer, _) => Ok(()),
             (
                 fhir::TyKind::OpaqueDef(item_id, args, _, _),
                 fhir::TyKind::OpaqueDef(exp_item_id, exp_args, _, _),

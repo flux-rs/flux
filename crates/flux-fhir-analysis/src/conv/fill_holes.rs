@@ -3,7 +3,7 @@ use std::iter;
 use flux_common::bug;
 use flux_errors::Errors;
 use flux_middle::{
-    fhir::{self, FhirId},
+    fhir,
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     rty::{
@@ -85,7 +85,7 @@ struct Zipper<'genv, 'tcx> {
 
 #[derive(Default)]
 struct Holes {
-    types: UnordMap<FhirId, rty::Ty>,
+    types: UnordMap<rty::TyVid, rty::Ty>,
     regions: UnordMap<rty::RegionVid, rty::Region>,
     consts: UnordMap<rty::ConstVid, rty::Const>,
 }
@@ -94,11 +94,11 @@ impl Holes {
     fn replace_holes<T: TypeFoldable>(&self, t: &T) -> T {
         t.fold_with(&mut BottomUpFolder {
             ty_op: |ty| {
-                if let rty::TyKind::Hole(fhir_id) = ty.kind() {
+                if let rty::TyKind::Infer(vid) = ty.kind() {
                     self.types
-                        .get(fhir_id)
+                        .get(vid)
                         .cloned()
-                        .unwrap_or_else(|| bug!("unfilled type hole {fhir_id:?}"))
+                        .unwrap_or_else(|| bug!("unfilled type hole {vid:?}"))
                 } else {
                     ty
                 }
@@ -212,9 +212,9 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
 
     fn zip_ty(&mut self, a: &rty::Ty, b: &rty::Ty) -> Result<(), Error> {
         match (a.kind(), b.kind()) {
-            (rty::TyKind::Hole(fhir_id), _) => {
+            (rty::TyKind::Infer(vid), _) => {
                 let b = self.adjust_binders(b);
-                self.holes.types.insert(*fhir_id, b);
+                self.holes.types.insert(*vid, b);
                 Ok(())
             }
             (rty::TyKind::Exists(ctor_a), _) => {

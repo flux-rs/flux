@@ -37,9 +37,8 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
         let sort = match path.res {
             fhir::Res::PrimTy(PrimTy::Int(_) | PrimTy::Uint(_)) => Some(rty::Sort::Int),
             fhir::Res::PrimTy(PrimTy::Bool) => Some(rty::Sort::Bool),
-            fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Str | PrimTy::Char) => {
-                Some(rty::Sort::unit())
-            }
+            fhir::Res::PrimTy(PrimTy::Str) => Some(rty::Sort::Str),
+            fhir::Res::PrimTy(PrimTy::Float(..) | PrimTy::Char) => Some(rty::Sort::unit()),
             fhir::Res::Def(DefKind::TyAlias { .. } | DefKind::Enum | DefKind::Struct, def_id) => {
                 let mut sort_args = vec![];
                 let sort_def = self.adt_sort_def_of(def_id)?;
@@ -106,7 +105,7 @@ impl<'sess, 'tcx> GlobalEnv<'sess, 'tcx> {
             | fhir::TyKind::Array(_, _)
             | fhir::TyKind::TraitObject(_, _, _)
             | fhir::TyKind::Never => Ok(Some(rty::Sort::unit())),
-            fhir::TyKind::Hole(_)
+            fhir::TyKind::Infer
             | fhir::TyKind::StrgRef(..)
             | fhir::TyKind::OpaqueDef(_, _, _, _) => Ok(None),
         }

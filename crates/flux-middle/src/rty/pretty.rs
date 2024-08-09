@@ -93,6 +93,7 @@ impl Pretty for Sort {
             Sort::Bool => w!("bool"),
             Sort::Int => w!("int"),
             Sort::Real => w!("real"),
+            Sort::Str => w!("str"),
             Sort::BitVec(size) => w!("bitvec({:?})", size),
             Sort::Loc => w!("loc"),
             Sort::Var(n) => w!("@{}", ^n.index),
@@ -310,7 +311,7 @@ impl Pretty for TyS {
                     join!(", ", &alias_ty.refine_args)
                 )
             }
-            TyKind::Hole(_) => {
+            TyKind::Infer(_) => {
                 w!("□")
             }
         }

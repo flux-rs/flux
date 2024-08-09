@@ -1037,7 +1037,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             surface::TyKind::ImplTrait(node_id, bounds) => {
                 self.desugar_impl_trait(*node_id, bounds)?
             }
-            surface::TyKind::Hole => fhir::TyKind::Hole(self.next_fhir_id()),
+            surface::TyKind::Hole => fhir::TyKind::Infer,
         };
         Ok(fhir::Ty { kind, span })
     }
@@ -1329,6 +1329,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
                 }
             }
             surface::LitKind::Bool => Ok(fhir::Lit::Bool(lit.symbol == kw::True)),
+            surface::LitKind::Str => Ok(fhir::Lit::Str(lit.symbol)),
             _ => Err(self.emit_err(errors::UnexpectedLiteral { span })),
         }
     }

@@ -3,7 +3,6 @@ use std::{
     rc::Rc,
 };
 
-use flux_common::iter::IterExt;
 use flux_errors::{ErrorGuaranteed, E0999};
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
