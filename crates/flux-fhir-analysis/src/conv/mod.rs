@@ -1230,13 +1230,13 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let min = param_count - generics.own_default_count();
         let max = param_count;
         if min == max && found != min {
-            Err(self.emit(errors::GenericArgCountMismatch::new(self.genv, def_id, segment, min)))?
+            Err(self.emit(errors::GenericArgCountMismatch::new(self.genv, def_id, segment, min)))?;
         }
         if found < min {
-            Err(self.emit(errors::TooFewGenericArgs::new(self.genv, def_id, segment, min)))?
+            Err(self.emit(errors::TooFewGenericArgs::new(self.genv, def_id, segment, min)))?;
         }
         if found > max {
-            Err(self.emit(errors::TooManyGenericArgs::new(self.genv, def_id, segment, min)))?
+            Err(self.emit(errors::TooManyGenericArgs::new(self.genv, def_id, segment, min)))?;
         }
         Ok(())
     }

@@ -68,7 +68,7 @@ pub(crate) fn fn_sig(
 
     let mut zipper = Zipper::new(genv, def_id.to_def_id());
     zipper.enter_binders(fn_sig, &expected, |zipper, fn_sig, expected| {
-        zipper.zip_fn_sig(decl, fn_sig, expected)
+        zipper.zip_fn_sig(decl, fn_sig, expected);
     });
 
     zipper.errors.into_result()?;
@@ -192,7 +192,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                     ));
                 }
             }
-        })
+        });
     }
 
     fn zip_fn_sig(&mut self, decl: &fhir::FnDecl, a: &rty::FnSig, b: &rty::FnSig) {
@@ -212,8 +212,8 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             }
         }
         self.enter_binders(a.output(), b.output(), |this, output_a, output_b| {
-            this.zip_output(decl, output_a, output_b)
-        })
+            this.zip_output(decl, output_a, output_b);
+        });
     }
 
     fn zip_output(&mut self, decl: &fhir::FnDecl, a: &rty::FnOutput, b: &rty::FnOutput) {
@@ -608,7 +608,7 @@ mod errors {
         pub(super) fn new(genv: GlobalEnv, decl: &fhir::FnDecl, def_id: DefId) -> Self {
             let def_descr = genv.tcx().def_descr(def_id);
 
-            let span = if decl.inputs.len() > 0 {
+            let span = if !decl.inputs.is_empty() {
                 decl.inputs[decl.inputs.len() - 1]
                     .span
                     .with_lo(decl.inputs[0].span.lo())
@@ -618,7 +618,7 @@ mod errors {
 
             let expected_span = if let Some(local_id) = def_id.as_local()
                 && let expected_decl = genv.tcx().hir_node_by_def_id(local_id).fn_decl().unwrap()
-                && expected_decl.inputs.len() > 0
+                && !expected_decl.inputs.is_empty()
             {
                 expected_decl.inputs[expected_decl.inputs.len() - 1]
                     .span
