@@ -30,7 +30,7 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> QueryResult<rty
         .collect();
 
     Ok(rty::Generics {
-        params,
+        own_params: params,
         parent: generics.parent(),
         parent_count: generics.parent_count(),
         has_self: generics.orig.has_self,

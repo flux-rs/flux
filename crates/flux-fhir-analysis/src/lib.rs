@@ -265,7 +265,7 @@ fn generics_of(genv: GlobalEnv, local_id: LocalDefId) -> QueryResult<rty::Generi
         }
         DefKind::Closure => {
             rty::Generics {
-                params: List::empty(),
+                own_params: List::empty(),
                 parent: rustc_generics.parent(),
                 parent_count: rustc_generics.parent_count(),
                 has_self: rustc_generics.orig.has_self,

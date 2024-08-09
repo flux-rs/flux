@@ -248,7 +248,7 @@ pub(crate) fn conv_generics(
     }
 
     Ok(rty::Generics {
-        params: List::from_vec(params),
+        own_params: List::from_vec(params),
         parent: rust_generics.parent(),
         parent_count: rust_generics.parent_count(),
         has_self: rust_generics.orig.has_self,
@@ -870,7 +870,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                         let trait_generics = self.genv.generics_of(trait_id)?;
                         let qself = qself.as_deref().unwrap();
                         let qself =
-                            self.conv_ty_to_generic_arg(env, &trait_generics.params[0], qself)?;
+                            self.conv_ty_to_generic_arg(env, &trait_generics.own_params[0], qself)?;
                         let mut args = vec![qself];
                         self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
                         self.conv_generic_args_into(env, assoc_id, assoc_segment, &mut args)?;
@@ -1220,7 +1220,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         segment: &fhir::PathSegment,
     ) -> QueryResult {
         let found = segment.args.len();
-        let mut param_count = generics.params.len();
+        let mut param_count = generics.own_params.len();
 
         // The self parameter is not provided explicitly in the path so we skip it
         if let DefKind::Trait = self.genv.def_kind(def_id) {
@@ -1247,7 +1247,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         into: &mut Vec<rty::GenericArg>,
     ) -> QueryResult {
         let generics = self.genv.generics_of(def_id)?;
-        for param in generics.params.iter().skip(into.len()) {
+        for param in generics.own_params.iter().skip(into.len()) {
             if let rty::GenericParamDefKind::Type { has_default } = param.kind {
                 debug_assert!(has_default);
                 let tcx = self.genv.tcx();
