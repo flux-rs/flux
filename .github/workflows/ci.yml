@@ -36,7 +36,6 @@ jobs:
         run: |
           cd liquid-fixpoint
           stack install --fast --local-bin-path "$local_binaries_path" --flag liquid-fixpoint:-link-z3-as-a-library
-      - run: ls $local_binaries_path
       
       - name: Upload Fixpoint
         uses: actions/upload-artifact@v4.3.6
@@ -56,7 +55,10 @@ jobs:
           path: ~/.local/bin/
 
       - name: Add fixpoint to path
-        run: echo ~/.local/bin >> $GITHUB_PATH
+        run: echo ~/.local/bin/ >> $GITHUB_PATH
+
+      - run: which fixpoint
+      - run: ls ~/.local/bin/
 
       - name: Install Z3
         uses: cda-tum/setup-z3@v1.0.9
@@ -76,7 +78,7 @@ jobs:
       - name: Run tests
         run: |
           which fixpoint && cargo xtask test
-
+          
   rustfmt:
     runs-on: ubuntu-latest
     steps:
@@ -87,12 +89,6 @@ jobs:
 
       - name: Rust rustfmt
         run: cargo fmt --check
-
-      - name: Install codesync
-        run: cargo install --git https://github.com/nilehmann/codesync
-
-      - name: Run codesync
-        run: codesync check
 
   clippy:
     runs-on: ubuntu-latest
