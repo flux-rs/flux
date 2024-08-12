@@ -54,12 +54,8 @@ jobs:
           name: fixpoint
           path: ~/.local/bin/
 
-      - name: Add fixpoint to path
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - run: ls $HOME/.local/bin/
-
-      - run: fixpoint --version
+      - name: Add fixpoint to PATH
+        run: chmod 755 ~/.local/bin/fixpoint && echo ~/.local/bin >> $GITHUB_PATH
 
       - run: which fixpoint
 
