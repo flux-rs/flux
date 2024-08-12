@@ -57,8 +57,9 @@ jobs:
       - name: Add fixpoint to path
         run: echo ~/.local/bin/ >> $GITHUB_PATH
 
-      - run: which fixpoint
       - run: ls ~/.local/bin/
+
+      - run: which fixpoint
 
       - name: Install Z3
         uses: cda-tum/setup-z3@v1.0.9
