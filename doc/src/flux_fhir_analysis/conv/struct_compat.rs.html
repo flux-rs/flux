@@ -683,6 +683,31 @@
 <a href="#683" id="683">683</a>
 <a href="#684" id="684">684</a>
 <a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
+<a href="#687" id="687">687</a>
+<a href="#688" id="688">688</a>
+<a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
+<a href="#691" id="691">691</a>
+<a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
@@ -1028,9 +1053,12 @@
             (rty::BaseTy::Param(pty_a), rty::BaseTy::Param(pty_b)) =&gt; {
                 assert_eq_or_incompatible(pty_a, pty_b)
             }
-            (rty::BaseTy::Dynamic(<span class="kw">_</span>, re_a), rty::BaseTy::Dynamic(<span class="kw">_</span>, re_b)) =&gt; {
-                <span class="comment">// FIXME(nilehmann) we should check the existentials predicates
-                </span><span class="self">self</span>.zip_region(re_a, re_b);
+            (rty::BaseTy::Dynamic(preds_a, re_a), rty::BaseTy::Dynamic(preds_b, re_b)) =&gt; {
+                assert_eq_or_incompatible(preds_a.len(), preds_b.len())<span class="question-mark">?</span>;
+                <span class="kw">for </span>(pred_a, pred_b) <span class="kw">in </span>iter::zip(preds_a, preds_b) {
+                    <span class="self">self</span>.zip_poly_existential_pred(pred_a, pred_b)<span class="question-mark">?</span>;
+                }
+                <span class="self">self</span>.zip_region(re_a, re_b);
                 <span class="prelude-val">Ok</span>(())
             }
             (rty::BaseTy::Closure(..) | rty::BaseTy::Coroutine(..), <span class="kw">_</span>) =&gt; {
@@ -1081,6 +1109,28 @@
             <span class="kw">let </span>re = <span class="self">self</span>.adjust_binders(b);
             <span class="self">self</span>.holes.regions.insert(<span class="kw-2">*</span>vid, re);
         }
+    }
+
+    <span class="kw">fn </span>zip_poly_existential_pred(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        a: <span class="kw-2">&amp;</span>rty::Binder&lt;rty::ExistentialPredicate&gt;,
+        b: <span class="kw-2">&amp;</span>rty::Binder&lt;rty::ExistentialPredicate&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+        <span class="self">self</span>.enter_binders(a, b, |this, a, b| {
+            <span class="kw">match </span>(a, b) {
+                (
+                    rty::ExistentialPredicate::Trait(trait_ref_a),
+                    rty::ExistentialPredicate::Trait(trait_ref_b),
+                ) =&gt; {
+                    assert_eq_or_incompatible(trait_ref_a.def_id, trait_ref_b.def_id)<span class="question-mark">?</span>;
+                    assert_eq_or_incompatible(trait_ref_a.args.len(), trait_ref_b.args.len())<span class="question-mark">?</span>;
+                    <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>trait_ref_a.args, <span class="kw-2">&amp;</span>trait_ref_b.args) {
+                        this.zip_generic_arg(arg_a, arg_b)<span class="question-mark">?</span>;
+                    }
+                    <span class="prelude-val">Ok</span>(())
+                }
+            }
+        })
     }
 
     <span class="kw">fn </span>enter_binders&lt;T, R&gt;(
