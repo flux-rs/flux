@@ -8,11 +8,8 @@ on:
     branches: [main]
 
 jobs:
-  tests:
-    runs-on: ubuntu-latest
+  fixpoint:
     steps:
-      - uses: actions/checkout@v3
-
       - name: Clone fixpoint
         run: |
           git clone https://github.com/ucsd-progsys/liquid-fixpoint
@@ -33,6 +30,32 @@ jobs:
           enable-stack: true
           stack-version: "latest"
 
+      - name: Compile fixpoint
+        if: steps.cache-fixpoint.outputs.cache-hit != 'true'
+        run: |
+          cd liquid-fixpoint
+          stack install --fast --local-bin-path "$local_binaries_path" --flag liquid-fixpoint:-link-z3-as-a-library
+      - run: ls $local_binaries_path
+      
+      - name: Upload Fixpoint
+        uses: actions/upload-artifact@v4.3.6
+        with:
+          name: fixpoint
+          path: $local_binaries_path/fixpoint
+
+  tests:
+    runs-on: ubuntu-latest
+    needs: fixpoint
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download Fixpoint
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: fixpoint
+          path: ~/.local/bin/
+
+      - run: ls ~/.local/bin
+
       - name: Install Z3
         uses: cda-tum/setup-z3@v1.0.9
         with:
@@ -46,10 +69,6 @@ jobs:
         run: |
           cd liquid-fixpoint
           stack install --fast --local-bin-path "$local_binaries_path" --flag liquid-fixpoint:-link-z3-as-a-library
-
-      - name: Add Fixpoint to the path
-        run: |
-          echo "$local_binaries_path" >> $GITHUB_PATH
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.2.1
