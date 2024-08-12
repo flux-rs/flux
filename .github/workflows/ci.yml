@@ -112,10 +112,11 @@ jobs:
       - name: Clone vtock
         run: |
           git clone https://github.com/PLSysSec/tock
+          cp rust-toolchain tock/rust-toolchain.toml
 
-      - name: Check cortex-m
+      - name: Check tock/kernel
         run: |
-          cd tock/arch/cortex-m
+          cd tock/kernel
           cargo flux
 
   rustfmt:
