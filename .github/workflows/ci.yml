@@ -9,6 +9,7 @@ on:
 
 jobs:
   fixpoint:
+    runs-on: ubuntu-latest
     steps:
       - name: Clone fixpoint
         run: |
