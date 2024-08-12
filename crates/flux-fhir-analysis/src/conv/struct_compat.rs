@@ -343,8 +343,11 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             (rty::BaseTy::Param(pty_a), rty::BaseTy::Param(pty_b)) => {
                 assert_eq_or_incompatible(pty_a, pty_b)
             }
-            (rty::BaseTy::Dynamic(_, re_a), rty::BaseTy::Dynamic(_, re_b)) => {
-                // FIXME(nilehmann) we should check the existentials predicates
+            (rty::BaseTy::Dynamic(preds_a, re_a), rty::BaseTy::Dynamic(preds_b, re_b)) => {
+                assert_eq_or_incompatible(preds_a.len(), preds_b.len())?;
+                for (pred_a, pred_b) in iter::zip(preds_a, preds_b) {
+                    self.zip_poly_existential_pred(pred_a, pred_b)?;
+                }
                 self.zip_region(re_a, re_b);
                 Ok(())
             }
@@ -396,6 +399,28 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             let re = self.adjust_binders(b);
             self.holes.regions.insert(*vid, re);
         }
+    }
+
+    fn zip_poly_existential_pred(
+        &mut self,
+        a: &rty::Binder<rty::ExistentialPredicate>,
+        b: &rty::Binder<rty::ExistentialPredicate>,
+    ) -> Result<(), Error> {
+        self.enter_binders(a, b, |this, a, b| {
+            match (a, b) {
+                (
+                    rty::ExistentialPredicate::Trait(trait_ref_a),
+                    rty::ExistentialPredicate::Trait(trait_ref_b),
+                ) => {
+                    assert_eq_or_incompatible(trait_ref_a.def_id, trait_ref_b.def_id)?;
+                    assert_eq_or_incompatible(trait_ref_a.args.len(), trait_ref_b.args.len())?;
+                    for (arg_a, arg_b) in iter::zip(&trait_ref_a.args, &trait_ref_b.args) {
+                        this.zip_generic_arg(arg_a, arg_b)?;
+                    }
+                    Ok(())
+                }
+            }
+        })
     }
 
     fn enter_binders<T, R>(
