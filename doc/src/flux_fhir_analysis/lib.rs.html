@@ -476,6 +476,10 @@
 <a href="#476" id="476">476</a>
 <a href="#477" id="477">477</a>
 <a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
 </pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
@@ -898,7 +902,11 @@
             | DefKind::AssocFn
             | DefKind::Trait
             | DefKind::Impl { .. }
-            | DefKind::OpaqueTy =&gt; {
+            <span class="comment">// we skip checking the DefKind::OpaqueTy because they
+            // must be wf-checked (and desugared) in the context of
+            // their "parent", so we do so "lazily" when the appropriate
+            // query is called on the "parent"
+            </span>=&gt; {
                 <span class="kw">let _ </span>= genv.check_wf(def_id).emit(<span class="kw-2">&amp;</span>errors);
             }
             <span class="kw">_ </span>=&gt; {}
