@@ -5,6 +5,7 @@ use std::fmt;
 use flux_common::{
     bug,
     index::{Idx, IndexVec},
+    tracked_span_bug,
 };
 use itertools::Itertools;
 pub use rustc_borrowck::borrow_set::BorrowData;
@@ -443,7 +444,7 @@ impl PlaceTy {
                 Ok(ty.subst(args))
             }
             TyKind::Tuple(tys) => Ok(tys[f.index()].clone()),
-            _ => bug!("extracting field of non-tuple non-adt: {self:?}"),
+            _ => tracked_span_bug!("extracting field of non-tuple non-adt: {self:?}"),
         }
     }
 }

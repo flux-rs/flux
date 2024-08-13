@@ -20,7 +20,7 @@ pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, Expr, ExprKind, FieldProj,
     HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
-use flux_common::bug;
+use flux_common::{bug, tracked_span_bug};
 use fold::TypeFolder;
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
@@ -654,14 +654,14 @@ pub struct EarlyBinder<T>(pub T);
 
 pub type PolyFnSig = Binder<FnSig>;
 
-#[derive(Clone, TyEncodable, TyDecodable)]
+#[derive(PartialEq, Eq, Clone, TyEncodable, TyDecodable)]
 pub struct FnSig {
     requires: List<Expr>,
     inputs: List<Ty>,
     output: Binder<FnOutput>,
 }
 
-#[derive(Clone, Debug, TyEncodable, TyDecodable)]
+#[derive(PartialEq, Eq, Clone, Debug, TyEncodable, TyDecodable)]
 pub struct FnOutput {
     pub ret: Ty,
     pub ensures: List<Ensures>,
@@ -1071,6 +1071,7 @@ pub enum BaseTy {
     Array(Ty, Const),
     Never,
     Closure(DefId, /* upvar_tys */ List<Ty>),
+    // FnPtr(PolyFnSig),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
@@ -1257,7 +1258,10 @@ impl BaseTy {
                 ty::Ty::new_array_with_const_len(tcx, ty, n)
             }
             BaseTy::Never => tcx.types.never,
-            BaseTy::Closure(_, _) => todo!(),
+            BaseTy::Closure(_did, _upvar_tys) => {
+                tracked_span_bug!("TODO: closure to_rustc")
+                // TODO: currently we only keep the `args.as_closure().upvar_tys()` in the closure type,
+            }
             BaseTy::Dynamic(exi_preds, re) => {
                 let preds: Vec<_> = exi_preds
                     .iter()
@@ -1808,7 +1812,7 @@ where
     pub fn replace_bound_refts(&self, exprs: &[Expr]) -> T {
         let delegate = FnMutDelegate::new(
             |breft| exprs[breft.var.as_usize()].clone(),
-            |_| bug!("unexpected escaping region"),
+            |_| tracked_span_bug!("unexpected escaping region"),
         );
         self.value
             .fold_with(&mut BoundVarReplacer::new(delegate))

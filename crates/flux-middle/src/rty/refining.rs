@@ -1,7 +1,7 @@
 //! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
-use flux_common::bug;
+use flux_common::{bug, tracked_span_bug};
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::{ClosureKind, ParamTy};
@@ -400,7 +400,13 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             rustc::ty::TyKind::Str => rty::BaseTy::Str,
             rustc::ty::TyKind::Slice(ty) => rty::BaseTy::Slice(self.refine_ty(ty)?),
             rustc::ty::TyKind::Char => rty::BaseTy::Char,
-            rustc::ty::TyKind::FnPtr(_) => todo!("refine_ty: FnSig"),
+            rustc::ty::TyKind::FnPtr(_fn_sig) => {
+                tracked_span_bug!(
+                    "TODO: implement refiner for FnPtr, after adding rty::BaseTy::FnPtr"
+                );
+                // let fn_sig = self.refine_poly_fn_sig(fn_sig)?;
+                // rty::BaseTy::FnPtr(fn_sig)
+            }
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
             }

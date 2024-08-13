@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::hash_map::Entry, iter};
 
-use flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
+use flux_common::{bug, dbg, index::IndexVec, span_bug, tracked_span_bug};
 use flux_config as config;
 use flux_middle::{
     global_env::GlobalEnv,
@@ -1456,7 +1456,15 @@ impl Mode for RefineMode {
         target: BasicBlock,
     ) -> Result<bool> {
         let bb_env = &ck.inherited.mode.bb_envs[&ck.def_id][&target];
-        debug_assert_eq!(&ck.snapshot_at_dominator(target).scope().unwrap(), bb_env.scope());
+        // debug_assert_eq!(&ck.snapshot_at_dominator(target).scope().unwrap(), bb_env.scope());
+        if &ck.snapshot_at_dominator(target).scope().unwrap() != bb_env.scope() {
+            span_bug!(
+                terminator_span,
+                "check_goto_join_point scope mismatch: {:?} != {:?}",
+                ck.snapshot_at_dominator(target).scope().unwrap(),
+                bb_env.scope()
+            );
+        }
 
         dbg::refine_goto!(target, rcx, env, bb_env);
 
