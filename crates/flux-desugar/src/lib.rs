@@ -25,7 +25,6 @@ use flux_middle::{
     fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
-    rustc::lowering::UnsupportedReason,
     ResolverOutput, Specs,
 };
 use flux_syntax::surface;
