@@ -25,7 +25,6 @@ use flux_middle::{
     fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
-    rustc::lowering::UnsupportedReason,
     ResolverOutput, Specs,
 };
 use flux_syntax::surface;
@@ -105,10 +104,10 @@ pub fn desugar<'genv>(
                 }
                 hir::ItemKind::OpaqueTy(_) => {
                     // Opaque types are desugared as part of the desugaring of their defining function
-                    span_bug!(item.span, "unexpected opaque type")
+                    span_bug!(item.span, "unexpected opaque type");
                 }
                 _ => {
-                    span_bug!(item.span, "unsupported item")
+                    span_bug!(item.span, "unsupported item");
                 }
             }
         }
