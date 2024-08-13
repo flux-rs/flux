@@ -497,7 +497,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         clauses.push(rty::Clause::new(List::from_vec(vars), rty::ClauseKind::Trait(pred)));
 
         for binding in trait_segment.bindings {
-            self.conv_type_binding(env, bounded_ty, &trait_ref, binding, clauses)?;
+            self.conv_type_binding(env, &trait_ref, binding, clauses)?;
         }
 
         Ok(())
@@ -506,7 +506,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_type_binding(
         &mut self,
         env: &mut Env,
-        _bounded_ty: &rty::Ty,
         trait_ref: &rty::TraitRef,
         binding: &fhir::TypeBinding,
         clauses: &mut Vec<rty::Clause>,
@@ -522,7 +521,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .trait_defines_associated_item_named(candidate.def_id, AssocKind::Type, binding.ident)
             .unwrap();
 
-        // let args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
+        // TODO: when we support generic associated types, we need to also attach the associated generics here
         let args = trait_ref.args.clone();
         let refine_args = List::empty();
         let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args, refine_args };
