@@ -1071,7 +1071,6 @@ pub enum BaseTy {
     Array(Ty, Const),
     Never,
     Closure(DefId, /* upvar_tys */ List<Ty>),
-    // FnPtr(PolyFnSig),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
