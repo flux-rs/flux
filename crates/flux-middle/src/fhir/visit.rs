@@ -383,12 +383,11 @@ pub fn walk_ty<'v, V: Visitor<'v>>(vis: &mut V, ty: &Ty<'v>) {
             walk_list!(vis, visit_generic_arg, generics);
             walk_list!(vis, visit_refine_arg, refine);
         }
-        TyKind::Never => {}
-        TyKind::Hole(_) => {}
         TyKind::TraitObject(poly_traits, lft, _) => {
             walk_list!(vis, visit_poly_trait_ref, poly_traits);
             vis.visit_lifetime(&lft);
         }
+        TyKind::Never | TyKind::Infer => {}
     }
 }
 

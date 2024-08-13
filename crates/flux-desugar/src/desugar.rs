@@ -1037,7 +1037,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv> {
             surface::TyKind::ImplTrait(node_id, bounds) => {
                 self.desugar_impl_trait(*node_id, bounds)?
             }
-            surface::TyKind::Hole => fhir::TyKind::Hole(self.next_fhir_id()),
+            surface::TyKind::Hole => fhir::TyKind::Infer,
         };
         Ok(fhir::Ty { kind, span })
     }

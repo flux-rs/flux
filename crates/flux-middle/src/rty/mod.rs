@@ -35,7 +35,7 @@ pub use rustc_middle::{
 };
 use rustc_span::{sym, symbol::kw, Symbol};
 pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
-pub use rustc_type_ir::INNERMOST;
+pub use rustc_type_ir::{TyVid, INNERMOST};
 pub use SortInfer::*;
 
 use self::{
@@ -124,17 +124,31 @@ impl AdtSortDef {
 pub struct Generics {
     pub parent: Option<DefId>,
     pub parent_count: usize,
-    pub params: List<GenericParamDef>,
+    pub own_params: List<GenericParamDef>,
+    pub has_self: bool,
 }
 
 impl Generics {
     pub fn count(&self) -> usize {
-        self.parent_count + self.params.len()
+        self.parent_count + self.own_params.len()
+    }
+
+    pub fn own_default_count(&self) -> usize {
+        self.own_params
+            .iter()
+            .filter(|param| {
+                match param.kind {
+                    GenericParamDefKind::Type { has_default } => has_default,
+                    GenericParamDefKind::Const { has_default } => has_default,
+                    GenericParamDefKind::Base | GenericParamDefKind::Lifetime => false,
+                }
+            })
+            .count()
     }
 
     pub fn param_at(&self, param_index: usize, genv: GlobalEnv) -> QueryResult<GenericParamDef> {
         if let Some(index) = param_index.checked_sub(self.parent_count) {
-            Ok(self.params[index].clone())
+            Ok(self.own_params[index].clone())
         } else {
             let parent = self.parent.expect("parent_count > 0 but no parent?");
             genv.generics_of(parent)?.param_at(param_index, genv)
@@ -707,6 +721,14 @@ impl TyCtor {
 pub type Ty = Interned<TyS>;
 
 impl Ty {
+    /// Dummy type used for the `Self` of a `TraitRef` created for converting
+    /// a trait object, and which gets removed in `ExistentialTraitRef`.
+    /// This type must not appear anywhere in other converted types.
+    /// `Ty::uninit` does the job, because it cannot appear in the surface.
+    pub fn trait_object_dummy_self() -> Ty {
+        Ty::uninit()
+    }
+
     pub fn alias(kind: AliasKind, alias_ty: AliasTy) -> Ty {
         TyKind::Alias(kind, alias_ty).intern()
     }
@@ -832,12 +854,12 @@ impl Ty {
         BaseTy::Never.to_ty()
     }
 
-    pub fn hole(fhir_id: FhirId) -> Ty {
-        TyKind::Hole(fhir_id).intern()
+    pub fn infer(vid: TyVid) -> Ty {
+        TyKind::Infer(vid).intern()
     }
 
     /// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
-    /// to have a unique var identifying each position such that we can infer a region substitution
+    /// to have a unique identifier for each position such that we can infer a region substitution
     /// when assigning a type to a place. This way we can recover the regions in the original rust
     /// type. See `flux_refineck::type_env::TypeEnv::assign`
     pub fn replace_regions_with_unique_vars(&self) -> Ty {
@@ -897,7 +919,7 @@ impl Ty {
             | TyKind::Discr(_, _)
             | TyKind::Downcast(_, _, _, _, _)
             | TyKind::Blocked(_)
-            | TyKind::Hole(_) => bug!(),
+            | TyKind::Infer(_) => bug!(),
         }
     }
 
@@ -1021,11 +1043,10 @@ pub enum TyKind {
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
     Blocked(Ty),
     Alias(AliasKind, AliasTy),
-    /// A hole is a type that needs to be inferred by matching the signature against a rust signature.
-    /// Holes appear as an intermediate step during `conv` and should not be present in the final
-    /// signature. We use the [`FhirId`] of the `fhir` type to assign a unique id to the hole, but
-    /// we could alternatively have a dedicated variable id for this.
-    Hole(FhirId),
+    /// A type that needs to be inferred by matching the signature against a rust signature.
+    /// [`TyKind::Infer`] appear as an intermediate step during `conv` and should not be present in
+    /// the final signature.
+    Infer(TyVid),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -1461,7 +1482,7 @@ impl GenericArgs {
             let parent_generics = genv.generics_of(def_id)?;
             Self::fill_item(genv, args, &parent_generics, mk_kind)?;
         }
-        for param in &generics.params {
+        for param in &generics.own_params {
             let kind = mk_kind(param, args);
             assert_eq!(param.index as usize, args.len(), "{args:#?}, {generics:#?}");
             args.push(kind);
@@ -2194,7 +2215,7 @@ pub use crate::_Bool as Bool;
 #[macro_export]
 macro_rules! _Ref {
     ($($pats:pat),+ $(,)?) => {
-        TyKind::Indexed(BaseTy::Ref($($pats),+), _)
+        $crate::rty::TyKind::Indexed($crate::rty::BaseTy::Ref($($pats),+), _)
     };
 }
 pub use crate::_Ref as Ref;

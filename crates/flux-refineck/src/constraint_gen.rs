@@ -1,6 +1,6 @@
 use std::{cell::RefCell, iter};
 
-use flux_common::{bug, tracked_span_bug};
+use flux_common::bug;
 use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
@@ -470,7 +470,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) -> Result {
         let rcx = &mut rcx.branch();
 
-        // We *fully* unpack the rhs before continuing to be able to prove goals like this
+        // We *fully* unpack the lhs before continuing to be able to prove goals like this
         // ∃a. (i32[a], ∃b. {i32[b] | a > b})} <: ∃a,b. ({i32[a] | b < a}, i32[b])
         // See S4.5 in https://arxiv.org/pdf/2209.13000v1.pdf
         let ty1 = rcx.unpack(ty1);
@@ -535,7 +535,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 debug_assert_eq!(alias_ty1, alias_ty2);
                 Ok(())
             }
-            _ => tracked_span_bug!("`{ty1:?}` <: `{ty2:?}`"),
+            _ => Err(CheckerErrKind::Bug(format!("incompatible types: `{ty1:?}` - `{ty2:?}`"))),
         }
     }
 
@@ -602,7 +602,8 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 Ok(())
             }
             _ => {
-                panic!("unexpected base types: `{:?}` and `{:?}`", bty1, bty2,);
+                let note = format!("incompatible base types: `{bty1:?}` - `{bty2:?}`");
+                Err(CheckerErrKind::Bug(note))
             }
         }
     }
@@ -664,8 +665,10 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 debug_assert_eq!(c1, c2);
                 return Ok(());
             }
-
-            _ => tracked_span_bug!("incompatible generic args: `{arg1:?}` `{arg2:?}"),
+            _ => {
+                let note = format!("incompatible generic args: `{arg1:?}` `{arg2:?}`");
+                return Err(CheckerErrKind::Bug(note));
+            }
         };
         match variance {
             Variance::Covariant => self.subtyping(rcx, &ty1, &ty2),

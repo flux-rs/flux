@@ -784,7 +784,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 env.borrow(self.genv, rcx, *r, Mutability::Mut, place)
                     .with_span(stmt_span)
             }
-            Rvalue::Ref(r, BorrowKind::Shared, place) => {
+            Rvalue::Ref(r, BorrowKind::Shared | BorrowKind::Fake(..), place) => {
                 env.borrow(self.genv, rcx, *r, Mutability::Not, place)
                     .with_span(stmt_span)
             }
@@ -828,7 +828,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let upvar_tys = self.check_aggregate_operands(rcx, env, stmt_span, ops)?;
                 Ok(Ty::coroutine(*did, resume_ty, upvar_tys))
             }
-
             Rvalue::Discriminant(place) => {
                 let ty = env
                     .lookup_place(self.genv, rcx, place)
@@ -1553,6 +1552,8 @@ pub(crate) mod errors {
         Inference,
         OpaqueStruct(DefId),
         Query(QueryErr),
+        /// A bug in Flux we can report without killing the entire process
+        Bug(String),
     }
 
     impl CheckerError {
@@ -1584,6 +1585,12 @@ pub(crate) mod errors {
                     diag
                 }
                 CheckerErrKind::Query(err) => err.at(self.span).into_diag(dcx, level),
+                CheckerErrKind::Bug(note) => {
+                    let mut diag = dcx.struct_span_err(self.span, fluent::refineck_bug);
+                    diag.note(note);
+                    diag.code(E0999);
+                    diag
+                }
             }
         }
     }

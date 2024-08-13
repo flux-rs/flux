@@ -1,4 +1,4 @@
-// ignore-test: ignored until we move annot_check to rty
+// ignore-test: ignored until we implement unevaluated constants
 
 #[flux::sig(fn() -> [i32{v : v > 0}; 20])] //~ ERROR array length mismatch
 pub fn array00() -> [i32; 2] {

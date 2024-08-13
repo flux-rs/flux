@@ -2,12 +2,11 @@
 //!
 use flux_common::{bug, index::IndexGen, iter::IterExt};
 use flux_errors::ErrorGuaranteed;
-use hir::{def::DefKind, OwnerId};
+use hir::OwnerId;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
 use rustc_hir as hir;
 use rustc_hir::def_id::LocalDefId;
-use rustc_middle::middle::resolve_bound_vars::ResolvedArg;
 
 use super::{FhirId, FluxOwnerId};
 use crate::{
@@ -42,52 +41,6 @@ pub fn lift_fn_decl<'genv>(
     let mut cx = LiftCtxt::new(genv, owner_id, &local_id_gen, Some(&mut opaque_tys));
     let fn_decl = cx.lift_fn_decl()?;
     Ok((fn_decl, opaque_tys))
-}
-
-/// HACK(nilehmann) this is used during annot check to allow an explicit type to refine [`Self`].
-/// For example, in `impl List<T> { fn foo(&self) }` the type of `self` is `&Self` and we want to
-/// allow a refinement using `&List<T>`.
-/// Do not use this outside of annot check because the `FhirId`s will be wrong.
-///
-/// This should be removed once we move annot check to rty
-///
-/// [`Self`]: fhir::Res::SelfTyAlias
-pub fn lift_self_ty_hack<'genv>(
-    genv: GlobalEnv<'genv, '_>,
-    owner_id: OwnerId,
-) -> Result<Option<fhir::Ty<'genv>>> {
-    if let Some(def_id) = genv.tcx().impl_of_method(owner_id.to_def_id()) {
-        let owner_id = OwnerId { def_id: def_id.expect_local() };
-        let local_id_gen = IndexGen::new();
-        let mut cx = LiftCtxt::new(genv, owner_id, &local_id_gen, None);
-        let local_id = def_id.expect_local();
-        let hir::Item { kind: hir::ItemKind::Impl(impl_), .. } = genv.hir().expect_item(local_id)
-        else {
-            bug!("expected an impl")
-        };
-        let self_ty = cx.lift_ty(impl_.self_ty)?;
-        Ok(Some(self_ty))
-    } else if let def_kind @ (DefKind::Struct | DefKind::Enum) = genv.def_kind(owner_id) {
-        let generics = genv.hir().get_generics(owner_id.def_id).unwrap();
-        let item = genv.hir().expect_item(owner_id.def_id);
-
-        let local_id_gen = IndexGen::new();
-        let cx = LiftCtxt::new(genv, owner_id, &local_id_gen, None);
-
-        let span = item.ident.span.to(generics.span);
-        let res = fhir::Res::Def(def_kind, owner_id.to_def_id());
-        let segment = fhir::PathSegment {
-            ident: item.ident,
-            res,
-            args: cx.generic_params_into_args_hack(generics)?,
-            bindings: &[],
-        };
-        let path = fhir::Path { res, segments: genv.alloc_slice(&[segment]), refine: &[], span };
-        let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
-        Ok(Some(fhir::Ty { span, kind: fhir::TyKind::BaseTy(bty) }))
-    } else {
-        Ok(None)
-    }
 }
 
 impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
@@ -538,45 +491,6 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
 
     fn lift_const_arg(&mut self, const_arg: &hir::ConstArg) -> fhir::ConstArg {
         fhir::ConstArg { kind: fhir::ConstArgKind::Infer, span: const_arg.span() }
-    }
-
-    /// HACK(nilehmann) do not use this function. See [`lift_self_ty_hack`].
-    fn generic_params_into_args_hack(
-        &self,
-        generics: &hir::Generics,
-    ) -> Result<&'genv [fhir::GenericArg<'genv>]> {
-        try_alloc_slice!(self.genv, generics.params, |param| {
-            match param.kind {
-                hir::GenericParamKind::Type { .. } => {
-                    let res = fhir::Res::Def(DefKind::TyParam, param.def_id.to_def_id());
-                    let segment = fhir::PathSegment {
-                        ident: param.name.ident(),
-                        res,
-                        args: &[],
-                        bindings: &[],
-                    };
-                    let path = fhir::Path {
-                        res,
-                        segments: self.genv.alloc_slice(&[segment]),
-                        refine: &[],
-                        span: param.span,
-                    };
-                    let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
-                    let ty = fhir::Ty { kind: fhir::TyKind::BaseTy(bty), span: param.span };
-                    Ok(fhir::GenericArg::Type(self.genv.alloc(ty)))
-                }
-                hir::GenericParamKind::Lifetime { .. } => {
-                    let def_id = param.def_id.to_def_id();
-                    let lft = fhir::Lifetime::Resolved(ResolvedArg::EarlyBound(def_id));
-                    Ok(fhir::GenericArg::Lifetime(lft))
-                }
-                hir::GenericParamKind::Const { .. } => {
-                    let def_id = param.def_id.to_def_id();
-                    let kind = fhir::ConstArgKind::Param(def_id);
-                    Ok(fhir::GenericArg::Const(fhir::ConstArg { kind, span: param.span }))
-                }
-            }
-        })
     }
 
     fn insert_opaque_ty(&mut self, def_id: LocalDefId, opaque_ty: fhir::OpaqueTy<'genv>) {

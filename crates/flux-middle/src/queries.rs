@@ -3,7 +3,6 @@ use std::{
     rc::Rc,
 };
 
-use flux_common::iter::IterExt;
 use flux_errors::{ErrorGuaranteed, E0999};
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
@@ -568,15 +567,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     .tcx()
                     .adt_def(def_id)
                     .variants()
-                    .iter()
-                    .map(|variant_def| {
-                        let fields = variant_def
-                            .fields
-                            .iter()
-                            .map(|field| Ok(genv.lower_type_of(field.did)?.skip_binder()))
-                            .try_collect_vec::<_, QueryErr>()?;
+                    .indices()
+                    .map(|variant_idx| {
                         Refiner::default(genv, &genv.generics_of(def_id)?)
-                            .refine_variant_def(def_id, &fields)
+                            .refine_variant_def(def_id, variant_idx)
                     })
                     .try_collect()?;
                 Ok(rty::Opaqueness::Transparent(rty::EarlyBinder(variants)))

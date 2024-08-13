@@ -8,7 +8,7 @@
 //!    syntactic restrictions on predicates.
 //! 3. Refinements are well-sorted.
 
-mod fill_holes;
+mod struct_compat;
 use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
@@ -27,7 +27,9 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
+use rustc_errors::Diagnostic;
 use rustc_hir::{
+    self as hir,
     def::DefKind,
     def_id::{DefId, LocalDefId},
     PrimTy,
@@ -46,6 +48,7 @@ use rustc_type_ir::DebruijnIndex;
 pub struct ConvCtxt<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     wfckresults: &'a WfckResults,
+    next_type_index: u32,
     next_region_index: u32,
     next_const_index: u32,
 }
@@ -130,16 +133,19 @@ pub(crate) fn conv_adt_sort_def(
 
 pub(crate) fn expand_type_alias(
     genv: GlobalEnv,
-    def_id: DefId,
+    def_id: LocalDefId,
     alias: &fhir::TyAlias,
     wfckresults: &WfckResults,
 ) -> QueryResult<rty::Binder<rty::Ty>> {
     let mut cx = ConvCtxt::new(genv, wfckresults);
 
     let mut env = Env::new(genv, alias.generics.refinement_params, wfckresults)?;
-    env.push_layer(Layer::coalesce(&cx, def_id, alias.params)?);
+    env.push_layer(Layer::coalesce(&cx, def_id.to_def_id(), alias.params)?);
 
     let ty = cx.conv_ty(&mut env, &alias.ty)?;
+
+    let ty = struct_compat::type_alias(genv, alias, &ty, def_id)?;
+
     Ok(rty::Binder::new(ty, env.pop_layer().into_bound_vars(genv)?))
 }
 
@@ -242,9 +248,10 @@ pub(crate) fn conv_generics(
     }
 
     Ok(rty::Generics {
-        params: List::from_vec(params),
+        own_params: List::from_vec(params),
         parent: rust_generics.parent(),
         parent_count: rust_generics.parent_count(),
+        has_self: rust_generics.orig.has_self,
     })
 }
 
@@ -351,7 +358,7 @@ pub(crate) fn conv_fn_decl(
         .collect();
 
     let fn_sig = rty::PolyFnSig::new(rty::FnSig::new(requires.into(), inputs.into(), output), vars);
-    let fn_sig = fill_holes::fn_sig(genv, &fn_sig, def_id)?;
+    let fn_sig = struct_compat::fn_sig(genv, decl, &fn_sig, def_id)?;
 
     Ok(rty::EarlyBinder(fn_sig))
 }
@@ -382,7 +389,7 @@ pub(crate) fn conv_ty(
 
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, wfckresults: &'a WfckResults) -> Self {
-        Self { genv, wfckresults, next_region_index: 0, next_const_index: 0 }
+        Self { genv, wfckresults, next_type_index: 0, next_region_index: 0, next_const_index: 0 }
     }
 
     fn conv_generic_bounds(
@@ -450,8 +457,12 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
 
         let def_id = poly_trait_ref.trait_def_id();
-        let mut into = vec![];
-        self.conv_generic_args_into(env, def_id, trait_segment.args, &mut into)?;
+        let dummy_self = rty::GenericArg::Ty(rty::Ty::trait_object_dummy_self());
+        let mut into = vec![dummy_self];
+        self.conv_generic_args_into(env, def_id, trait_segment, &mut into)?;
+
+        // Remove dummy `Self`
+        into.remove(0);
 
         let exi_trait_ref = rty::ExistentialTraitRef { def_id, args: into.into() };
         let exi_pred = rty::ExistentialPredicate::Trait(exi_trait_ref);
@@ -474,8 +485,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let self_param = generics.param_at(0, self.genv)?;
         let mut args =
             vec![self.ty_to_generic_arg(self_param.kind, bounded_ty_span, bounded_ty)?];
-        self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
-        self.fill_generic_args_defaults(trait_id, &mut args)?;
+        self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
         let trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
 
         let pred = rty::TraitPredicate { trait_ref: trait_ref.clone() };
@@ -618,7 +628,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 ConvCtxt::conv_enum_variant(genv, adt_def_id, variant_def, wfckresults)
             })
             .try_collect_vec()?;
-        let variants = fill_holes::variants(genv, &variants, adt_def_id)?;
+        let variants = struct_compat::variants(genv, &variants, adt_def_id)?;
         Ok(variants)
     }
 
@@ -639,6 +649,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .iter()
             .map(|field| cx.conv_ty(&mut env, &field.ty))
             .try_collect()?;
+
         let idxs = cx.conv_refine_arg(&mut env, &variant.ret.idx)?;
         let variant = rty::VariantSig::new(
             adt_def,
@@ -688,7 +699,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 idx,
             );
             let variant = rty::Binder::new(variant, vars);
-            let variants = fill_holes::variants(genv, &[variant], adt_def_id)?;
+            let variants = struct_compat::variants(genv, &[variant], adt_def_id)?;
             Ok(rty::Opaqueness::Transparent(variants))
         } else {
             Ok(rty::Opaqueness::Opaque)
@@ -737,7 +748,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let self_ty =
             self.conv_ty_to_generic_arg(env, &generics.param_at(0, self.genv)?, alias.qself)?;
         let mut generic_args = vec![self_ty];
-        self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut generic_args)?;
+        self.conv_generic_args_into(env, trait_id, trait_segment, &mut generic_args)?;
 
         let alias_reft =
             rty::AliasReft { trait_id, name: alias.name, args: List::from_vec(generic_args) };
@@ -755,7 +766,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                         Ok(self.conv_ty_ctor(env, path)?.replace_bound_reft(&idx))
                     }
                     fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(..)) => {
-                        span_bug!(ty.span, "Indexed type relative types are not yet supported");
+                        span_bug!(ty.span, "Indexed type relative paths are not yet supported");
                     }
                     fhir::BaseTyKind::Slice(ty) => {
                         let bty = rty::BaseTy::Slice(self.conv_ty(env, ty)?);
@@ -802,16 +813,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     rty::Expr::unit(),
                 ))
             }
-            fhir::TyKind::Hole(fhir_id) => Ok(rty::Ty::hole(*fhir_id)),
-            fhir::TyKind::OpaqueDef(item_id, args0, refine_args, _in_trait) => {
-                let def_id = item_id.owner_id.to_def_id();
-                let args = List::from_vec(self.conv_generic_args(env, def_id, args0)?);
-                let refine_args = refine_args
-                    .iter()
-                    .map(|arg| self.conv_refine_arg(env, arg))
-                    .try_collect()?;
-                let alias_ty = rty::AliasTy::new(def_id, args, refine_args);
-                Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
+            fhir::TyKind::OpaqueDef(item_id, lifetimes, reft_args, _in_trait) => {
+                self.conv_opaque_ty(env, *item_id, lifetimes, reft_args)
             }
             fhir::TyKind::TraitObject(poly_traits, lft, syn) => {
                 let exi_preds: List<_> = poly_traits
@@ -825,7 +828,33 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                     span_bug!(ty.span, "dyn* traits not supported yet")
                 }
             }
+            fhir::TyKind::Infer => Ok(rty::Ty::infer(self.next_type_vid())),
         }
+    }
+
+    fn conv_opaque_ty(
+        &mut self,
+        env: &mut Env,
+        item_id: hir::ItemId,
+        lifetimes: &[fhir::GenericArg],
+        reft_args: &[fhir::RefineArg],
+    ) -> QueryResult<rty::Ty> {
+        let def_id = item_id.owner_id.to_def_id();
+        let args = lifetimes
+            .iter()
+            .map(|arg| {
+                let fhir::GenericArg::Lifetime(lft) = arg else {
+                    bug!("only lifetimes supported for opaque types")
+                };
+                rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft))
+            })
+            .collect();
+        let reft_args = reft_args
+            .iter()
+            .map(|arg| self.conv_refine_arg(env, arg))
+            .try_collect()?;
+        let alias_ty = rty::AliasTy::new(def_id, args, reft_args);
+        Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
     }
 
     fn conv_base_ty(&mut self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
@@ -841,10 +870,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                         let trait_generics = self.genv.generics_of(trait_id)?;
                         let qself = qself.as_deref().unwrap();
                         let qself =
-                            self.conv_ty_to_generic_arg(env, &trait_generics.params[0], qself)?;
+                            self.conv_ty_to_generic_arg(env, &trait_generics.own_params[0], qself)?;
                         let mut args = vec![qself];
-                        self.conv_generic_args_into(env, trait_id, trait_segment.args, &mut args)?;
-                        self.conv_generic_args_into(env, assoc_id, assoc_segment.args, &mut args)?;
+                        self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
+                        self.conv_generic_args_into(env, assoc_id, assoc_segment, &mut args)?;
                         let args = List::from_vec(args);
 
                         let refine_args = List::empty();
@@ -949,7 +978,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let assoc_id = assoc_item.def_id;
 
         let mut args = trait_ref.args.to_vec();
-        self.conv_generic_args_into(env, assoc_id, assoc_segment.args, &mut args)?;
+        self.conv_generic_args_into(env, assoc_id, assoc_segment, &mut args)?;
 
         let args = List::from_vec(args);
         let refine_args = List::empty();
@@ -1112,7 +1141,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             }
             fhir::Res::Def(DefKind::Struct | DefKind::Enum, did) => {
                 let adt_def = self.genv.adt_def(*did)?;
-                let args = self.conv_generic_args(env, *did, path.last_segment().args)?;
+                let args = self.conv_generic_args(env, *did, path.last_segment())?;
                 rty::BaseTy::adt(adt_def, args)
             }
             fhir::Res::Def(DefKind::TyParam, def_id) => {
@@ -1123,7 +1152,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 return Ok(self.genv.type_of(*alias_to)?.instantiate_identity(&[]));
             }
             fhir::Res::Def(DefKind::TyAlias { .. }, def_id) => {
-                let generics = self.conv_generic_args(env, *def_id, path.last_segment().args)?;
+                let generics = self.conv_generic_args(env, *def_id, path.last_segment())?;
                 let refine = path
                     .refine
                     .iter()
@@ -1148,11 +1177,10 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         &mut self,
         env: &mut Env,
         def_id: DefId,
-        args: &[fhir::GenericArg],
+        segment: &fhir::PathSegment,
     ) -> QueryResult<Vec<rty::GenericArg>> {
         let mut into = vec![];
-        self.conv_generic_args_into(env, def_id, args, &mut into)?;
-        self.fill_generic_args_defaults(def_id, &mut into)?;
+        self.conv_generic_args_into(env, def_id, segment, &mut into)?;
         Ok(into)
     }
 
@@ -1160,12 +1188,15 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         &mut self,
         env: &mut Env,
         def_id: DefId,
-        args: &[fhir::GenericArg],
+        segment: &fhir::PathSegment,
         into: &mut Vec<rty::GenericArg>,
     ) -> QueryResult {
         let generics = self.genv.generics_of(def_id)?;
+
+        self.check_generic_arg_count(&generics, def_id, segment)?;
+
         let len = into.len();
-        for (idx, arg) in args.iter().enumerate() {
+        for (idx, arg) in segment.args.iter().enumerate() {
             let param = generics.param_at(idx + len, self.genv)?;
             match arg {
                 fhir::GenericArg::Lifetime(lft) => {
@@ -1179,6 +1210,34 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
                 }
             }
         }
+        self.fill_generic_args_defaults(def_id, into)
+    }
+
+    fn check_generic_arg_count(
+        &mut self,
+        generics: &rty::Generics,
+        def_id: DefId,
+        segment: &fhir::PathSegment,
+    ) -> QueryResult {
+        let found = segment.args.len();
+        let mut param_count = generics.own_params.len();
+
+        // The self parameter is not provided explicitly in the path so we skip it
+        if let DefKind::Trait = self.genv.def_kind(def_id) {
+            param_count -= 1;
+        }
+
+        let min = param_count - generics.own_default_count();
+        let max = param_count;
+        if min == max && found != min {
+            Err(self.emit(errors::GenericArgCountMismatch::new(self.genv, def_id, segment, min)))?;
+        }
+        if found < min {
+            Err(self.emit(errors::TooFewGenericArgs::new(self.genv, def_id, segment, min)))?;
+        }
+        if found > max {
+            Err(self.emit(errors::TooManyGenericArgs::new(self.genv, def_id, segment, min)))?;
+        }
         Ok(())
     }
 
@@ -1188,7 +1247,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         into: &mut Vec<rty::GenericArg>,
     ) -> QueryResult {
         let generics = self.genv.generics_of(def_id)?;
-        for param in generics.params.iter().skip(into.len()) {
+        for param in generics.own_params.iter().skip(into.len()) {
             if let rty::GenericParamDefKind::Type { has_default } = param.kind {
                 debug_assert!(has_default);
                 let tcx = self.genv.tcx();
@@ -1250,6 +1309,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         resolve_param_sort(self.genv, param, Some(self.wfckresults))
     }
 
+    fn next_type_vid(&mut self) -> rty::TyVid {
+        self.next_type_index = self.next_type_index.checked_add(1).unwrap();
+        rty::TyVid::from_u32(self.next_type_index - 1)
+    }
+
     fn next_region_vid(&mut self) -> rty::RegionVid {
         self.next_region_index = self.next_region_index.checked_add(1).unwrap();
         rty::RegionVid::from_u32(self.next_region_index - 1)
@@ -1258,6 +1322,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn next_const_vid(&mut self) -> rty::ConstVid {
         self.next_const_index = self.next_const_index.checked_add(1).unwrap();
         rty::ConstVid::from_u32(self.next_const_index - 1)
+    }
+
+    #[track_caller]
+    fn emit<'b>(&'b self, err: impl Diagnostic<'b>) -> ErrorGuaranteed {
+        self.genv.sess().emit_err(err)
     }
 }
 
@@ -1738,6 +1807,8 @@ fn conv_un_op(op: fhir::UnOp) -> rty::UnOp {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
+    use flux_middle::{fhir, global_env::GlobalEnv};
+    use rustc_hir::def_id::DefId;
     use rustc_span::{symbol::Ident, Span};
 
     #[derive(Diagnostic)]
@@ -1779,6 +1850,87 @@ mod errors {
     impl InvalidBaseInstance {
         pub(super) fn new(span: Span) -> Self {
             Self { span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_generic_argument_count_mismatch, code = E0999)]
+    pub(super) struct GenericArgCountMismatch {
+        #[primary_span]
+        #[label]
+        span: Span,
+        found: usize,
+        expected: usize,
+        def_descr: &'static str,
+    }
+
+    impl GenericArgCountMismatch {
+        pub(super) fn new(
+            genv: GlobalEnv,
+            def_id: DefId,
+            segment: &fhir::PathSegment,
+            expected: usize,
+        ) -> Self {
+            GenericArgCountMismatch {
+                span: segment.ident.span,
+                found: segment.args.len(),
+                expected,
+                def_descr: genv.tcx().def_descr(def_id),
+            }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_too_few_generic_args, code = E0999)]
+    pub(super) struct TooFewGenericArgs {
+        #[primary_span]
+        #[label]
+        span: Span,
+        found: usize,
+        min: usize,
+        def_descr: &'static str,
+    }
+
+    impl TooFewGenericArgs {
+        pub(super) fn new(
+            genv: GlobalEnv,
+            def_id: DefId,
+            segment: &fhir::PathSegment,
+            min: usize,
+        ) -> Self {
+            Self {
+                span: segment.ident.span,
+                found: segment.args.len(),
+                min,
+                def_descr: genv.tcx().def_descr(def_id),
+            }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_too_many_generic_args, code = E0999)]
+    pub(super) struct TooManyGenericArgs {
+        #[primary_span]
+        #[label]
+        span: Span,
+        found: usize,
+        max: usize,
+        def_descr: &'static str,
+    }
+
+    impl TooManyGenericArgs {
+        pub(super) fn new(
+            genv: GlobalEnv,
+            def_id: DefId,
+            segment: &fhir::PathSegment,
+            max: usize,
+        ) -> Self {
+            Self {
+                span: segment.ident.span,
+                found: segment.args.len(),
+                max,
+                def_descr: genv.tcx().def_descr(def_id),
+            }
         }
     }
 }

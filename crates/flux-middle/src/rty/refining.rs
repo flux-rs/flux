@@ -5,6 +5,7 @@ use flux_common::bug;
 use itertools::Itertools;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::{ClosureKind, ParamTy};
+use rustc_target::abi::VariantIdx;
 
 use super::fold::TypeFoldable;
 use crate::{
@@ -28,7 +29,12 @@ pub(crate) fn refine_generics(generics: &rustc::ty::Generics) -> QueryResult<rty
         })
         .collect();
 
-    Ok(rty::Generics { params, parent: generics.parent(), parent_count: generics.parent_count() })
+    Ok(rty::Generics {
+        own_params: params,
+        parent: generics.parent(),
+        parent_count: generics.parent_count(),
+        has_self: generics.orig.has_self,
+    })
 }
 
 pub fn refine_generic_param_def_kind(
@@ -187,9 +193,19 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         &self,
         exi_trait_ref: &rustc::ty::ExistentialTraitRef,
     ) -> QueryResult<rty::ExistentialTraitRef> {
+        let trait_generics = self.generics_of(exi_trait_ref.def_id)?;
         let exi_trait_ref = rty::ExistentialTraitRef {
             def_id: exi_trait_ref.def_id,
-            args: self.refine_generic_args(exi_trait_ref.def_id, &exi_trait_ref.args)?,
+            args: exi_trait_ref
+                .args
+                .iter()
+                .enumerate()
+                .map(|(idx, arg)| {
+                    // We need to skip the generic for Self
+                    let param = trait_generics.param_at(idx + 1, self.genv)?;
+                    self.refine_generic_arg(&param, arg)
+                })
+                .try_collect()?,
         };
         Ok(exi_trait_ref)
     }
@@ -202,13 +218,21 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         Ok(trait_ref)
     }
 
-    pub(crate) fn refine_variant_def(
+    pub fn refine_variant_def(
         &self,
         adt_def_id: DefId,
-        fields: &[rustc::ty::Ty],
+        variant_idx: VariantIdx,
     ) -> QueryResult<rty::PolyVariant> {
         let adt_def = self.adt_def(adt_def_id)?;
-        let fields = fields.iter().map(|ty| self.refine_ty(ty)).try_collect()?;
+        let fields = adt_def
+            .variant(variant_idx)
+            .fields
+            .iter()
+            .map(|fld| {
+                let ty = self.genv.lower_type_of(fld.did)?.instantiate_identity();
+                self.refine_ty(&ty)
+            })
+            .try_collect()?;
         let value = rty::VariantSig::new(
             adt_def,
             rty::GenericArgs::identity_for_item(self.genv, adt_def_id)?,
@@ -232,10 +256,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         Ok(rty::Binder::new(inner, vars))
     }
 
-    pub(crate) fn refine_poly_fn_sig(
-        &self,
-        fn_sig: &rustc::ty::PolyFnSig,
-    ) -> QueryResult<rty::PolyFnSig> {
+    pub fn refine_poly_fn_sig(&self, fn_sig: &rustc::ty::PolyFnSig) -> QueryResult<rty::PolyFnSig> {
         self.refine_binders(fn_sig, |fn_sig| {
             let inputs = fn_sig
                 .inputs()
@@ -254,12 +275,13 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         args: &rustc::ty::GenericArgs,
     ) -> QueryResult<rty::GenericArgs> {
         let generics = self.generics_of(def_id)?;
-        let mut result = vec![];
-        for (idx, arg) in args.iter().enumerate() {
-            let param = generics.param_at(idx, self.genv)?;
-            result.push(self.refine_generic_arg(&param, arg)?);
-        }
-        Ok(List::from_vec(result))
+        args.iter()
+            .enumerate()
+            .map(|(idx, arg)| {
+                let param = generics.param_at(idx, self.genv)?;
+                self.refine_generic_arg(&param, arg)
+            })
+            .collect()
     }
 
     pub fn refine_generic_arg(

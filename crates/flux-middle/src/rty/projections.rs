@@ -368,8 +368,11 @@ impl TVarSubst {
     }
 
     fn insert_generic_arg(&mut self, idx: u32, arg: GenericArg) {
-        if self.args[idx as usize].replace(arg).is_some() {
-            bug!("duplicate insert");
+        if let Some(old) = &self.args[idx as usize]
+            && old != &arg
+        {
+            tracked_span_bug!("ambiguous substitution");
         }
+        self.args[idx as usize].replace(arg);
     }
 }
