@@ -166,14 +166,8 @@ impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
             .replace_bound_vars(
                 |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
-            );
-
-        let fn_sig = fn_sig.normalize_projections(
-            genv,
-            infcx.region_infcx,
-            infcx.def_id,
-            infcx.refparams,
-        )?;
+            )
+            .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)?;
 
         let obligs = if let Some(did) = callee_def_id {
             mk_obligations(genv, did, &generic_args, &refine_args)?
