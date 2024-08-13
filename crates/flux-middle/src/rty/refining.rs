@@ -404,8 +404,6 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 tracked_span_bug!(
                     "TODO: implement refiner for FnPtr, after adding rty::BaseTy::FnPtr"
                 );
-                // let fn_sig = self.refine_poly_fn_sig(fn_sig)?;
-                // rty::BaseTy::FnPtr(fn_sig)
             }
             rustc::ty::TyKind::RawPtr(ty, mu) => {
                 rty::BaseTy::RawPtr(self.as_default().refine_ty(ty)?, *mu)
