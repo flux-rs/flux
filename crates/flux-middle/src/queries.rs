@@ -70,13 +70,6 @@ pub enum QueryErr {
     Emitted(ErrorGuaranteed),
 }
 
-#[derive(Debug, Clone, Encodable, Decodable)]
-struct Location {
-    file: Symbol,
-    line: u32,
-    col: u32,
-}
-
 impl QueryErr {
     pub fn unsupported(def_id: DefId, err: UnsupportedErr) -> Self {
         QueryErr::Unsupported { def_id, err }
