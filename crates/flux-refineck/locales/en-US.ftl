@@ -44,9 +44,6 @@ refineck_unsupported_call =
     unsupported type in function call
     .function_definition = function defined here
 
-refineck_bug =
-    uh-oh: the code triggered a bug in Flux
-
 # Invariant checking
 
 refineck_invalid_invariant =

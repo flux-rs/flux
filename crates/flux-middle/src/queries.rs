@@ -55,21 +55,50 @@ pub type QueryResult<T = ()> = Result<T, QueryErr>;
 ///
 /// Both [`QueryErr`] and [`QueryErrAt`] implement [`Diagnostic`]. The implementation for [`QueryErr`]
 /// reports the error at the definition site, while the implementation for [`QueryErrAt`] reports it at
-/// the (attached) use-site span. This allows to play a bit lose because we can emit an error without
+/// the (attached) use-site span. This allows us to play a bit lose because we can emit an error without
 /// attatching a span, but this means we may forget to attach spans at some places. We should consider
 /// not implementing [`Diagnostic`] for [`QueryErr`] such that we always make the distinction between
 /// use-site and def-site explicit, e.g., we could have methods `QueryErr::at_use_site` and
 /// `QueryErr::at_def_site` returning types with different implementations of [`Diagnostic`].
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub enum QueryErr {
-    Unsupported { def_id: DefId, err: UnsupportedErr },
-    Ignored { def_id: DefId },
-    InvalidGenericArg { def_id: DefId },
-    InvalidAssocReft { impl_id: DefId, name: Symbol },
+    Unsupported {
+        def_id: DefId,
+        err: UnsupportedErr,
+    },
+    Ignored {
+        def_id: DefId,
+    },
+    InvalidGenericArg {
+        def_id: DefId,
+    },
+    InvalidAssocReft {
+        impl_id: DefId,
+        name: Symbol,
+    },
+    /// Used to report bugs, typically this means executing an arm in a match we though it was unreachable.
+    /// Use this instead of panicking if it is easy to return a [`QueryErr`]. Use [`QueryErr::bug`] to
+    /// construct this variant.
+    Bug {
+        location: String,
+        note: String,
+    },
     Emitted(ErrorGuaranteed),
 }
 
 impl QueryErr {
+    pub fn unsupported(def_id: DefId, err: UnsupportedErr) -> Self {
+        QueryErr::Unsupported { def_id, err }
+    }
+
+    #[track_caller]
+    pub fn bug(note: impl ToString) -> Self {
+        QueryErr::Bug {
+            location: format!("{}", std::panic::Location::caller()),
+            note: note.to_string(),
+        }
+    }
+
     pub fn at(self, span: Span) -> QueryErrAt {
         QueryErrAt { span, err: self }
     }
@@ -633,12 +662,6 @@ where
     v
 }
 
-impl QueryErr {
-    pub fn unsupported(def_id: DefId, err: UnsupportedErr) -> Self {
-        QueryErr::Unsupported { def_id, err }
-    }
-}
-
 impl<'a> Diagnostic<'a> for QueryErr {
     fn into_diag(
         self,
@@ -669,17 +692,23 @@ impl<'a> Diagnostic<'a> for QueryErr {
                     diag.code(E0999);
                     diag
                 }
-                QueryErr::Emitted(_) => {
-                    let mut diag = dcx.struct_err("QueryErr::Emitted should be emitted");
-                    diag.downgrade_to_delayed_bug();
-                    diag
-                }
                 QueryErr::InvalidAssocReft { impl_id, name } => {
                     let def_span = tcx.def_span(impl_id);
                     let mut diag =
                         dcx.struct_span_err(def_span, fluent::middle_query_invalid_assoc_reft);
                     diag.arg("name", name);
                     diag.code(E0999);
+                    diag
+                }
+                QueryErr::Bug { location, note } => {
+                    let mut diag = dcx.struct_err(fluent::middle_query_bug);
+                    diag.arg("location", location);
+                    diag.note(note);
+                    diag
+                }
+                QueryErr::Emitted(_) => {
+                    let mut diag = dcx.struct_err("QueryErr::Emitted should be emitted");
+                    diag.downgrade_to_delayed_bug();
                     diag
                 }
             }
@@ -720,7 +749,9 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                     diag.code(E0999);
                     diag
                 }
-                QueryErr::InvalidGenericArg { .. } | QueryErr::Emitted(_) => {
+                QueryErr::InvalidGenericArg { .. }
+                | QueryErr::Emitted(_)
+                | QueryErr::Bug { .. } => {
                     let mut diag = self.err.into_diag(dcx, level);
                     diag.span(self.span);
                     diag

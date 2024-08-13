@@ -4,6 +4,7 @@ use flux_common::bug;
 use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
+    queries::QueryErr,
     rty::{
         self, evars::EVarSol, fold::TypeFoldable, AliasTy, BaseTy, Binder, CoroutineObligPredicate,
         ESpan, EVarGen, EarlyBinder, Ensures, Expr, ExprKind, FnOutput, GenericArg, HoleKind,
@@ -535,7 +536,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 debug_assert_eq!(alias_ty1, alias_ty2);
                 Ok(())
             }
-            _ => Err(CheckerErrKind::Bug(format!("incompatible types: `{ty1:?}` - `{ty2:?}`"))),
+            _ => Err(QueryErr::bug(format!("incompatible types: `{ty1:?}` - `{ty2:?}`")))?,
         }
     }
 
@@ -601,10 +602,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 }
                 Ok(())
             }
-            _ => {
-                let note = format!("incompatible base types: `{bty1:?}` - `{bty2:?}`");
-                Err(CheckerErrKind::Bug(note))
-            }
+            _ => Err(QueryErr::bug(format!("incompatible base types: `{bty1:?}` - `{bty2:?}`")))?,
         }
     }
 
@@ -667,7 +665,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
             }
             _ => {
                 let note = format!("incompatible generic args: `{arg1:?}` `{arg2:?}`");
-                return Err(CheckerErrKind::Bug(note));
+                return Err(QueryErr::bug(note).into());
             }
         };
         match variance {
