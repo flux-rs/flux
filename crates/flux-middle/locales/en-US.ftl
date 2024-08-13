@@ -31,6 +31,9 @@ middle_query_invalid_generic_arg =
 middle_query_invalid_assoc_reft =
     associated refinement `{$name}` is not defined in this trait implementation
 
+middle_query_bug =
+    internal flux error: {$location}
+
 middle_query_ignored_item =
     use of ignored item
 
