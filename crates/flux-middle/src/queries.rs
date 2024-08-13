@@ -81,7 +81,7 @@ pub enum QueryErr {
     /// construct this variant.
     Bug {
         location: String,
-        note: String,
+        msg: String,
     },
     Emitted(ErrorGuaranteed),
 }
@@ -92,10 +92,10 @@ impl QueryErr {
     }
 
     #[track_caller]
-    pub fn bug(note: impl ToString) -> Self {
+    pub fn bug(msg: impl ToString) -> Self {
         QueryErr::Bug {
             location: format!("{}", std::panic::Location::caller()),
-            note: note.to_string(),
+            msg: msg.to_string(),
         }
     }
 
@@ -700,10 +700,10 @@ impl<'a> Diagnostic<'a> for QueryErr {
                     diag.code(E0999);
                     diag
                 }
-                QueryErr::Bug { location, note } => {
+                QueryErr::Bug { location, msg } => {
                     let mut diag = dcx.struct_err(fluent::middle_query_bug);
                     diag.arg("location", location);
-                    diag.note(note);
+                    diag.note(msg);
                     diag
                 }
                 QueryErr::Emitted(_) => {
