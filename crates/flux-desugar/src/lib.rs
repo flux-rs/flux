@@ -10,7 +10,7 @@ extern crate rustc_middle;
 extern crate rustc_span;
 
 use desugar::RustItemCtxt;
-use flux_common::{bug, dbg};
+use flux_common::{bug, dbg, span_bug};
 use flux_config as config;
 use flux_macros::fluent_messages;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
@@ -73,10 +73,7 @@ pub fn desugar<'genv>(
                         fhir::Node::Item(genv.alloc(cx.desugar_type_alias(owner_id, ty_alias)?)),
                     );
                 }
-                hir::ItemKind::OpaqueTy(_) => {
-                    // Opaque types are desugared as part of the desugaring of their defining function
-                    todo!()
-                }
+
                 hir::ItemKind::Enum(..) => {
                     let enum_def = &specs.enums[&owner_id];
                     nodes.insert(
@@ -105,8 +102,12 @@ pub fn desugar<'genv>(
                         fhir::Node::Item(genv.alloc(cx.desugar_impl(owner_id, impl_)?)),
                     );
                 }
+                hir::ItemKind::OpaqueTy(_) => {
+                    // Opaque types are desugared as part of the desugaring of their defining function
+                    span_bug!(item.span, "unexpected opaque type");
+                }
                 _ => {
-                    bug!("unsupported item");
+                    span_bug!(item.span, "unsupported item");
                 }
             }
         }

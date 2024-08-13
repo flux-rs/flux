@@ -289,7 +289,7 @@ impl TVarSubst {
                     arg
                 } else {
                     let param = generics.param_at(idx, tcx);
-                    bug!("cannot infer substitution for param {param:?}");
+                    tracked_span_bug!("cannot infer substitution for param {param:?}");
                 }
             })
             .collect()
@@ -334,8 +334,9 @@ impl TVarSubst {
                     self.generic_args(a_arg, b_arg);
                 }
             }
-            (BaseTy::Array(a_ty, _), BaseTy::Array(b_ty, _)) => {
+            (BaseTy::Array(a_ty, a_n), BaseTy::Array(b_ty, b_n)) => {
                 self.tys(a_ty, b_ty);
+                self.consts(a_n, b_n);
             }
             (BaseTy::Tuple(a_tys), BaseTy::Tuple(b_tys)) => {
                 debug_assert_eq!(a_tys.len(), b_tys.len());
