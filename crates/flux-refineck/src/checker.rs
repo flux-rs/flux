@@ -1457,7 +1457,9 @@ impl Mode for RefineMode {
     ) -> Result<bool> {
         let bb_env = &ck.inherited.mode.bb_envs[&ck.def_id][&target];
         // debug_assert_eq!(&ck.snapshot_at_dominator(target).scope().unwrap(), bb_env.scope());
-        if &ck.snapshot_at_dominator(target).scope().unwrap() != bb_env.scope() {
+        if cfg!(debug_assertions)
+            && &ck.snapshot_at_dominator(target).scope().unwrap() != bb_env.scope()
+        {
             span_bug!(
                 terminator_span,
                 "check_goto_join_point scope mismatch: {:?} != {:?}",
