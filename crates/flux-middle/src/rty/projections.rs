@@ -54,7 +54,8 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
             tcx.param_env(def_id),
             alias_reft.to_rustc_trait_ref(tcx),
         );
-        match selcx.select(&trait_pred) {
+        let res = selcx.select(&trait_pred);
+        match res {
             Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data.impl_def_id)),
             Ok(_) => Ok(None),
             Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),

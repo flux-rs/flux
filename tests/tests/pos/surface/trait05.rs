@@ -1,4 +1,5 @@
 //! Check we normalize function signature on entry
+#![allow(dead_code)]
 
 trait MyTrait {
     type A;

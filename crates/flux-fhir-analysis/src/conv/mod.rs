@@ -506,7 +506,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn conv_type_binding(
         &mut self,
         env: &mut Env,
-        bounded_ty: &rty::Ty,
+        _bounded_ty: &rty::Ty,
         trait_ref: &rty::TraitRef,
         binding: &fhir::TypeBinding,
         clauses: &mut Vec<rty::Clause>,
@@ -522,7 +522,8 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .trait_defines_associated_item_named(candidate.def_id, AssocKind::Type, binding.ident)
             .unwrap();
 
-        let args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
+        // let args = List::singleton(rty::GenericArg::Ty(bounded_ty.clone()));
+        let args = trait_ref.args.clone();
         let refine_args = List::empty();
         let alias_ty = rty::AliasTy { def_id: assoc_item.def_id, args, refine_args };
         let kind = rty::ClauseKind::Projection(rty::ProjectionPredicate {
