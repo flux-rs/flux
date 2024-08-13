@@ -1230,7 +1230,11 @@ impl BaseTy {
                 let ts = tys.iter().map(|ty| ty.to_rustc(tcx)).collect_vec();
                 ty::Ty::new_tup(tcx, &ts)
             }
-            BaseTy::Array(_, _) => todo!(),
+            BaseTy::Array(ty, n) => {
+                let ty = ty.to_rustc(tcx);
+                let n = n.to_rustc(tcx);
+                ty::Ty::new_array_with_const_len(tcx, ty, n)
+            }
             BaseTy::Never => tcx.types.never,
             BaseTy::Closure(_, _) => todo!(),
             BaseTy::Dynamic(exi_preds, re) => {

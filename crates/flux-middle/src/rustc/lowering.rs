@@ -50,7 +50,7 @@ pub struct UnsupportedReason {
 }
 
 impl UnsupportedReason {
-    fn new(reason: impl ToString) -> Self {
+    pub fn new(reason: impl ToString) -> Self {
         UnsupportedReason { descr: reason.to_string() }
     }
 

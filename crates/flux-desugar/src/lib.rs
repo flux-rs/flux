@@ -25,6 +25,7 @@ use flux_middle::{
     fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
+    rustc::lowering::UnsupportedReason,
     ResolverOutput, Specs,
 };
 use flux_syntax::surface;
@@ -73,10 +74,7 @@ pub fn desugar<'genv>(
                         fhir::Node::Item(genv.alloc(cx.desugar_type_alias(owner_id, ty_alias)?)),
                     );
                 }
-                hir::ItemKind::OpaqueTy(_) => {
-                    // Opaque types are desugared as part of the desugaring of their defining function
-                    todo!()
-                }
+
                 hir::ItemKind::Enum(..) => {
                     let enum_def = &specs.enums[&owner_id];
                     nodes.insert(
@@ -105,8 +103,18 @@ pub fn desugar<'genv>(
                         fhir::Node::Item(genv.alloc(cx.desugar_impl(owner_id, impl_)?)),
                     );
                 }
+                // hir::ItemKind::OpaqueTy(_) => {
+                //     // Opaque types are desugared as part of the desugaring of their defining function
+                //     todo!()
+                //     // let err =
+                //     //     UnsupportedReason::new("opaque types are not yet supported").into_err();
+                //     // return Err(QueryErr::unsupported(def_id.to_def_id(), err));
+                // }
                 _ => {
-                    bug!("unsupported item");
+                    // bug!("unsupported item");
+                    let msg = format!("{:?} are not yet supported", item.kind);
+                    let err = UnsupportedReason::new(msg).into_err();
+                    return Err(QueryErr::unsupported(def_id.to_def_id(), err));
                 }
             }
         }
