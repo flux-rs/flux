@@ -420,7 +420,11 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             | DefKind::AssocFn
             | DefKind::Trait
             | DefKind::Impl { .. }
-            | DefKind::OpaqueTy => {
+            // we skip checking the DefKind::OpaqueTy because they
+            // must be wf-checked (and desugared) in the context of
+            // their "parent", so we do so "lazily" when the appropriate
+            // query is called on the "parent"
+            => {
                 let _ = genv.check_wf(def_id).emit(&errors);
             }
             _ => {}
