@@ -813,14 +813,13 @@
 <a href="#813" id="813">813</a>
 <a href="#814" id="814">814</a>
 <a href="#815" id="815">815</a>
-<a href="#816" id="816">816</a>
-<a href="#817" id="817">817</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, iter};
 
 <span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     intern::List,
+    queries::QueryErr,
     rty::{
         <span class="self">self</span>, evars::EVarSol, fold::TypeFoldable, AliasTy, BaseTy, Binder, CoroutineObligPredicate,
         ESpan, EVarGen, EarlyBinder, Ensures, Expr, ExprKind, FnOutput, GenericArg, HoleKind,
@@ -1346,7 +1345,7 @@
                 <span class="macro">debug_assert_eq!</span>(alias_ty1, alias_ty2);
                 <span class="prelude-val">Ok</span>(())
             }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(CheckerErrKind::Bug(<span class="macro">format!</span>(<span class="string">"incompatible types: `{ty1:?}` - `{ty2:?}`"</span>))),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(QueryErr::bug(<span class="macro">format!</span>(<span class="string">"incompatible types: `{ty1:?}` - `{ty2:?}`"</span>)))<span class="question-mark">?</span>,
         }
     }
 
@@ -1412,10 +1411,7 @@
                 }
                 <span class="prelude-val">Ok</span>(())
             }
-            <span class="kw">_ </span>=&gt; {
-                <span class="kw">let </span>note = <span class="macro">format!</span>(<span class="string">"incompatible base types: `{bty1:?}` - `{bty2:?}`"</span>);
-                <span class="prelude-val">Err</span>(CheckerErrKind::Bug(note))
-            }
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(QueryErr::bug(<span class="macro">format!</span>(<span class="string">"incompatible base types: `{bty1:?}` - `{bty2:?}`"</span>)))<span class="question-mark">?</span>,
         }
     }
 
@@ -1478,7 +1474,7 @@
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">let </span>note = <span class="macro">format!</span>(<span class="string">"incompatible generic args: `{arg1:?}` `{arg2:?}`"</span>);
-                <span class="kw">return </span><span class="prelude-val">Err</span>(CheckerErrKind::Bug(note));
+                <span class="kw">return </span><span class="prelude-val">Err</span>(QueryErr::bug(note).into());
             }
         };
         <span class="kw">match </span>variance {
