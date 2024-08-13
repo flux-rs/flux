@@ -420,7 +420,8 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             | DefKind::AssocFn
             | DefKind::Trait
             | DefKind::Impl { .. }
-            | DefKind::OpaqueTy => {
+            // | DefKind::OpaqueTy
+            => {
                 let _ = genv.check_wf(def_id).emit(&errors);
             }
             _ => {}
