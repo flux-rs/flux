@@ -66,10 +66,30 @@ pub enum QueryErr {
     Ignored { def_id: DefId },
     InvalidGenericArg { def_id: DefId },
     InvalidAssocReft { impl_id: DefId, name: Symbol },
+    Bug { location: String, note: String },
     Emitted(ErrorGuaranteed),
 }
 
+#[derive(Debug, Clone, Encodable, Decodable)]
+struct Location {
+    file: Symbol,
+    line: u32,
+    col: u32,
+}
+
 impl QueryErr {
+    pub fn unsupported(def_id: DefId, err: UnsupportedErr) -> Self {
+        QueryErr::Unsupported { def_id, err }
+    }
+
+    #[track_caller]
+    pub fn bug(note: impl ToString) -> Self {
+        QueryErr::Bug {
+            location: format!("{}", std::panic::Location::caller()),
+            note: note.to_string(),
+        }
+    }
+
     pub fn at(self, span: Span) -> QueryErrAt {
         QueryErrAt { span, err: self }
     }
@@ -633,12 +653,6 @@ where
     v
 }
 
-impl QueryErr {
-    pub fn unsupported(def_id: DefId, err: UnsupportedErr) -> Self {
-        QueryErr::Unsupported { def_id, err }
-    }
-}
-
 impl<'a> Diagnostic<'a> for QueryErr {
     fn into_diag(
         self,
@@ -669,17 +683,23 @@ impl<'a> Diagnostic<'a> for QueryErr {
                     diag.code(E0999);
                     diag
                 }
-                QueryErr::Emitted(_) => {
-                    let mut diag = dcx.struct_err("QueryErr::Emitted should be emitted");
-                    diag.downgrade_to_delayed_bug();
-                    diag
-                }
                 QueryErr::InvalidAssocReft { impl_id, name } => {
                     let def_span = tcx.def_span(impl_id);
                     let mut diag =
                         dcx.struct_span_err(def_span, fluent::middle_query_invalid_assoc_reft);
                     diag.arg("name", name);
                     diag.code(E0999);
+                    diag
+                }
+                QueryErr::Bug { location, note } => {
+                    let mut diag = dcx.struct_err(fluent::middle_query_bug);
+                    diag.arg("location", location);
+                    diag.note(note);
+                    diag
+                }
+                QueryErr::Emitted(_) => {
+                    let mut diag = dcx.struct_err("QueryErr::Emitted should be emitted");
+                    diag.downgrade_to_delayed_bug();
                     diag
                 }
             }
@@ -720,7 +740,9 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                     diag.code(E0999);
                     diag
                 }
-                QueryErr::InvalidGenericArg { .. } | QueryErr::Emitted(_) => {
+                QueryErr::InvalidGenericArg { .. }
+                | QueryErr::Emitted(_)
+                | QueryErr::Bug { .. } => {
                     let mut diag = self.err.into_diag(dcx, level);
                     diag.span(self.span);
                     diag
