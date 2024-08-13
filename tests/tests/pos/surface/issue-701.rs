@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 struct S<T> {
     f: T,
 }

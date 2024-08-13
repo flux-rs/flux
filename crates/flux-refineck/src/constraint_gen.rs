@@ -529,7 +529,10 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 debug_assert_eq!(alias_ty1, alias_ty2);
                 Ok(())
             }
-            _ => Err(CheckerErrKind::Bug(format!("incompatible types: `{ty1:?}` - `{ty2:?}`"))),
+            _ => {
+                panic!("{}", format!("incompatible types: `{ty1:?}` - `{ty2:?}`"));
+                // Err(CheckerErrKind::Bug(format!("incompatible types: `{ty1:?}` - `{ty2:?}`")));
+            }
         }
     }
 
