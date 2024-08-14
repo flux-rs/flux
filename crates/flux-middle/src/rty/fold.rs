@@ -236,6 +236,12 @@ pub trait TypeFoldable: TypeVisitable {
         self.try_fold_with(folder).into_ok()
     }
 
+    // As shown in https://github.com/flux-rs/flux/issues/711
+    // one round of `normalize_projections` can replace one
+    // projection e.g. `<Rev<Iter<[i32]> as Iterator>::Item`
+    // with another e.g. `<Iter<[i32]> as Iterator>::Item`
+    // We want to compute a "fixpoint" i.e. keep going until
+    // no change, so that e.g. the above is normalized all the way to `i32`.
     fn normalize_projections<'tcx>(
         &self,
         genv: GlobalEnv<'_, 'tcx>,
