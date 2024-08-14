@@ -59,6 +59,10 @@ pub fn scrape_quals() -> bool {
     CONFIG.scrape_quals
 }
 
+pub fn catch_bugs() -> bool {
+    CONFIG.catch_bugs
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct CrateConfig {
     pub check_overflow: bool,
@@ -74,6 +78,7 @@ struct Config {
     dump_fhir: bool,
     dump_rty: bool,
     dump_mir: bool,
+    catch_bugs: bool,
     pointer_width: PointerWidth,
     check_def: String,
     cache: bool,
@@ -121,6 +126,7 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("dump_mir", false)?
             .set_default("dump_fhir", false)?
             .set_default("dump_rty", false)?
+            .set_default("catch_bugs", false)?
             .set_default("check_asserts", "assume")?
             .set_default("pointer_width", "64")?
             .set_default("check_def", "")?

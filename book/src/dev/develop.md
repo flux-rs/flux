@@ -152,10 +152,9 @@ check_crate
 total time: 17014.19ms
 ```
 
-
 ## Macro expansion
 
-For example if you have code like  in `path/to/file.rs`
+For example if you have code like in `path/to/file.rs`
 
 ```rust
 #[extern_spec]
@@ -165,12 +164,36 @@ struct HashSet<T, S = RandomState>;
 
 and you want to see what the `extern_spec` macro expands it out to, then run
 
-```
+```shell
 cargo x run -- -Zunpretty=expanded path/to/file.rs
 ```
 
 Or you can run the `xtask` command directly
 
-```
+```shell
 cargo x expand path/to/file.rs
 ```
+
+## Reporting and dealing bugs
+
+As Flux is under active developement, there are many aspects of Rust that Flux does not yet support, are
+only partially implemented, or where the implementation may contain bugs. These issues typically manifest
+as unreachable arms in a match statement (that turn out not to be unreachable) or preemtive assertions to
+guard agains code we don't support. To help identify the code that triggers these bugs, there are a few
+recommended methods for reporting them:
+
+* `QueryErr::bug`: Use this method to report a bug if the code already returns a `QueryResult`. This
+approach is preferred because we will correctly recover from the error.
+* `span_bug!`: When you have a `Span` at hand, you can use this macro in place of `panic!` to report
+the span before panicking.
+* `tracked_span_bug!`: This macro is similar to `span_bug!`, but it uses a span stored in a thread local
+variable (if one exists). To track a span in the thread local variable you can use `flux_common::bug::track_span`.
+* `bug!`: For other cases where none of the above applies, you can use the `bug!` macro. This behaves
+mostly like `panic!` but with nicer formatting.
+
+When running Flux in a new code base, consider setting the flag `FLUX_CATCH_BUGS=1`. If this flag is set,
+Flux will try to catch and recover from panics emitted with one of the bug macros (using
+`std::panic::catch_unwind`). Bugs are caught at item boundaries. This may leave Flux or rustc
+in an inconsistent state, so there are no guarantees that Flux will behave correctly after recovering
+from a panic. However, this may still be useful to gather as many errors as possible. Code can
+be selectively ignored later.

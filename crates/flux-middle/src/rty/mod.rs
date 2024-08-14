@@ -1257,7 +1257,9 @@ impl BaseTy {
                 ty::Ty::new_array_with_const_len(tcx, ty, n)
             }
             BaseTy::Never => tcx.types.never,
-            BaseTy::Closure(_, _) => todo!(),
+            BaseTy::Closure(_, _) => {
+                bug!()
+            }
             BaseTy::Dynamic(exi_preds, re) => {
                 let preds: Vec<_> = exi_preds
                     .iter()

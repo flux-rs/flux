@@ -23,6 +23,7 @@ fn main() -> io::Result<()> {
     let context = Context::new(&original_args);
 
     if context.be_rustc() {
+        rustc_driver::install_ice_hook(rustc_driver::DEFAULT_BUG_REPORT_URL, |_| ());
         rustc_driver::main();
     }
 

@@ -5,6 +5,7 @@ use flux_fhir_analysis::compare_impl_item;
 use flux_metadata::CStore;
 use flux_middle::{fhir, global_env::GlobalEnv, queries::Providers, Specs};
 use flux_refineck as refineck;
+use itertools::Itertools;
 use refineck::CheckerConfig;
 use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
@@ -87,9 +88,13 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
         let crate_items = genv.tcx().hir_crate_items(());
 
+        let dups = crate_items.definitions().duplicates().collect_vec();
+        if !dups.is_empty() {
+            todo!("{dups:#?}");
+        }
         let result = crate_items
             .definitions()
-            .try_for_each_exhaust(|def_id| ck.check_def(def_id));
+            .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 
         ck.cache.save().unwrap_or(());
 
@@ -140,6 +145,12 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn matches_check_def(&self, def_id: LocalDefId) -> bool {
         let def_path = self.genv.tcx().def_path_str(def_id.to_def_id());
         def_path.contains(config::check_def())
+    }
+
+    fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
+        let mut this = std::panic::AssertUnwindSafe(self);
+        let msg = format!("def_id: {:?}, span: {:?}", def_id, this.genv.tcx().def_span(def_id));
+        flux_common::bug::catch_bugs(&msg, move || this.check_def(def_id)).and_then(|err| err)
     }
 
     fn check_def(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
