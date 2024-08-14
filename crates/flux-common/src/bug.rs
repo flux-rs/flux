@@ -1,8 +1,13 @@
-use std::{cell::Cell, fmt, panic::Location};
+use std::{
+    cell::Cell,
+    fmt,
+    panic::{Location, UnwindSafe},
+};
 
-use rustc_errors::MultiSpan;
+use flux_config as config;
+use rustc_errors::{ExplicitBug, MultiSpan};
 use rustc_middle::ty::tls;
-use rustc_span::Span;
+use rustc_span::{ErrorGuaranteed, Span};
 
 thread_local! {
     static TRACKED_SPAN: Cell<Option<Span>> = const { Cell::new(None) };
@@ -66,14 +71,37 @@ pub fn tracked_span_bug_fmt(args: fmt::Arguments<'_>) -> ! {
 fn opt_span_bug_fmt<S: Into<MultiSpan>>(
     span: Option<S>,
     args: fmt::Arguments<'_>,
-    location: &Location<'_>,
+    location: &'static Location<'static>,
 ) -> ! {
     tls::with_opt(move |tcx| {
         let msg = format!("{location}: {args}");
         match (tcx, span) {
-            (Some(tcx), Some(span)) => tcx.sess.dcx().span_bug(span, msg),
-            (Some(tcx), None) => tcx.sess.dcx().bug(msg),
+            (Some(tcx), Some(span)) => tcx.dcx().span_bug(span, msg),
+            (Some(tcx), None) => tcx.dcx().bug(msg),
             (None, _) => std::panic::panic_any(msg),
         }
     })
+}
+
+pub fn catch_bugs<R>(msg: &str, f: impl FnOnce() -> R + UnwindSafe) -> Result<R, ErrorGuaranteed> {
+    if config::catch_bugs() {
+        match std::panic::catch_unwind(f) {
+            Ok(v) => Ok(v),
+            Err(payload) => {
+                tls::with_opt(move |tcx| {
+                    let Some(tcx) = tcx else { std::panic::resume_unwind(payload) };
+
+                    if payload.is::<ExplicitBug>() {
+                        eprintln!("note: bug caught [{msg}]");
+                        Err(tcx.dcx().delayed_bug("bug wasn't reported"))
+                    } else {
+                        eprintln!("note: uncaught panic [{msg}]");
+                        std::panic::resume_unwind(payload)
+                    }
+                })
+            }
+        }
+    } else {
+        Ok(f())
+    }
 }

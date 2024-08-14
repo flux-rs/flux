@@ -156,15 +156,15 @@ impl Generics {
     }
 
     pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<List<(ParamConst, Sort)>> {
+        // FIXME(nilehmann) this shouldn't use the methods in `flux_middle::sort_of` to get the sort
         let mut res = vec![];
         for i in 0..self.count() {
-            let generic_param = self.param_at(i, genv)?;
-            if let GenericParamDefKind::Const { .. } = generic_param.kind
-                && let Some(local_def_id) = generic_param.def_id.as_local()
+            let param = self.param_at(i, genv)?;
+            if let GenericParamDefKind::Const { .. } = param.kind
+                && let Some(local_def_id) = param.def_id.as_local()
                 && let Some(sort) = genv.sort_of_generic_param(local_def_id)?
             {
-                let param_const =
-                    ParamConst { name: generic_param.name, index: generic_param.index };
+                let param_const = ParamConst { name: param.name, index: param.index };
                 res.push((param_const, sort));
             }
         }
@@ -1257,7 +1257,9 @@ impl BaseTy {
                 ty::Ty::new_array_with_const_len(tcx, ty, n)
             }
             BaseTy::Never => tcx.types.never,
-            BaseTy::Closure(_, _) => todo!(),
+            BaseTy::Closure(_, _) => {
+                bug!()
+            }
             BaseTy::Dynamic(exi_preds, re) => {
                 let preds: Vec<_> = exi_preds
                     .iter()
