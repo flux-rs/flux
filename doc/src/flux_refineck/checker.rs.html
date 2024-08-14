@@ -1617,6 +1617,8 @@
 <a href="#1617" id="1617">1617</a>
 <a href="#1618" id="1618">1618</a>
 <a href="#1619" id="1619">1619</a>
+<a href="#1620" id="1620">1620</a>
+<a href="#1621" id="1621">1621</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -1792,7 +1794,9 @@
         <span class="macro">dbg::shape_mode_span!</span>(genv.tcx(), def_id).in_scope(|| {
             <span class="kw">let </span>span = genv.tcx().def_span(def_id);
             <span class="kw">let </span><span class="kw-2">mut </span>mode = ShapeMode { bb_envs: FxHashMap::default() };
-            <span class="kw">let </span><span class="kw-2">mut </span>refine_tree = RefineTree::new(List::default());
+            <span class="kw">let </span>generics = genv.generics_of(def_id).with_span(span)<span class="question-mark">?</span>;
+            <span class="kw">let </span>const_params = generics.const_params(genv).with_span(span)<span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>refine_tree = RefineTree::new(const_params);
             <span class="kw">let </span><span class="kw-2">mut </span>rcx = refine_tree.refine_ctxt_at_root();
             <span class="kw">let </span>inherited = Inherited::new(genv, <span class="kw-2">&amp;mut </span>rcx, def_id, <span class="kw-2">&amp;mut </span>mode, ghost_stmts, config)<span class="question-mark">?</span>;
 
