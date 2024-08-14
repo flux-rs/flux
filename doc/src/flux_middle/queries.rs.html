@@ -851,7 +851,7 @@
     /// construct this variant.
     </span>Bug {
         location: String,
-        note: String,
+        msg: String,
     },
     Emitted(ErrorGuaranteed),
 }
@@ -862,10 +862,10 @@
     }
 
     <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>bug(note: <span class="kw">impl </span>ToString) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>bug(msg: <span class="kw">impl </span>ToString) -&gt; <span class="self">Self </span>{
         QueryErr::Bug {
             location: <span class="macro">format!</span>(<span class="string">"{}"</span>, std::panic::Location::caller()),
-            note: note.to_string(),
+            msg: msg.to_string(),
         }
     }
 
@@ -1470,10 +1470,10 @@
                     diag.code(E0999);
                     diag
                 }
-                QueryErr::Bug { location, note } =&gt; {
+                QueryErr::Bug { location, msg } =&gt; {
                     <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_err(fluent::middle_query_bug);
                     diag.arg(<span class="string">"location"</span>, location);
-                    diag.note(note);
+                    diag.note(msg);
                     diag
                 }
                 QueryErr::Emitted(<span class="kw">_</span>) =&gt; {

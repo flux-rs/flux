@@ -77,11 +77,44 @@
 <a href="#77" id="77">77</a>
 <a href="#78" id="78">78</a>
 <a href="#79" id="79">79</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::Cell, fmt, panic::Location};
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+    cell::Cell,
+    fmt,
+    panic::{Location, UnwindSafe},
+};
 
-<span class="kw">use </span>rustc_errors::MultiSpan;
+<span class="kw">use </span>flux_config <span class="kw">as </span>config;
+<span class="kw">use </span>rustc_errors::{ExplicitBug, MultiSpan};
 <span class="kw">use </span>rustc_middle::ty::tls;
-<span class="kw">use </span>rustc_span::Span;
+<span class="kw">use </span>rustc_span::{ErrorGuaranteed, Span};
 
 <span class="macro">thread_local!</span> {
     <span class="kw">static </span>TRACKED_SPAN: Cell&lt;<span class="prelude-ty">Option</span>&lt;Span&gt;&gt; = <span class="kw">const </span>{ Cell::new(<span class="prelude-val">None</span>) };
@@ -145,15 +178,38 @@
 </span><span class="kw">fn </span>opt_span_bug_fmt&lt;S: Into&lt;MultiSpan&gt;&gt;(
     span: <span class="prelude-ty">Option</span>&lt;S&gt;,
     args: fmt::Arguments&lt;<span class="lifetime">'_</span>&gt;,
-    location: <span class="kw-2">&amp;</span>Location&lt;<span class="lifetime">'_</span>&gt;,
+    location: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>Location&lt;<span class="lifetime">'static</span>&gt;,
 ) -&gt; ! {
     tls::with_opt(<span class="kw">move </span>|tcx| {
         <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{location}: {args}"</span>);
         <span class="kw">match </span>(tcx, span) {
-            (<span class="prelude-val">Some</span>(tcx), <span class="prelude-val">Some</span>(span)) =&gt; tcx.sess.dcx().span_bug(span, msg),
-            (<span class="prelude-val">Some</span>(tcx), <span class="prelude-val">None</span>) =&gt; tcx.sess.dcx().bug(msg),
+            (<span class="prelude-val">Some</span>(tcx), <span class="prelude-val">Some</span>(span)) =&gt; tcx.dcx().span_bug(span, msg),
+            (<span class="prelude-val">Some</span>(tcx), <span class="prelude-val">None</span>) =&gt; tcx.dcx().bug(msg),
             (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; std::panic::panic_any(msg),
         }
     })
+}
+
+<span class="kw">pub fn </span>catch_bugs&lt;R&gt;(msg: <span class="kw-2">&amp;</span>str, f: <span class="kw">impl </span>FnOnce() -&gt; R + UnwindSafe) -&gt; <span class="prelude-ty">Result</span>&lt;R, ErrorGuaranteed&gt; {
+    <span class="kw">if </span>config::catch_bugs() {
+        <span class="kw">match </span>std::panic::catch_unwind(f) {
+            <span class="prelude-val">Ok</span>(v) =&gt; <span class="prelude-val">Ok</span>(v),
+            <span class="prelude-val">Err</span>(payload) =&gt; {
+                tls::with_opt(<span class="kw">move </span>|tcx| {
+                    <span class="kw">let </span><span class="prelude-val">Some</span>(tcx) = tcx <span class="kw">else </span>{ std::panic::resume_unwind(payload) };
+
+                    <span class="kw">if </span>payload.is::&lt;ExplicitBug&gt;() {
+                        <span class="macro">eprintln!</span>(<span class="string">"note: bug caught [{msg}]"</span>);
+                        <span class="prelude-val">Err</span>(tcx.dcx().delayed_bug(<span class="string">"bug wasn't reported"</span>))
+                    } <span class="kw">else </span>{
+                        <span class="macro">eprintln!</span>(<span class="string">"note: uncaught panic [{msg}]"</span>);
+                        std::panic::resume_unwind(payload)
+                    }
+                })
+            }
+        }
+    } <span class="kw">else </span>{
+        <span class="prelude-val">Ok</span>(f())
+    }
 }
 </code></pre></div></section></main></body></html>

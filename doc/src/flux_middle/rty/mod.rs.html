@@ -2304,6 +2304,8 @@
 <a href="#2304" id="2304">2304</a>
 <a href="#2305" id="2305">2305</a>
 <a href="#2306" id="2306">2306</a>
+<a href="#2307" id="2307">2307</a>
+<a href="#2308" id="2308">2308</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -3563,7 +3565,9 @@
                 ty::Ty::new_array_with_const_len(tcx, ty, n)
             }
             BaseTy::Never =&gt; tcx.types.never,
-            BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
+            BaseTy::Closure(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
+                <span class="macro">bug!</span>()
+            }
             BaseTy::Dynamic(exi_preds, re) =&gt; {
                 <span class="kw">let </span>preds: Vec&lt;<span class="kw">_</span>&gt; = exi_preds
                     .iter()
