@@ -12,7 +12,7 @@ use rustc_type_ir::{DebruijnIndex, INNERMOST};
 use super::{
     evars::EVarSol,
     normalize::{Normalizer, SpecFuncDefns},
-    projections,
+    projections::{self},
     subst::EVarSubstFolder,
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Const,
     CoroutineObligPredicate, Ensures, ExistentialPredicate, ExistentialTraitRef, Expr, ExprKind,
@@ -242,10 +242,21 @@ pub trait TypeFoldable: TypeVisitable {
         infcx: &rustc_infer::infer::InferCtxt<'tcx>,
         callsite_def_id: DefId,
         refine_params: &[Expr],
-    ) -> QueryResult<Self> {
+    ) -> QueryResult<Self>
+    where
+        Self: PartialEq + std::fmt::Debug + Clone,
+    {
         let mut normalizer =
             projections::Normalizer::new(genv, infcx, callsite_def_id, refine_params)?;
-        self.try_fold_with(&mut normalizer)
+        let mut thing = (*self).clone();
+        loop {
+            let next = thing.try_fold_with(&mut normalizer)?;
+            if thing == next {
+                break; // reached a fixpoint
+            }
+            thing = next;
+        }
+        Ok(thing)
     }
 
     /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
