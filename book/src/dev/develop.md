@@ -174,7 +174,7 @@ Or you can run the `xtask` command directly
 cargo x expand path/to/file.rs
 ```
 
-## Reporting and dealing bugs
+## Reporting and dealing with bugs
 
 As Flux is under active developement, there are many aspects of Rust that Flux does not yet support, are
 only partially implemented, or where the implementation may contain bugs. These issues typically manifest
