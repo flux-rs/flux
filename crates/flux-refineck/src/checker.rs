@@ -173,7 +173,9 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
         dbg::shape_mode_span!(genv.tcx(), def_id).in_scope(|| {
             let span = genv.tcx().def_span(def_id);
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
-            let mut refine_tree = RefineTree::new(List::default());
+            let generics = genv.generics_of(def_id).with_span(span)?;
+            let const_params = generics.const_params(genv).with_span(span)?;
+            let mut refine_tree = RefineTree::new(const_params);
             let mut rcx = refine_tree.refine_ctxt_at_root();
             let inherited = Inherited::new(genv, &mut rcx, def_id, &mut mode, ghost_stmts, config)?;
 
