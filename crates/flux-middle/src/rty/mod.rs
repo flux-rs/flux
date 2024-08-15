@@ -654,14 +654,14 @@ pub struct EarlyBinder<T>(pub T);
 
 pub type PolyFnSig = Binder<FnSig>;
 
-#[derive(PartialEq, Eq, Clone, TyEncodable, TyDecodable)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct FnSig {
     requires: List<Expr>,
     inputs: List<Ty>,
     output: Binder<FnOutput>,
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, TyEncodable, TyDecodable)]
+#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct FnOutput {
     pub ret: Ty,
     pub ensures: List<Ensures>,
