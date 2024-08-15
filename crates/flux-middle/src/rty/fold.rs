@@ -248,21 +248,10 @@ pub trait TypeFoldable: TypeVisitable {
         infcx: &rustc_infer::infer::InferCtxt<'tcx>,
         callsite_def_id: DefId,
         refine_params: &[Expr],
-    ) -> QueryResult<Self>
-    where
-        Self: PartialEq + std::fmt::Debug + Clone,
-    {
+    ) -> QueryResult<Self> {
         let mut normalizer =
             projections::Normalizer::new(genv, infcx, callsite_def_id, refine_params)?;
-        let mut thing = (*self).clone();
-        loop {
-            let next = thing.try_fold_with(&mut normalizer)?;
-            if thing == next {
-                break; // reached a fixpoint
-            }
-            thing = next;
-        }
-        Ok(thing)
+        self.try_fold_with(&mut normalizer)
     }
 
     /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.

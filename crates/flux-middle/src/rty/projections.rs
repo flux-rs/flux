@@ -93,19 +93,20 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         }
     }
 
-    fn normalize_projection_ty(&mut self, obligation: &AliasTy) -> QueryResult<Ty> {
+    fn normalize_projection_ty(&mut self, obligation: &AliasTy) -> QueryResult<(bool, Ty)> {
         let mut candidates = vec![];
         self.assemble_candidates_from_param_env(obligation, &mut candidates);
         self.assemble_candidates_from_trait_def(obligation, &mut candidates)?;
         self.assemble_candidates_from_impls(obligation, &mut candidates)?;
 
         if candidates.is_empty() {
-            return Ok(Ty::alias(AliasKind::Projection, obligation.clone()));
+            return Ok((false, Ty::alias(AliasKind::Projection, obligation.clone())));
         }
         if candidates.len() > 1 {
             bug!("ambiguity when resolving `{obligation:?}` in {:?}", self.def_id);
         }
-        self.confirm_candidate(candidates.pop().unwrap(), obligation)
+        let ty = self.confirm_candidate(candidates.pop().unwrap(), obligation)?;
+        Ok((true, ty))
     }
 
     fn confirm_candidate(&self, candidate: Candidate, obligation: &AliasTy) -> QueryResult<Ty> {
@@ -244,7 +245,12 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
         match ty.kind() {
             TyKind::Alias(AliasKind::Projection, alias_ty) => {
-                self.normalize_projection_ty(alias_ty)
+                let (progress, ty) = self.normalize_projection_ty(alias_ty)?;
+                if progress {
+                    ty.try_fold_with(self)
+                } else {
+                    Ok(ty)
+                }
             }
             _ => ty.try_super_fold_with(self),
         }
