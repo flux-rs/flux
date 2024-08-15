@@ -688,12 +688,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             //
             // After writing this, I realize it may be better to erase regions before normalization.
             // We should revisit this at some point.
-            let poly_sig = instantiate_and_normalize_fn_sig(
-                self.genv,
-                &self.inherited,
-                self.body,
-                EarlyBinder(fn_trait_pred.to_poly_fn_sig(*def_id, tys.clone())),
-            )?;
+            let fn_sig = EarlyBinder(fn_trait_pred.to_poly_fn_sig(*def_id, tys.clone()));
+            let poly_sig =
+                instantiate_and_normalize_fn_sig(self.genv, &self.inherited, self.body, fn_sig)?;
 
             Checker::run(
                 self.genv,
