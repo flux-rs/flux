@@ -25,8 +25,8 @@ use itertools::Itertools;
 use rustc_middle::ty::ParamConst;
 
 use crate::{
-    infer::Tag,
     fixpoint_encoding::{fixpoint, sort_to_fixpoint, stitch, FixpointCtxt},
+    infer::Tag,
 };
 
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates

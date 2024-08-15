@@ -226,27 +226,24 @@ impl<'a, 'b, 'genv, 'tcx> InferCtxtAt<'a, 'b, 'genv, 'tcx> {
         clauses: &[rty::Clause],
     ) -> Result {
         for clause in clauses {
-            match clause.kind() {
-                rty::ClauseKind::Projection(projection_pred) => {
-                    let impl_elem = Ty::projection(projection_pred.projection_ty)
-                        .normalize_projections(
-                            self.infcx.genv,
-                            self.infcx.region_infcx,
-                            self.infcx.def_id,
-                            self.infcx.refparams,
-                        )?;
-                    let term = projection_pred.term.normalize_projections(
+            if let rty::ClauseKind::Projection(projection_pred) = clause.kind() {
+                let impl_elem = Ty::projection(projection_pred.projection_ty)
+                    .normalize_projections(
                         self.infcx.genv,
                         self.infcx.region_infcx,
                         self.infcx.def_id,
                         self.infcx.refparams,
                     )?;
+                let term = projection_pred.term.normalize_projections(
+                    self.infcx.genv,
+                    self.infcx.region_infcx,
+                    self.infcx.def_id,
+                    self.infcx.refparams,
+                )?;
 
-                    // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
-                    self.subtyping(rcx, &impl_elem, &term)?;
-                    self.subtyping(rcx, &term, &impl_elem)?;
-                }
-                _ => (),
+                // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
+                self.subtyping(rcx, &impl_elem, &term)?;
+                self.subtyping(rcx, &term, &impl_elem)?;
             }
         }
         Ok(())
@@ -507,7 +504,6 @@ impl<'a, 'b, 'genv, 'tcx> InferCtxtAt<'a, 'b, 'genv, 'tcx> {
             _ => {
                 self.infcx.unify_exprs(e1, e2);
                 let span = e2.span();
-                // FIXME(nilehmann) I think we can add the expr's span here
                 self.check_pred(rcx, Expr::eq_at(e1, e2, span));
             }
         }

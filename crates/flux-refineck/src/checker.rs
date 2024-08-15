@@ -608,7 +608,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     infcx
                         .at(ConstrReason::Call)
                         .subtyping(rcx, &actual, &formal)
-                        .with_span(span)?
+                        .with_span(span)?;
                 }
             }
         }
@@ -1040,7 +1040,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let (arr_ty, pred) = arr_ty.unconstr();
         infcx.at(ConstrReason::Other).check_pred(rcx, &pred);
         for ty in args {
-            // TODO(nilehmann) We should share this logic with `check_fn_call`
+            // TODO(nilehmann) We should share this logic with `check_call`
             match (ty.kind(), arr_ty.kind()) {
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
                     let ty = env
@@ -1055,7 +1055,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     infcx
                         .at(ConstrReason::Other)
                         .subtyping(rcx, ty, &arr_ty)
-                        .with_span(span)?
+                        .with_span(span)?;
                 }
             }
         }
