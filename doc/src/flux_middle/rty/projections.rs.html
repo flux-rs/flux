@@ -376,6 +376,19 @@
 <a href="#376" id="376">376</a>
 <a href="#377" id="377">377</a>
 <a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="attr">#[allow(unused_imports)]
@@ -471,19 +484,20 @@
         }
     }
 
-    <span class="kw">fn </span>normalize_projection_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, obligation: <span class="kw-2">&amp;</span>AliasTy) -&gt; QueryResult&lt;Ty&gt; {
+    <span class="kw">fn </span>normalize_projection_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, obligation: <span class="kw-2">&amp;</span>AliasTy) -&gt; QueryResult&lt;(bool, Ty)&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>candidates = <span class="macro">vec!</span>[];
         <span class="self">self</span>.assemble_candidates_from_param_env(obligation, <span class="kw-2">&amp;mut </span>candidates);
         <span class="self">self</span>.assemble_candidates_from_trait_def(obligation, <span class="kw-2">&amp;mut </span>candidates)<span class="question-mark">?</span>;
         <span class="self">self</span>.assemble_candidates_from_impls(obligation, <span class="kw-2">&amp;mut </span>candidates)<span class="question-mark">?</span>;
 
         <span class="kw">if </span>candidates.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(Ty::alias(AliasKind::Projection, obligation.clone()));
+            <span class="kw">return </span><span class="prelude-val">Ok</span>((<span class="bool-val">false</span>, Ty::alias(AliasKind::Projection, obligation.clone())));
         }
         <span class="kw">if </span>candidates.len() &gt; <span class="number">1 </span>{
             <span class="macro">bug!</span>(<span class="string">"ambiguity when resolving `{obligation:?}` in {:?}"</span>, <span class="self">self</span>.def_id);
         }
-        <span class="self">self</span>.confirm_candidate(candidates.pop().unwrap(), obligation)
+        <span class="kw">let </span>ty = <span class="self">self</span>.confirm_candidate(candidates.pop().unwrap(), obligation)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>((<span class="bool-val">true</span>, ty))
     }
 
     <span class="kw">fn </span>confirm_candidate(<span class="kw-2">&amp;</span><span class="self">self</span>, candidate: Candidate, obligation: <span class="kw-2">&amp;</span>AliasTy) -&gt; QueryResult&lt;Ty&gt; {
@@ -619,10 +633,22 @@
 <span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>Normalizer&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">type </span>Error = QueryErr;
 
-    <span class="kw">fn </span>try_fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, <span class="self">Self</span>::Error&gt; {
+    <span class="comment">// As shown in https://github.com/flux-rs/flux/issues/711
+    // one round of `normalize_projections` can replace one
+    // projection e.g. `&lt;Rev&lt;Iter&lt;[i32]&gt; as Iterator&gt;::Item`
+    // with another e.g. `&lt;Iter&lt;[i32]&gt; as Iterator&gt;::Item`
+    // We want to compute a "fixpoint" i.e. keep going until
+    // no change, so that e.g. the above is normalized all the way to `i32`,
+    // which is what the `changed` is for.
+    </span><span class="kw">fn </span>try_fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, <span class="self">Self</span>::Error&gt; {
         <span class="kw">match </span>ty.kind() {
             TyKind::Alias(AliasKind::Projection, alias_ty) =&gt; {
-                <span class="self">self</span>.normalize_projection_ty(alias_ty)
+                <span class="kw">let </span>(changed, ty) = <span class="self">self</span>.normalize_projection_ty(alias_ty)<span class="question-mark">?</span>;
+                <span class="kw">if </span>changed {
+                    ty.try_fold_with(<span class="self">self</span>)
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">Ok</span>(ty)
+                }
             }
             <span class="kw">_ </span>=&gt; ty.try_super_fold_with(<span class="self">self</span>),
         }
