@@ -139,7 +139,7 @@ impl TypeEnv<'_> {
     /// This roughly implements the following inference rule:
     /// ```text
     ///                   t₁ <: t₂
-    /// --------------------------------------------------
+    /// -------------------------------------------------
     /// Γ₁,ℓ:t1,Γ₂ ; ptr(mut, ℓ) => Γ₁,ℓ:†t₂,Γ₂ ; &mut t2
     /// ```
     ///
@@ -152,7 +152,7 @@ impl TypeEnv<'_> {
     ///
     /// ```text
     ///                    i32[a] <: i32{v: $k(v)}
-    /// ---------------------------------------------------------------
+    /// ----------------------------------------------------------------
     /// x: i32[a] ; ptr(mut, x) => x:†i32{v: $k(v)} ; &mut i32{v: $k(v)}
     /// ```
     pub(crate) fn ptr_to_ref(
@@ -176,16 +176,20 @@ impl TypeEnv<'_> {
                 // to a place which requires annoying bookkepping.
                 let place = self.bindings.path_to_place(path);
                 let rust_ty = place.ty(infcx.genv, self.local_decls)?.ty;
-                subst::match_regions(&t2, &rust_ty)
+                let t2 = subst::match_regions(&t2, &rust_ty);
+                infcx.at(reason).subtyping(rcx, &t1, &t2)?;
+                t2
             }
             PtrToRefBound::Infer => {
-                t1.with_holes().replace_holes(|sorts, kind| {
+                let t2 = t1.with_holes().replace_holes(|sorts, kind| {
                     debug_assert_eq!(kind, HoleKind::Pred);
                     infcx.fresh_kvar(sorts, KVarEncoding::Conj)
-                })
+                });
+                infcx.at(reason).subtyping(rcx, &t1, &t2)?;
+                t2
             }
+            PtrToRefBound::Identity => t1.clone(),
         };
-        infcx.at(reason).subtyping(rcx, &t1, &t2)?;
 
         // ℓ: †t2
         self.bindings.lookup(path).block_with(t2.clone());
@@ -332,6 +336,7 @@ impl TypeEnv<'_> {
 pub(crate) enum PtrToRefBound {
     Ty(Ty),
     Infer,
+    Identity,
 }
 
 impl BasicBlockEnvShape {

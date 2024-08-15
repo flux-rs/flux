@@ -179,7 +179,7 @@ cargo x expand path/to/file.rs
 As Flux is under active developement, there are many aspects of Rust that Flux does not yet support, are
 only partially implemented, or where the implementation may contain bugs. These issues typically manifest
 as unreachable arms in a match statement (that turn out not to be unreachable) or preemtive assertions to
-guard agains code we don't support. To help identify the code that triggers these bugs, there are a few
+guard against code we don't yet support. To help identify the code that triggers these bugs, there are a few
 recommended methods for reporting them:
 
 * `QueryErr::bug`: Use this method to report a bug if the code already returns a `QueryResult`. This

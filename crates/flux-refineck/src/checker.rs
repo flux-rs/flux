@@ -946,7 +946,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Rvalue::Len(place) => self.check_len(rcx, env, stmt_span, place),
             Rvalue::Cast(kind, op, to) => {
                 let from = self.check_operand(rcx, env, stmt_span, op)?;
-                self.check_cast(*kind, &from, to)
+                self.check_cast(rcx, env, stmt_span, *kind, &from, to)
             }
             Rvalue::Repeat(operand, c) => {
                 let ty = self.check_operand(rcx, env, stmt_span, operand)?;
@@ -1067,7 +1067,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(Ty::array(arr_ty, rty::Const::from_usize(self.genv.tcx(), args.len())))
     }
 
-    fn check_cast(&self, kind: CastKind, from: &Ty, to: &rustc::ty::Ty) -> Result<Ty> {
+    fn check_cast(
+        &self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        span: Span,
+        kind: CastKind,
+        from: &Ty,
+        to: &rustc::ty::Ty,
+    ) -> Result<Ty> {
         use rustc::ty::TyKind as RustTy;
         let ty = match kind {
             CastKind::PointerExposeProvenance => {
@@ -1097,30 +1105,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
             }
             CastKind::Pointer(mir::PointerCast::Unsize) => {
-                if let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind()
-                    && let TyKind::Indexed(src_base_ty, _) = src_ty.kind()
-                    && let rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
-                {
-                    // &mut [T; n] -> &mut [T][n] and &[T; n] -> &[T][n]
-                    if let rustc::ty::TyKind::Slice(_) = dst_ty.kind()
-                        && let BaseTy::Array(src_arr_ty, src_n) = src_base_ty
-                        && src_mut == dst_mut
-                    {
-                        let idx = Expr::from_const(self.genv.tcx(), src_n);
-                        let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), idx);
-                        Ty::mk_ref(*dst_re, dst_slice, *dst_mut)
-                    } else
-                    // &T  -> & dyn U
-                    if let rustc::ty::TyKind::Dynamic(_, _) = dst_ty.kind() {
-                        self.genv
-                            .refine_default(&self.generics, to)
-                            .with_span(self.body.span())?
-                    } else {
-                        tracked_span_bug!("unsupported Unsize cast: from {from:?} to {to:?}")
-                    }
-                } else {
-                    tracked_span_bug!("unsupported Unsize cast: from {from:?} to {to:?}")
-                }
+                self.check_unsize_cast(rcx, env, span, from, to)?
             }
             CastKind::FloatToInt
             | CastKind::IntToFloat
@@ -1133,6 +1118,49 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         };
         Ok(ty)
+    }
+
+    fn check_unsize_cast(
+        &self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        span: Span,
+        from: &Ty,
+        to: &rustc::ty::Ty,
+    ) -> Result<Ty> {
+        // Convert ptr to ref
+        let from = if let TyKind::Ptr(PtrKind::Mut(re), path) = from.kind() {
+            let mut infcx = self.infcx(rcx, span);
+            env.ptr_to_ref(rcx, &mut infcx, ConstrReason::Other, *re, path, PtrToRefBound::Identity)
+                .with_span(span)?
+        } else {
+            from.clone()
+        };
+
+        if let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind()
+            && let TyKind::Indexed(src_base_ty, _) = src_ty.kind()
+            && let rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
+        {
+            // &mut [T; n] -> &mut [T][n] and &[T; n] -> &[T][n]
+            if let rustc::ty::TyKind::Slice(_) = dst_ty.kind()
+                && let BaseTy::Array(src_arr_ty, src_n) = src_base_ty
+                && src_mut == dst_mut
+            {
+                let idx = Expr::from_const(self.genv.tcx(), src_n);
+                let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), idx);
+                Ok(Ty::mk_ref(*dst_re, dst_slice, *dst_mut))
+            } else
+            // &T  -> & dyn U
+            if let rustc::ty::TyKind::Dynamic(_, _) = dst_ty.kind() {
+                self.genv
+                    .refine_default(&self.generics, to)
+                    .with_span(self.body.span())
+            } else {
+                tracked_span_bug!("unsupported Unsize cast: from {from:?} to {to:?}")
+            }
+        } else {
+            tracked_span_bug!("unsupported Unsize cast: from {from:?} to {to:?}")
+        }
     }
 
     fn check_operands(
