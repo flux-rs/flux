@@ -26,5 +26,5 @@ fn find_file_in_target_dir(file: &str) -> PathBuf {
     if workspace_path.exists() {
         return workspace_path;
     }
-    bug!("Could not find {file}");
+    panic!("Could not find {file}");
 }
