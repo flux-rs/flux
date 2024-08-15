@@ -1744,6 +1744,34 @@
 <a href="#1744" id="1744">1744</a>
 <a href="#1745" id="1745">1745</a>
 <a href="#1746" id="1746">1746</a>
+<a href="#1747" id="1747">1747</a>
+<a href="#1748" id="1748">1748</a>
+<a href="#1749" id="1749">1749</a>
+<a href="#1750" id="1750">1750</a>
+<a href="#1751" id="1751">1751</a>
+<a href="#1752" id="1752">1752</a>
+<a href="#1753" id="1753">1753</a>
+<a href="#1754" id="1754">1754</a>
+<a href="#1755" id="1755">1755</a>
+<a href="#1756" id="1756">1756</a>
+<a href="#1757" id="1757">1757</a>
+<a href="#1758" id="1758">1758</a>
+<a href="#1759" id="1759">1759</a>
+<a href="#1760" id="1760">1760</a>
+<a href="#1761" id="1761">1761</a>
+<a href="#1762" id="1762">1762</a>
+<a href="#1763" id="1763">1763</a>
+<a href="#1764" id="1764">1764</a>
+<a href="#1765" id="1765">1765</a>
+<a href="#1766" id="1766">1766</a>
+<a href="#1767" id="1767">1767</a>
+<a href="#1768" id="1768">1768</a>
+<a href="#1769" id="1769">1769</a>
+<a href="#1770" id="1770">1770</a>
+<a href="#1771" id="1771">1771</a>
+<a href="#1772" id="1772">1772</a>
+<a href="#1773" id="1773">1773</a>
+<a href="#1774" id="1774">1774</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -2692,7 +2720,7 @@
             Rvalue::Len(place) =&gt; <span class="self">self</span>.check_len(rcx, env, stmt_span, place),
             Rvalue::Cast(kind, op, to) =&gt; {
                 <span class="kw">let </span>from = <span class="self">self</span>.check_operand(rcx, env, stmt_span, op)<span class="question-mark">?</span>;
-                <span class="self">self</span>.check_cast(<span class="kw-2">*</span>kind, <span class="kw-2">&amp;</span>from, to)
+                <span class="self">self</span>.check_cast(rcx, env, stmt_span, <span class="kw-2">*</span>kind, <span class="kw-2">&amp;</span>from, to)
             }
             Rvalue::Repeat(operand, c) =&gt; {
                 <span class="kw">let </span>ty = <span class="self">self</span>.check_operand(rcx, env, stmt_span, operand)<span class="question-mark">?</span>;
@@ -2813,7 +2841,15 @@
         <span class="prelude-val">Ok</span>(Ty::array(arr_ty, rty::Const::from_usize(<span class="self">self</span>.genv.tcx(), args.len())))
     }
 
-    <span class="kw">fn </span>check_cast(<span class="kw-2">&amp;</span><span class="self">self</span>, kind: CastKind, from: <span class="kw-2">&amp;</span>Ty, to: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+    <span class="kw">fn </span>check_cast(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
+        env: <span class="kw-2">&amp;mut </span>TypeEnv,
+        span: Span,
+        kind: CastKind,
+        from: <span class="kw-2">&amp;</span>Ty,
+        to: <span class="kw-2">&amp;</span>rustc::ty::Ty,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
         <span class="kw">use </span>rustc::ty::TyKind <span class="kw">as </span>RustTy;
         <span class="kw">let </span>ty = <span class="kw">match </span>kind {
             CastKind::PointerExposeProvenance =&gt; {
@@ -2843,31 +2879,8 @@
                 }
             }
             CastKind::Pointer(mir::PointerCast::Unsize) =&gt; {
-                <span class="kw">if let </span>TyKind::Indexed(BaseTy::Ref(<span class="kw">_</span>, src_ty, src_mut), <span class="kw">_</span>) = from.kind()
-                    &amp;&amp; <span class="kw">let </span>TyKind::Indexed(src_base_ty, <span class="kw">_</span>) = src_ty.kind()
-                    &amp;&amp; <span class="kw">let </span>rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
-                {
-                    <span class="comment">// &amp;mut [T; n] -&gt; &amp;mut [T][n] and &amp;[T; n] -&gt; &amp;[T][n]
-                    </span><span class="kw">if let </span>rustc::ty::TyKind::Slice(<span class="kw">_</span>) = dst_ty.kind()
-                        &amp;&amp; <span class="kw">let </span>BaseTy::Array(src_arr_ty, src_n) = src_base_ty
-                        &amp;&amp; src_mut == dst_mut
-                    {
-                        <span class="kw">let </span>idx = Expr::from_const(<span class="self">self</span>.genv.tcx(), src_n);
-                        <span class="kw">let </span>dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), idx);
-                        Ty::mk_ref(<span class="kw-2">*</span>dst_re, dst_slice, <span class="kw-2">*</span>dst_mut)
-                    } <span class="kw">else
-                    </span><span class="comment">// &amp;T  -&gt; &amp; dyn U
-                    </span><span class="kw">if let </span>rustc::ty::TyKind::Dynamic(<span class="kw">_</span>, <span class="kw">_</span>) = dst_ty.kind() {
-                        <span class="self">self</span>.genv
-                            .refine_default(<span class="kw-2">&amp;</span><span class="self">self</span>.generics, to)
-                            .with_span(<span class="self">self</span>.body.span())<span class="question-mark">?
-                    </span>} <span class="kw">else </span>{
-                        <span class="macro">tracked_span_bug!</span>(<span class="string">"unsupported Unsize cast: from {from:?} to {to:?}"</span>)
-                    }
-                } <span class="kw">else </span>{
-                    <span class="macro">tracked_span_bug!</span>(<span class="string">"unsupported Unsize cast: from {from:?} to {to:?}"</span>)
-                }
-            }
+                <span class="self">self</span>.check_unsize_cast(rcx, env, span, from, to)<span class="question-mark">?
+            </span>}
             CastKind::FloatToInt
             | CastKind::IntToFloat
             | CastKind::PtrToPtr
@@ -2879,6 +2892,49 @@
             </span>}
         };
         <span class="prelude-val">Ok</span>(ty)
+    }
+
+    <span class="kw">fn </span>check_unsize_cast(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
+        env: <span class="kw-2">&amp;mut </span>TypeEnv,
+        span: Span,
+        from: <span class="kw-2">&amp;</span>Ty,
+        to: <span class="kw-2">&amp;</span>rustc::ty::Ty,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+        <span class="comment">// Convert ptr to ref
+        </span><span class="kw">let </span>from = <span class="kw">if let </span>TyKind::Ptr(PtrKind::Mut(re), path) = from.kind() {
+            <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, span);
+            env.ptr_to_ref(rcx, <span class="kw-2">&amp;mut </span>infcx, ConstrReason::Other, <span class="kw-2">*</span>re, path, PtrToRefBound::Identity)
+                .with_span(span)<span class="question-mark">?
+        </span>} <span class="kw">else </span>{
+            from.clone()
+        };
+
+        <span class="kw">if let </span>TyKind::Indexed(BaseTy::Ref(<span class="kw">_</span>, src_ty, src_mut), <span class="kw">_</span>) = from.kind()
+            &amp;&amp; <span class="kw">let </span>TyKind::Indexed(src_base_ty, <span class="kw">_</span>) = src_ty.kind()
+            &amp;&amp; <span class="kw">let </span>rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
+        {
+            <span class="comment">// &amp;mut [T; n] -&gt; &amp;mut [T][n] and &amp;[T; n] -&gt; &amp;[T][n]
+            </span><span class="kw">if let </span>rustc::ty::TyKind::Slice(<span class="kw">_</span>) = dst_ty.kind()
+                &amp;&amp; <span class="kw">let </span>BaseTy::Array(src_arr_ty, src_n) = src_base_ty
+                &amp;&amp; src_mut == dst_mut
+            {
+                <span class="kw">let </span>idx = Expr::from_const(<span class="self">self</span>.genv.tcx(), src_n);
+                <span class="kw">let </span>dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), idx);
+                <span class="prelude-val">Ok</span>(Ty::mk_ref(<span class="kw-2">*</span>dst_re, dst_slice, <span class="kw-2">*</span>dst_mut))
+            } <span class="kw">else
+            </span><span class="comment">// &amp;T  -&gt; &amp; dyn U
+            </span><span class="kw">if let </span>rustc::ty::TyKind::Dynamic(<span class="kw">_</span>, <span class="kw">_</span>) = dst_ty.kind() {
+                <span class="self">self</span>.genv
+                    .refine_default(<span class="kw-2">&amp;</span><span class="self">self</span>.generics, to)
+                    .with_span(<span class="self">self</span>.body.span())
+            } <span class="kw">else </span>{
+                <span class="macro">tracked_span_bug!</span>(<span class="string">"unsupported Unsize cast: from {from:?} to {to:?}"</span>)
+            }
+        } <span class="kw">else </span>{
+            <span class="macro">tracked_span_bug!</span>(<span class="string">"unsupported Unsize cast: from {from:?} to {to:?}"</span>)
+        }
     }
 
     <span class="kw">fn </span>check_operands(

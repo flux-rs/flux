@@ -752,6 +752,11 @@
 <a href="#752" id="752">752</a>
 <a href="#753" id="753">753</a>
 <a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -893,7 +898,7 @@
     /// This roughly implements the following inference rule:
     /// ```text
     ///                   t₁ &lt;: t₂
-    /// --------------------------------------------------
+    /// -------------------------------------------------
     /// Γ₁,ℓ:t1,Γ₂ ; ptr(mut, ℓ) =&gt; Γ₁,ℓ:†t₂,Γ₂ ; &amp;mut t2
     /// ```
     ///
@@ -906,7 +911,7 @@
     ///
     /// ```text
     ///                    i32[a] &lt;: i32{v: $k(v)}
-    /// ---------------------------------------------------------------
+    /// ----------------------------------------------------------------
     /// x: i32[a] ; ptr(mut, x) =&gt; x:†i32{v: $k(v)} ; &amp;mut i32{v: $k(v)}
     /// ```
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>ptr_to_ref(
@@ -930,16 +935,20 @@
                 // to a place which requires annoying bookkepping.
                 </span><span class="kw">let </span>place = <span class="self">self</span>.bindings.path_to_place(path);
                 <span class="kw">let </span>rust_ty = place.ty(infcx.genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
-                subst::match_regions(<span class="kw-2">&amp;</span>t2, <span class="kw-2">&amp;</span>rust_ty)
+                <span class="kw">let </span>t2 = subst::match_regions(<span class="kw-2">&amp;</span>t2, <span class="kw-2">&amp;</span>rust_ty);
+                infcx.at(reason).subtyping(rcx, <span class="kw-2">&amp;</span>t1, <span class="kw-2">&amp;</span>t2)<span class="question-mark">?</span>;
+                t2
             }
             PtrToRefBound::Infer =&gt; {
-                t1.with_holes().replace_holes(|sorts, kind| {
+                <span class="kw">let </span>t2 = t1.with_holes().replace_holes(|sorts, kind| {
                     <span class="macro">debug_assert_eq!</span>(kind, HoleKind::Pred);
                     infcx.fresh_kvar(sorts, KVarEncoding::Conj)
-                })
+                });
+                infcx.at(reason).subtyping(rcx, <span class="kw-2">&amp;</span>t1, <span class="kw-2">&amp;</span>t2)<span class="question-mark">?</span>;
+                t2
             }
+            PtrToRefBound::Identity =&gt; t1.clone(),
         };
-        infcx.at(reason).subtyping(rcx, <span class="kw-2">&amp;</span>t1, <span class="kw-2">&amp;</span>t2)<span class="question-mark">?</span>;
 
         <span class="comment">// ℓ: †t2
         </span><span class="self">self</span>.bindings.lookup(path).block_with(t2.clone());
@@ -1086,6 +1095,7 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>PtrToRefBound {
     Ty(Ty),
     Infer,
+    Identity,
 }
 
 <span class="kw">impl </span>BasicBlockEnvShape {
