@@ -45,7 +45,7 @@ use crate::{
     primops,
     queue::WorkQueue,
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
-    type_env::{BasicBlockEnv, BasicBlockEnvShape, TypeEnv},
+    type_env::{BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, TypeEnv},
 };
 
 type Result<T = ()> = std::result::Result<T, CheckerError>;
@@ -597,12 +597,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         .subtyping(rcx, &ty1, ty2)
                         .with_span(span)?;
                 }
-                (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
-                    let ty = env.block_with(genv, path, bound.clone()).with_span(span)?;
-                    infcx
-                        .at(ConstrReason::Call)
-                        .subtyping(rcx, &ty, bound)
-                        .with_span(span)?;
+                (TyKind::Ptr(PtrKind::Mut(re), path), Ref!(_, bound, Mutability::Mut)) => {
+                    env.ptr_to_ref(
+                        rcx,
+                        &mut infcx,
+                        ConstrReason::Call,
+                        *re,
+                        path,
+                        PtrToRefBound::Ty(bound.clone()),
+                    )
+                    .with_span(span)?;
                 }
                 _ => {
                     infcx
@@ -1039,14 +1043,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_call`
             match (ty.kind(), arr_ty.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
-                    let ty = env
-                        .block_with(self.genv, path, bound.clone())
-                        .with_span(span)?;
-                    infcx
-                        .at(ConstrReason::Other)
-                        .subtyping(rcx, &ty, bound)
-                        .with_span(span)?;
+                (TyKind::Ptr(PtrKind::Mut(re), path), Ref!(_, bound, Mutability::Mut)) => {
+                    env.ptr_to_ref(
+                        rcx,
+                        &mut infcx,
+                        ConstrReason::Other,
+                        *re,
+                        path,
+                        PtrToRefBound::Ty(bound.clone()),
+                    )
+                    .with_span(span)?;
                 }
                 _ => {
                     infcx
@@ -1229,9 +1235,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(span)?;
             }
             GhostStatement::Unblock(place) => env.unblock(rcx, place, self.check_overflow()),
-            GhostStatement::PtrToBorrow(place) => {
+            GhostStatement::PtrToRef(place) => {
                 let infcx = &mut self.infcx(rcx, span);
-                env.ptr_to_borrow(rcx, infcx, place).with_span(span)?;
+                env.ptr_to_ref_at_place(rcx, infcx, place).with_span(span)?;
             }
         }
         dbg::statement!("end", stmt, rcx, env);

@@ -302,8 +302,7 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
             let new_value = state.get_idx(*place_idx, self.map);
             if let (FlatSet::Elem(_), FlatSet::Top) = (&old_value, &new_value) {
                 let place = self.tracked_places.get(place_idx).unwrap().clone();
-                self.stmts
-                    .insert_at(point, GhostStatement::PtrToBorrow(place));
+                self.stmts.insert_at(point, GhostStatement::PtrToRef(place));
             }
             *old_value = new_value;
         }
@@ -325,8 +324,7 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, Results<'a, 'tcx>> for CollectPo
                 let new_value = target_state.get_idx(*place_idx, self.map);
                 if let (FlatSet::Elem(_), FlatSet::Top) = (&old_value, new_value) {
                     let place = self.tracked_places.get(place_idx).unwrap().clone();
-                    self.stmts
-                        .insert_at(point, GhostStatement::PtrToBorrow(place));
+                    self.stmts.insert_at(point, GhostStatement::PtrToRef(place));
                 }
             }
         }
