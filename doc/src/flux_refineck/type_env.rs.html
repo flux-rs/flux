@@ -725,6 +725,33 @@
 <a href="#725" id="725">725</a>
 <a href="#726" id="726">726</a>
 <a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -840,69 +867,99 @@
         }
     }
 
-    <span class="doccomment">/// Converts a pointer `ptr(mut, l)` to a borrow `&amp;mut T` for a type `T` that needs to be inferred.
-    /// For example, given the environment
-    /// ```text
-    /// x: i32[a], p: ptr(mut, x)
-    /// ```
-    ///
-    /// Converting the pointer to a borrow will produce
-    ///
-    /// ```text
-    /// x: †i32{v: $k(v)}, p: &amp;mut i32{v: $k(v)}
-    /// ```
-    ///
-    /// together with a constraint
-    ///
-    /// ```text
-    /// i32[a] &lt;: i32{v: $k(v)}
-    /// ```
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>ptr_to_borrow(
+    <span class="comment">// FIXME(nilehmann) this is only used in a single place and we have it because [`TypeEnv`]
+    // doesn't expose a lookup without unfolding
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>ptr_to_ref_at_place(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
         place: <span class="kw-2">&amp;</span>Place,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        infcx.push_scope(rcx);
-
-        <span class="comment">// place: ptr(mut, path)
-        </span><span class="kw">let </span>ptr_lookup = <span class="self">self</span>.bindings.lookup(place);
-        <span class="kw">let </span>TyKind::Ptr(PtrKind::Mut(re), path) = ptr_lookup.ty.kind() <span class="kw">else </span>{
+        <span class="kw">let </span>lookup = <span class="self">self</span>.bindings.lookup(place);
+        <span class="kw">let </span>TyKind::Ptr(PtrKind::Mut(re), path) = lookup.ty.kind() <span class="kw">else </span>{
             <span class="macro">tracked_span_bug!</span>(<span class="string">"ptr_to_borrow called on non mutable pointer type"</span>)
         };
 
-        <span class="comment">// path: old_ty
-        </span><span class="kw">let </span>old_ty = <span class="self">self</span>.bindings.lookup(path).fold(rcx, infcx)<span class="question-mark">?</span>;
+        <span class="kw">let </span>ref_ty =
+            <span class="self">self</span>.ptr_to_ref(rcx, infcx, ConstrReason::Other, <span class="kw-2">*</span>re, path, PtrToRefBound::Infer)<span class="question-mark">?</span>;
 
-        <span class="comment">// old_ty &lt;: new_ty
-        </span><span class="kw">let </span>new_ty = old_ty.with_holes().replace_holes(|sorts, kind| {
-            <span class="macro">debug_assert_eq!</span>(kind, HoleKind::Pred);
-            infcx.fresh_kvar(sorts, KVarEncoding::Conj)
-        });
-        infcx
-            .at(ConstrReason::Other)
-            .subtyping(rcx, <span class="kw-2">&amp;</span>old_ty, <span class="kw-2">&amp;</span>new_ty)<span class="question-mark">?</span>;
-
-        <span class="comment">// path: new_ty, place: &amp;mut new_ty
-        </span><span class="self">self</span>.bindings.lookup(path).block_with(new_ty.clone());
-        <span class="self">self</span>.bindings
-            .lookup(place)
-            .update(Ty::mk_ref(<span class="kw-2">*</span>re, new_ty, Mutability::Mut));
-
-        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.pop_scope_solving_pending().unwrap());
+        <span class="self">self</span>.bindings.lookup(place).update(ref_ty);
 
         <span class="prelude-val">Ok</span>(())
     }
 
+    <span class="doccomment">/// Convert a (strong) pointer to a mutable reference.
+    ///
+    /// This roughly implements the following inference rule:
+    /// ```text
+    ///                   t₁ &lt;: t₂
+    /// --------------------------------------------------
+    /// Γ₁,ℓ:t1,Γ₂ ; ptr(mut, ℓ) =&gt; Γ₁,ℓ:†t₂,Γ₂ ; &amp;mut t2
+    /// ```
+    ///
+    /// The bound `t₂` can be either inferred ([`PtrToRefBound::Infer`]), or explicilty provided
+    /// ([`PtrToRefBound::Ty`]).
+    ///
+    /// As an example, consider the environment `x: i32[a]` and the pointer `ptr(mut, x)`.
+    /// Converting the pointer to a mutable reference with an inferred bound produces the following
+    /// derivation (roughly):
+    ///
+    /// ```text
+    ///                    i32[a] &lt;: i32{v: $k(v)}
+    /// ---------------------------------------------------------------
+    /// x: i32[a] ; ptr(mut, x) =&gt; x:†i32{v: $k(v)} ; &amp;mut i32{v: $k(v)}
+    /// ```
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>ptr_to_ref(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
+        reason: ConstrReason,
+        re: Region,
+        path: <span class="kw-2">&amp;</span>Path,
+        bound: PtrToRefBound,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+        infcx.push_scope(rcx);
+
+        <span class="comment">// ℓ: t1
+        </span><span class="kw">let </span>t1 = <span class="self">self</span>.bindings.lookup(path).fold(rcx, infcx)<span class="question-mark">?</span>;
+
+        <span class="comment">// t1 &lt;: t2
+        </span><span class="kw">let </span>t2 = <span class="kw">match </span>bound {
+            PtrToRefBound::Ty(t2) =&gt; {
+                <span class="comment">// FIXME(nilehmann) we could match regions against `t1` instead of mapping the path
+                // to a place which requires annoying bookkepping.
+                </span><span class="kw">let </span>place = <span class="self">self</span>.bindings.path_to_place(path);
+                <span class="kw">let </span>rust_ty = place.ty(infcx.genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
+                subst::match_regions(<span class="kw-2">&amp;</span>t2, <span class="kw-2">&amp;</span>rust_ty)
+            }
+            PtrToRefBound::Infer =&gt; {
+                t1.with_holes().replace_holes(|sorts, kind| {
+                    <span class="macro">debug_assert_eq!</span>(kind, HoleKind::Pred);
+                    infcx.fresh_kvar(sorts, KVarEncoding::Conj)
+                })
+            }
+        };
+        infcx.at(reason).subtyping(rcx, <span class="kw-2">&amp;</span>t1, <span class="kw-2">&amp;</span>t2)<span class="question-mark">?</span>;
+
+        <span class="comment">// ℓ: †t2
+        </span><span class="self">self</span>.bindings.lookup(path).block_with(t2.clone());
+
+        <span class="kw">let </span>evar_sol = infcx.pop_scope_solving_pending().unwrap();
+        rcx.replace_evars(<span class="kw-2">&amp;</span>evar_sol);
+        <span class="self">self</span>.replace_evars(<span class="kw-2">&amp;</span>evar_sol);
+
+        <span class="prelude-val">Ok</span>(Ty::mk_ref(re, t2, Mutability::Mut))
+    }
+
     <span class="doccomment">/// Updates the type of `place` to `new_ty`
     ///
-    /// This process involves recovering the original regions (lifetimes) used in the (unrefined) Rust
-    /// type of `place` and then substituting these regions in `new_ty`.  For instance, if we are
-    /// assigning a value of type `S&lt;&amp;'?10 i32{v: v &gt; 0}&gt;` to a variable `x`, and the (unrefined) Rust
-    /// type of `x` is `S&lt;&amp;'?5 i32&gt;`, before the assignment we identify a substitution that maps the
-    /// region `'?10` to `'?5`. After applying this substitution, the type of the place `x` is updated
-    /// accordingly. This ensures that the lifetimes in the assigned type are consistent with those
-    /// expected by the place's original type definition.
+    /// This process involves recovering the original regions (lifetimes) used in the (unrefined)
+    /// Rust type of `place` and then substituting these regions in `new_ty`. For instance, if we
+    /// are assigning a value of type `S&lt;&amp;'?10 i32{v: v &gt; 0}&gt;` to a variable `x`, and the
+    /// (unrefined) Rust type of `x` is `S&lt;&amp;'?5 i32&gt;`, before the assignment, we identify a
+    /// substitution that maps the region `'?10` to `'?5`. After applying this substitution, the
+    /// type of the place `x` is updated accordingly. This ensures that the lifetimes in the
+    /// assigned type are consistent with those expected by the place's original type definition.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assign(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
@@ -949,14 +1006,6 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unblock(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, place: <span class="kw-2">&amp;</span>Place, check_overflow: bool) {
         <span class="self">self</span>.bindings.lookup(place).unblock(rcx, check_overflow);
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>block_with(<span class="kw-2">&amp;mut </span><span class="self">self</span>, genv: GlobalEnv, path: <span class="kw-2">&amp;</span>Path, new_ty: Ty) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
-        <span class="kw">let </span>place = <span class="self">self</span>.bindings.path_to_place(path);
-        <span class="kw">let </span>rustc_ty = place.ty(genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
-        <span class="kw">let </span>new_ty = subst::match_regions(<span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>rustc_ty);
-
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.bindings.lookup(path).block_with(new_ty))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_goto(
@@ -1032,6 +1081,11 @@
         <span class="self">self</span>.bindings
             .fmap_mut(|binding| binding.replace_evars(evars));
     }
+}
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>PtrToRefBound {
+    Ty(Ty),
+    Infer,
 }
 
 <span class="kw">impl </span>BasicBlockEnvShape {

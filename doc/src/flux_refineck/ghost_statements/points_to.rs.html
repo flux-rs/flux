@@ -842,8 +842,6 @@
 <a href="#842" id="842">842</a>
 <a href="#843" id="843">843</a>
 <a href="#844" id="844">844</a>
-<a href="#845" id="845">845</a>
-<a href="#846" id="846">846</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements a points-to analysis for mutable references.
 //!
 //! We use the result of the analysis to insert ghost statements at the points where pointers (`ptr(l)`)
@@ -1148,8 +1146,7 @@
             <span class="kw">let </span>new_value = state.get_idx(<span class="kw-2">*</span>place_idx, <span class="self">self</span>.map);
             <span class="kw">if let </span>(FlatSet::Elem(<span class="kw">_</span>), FlatSet::Top) = (<span class="kw-2">&amp;</span>old_value, <span class="kw-2">&amp;</span>new_value) {
                 <span class="kw">let </span>place = <span class="self">self</span>.tracked_places.get(place_idx).unwrap().clone();
-                <span class="self">self</span>.stmts
-                    .insert_at(point, GhostStatement::PtrToBorrow(place));
+                <span class="self">self</span>.stmts.insert_at(point, GhostStatement::PtrToRef(place));
             }
             <span class="kw-2">*</span>old_value = new_value;
         }
@@ -1171,8 +1168,7 @@
                 <span class="kw">let </span>new_value = target_state.get_idx(<span class="kw-2">*</span>place_idx, <span class="self">self</span>.map);
                 <span class="kw">if let </span>(FlatSet::Elem(<span class="kw">_</span>), FlatSet::Top) = (<span class="kw-2">&amp;</span>old_value, new_value) {
                     <span class="kw">let </span>place = <span class="self">self</span>.tracked_places.get(place_idx).unwrap().clone();
-                    <span class="self">self</span>.stmts
-                        .insert_at(point, GhostStatement::PtrToBorrow(place));
+                    <span class="self">self</span>.stmts.insert_at(point, GhostStatement::PtrToRef(place));
                 }
             }
         }

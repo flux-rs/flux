@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["place_ty","pretty"],"struct":["BasicBlockEnv","BasicBlockEnvData","BasicBlockEnvShape","TypeEnv"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"enum":["PtrToRefBound"],"mod":["place_ty","pretty"],"struct":["BasicBlockEnv","BasicBlockEnvData","BasicBlockEnvShape","TypeEnv"],"type":["Result"]};

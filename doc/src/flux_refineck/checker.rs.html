@@ -1738,6 +1738,12 @@
 <a href="#1738" id="1738">1738</a>
 <a href="#1739" id="1739">1739</a>
 <a href="#1740" id="1740">1740</a>
+<a href="#1741" id="1741">1741</a>
+<a href="#1742" id="1742">1742</a>
+<a href="#1743" id="1743">1743</a>
+<a href="#1744" id="1744">1744</a>
+<a href="#1745" id="1745">1745</a>
+<a href="#1746" id="1746">1746</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -1785,7 +1791,7 @@
     primops,
     queue::WorkQueue,
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
-    type_env::{BasicBlockEnv, BasicBlockEnvShape, TypeEnv},
+    type_env::{BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, TypeEnv},
 };
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, CheckerError&gt;;
@@ -2337,12 +2343,16 @@
                         .subtyping(rcx, <span class="kw-2">&amp;</span>ty1, ty2)
                         .with_span(span)<span class="question-mark">?</span>;
                 }
-                (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path), <span class="macro">Ref!</span>(<span class="kw">_</span>, bound, Mutability::Mut)) =&gt; {
-                    <span class="kw">let </span>ty = env.block_with(genv, path, bound.clone()).with_span(span)<span class="question-mark">?</span>;
-                    infcx
-                        .at(ConstrReason::Call)
-                        .subtyping(rcx, <span class="kw-2">&amp;</span>ty, bound)
-                        .with_span(span)<span class="question-mark">?</span>;
+                (TyKind::Ptr(PtrKind::Mut(re), path), <span class="macro">Ref!</span>(<span class="kw">_</span>, bound, Mutability::Mut)) =&gt; {
+                    env.ptr_to_ref(
+                        rcx,
+                        <span class="kw-2">&amp;mut </span>infcx,
+                        ConstrReason::Call,
+                        <span class="kw-2">*</span>re,
+                        path,
+                        PtrToRefBound::Ty(bound.clone()),
+                    )
+                    .with_span(span)<span class="question-mark">?</span>;
                 }
                 <span class="kw">_ </span>=&gt; {
                     infcx
@@ -2779,14 +2789,16 @@
         <span class="kw">for </span>ty <span class="kw">in </span>args {
             <span class="comment">// TODO(nilehmann) We should share this logic with `check_call`
             </span><span class="kw">match </span>(ty.kind(), arr_ty.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(<span class="kw">_</span>), path), <span class="macro">Ref!</span>(<span class="kw">_</span>, bound, Mutability::Mut)) =&gt; {
-                    <span class="kw">let </span>ty = env
-                        .block_with(<span class="self">self</span>.genv, path, bound.clone())
-                        .with_span(span)<span class="question-mark">?</span>;
-                    infcx
-                        .at(ConstrReason::Other)
-                        .subtyping(rcx, <span class="kw-2">&amp;</span>ty, bound)
-                        .with_span(span)<span class="question-mark">?</span>;
+                (TyKind::Ptr(PtrKind::Mut(re), path), <span class="macro">Ref!</span>(<span class="kw">_</span>, bound, Mutability::Mut)) =&gt; {
+                    env.ptr_to_ref(
+                        rcx,
+                        <span class="kw-2">&amp;mut </span>infcx,
+                        ConstrReason::Other,
+                        <span class="kw-2">*</span>re,
+                        path,
+                        PtrToRefBound::Ty(bound.clone()),
+                    )
+                    .with_span(span)<span class="question-mark">?</span>;
                 }
                 <span class="kw">_ </span>=&gt; {
                     infcx
@@ -2969,9 +2981,9 @@
                     .with_span(span)<span class="question-mark">?</span>;
             }
             GhostStatement::Unblock(place) =&gt; env.unblock(rcx, place, <span class="self">self</span>.check_overflow()),
-            GhostStatement::PtrToBorrow(place) =&gt; {
+            GhostStatement::PtrToRef(place) =&gt; {
                 <span class="kw">let </span>infcx = <span class="kw-2">&amp;mut </span><span class="self">self</span>.infcx(rcx, span);
-                env.ptr_to_borrow(rcx, infcx, place).with_span(span)<span class="question-mark">?</span>;
+                env.ptr_to_ref_at_place(rcx, infcx, place).with_span(span)<span class="question-mark">?</span>;
             }
         }
         <span class="macro">dbg::statement!</span>(<span class="string">"end"</span>, stmt, rcx, env);

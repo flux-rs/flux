@@ -283,7 +283,7 @@
     Fold(Place),
     Unfold(Place),
     Unblock(Place),
-    PtrToBorrow(Place),
+    PtrToRef(Place),
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>GhostStatement {
@@ -292,7 +292,7 @@
             GhostStatement::Fold(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"fold({place:?})"</span>),
             GhostStatement::Unfold(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"unfold({place:?})"</span>),
             GhostStatement::Unblock(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"unblock({place:?})"</span>),
-            GhostStatement::PtrToBorrow(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"ptr_to_borrow({place:?})"</span>),
+            GhostStatement::PtrToRef(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"ptr_to_ref({place:?})"</span>),
         }
     }
 }
