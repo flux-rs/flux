@@ -20,8 +20,8 @@ use rustc_trait_selection::traits::SelectionContext;
 use super::{
     mir::{
         replicate_infer_ctxt, AggregateKind, AssertKind, BasicBlockData, BinOp, Body, CallArgs,
-        CastKind, Constant, LocalDecl, Operand, Place, PlaceElem, PointerCast, Rvalue, Statement,
-        StatementKind, Terminator, TerminatorKind,
+        CastKind, Constant, LocalDecl, NullOp, Operand, Place, PlaceElem, PointerCast, Rvalue,
+        Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
@@ -385,25 +385,14 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
     fn lower_rvalue(&self, rvalue: &rustc_mir::Rvalue<'tcx>) -> Result<Rvalue, UnsupportedReason> {
         match rvalue {
             rustc_mir::Rvalue::Use(op) => Ok(Rvalue::Use(self.lower_operand(op)?)),
-            rustc_mir::Rvalue::BinaryOp(bin_op, box (op1, op2)) => {
-                Ok(Rvalue::BinaryOp(
-                    self.lower_bin_op(*bin_op)?,
-                    self.lower_operand(op1)?,
-                    self.lower_operand(op2)?,
-                ))
+            rustc_mir::Rvalue::Repeat(op, c) => {
+                let op = self.lower_operand(op)?;
+                let c = lower_const(self.tcx, *c)?;
+                Ok(Rvalue::Repeat(op, c))
             }
             rustc_mir::Rvalue::Ref(region, bk, p) => {
                 Ok(Rvalue::Ref(lower_region(region)?, *bk, lower_place(p)?))
             }
-            rustc_mir::Rvalue::UnaryOp(un_op, op) => {
-                Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?))
-            }
-            rustc_mir::Rvalue::Aggregate(aggregate_kind, args) => {
-                let aggregate_kind = self.lower_aggregate_kind(aggregate_kind)?;
-                let args = args.iter().map(|op| self.lower_operand(op)).try_collect()?;
-                Ok(Rvalue::Aggregate(aggregate_kind, args))
-            }
-            rustc_mir::Rvalue::Discriminant(p) => Ok(Rvalue::Discriminant(lower_place(p)?)),
             rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(lower_place(place)?)),
             rustc_mir::Rvalue::Cast(kind, op, ty) => {
                 let kind = self.lower_cast_kind(*kind).ok_or_else(|| {
@@ -413,14 +402,27 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 let ty = lower_ty(self.tcx, *ty)?;
                 Ok(Rvalue::Cast(kind, op, ty))
             }
-            rustc_mir::Rvalue::Repeat(op, c) => {
-                let op = self.lower_operand(op)?;
-                let c = lower_const(self.tcx, *c)?;
-                Ok(Rvalue::Repeat(op, c))
+            rustc_mir::Rvalue::BinaryOp(bin_op, box (op1, op2)) => {
+                Ok(Rvalue::BinaryOp(
+                    self.lower_bin_op(*bin_op)?,
+                    self.lower_operand(op1)?,
+                    self.lower_operand(op2)?,
+                ))
+            }
+            rustc_mir::Rvalue::NullaryOp(null_op, ty) => {
+                Ok(Rvalue::NullaryOp(self.lower_null_op(*null_op)?, lower_ty(self.tcx, *ty)?))
+            }
+            rustc_mir::Rvalue::UnaryOp(un_op, op) => {
+                Ok(Rvalue::UnaryOp(*un_op, self.lower_operand(op)?))
+            }
+            rustc_mir::Rvalue::Discriminant(p) => Ok(Rvalue::Discriminant(lower_place(p)?)),
+            rustc_mir::Rvalue::Aggregate(aggregate_kind, args) => {
+                let aggregate_kind = self.lower_aggregate_kind(aggregate_kind)?;
+                let args = args.iter().map(|op| self.lower_operand(op)).try_collect()?;
+                Ok(Rvalue::Aggregate(aggregate_kind, args))
             }
             rustc_mir::Rvalue::ThreadLocalRef(_)
             | rustc_mir::Rvalue::AddressOf(_, _)
-            | rustc_mir::Rvalue::NullaryOp(_, _)
             | rustc_mir::Rvalue::CopyForDeref(_)
             | rustc_mir::Rvalue::ShallowInitBox(_, _) => {
                 Err(UnsupportedReason::new(format!("unsupported rvalue `{rvalue:?}`")))
@@ -523,6 +525,16 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             | rustc_mir::BinOp::Cmp
             | rustc_mir::BinOp::Offset => {
                 Err(UnsupportedReason::new(format!("unsupported binary op `{bin_op:?}`")))
+            }
+        }
+    }
+
+    fn lower_null_op(&self, null_op: rustc_mir::NullOp) -> Result<NullOp, UnsupportedReason> {
+        match null_op {
+            rustc_mir::NullOp::SizeOf => Ok(NullOp::SizeOf),
+            rustc_mir::NullOp::AlignOf => Ok(NullOp::AlignOf),
+            rustc_mir::NullOp::OffsetOf(_) | rustc_mir::NullOp::UbChecks => {
+                Err(UnsupportedReason::new(format!("unsupported nullary op `{null_op:?}`")))
             }
         }
     }

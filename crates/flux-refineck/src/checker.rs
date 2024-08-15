@@ -882,13 +882,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         match rvalue {
             Rvalue::Use(operand) => self.check_operand(rcx, env, stmt_span, operand),
-            Rvalue::BinaryOp(bin_op, op1, op2) => {
-                self.check_binary_op(rcx, env, stmt_span, *bin_op, op1, op2)
-            }
-            Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {
-                // TODO(nilehmann) should we somehow connect the result of the operation with the bool?
-                let ty = self.check_binary_op(rcx, env, stmt_span, *bin_op, op1, op2)?;
-                Ok(Ty::tuple(vec![ty, Ty::bool()]))
+            Rvalue::Repeat(operand, c) => {
+                let ty = self.check_operand(rcx, env, stmt_span, operand)?;
+                Ok(Ty::array(ty, c.clone()))
             }
             Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
                 env.borrow(self.genv, rcx, *r, Mutability::Mut, place)
@@ -898,7 +894,23 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 env.borrow(self.genv, rcx, *r, Mutability::Not, place)
                     .with_span(stmt_span)
             }
+            Rvalue::Len(place) => self.check_len(rcx, env, stmt_span, place),
+            Rvalue::Cast(kind, op, to) => {
+                let from = self.check_operand(rcx, env, stmt_span, op)?;
+                self.check_cast(rcx, env, stmt_span, *kind, &from, to)
+            }
+            Rvalue::BinaryOp(bin_op, op1, op2) => {
+                self.check_binary_op(rcx, env, stmt_span, *bin_op, op1, op2)
+            }
+            Rvalue::NullaryOp(null_op, ty) => Ok(self.check_nullary_op(*null_op, ty)),
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
+            Rvalue::Discriminant(place) => {
+                let ty = env
+                    .lookup_place(self.genv, rcx, place)
+                    .with_span(stmt_span)?;
+                let (adt_def, ..) = ty.expect_adt();
+                Ok(Ty::discr(adt_def.clone(), place.clone()))
+            }
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _), operands) => {
                 let actuals = self.check_operands(rcx, env, stmt_span, operands)?;
                 let sig = genv
@@ -935,22 +947,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)?;
                 let upvar_tys = self.check_operands(rcx, env, stmt_span, ops)?;
                 Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into()))
-            }
-            Rvalue::Discriminant(place) => {
-                let ty = env
-                    .lookup_place(self.genv, rcx, place)
-                    .with_span(stmt_span)?;
-                let (adt_def, ..) = ty.expect_adt();
-                Ok(Ty::discr(adt_def.clone(), place.clone()))
-            }
-            Rvalue::Len(place) => self.check_len(rcx, env, stmt_span, place),
-            Rvalue::Cast(kind, op, to) => {
-                let from = self.check_operand(rcx, env, stmt_span, op)?;
-                self.check_cast(rcx, env, stmt_span, *kind, &from, to)
-            }
-            Rvalue::Repeat(operand, c) => {
-                let ty = self.check_operand(rcx, env, stmt_span, operand)?;
-                Ok(Ty::array(ty, c.clone()))
             }
         }
     }
@@ -1000,6 +996,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(rule.output_type)
             }
             _ => tracked_span_bug!("incompatible types: `{ty1:?}` `{ty2:?}`"),
+        }
+    }
+
+    fn check_nullary_op(&self, null_op: mir::NullOp, _ty: &rustc::ty::Ty) -> Ty {
+        match null_op {
+            mir::NullOp::SizeOf | mir::NullOp::AlignOf => {
+                // We could try to get the layout of type to index this with the actual value, but
+                // this enough for now. Revisit if we ever need the precision.
+                Ty::uint(UintTy::Usize)
+            }
         }
     }
 
