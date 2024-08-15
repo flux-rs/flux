@@ -542,18 +542,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        terminator_span: Span,
+        span: Span,
         callee_def_id: Option<DefId>,
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<Ty> {
+        let a = 1; // return std::result::Result<Ty, CheckerErrorKind>
+
         let genv = self.genv;
         let tcx = genv.tcx();
 
         let actuals = infer_under_mut_ref_hack(rcx, actuals, fn_sig.as_ref());
 
-        let mut infcx = self.infcx(rcx, terminator_span);
+        let mut infcx = self.infcx(rcx, span);
         let snapshot = rcx.snapshot();
 
         // Replace holes in generic arguments with fresh inference variables
@@ -562,23 +564,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // Generate fresh inference variables for refinement arguments
         let refine_args = infcx
             .instantiate_refine_args(callee_def_id)
-            .with_span(terminator_span)?;
+            .with_span(span)?;
 
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &refine_args)
             .replace_bound_vars(
-                |br| {
-                    infcx.next_bound_region_var(
-                        terminator_span,
-                        br.kind,
-                        BoundRegionConversionTime::FnCall,
-                    )
-                },
+                |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
                 |sort, mode| infcx.fresh_infer_var(sort, mode),
             )
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)
-            .with_span(terminator_span)?;
+            .with_span(span)?;
         let a = 1; // extract refion_infcx from self instead of infcx or pass entire infcx to normalize_projections
 
         // Check requires predicates
@@ -598,22 +594,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     infcx
                         .at(ConstrReason::Call)
                         .subtyping(rcx, &ty1, ty2)
-                        .with_span(terminator_span)?;
+                        .with_span(span)?;
                 }
                 (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
-                    let ty = env
-                        .block_with(genv, path, bound.clone())
-                        .with_span(terminator_span)?;
+                    let ty = env.block_with(genv, path, bound.clone()).with_span(span)?;
                     infcx
                         .at(ConstrReason::Call)
                         .subtyping(rcx, &ty, bound)
-                        .with_span(terminator_span)?;
+                        .with_span(span)?;
                 }
                 _ => {
                     infcx
                         .at(ConstrReason::Call)
                         .subtyping(rcx, &actual, &formal)
-                        .with_span(terminator_span)?
+                        .with_span(span)?
                 }
             }
         }
@@ -621,7 +615,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let a = 1; // can we always pass a calle_def_id here
         let clauses = if let Some(did) = callee_def_id {
             genv.predicates_of(did)
-                .with_span(terminator_span)?
+                .with_span(span)?
                 .predicates()
                 .instantiate(tcx, &generic_args, &refine_args)
         } else {
@@ -630,10 +624,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx
             .at(ConstrReason::Call)
             .check_non_closure_clauses(rcx, &clauses)
-            .with_span(terminator_span)?;
+            .with_span(span)?;
 
         // Replace evars
-        let evars_sol = infcx.solve().with_span(terminator_span)?;
+        let evars_sol = infcx.solve().with_span(span)?;
         env.replace_evars(&evars_sol);
         rcx.replace_evars(&evars_sol);
 
@@ -1042,13 +1036,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         args: &[Ty],
         arr_ty: Ty,
     ) -> Result<Ty> {
+        let a = 1; // return std::result::Result<Ty, CheckerErrorKind>
         let mut infcx = self.infcx(rcx, span);
-
         let arr_ty =
             arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
         let mut at = infcx.at(ConstrReason::Other);
-
         let (arr_ty, pred) = arr_ty.unconstr();
         at.check_pred(rcx, &pred);
         for ty in args {

@@ -187,13 +187,16 @@ impl TypeEnv<'_> {
         let new_ty = subst::match_regions(&new_ty, &rustc_ty);
         let result = self.bindings.lookup_unfolding(infcx.genv, rcx, place)?;
 
+        infcx.push_scope(rcx);
         if result.is_strg {
             result.update(new_ty);
         } else if !place.behind_raw_ptr(infcx.genv, self.local_decls)? {
             infcx
                 .at(ConstrReason::Assign)
-                .subtyping(rcx, &new_ty, &result.ty);
+                .subtyping(rcx, &new_ty, &result.ty)?;
         }
+        rcx.replace_evars(&infcx.pop_scope_solving_pending()?);
+
         Ok(())
     }
 
