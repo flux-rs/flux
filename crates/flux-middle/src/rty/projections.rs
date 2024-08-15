@@ -242,11 +242,19 @@ fn assemble_candidates_from_predicates(
 impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     type Error = QueryErr;
 
+    // As shown in https://github.com/flux-rs/flux/issues/711
+    // one round of `normalize_projections` can replace one
+    // projection e.g. `<Rev<Iter<[i32]> as Iterator>::Item`
+    // with another e.g. `<Iter<[i32]> as Iterator>::Item`
+    // We want to compute a "fixpoint" i.e. keep going until
+    // no change, so that e.g. the above is normalized all the way to `i32`,
+    // which is what the `changed` is for.
+
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
         match ty.kind() {
             TyKind::Alias(AliasKind::Projection, alias_ty) => {
-                let (progress, ty) = self.normalize_projection_ty(alias_ty)?;
-                if progress {
+                let (changed, ty) = self.normalize_projection_ty(alias_ty)?;
+                if changed {
                     ty.try_fold_with(self)
                 } else {
                     Ok(ty)
