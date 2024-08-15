@@ -1,7 +1,7 @@
 use rustc_middle::ty::{self as rustc_ty, ParamEnv, TyCtxt, TyKind};
 use rustc_type_ir::{IntTy, UintTy};
 
-use crate::rustc::{self, lowering::lower_ty, mir};
+use crate::rustc::{self, lowering::lower_ty, mir, ty::UnevaluatedConst};
 
 pub fn scalar_int_to_rty_constant<'tcx>(
     tcx: TyCtxt<'tcx>,
@@ -21,6 +21,19 @@ pub fn scalar_int_to_rty_constant<'tcx>(
             Some(crate::rty::Constant::Bool(b != 0))
         }
         _ => None,
+    }
+}
+
+pub fn unevaluated_to_constant(tcx: TyCtxt, ct: &UnevaluatedConst) -> Option<crate::rty::Constant> {
+    // TODO param_env for args but then we need the parent context's
+    // def_id to get the param_env for that context
+    if let Ok(const_val) = tcx.const_eval_poly(ct.def)
+        && let Some(ty) = tcx.type_of(ct.def).no_bound_vars()
+        && let Some(scalar_int) = const_val.try_to_scalar_int()
+    {
+        scalar_int_to_rty_constant(tcx, scalar_int, ty)
+    } else {
+        None
     }
 }
 

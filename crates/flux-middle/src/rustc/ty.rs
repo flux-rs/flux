@@ -224,6 +224,13 @@ pub struct Const {
     pub kind: ConstKind,
 }
 
+impl UnevaluatedConst {
+    pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_ty::UnevaluatedConst<'tcx> {
+        let args = tcx.mk_args_from_iter(self.args.iter().map(|arg| arg.to_rustc(tcx)));
+        rustc_ty::UnevaluatedConst::new(self.def, args)
+    }
+}
+
 impl Const {
     pub fn from_usize(tcx: TyCtxt, v: usize) -> Self {
         Self {
@@ -244,9 +251,18 @@ impl Const {
                 )
             }
             ConstKind::Infer(infer_const) => rustc_ty::ConstKind::Infer(*infer_const),
+            ConstKind::Unevaluated(uneval_const) => {
+                rustc_ty::ConstKind::Unevaluated(uneval_const.to_rustc(tcx))
+            }
         };
         rustc_ty::Const::new(tcx, kind)
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct UnevaluatedConst {
+    pub def: DefId,
+    pub args: GenericArgs,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -254,6 +270,7 @@ pub enum ConstKind {
     Param(ParamConst),
     Value(Ty, ScalarInt),
     Infer(InferConst),
+    Unevaluated(UnevaluatedConst),
 }
 
 #[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -274,6 +291,7 @@ impl GenericArgs {
         CoroutineArgs { args: self.clone() }
     }
 }
+
 pub struct CoroutineArgs {
     pub args: GenericArgs,
 }

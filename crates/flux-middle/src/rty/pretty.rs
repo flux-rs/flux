@@ -430,11 +430,12 @@ impl Pretty for BaseTy {
 
 impl Pretty for Const {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        define_scoped!(cx, f);
+        define_scoped!(_cx, f);
         match &self.kind {
             ConstKind::Param(p) => w!("{}", ^p.name.as_str()),
             ConstKind::Value(_, v) => w!("{}", ^v),
             ConstKind::Infer(infer_const) => w!("{:?}", ^infer_const),
+            ConstKind::Unevaluated(_uneval_const) => w!("TODO:CONST"),
         }
     }
 }

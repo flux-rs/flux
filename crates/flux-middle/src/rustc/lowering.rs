@@ -27,7 +27,7 @@ use super::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
         Const, ConstKind, ExistentialPredicate, FieldDef, FnSig, GenericArg, GenericParamDef,
         GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate, PolyFnSig,
-        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, VariantDef,
+        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, UnevaluatedConst, VariantDef,
     },
 };
 use crate::{
@@ -662,6 +662,10 @@ fn lower_const<'tcx>(
         }
         rustc_type_ir::ConstKind::Value(ty, ValTree::Leaf(scalar_int)) => {
             ConstKind::Value(lower_ty(tcx, ty)?, scalar_int)
+        }
+        rustc_type_ir::ConstKind::Unevaluated(c) => {
+            let args = lower_generic_args(tcx, c.args)?;
+            ConstKind::Unevaluated(UnevaluatedConst { def: c.def, args })
         }
         _ => return Err(UnsupportedReason::new(format!("unsupported const {c:?}"))),
     };
