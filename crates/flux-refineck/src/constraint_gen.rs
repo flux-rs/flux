@@ -110,20 +110,11 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         self.obligs.extend(obligs);
     }
 
-    pub(crate) fn instantiate_refine_args(
-        &mut self,
-        callee_def_id: Option<DefId>,
-    ) -> Result<Vec<Expr>> {
-        if let Some(callee_id) = callee_def_id {
-            Ok(self
-                .genv
-                .refinement_generics_of(callee_id)?
-                .collect_all_params(self.genv, |param| {
-                    self.fresh_infer_var(&param.sort, param.mode)
-                })?)
-        } else {
-            Ok(vec![])
-        }
+    pub(crate) fn instantiate_refine_args(&mut self, callee_def_id: DefId) -> Result<Vec<Expr>> {
+        Ok(self
+            .genv
+            .refinement_generics_of(callee_def_id)?
+            .collect_all_params(self.genv, |param| self.fresh_infer_var(&param.sort, param.mode))?)
     }
 
     pub(crate) fn instantiate_generic_args(&mut self, args: &[GenericArg]) -> Vec<GenericArg> {

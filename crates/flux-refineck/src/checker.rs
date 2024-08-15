@@ -466,7 +466,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     rcx,
                     env,
                     terminator_span,
-                    Some(*func_id),
+                    *func_id,
                     fn_sig,
                     &generic_args,
                     &actuals,
@@ -547,7 +547,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         span: Span,
-        callee_def_id: Option<DefId>,
+        callee_def_id: DefId,
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
         actuals: &[Ty],
@@ -613,15 +613,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         }
 
-        let a = 1; // can we always pass a calle_def_id here
-        let clauses = if let Some(did) = callee_def_id {
-            genv.predicates_of(did)
-                .with_span(span)?
-                .predicates()
-                .instantiate(tcx, &generic_args, &refine_args)
-        } else {
-            List::empty()
-        };
+        let clauses = genv
+            .predicates_of(callee_def_id)
+            .with_span(span)?
+            .predicates()
+            .instantiate(tcx, &generic_args, &refine_args);
+
         infcx
             .at(ConstrReason::Call)
             .check_non_closure_clauses(rcx, &clauses)
@@ -631,8 +628,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let evars_sol = infcx.solve().with_span(span)?;
         env.replace_evars(&evars_sol);
         rcx.replace_evars(&evars_sol);
-
-        self.check_closure_clauses(rcx, snapshot, &clauses)?;
 
         let output = fn_sig
             .output()
@@ -649,6 +644,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ensures::Pred(e) => rcx.assume_pred(e),
             }
         }
+        self.check_closure_clauses(rcx, snapshot, &clauses)?;
 
         Ok(output.ret)
     }
@@ -911,7 +907,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .to_poly_fn_sig();
                 let args = instantiate_args_for_constructor(genv, &self.generics, *def_id, args)
                     .with_span(stmt_span)?;
-                self.check_call(rcx, env, stmt_span, None, sig, &args, &actuals)
+                self.check_call(rcx, env, stmt_span, *def_id, sig, &args, &actuals)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
                 let args = self.check_operands(rcx, env, stmt_span, operands)?;
