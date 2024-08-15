@@ -113,69 +113,99 @@ impl TypeEnv<'_> {
         }
     }
 
-    /// Converts a pointer `ptr(mut, l)` to a borrow `&mut T` for a type `T` that needs to be inferred.
-    /// For example, given the environment
-    /// ```text
-    /// x: i32[a], p: ptr(mut, x)
-    /// ```
-    ///
-    /// Converting the pointer to a borrow will produce
-    ///
-    /// ```text
-    /// x: †i32{v: $k(v)}, p: &mut i32{v: $k(v)}
-    /// ```
-    ///
-    /// together with a constraint
-    ///
-    /// ```text
-    /// i32[a] <: i32{v: $k(v)}
-    /// ```
-    pub(crate) fn ptr_to_borrow(
+    // FIXME(nilehmann) this is only used in a single place and we have it because [`TypeEnv`]
+    // doesn't expose a lookup without unfolding
+    pub(crate) fn ptr_to_ref_at_place(
         &mut self,
         rcx: &mut RefineCtxt,
         infcx: &mut InferCtxt,
         place: &Place,
     ) -> Result {
-        infcx.push_scope(rcx);
-
-        // place: ptr(mut, path)
-        let ptr_lookup = self.bindings.lookup(place);
-        let TyKind::Ptr(PtrKind::Mut(re), path) = ptr_lookup.ty.kind() else {
+        let lookup = self.bindings.lookup(place);
+        let TyKind::Ptr(PtrKind::Mut(re), path) = lookup.ty.kind() else {
             tracked_span_bug!("ptr_to_borrow called on non mutable pointer type")
         };
 
-        // path: old_ty
-        let old_ty = self.bindings.lookup(path).fold(rcx, infcx)?;
+        let ref_ty =
+            self.ptr_to_ref(rcx, infcx, ConstrReason::Other, *re, path, PtrToRefMode::Infer)?;
 
-        // old_ty <: new_ty
-        let new_ty = old_ty.with_holes().replace_holes(|sorts, kind| {
-            debug_assert_eq!(kind, HoleKind::Pred);
-            infcx.fresh_kvar(sorts, KVarEncoding::Conj)
-        });
-        infcx
-            .at(ConstrReason::Other)
-            .subtyping(rcx, &old_ty, &new_ty)?;
-
-        // path: new_ty, place: &mut new_ty
-        self.bindings.lookup(path).block_with(new_ty.clone());
-        self.bindings
-            .lookup(place)
-            .update(Ty::mk_ref(*re, new_ty, Mutability::Mut));
-
-        rcx.replace_evars(&infcx.pop_scope_solving_pending().unwrap());
+        self.bindings.lookup(place).update(ref_ty);
 
         Ok(())
     }
 
+    /// Convert a pointer to a mutable reference.
+    ///
+    /// This roughly implements the following inference rule:
+    /// ```text
+    ///                   t₁ <: t₂
+    /// --------------------------------------------------
+    /// Γ₁,ℓ:t1,Γ₂ ; ptr(mut, ℓ) => Γ₁,ℓ:†t₂,Γ₂ ; &mut t2
+    /// ```
+    ///
+    /// The bound `t₂` can be either inferred ([`PtrToRefMode::Infer`]), or provided from the
+    /// context ([`PtrToRefMode::Bound`]).
+    ///
+    /// As an example, consider the environment `x: i32[a]` and the pointer `ptr(mut, x)`.
+    /// Converting the pointer to a mutable reference with an inferred bound produces the following
+    /// derivation (roughly):
+    ///
+    /// ```text
+    ///                    i32[a] <: i32{v: $k(v)}
+    /// ---------------------------------------------------------------
+    /// x: i32[a]; ptr(mut, x) => x:†i32{v: $k(v)} ; &mut i32{v: $k(v)}
+    /// ```
+    pub(crate) fn ptr_to_ref(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        infcx: &mut InferCtxt,
+        reason: ConstrReason,
+        re: Region,
+        path: &Path,
+        mode: PtrToRefMode,
+    ) -> Result<Ty> {
+        infcx.push_scope(rcx);
+
+        // ℓ: t1
+        let t1 = self.bindings.lookup(path).fold(rcx, infcx)?;
+
+        // t1 <: t2
+        let t2 = match mode {
+            PtrToRefMode::Bound(bound) => {
+                // FIXME(nilehmann) we could match regions against `t1` instead of mapping the path
+                // to a place which requires annoying bookkepping.
+                let place = self.bindings.path_to_place(path);
+                let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
+                subst::match_regions(&bound, &rustc_ty)
+            }
+            PtrToRefMode::Infer => {
+                t1.with_holes().replace_holes(|sorts, kind| {
+                    debug_assert_eq!(kind, HoleKind::Pred);
+                    infcx.fresh_kvar(sorts, KVarEncoding::Conj)
+                })
+            }
+        };
+        infcx.at(reason).subtyping(rcx, &t1, &t2)?;
+
+        // ℓ: †t2
+        self.bindings.lookup(path).block_with(t2.clone());
+
+        let evar_sol = infcx.pop_scope_solving_pending().unwrap();
+        rcx.replace_evars(&evar_sol);
+        self.replace_evars(&evar_sol);
+
+        Ok(Ty::mk_ref(re, t2, Mutability::Mut))
+    }
+
     /// Updates the type of `place` to `new_ty`
     ///
-    /// This process involves recovering the original regions (lifetimes) used in the (unrefined) Rust
-    /// type of `place` and then substituting these regions in `new_ty`.  For instance, if we are
-    /// assigning a value of type `S<&'?10 i32{v: v > 0}>` to a variable `x`, and the (unrefined) Rust
-    /// type of `x` is `S<&'?5 i32>`, before the assignment we identify a substitution that maps the
-    /// region `'?10` to `'?5`. After applying this substitution, the type of the place `x` is updated
-    /// accordingly. This ensures that the lifetimes in the assigned type are consistent with those
-    /// expected by the place's original type definition.
+    /// This process involves recovering the original regions (lifetimes) used in the (unrefined)
+    /// Rust type of `place` and then substituting these regions in `new_ty`. For instance, if we
+    /// are assigning a value of type `S<&'?10 i32{v: v > 0}>` to a variable `x`, and the
+    /// (unrefined) Rust type of `x` is `S<&'?5 i32>`, before the assignment, we identify a
+    /// substitution that maps the region `'?10` to `'?5`. After applying this substitution, the
+    /// type of the place `x` is updated accordingly. This ensures that the lifetimes in the
+    /// assigned type are consistent with those expected by the place's original type definition.
     pub(crate) fn assign(
         &mut self,
         rcx: &mut RefineCtxt,
@@ -222,14 +252,6 @@ impl TypeEnv<'_> {
 
     pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place, check_overflow: bool) {
         self.bindings.lookup(place).unblock(rcx, check_overflow);
-    }
-
-    pub(crate) fn block_with(&mut self, genv: GlobalEnv, path: &Path, new_ty: Ty) -> Result<Ty> {
-        let place = self.bindings.path_to_place(path);
-        let rustc_ty = place.ty(genv, self.local_decls)?.ty;
-        let new_ty = subst::match_regions(&new_ty, &rustc_ty);
-
-        Ok(self.bindings.lookup(path).block_with(new_ty))
     }
 
     pub(crate) fn check_goto(
@@ -305,6 +327,11 @@ impl TypeEnv<'_> {
         self.bindings
             .fmap_mut(|binding| binding.replace_evars(evars));
     }
+}
+
+pub(crate) enum PtrToRefMode {
+    Bound(Ty),
+    Infer,
 }
 
 impl BasicBlockEnvShape {
