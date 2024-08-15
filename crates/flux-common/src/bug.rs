@@ -92,10 +92,10 @@ pub fn catch_bugs<R>(msg: &str, f: impl FnOnce() -> R + UnwindSafe) -> Result<R,
                     let Some(tcx) = tcx else { std::panic::resume_unwind(payload) };
 
                     if payload.is::<ExplicitBug>() {
-                        eprintln!("note: bug caught [{msg}]");
+                        eprintln!("note: bug caught [{msg}]\n");
                         Err(tcx.dcx().delayed_bug("bug wasn't reported"))
                     } else {
-                        eprintln!("note: uncaught panic [{msg}]");
+                        eprintln!("note: uncaught panic [{msg}]\n");
                         std::panic::resume_unwind(payload)
                     }
                 })
