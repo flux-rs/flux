@@ -228,7 +228,7 @@
         .unwrap_or_else(|err| sess.emit_fatal(errors::DecodeFileError::new(path, err)));
 
     <span class="kw">if </span>!buf.starts_with(METADATA_HEADER) {
-        <span class="macro">panic!</span>(<span class="string">"incompatible metadata version"</span>)
+        <span class="macro">bug!</span>(<span class="string">"incompatible metadata version"</span>)
     }
 
     <span class="kw">let </span><span class="kw-2">mut </span>decoder =
@@ -257,11 +257,11 @@
     }
 
     <span class="kw">fn </span>decode_syntax_context(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_span::SyntaxContext {
-        <span class="macro">panic!</span>(<span class="string">"cannot decode `SyntaxContext` with `DecodeContext`"</span>);
+        <span class="macro">bug!</span>(<span class="string">"cannot decode `SyntaxContext` with `DecodeContext`"</span>);
     }
 
     <span class="kw">fn </span>decode_expn_id(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_span::ExpnId {
-        <span class="macro">panic!</span>(<span class="string">"cannot decode `ExpnId` with `DecodeContext`"</span>);
+        <span class="macro">bug!</span>(<span class="string">"cannot decode `ExpnId` with `DecodeContext`"</span>);
     }
 
     <span class="kw">fn </span>decode_span(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; rustc_span::Span {

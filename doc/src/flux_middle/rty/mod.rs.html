@@ -3577,7 +3577,7 @@
                 ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_middle::ty::DynKind::Dyn)
             }
             BaseTy::Coroutine(def_id, resume_ty, upvars) =&gt; {
-                <span class="macro">todo!</span>(<span class="string">"Generator {def_id:?} {resume_ty:?} {upvars:?}"</span>)
+                <span class="macro">bug!</span>(<span class="string">"TODO: Generator {def_id:?} {resume_ty:?} {upvars:?}"</span>)
                 <span class="comment">// let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
                 // let args = tcx.mk_args_from_iter(args);
                 // ty::Ty::new_generator(*tcx, *def_id, args, mov)

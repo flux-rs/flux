@@ -768,11 +768,13 @@
 <a href="#768" id="768">768</a>
 <a href="#769" id="769">769</a>
 <a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
 };
 
+<span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>flux_errors::{ErrorGuaranteed, E0999};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::unord::{ExtendUnord, UnordMap};
@@ -1300,7 +1302,7 @@
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(lam) = genv.cstore().assoc_refinements_def(impl_id, name) {
                 lam
             } <span class="kw">else </span>{
-                <span class="macro">todo!</span>(<span class="string">"implement for external crates"</span>)
+                <span class="macro">bug!</span>(<span class="string">"TODO: implement for external crates"</span>)
             }
         })
     }
@@ -1318,7 +1320,7 @@
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(sort) = genv.cstore().sort_of_assoc_reft(def_id, name) {
                 sort
             } <span class="kw">else </span>{
-                <span class="macro">todo!</span>(<span class="string">"implement for external crates"</span>)
+                <span class="macro">bug!</span>(<span class="string">"TODO: implement for external crates"</span>)
             }
         })
     }

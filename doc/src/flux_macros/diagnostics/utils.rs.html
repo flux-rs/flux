@@ -1056,7 +1056,7 @@
             <span class="kw">let </span>path = <span class="kw-2">&amp;</span>ty_path.path;
             <span class="kw">let </span>ty = path.segments.iter().last().unwrap();
             <span class="kw">let </span>syn::PathArguments::AngleBracketed(bracketed) = <span class="kw-2">&amp;</span>ty.arguments <span class="kw">else </span>{
-                <span class="macro">panic!</span>(<span class="string">"expected bracketed generic arguments"</span>);
+                <span class="macro">panic!</span>(<span class="string">"expected bracketed generic arguments"</span>)
             };
 
             <span class="macro">assert_eq!</span>(bracketed.args.len(), <span class="number">1</span>);

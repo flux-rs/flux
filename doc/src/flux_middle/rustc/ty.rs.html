@@ -1624,12 +1624,12 @@
             }
             TyKind::Slice(ty) =&gt; rustc_ty::TyKind::Slice(ty.to_rustc(tcx)),
             TyKind::RawPtr(ty, mutbl) =&gt; rustc_ty::TyKind::RawPtr(ty.to_rustc(tcx), <span class="kw-2">*</span>mutbl),
-            TyKind::FnPtr(<span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
-            TyKind::Closure(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
-            TyKind::Coroutine(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
-            TyKind::CoroutineWitness(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
-            TyKind::Alias(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
-            TyKind::Dynamic(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">todo!</span>(),
+            TyKind::FnPtr(<span class="kw">_</span>)
+            | TyKind::Closure(<span class="kw">_</span>, <span class="kw">_</span>)
+            | TyKind::Coroutine(<span class="kw">_</span>, <span class="kw">_</span>)
+            | TyKind::CoroutineWitness(<span class="kw">_</span>, <span class="kw">_</span>)
+            | TyKind::Alias(<span class="kw">_</span>, <span class="kw">_</span>)
+            | TyKind::Dynamic(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"TODO: to_rustc"</span>),
         };
         rustc_ty::Ty::new(tcx, kind)
     }

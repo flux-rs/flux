@@ -650,7 +650,7 @@
     <span class="kw">where
         </span>I: IntoIterator&lt;Item = T&gt;,
     {
-        <span class="kw">let </span>layout = alloc::Layout::array::&lt;T&gt;(cap).unwrap_or_else(|<span class="kw">_</span>| <span class="macro">panic!</span>(<span class="string">"out of memory"</span>));
+        <span class="kw">let </span>layout = alloc::Layout::array::&lt;T&gt;(cap).unwrap_or_else(|<span class="kw">_</span>| <span class="macro">bug!</span>(<span class="string">"out of memory"</span>));
         <span class="kw">let </span>dst = <span class="self">self</span>.inner.arena.alloc_layout(layout).cast::&lt;T&gt;();
         <span class="kw">unsafe </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>len = <span class="number">0</span>;

@@ -1006,6 +1006,7 @@
 <a href="#1006" id="1006">1006</a>
 <a href="#1007" id="1007">1007</a>
 <a href="#1008" id="1008">1008</a>
+<a href="#1009" id="1009">1009</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1776,9 +1777,10 @@
     tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     pred: rustc_ty::Binder&lt;rustc_ty::ExistentialPredicate&lt;<span class="lifetime">'tcx</span>&gt;&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Binder&lt;ExistentialPredicate&gt;, UnsupportedReason&gt; {
-    <span class="macro">assert!</span>(pred.bound_vars().is_empty());
-    <span class="kw">let </span>pred = pred.skip_binder();
-    <span class="kw">if let </span>rustc_ty::ExistentialPredicate::Trait(exi_trait_ref) = pred {
+    <span class="kw">if </span>pred.bound_vars().is_empty()
+        &amp;&amp; <span class="kw">let </span>pred = pred.skip_binder()
+        &amp;&amp; <span class="kw">let </span>rustc_ty::ExistentialPredicate::Trait(exi_trait_ref) = pred
+    {
         <span class="kw">let </span>def_id = exi_trait_ref.def_id;
         <span class="kw">let </span>args = lower_generic_args(tcx, exi_trait_ref.args)<span class="question-mark">?</span>;
         <span class="kw">let </span>exi_trait_ref = ExistentialTraitRef { def_id, args };

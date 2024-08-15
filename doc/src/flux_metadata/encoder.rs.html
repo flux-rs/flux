@@ -267,7 +267,7 @@
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; SpanEncoder <span class="kw">for </span>EncodeContext&lt;<span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">fn </span>encode_crate_num(<span class="kw-2">&amp;mut </span><span class="self">self</span>, crate_num: CrateNum) {
         <span class="kw">if </span>crate_num != LOCAL_CRATE &amp;&amp; <span class="self">self</span>.is_proc_macro {
-            <span class="macro">panic!</span>(<span class="string">"Attempted to encode non-local CrateNum {crate_num:?} for proc-macro crate"</span>);
+            <span class="macro">bug!</span>(<span class="string">"Attempted to encode non-local CrateNum {crate_num:?} for proc-macro crate"</span>);
         }
         <span class="self">self</span>.tcx.stable_crate_id(crate_num).encode(<span class="self">self</span>);
     }

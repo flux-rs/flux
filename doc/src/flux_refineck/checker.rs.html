@@ -2272,7 +2272,7 @@
             TerminatorKind::FalseUnwind { real_target, .. } =&gt; {
                 <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[(<span class="kw-2">*</span>real_target, Guard::None)])
             }
-            TerminatorKind::UnwindResume =&gt; <span class="macro">todo!</span>(<span class="string">"implement checking of cleanup code"</span>),
+            TerminatorKind::UnwindResume =&gt; <span class="macro">bug!</span>(<span class="string">"TODO: implement checking of cleanup code"</span>),
         }
     }
 
@@ -2478,7 +2478,7 @@
                 poly_sig,
             )<span class="question-mark">?</span>;
         } <span class="kw">else </span>{
-            <span class="macro">panic!</span>(<span class="string">"check_oblig_fn_trait_pred: unexpected self_ty {:?}"</span>, fn_trait_pred.self_ty);
+            <span class="macro">bug!</span>(<span class="string">"check_oblig_fn_trait_pred: unexpected self_ty {:?}"</span>, fn_trait_pred.self_ty);
         }
         <span class="prelude-val">Ok</span>(())
     }
