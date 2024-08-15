@@ -513,17 +513,22 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .output
             .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
 
-        let mut at = infcx.at(ConstrReason::Ret);
-        at.subtyping(rcx, &ret_place_ty, &output.ret)
+        infcx
+            .at(ConstrReason::Ret)
+            .subtyping(rcx, &ret_place_ty, &output.ret)
             .with_span(span)?;
+
         for constraint in &output.ensures {
             match constraint {
                 Ensures::Type(path, ty) => {
                     let actual_ty = env.get(path);
-                    at.subtyping(rcx, &actual_ty, ty).with_span(span)?;
+                    infcx
+                        .at(ConstrReason::Ret)
+                        .subtyping(rcx, &actual_ty, ty)
+                        .with_span(span)?;
                 }
                 Ensures::Pred(e) => {
-                    at.check_pred(rcx, e);
+                    infcx.at(ConstrReason::Ret).check_pred(rcx, e);
                 }
             }
         }
@@ -548,8 +553,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         generic_args: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<Ty> {
-        let a = 1; // return std::result::Result<Ty, CheckerErrorKind>
-
         let genv = self.genv;
         let tcx = genv.tcx();
 
@@ -575,7 +578,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             )
             .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)
             .with_span(span)?;
-        let a = 1; // extract refion_infcx from self instead of infcx or pass entire infcx to normalize_projections
 
         // Check requires predicates
         for requires in fn_sig.requires() {
@@ -1036,14 +1038,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         args: &[Ty],
         arr_ty: Ty,
     ) -> Result<Ty> {
-        let a = 1; // return std::result::Result<Ty, CheckerErrorKind>
         let mut infcx = self.infcx(rcx, span);
         let arr_ty =
             arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
-        let mut at = infcx.at(ConstrReason::Other);
         let (arr_ty, pred) = arr_ty.unconstr();
-        at.check_pred(rcx, &pred);
+        infcx.at(ConstrReason::Other).check_pred(rcx, &pred);
         for ty in args {
             // TODO(nilehmann) We should share this logic with `check_fn_call`
             match (ty.kind(), arr_ty.kind()) {
@@ -1051,9 +1051,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     let ty = env
                         .block_with(self.genv, path, bound.clone())
                         .with_span(span)?;
-                    at.subtyping(rcx, &ty, bound).with_span(span)?;
+                    infcx
+                        .at(ConstrReason::Other)
+                        .subtyping(rcx, &ty, bound)
+                        .with_span(span)?;
                 }
-                _ => at.subtyping(rcx, ty, &arr_ty).with_span(span)?,
+                _ => {
+                    infcx
+                        .at(ConstrReason::Other)
+                        .subtyping(rcx, ty, &arr_ty)
+                        .with_span(span)?
+                }
             }
         }
         rcx.replace_evars(&infcx.solve().with_span(span)?);
@@ -1572,23 +1580,8 @@ impl Mode for RefineMode {
 
         dbg::refine_goto!(target, rcx, env, bb_env);
 
-        let a = 0; // see if we can simplify this
-        let infcx = &mut InferCtxt::new(
-            ck.genv,
-            &ck.body.infcx,
-            ck.def_id.into(),
-            &ck.inherited.refine_params,
-            &rcx,
-            |sorts: &_, encoding| {
-                ck.inherited
-                    .mode
-                    .kvars
-                    .borrow_mut()
-                    .fresh(sorts, bb_env.scope(), encoding)
-            },
-            terminator_span,
-        );
-        env.check_goto(&mut rcx, infcx, bb_env, target)
+        let mut infcx = ck.infcx(&rcx, terminator_span);
+        env.check_goto(&mut rcx, &mut infcx, bb_env, target)
             .with_span(terminator_span)?;
 
         Ok(!ck.visited.contains(target))
