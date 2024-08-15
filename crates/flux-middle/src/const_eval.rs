@@ -25,8 +25,9 @@ pub fn scalar_int_to_rty_constant<'tcx>(
 }
 
 pub fn unevaluated_to_constant(tcx: TyCtxt, ct: &UnevaluatedConst) -> Option<crate::rty::Constant> {
-    // TODO param_env for args but then we need the parent context's
-    // def_id to get the param_env for that context
+    // TODO we ignore the args, probably need the param_env for args and then to use
+    // https://doc.rust-lang.org/stable/nightly-rustc/rustc_middle/ty/context/struct.TyCtxt.html#method.const_eval_resolve
+    // but then we need the parent context's def_id to get the param_env for that context (also the span?)
     if let Ok(const_val) = tcx.const_eval_poly(ct.def)
         && let Some(ty) = tcx.type_of(ct.def).no_bound_vars()
         && let Some(scalar_int) = const_val.try_to_scalar_int()
