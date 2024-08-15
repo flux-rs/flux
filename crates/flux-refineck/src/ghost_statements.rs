@@ -50,7 +50,7 @@ impl fmt::Debug for GhostStatement {
             GhostStatement::Fold(place) => write!(f, "fold({place:?})"),
             GhostStatement::Unfold(place) => write!(f, "unfold({place:?})"),
             GhostStatement::Unblock(place) => write!(f, "unblock({place:?})"),
-            GhostStatement::PtrToRef(place) => write!(f, "ptr_to_borrow({place:?})"),
+            GhostStatement::PtrToRef(place) => write!(f, "ptr_to_ref({place:?})"),
         }
     }
 }

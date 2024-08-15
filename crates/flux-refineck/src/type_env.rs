@@ -134,7 +134,7 @@ impl TypeEnv<'_> {
         Ok(())
     }
 
-    /// Convert a pointer to a mutable reference.
+    /// Convert a (strong) pointer to a mutable reference.
     ///
     /// This roughly implements the following inference rule:
     /// ```text
@@ -153,7 +153,7 @@ impl TypeEnv<'_> {
     /// ```text
     ///                    i32[a] <: i32{v: $k(v)}
     /// ---------------------------------------------------------------
-    /// x: i32[a]; ptr(mut, x) => x:†i32{v: $k(v)} ; &mut i32{v: $k(v)}
+    /// x: i32[a] ; ptr(mut, x) => x:†i32{v: $k(v)} ; &mut i32{v: $k(v)}
     /// ```
     pub(crate) fn ptr_to_ref(
         &mut self,
