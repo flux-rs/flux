@@ -127,7 +127,7 @@ impl TypeEnv<'_> {
         };
 
         let ref_ty =
-            self.ptr_to_ref(rcx, infcx, ConstrReason::Other, *re, path, PtrToRefMode::Infer)?;
+            self.ptr_to_ref(rcx, infcx, ConstrReason::Other, *re, path, PtrToRefBound::Infer)?;
 
         self.bindings.lookup(place).update(ref_ty);
 
@@ -143,8 +143,8 @@ impl TypeEnv<'_> {
     /// Γ₁,ℓ:t1,Γ₂ ; ptr(mut, ℓ) => Γ₁,ℓ:†t₂,Γ₂ ; &mut t2
     /// ```
     ///
-    /// The bound `t₂` can be either inferred ([`PtrToRefMode::Infer`]), or provided from the
-    /// context ([`PtrToRefMode::Bound`]).
+    /// The bound `t₂` can be either inferred ([`PtrToRefBound::Infer`]), or explicilty provided
+    /// ([`PtrToRefBound::Ty`]).
     ///
     /// As an example, consider the environment `x: i32[a]` and the pointer `ptr(mut, x)`.
     /// Converting the pointer to a mutable reference with an inferred bound produces the following
@@ -162,7 +162,7 @@ impl TypeEnv<'_> {
         reason: ConstrReason,
         re: Region,
         path: &Path,
-        mode: PtrToRefMode,
+        bound: PtrToRefBound,
     ) -> Result<Ty> {
         infcx.push_scope(rcx);
 
@@ -170,15 +170,15 @@ impl TypeEnv<'_> {
         let t1 = self.bindings.lookup(path).fold(rcx, infcx)?;
 
         // t1 <: t2
-        let t2 = match mode {
-            PtrToRefMode::Bound(bound) => {
+        let t2 = match bound {
+            PtrToRefBound::Ty(t2) => {
                 // FIXME(nilehmann) we could match regions against `t1` instead of mapping the path
                 // to a place which requires annoying bookkepping.
                 let place = self.bindings.path_to_place(path);
-                let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
-                subst::match_regions(&bound, &rustc_ty)
+                let rust_ty = place.ty(infcx.genv, self.local_decls)?.ty;
+                subst::match_regions(&t2, &rust_ty)
             }
-            PtrToRefMode::Infer => {
+            PtrToRefBound::Infer => {
                 t1.with_holes().replace_holes(|sorts, kind| {
                     debug_assert_eq!(kind, HoleKind::Pred);
                     infcx.fresh_kvar(sorts, KVarEncoding::Conj)
@@ -329,8 +329,8 @@ impl TypeEnv<'_> {
     }
 }
 
-pub(crate) enum PtrToRefMode {
-    Bound(Ty),
+pub(crate) enum PtrToRefBound {
+    Ty(Ty),
     Infer,
 }
 

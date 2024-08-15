@@ -45,7 +45,7 @@ use crate::{
     primops,
     queue::WorkQueue,
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
-    type_env::{BasicBlockEnv, BasicBlockEnvShape, PtrToRefMode, TypeEnv},
+    type_env::{BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, TypeEnv},
 };
 
 type Result<T = ()> = std::result::Result<T, CheckerError>;
@@ -604,7 +604,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         ConstrReason::Call,
                         *re,
                         path,
-                        PtrToRefMode::Bound(bound.clone()),
+                        PtrToRefBound::Ty(bound.clone()),
                     )
                     .with_span(span)?;
                 }
@@ -1053,7 +1053,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         ConstrReason::Other,
                         *re,
                         path,
-                        PtrToRefMode::Bound(bound.clone()),
+                        PtrToRefBound::Ty(bound.clone()),
                     )
                     .with_span(span)?;
                 }
