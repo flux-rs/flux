@@ -513,6 +513,9 @@ impl<'a, 'b, 'genv, 'tcx> InferCtxtAt<'a, 'b, 'genv, 'tcx> {
         }
     }
 
+    // FIXME(nilehmann) this is similar to `Checker::check_call`, but since is used from
+    // `place_ty::fold` we cannot use that directly. We should try to unify them, because
+    // there are a couple of things missing here (e.g., checking clauses on the struct definition).
     pub(crate) fn check_constructor(
         &mut self,
         rcx: &mut RefineCtxt,

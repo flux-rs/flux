@@ -8,7 +8,7 @@ use flux_middle::{
 use rty::{BinOp::Mod, Expr as E};
 use rustc_data_structures::unord::UnordMap;
 
-use crate::constraint_gen::ConstrReason;
+use crate::infer::ConstrReason;
 
 pub(crate) struct MatchedRule {
     pub precondition: Option<Pre>,

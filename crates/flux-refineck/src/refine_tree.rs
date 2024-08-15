@@ -25,7 +25,7 @@ use itertools::Itertools;
 use rustc_middle::ty::ParamConst;
 
 use crate::{
-    constraint_gen::Tag,
+    infer::Tag,
     fixpoint_encoding::{fixpoint, sort_to_fixpoint, stitch, FixpointCtxt},
 };
 

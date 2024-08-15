@@ -39,9 +39,9 @@ use rustc_span::{sym, Span};
 
 use self::errors::{CheckerError, ResultExt};
 use crate::{
-    constraint_gen::{ConstrReason, InferCtxt},
     fixpoint_encoding::{self, KVarStore},
     ghost_statements::{GhostStatement, GhostStatements, Point},
+    infer::{ConstrReason, InferCtxt},
     primops,
     queue::WorkQueue,
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
@@ -118,7 +118,7 @@ pub(crate) trait Mode: Sized {
     #[allow(dead_code)] // used for debugging
     const NAME: &str;
 
-    fn constr_gen<'a, 'genv, 'tcx>(
+    fn infcx<'a, 'genv, 'tcx>(
         ck: &'a Checker<'_, 'genv, 'tcx, Self>,
         rcx: &RefineCtxt,
         span: Span,
@@ -474,8 +474,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
                 let ret = rcx.unpack(&ret);
                 rcx.assume_invariants(&ret, self.check_overflow());
-                let mut gen = self.infcx(rcx, terminator_span);
-                env.assign(rcx, &mut gen, destination, ret)
+                let mut infcx = self.infcx(rcx, terminator_span);
+                env.assign(rcx, &mut infcx, destination, ret)
                     .with_span(terminator_span)?;
 
                 if let Some(target) = target {
@@ -1224,8 +1224,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         dbg::statement!("start", stmt, rcx, env);
         match stmt {
             GhostStatement::Fold(place) => {
-                let gen = &mut self.infcx(rcx, span);
-                env.fold(rcx, gen, place).with_span(span)?;
+                let infcx = &mut self.infcx(rcx, span);
+                env.fold(rcx, infcx, place).with_span(span)?;
             }
             GhostStatement::Unfold(place) => {
                 env.unfold(self.genv, rcx, place, self.config())
@@ -1233,8 +1233,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             GhostStatement::Unblock(place) => env.unblock(rcx, place, self.check_overflow()),
             GhostStatement::PtrToBorrow(place) => {
-                let gen = &mut self.infcx(rcx, span);
-                env.ptr_to_borrow(rcx, gen, place).with_span(span)?;
+                let infcx = &mut self.infcx(rcx, span);
+                env.ptr_to_borrow(rcx, infcx, place).with_span(span)?;
             }
         }
         dbg::statement!("end", stmt, rcx, env);
@@ -1242,7 +1242,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     fn infcx(&self, rcx: &RefineCtxt, span: Span) -> InferCtxt<'_, 'genv, 'tcx> {
-        M::constr_gen(self, rcx, span)
+        M::infcx(self, rcx, span)
     }
 
     #[track_caller]
@@ -1461,7 +1461,7 @@ fn infer_under_mut_ref_hack(
 impl Mode for ShapeMode {
     const NAME: &str = "shape";
 
-    fn constr_gen<'a, 'genv, 'tcx>(
+    fn infcx<'a, 'genv, 'tcx>(
         ck: &'a Checker<'_, 'genv, 'tcx, Self>,
         rcx: &RefineCtxt,
         span: Span,
@@ -1530,7 +1530,7 @@ impl Mode for ShapeMode {
 impl Mode for RefineMode {
     const NAME: &str = "refine";
 
-    fn constr_gen<'a, 'genv, 'tcx>(
+    fn infcx<'a, 'genv, 'tcx>(
         ck: &'a Checker<'_, 'genv, 'tcx, Self>,
         rcx: &RefineCtxt,
         span: Span,

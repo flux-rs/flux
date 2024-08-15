@@ -23,8 +23,8 @@ use self::place_ty::{LocKind, PlacesTree};
 use super::rty::Sort;
 use crate::{
     checker::errors::CheckerErrKind,
-    constraint_gen::{ConstrReason, InferCtxt},
     fixpoint_encoding::{KVarEncoding, KVarStore},
+    infer::{ConstrReason, InferCtxt},
     refine_tree::{RefineCtxt, Scope},
     rty::VariantIdx,
     CheckerConfig,

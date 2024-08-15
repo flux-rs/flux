@@ -6,7 +6,7 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_span::{Span, DUMMY_SP};
 
 use crate::{
-    constraint_gen::{ConstrReason, Tag},
+    infer::{ConstrReason, Tag},
     fixpoint_encoding::{FixpointCtxt, KVarStore},
     refine_tree::RefineTree,
     CheckerConfig,

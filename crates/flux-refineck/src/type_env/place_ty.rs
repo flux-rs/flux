@@ -18,7 +18,7 @@ use rustc_hir::def_id::DefId;
 
 use crate::{
     checker::errors::CheckerErrKind,
-    constraint_gen::{ConstrReason, InferCtxt},
+    infer::{ConstrReason, InferCtxt},
     refine_tree::RefineCtxt,
     CheckerConfig,
 };
