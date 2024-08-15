@@ -24,9 +24,9 @@ extern crate rustc_span;
 extern crate rustc_type_ir;
 
 mod checker;
-mod constraint_gen;
 mod fixpoint_encoding;
 mod ghost_statements;
+mod infer;
 pub mod invariants;
 mod primops;
 mod queue;
@@ -35,7 +35,6 @@ mod type_env;
 
 use checker::Checker;
 pub use checker::CheckerConfig;
-use constraint_gen::{ConstrReason, Tag};
 use flux_common::{cache::QueryCache, dbg, result::ResultExt as _};
 use flux_config as config;
 use flux_macros::fluent_messages;
@@ -44,6 +43,7 @@ use flux_middle::{
     queries::QueryResult,
     rty::{self, ESpan},
 };
+use infer::{ConstrReason, Tag};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::LocalDefId;

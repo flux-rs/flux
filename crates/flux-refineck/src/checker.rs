@@ -7,10 +7,10 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{
-        self, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, CoroutineObligPredicate,
-        EarlyBinder, Ensures, Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg, Generics,
-        HoleKind, Int, IntTy, Mutability, PolyFnSig, Ref, Region::ReStatic, Ty, TyKind, Uint,
-        UintTy, VariantIdx,
+        self, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, Clause,
+        CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnSig, FnTraitPredicate,
+        GenericArg, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref,
+        Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -30,7 +30,7 @@ use rustc_hir::{
     LangItem,
 };
 use rustc_index::bit_set::BitSet;
-use rustc_infer::infer::NllRegionVariableOrigin;
+use rustc_infer::infer::{BoundRegionConversionTime, NllRegionVariableOrigin};
 use rustc_middle::{
     mir::{SourceInfo, SwitchTargets},
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _},
@@ -39,9 +39,9 @@ use rustc_span::{sym, Span};
 
 use self::errors::{CheckerError, ResultExt};
 use crate::{
-    constraint_gen::{ConstrGen, ConstrReason, Obligations},
     fixpoint_encoding::{self, KVarStore},
     ghost_statements::{GhostStatement, GhostStatements, Point},
+    infer::{ConstrReason, InferCtxt},
     primops,
     queue::WorkQueue,
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
@@ -118,11 +118,11 @@ pub(crate) trait Mode: Sized {
     #[allow(dead_code)] // used for debugging
     const NAME: &str;
 
-    fn constr_gen<'a, 'genv, 'tcx>(
+    fn infcx<'a, 'genv, 'tcx>(
         ck: &'a Checker<'_, 'genv, 'tcx, Self>,
         rcx: &RefineCtxt,
         span: Span,
-    ) -> ConstrGen<'a, 'genv, 'tcx>;
+    ) -> InferCtxt<'a, 'genv, 'tcx>;
 
     fn enter_basic_block<'ck>(
         ck: &mut Checker<'ck, '_, '_, Self>,
@@ -362,8 +362,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .unpacker()
             .assume_invariants(self.check_overflow())
             .unpack(&ty);
-        let gen = &mut self.constr_gen(rcx, source_info.span);
-        env.assign(rcx, gen, place, ty).with_src_info(source_info)
+        let infcx = &mut self.infcx(rcx, source_info.span);
+        env.assign(rcx, infcx, place, ty).with_src_info(source_info)
     }
 
     fn check_statement(
@@ -423,12 +423,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let terminator_span = source_info.span;
         match &terminator.kind {
             TerminatorKind::Return => {
-                let span = last_stmt_span.unwrap_or(terminator_span);
-                let obligs = self
-                    .constr_gen(rcx, span)
-                    .check_ret(rcx, env, &self.output)
-                    .with_span(span)?;
-                self.check_closure_obligs(rcx, obligs)?;
+                self.check_ret(rcx, env, last_stmt_span.unwrap_or(terminator_span))?;
                 Ok(vec![])
             }
             TerminatorKind::Unreachable => Ok(vec![]),
@@ -471,7 +466,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     rcx,
                     env,
                     terminator_span,
-                    Some(*func_id),
+                    *func_id,
                     fn_sig,
                     &generic_args,
                     &actuals,
@@ -479,8 +474,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
                 let ret = rcx.unpack(&ret);
                 rcx.assume_invariants(&ret, self.check_overflow());
-                let mut gen = self.constr_gen(rcx, terminator_span);
-                env.assign(rcx, &mut gen, destination, ret)
+                let mut infcx = self.infcx(rcx, terminator_span);
+                env.assign(rcx, &mut infcx, destination, ret)
                     .with_span(terminator_span)?;
 
                 if let Some(target) = target {
@@ -507,24 +502,137 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
+    fn check_ret(&mut self, rcx: &mut RefineCtxt, env: &mut TypeEnv, span: Span) -> Result {
+        let mut infcx = self.infcx(rcx, span);
+
+        let ret_place_ty = env
+            .lookup_place(self.genv, rcx, Place::RETURN)
+            .with_span(span)?;
+
+        let output = self
+            .output
+            .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
+
+        infcx
+            .at(ConstrReason::Ret)
+            .subtyping(rcx, &ret_place_ty, &output.ret)
+            .with_span(span)?;
+
+        for constraint in &output.ensures {
+            match constraint {
+                Ensures::Type(path, ty) => {
+                    let actual_ty = env.get(path);
+                    infcx
+                        .at(ConstrReason::Ret)
+                        .subtyping(rcx, &actual_ty, ty)
+                        .with_span(span)?;
+                }
+                Ensures::Pred(e) => {
+                    infcx.at(ConstrReason::Ret).check_pred(rcx, e);
+                }
+            }
+        }
+
+        let clauses = infcx.take_obligations();
+
+        let evars_sol = infcx.solve().with_span(span)?;
+        rcx.replace_evars(&evars_sol);
+
+        self.check_closure_clauses(rcx, rcx.snapshot(), &clauses)
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn check_call(
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        terminator_span: Span,
-        did: Option<DefId>,
+        span: Span,
+        callee_def_id: DefId,
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<Ty> {
-        let actuals = infer_under_mut_ref_hack(rcx, actuals, fn_sig.as_ref());
-        let (output, obligs) = self
-            .constr_gen(rcx, terminator_span)
-            .check_fn_call(rcx, env, did, fn_sig, generic_args, &actuals)
-            .with_span(terminator_span)?;
+        let genv = self.genv;
+        let tcx = genv.tcx();
 
-        let output = output.replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
+        let actuals = infer_under_mut_ref_hack(rcx, actuals, fn_sig.as_ref());
+
+        let mut infcx = self.infcx(rcx, span);
+        let snapshot = rcx.snapshot();
+
+        // Replace holes in generic arguments with fresh inference variables
+        let generic_args = infcx.instantiate_generic_args(generic_args);
+
+        // Generate fresh inference variables for refinement arguments
+        let refine_args = infcx
+            .instantiate_refine_args(callee_def_id)
+            .with_span(span)?;
+
+        // Instantiate function signature and normalize it
+        let fn_sig = fn_sig
+            .instantiate(tcx, &generic_args, &refine_args)
+            .replace_bound_vars(
+                |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
+                |sort, mode| infcx.fresh_infer_var(sort, mode),
+            )
+            .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)
+            .with_span(span)?;
+
+        // Check requires predicates
+        for requires in fn_sig.requires() {
+            infcx.at(ConstrReason::Call).check_pred(rcx, requires);
+        }
+
+        // Check arguments
+        for (actual, formal) in iter::zip(actuals, fn_sig.inputs()) {
+            let (formal, pred) = formal.unconstr();
+            infcx.at(ConstrReason::Call).check_pred(rcx, &pred);
+            // TODO(pack-closure): Generalize/refactor to reuse for mutable closures
+            match (actual.kind(), formal.kind()) {
+                (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
+                    let ty1 = env.get(path1);
+                    infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
+                    infcx
+                        .at(ConstrReason::Call)
+                        .subtyping(rcx, &ty1, ty2)
+                        .with_span(span)?;
+                }
+                (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
+                    let ty = env.block_with(genv, path, bound.clone()).with_span(span)?;
+                    infcx
+                        .at(ConstrReason::Call)
+                        .subtyping(rcx, &ty, bound)
+                        .with_span(span)?;
+                }
+                _ => {
+                    infcx
+                        .at(ConstrReason::Call)
+                        .subtyping(rcx, &actual, &formal)
+                        .with_span(span)?;
+                }
+            }
+        }
+
+        let clauses = genv
+            .predicates_of(callee_def_id)
+            .with_span(span)?
+            .predicates()
+            .instantiate(tcx, &generic_args, &refine_args);
+
+        infcx
+            .at(ConstrReason::Call)
+            .check_non_closure_clauses(rcx, &clauses)
+            .with_span(span)?;
+
+        // Replace evars
+        let evars_sol = infcx.solve().with_span(span)?;
+        env.replace_evars(&evars_sol);
+        rcx.replace_evars(&evars_sol);
+
+        let output = fn_sig
+            .output()
+            .replace_evars(&evars_sol)
+            .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
 
         for ensures in &output.ensures {
             match ensures {
@@ -536,8 +644,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ensures::Pred(e) => rcx.assume_pred(e),
             }
         }
-
-        self.check_closure_obligs(rcx, obligs)?;
+        self.check_closure_clauses(rcx, snapshot, &clauses)?;
 
         Ok(output.ret)
     }
@@ -601,15 +708,19 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(())
     }
 
-    /// This checks obligations related to closures & generators; the remainder are directly checked in `check_fn_call`
-    fn check_closure_obligs(&mut self, rcx: &mut RefineCtxt, obligs: Obligations) -> Result {
-        for pred in &obligs.predicates {
-            match pred.kind() {
+    fn check_closure_clauses(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        snapshot: Snapshot,
+        clauses: &[Clause],
+    ) -> Result {
+        for clause in clauses {
+            match clause.kind() {
                 rty::ClauseKind::FnTrait(fn_trait_pred) => {
-                    self.check_oblig_fn_trait_pred(rcx, &obligs.snapshot, fn_trait_pred)?;
+                    self.check_oblig_fn_trait_pred(rcx, &snapshot, fn_trait_pred)?;
                 }
                 rty::ClauseKind::CoroutineOblig(gen_pred) => {
-                    self.check_oblig_generator_pred(rcx, &obligs.snapshot, gen_pred)?;
+                    self.check_oblig_generator_pred(rcx, &snapshot, gen_pred)?;
                 }
                 rty::ClauseKind::Projection(_)
                 | rty::ClauseKind::Trait(_)
@@ -643,8 +754,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             AssertKind::Overflow(mir::BinOp::Rem) => "possible reminder with overflow",
             AssertKind::Overflow(_) => return Ok(Guard::Pred(pred)),
         };
-        self.constr_gen(rcx, terminator_span)
-            .check_pred(rcx, &pred, ConstrReason::Assert(msg));
+        self.infcx(rcx, terminator_span)
+            .at(ConstrReason::Assert(msg))
+            .check_pred(rcx, &pred);
         Ok(Guard::Pred(pred))
     }
 
@@ -748,12 +860,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Point::BeforeLocation(location),
                 span,
             )?;
-            let obligs = self
-                .constr_gen(&rcx, span)
-                .check_ret(&mut rcx, &mut env, &self.output)
-                .with_span(span)?;
-            self.check_closure_obligs(&mut rcx, obligs)?;
-            Ok(())
+            self.check_ret(&mut rcx, &mut env, span)
         } else if self.body.is_join_point(target) {
             if M::check_goto_join_point(self, rcx, env, span, target)? {
                 self.queue.insert(target);
@@ -800,7 +907,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .to_poly_fn_sig();
                 let args = instantiate_args_for_constructor(genv, &self.generics, *def_id, args)
                     .with_span(stmt_span)?;
-                self.check_call(rcx, env, stmt_span, None, sig, &args, &actuals)
+                self.check_call(rcx, env, stmt_span, *def_id, sig, &args, &actuals)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
                 let args = self.check_operands(rcx, env, stmt_span, operands)?;
@@ -808,16 +915,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .genv
                     .refine_with_holes(&self.generics, arr_ty)
                     .with_span(stmt_span)?;
-                let mut gen = self.constr_gen(rcx, stmt_span);
-                gen.check_mk_array(rcx, env, &args, arr_ty)
-                    .with_span(stmt_span)
+                self.check_mk_array(rcx, env, stmt_span, &args, arr_ty)
             }
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
                 let tys = self.check_operands(rcx, env, stmt_span, args)?;
                 Ok(Ty::tuple(tys))
             }
             Rvalue::Aggregate(AggregateKind::Closure(did, _), operands) => {
-                let upvar_tys = self.check_aggregate_operands(rcx, env, stmt_span, operands)?;
+                let upvar_tys = self.check_operands(rcx, env, stmt_span, operands)?;
                 let res = Ty::closure(*did, upvar_tys);
                 Ok(res)
             }
@@ -827,8 +932,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .genv
                     .refine_default(&self.generics, args.resume_ty())
                     .with_span(stmt_span)?;
-                let upvar_tys = self.check_aggregate_operands(rcx, env, stmt_span, ops)?;
-                Ok(Ty::coroutine(*did, resume_ty, upvar_tys))
+                let upvar_tys = self.check_operands(rcx, env, stmt_span, ops)?;
+                Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into()))
             }
             Rvalue::Discriminant(place) => {
                 let ty = env
@@ -847,19 +952,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(Ty::array(ty, c.clone()))
             }
         }
-    }
-
-    fn check_aggregate_operands(
-        &mut self,
-        rcx: &mut RefineCtxt<'_>,
-        env: &mut TypeEnv<'_>,
-        stmt_span: Span,
-        args: &[Operand],
-    ) -> Result<List<flux_middle::intern::Interned<rty::TyS>>> {
-        let tys = self.check_operands(rcx, env, stmt_span, args)?;
-        let mut gen = self.constr_gen(rcx, stmt_span);
-        let tys = gen.pack_closure_operands(env, &tys);
-        Ok(tys)
     }
 
     fn check_len(
@@ -899,8 +991,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 let rule = primops::match_bin_op(bin_op, bty1, idx1, bty2, idx2, check_overflow);
                 if let Some(pre) = rule.precondition {
-                    self.constr_gen(rcx, source_span)
-                        .check_pred(rcx, pre.pred, pre.reason);
+                    self.infcx(rcx, source_span)
+                        .at(pre.reason)
+                        .check_pred(rcx, pre.pred);
                 }
 
                 Ok(rule.output_type)
@@ -922,13 +1015,53 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             TyKind::Indexed(bty, idx) => {
                 let rule = primops::match_un_op(un_op, bty, idx, self.check_overflow());
                 if let Some(pre) = rule.precondition {
-                    self.constr_gen(rcx, source_span)
-                        .check_pred(rcx, pre.pred, pre.reason);
+                    self.infcx(rcx, source_span)
+                        .at(pre.reason)
+                        .check_pred(rcx, pre.pred);
                 }
                 Ok(rule.output_type)
             }
             _ => tracked_span_bug!("invalid type for unary operator `{un_op:?}` `{ty:?}`"),
         }
+    }
+
+    fn check_mk_array(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        env: &mut TypeEnv,
+        span: Span,
+        args: &[Ty],
+        arr_ty: Ty,
+    ) -> Result<Ty> {
+        let mut infcx = self.infcx(rcx, span);
+        let arr_ty =
+            arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
+
+        let (arr_ty, pred) = arr_ty.unconstr();
+        infcx.at(ConstrReason::Other).check_pred(rcx, &pred);
+        for ty in args {
+            // TODO(nilehmann) We should share this logic with `check_call`
+            match (ty.kind(), arr_ty.kind()) {
+                (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
+                    let ty = env
+                        .block_with(self.genv, path, bound.clone())
+                        .with_span(span)?;
+                    infcx
+                        .at(ConstrReason::Other)
+                        .subtyping(rcx, &ty, bound)
+                        .with_span(span)?;
+                }
+                _ => {
+                    infcx
+                        .at(ConstrReason::Other)
+                        .subtyping(rcx, ty, &arr_ty)
+                        .with_span(span)?;
+                }
+            }
+        }
+        rcx.replace_evars(&infcx.solve().with_span(span)?);
+
+        Ok(Ty::array(arr_ty, rty::Const::from_usize(self.genv.tcx(), args.len())))
     }
 
     fn check_cast(&self, kind: CastKind, from: &Ty, to: &rustc::ty::Ty) -> Result<Ty> {
@@ -1091,8 +1224,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         dbg::statement!("start", stmt, rcx, env);
         match stmt {
             GhostStatement::Fold(place) => {
-                let gen = &mut self.constr_gen(rcx, span);
-                env.fold(rcx, gen, place).with_span(span)?;
+                let infcx = &mut self.infcx(rcx, span);
+                env.fold(rcx, infcx, place).with_span(span)?;
             }
             GhostStatement::Unfold(place) => {
                 env.unfold(self.genv, rcx, place, self.config())
@@ -1100,16 +1233,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             GhostStatement::Unblock(place) => env.unblock(rcx, place, self.check_overflow()),
             GhostStatement::PtrToBorrow(place) => {
-                let gen = &mut self.constr_gen(rcx, span);
-                env.ptr_to_borrow(rcx, gen, place).with_span(span)?;
+                let infcx = &mut self.infcx(rcx, span);
+                env.ptr_to_borrow(rcx, infcx, place).with_span(span)?;
             }
         }
         dbg::statement!("end", stmt, rcx, env);
         Ok(())
     }
 
-    fn constr_gen(&self, rcx: &RefineCtxt, span: Span) -> ConstrGen<'_, 'genv, 'tcx> {
-        M::constr_gen(self, rcx, span)
+    fn infcx(&self, rcx: &RefineCtxt, span: Span) -> InferCtxt<'_, 'genv, 'tcx> {
+        M::infcx(self, rcx, span)
     }
 
     #[track_caller]
@@ -1328,16 +1461,17 @@ fn infer_under_mut_ref_hack(
 impl Mode for ShapeMode {
     const NAME: &str = "shape";
 
-    fn constr_gen<'a, 'genv, 'tcx>(
+    fn infcx<'a, 'genv, 'tcx>(
         ck: &'a Checker<'_, 'genv, 'tcx, Self>,
-        _rcx: &RefineCtxt,
+        rcx: &RefineCtxt,
         span: Span,
-    ) -> ConstrGen<'a, 'genv, 'tcx> {
-        ConstrGen::new(
+    ) -> InferCtxt<'a, 'genv, 'tcx> {
+        InferCtxt::new(
             ck.genv,
             &ck.body.infcx,
             ck.def_id.into(),
             &ck.inherited.refine_params,
+            rcx,
             |_: &[_], _| Expr::hole(HoleKind::Pred),
             span,
         )
@@ -1396,16 +1530,17 @@ impl Mode for ShapeMode {
 impl Mode for RefineMode {
     const NAME: &str = "refine";
 
-    fn constr_gen<'a, 'genv, 'tcx>(
+    fn infcx<'a, 'genv, 'tcx>(
         ck: &'a Checker<'_, 'genv, 'tcx, Self>,
         rcx: &RefineCtxt,
         span: Span,
-    ) -> ConstrGen<'a, 'genv, 'tcx> {
-        ConstrGen::new(
+    ) -> InferCtxt<'a, 'genv, 'tcx> {
+        InferCtxt::new(
             ck.genv,
             &ck.body.infcx,
             ck.def_id.into(),
             &ck.inherited.refine_params,
+            rcx,
             {
                 let scope = rcx.scope();
                 move |sorts: &[_], encoding| {
@@ -1440,21 +1575,8 @@ impl Mode for RefineMode {
 
         dbg::refine_goto!(target, rcx, env, bb_env);
 
-        let gen = &mut ConstrGen::new(
-            ck.genv,
-            &ck.body.infcx,
-            ck.def_id.into(),
-            &ck.inherited.refine_params,
-            |sorts: &_, encoding| {
-                ck.inherited
-                    .mode
-                    .kvars
-                    .borrow_mut()
-                    .fresh(sorts, bb_env.scope(), encoding)
-            },
-            terminator_span,
-        );
-        env.check_goto(&mut rcx, gen, bb_env, target)
+        let mut infcx = ck.infcx(&rcx, terminator_span);
+        env.check_goto(&mut rcx, &mut infcx, bb_env, target)
             .with_span(terminator_span)?;
 
         Ok(!ck.visited.contains(target))

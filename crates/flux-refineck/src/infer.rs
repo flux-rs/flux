@@ -6,11 +6,13 @@ use flux_middle::{
     intern::List,
     queries::QueryErr,
     rty::{
-        self, evars::EVarSol, fold::TypeFoldable, AliasTy, BaseTy, Binder, CoroutineObligPredicate,
-        ESpan, EVarGen, EarlyBinder, Ensures, Expr, ExprKind, FnOutput, GenericArg, HoleKind,
-        InferMode, Lambda, Mutability, PolyFnSig, PolyVariant, PtrKind, Ref, Sort, Ty, TyKind, Var,
+        self,
+        evars::{EVarSol, UnsolvedEvar},
+        fold::TypeFoldable,
+        AliasTy, BaseTy, CoroutineObligPredicate, ESpan, EVarGen, EarlyBinder, Expr, ExprKind,
+        GenericArg, HoleKind, InferMode, Lambda, Mutability, PolyVariant, Sort, Ty, TyKind, Var,
     },
-    rustc::mir::{BasicBlock, Place},
+    rustc::mir::BasicBlock,
 };
 use itertools::{izip, Itertools};
 use rustc_hir::def_id::DefId;
@@ -21,39 +23,23 @@ use rustc_span::Span;
 use crate::{
     checker::errors::CheckerErrKind,
     fixpoint_encoding::KVarEncoding,
-    refine_tree::{RefineCtxt, Scope, Snapshot},
-    type_env::TypeEnv,
+    refine_tree::{RefineCtxt, Scope},
 };
 
 type Result<T = ()> = std::result::Result<T, CheckerErrKind>;
 
-pub struct ConstrGen<'a, 'genv, 'tcx> {
-    pub genv: GlobalEnv<'genv, 'tcx>,
-    region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
-    def_id: DefId,
-    refparams: &'a [Expr],
-    kvar_gen: Box<dyn KVarGen + 'a>,
-    span: Span,
-}
-
-pub(crate) struct Obligations {
-    pub(crate) predicates: List<rty::Clause>,
-    /// Snapshot of the refinement subtree where the obligations should be checked
-    pub(crate) snapshot: Snapshot,
-}
-
 pub trait KVarGen {
     fn fresh(&self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr;
 }
-
 pub(crate) struct InferCtxt<'a, 'genv, 'tcx> {
-    genv: GlobalEnv<'genv, 'tcx>,
-    region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
-    def_id: DefId,
-    refparams: &'a [Expr],
-    kvar_gen: &'a mut (dyn KVarGen + 'a),
+    pub genv: GlobalEnv<'genv, 'tcx>,
+    pub region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
+    pub def_id: DefId,
+    pub refparams: &'a [Expr],
+    kvar_gen: Box<(dyn KVarGen + 'a)>,
     evar_gen: RefCell<EVarGen<Scope>>,
-    tag: Tag,
+    /// The span at which this inference context was created in `Checker`
+    span: Span,
     obligs: Vec<rty::Clause>,
 }
 
@@ -88,262 +74,15 @@ pub enum ConstrReason {
     Other,
 }
 
-impl<'a, 'genv, 'tcx> ConstrGen<'a, 'genv, 'tcx> {
-    pub fn new<G>(
-        genv: GlobalEnv<'genv, 'tcx>,
-        region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
-        def_id: DefId,
-        refparams: &'a [Expr],
-        kvar_gen: G,
-        span: Span,
-    ) -> Self
-    where
-        G: KVarGen + 'a,
-    {
-        ConstrGen { genv, region_infcx, def_id, refparams, kvar_gen: Box::new(kvar_gen), span }
-    }
-
-    pub(crate) fn check_pred(
-        &self,
-        rcx: &mut RefineCtxt,
-        pred: impl Into<Expr>,
-        reason: ConstrReason,
-    ) {
-        rcx.check_pred(pred, Tag::new(reason, self.span));
-    }
-
-    pub(crate) fn subtyping(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        ty1: &Ty,
-        ty2: &Ty,
-        reason: ConstrReason,
-    ) {
-        let mut infcx = self.infcx(rcx, reason);
-        let _ = infcx.subtyping(rcx, ty1, ty2);
-        rcx.replace_evars(&infcx.solve().unwrap());
-    }
-
-    pub(crate) fn pack_closure_operands(&mut self, env: &mut TypeEnv, operands: &[Ty]) -> List<Ty> {
-        operands
-            .iter()
-            .map(|ty| {
-                match ty.kind() {
-                    TyKind::Ptr(PtrKind::Mut(region), path) => {
-                        let ty = env.get(path);
-                        rty::Ty::mk_ref(*region, ty, Mutability::Mut)
-                    }
-                    _ => ty.clone(),
-                }
-            })
-            .collect()
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn check_fn_call(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        env: &mut TypeEnv,
-        callee_def_id: Option<DefId>,
-        fn_sig: EarlyBinder<PolyFnSig>,
-        generic_args: &[GenericArg],
-        actuals: &[Ty],
-    ) -> Result<(Binder<FnOutput>, Obligations)> {
-        let genv = self.genv;
-        let span = self.span;
-
-        let mut infcx = self.infcx(rcx, ConstrReason::Call);
-        let snapshot = rcx.snapshot();
-
-        // Replace holes in generic arguments with fresh inference variables
-        let generic_args = infcx.instantiate_generic_args(generic_args);
-
-        // Generate fresh inference variables for refinement arguments
-        let refine_args = infcx.instantiate_refine_args(genv, callee_def_id)?;
-
-        // Instantiate function signature and normalize it
-        let fn_sig = fn_sig
-            .instantiate(genv.tcx(), &generic_args, &refine_args)
-            .replace_bound_vars(
-                |br| infcx.next_bound_region_var(span, br.kind, BoundRegionConversionTime::FnCall),
-                |sort, mode| infcx.fresh_infer_var(sort, mode),
-            )
-            .normalize_projections(genv, infcx.region_infcx, infcx.def_id, infcx.refparams)?;
-
-        let obligs = if let Some(did) = callee_def_id {
-            mk_obligations(genv, did, &generic_args, &refine_args)?
-        } else {
-            List::empty()
-        };
-
-        // Check requires predicates
-        for requires in fn_sig.requires() {
-            infcx.check_pred(rcx, requires);
-        }
-
-        // Check arguments
-        for (actual, formal) in iter::zip(actuals, fn_sig.inputs()) {
-            let (formal, pred) = formal.unconstr();
-            infcx.check_pred(rcx, &pred);
-            // TODO(pack-closure): Generalize/refactor to reuse for mutable closures
-            match (actual.kind(), formal.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(_), path1), TyKind::StrgRef(_, path2, ty2)) => {
-                    let ty1 = env.get(path1);
-                    infcx.unify_exprs(&path1.to_expr(), &path2.to_expr());
-                    infcx.subtyping(rcx, &ty1, ty2)?;
-                }
-                (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
-                    let ty = env.block_with(genv, path, bound.clone())?;
-                    infcx.subtyping(rcx, &ty, bound)?;
-                }
-                _ => infcx.subtyping(rcx, actual, &formal)?,
-            }
-        }
-
-        // check (non-closure) obligations -- the closure ones are handled in `checker` since
-        // as we have to recursively walk over their def_id bodies.
-        for pred in &obligs {
-            if let rty::ClauseKind::Projection(projection_pred) = pred.kind() {
-                let impl_elem = Ty::projection(projection_pred.projection_ty)
-                    .normalize_projections(
-                        infcx.genv,
-                        infcx.region_infcx,
-                        infcx.def_id,
-                        infcx.refparams,
-                    )?;
-                let term = projection_pred.term.normalize_projections(
-                    infcx.genv,
-                    infcx.region_infcx,
-                    infcx.def_id,
-                    infcx.refparams,
-                )?;
-
-                // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
-                infcx.subtyping(rcx, &impl_elem, &term)?;
-                infcx.subtyping(rcx, &term, &impl_elem)?;
-            }
-        }
-        // Replace evars
-        let evars_sol = infcx.solve()?;
-        env.replace_evars(&evars_sol);
-        rcx.replace_evars(&evars_sol);
-        let output = fn_sig.output().replace_evars(&evars_sol);
-
-        Ok((output, Obligations::new(obligs, snapshot)))
-    }
-
-    pub(crate) fn check_ret(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        env: &mut TypeEnv,
-        output: &Binder<FnOutput>,
-    ) -> Result<Obligations> {
-        let ret_place_ty = env.lookup_place(self.genv, rcx, Place::RETURN)?;
-
-        let mut infcx = self.infcx(rcx, ConstrReason::Ret);
-
-        let output =
-            output.replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-
-        infcx.subtyping(rcx, &ret_place_ty, &output.ret)?;
-        for constraint in &output.ensures {
-            infcx.check_ensures(rcx, env, constraint)?;
-        }
-
-        let obligs = infcx.obligations();
-
-        let evars_sol = infcx.solve()?;
-        rcx.replace_evars(&evars_sol);
-
-        Ok(Obligations::new(obligs.into(), rcx.snapshot()))
-    }
-
-    pub(crate) fn check_constructor(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        variant: EarlyBinder<PolyVariant>,
-        generic_args: &[GenericArg],
-        fields: &[Ty],
-    ) -> Result<Ty> {
-        let tcx = self.genv.tcx();
-        // rn we are only calling `check_constructor` when folding so we mark this as a folding error.
-        let mut infcx = self.infcx(rcx, ConstrReason::Fold);
-
-        // Replace holes in generic arguments with fresh inference variables
-        let generic_args = infcx.instantiate_generic_args(generic_args);
-
-        let variant = variant
-            .instantiate(tcx, &generic_args, &[])
-            .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-
-        // Check arguments
-        for (actual, formal) in iter::zip(fields, variant.fields()) {
-            infcx.subtyping(rcx, actual, formal)?;
-        }
-
-        // Replace evars
-        let evars_sol = infcx.solve()?;
-        rcx.replace_evars(&evars_sol);
-
-        Ok(variant.ret().replace_evars(&evars_sol))
-    }
-
-    pub(crate) fn check_mk_array(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        env: &mut TypeEnv,
-        args: &[Ty],
-        arr_ty: Ty,
-    ) -> Result<Ty> {
-        let mut infcx = self.infcx(rcx, ConstrReason::Other);
-
-        let arr_ty =
-            arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
-
-        let (arr_ty, pred) = arr_ty.unconstr();
-        infcx.check_pred(rcx, &pred);
-
-        for ty in args {
-            // TODO(nilehmann) We should share this logic with `check_fn_call`
-            match (ty.kind(), arr_ty.kind()) {
-                (TyKind::Ptr(PtrKind::Mut(_), path), Ref!(_, bound, Mutability::Mut)) => {
-                    let ty = env.block_with(infcx.genv, path, bound.clone())?;
-                    infcx.subtyping(rcx, &ty, bound)?;
-                }
-                _ => infcx.subtyping(rcx, ty, &arr_ty)?,
-            }
-        }
-        rcx.replace_evars(&infcx.solve()?);
-
-        Ok(Ty::array(arr_ty, rty::Const::from_usize(self.genv.tcx(), args.len())))
-    }
-
-    pub(crate) fn infcx(
-        &mut self,
-        rcx: &RefineCtxt,
-        reason: ConstrReason,
-    ) -> InferCtxt<'_, 'genv, 'tcx> {
-        InferCtxt::new(
-            self.genv,
-            self.region_infcx,
-            self.def_id,
-            self.refparams,
-            rcx,
-            &mut *self.kvar_gen,
-            Tag::new(reason, self.span),
-        )
-    }
-}
-
 impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
-    fn new(
+    pub(crate) fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         def_id: DefId,
         refparams: &'a [Expr],
         rcx: &RefineCtxt,
-        kvar_gen: &'a mut (dyn KVarGen + 'a),
-        tag: Tag,
+        kvar_gen: impl KVarGen + 'a,
+        span: Span,
     ) -> Self {
         let mut evar_gen = EVarGen::default();
         evar_gen.enter_context(rcx.scope());
@@ -352,44 +91,33 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
             region_infcx,
             def_id,
             refparams,
-            kvar_gen,
+            kvar_gen: Box::new(kvar_gen),
             evar_gen: RefCell::new(evar_gen),
-            tag,
+            span,
             obligs: Vec::new(),
         }
     }
 
-    fn obligations(&self) -> Vec<rty::Clause> {
-        self.obligs.clone()
+    pub(crate) fn at(&mut self, reason: ConstrReason) -> InferCtxtAt<'_, 'a, 'genv, 'tcx> {
+        InferCtxtAt { infcx: self, reason }
+    }
+
+    pub(crate) fn take_obligations(&mut self) -> Vec<rty::Clause> {
+        std::mem::take(&mut self.obligs)
     }
 
     fn insert_obligations(&mut self, obligs: Vec<rty::Clause>) {
         self.obligs.extend(obligs);
     }
 
-    fn push_scope(&mut self, rcx: &RefineCtxt) {
-        self.evar_gen.borrow_mut().enter_context(rcx.scope());
+    pub(crate) fn instantiate_refine_args(&mut self, callee_def_id: DefId) -> Result<Vec<Expr>> {
+        Ok(self
+            .genv
+            .refinement_generics_of(callee_def_id)?
+            .collect_all_params(self.genv, |param| self.fresh_infer_var(&param.sort, param.mode))?)
     }
 
-    fn pop_scope(&mut self) {
-        self.evar_gen.borrow_mut().exit_context();
-    }
-
-    fn instantiate_refine_args(
-        &mut self,
-        genv: GlobalEnv,
-        callee_def_id: Option<DefId>,
-    ) -> Result<Vec<Expr>> {
-        if let Some(callee_id) = callee_def_id {
-            Ok(genv
-                .refinement_generics_of(callee_id)?
-                .collect_all_params(genv, |param| self.fresh_infer_var(&param.sort, param.mode))?)
-        } else {
-            Ok(vec![])
-        }
-    }
-
-    fn instantiate_generic_args(&mut self, args: &[GenericArg]) -> Vec<GenericArg> {
+    pub(crate) fn instantiate_generic_args(&mut self, args: &[GenericArg]) -> Vec<GenericArg> {
         args.iter()
             .map(|a| a.replace_holes(|binders, kind| self.fresh_infer_var_for_hole(binders, kind)))
             .collect_vec()
@@ -399,7 +127,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         rty::ReVar(self.region_infcx.next_region_var(origin).as_var())
     }
 
-    fn next_bound_region_var(
+    pub(crate) fn next_bound_region_var(
         &self,
         span: Span,
         kind: BoundRegionKind,
@@ -420,7 +148,11 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn fresh_infer_var_for_hole(&mut self, binders: &[List<Sort>], kind: HoleKind) -> Expr {
+    pub(crate) fn fresh_infer_var_for_hole(
+        &mut self,
+        binders: &[List<Sort>],
+        kind: HoleKind,
+    ) -> Expr {
         match kind {
             HoleKind::Pred => self.fresh_kvar(binders, KVarEncoding::Conj),
             HoleKind::Expr(sort) => {
@@ -439,27 +171,82 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         Expr::fold_sort(sort, |_| Expr::evar(evar_gen.fresh_in_current()))
     }
 
-    pub(crate) fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
-        rcx.check_pred(pred, self.tag);
+    pub(crate) fn unify_exprs(&self, e1: &Expr, e2: &Expr) {
+        let mut evar_gen = self.evar_gen.borrow_mut();
+        if let ExprKind::Var(Var::EVar(evar)) = e2.kind()
+            && let scope = &evar_gen.data(evar.cx())
+            && !scope.has_free_vars(e1)
+        {
+            evar_gen.unify(*evar, e1, false);
+        }
     }
 
-    fn check_ensures(
+    pub(crate) fn push_scope(&mut self, rcx: &RefineCtxt) {
+        self.evar_gen.borrow_mut().enter_context(rcx.scope());
+    }
+
+    fn pop_scope(&mut self) {
+        self.evar_gen.borrow_mut().exit_context();
+    }
+
+    pub(crate) fn pop_scope_solving_pending(
+        &mut self,
+    ) -> std::result::Result<EVarSol, UnsolvedEvar> {
+        let mut evar_gen = self.evar_gen.borrow_mut();
+        evar_gen.exit_context();
+        evar_gen.try_solve_pending()
+    }
+
+    pub(crate) fn solve(mut self) -> std::result::Result<EVarSol, UnsolvedEvar> {
+        self.pop_scope_solving_pending()
+    }
+}
+
+pub(crate) struct InferCtxtAt<'a, 'b, 'genv, 'tcx> {
+    pub infcx: &'a mut InferCtxt<'b, 'genv, 'tcx>,
+    pub reason: ConstrReason,
+}
+
+impl<'a, 'b, 'genv, 'tcx> InferCtxtAt<'a, 'b, 'genv, 'tcx> {
+    pub(crate) fn genv(&self) -> GlobalEnv<'genv, 'tcx> {
+        self.infcx.genv
+    }
+
+    fn tag(&self) -> Tag {
+        Tag::new(self.reason, self.infcx.span)
+    }
+
+    pub(crate) fn check_pred(&self, rcx: &mut RefineCtxt, pred: impl Into<Expr>) {
+        rcx.check_pred(pred, self.tag());
+    }
+
+    pub(crate) fn check_non_closure_clauses(
         &mut self,
         rcx: &mut RefineCtxt,
-        env: &mut TypeEnv,
-        ensures: &Ensures,
+        clauses: &[rty::Clause],
     ) -> Result {
-        let rcx = &mut rcx.branch();
-        match ensures {
-            Ensures::Type(path, ty) => {
-                let actual_ty = env.get(path);
-                self.subtyping(rcx, &actual_ty, ty)
-            }
-            Ensures::Pred(e) => {
-                rcx.check_pred(e, self.tag);
-                Ok(())
+        for clause in clauses {
+            if let rty::ClauseKind::Projection(projection_pred) = clause.kind() {
+                let impl_elem = Ty::projection(projection_pred.projection_ty)
+                    .normalize_projections(
+                        self.infcx.genv,
+                        self.infcx.region_infcx,
+                        self.infcx.def_id,
+                        self.infcx.refparams,
+                    )?;
+                let term = projection_pred.term.normalize_projections(
+                    self.infcx.genv,
+                    self.infcx.region_infcx,
+                    self.infcx.def_id,
+                    self.infcx.refparams,
+                )?;
+
+                // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
+                self.subtyping(rcx, &impl_elem, &term)?;
+                self.subtyping(rcx, &term, &impl_elem)?;
             }
         }
+        Ok(())
     }
 
     pub(crate) fn subtyping(&mut self, rcx: &mut RefineCtxt, ty1: &Ty, ty2: &Ty) -> Result {
@@ -478,11 +265,12 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 bug!("constraint types should removed by the unpack");
             }
             (_, TyKind::Exists(ty2)) => {
-                self.push_scope(rcx);
-                let ty2 =
-                    ty2.replace_bound_refts_with(|sort, mode, _| self.fresh_infer_var(sort, mode));
+                self.infcx.push_scope(rcx);
+                let ty2 = ty2.replace_bound_refts_with(|sort, mode, _| {
+                    self.infcx.fresh_infer_var(sort, mode)
+                });
                 self.subtyping(rcx, &ty1, &ty2)?;
-                self.pop_scope();
+                self.infcx.pop_scope();
                 Ok(())
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
@@ -504,7 +292,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 Ok(())
             }
             (_, TyKind::Constr(p2, ty2)) => {
-                rcx.check_pred(p2.clone(), self.tag);
+                self.check_pred(rcx, p2);
                 self.subtyping(rcx, &ty1, ty2)
             }
             (TyKind::Downcast(.., fields1), TyKind::Downcast(.., fields2)) => {
@@ -518,7 +306,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 if let TyKind::Alias(rty::AliasKind::Opaque, alias_ty1) = ty1.kind() {
                     debug_assert_eq!(alias_ty1.refine_args.len(), alias_ty.refine_args.len());
                     iter::zip(alias_ty1.refine_args.iter(), alias_ty.refine_args.iter())
-                        .for_each(|(e1, e2)| self.unify_exprs(e1, e2));
+                        .for_each(|(e1, e2)| self.infcx.unify_exprs(e1, e2));
                 }
 
                 self.opaque_subtyping(rcx, &ty1, alias_ty)
@@ -547,7 +335,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
             (BaseTy::Adt(adt1, args1), BaseTy::Adt(adt2, args2)) => {
                 debug_assert_eq!(adt1.did(), adt2.did());
                 debug_assert_eq!(args1.len(), args2.len());
-                let variances = self.genv.variances_of(adt1.did());
+                let variances = self.infcx.genv.variances_of(adt1.did());
                 for (variance, ty1, ty2) in izip!(variances, args1.iter(), args2.iter()) {
                     self.generic_arg_subtyping(rcx, *variance, ty1, ty2)?;
                 }
@@ -604,10 +392,10 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         let args = List::singleton(GenericArg::Ty(self_ty.clone()));
         let alias_ty = rty::AliasTy::new(def_id, args, List::empty());
         Ok(Ty::projection(alias_ty).normalize_projections(
-            self.genv,
-            self.region_infcx,
-            self.def_id,
-            self.refparams,
+            self.infcx.genv,
+            self.infcx.region_infcx,
+            self.infcx.def_id,
+            self.infcx.refparams,
         )?)
     }
 
@@ -616,18 +404,19 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
             ty.as_bty_skipping_existentials()
         {
             let obligs = mk_generator_obligations(
-                self.genv,
+                self.infcx.genv,
                 def_id,
                 resume_ty,
                 upvar_tys,
                 &alias_ty.def_id,
             )?;
-            self.insert_obligations(obligs);
+            self.infcx.insert_obligations(obligs);
         } else {
             let bounds = self
+                .infcx
                 .genv
                 .item_bounds(alias_ty.def_id)?
-                .instantiate_identity(self.refparams);
+                .instantiate_identity(self.infcx.refparams);
             for clause in &bounds {
                 if let rty::ClauseKind::Projection(pred) = clause.kind() {
                     let ty1 = self.project_bty(ty, pred.projection_ty.def_id)?;
@@ -692,7 +481,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 }
             }
             (ExprKind::Aggregate(kind1, flds1), _) => {
-                self.unify_exprs(e1, e2);
+                self.infcx.unify_exprs(e1, e2);
                 for (f, e1) in flds1.iter().enumerate() {
                     let e2 = e2.proj_and_reduce(kind1.to_proj(f as u32));
                     self.idx_eq(rcx, e1, &e2);
@@ -705,19 +494,51 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
                 self.abs_eq(rcx, &e1.eta_expand_abs(&p.inputs(), p.output()), p);
             }
             (ExprKind::Abs(p), _) => {
-                self.unify_exprs(e1, e2);
+                self.infcx.unify_exprs(e1, e2);
                 self.abs_eq(rcx, p, &e2.eta_expand_abs(&p.inputs(), p.output()));
             }
             (ExprKind::KVar(_), _) | (_, ExprKind::KVar(_)) => {
-                rcx.check_impl(e1, e2, self.tag);
-                rcx.check_impl(e2, e1, self.tag);
+                rcx.check_impl(e1, e2, self.tag());
+                rcx.check_impl(e2, e1, self.tag());
             }
             _ => {
-                self.unify_exprs(e1, e2);
+                self.infcx.unify_exprs(e1, e2);
                 let span = e2.span();
-                rcx.check_pred(Expr::eq_at(e1, e2, span), self.tag);
+                self.check_pred(rcx, Expr::eq_at(e1, e2, span));
             }
         }
+    }
+
+    // FIXME(nilehmann) this is similar to `Checker::check_call`, but since is used from
+    // `place_ty::fold` we cannot use that directly. We should try to unify them, because
+    // there are a couple of things missing here (e.g., checking clauses on the struct definition).
+    pub(crate) fn check_constructor(
+        &mut self,
+        rcx: &mut RefineCtxt,
+        variant: EarlyBinder<PolyVariant>,
+        generic_args: &[GenericArg],
+        fields: &[Ty],
+    ) -> Result<Ty> {
+        self.infcx.push_scope(rcx);
+        let tcx = self.genv().tcx();
+
+        // Replace holes in generic arguments with fresh inference variables
+        let generic_args = self.infcx.instantiate_generic_args(generic_args);
+
+        let variant = variant
+            .instantiate(tcx, &generic_args, &[])
+            .replace_bound_refts_with(|sort, mode, _| self.infcx.fresh_infer_var(sort, mode));
+
+        // Check arguments
+        for (actual, formal) in iter::zip(fields, variant.fields()) {
+            self.subtyping(rcx, actual, formal)?;
+        }
+
+        // Replace evars
+        let evars_sol = self.infcx.pop_scope_solving_pending()?;
+        rcx.replace_evars(&evars_sol);
+
+        Ok(variant.ret().replace_evars(&evars_sol))
     }
 
     fn abs_eq(&mut self, rcx: &mut RefineCtxt, f1: &Lambda, f2: &Lambda) {
@@ -726,28 +547,6 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         let e1 = f1.apply(&vars);
         let e2 = f2.apply(&vars);
         self.idx_eq(rcx, &e1, &e2);
-    }
-
-    fn unify_exprs(&self, e1: &Expr, e2: &Expr) {
-        let mut evar_gen = self.evar_gen.borrow_mut();
-        if let ExprKind::Var(Var::EVar(evar)) = e2.kind()
-            && let scope = &evar_gen.data(evar.cx())
-            && !scope.has_free_vars(e1)
-        {
-            evar_gen.unify(*evar, e1, false);
-        }
-    }
-
-    pub(crate) fn solve(self) -> Result<EVarSol> {
-        let mut evar_gen = self.evar_gen.into_inner();
-        evar_gen.exit_context();
-        Ok(evar_gen.try_solve_pending()?)
-    }
-}
-
-impl Obligations {
-    fn new(predicates: List<rty::Clause>, snapshot: Snapshot) -> Self {
-        Self { predicates, snapshot }
     }
 }
 
@@ -773,19 +572,6 @@ fn mk_generator_obligations(
         }
     }
     bug!("no projection predicate")
-}
-
-fn mk_obligations(
-    genv: GlobalEnv,
-    did: DefId,
-    args: &[GenericArg],
-    refine_args: &[Expr],
-) -> Result<List<rty::Clause>> {
-    let tcx = genv.tcx();
-    Ok(genv
-        .predicates_of(did)?
-        .predicates()
-        .instantiate(tcx, args, refine_args))
 }
 
 impl<F> KVarGen for F

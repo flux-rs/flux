@@ -17,7 +17,9 @@ use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 
 use crate::{
-    checker::errors::CheckerErrKind, constraint_gen::ConstrGen, refine_tree::RefineCtxt,
+    checker::errors::CheckerErrKind,
+    infer::{ConstrReason, InferCtxt},
+    refine_tree::RefineCtxt,
     CheckerConfig,
 };
 
@@ -354,8 +356,8 @@ impl LookupResult<'_> {
         self.update(Ty::blocked(new_ty))
     }
 
-    pub(crate) fn fold(self, rcx: &mut RefineCtxt, gen: &mut ConstrGen) -> CheckerResult<Ty> {
-        let ty = fold(self.bindings, rcx, gen, &self.ty, self.is_strg)?;
+    pub(crate) fn fold(self, rcx: &mut RefineCtxt, infcx: &mut InferCtxt) -> CheckerResult<Ty> {
+        let ty = fold(self.bindings, rcx, infcx, &self.ty, self.is_strg)?;
         self.update(ty.clone());
         Ok(ty)
     }
@@ -874,7 +876,7 @@ fn downcast_enum(
 fn fold(
     bindings: &mut PlacesTree,
     rcx: &mut RefineCtxt,
-    gen: &mut ConstrGen,
+    infcx: &mut InferCtxt,
     ty: &Ty,
     is_strg: bool,
 ) -> CheckerResult<Ty> {
@@ -885,30 +887,32 @@ fn fold(
             let LocKind::Box(alloc) = binding.kind else {
                 tracked_span_bug!("box pointer to non-box loc");
             };
-            let deref_ty = fold(bindings, rcx, gen, &binding.ty, is_strg)?;
-            Ok(gen.genv.mk_box(deref_ty, alloc))
+            let deref_ty = fold(bindings, rcx, infcx, &binding.ty, is_strg)?;
+            Ok(infcx.genv.mk_box(deref_ty, alloc))
         }
         Ref!(re, deref_ty, mutbl) => {
-            let deref_ty = fold(bindings, rcx, gen, deref_ty, is_strg)?;
+            let deref_ty = fold(bindings, rcx, infcx, deref_ty, is_strg)?;
             Ok(Ty::mk_ref(*re, deref_ty, *mutbl))
         }
         TyKind::Downcast(adt, args, ty_, variant_idx, fields) => {
             if is_strg {
-                let variant_sig = gen
+                let variant_sig = infcx
                     .genv
                     .variant_sig(adt.did(), *variant_idx)?
                     .expect("unexpected opaque struct");
 
                 let fields = fields
                     .iter()
-                    .map(|ty| fold(bindings, rcx, gen, ty, is_strg))
+                    .map(|ty| fold(bindings, rcx, infcx, ty, is_strg))
                     .try_collect_vec()?;
 
                 let partially_moved = fields.iter().any(Ty::is_uninit);
                 let ty = if partially_moved {
                     Ty::uninit()
                 } else {
-                    gen.check_constructor(rcx, variant_sig, args, &fields)
+                    infcx
+                        .at(ConstrReason::Fold)
+                        .check_constructor(rcx, variant_sig, args, &fields)
                         .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
                 };
 
@@ -922,7 +926,7 @@ fn fold(
 
             let fields = fields
                 .iter()
-                .map(|ty| fold(bindings, rcx, gen, ty, is_strg))
+                .map(|ty| fold(bindings, rcx, infcx, ty, is_strg))
                 .try_collect_vec()?;
 
             let partially_moved = fields.iter().any(Ty::is_uninit);

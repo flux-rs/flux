@@ -23,8 +23,8 @@ use self::place_ty::{LocKind, PlacesTree};
 use super::rty::Sort;
 use crate::{
     checker::errors::CheckerErrKind,
-    constraint_gen::{ConstrGen, ConstrReason},
     fixpoint_encoding::{KVarEncoding, KVarStore},
+    infer::{ConstrReason, InferCtxt},
     refine_tree::{RefineCtxt, Scope},
     rty::VariantIdx,
     CheckerConfig,
@@ -133,9 +133,11 @@ impl TypeEnv<'_> {
     pub(crate) fn ptr_to_borrow(
         &mut self,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
+        infcx: &mut InferCtxt,
         place: &Place,
     ) -> Result {
+        infcx.push_scope(rcx);
+
         // place: ptr(mut, path)
         let ptr_lookup = self.bindings.lookup(place);
         let TyKind::Ptr(PtrKind::Mut(re), path) = ptr_lookup.ty.kind() else {
@@ -143,16 +145,16 @@ impl TypeEnv<'_> {
         };
 
         // path: old_ty
-        let old_ty = self.bindings.lookup(path).fold(rcx, gen)?;
-
-        let mut infcx = gen.infcx(rcx, ConstrReason::Other);
+        let old_ty = self.bindings.lookup(path).fold(rcx, infcx)?;
 
         // old_ty <: new_ty
         let new_ty = old_ty.with_holes().replace_holes(|sorts, kind| {
             debug_assert_eq!(kind, HoleKind::Pred);
             infcx.fresh_kvar(sorts, KVarEncoding::Conj)
         });
-        infcx.subtyping(rcx, &old_ty, &new_ty)?;
+        infcx
+            .at(ConstrReason::Other)
+            .subtyping(rcx, &old_ty, &new_ty)?;
 
         // path: new_ty, place: &mut new_ty
         self.bindings.lookup(path).block_with(new_ty.clone());
@@ -160,7 +162,7 @@ impl TypeEnv<'_> {
             .lookup(place)
             .update(Ty::mk_ref(*re, new_ty, Mutability::Mut));
 
-        rcx.replace_evars(&infcx.solve().unwrap());
+        rcx.replace_evars(&infcx.pop_scope_solving_pending().unwrap());
 
         Ok(())
     }
@@ -177,19 +179,24 @@ impl TypeEnv<'_> {
     pub(crate) fn assign(
         &mut self,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
+        infcx: &mut InferCtxt,
         place: &Place,
         new_ty: Ty,
     ) -> Result {
-        let rustc_ty = place.ty(gen.genv, self.local_decls)?.ty;
+        let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
         let new_ty = subst::match_regions(&new_ty, &rustc_ty);
-        let result = self.bindings.lookup_unfolding(gen.genv, rcx, place)?;
+        let result = self.bindings.lookup_unfolding(infcx.genv, rcx, place)?;
 
+        infcx.push_scope(rcx);
         if result.is_strg {
             result.update(new_ty);
-        } else if !place.behind_raw_ptr(gen.genv, self.local_decls)? {
-            gen.subtyping(rcx, &new_ty, &result.ty, ConstrReason::Assign);
+        } else if !place.behind_raw_ptr(infcx.genv, self.local_decls)? {
+            infcx
+                .at(ConstrReason::Assign)
+                .subtyping(rcx, &new_ty, &result.ty)?;
         }
+        rcx.replace_evars(&infcx.pop_scope_solving_pending()?);
+
         Ok(())
     }
 
@@ -228,29 +235,31 @@ impl TypeEnv<'_> {
     pub(crate) fn check_goto(
         self,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
+        infcx: &mut InferCtxt,
         bb_env: &BasicBlockEnv,
         target: BasicBlock,
     ) -> Result {
-        let mut infcx = gen.infcx(rcx, ConstrReason::Goto(target));
+        infcx.push_scope(rcx);
 
         let bb_env = bb_env
             .data
             .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
 
+        let mut at = infcx.at(ConstrReason::Goto(target));
+
         // Check constraints
         for constr in &bb_env.constrs {
-            infcx.check_pred(rcx, constr);
+            at.check_pred(rcx, constr);
         }
 
         // Check subtyping
         let bb_env = bb_env.bindings.flatten();
         for (path, _, ty2) in bb_env {
             let ty1 = self.bindings.get(&path);
-            infcx.subtyping(rcx, &ty1.unblocked(), &ty2.unblocked())?;
+            at.subtyping(rcx, &ty1.unblocked(), &ty2.unblocked())?;
         }
 
-        rcx.replace_evars(&infcx.solve().unwrap());
+        rcx.replace_evars(&infcx.pop_scope_solving_pending().unwrap());
 
         Ok(())
     }
@@ -258,10 +267,10 @@ impl TypeEnv<'_> {
     pub(crate) fn fold(
         &mut self,
         rcx: &mut RefineCtxt,
-        gen: &mut ConstrGen,
+        infcx: &mut InferCtxt,
         place: &Place,
     ) -> Result {
-        self.bindings.lookup(place).fold(rcx, gen)?;
+        self.bindings.lookup(place).fold(rcx, infcx)?;
         Ok(())
     }
 
