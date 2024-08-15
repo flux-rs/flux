@@ -12,7 +12,7 @@ use rustc_type_ir::{DebruijnIndex, INNERMOST};
 use super::{
     evars::EVarSol,
     normalize::{Normalizer, SpecFuncDefns},
-    projections::{self},
+    projections,
     subst::EVarSubstFolder,
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Const,
     CoroutineObligPredicate, Ensures, ExistentialPredicate, ExistentialTraitRef, Expr, ExprKind,
