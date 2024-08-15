@@ -249,7 +249,6 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
     // We want to compute a "fixpoint" i.e. keep going until
     // no change, so that e.g. the above is normalized all the way to `i32`,
     // which is what the `changed` is for.
-
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
         match ty.kind() {
             TyKind::Alias(AliasKind::Projection, alias_ty) => {
