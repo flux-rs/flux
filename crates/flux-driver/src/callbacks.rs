@@ -1,4 +1,4 @@
-use flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
+use flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::FluxSession;
 use flux_fhir_analysis::compare_impl_item;
@@ -90,7 +90,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
         let dups = crate_items.definitions().duplicates().collect_vec();
         if !dups.is_empty() {
-            todo!("{dups:#?}");
+            bug!("TODO: {dups:#?}");
         }
         let result = crate_items
             .definitions()

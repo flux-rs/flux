@@ -154,7 +154,7 @@ impl<'ty> FieldInnerTy<'ty> {
             let path = &ty_path.path;
             let ty = path.segments.iter().last().unwrap();
             let syn::PathArguments::AngleBracketed(bracketed) = &ty.arguments else {
-                panic!("expected bracketed generic arguments");
+                panic!("expected bracketed generic arguments")
             };
 
             assert_eq!(bracketed.args.len(), 1);
