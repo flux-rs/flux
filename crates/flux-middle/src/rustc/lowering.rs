@@ -768,9 +768,10 @@ pub fn lower_existential_predicate<'tcx>(
     tcx: TyCtxt<'tcx>,
     pred: rustc_ty::Binder<rustc_ty::ExistentialPredicate<'tcx>>,
 ) -> Result<Binder<ExistentialPredicate>, UnsupportedReason> {
-    assert!(pred.bound_vars().is_empty());
-    let pred = pred.skip_binder();
-    if let rustc_ty::ExistentialPredicate::Trait(exi_trait_ref) = pred {
+    if pred.bound_vars().is_empty()
+        && let pred = pred.skip_binder()
+        && let rustc_ty::ExistentialPredicate::Trait(exi_trait_ref) = pred
+    {
         let def_id = exi_trait_ref.def_id;
         let args = lower_generic_args(tcx, exi_trait_ref.args)?;
         let exi_trait_ref = ExistentialTraitRef { def_id, args };
