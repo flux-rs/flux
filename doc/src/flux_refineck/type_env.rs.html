@@ -716,6 +716,15 @@
 <a href="#716" id="716">716</a>
 <a href="#717" id="717">717</a>
 <a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
@@ -741,8 +750,8 @@
 <span class="kw">use </span><span class="kw">super</span>::rty::Sort;
 <span class="kw">use crate</span>::{
     checker::errors::CheckerErrKind,
-    constraint_gen::{ConstrGen, ConstrReason},
     fixpoint_encoding::{KVarEncoding, KVarStore},
+    infer::{ConstrReason, InferCtxt},
     refine_tree::{RefineCtxt, Scope},
     rty::VariantIdx,
     CheckerConfig,
@@ -851,9 +860,11 @@
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>ptr_to_borrow(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
-        gen: <span class="kw-2">&amp;mut </span>ConstrGen,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
         place: <span class="kw-2">&amp;</span>Place,
     ) -&gt; <span class="prelude-ty">Result </span>{
+        infcx.push_scope(rcx);
+
         <span class="comment">// place: ptr(mut, path)
         </span><span class="kw">let </span>ptr_lookup = <span class="self">self</span>.bindings.lookup(place);
         <span class="kw">let </span>TyKind::Ptr(PtrKind::Mut(re), path) = ptr_lookup.ty.kind() <span class="kw">else </span>{
@@ -861,16 +872,16 @@
         };
 
         <span class="comment">// path: old_ty
-        </span><span class="kw">let </span>old_ty = <span class="self">self</span>.bindings.lookup(path).fold(rcx, gen)<span class="question-mark">?</span>;
-
-        <span class="kw">let </span><span class="kw-2">mut </span>infcx = gen.infcx(rcx, ConstrReason::Other);
+        </span><span class="kw">let </span>old_ty = <span class="self">self</span>.bindings.lookup(path).fold(rcx, infcx)<span class="question-mark">?</span>;
 
         <span class="comment">// old_ty &lt;: new_ty
         </span><span class="kw">let </span>new_ty = old_ty.with_holes().replace_holes(|sorts, kind| {
             <span class="macro">debug_assert_eq!</span>(kind, HoleKind::Pred);
             infcx.fresh_kvar(sorts, KVarEncoding::Conj)
         });
-        infcx.subtyping(rcx, <span class="kw-2">&amp;</span>old_ty, <span class="kw-2">&amp;</span>new_ty)<span class="question-mark">?</span>;
+        infcx
+            .at(ConstrReason::Other)
+            .subtyping(rcx, <span class="kw-2">&amp;</span>old_ty, <span class="kw-2">&amp;</span>new_ty)<span class="question-mark">?</span>;
 
         <span class="comment">// path: new_ty, place: &amp;mut new_ty
         </span><span class="self">self</span>.bindings.lookup(path).block_with(new_ty.clone());
@@ -878,7 +889,7 @@
             .lookup(place)
             .update(Ty::mk_ref(<span class="kw-2">*</span>re, new_ty, Mutability::Mut));
 
-        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.solve().unwrap());
+        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.pop_scope_solving_pending().unwrap());
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -895,19 +906,24 @@
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assign(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
-        gen: <span class="kw-2">&amp;mut </span>ConstrGen,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
         place: <span class="kw-2">&amp;</span>Place,
         new_ty: Ty,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span>rustc_ty = place.ty(gen.genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
+        <span class="kw">let </span>rustc_ty = place.ty(infcx.genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
         <span class="kw">let </span>new_ty = subst::match_regions(<span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>rustc_ty);
-        <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(gen.genv, rcx, place)<span class="question-mark">?</span>;
+        <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(infcx.genv, rcx, place)<span class="question-mark">?</span>;
 
+        infcx.push_scope(rcx);
         <span class="kw">if </span>result.is_strg {
             result.update(new_ty);
-        } <span class="kw">else if </span>!place.behind_raw_ptr(gen.genv, <span class="self">self</span>.local_decls)<span class="question-mark">? </span>{
-            gen.subtyping(rcx, <span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>result.ty, ConstrReason::Assign);
+        } <span class="kw">else if </span>!place.behind_raw_ptr(infcx.genv, <span class="self">self</span>.local_decls)<span class="question-mark">? </span>{
+            infcx
+                .at(ConstrReason::Assign)
+                .subtyping(rcx, <span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>result.ty)<span class="question-mark">?</span>;
         }
+        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.pop_scope_solving_pending()<span class="question-mark">?</span>);
+
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -946,29 +962,31 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>check_goto(
         <span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
-        gen: <span class="kw-2">&amp;mut </span>ConstrGen,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
         bb_env: <span class="kw-2">&amp;</span>BasicBlockEnv,
         target: BasicBlock,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>infcx = gen.infcx(rcx, ConstrReason::Goto(target));
+        infcx.push_scope(rcx);
 
         <span class="kw">let </span>bb_env = bb_env
             .data
             .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
 
+        <span class="kw">let </span><span class="kw-2">mut </span>at = infcx.at(ConstrReason::Goto(target));
+
         <span class="comment">// Check constraints
         </span><span class="kw">for </span>constr <span class="kw">in </span><span class="kw-2">&amp;</span>bb_env.constrs {
-            infcx.check_pred(rcx, constr);
+            at.check_pred(rcx, constr);
         }
 
         <span class="comment">// Check subtyping
         </span><span class="kw">let </span>bb_env = bb_env.bindings.flatten();
         <span class="kw">for </span>(path, <span class="kw">_</span>, ty2) <span class="kw">in </span>bb_env {
             <span class="kw">let </span>ty1 = <span class="self">self</span>.bindings.get(<span class="kw-2">&amp;</span>path);
-            infcx.subtyping(rcx, <span class="kw-2">&amp;</span>ty1.unblocked(), <span class="kw-2">&amp;</span>ty2.unblocked())<span class="question-mark">?</span>;
+            at.subtyping(rcx, <span class="kw-2">&amp;</span>ty1.unblocked(), <span class="kw-2">&amp;</span>ty2.unblocked())<span class="question-mark">?</span>;
         }
 
-        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.solve().unwrap());
+        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.pop_scope_solving_pending().unwrap());
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -976,10 +994,10 @@
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
-        gen: <span class="kw-2">&amp;mut </span>ConstrGen,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
         place: <span class="kw-2">&amp;</span>Place,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="self">self</span>.bindings.lookup(place).fold(rcx, gen)<span class="question-mark">?</span>;
+        <span class="self">self</span>.bindings.lookup(place).fold(rcx, infcx)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 

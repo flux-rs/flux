@@ -988,6 +988,10 @@
 <a href="#988" id="988">988</a>
 <a href="#989" id="989">989</a>
 <a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -1007,7 +1011,9 @@
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 
 <span class="kw">use crate</span>::{
-    checker::errors::CheckerErrKind, constraint_gen::ConstrGen, refine_tree::RefineCtxt,
+    checker::errors::CheckerErrKind,
+    infer::{ConstrReason, InferCtxt},
+    refine_tree::RefineCtxt,
     CheckerConfig,
 };
 
@@ -1344,8 +1350,8 @@
         <span class="self">self</span>.update(Ty::blocked(new_ty))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold(<span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, gen: <span class="kw-2">&amp;mut </span>ConstrGen) -&gt; CheckerResult&lt;Ty&gt; {
-        <span class="kw">let </span>ty = fold(<span class="self">self</span>.bindings, rcx, gen, <span class="kw-2">&amp;</span><span class="self">self</span>.ty, <span class="self">self</span>.is_strg)<span class="question-mark">?</span>;
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold(<span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, infcx: <span class="kw-2">&amp;mut </span>InferCtxt) -&gt; CheckerResult&lt;Ty&gt; {
+        <span class="kw">let </span>ty = fold(<span class="self">self</span>.bindings, rcx, infcx, <span class="kw-2">&amp;</span><span class="self">self</span>.ty, <span class="self">self</span>.is_strg)<span class="question-mark">?</span>;
         <span class="self">self</span>.update(ty.clone());
         <span class="prelude-val">Ok</span>(ty)
     }
@@ -1864,7 +1870,7 @@
 <span class="kw">fn </span>fold(
     bindings: <span class="kw-2">&amp;mut </span>PlacesTree,
     rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
-    gen: <span class="kw-2">&amp;mut </span>ConstrGen,
+    infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
     ty: <span class="kw-2">&amp;</span>Ty,
     is_strg: bool,
 ) -&gt; CheckerResult&lt;Ty&gt; {
@@ -1875,30 +1881,32 @@
             <span class="kw">let </span>LocKind::Box(alloc) = binding.kind <span class="kw">else </span>{
                 <span class="macro">tracked_span_bug!</span>(<span class="string">"box pointer to non-box loc"</span>);
             };
-            <span class="kw">let </span>deref_ty = fold(bindings, rcx, gen, <span class="kw-2">&amp;</span>binding.ty, is_strg)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(gen.genv.mk_box(deref_ty, alloc))
+            <span class="kw">let </span>deref_ty = fold(bindings, rcx, infcx, <span class="kw-2">&amp;</span>binding.ty, is_strg)<span class="question-mark">?</span>;
+            <span class="prelude-val">Ok</span>(infcx.genv.mk_box(deref_ty, alloc))
         }
         <span class="macro">Ref!</span>(re, deref_ty, mutbl) =&gt; {
-            <span class="kw">let </span>deref_ty = fold(bindings, rcx, gen, deref_ty, is_strg)<span class="question-mark">?</span>;
+            <span class="kw">let </span>deref_ty = fold(bindings, rcx, infcx, deref_ty, is_strg)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(Ty::mk_ref(<span class="kw-2">*</span>re, deref_ty, <span class="kw-2">*</span>mutbl))
         }
         TyKind::Downcast(adt, args, ty_, variant_idx, fields) =&gt; {
             <span class="kw">if </span>is_strg {
-                <span class="kw">let </span>variant_sig = gen
+                <span class="kw">let </span>variant_sig = infcx
                     .genv
                     .variant_sig(adt.did(), <span class="kw-2">*</span>variant_idx)<span class="question-mark">?
                     </span>.expect(<span class="string">"unexpected opaque struct"</span>);
 
                 <span class="kw">let </span>fields = fields
                     .iter()
-                    .map(|ty| fold(bindings, rcx, gen, ty, is_strg))
+                    .map(|ty| fold(bindings, rcx, infcx, ty, is_strg))
                     .try_collect_vec()<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>partially_moved = fields.iter().any(Ty::is_uninit);
                 <span class="kw">let </span>ty = <span class="kw">if </span>partially_moved {
                     Ty::uninit()
                 } <span class="kw">else </span>{
-                    gen.check_constructor(rcx, variant_sig, args, <span class="kw-2">&amp;</span>fields)
+                    infcx
+                        .at(ConstrReason::Fold)
+                        .check_constructor(rcx, variant_sig, args, <span class="kw-2">&amp;</span>fields)
                         .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"{err:?}"</span>))
                 };
 
@@ -1912,7 +1920,7 @@
 
             <span class="kw">let </span>fields = fields
                 .iter()
-                .map(|ty| fold(bindings, rcx, gen, ty, is_strg))
+                .map(|ty| fold(bindings, rcx, infcx, ty, is_strg))
                 .try_collect_vec()<span class="question-mark">?</span>;
 
             <span class="kw">let </span>partially_moved = fields.iter().any(Ty::is_uninit);

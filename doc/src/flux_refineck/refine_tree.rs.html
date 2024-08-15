@@ -953,8 +953,8 @@
 <span class="kw">use </span>rustc_middle::ty::ParamConst;
 
 <span class="kw">use crate</span>::{
-    constraint_gen::Tag,
     fixpoint_encoding::{fixpoint, sort_to_fixpoint, stitch, FixpointCtxt},
+    infer::Tag,
 };
 
 <span class="doccomment">/// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
