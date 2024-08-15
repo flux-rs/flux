@@ -498,7 +498,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             TerminatorKind::FalseUnwind { real_target, .. } => {
                 Ok(vec![(*real_target, Guard::None)])
             }
-            TerminatorKind::UnwindResume => todo!("implement checking of cleanup code"),
+            TerminatorKind::UnwindResume => bug!("TODO: implement checking of cleanup code"),
         }
     }
 
@@ -704,7 +704,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 poly_sig,
             )?;
         } else {
-            panic!("check_oblig_fn_trait_pred: unexpected self_ty {:?}", fn_trait_pred.self_ty);
+            bug!("check_oblig_fn_trait_pred: unexpected self_ty {:?}", fn_trait_pred.self_ty);
         }
         Ok(())
     }

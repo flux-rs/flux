@@ -3,6 +3,7 @@ use std::{
     rc::Rc,
 };
 
+use flux_common::bug;
 use flux_errors::{ErrorGuaranteed, E0999};
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
@@ -530,7 +531,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             } else if let Some(lam) = genv.cstore().assoc_refinements_def(impl_id, name) {
                 lam
             } else {
-                todo!("implement for external crates")
+                bug!("TODO: implement for external crates")
             }
         })
     }
@@ -548,7 +549,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             } else if let Some(sort) = genv.cstore().sort_of_assoc_reft(def_id, name) {
                 sort
             } else {
-                todo!("implement for external crates")
+                bug!("TODO: implement for external crates")
             }
         })
     }

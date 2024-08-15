@@ -43,7 +43,7 @@ pub(super) fn decode_crate_metadata(
         .unwrap_or_else(|err| sess.emit_fatal(errors::DecodeFileError::new(path, err)));
 
     if !buf.starts_with(METADATA_HEADER) {
-        panic!("incompatible metadata version")
+        bug!("incompatible metadata version")
     }
 
     let mut decoder =
@@ -72,11 +72,11 @@ impl<'a, 'tcx> SpanDecoder for DecodeContext<'a, 'tcx> {
     }
 
     fn decode_syntax_context(&mut self) -> rustc_span::SyntaxContext {
-        panic!("cannot decode `SyntaxContext` with `DecodeContext`");
+        bug!("cannot decode `SyntaxContext` with `DecodeContext`");
     }
 
     fn decode_expn_id(&mut self) -> rustc_span::ExpnId {
-        panic!("cannot decode `ExpnId` with `DecodeContext`");
+        bug!("cannot decode `ExpnId` with `DecodeContext`");
     }
 
     fn decode_span(&mut self) -> rustc_span::Span {

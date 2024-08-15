@@ -60,7 +60,7 @@ pub fn encode_metadata(genv: &GlobalEnv, path: &std::path::Path) {
 impl<'a, 'tcx> SpanEncoder for EncodeContext<'a, 'tcx> {
     fn encode_crate_num(&mut self, crate_num: CrateNum) {
         if crate_num != LOCAL_CRATE && self.is_proc_macro {
-            panic!("Attempted to encode non-local CrateNum {crate_num:?} for proc-macro crate");
+            bug!("Attempted to encode non-local CrateNum {crate_num:?} for proc-macro crate");
         }
         self.tcx.stable_crate_id(crate_num).encode(self);
     }

@@ -733,12 +733,12 @@ impl Ty {
             }
             TyKind::Slice(ty) => rustc_ty::TyKind::Slice(ty.to_rustc(tcx)),
             TyKind::RawPtr(ty, mutbl) => rustc_ty::TyKind::RawPtr(ty.to_rustc(tcx), *mutbl),
-            TyKind::FnPtr(_) => todo!(),
-            TyKind::Closure(_, _) => todo!(),
-            TyKind::Coroutine(_, _) => todo!(),
-            TyKind::CoroutineWitness(_, _) => todo!(),
-            TyKind::Alias(_, _) => todo!(),
-            TyKind::Dynamic(_, _) => todo!(),
+            TyKind::FnPtr(_)
+            | TyKind::Closure(_, _)
+            | TyKind::Coroutine(_, _)
+            | TyKind::CoroutineWitness(_, _)
+            | TyKind::Alias(_, _)
+            | TyKind::Dynamic(_, _) => bug!("TODO: to_rustc"),
         };
         rustc_ty::Ty::new(tcx, kind)
     }

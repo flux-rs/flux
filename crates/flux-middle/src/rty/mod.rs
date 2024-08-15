@@ -1269,7 +1269,7 @@ impl BaseTy {
                 ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_middle::ty::DynKind::Dyn)
             }
             BaseTy::Coroutine(def_id, resume_ty, upvars) => {
-                todo!("Generator {def_id:?} {resume_ty:?} {upvars:?}")
+                bug!("TODO: Generator {def_id:?} {resume_ty:?} {upvars:?}")
                 // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
                 // let args = tcx.mk_args_from_iter(args);
                 // ty::Ty::new_generator(*tcx, *def_id, args, mov)

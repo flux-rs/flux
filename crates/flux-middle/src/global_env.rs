@@ -114,7 +114,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     where
         I: IntoIterator<Item = T>,
     {
-        let layout = alloc::Layout::array::<T>(cap).unwrap_or_else(|_| panic!("out of memory"));
+        let layout = alloc::Layout::array::<T>(cap).unwrap_or_else(|_| bug!("out of memory"));
         let dst = self.inner.arena.alloc_layout(layout).cast::<T>();
         unsafe {
             let mut len = 0;
