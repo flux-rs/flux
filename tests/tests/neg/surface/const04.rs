@@ -1,6 +1,6 @@
 // https://github.com/flux-rs/flux/issues/625
 
-#[flux::constant]
+// #[flux::constant] Add this line if you want to refer to `BUFLEN` in *refinement* specifications
 const BUFLEN: usize = 100;
 
 pub fn test(buf: &[i32; BUFLEN]) -> i32 {
