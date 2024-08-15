@@ -533,8 +533,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         }
 
-        let a = 1; // this is the only point where we get infcx.obligations
-        let clauses = infcx.obligations();
+        let clauses = infcx.take_obligations();
 
         let evars_sol = infcx.solve().with_span(span)?;
         rcx.replace_evars(&evars_sol);

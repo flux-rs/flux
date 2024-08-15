@@ -102,10 +102,8 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         InferCtxtAt { infcx: self, reason }
     }
 
-    pub fn obligations(&self) -> Vec<rty::Clause> {
-        // avoid clone
-        let a = 1;
-        self.obligs.clone()
+    pub(crate) fn take_obligations(&mut self) -> Vec<rty::Clause> {
+        std::mem::take(&mut self.obligs)
     }
 
     fn insert_obligations(&mut self, obligs: Vec<rty::Clause>) {
