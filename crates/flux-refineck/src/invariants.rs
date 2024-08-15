@@ -6,8 +6,8 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_span::{Span, DUMMY_SP};
 
 use crate::{
-    infer::{ConstrReason, Tag},
     fixpoint_encoding::{FixpointCtxt, KVarStore},
+    infer::{ConstrReason, Tag},
     refine_tree::RefineTree,
     CheckerConfig,
 };
