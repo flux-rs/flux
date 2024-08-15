@@ -199,10 +199,10 @@
                     <span class="kw">let </span><span class="prelude-val">Some</span>(tcx) = tcx <span class="kw">else </span>{ std::panic::resume_unwind(payload) };
 
                     <span class="kw">if </span>payload.is::&lt;ExplicitBug&gt;() {
-                        <span class="macro">eprintln!</span>(<span class="string">"note: bug caught [{msg}]"</span>);
+                        <span class="macro">eprintln!</span>(<span class="string">"note: bug caught [{msg}]\n"</span>);
                         <span class="prelude-val">Err</span>(tcx.dcx().delayed_bug(<span class="string">"bug wasn't reported"</span>))
                     } <span class="kw">else </span>{
-                        <span class="macro">eprintln!</span>(<span class="string">"note: uncaught panic [{msg}]"</span>);
+                        <span class="macro">eprintln!</span>(<span class="string">"note: uncaught panic [{msg}]\n"</span>);
                         std::panic::resume_unwind(payload)
                     }
                 })
