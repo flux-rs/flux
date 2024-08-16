@@ -311,7 +311,7 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                             M::projection(self, env, place, ProjKind::Other)?;
                         }
                     }
-                    Rvalue::CheckedBinaryOp(_, op1, op2) | Rvalue::BinaryOp(_, op1, op2) => {
+                    Rvalue::BinaryOp(_, op1, op2) => {
                         self.operand(op1, env)?;
                         self.operand(op2, env)?;
                     }
@@ -330,6 +330,7 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                     Rvalue::Repeat(op, _) => {
                         self.operand(op, env)?;
                     }
+                    Rvalue::NullaryOp(_, _) => {}
                 }
                 M::projection(self, env, place, ProjKind::Other)?;
             }
