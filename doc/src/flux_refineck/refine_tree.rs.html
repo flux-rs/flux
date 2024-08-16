@@ -925,7 +925,6 @@
 <a href="#925" id="925">925</a>
 <a href="#926" id="926">926</a>
 <a href="#927" id="927">927</a>
-<a href="#928" id="928">928</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
@@ -940,7 +939,6 @@
     intern::List,
     queries::QueryResult,
     rty::{
-        box_args,
         evars::EVarSol,
         fold::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
@@ -1402,8 +1400,8 @@
             <span class="kw">return </span>bty.clone();
         }
         <span class="kw">match </span>bty {
-            BaseTy::Adt(adt_def, substs) <span class="kw">if </span>adt_def.is_box() =&gt; {
-                <span class="kw">let </span>(boxed, alloc) = box_args(substs);
+            BaseTy::Adt(adt_def, args) <span class="kw">if </span>adt_def.is_box() =&gt; {
+                <span class="kw">let </span>(boxed, alloc) = args.box_args();
                 <span class="kw">let </span>boxed = boxed.fold_with(<span class="self">self</span>);
                 BaseTy::adt(
                     adt_def.clone(),

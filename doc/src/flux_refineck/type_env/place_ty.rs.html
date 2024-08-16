@@ -991,7 +991,6 @@
 <a href="#991" id="991">991</a>
 <a href="#992" id="992">992</a>
 <a href="#993" id="993">993</a>
-<a href="#994" id="994">994</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -999,7 +998,6 @@
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        box_args,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Loc, Mutability, Path, PtrKind, Ref,
         Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
@@ -1141,7 +1139,7 @@
                 PlaceElem::Deref =&gt; {
                     <span class="kw">match </span>ty.kind() {
                         TyKind::Indexed(BaseTy::Adt(adt, args), <span class="kw">_</span>) <span class="kw">if </span>adt.is_box() =&gt; {
-                            ty = box_args(args).<span class="number">0</span>.clone();
+                            ty = args.box_args().<span class="number">0</span>.clone();
                         }
                         TyKind::Indexed(BaseTy::RawPtr(deref_ty, <span class="kw">_</span>), <span class="kw">_</span>) =&gt; {
                             is_strg = <span class="bool-val">false</span>;
@@ -1427,7 +1425,7 @@
             <span class="kw">if </span><span class="self">self</span>.in_ref.is_some() {
                 <span class="prelude-val">Ok</span>(ty.clone())
             } <span class="kw">else </span>{
-                <span class="kw">let </span>(deref_ty, alloc) = box_args(args);
+                <span class="kw">let </span>(deref_ty, alloc) = args.box_args();
                 <span class="kw">let </span>loc = <span class="self">self</span>.unfold_box(deref_ty, alloc);
                 <span class="prelude-val">Ok</span>(Ty::ptr(PtrKind::Box, Path::from(loc)))
             }
@@ -1457,7 +1455,7 @@
                 Ty::ptr(<span class="kw-2">*</span>pk, path.clone())
             }
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) <span class="kw">if </span>adt.is_box() =&gt; {
-                <span class="kw">let </span>(deref_ty, alloc) = box_args(args);
+                <span class="kw">let </span>(deref_ty, alloc) = args.box_args();
                 <span class="kw">if </span><span class="self">self</span>.in_ref.is_some() {
                     <span class="kw">let </span>args = List::from_arr([
                         GenericArg::Ty(deref_ty.try_fold_with(<span class="self">self</span>)<span class="question-mark">?</span>),
@@ -1646,10 +1644,10 @@
     <span class="kw">fn </span>deref(<span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
         <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) <span class="kw">if </span>adt.is_box() =&gt; {
-                <span class="kw">let </span>(deref_ty, alloc) = box_args(args);
+                <span class="kw">let </span>(deref_ty, alloc_ty) = args.box_args();
                 <span class="kw">let </span>args = List::from_arr([
                     GenericArg::Ty(<span class="self">self</span>.fold_ty(deref_ty)),
-                    GenericArg::Ty(alloc.clone()),
+                    GenericArg::Ty(alloc_ty.clone()),
                 ]);
                 Ty::indexed(BaseTy::Adt(adt.clone(), args), idx.clone())
             }

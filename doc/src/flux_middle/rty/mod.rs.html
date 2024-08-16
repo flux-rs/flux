@@ -2306,6 +2306,16 @@
 <a href="#2306" id="2306">2306</a>
 <a href="#2307" id="2307">2307</a>
 <a href="#2308" id="2308">2308</a>
+<a href="#2309" id="2309">2309</a>
+<a href="#2310" id="2310">2310</a>
+<a href="#2311" id="2311">2311</a>
+<a href="#2312" id="2312">2312</a>
+<a href="#2313" id="2313">2313</a>
+<a href="#2314" id="2314">2314</a>
+<a href="#2315" id="2315">2315</a>
+<a href="#2316" id="2316">2316</a>
+<a href="#2317" id="2317">2317</a>
+<a href="#2318" id="2318">2318</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -3496,6 +3506,16 @@
         <span class="macro">matches!</span>(<span class="self">self</span>, BaseTy::Adt(adt_def, <span class="kw">_</span>) <span class="kw">if </span>adt_def.is_box())
     }
 
+    <span class="kw">pub fn </span>unpack_box(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>Ty, <span class="kw-2">&amp;</span>Ty)&gt; {
+        <span class="kw">if let </span>BaseTy::Adt(adt_def, args) = <span class="self">self
+            </span>&amp;&amp; adt_def.is_box()
+        {
+            <span class="prelude-val">Some</span>(args.box_args())
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>}
+    }
+
     <span class="kw">pub fn </span>invariants(<span class="kw-2">&amp;</span><span class="self">self</span>, overflow_checking: bool) -&gt; <span class="kw-2">&amp;</span>[Invariant] {
         <span class="kw">match </span><span class="self">self </span>{
             BaseTy::Adt(adt_def, <span class="kw">_</span>) =&gt; adt_def.invariants(),
@@ -3770,6 +3790,15 @@
 <span class="kw">pub type </span>GenericArgs = List&lt;GenericArg&gt;;
 
 <span class="kw">impl </span>GenericArgs {
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub fn </span>box_args(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>Ty, <span class="kw-2">&amp;</span>Ty) {
+        <span class="kw">if let </span>[GenericArg::Ty(deref), GenericArg::Ty(alloc)] = <span class="kw-2">&amp;</span><span class="self">self</span>[..] {
+            (deref, alloc)
+        } <span class="kw">else </span>{
+            <span class="macro">bug!</span>(<span class="string">"invalid generic arguments for box"</span>);
+        }
+    }
+
     <span class="kw">pub fn </span>identity_for_item(genv: GlobalEnv, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[];
         <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
@@ -4403,15 +4432,6 @@
     <span class="doccomment">/// See [`Expr::is_trivially_true`]
     </span><span class="kw">pub fn </span>is_trivially_true(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.value.is_trivially_true()
-    }
-}
-
-<span class="attr">#[track_caller]
-</span><span class="kw">pub fn </span>box_args(args: <span class="kw-2">&amp;</span>GenericArgs) -&gt; (<span class="kw-2">&amp;</span>Ty, <span class="kw-2">&amp;</span>Ty) {
-    <span class="kw">if let </span>[GenericArg::Ty(boxed), GenericArg::Ty(alloc)] = <span class="kw-2">&amp;</span>args[..] {
-        (boxed, alloc)
-    } <span class="kw">else </span>{
-        <span class="macro">bug!</span>(<span class="string">"invalid generic arguments for box"</span>);
     }
 }
 

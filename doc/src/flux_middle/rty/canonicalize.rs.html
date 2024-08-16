@@ -218,7 +218,6 @@
 <a href="#218" id="218">218</a>
 <a href="#219" id="219">219</a>
 <a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A canonical type is a type where all [existentials] and [constraint predicates] are *hoisted* to
 //! the top level. For example, the canonical version of `∃a. {∃b. i32[a + b] | b &gt; 0}` is
 //! `∃a,b. {i32[a + b] | b &gt; 0}`.
@@ -247,7 +246,6 @@
 <span class="kw">use </span>rustc_type_ir::{BoundVar, INNERMOST};
 
 <span class="kw">use super</span>::{
-    box_args,
     fold::{TypeFoldable, TypeFolder},
     BaseTy, Binder, BoundVariableKind, Expr, GenericArg, SubsetTy, SubsetTyCtor, Ty, TyKind,
 };
@@ -312,7 +310,7 @@
     <span class="kw">fn </span>fold_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) -&gt; BaseTy {
         <span class="kw">match </span>bty {
             BaseTy::Adt(adt_def, args) <span class="kw">if </span>adt_def.is_box() &amp;&amp; <span class="self">self</span>.boxes =&gt; {
-                <span class="kw">let </span>(boxed, alloc) = box_args(args);
+                <span class="kw">let </span>(boxed, alloc) = args.box_args();
                 <span class="kw">let </span>args = List::from_arr([
                     GenericArg::Ty(boxed.fold_with(<span class="self">self</span>)),
                     GenericArg::Ty(alloc.clone()),
