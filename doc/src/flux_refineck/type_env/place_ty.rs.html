@@ -1880,7 +1880,7 @@
                 <span class="macro">tracked_span_bug!</span>(<span class="string">"box pointer to non-box loc"</span>);
             };
             <span class="kw">let </span>deref_ty = fold(bindings, rcx, infcx, <span class="kw-2">&amp;</span>binding.ty, is_strg)<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(infcx.genv.mk_box(deref_ty, alloc))
+            <span class="prelude-val">Ok</span>(Ty::mk_box(infcx.genv, deref_ty, alloc)<span class="question-mark">?</span>)
         }
         <span class="macro">Ref!</span>(re, deref_ty, mutbl) =&gt; {
             <span class="kw">let </span>deref_ty = fold(bindings, rcx, infcx, deref_ty, is_strg)<span class="question-mark">?</span>;

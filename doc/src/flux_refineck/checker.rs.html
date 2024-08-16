@@ -1803,6 +1803,9 @@
 <a href="#1803" id="1803">1803</a>
 <a href="#1804" id="1804">1804</a>
 <a href="#1805" id="1805">1805</a>
+<a href="#1806" id="1806">1806</a>
+<a href="#1807" id="1807">1807</a>
+<a href="#1808" id="1808">1808</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -2753,6 +2756,10 @@
                 <span class="kw">let </span>upvar_tys = <span class="self">self</span>.check_operands(rcx, env, stmt_span, ops)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(Ty::coroutine(<span class="kw-2">*</span>did, resume_ty, upvar_tys.into()))
             }
+            Rvalue::ShallowInitBox(operand, <span class="kw">_</span>) =&gt; {
+                <span class="self">self</span>.check_operand(rcx, env, stmt_span, operand)<span class="question-mark">?</span>;
+                Ty::mk_box_with_default_alloc(<span class="self">self</span>.genv, Ty::uninit()).with_span(stmt_span)
+            }
         }
     }
 
@@ -2760,12 +2767,12 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
-        source_span: Span,
+        smt_span: Span,
         place: <span class="kw-2">&amp;</span>Place,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
         <span class="kw">let </span>ty = env
             .lookup_place(<span class="self">self</span>.genv, rcx, place)
-            .with_span(source_span)<span class="question-mark">?</span>;
+            .with_span(smt_span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>idx = <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(BaseTy::Array(<span class="kw">_</span>, len), <span class="kw">_</span>) =&gt; Expr::from_const(<span class="self">self</span>.genv.tcx(), len),
@@ -2780,20 +2787,20 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
-        source_span: Span,
+        stmt_span: Span,
         bin_op: mir::BinOp,
         op1: <span class="kw-2">&amp;</span>Operand,
         op2: <span class="kw-2">&amp;</span>Operand,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
         <span class="kw">let </span>check_overflow = <span class="self">self</span>.check_overflow();
-        <span class="kw">let </span>ty1 = <span class="self">self</span>.check_operand(rcx, env, source_span, op1)<span class="question-mark">?</span>;
-        <span class="kw">let </span>ty2 = <span class="self">self</span>.check_operand(rcx, env, source_span, op2)<span class="question-mark">?</span>;
+        <span class="kw">let </span>ty1 = <span class="self">self</span>.check_operand(rcx, env, stmt_span, op1)<span class="question-mark">?</span>;
+        <span class="kw">let </span>ty2 = <span class="self">self</span>.check_operand(rcx, env, stmt_span, op2)<span class="question-mark">?</span>;
 
         <span class="kw">match </span>(ty1.kind(), ty2.kind()) {
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) =&gt; {
                 <span class="kw">let </span>rule = primops::match_bin_op(bin_op, bty1, idx1, bty2, idx2, check_overflow);
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(pre) = rule.precondition {
-                    <span class="self">self</span>.infcx(rcx, source_span)
+                    <span class="self">self</span>.infcx(rcx, stmt_span)
                         .at(pre.reason)
                         .check_pred(rcx, pre.pred);
                 }
@@ -2818,16 +2825,16 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
-        source_span: Span,
+        stmt_span: Span,
         un_op: mir::UnOp,
         op: <span class="kw-2">&amp;</span>Operand,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
-        <span class="kw">let </span>ty = <span class="self">self</span>.check_operand(rcx, env, source_span, op)<span class="question-mark">?</span>;
+        <span class="kw">let </span>ty = <span class="self">self</span>.check_operand(rcx, env, stmt_span, op)<span class="question-mark">?</span>;
         <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(bty, idx) =&gt; {
                 <span class="kw">let </span>rule = primops::match_un_op(un_op, bty, idx, <span class="self">self</span>.check_overflow());
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(pre) = rule.precondition {
-                    <span class="self">self</span>.infcx(rcx, source_span)
+                    <span class="self">self</span>.infcx(rcx, stmt_span)
                         .at(pre.reason)
                         .check_pred(rcx, pre.pred);
                 }
@@ -2841,11 +2848,11 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
-        span: Span,
+        stmt_span: Span,
         args: <span class="kw-2">&amp;</span>[Ty],
         arr_ty: Ty,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, span);
+        <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, stmt_span);
         <span class="kw">let </span>arr_ty =
             arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
@@ -2863,17 +2870,17 @@
                         path,
                         PtrToRefBound::Ty(bound.clone()),
                     )
-                    .with_span(span)<span class="question-mark">?</span>;
+                    .with_span(stmt_span)<span class="question-mark">?</span>;
                 }
                 <span class="kw">_ </span>=&gt; {
                     infcx
                         .at(ConstrReason::Other)
                         .subtyping(rcx, ty, <span class="kw-2">&amp;</span>arr_ty)
-                        .with_span(span)<span class="question-mark">?</span>;
+                        .with_span(stmt_span)<span class="question-mark">?</span>;
                 }
             }
         }
-        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.solve().with_span(span)<span class="question-mark">?</span>);
+        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.solve().with_span(stmt_span)<span class="question-mark">?</span>);
 
         <span class="prelude-val">Ok</span>(Ty::array(arr_ty, rty::Const::from_usize(<span class="self">self</span>.genv.tcx(), args.len())))
     }
@@ -2882,7 +2889,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
-        span: Span,
+        stmt_span: Span,
         kind: CastKind,
         from: <span class="kw-2">&amp;</span>Ty,
         to: <span class="kw-2">&amp;</span>rustc::ty::Ty,
@@ -2916,7 +2923,7 @@
                 }
             }
             CastKind::Pointer(mir::PointerCast::Unsize) =&gt; {
-                <span class="self">self</span>.check_unsize_cast(rcx, env, span, from, to)<span class="question-mark">?
+                <span class="self">self</span>.check_unsize_cast(rcx, env, stmt_span, from, to)<span class="question-mark">?
             </span>}
             CastKind::FloatToInt
             | CastKind::IntToFloat
@@ -2972,9 +2979,8 @@
             &amp;&amp; <span class="kw">let </span>TyKind::Indexed(BaseTy::Array(arr_ty, arr_len), <span class="kw">_</span>) = deref_ty.kind()
         {
             <span class="kw">let </span>idx = Expr::from_const(<span class="self">self</span>.genv.tcx(), arr_len);
-            <span class="prelude-val">Ok</span>(<span class="self">self
-                </span>.genv
-                .mk_box(Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx), alloc_ty.clone()))
+            Ty::mk_box(<span class="self">self</span>.genv, Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx), alloc_ty.clone())
+                .with_span(span)
         } <span class="kw">else </span>{
             <span class="prelude-val">Err</span>(CheckerError::bug(
                 <span class="macro">format!</span>(<span class="string">"unsupported unsize cast from `{src:?}` to `{dst:?}`"</span>,),

@@ -523,17 +523,6 @@
 <a href="#523" id="523">523</a>
 <a href="#524" id="524">524</a>
 <a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -543,7 +532,6 @@
 <span class="kw">use </span>rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    LangItem,
 };
 <span class="kw">use </span>rustc_middle::ty::{ParamConst, TyCtxt, Variance};
 <span class="kw">pub use </span>rustc_span::{symbol::Ident, Symbol};
@@ -692,16 +680,6 @@
 
     <span class="kw">pub fn </span>variances_of(<span class="self">self</span>, did: DefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>[Variance] {
         <span class="self">self</span>.tcx().variances_of(did)
-    }
-
-    <span class="kw">pub fn </span>mk_box(<span class="kw-2">&amp;</span><span class="self">self</span>, ty: rty::Ty, alloc: rty::Ty) -&gt; rty::Ty {
-        <span class="kw">let </span>def_id = <span class="self">self</span>.tcx().require_lang_item(LangItem::OwnedBox, <span class="prelude-val">None</span>);
-        <span class="kw">let </span>adt_def = <span class="self">self</span>.adt_def(def_id).unwrap();
-
-        <span class="kw">let </span>args = <span class="macro">vec!</span>[rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)];
-
-        <span class="kw">let </span>bty = rty::BaseTy::adt(adt_def, args);
-        rty::Ty::indexed(bty, rty::Expr::unit_adt(def_id))
     }
 
     <span class="kw">pub fn </span>mir(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;Rc&lt;rustc::mir::Body&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt; {

@@ -752,6 +752,8 @@
 <a href="#752" id="752">752</a>
 <a href="#753" id="753">753</a>
 <a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
@@ -947,6 +949,7 @@
     UnaryOp(UnOp, Operand),
     Discriminant(Place),
     Aggregate(AggregateKind, Vec&lt;Operand&gt;),
+    ShallowInitBox(Operand, Ty),
 }
 
 <span class="attr">#[derive(Copy, Clone)]
@@ -1447,6 +1450,7 @@
             Rvalue::Len(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"Len({place:?})"</span>),
             Rvalue::Cast(kind, op, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{op:?} as {ty:?} [{kind:?}]"</span>),
             Rvalue::Repeat(op, c) =&gt; <span class="macro">write!</span>(f, <span class="string">"[{op:?}; {c:?}]"</span>),
+            Rvalue::ShallowInitBox(op, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"ShallowInitBox({op:?}, {ty:?})"</span>),
         }
     }
 }

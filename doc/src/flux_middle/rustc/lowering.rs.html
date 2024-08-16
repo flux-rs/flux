@@ -1019,6 +1019,8 @@
 <a href="#1019" id="1019">1019</a>
 <a href="#1020" id="1020">1020</a>
 <a href="#1021" id="1021">1021</a>
+<a href="#1022" id="1022">1022</a>
+<a href="#1023" id="1023">1023</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1442,10 +1444,12 @@
                 <span class="kw">let </span>args = args.iter().map(|op| <span class="self">self</span>.lower_operand(op)).try_collect()<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(Rvalue::Aggregate(aggregate_kind, args))
             }
+            rustc_mir::Rvalue::ShallowInitBox(op, ty) =&gt; {
+                <span class="prelude-val">Ok</span>(Rvalue::ShallowInitBox(<span class="self">self</span>.lower_operand(op)<span class="question-mark">?</span>, lower_ty(<span class="self">self</span>.tcx, <span class="kw-2">*</span>ty)<span class="question-mark">?</span>))
+            }
             rustc_mir::Rvalue::ThreadLocalRef(<span class="kw">_</span>)
             | rustc_mir::Rvalue::AddressOf(<span class="kw">_</span>, <span class="kw">_</span>)
-            | rustc_mir::Rvalue::CopyForDeref(<span class="kw">_</span>)
-            | rustc_mir::Rvalue::ShallowInitBox(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {
+            | rustc_mir::Rvalue::CopyForDeref(<span class="kw">_</span>) =&gt; {
                 <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported rvalue `{rvalue:?}`"</span>)))
             }
         }

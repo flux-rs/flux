@@ -2316,6 +2316,30 @@
 <a href="#2316" id="2316">2316</a>
 <a href="#2317" id="2317">2317</a>
 <a href="#2318" id="2318">2318</a>
+<a href="#2319" id="2319">2319</a>
+<a href="#2320" id="2320">2320</a>
+<a href="#2321" id="2321">2321</a>
+<a href="#2322" id="2322">2322</a>
+<a href="#2323" id="2323">2323</a>
+<a href="#2324" id="2324">2324</a>
+<a href="#2325" id="2325">2325</a>
+<a href="#2326" id="2326">2326</a>
+<a href="#2327" id="2327">2327</a>
+<a href="#2328" id="2328">2328</a>
+<a href="#2329" id="2329">2329</a>
+<a href="#2330" id="2330">2330</a>
+<a href="#2331" id="2331">2331</a>
+<a href="#2332" id="2332">2332</a>
+<a href="#2333" id="2333">2333</a>
+<a href="#2334" id="2334">2334</a>
+<a href="#2335" id="2335">2335</a>
+<a href="#2336" id="2336">2336</a>
+<a href="#2337" id="2337">2337</a>
+<a href="#2338" id="2338">2338</a>
+<a href="#2339" id="2339">2339</a>
+<a href="#2340" id="2340">2340</a>
+<a href="#2341" id="2341">2341</a>
+<a href="#2342" id="2342">2342</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2343,7 +2367,7 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">pub use </span>normalize::SpecFuncDefns;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_hir::def_id::DefId;
+<span class="kw">use </span>rustc_hir::{def_id::DefId, LangItem};
 <span class="kw">use </span>rustc_index::{newtype_index, IndexSlice};
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 <span class="kw">use </span>rustc_middle::ty::{ParamConst, TyCtxt};
@@ -3150,6 +3174,30 @@
 
     <span class="kw">pub fn </span>mk_slice(ty: Ty) -&gt; Ty {
         BaseTy::Slice(ty).to_ty()
+    }
+
+    <span class="kw">pub fn </span>mk_box(genv: GlobalEnv, deref_ty: Ty, alloc_ty: Ty) -&gt; QueryResult&lt;Ty&gt; {
+        <span class="kw">let </span>def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>adt_def = genv.adt_def(def_id)<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>args = <span class="macro">vec!</span>[GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)];
+
+        <span class="kw">let </span>bty = BaseTy::adt(adt_def, args);
+        <span class="prelude-val">Ok</span>(Ty::indexed(bty, Expr::unit_adt(def_id)))
+    }
+
+    <span class="kw">pub fn </span>mk_box_with_default_alloc(genv: GlobalEnv, deref_ty: Ty) -&gt; QueryResult&lt;Ty&gt; {
+        <span class="kw">let </span>def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, <span class="prelude-val">None</span>);
+
+        <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>alloc_ty = genv.refine_default(
+            <span class="kw-2">&amp;</span>generics,
+            <span class="kw-2">&amp;</span>genv
+                .lower_type_of(generics.own_params[<span class="number">1</span>].def_id)<span class="question-mark">?
+                </span>.skip_binder(),
+        )<span class="question-mark">?</span>;
+
+        Ty::mk_box(genv, deref_ty, alloc_ty)
     }
 
     <span class="kw">pub fn </span>tuple(tys: <span class="kw">impl </span>Into&lt;List&lt;Ty&gt;&gt;) -&gt; Ty {
