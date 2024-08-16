@@ -1772,6 +1772,12 @@
 <a href="#1772" id="1772">1772</a>
 <a href="#1773" id="1773">1773</a>
 <a href="#1774" id="1774">1774</a>
+<a href="#1775" id="1775">1775</a>
+<a href="#1776" id="1776">1776</a>
+<a href="#1777" id="1777">1777</a>
+<a href="#1778" id="1778">1778</a>
+<a href="#1779" id="1779">1779</a>
+<a href="#1780" id="1780">1780</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -2656,13 +2662,9 @@
         <span class="kw">let </span>genv = <span class="self">self</span>.genv;
         <span class="kw">match </span>rvalue {
             Rvalue::Use(operand) =&gt; <span class="self">self</span>.check_operand(rcx, env, stmt_span, operand),
-            Rvalue::BinaryOp(bin_op, op1, op2) =&gt; {
-                <span class="self">self</span>.check_binary_op(rcx, env, stmt_span, <span class="kw-2">*</span>bin_op, op1, op2)
-            }
-            Rvalue::CheckedBinaryOp(bin_op, op1, op2) =&gt; {
-                <span class="comment">// TODO(nilehmann) should we somehow connect the result of the operation with the bool?
-                </span><span class="kw">let </span>ty = <span class="self">self</span>.check_binary_op(rcx, env, stmt_span, <span class="kw-2">*</span>bin_op, op1, op2)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(Ty::tuple(<span class="macro">vec!</span>[ty, Ty::bool()]))
+            Rvalue::Repeat(operand, c) =&gt; {
+                <span class="kw">let </span>ty = <span class="self">self</span>.check_operand(rcx, env, stmt_span, operand)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(Ty::array(ty, c.clone()))
             }
             Rvalue::Ref(r, BorrowKind::Mut { .. }, place) =&gt; {
                 env.borrow(<span class="self">self</span>.genv, rcx, <span class="kw-2">*</span>r, Mutability::Mut, place)
@@ -2672,7 +2674,23 @@
                 env.borrow(<span class="self">self</span>.genv, rcx, <span class="kw-2">*</span>r, Mutability::Not, place)
                     .with_span(stmt_span)
             }
+            Rvalue::Len(place) =&gt; <span class="self">self</span>.check_len(rcx, env, stmt_span, place),
+            Rvalue::Cast(kind, op, to) =&gt; {
+                <span class="kw">let </span>from = <span class="self">self</span>.check_operand(rcx, env, stmt_span, op)<span class="question-mark">?</span>;
+                <span class="self">self</span>.check_cast(rcx, env, stmt_span, <span class="kw-2">*</span>kind, <span class="kw-2">&amp;</span>from, to)
+            }
+            Rvalue::BinaryOp(bin_op, op1, op2) =&gt; {
+                <span class="self">self</span>.check_binary_op(rcx, env, stmt_span, <span class="kw-2">*</span>bin_op, op1, op2)
+            }
+            Rvalue::NullaryOp(null_op, ty) =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.check_nullary_op(<span class="kw-2">*</span>null_op, ty)),
             Rvalue::UnaryOp(un_op, op) =&gt; <span class="self">self</span>.check_unary_op(rcx, env, stmt_span, <span class="kw-2">*</span>un_op, op),
+            Rvalue::Discriminant(place) =&gt; {
+                <span class="kw">let </span>ty = env
+                    .lookup_place(<span class="self">self</span>.genv, rcx, place)
+                    .with_span(stmt_span)<span class="question-mark">?</span>;
+                <span class="kw">let </span>(adt_def, ..) = ty.expect_adt();
+                <span class="prelude-val">Ok</span>(Ty::discr(adt_def.clone(), place.clone()))
+            }
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, <span class="kw">_</span>), operands) =&gt; {
                 <span class="kw">let </span>actuals = <span class="self">self</span>.check_operands(rcx, env, stmt_span, operands)<span class="question-mark">?</span>;
                 <span class="kw">let </span>sig = genv
@@ -2709,22 +2727,6 @@
                     .with_span(stmt_span)<span class="question-mark">?</span>;
                 <span class="kw">let </span>upvar_tys = <span class="self">self</span>.check_operands(rcx, env, stmt_span, ops)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(Ty::coroutine(<span class="kw-2">*</span>did, resume_ty, upvar_tys.into()))
-            }
-            Rvalue::Discriminant(place) =&gt; {
-                <span class="kw">let </span>ty = env
-                    .lookup_place(<span class="self">self</span>.genv, rcx, place)
-                    .with_span(stmt_span)<span class="question-mark">?</span>;
-                <span class="kw">let </span>(adt_def, ..) = ty.expect_adt();
-                <span class="prelude-val">Ok</span>(Ty::discr(adt_def.clone(), place.clone()))
-            }
-            Rvalue::Len(place) =&gt; <span class="self">self</span>.check_len(rcx, env, stmt_span, place),
-            Rvalue::Cast(kind, op, to) =&gt; {
-                <span class="kw">let </span>from = <span class="self">self</span>.check_operand(rcx, env, stmt_span, op)<span class="question-mark">?</span>;
-                <span class="self">self</span>.check_cast(rcx, env, stmt_span, <span class="kw-2">*</span>kind, <span class="kw-2">&amp;</span>from, to)
-            }
-            Rvalue::Repeat(operand, c) =&gt; {
-                <span class="kw">let </span>ty = <span class="self">self</span>.check_operand(rcx, env, stmt_span, operand)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(Ty::array(ty, c.clone()))
             }
         }
     }
@@ -2774,6 +2776,16 @@
                 <span class="prelude-val">Ok</span>(rule.output_type)
             }
             <span class="kw">_ </span>=&gt; <span class="macro">tracked_span_bug!</span>(<span class="string">"incompatible types: `{ty1:?}` `{ty2:?}`"</span>),
+        }
+    }
+
+    <span class="kw">fn </span>check_nullary_op(<span class="kw-2">&amp;</span><span class="self">self</span>, null_op: mir::NullOp, _ty: <span class="kw-2">&amp;</span>rustc::ty::Ty) -&gt; Ty {
+        <span class="kw">match </span>null_op {
+            mir::NullOp::SizeOf | mir::NullOp::AlignOf =&gt; {
+                <span class="comment">// We could try to get the layout of type to index this with the actual value, but
+                // this enough for now. Revisit if we ever need the precision.
+                </span>Ty::uint(UintTy::Usize)
+            }
         }
     }
 

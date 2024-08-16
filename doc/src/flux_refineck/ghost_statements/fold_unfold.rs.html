@@ -870,6 +870,7 @@
 <a href="#870" id="870">870</a>
 <a href="#871" id="871">871</a>
 <a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, fmt, iter};
 
 <span class="kw">use </span>flux_common::tracked_span_bug;
@@ -1183,7 +1184,7 @@
                             M::projection(<span class="self">self</span>, env, place, ProjKind::Other)<span class="question-mark">?</span>;
                         }
                     }
-                    Rvalue::CheckedBinaryOp(<span class="kw">_</span>, op1, op2) | Rvalue::BinaryOp(<span class="kw">_</span>, op1, op2) =&gt; {
+                    Rvalue::BinaryOp(<span class="kw">_</span>, op1, op2) =&gt; {
                         <span class="self">self</span>.operand(op1, env)<span class="question-mark">?</span>;
                         <span class="self">self</span>.operand(op2, env)<span class="question-mark">?</span>;
                     }
@@ -1202,6 +1203,7 @@
                     Rvalue::Repeat(op, <span class="kw">_</span>) =&gt; {
                         <span class="self">self</span>.operand(op, env)<span class="question-mark">?</span>;
                     }
+                    Rvalue::NullaryOp(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {}
                 }
                 M::projection(<span class="self">self</span>, env, place, ProjKind::Other)<span class="question-mark">?</span>;
             }
