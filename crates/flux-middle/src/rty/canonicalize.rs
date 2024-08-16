@@ -26,7 +26,6 @@ use rustc_ast::Mutability;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
-    box_args,
     fold::{TypeFoldable, TypeFolder},
     BaseTy, Binder, BoundVariableKind, Expr, GenericArg, SubsetTy, SubsetTyCtor, Ty, TyKind,
 };
@@ -91,7 +90,7 @@ impl TypeFolder for Hoister {
     fn fold_bty(&mut self, bty: &BaseTy) -> BaseTy {
         match bty {
             BaseTy::Adt(adt_def, args) if adt_def.is_box() && self.boxes => {
-                let (boxed, alloc) = box_args(args);
+                let (boxed, alloc) = args.box_args();
                 let args = List::from_arr([
                     GenericArg::Ty(boxed.fold_with(self)),
                     GenericArg::Ty(alloc.clone()),

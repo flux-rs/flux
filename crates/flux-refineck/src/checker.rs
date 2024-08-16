@@ -1131,41 +1131,50 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         span: Span,
-        from: &Ty,
-        to: &rustc::ty::Ty,
+        src: &Ty,
+        dst: &rustc::ty::Ty,
     ) -> Result<Ty> {
-        // Convert ptr to ref
-        let from = if let TyKind::Ptr(PtrKind::Mut(re), path) = from.kind() {
+        // Convert `ptr` to `&mut`
+        let src = if let TyKind::Ptr(PtrKind::Mut(re), path) = src.kind() {
             let mut infcx = self.infcx(rcx, span);
             env.ptr_to_ref(rcx, &mut infcx, ConstrReason::Other, *re, path, PtrToRefBound::Identity)
                 .with_span(span)?
         } else {
-            from.clone()
+            src.clone()
         };
 
-        if let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind()
-            && let TyKind::Indexed(src_base_ty, _) = src_ty.kind()
-            && let rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
+        if let rustc::ty::TyKind::Ref(_, deref_ty, _) = dst.kind()
+            && let rustc::ty::TyKind::Dynamic(..) = deref_ty.kind()
         {
-            // &mut [T; n] -> &mut [T][n] and &[T; n] -> &[T][n]
-            if let rustc::ty::TyKind::Slice(_) = dst_ty.kind()
-                && let BaseTy::Array(src_arr_ty, src_n) = src_base_ty
-                && src_mut == dst_mut
-            {
-                let idx = Expr::from_const(self.genv.tcx(), src_n);
-                let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), idx);
-                Ok(Ty::mk_ref(*dst_re, dst_slice, *dst_mut))
-            } else
-            // &T  -> & dyn U
-            if let rustc::ty::TyKind::Dynamic(_, _) = dst_ty.kind() {
-                self.genv
-                    .refine_default(&self.generics, to)
-                    .with_span(self.body.span())
-            } else {
-                tracked_span_bug!("unsupported Unsize cast: from {from:?} to {to:?}")
-            }
+            return self
+                .genv
+                .refine_default(&self.generics, dst)
+                .with_span(self.body.span());
+        }
+
+        // `&mut [T; n] -> &mut [T]` or `&[T; n] -> &[T]`
+        if let TyKind::Indexed(BaseTy::Ref(_, deref_ty, _), _) = src.kind()
+            && let TyKind::Indexed(BaseTy::Array(arr_ty, arr_len), _) = deref_ty.kind()
+            && let rustc::ty::TyKind::Ref(re, _, mutbl) = dst.kind()
+        {
+            let idx = Expr::from_const(self.genv.tcx(), arr_len);
+            Ok(Ty::mk_ref(*re, Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx), *mutbl))
+
+        // `Box<[T; n]> -> Box<[T]>`
+        } else if let TyKind::Indexed(BaseTy::Adt(adt_def, args), _) = src.kind()
+            && adt_def.is_box()
+            && let (deref_ty, alloc_ty) = args.box_args()
+            && let TyKind::Indexed(BaseTy::Array(arr_ty, arr_len), _) = deref_ty.kind()
+        {
+            let idx = Expr::from_const(self.genv.tcx(), arr_len);
+            Ok(self
+                .genv
+                .mk_box(Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx), alloc_ty.clone()))
         } else {
-            tracked_span_bug!("unsupported Unsize cast: from {from:?} to {to:?}")
+            Err(CheckerError::bug(
+                format!("unsupported unsize cast from `{src:?}` to `{dst:?}`",),
+                span,
+            ))
         }
     }
 
@@ -1708,6 +1717,17 @@ pub(crate) mod errors {
         span: Span,
     }
 
+    impl CheckerError {
+        pub fn opaque_struct(def_id: DefId, span: Span) -> Self {
+            Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
+        }
+
+        #[track_caller]
+        pub fn bug(msg: impl ToString, span: Span) -> Self {
+            CheckerErrKind::bug(msg).at(span)
+        }
+    }
+
     #[derive(Debug)]
     pub enum CheckerErrKind {
         Inference,
@@ -1715,9 +1735,14 @@ pub(crate) mod errors {
         Query(QueryErr),
     }
 
-    impl CheckerError {
-        pub fn opaque_struct(def_id: DefId, span: Span) -> Self {
-            Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
+    impl CheckerErrKind {
+        #[track_caller]
+        pub fn bug(msg: impl ToString) -> Self {
+            Self::Query(QueryErr::bug(msg))
+        }
+
+        pub fn at(self, span: Span) -> CheckerError {
+            CheckerError { kind: self, span }
         }
     }
 
@@ -1770,11 +1795,11 @@ pub(crate) mod errors {
         E: Into<CheckerErrKind>,
     {
         fn with_span(self, span: Span) -> Result<T, CheckerError> {
-            self.map_err(|kind| CheckerError { kind: kind.into(), span })
+            self.map_err(|kind| kind.into().at(span))
         }
 
         fn with_src_info(self, src_info: SourceInfo) -> Result<T, CheckerError> {
-            self.map_err(|kind| CheckerError { kind: kind.into(), span: src_info.span })
+            self.map_err(|kind| kind.into().at(src_info.span))
         }
     }
 }

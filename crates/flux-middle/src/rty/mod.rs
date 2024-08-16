@@ -1188,6 +1188,16 @@ impl BaseTy {
         matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_box())
     }
 
+    pub fn unpack_box(&self) -> Option<(&Ty, &Ty)> {
+        if let BaseTy::Adt(adt_def, args) = self
+            && adt_def.is_box()
+        {
+            Some(args.box_args())
+        } else {
+            None
+        }
+    }
+
     pub fn invariants(&self, overflow_checking: bool) -> &[Invariant] {
         match self {
             BaseTy::Adt(adt_def, _) => adt_def.invariants(),
@@ -1462,6 +1472,15 @@ impl GenericArg {
 pub type GenericArgs = List<GenericArg>;
 
 impl GenericArgs {
+    #[track_caller]
+    pub fn box_args(&self) -> (&Ty, &Ty) {
+        if let [GenericArg::Ty(deref), GenericArg::Ty(alloc)] = &self[..] {
+            (deref, alloc)
+        } else {
+            bug!("invalid generic arguments for box");
+        }
+    }
+
     pub fn identity_for_item(genv: GlobalEnv, def_id: impl Into<DefId>) -> QueryResult<Self> {
         let mut args = vec![];
         let generics = genv.generics_of(def_id)?;
@@ -2095,15 +2114,6 @@ impl Binder<Expr> {
     /// See [`Expr::is_trivially_true`]
     pub fn is_trivially_true(&self) -> bool {
         self.value.is_trivially_true()
-    }
-}
-
-#[track_caller]
-pub fn box_args(args: &GenericArgs) -> (&Ty, &Ty) {
-    if let [GenericArg::Ty(boxed), GenericArg::Ty(alloc)] = &args[..] {
-        (boxed, alloc)
-    } else {
-        bug!("invalid generic arguments for box");
     }
 }
 
