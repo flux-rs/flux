@@ -12,7 +12,6 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{
-        box_args,
         evars::EVarSol,
         fold::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
@@ -474,8 +473,8 @@ impl TypeFolder for Unpacker<'_, '_> {
             return bty.clone();
         }
         match bty {
-            BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
-                let (boxed, alloc) = box_args(substs);
+            BaseTy::Adt(adt_def, args) if adt_def.is_box() => {
+                let (boxed, alloc) = args.box_args();
                 let boxed = boxed.fold_with(self);
                 BaseTy::adt(
                     adt_def.clone(),

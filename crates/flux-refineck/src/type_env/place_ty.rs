@@ -5,7 +5,6 @@ use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
     rty::{
-        box_args,
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         AdtDef, BaseTy, Binder, EarlyBinder, Expr, GenericArg, Loc, Mutability, Path, PtrKind, Ref,
         Sort, Ty, TyKind, VariantIdx, VariantSig, FIRST_VARIANT,
@@ -147,7 +146,7 @@ impl PlacesTree {
                 PlaceElem::Deref => {
                     match ty.kind() {
                         TyKind::Indexed(BaseTy::Adt(adt, args), _) if adt.is_box() => {
-                            ty = box_args(args).0.clone();
+                            ty = args.box_args().0.clone();
                         }
                         TyKind::Indexed(BaseTy::RawPtr(deref_ty, _), _) => {
                             is_strg = false;
@@ -433,7 +432,7 @@ impl<'a, 'rcx, 'genv, 'tcx> Unfolder<'a, 'rcx, 'genv, 'tcx> {
             if self.in_ref.is_some() {
                 Ok(ty.clone())
             } else {
-                let (deref_ty, alloc) = box_args(args);
+                let (deref_ty, alloc) = args.box_args();
                 let loc = self.unfold_box(deref_ty, alloc);
                 Ok(Ty::ptr(PtrKind::Box, Path::from(loc)))
             }
@@ -463,7 +462,7 @@ impl<'a, 'rcx, 'genv, 'tcx> Unfolder<'a, 'rcx, 'genv, 'tcx> {
                 Ty::ptr(*pk, path.clone())
             }
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) if adt.is_box() => {
-                let (deref_ty, alloc) = box_args(args);
+                let (deref_ty, alloc) = args.box_args();
                 if self.in_ref.is_some() {
                     let args = List::from_arr([
                         GenericArg::Ty(deref_ty.try_fold_with(self)?),
@@ -652,10 +651,10 @@ where
     fn deref(self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) if adt.is_box() => {
-                let (deref_ty, alloc) = box_args(args);
+                let (deref_ty, alloc_ty) = args.box_args();
                 let args = List::from_arr([
                     GenericArg::Ty(self.fold_ty(deref_ty)),
-                    GenericArg::Ty(alloc.clone()),
+                    GenericArg::Ty(alloc_ty.clone()),
                 ]);
                 Ty::indexed(BaseTy::Adt(adt.clone(), args), idx.clone())
             }
