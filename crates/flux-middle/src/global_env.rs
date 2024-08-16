@@ -7,7 +7,6 @@ use rustc_hash::FxHashSet;
 use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
-    LangItem,
 };
 use rustc_middle::ty::{ParamConst, TyCtxt, Variance};
 pub use rustc_span::{symbol::Ident, Symbol};
@@ -156,16 +155,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn variances_of(self, did: DefId) -> &'tcx [Variance] {
         self.tcx().variances_of(did)
-    }
-
-    pub fn mk_box(&self, ty: rty::Ty, alloc: rty::Ty) -> rty::Ty {
-        let def_id = self.tcx().require_lang_item(LangItem::OwnedBox, None);
-        let adt_def = self.adt_def(def_id).unwrap();
-
-        let args = vec![rty::GenericArg::Ty(ty), rty::GenericArg::Ty(alloc)];
-
-        let bty = rty::BaseTy::adt(adt_def, args);
-        rty::Ty::indexed(bty, rty::Expr::unit_adt(def_id))
     }
 
     pub fn mir(self, def_id: LocalDefId) -> QueryResult<Rc<rustc::mir::Body<'tcx>>> {

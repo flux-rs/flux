@@ -948,6 +948,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let upvar_tys = self.check_operands(rcx, env, stmt_span, ops)?;
                 Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into()))
             }
+            Rvalue::ShallowInitBox(operand, _) => {
+                self.check_operand(rcx, env, stmt_span, operand)?;
+                Ty::mk_box_with_default_alloc(self.genv, Ty::uninit()).with_span(stmt_span)
+            }
         }
     }
 
@@ -955,12 +959,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        source_span: Span,
+        smt_span: Span,
         place: &Place,
     ) -> Result<Ty> {
         let ty = env
             .lookup_place(self.genv, rcx, place)
-            .with_span(source_span)?;
+            .with_span(smt_span)?;
 
         let idx = match ty.kind() {
             TyKind::Indexed(BaseTy::Array(_, len), _) => Expr::from_const(self.genv.tcx(), len),
@@ -975,20 +979,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        source_span: Span,
+        stmt_span: Span,
         bin_op: mir::BinOp,
         op1: &Operand,
         op2: &Operand,
     ) -> Result<Ty> {
         let check_overflow = self.check_overflow();
-        let ty1 = self.check_operand(rcx, env, source_span, op1)?;
-        let ty2 = self.check_operand(rcx, env, source_span, op2)?;
+        let ty1 = self.check_operand(rcx, env, stmt_span, op1)?;
+        let ty2 = self.check_operand(rcx, env, stmt_span, op2)?;
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 let rule = primops::match_bin_op(bin_op, bty1, idx1, bty2, idx2, check_overflow);
                 if let Some(pre) = rule.precondition {
-                    self.infcx(rcx, source_span)
+                    self.infcx(rcx, stmt_span)
                         .at(pre.reason)
                         .check_pred(rcx, pre.pred);
                 }
@@ -1013,16 +1017,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        source_span: Span,
+        stmt_span: Span,
         un_op: mir::UnOp,
         op: &Operand,
     ) -> Result<Ty> {
-        let ty = self.check_operand(rcx, env, source_span, op)?;
+        let ty = self.check_operand(rcx, env, stmt_span, op)?;
         match ty.kind() {
             TyKind::Indexed(bty, idx) => {
                 let rule = primops::match_un_op(un_op, bty, idx, self.check_overflow());
                 if let Some(pre) = rule.precondition {
-                    self.infcx(rcx, source_span)
+                    self.infcx(rcx, stmt_span)
                         .at(pre.reason)
                         .check_pred(rcx, pre.pred);
                 }
@@ -1036,11 +1040,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        span: Span,
+        stmt_span: Span,
         args: &[Ty],
         arr_ty: Ty,
     ) -> Result<Ty> {
-        let mut infcx = self.infcx(rcx, span);
+        let mut infcx = self.infcx(rcx, stmt_span);
         let arr_ty =
             arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
@@ -1058,17 +1062,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         path,
                         PtrToRefBound::Ty(bound.clone()),
                     )
-                    .with_span(span)?;
+                    .with_span(stmt_span)?;
                 }
                 _ => {
                     infcx
                         .at(ConstrReason::Other)
                         .subtyping(rcx, ty, &arr_ty)
-                        .with_span(span)?;
+                        .with_span(stmt_span)?;
                 }
             }
         }
-        rcx.replace_evars(&infcx.solve().with_span(span)?);
+        rcx.replace_evars(&infcx.solve().with_span(stmt_span)?);
 
         Ok(Ty::array(arr_ty, rty::Const::from_usize(self.genv.tcx(), args.len())))
     }
@@ -1077,7 +1081,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        span: Span,
+        stmt_span: Span,
         kind: CastKind,
         from: &Ty,
         to: &rustc::ty::Ty,
@@ -1111,7 +1115,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
             }
             CastKind::Pointer(mir::PointerCast::Unsize) => {
-                self.check_unsize_cast(rcx, env, span, from, to)?
+                self.check_unsize_cast(rcx, env, stmt_span, from, to)?
             }
             CastKind::FloatToInt
             | CastKind::IntToFloat
@@ -1167,9 +1171,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             && let TyKind::Indexed(BaseTy::Array(arr_ty, arr_len), _) = deref_ty.kind()
         {
             let idx = Expr::from_const(self.genv.tcx(), arr_len);
-            Ok(self
-                .genv
-                .mk_box(Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx), alloc_ty.clone()))
+            Ty::mk_box(self.genv, Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx), alloc_ty.clone())
+                .with_span(span)
         } else {
             Err(CheckerError::bug(
                 format!("unsupported unsize cast from `{src:?}` to `{dst:?}`",),

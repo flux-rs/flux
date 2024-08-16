@@ -887,7 +887,7 @@ fn fold(
                 tracked_span_bug!("box pointer to non-box loc");
             };
             let deref_ty = fold(bindings, rcx, infcx, &binding.ty, is_strg)?;
-            Ok(infcx.genv.mk_box(deref_ty, alloc))
+            Ok(Ty::mk_box(infcx.genv, deref_ty, alloc)?)
         }
         Ref!(re, deref_ty, mutbl) => {
             let deref_ty = fold(bindings, rcx, infcx, deref_ty, is_strg)?;

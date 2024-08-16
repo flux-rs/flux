@@ -25,7 +25,7 @@ use fold::TypeFolder;
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
-use rustc_hir::def_id::DefId;
+use rustc_hir::{def_id::DefId, LangItem};
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::{ParamConst, TyCtxt};
@@ -832,6 +832,30 @@ impl Ty {
 
     pub fn mk_slice(ty: Ty) -> Ty {
         BaseTy::Slice(ty).to_ty()
+    }
+
+    pub fn mk_box(genv: GlobalEnv, deref_ty: Ty, alloc_ty: Ty) -> QueryResult<Ty> {
+        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
+        let adt_def = genv.adt_def(def_id)?;
+
+        let args = vec![GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)];
+
+        let bty = BaseTy::adt(adt_def, args);
+        Ok(Ty::indexed(bty, Expr::unit_adt(def_id)))
+    }
+
+    pub fn mk_box_with_default_alloc(genv: GlobalEnv, deref_ty: Ty) -> QueryResult<Ty> {
+        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
+
+        let generics = genv.generics_of(def_id)?;
+        let alloc_ty = genv.refine_default(
+            &generics,
+            &genv
+                .lower_type_of(generics.own_params[1].def_id)?
+                .skip_binder(),
+        )?;
+
+        Ty::mk_box(genv, deref_ty, alloc_ty)
     }
 
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {

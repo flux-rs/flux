@@ -302,7 +302,10 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
                 match rvalue {
-                    Rvalue::Use(op) | Rvalue::Cast(_, op, _) | Rvalue::UnaryOp(_, op) => {
+                    Rvalue::Use(op)
+                    | Rvalue::Cast(_, op, _)
+                    | Rvalue::UnaryOp(_, op)
+                    | Rvalue::ShallowInitBox(op, _) => {
                         self.operand(op, env)?;
                     }
                     Rvalue::Ref(.., bk, place) => {
