@@ -612,6 +612,9 @@ impl Expr {
                 Expr::constant(val)
             }
             ConstKind::Unevaluated(ue) => {
+                // TODO: We should have normalized away the unevaluated
+                // constants but for field accesses still doesn't work
+                // so leaving this in, but should ideally be gone.
                 let val = const_eval::unevaluated_to_constant(tcx, ue).unwrap();
                 Expr::constant(val)
             }

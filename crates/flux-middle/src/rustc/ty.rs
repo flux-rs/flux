@@ -241,6 +241,10 @@ impl Const {
         }
     }
 
+    pub fn from_scalar_int(scalar_int: ScalarInt, ty: Ty) -> Self {
+        Self { kind: ConstKind::Value(ty, scalar_int) }
+    }
+
     pub fn to_rustc<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_ty::Const<'tcx> {
         let kind = match &self.kind {
             ConstKind::Param(param_const) => rustc_ty::ConstKind::Param(*param_const),

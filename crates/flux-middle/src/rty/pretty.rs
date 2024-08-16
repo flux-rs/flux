@@ -435,7 +435,7 @@ impl Pretty for Const {
             ConstKind::Param(p) => w!("{}", ^p.name.as_str()),
             ConstKind::Value(_, v) => w!("{}", ^v),
             ConstKind::Infer(infer_const) => w!("{:?}", ^infer_const),
-            ConstKind::Unevaluated(_uneval_const) => w!("TODO:CONST"),
+            ConstKind::Unevaluated(_uneval_const) => w!("TODO:UNEVALCONST"),
         }
     }
 }

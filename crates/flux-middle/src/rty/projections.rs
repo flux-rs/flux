@@ -20,6 +20,7 @@ use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     rty::fold::TypeVisitable,
+    rustc::lowering::lower_ty,
 };
 
 pub(crate) struct Normalizer<'genv, 'tcx, 'cx> {
@@ -268,6 +269,18 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
             self.normalize_alias_reft(alias_pred, refine_args)
         } else {
             expr.try_super_fold_with(self)
+        }
+    }
+
+    fn try_fold_const(&mut self, c: &Const) -> Result<Const, Self::Error> {
+        let param_env = self.rustc_param_env();
+        let rc = c.to_rustc(self.tcx());
+        if let Some((ty, scalar_int)) = rc.try_eval_scalar_int(self.tcx(), param_env)
+            && let Ok(ty) = lower_ty(self.tcx(), ty)
+        {
+            Ok(Const::from_scalar_int(scalar_int, ty))
+        } else {
+            Ok(c.clone())
         }
     }
 }
