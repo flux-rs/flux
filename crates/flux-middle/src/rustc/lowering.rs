@@ -421,10 +421,12 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 let args = args.iter().map(|op| self.lower_operand(op)).try_collect()?;
                 Ok(Rvalue::Aggregate(aggregate_kind, args))
             }
+            rustc_mir::Rvalue::ShallowInitBox(op, ty) => {
+                Ok(Rvalue::ShallowInitBox(self.lower_operand(op)?, lower_ty(self.tcx, *ty)?))
+            }
             rustc_mir::Rvalue::ThreadLocalRef(_)
             | rustc_mir::Rvalue::AddressOf(_, _)
-            | rustc_mir::Rvalue::CopyForDeref(_)
-            | rustc_mir::Rvalue::ShallowInitBox(_, _) => {
+            | rustc_mir::Rvalue::CopyForDeref(_) => {
                 Err(UnsupportedReason::new(format!("unsupported rvalue `{rvalue:?}`")))
             }
         }
