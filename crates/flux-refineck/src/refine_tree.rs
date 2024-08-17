@@ -24,7 +24,7 @@ use itertools::Itertools;
 use rustc_middle::ty::ParamConst;
 
 use crate::{
-    fixpoint_encoding::{fixpoint, sort_to_fixpoint, stitch, FixpointCtxt},
+    fixpoint_encoding::{fixpoint, sort_to_fixpoint, FixpointCtxt},
     infer::Tag,
 };
 
@@ -603,19 +603,16 @@ impl Node {
             }
             NodeKind::Assumption(pred) => {
                 let (bindings, pred) = cx.assumption_to_fixpoint(pred)?;
-                let Some(children) = children_to_fixpoint(cx, &self.children)? else {
+                let Some(cstr) = children_to_fixpoint(cx, &self.children)? else {
                     return Ok(None);
                 };
-                Some(stitch(
-                    bindings,
-                    fixpoint::Constraint::ForAll(
-                        fixpoint::Bind {
-                            name: fixpoint::Var::Underscore,
-                            sort: fixpoint::Sort::Int,
-                            pred,
-                        },
-                        Box::new(children),
-                    ),
+                Some(fixpoint::Constraint::ForAll(
+                    fixpoint::Bind {
+                        name: fixpoint::Var::Underscore,
+                        sort: fixpoint::Sort::Int,
+                        pred,
+                    },
+                    Box::new(fixpoint::Constraint::foralls(bindings, cstr)),
                 ))
             }
             NodeKind::Head(pred, tag) => {

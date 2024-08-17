@@ -37,7 +37,7 @@ use rustc_index::newtype_index;
 use rustc_span::{Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 
-use crate::{refine_tree::Scope, CheckerConfig};
+use crate::refine_tree::Scope;
 
 newtype_index! {
     #[debug_format = "TagIdx({})"]
@@ -230,7 +230,7 @@ struct FixpointKVar {
 struct KVarEncodingCtxt {
     /// List of all kvars that need to be defined in fixpoint
     kvars: IndexVec<fixpoint::KVid, FixpointKVar>,
-    /// A mapping from [`rty::KVid`] to the list of [`fixpoint::KVid`]s that encode the kvar.
+    /// A mapping from [`rty::KVid`] to the list of [`fixpoint::KVid`]s encoding the kvar.
     map: UnordMap<rty::KVid, Vec<fixpoint::KVid>>,
 }
 
@@ -351,23 +351,6 @@ struct ConstInfo {
     val: Option<Constant>,
 }
 
-/// An alias for additional bindings introduced when ANF-ing index expressions
-/// in the course of encoding into fixpoint.
-pub type Bindings = Vec<(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)>;
-
-pub fn stitch(bindings: Bindings, c: fixpoint::Constraint) -> fixpoint::Constraint {
-    bindings.into_iter().rev().fold(c, |c, (name, sort, e)| {
-        fixpoint::Constraint::ForAll(
-            fixpoint::Bind {
-                name: fixpoint::Var::Local(name),
-                sort,
-                pred: fixpoint::Pred::Expr(e),
-            },
-            Box::new(c),
-        )
-    })
-}
-
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
@@ -465,7 +448,7 @@ where
         mut self,
         cache: &mut QueryCache,
         constraint: fixpoint::Constraint,
-        config: &CheckerConfig,
+        scrape_quals: bool,
     ) -> QueryResult<Vec<Tag>> {
         if !constraint.is_concrete() {
             // skip checking trivial constraints
@@ -526,7 +509,7 @@ where
             kvars,
             constraint,
             qualifiers,
-            scrape_quals: config.scrape_quals,
+            scrape_quals,
             data_decls: self.sorts.into_data_decls(),
         };
         if config::dump_constraint() {
@@ -560,7 +543,8 @@ where
         })
     }
 
-    /// Encodes an expression in head position as a constraint "peeling out" implications and foralls.
+    /// Encodes an expression in head position as a [`fixpoint::Constraint`] "peeling out"
+    /// implications and foralls.
     pub fn head_to_fixpoint(
         &mut self,
         expr: &rty::Expr,
@@ -582,12 +566,12 @@ where
             rty::ExprKind::BinaryOp(rty::BinOp::Imp, e1, e2) => {
                 let (bindings, assumption) = self.assumption_to_fixpoint(e1)?;
                 let cstr = self.head_to_fixpoint(e2, mk_tag)?;
-                Ok(stitch(bindings, mk_implies(assumption, cstr)))
+                Ok(fixpoint::Constraint::foralls(bindings, mk_implies(assumption, cstr)))
             }
             rty::ExprKind::KVar(kvar) => {
                 let mut bindings = vec![];
                 let pred = self.kvar_to_fixpoint(kvar, &mut bindings)?;
-                Ok(stitch(bindings, fixpoint::Constraint::Pred(pred, None)))
+                Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
             }
             rty::ExprKind::ForAll(pred) => {
                 self.env.push_layer_with_fresh_names(pred.vars().len());
@@ -595,10 +579,16 @@ where
                 let vars = self.env.pop_layer();
 
                 let bindings = iter::zip(vars, &pred.vars().to_sort_list())
-                    .map(|(var, sort)| (var, sort_to_fixpoint(sort), fixpoint::Expr::TRUE))
+                    .map(|(var, sort)| {
+                        fixpoint::Bind {
+                            name: var.into(),
+                            sort: sort_to_fixpoint(sort),
+                            pred: fixpoint::Pred::TRUE,
+                        }
+                    })
                     .collect_vec();
 
-                Ok(stitch(bindings, cstr))
+                Ok(fixpoint::Constraint::foralls(bindings, cstr))
             }
             _ => {
                 let tag_idx = self.tag_idx(mk_tag(expr.span()));
@@ -615,7 +605,7 @@ where
     pub fn assumption_to_fixpoint(
         &mut self,
         pred: &rty::Expr,
-    ) -> QueryResult<(Bindings, fixpoint::Pred)> {
+    ) -> QueryResult<(Vec<fixpoint::Bind>, fixpoint::Pred)> {
         let mut bindings = vec![];
         let mut preds = vec![];
         self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds)?;
@@ -626,7 +616,7 @@ where
     fn assumption_to_fixpoint_aux(
         &mut self,
         expr: &rty::Expr,
-        bindings: &mut Bindings,
+        bindings: &mut Vec<fixpoint::Bind>,
         preds: &mut Vec<fixpoint::Pred>,
     ) -> QueryResult {
         match expr.kind() {
@@ -655,7 +645,7 @@ where
     fn kvar_to_fixpoint(
         &mut self,
         kvar: &rty::KVar,
-        bindings: &mut Bindings,
+        bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Pred> {
         let decl = self.kvars.get(kvar.kvid);
         let kvids = self.kcx.encode(kvar.kvid, decl);
@@ -672,11 +662,14 @@ where
         if all_args.is_empty() {
             let fresh = self.env.fresh_name();
             let var = fixpoint::Var::Local(fresh);
-            bindings.push((
-                fresh,
-                fixpoint::Sort::Int,
-                fixpoint::Expr::eq(fixpoint::Expr::Var(var), fixpoint::Expr::ZERO),
-            ));
+            bindings.push(fixpoint::Bind {
+                name: fresh.into(),
+                sort: fixpoint::Sort::Int,
+                pred: fixpoint::Pred::Expr(fixpoint::Expr::eq(
+                    fixpoint::Expr::Var(var),
+                    fixpoint::Expr::ZERO,
+                )),
+            });
             return Ok(fixpoint::Pred::KVar(kvids[0], vec![var]));
         }
 
@@ -1128,7 +1121,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         arg: &rty::Expr,
         sort: &rty::Sort,
         env: &mut Env,
-        bindings: &mut Vec<(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)>,
+        bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Var> {
         match arg.kind() {
             rty::ExprKind::Var(var) => Ok(env.get_var(var, self.def_span)),
@@ -1138,7 +1131,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     fixpoint::Expr::Var(fresh.into()),
                     self.expr_to_fixpoint(arg, env)?,
                 );
-                bindings.push((fresh, sort_to_fixpoint(sort), pred));
+                bindings.push(fixpoint::Bind {
+                    name: fresh.into(),
+                    sort: sort_to_fixpoint(sort),
+                    pred: fixpoint::Pred::Expr(pred),
+                });
                 Ok(fresh.into())
             }
         }

@@ -163,6 +163,13 @@ pub enum Constant {
 impl<T: Types> Constraint<T> {
     pub const TRUE: Self = Self::Pred(Pred::TRUE, None);
 
+    pub fn foralls(bindings: Vec<Bind<T>>, c: Self) -> Self {
+        bindings
+            .into_iter()
+            .rev()
+            .fold(c, |c, bind| Constraint::ForAll(bind, Box::new(c)))
+    }
+
     /// Returns true if the constraint has at least one concrete RHS ("head") predicates.
     /// If `!c.is_concrete`  then `c` is trivially satisfiable and we can avoid calling fixpoint.
     pub fn is_concrete(&self) -> bool {
