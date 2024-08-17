@@ -29,8 +29,8 @@ use crate::{
 };
 
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
-/// generated during refinement type-checking. This tree can be encoded as fixpoint constraint which
-/// implies the safety of a function.
+/// generated during refinement type-checking. This tree can be encoded as a fixpoint constraint
+/// whose satisfiability implies the safety of a function.
 ///
 /// We try to hide the representation of the tree as much as possible and only a couple of operations
 /// can be used to manipulate the structure of the tree explicitly. Instead, the tree is mostly constructed
