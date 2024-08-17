@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ConstrReason"],"fn":["mk_generator_obligations"],"mod":["pretty"],"struct":["InferCtxt","InferCtxtAt","Tag"],"trait":["KVarGen"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"enum":["ConstrReason"],"fn":["mk_coroutine_obligations"],"mod":["pretty"],"struct":["InferCtxt","InferCtxtAt","Sub","Tag"],"trait":["KVarGen"],"type":["Result"]};

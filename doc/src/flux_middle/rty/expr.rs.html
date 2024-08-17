@@ -1144,6 +1144,7 @@
 <a href="#1144" id="1144">1144</a>
 <a href="#1145" id="1145">1145</a>
 <a href="#1146" id="1146">1146</a>
+<a href="#1147" id="1147">1147</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1177,7 +1178,8 @@
     rustc::ty::{Const, ConstKind},
 };
 
-<span class="doccomment">/// A lambda abstraction with an elaborated output sort
+<span class="doccomment">/// A lambda abstraction with an elaborated output sort. We need the output sort of lambdas for
+/// encoding into fixpoint
 </span><span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>Lambda {
     <span class="kw">pub</span>(<span class="kw">super</span>) body: Binder&lt;Expr&gt;,

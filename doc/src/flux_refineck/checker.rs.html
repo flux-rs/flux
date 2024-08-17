@@ -1804,8 +1804,6 @@
 <a href="#1804" id="1804">1804</a>
 <a href="#1805" id="1805">1805</a>
 <a href="#1806" id="1806">1806</a>
-<a href="#1807" id="1807">1807</a>
-<a href="#1808" id="1808">1808</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -2321,7 +2319,7 @@
             </span>.output
             .replace_bound_refts_with(|sort, mode, <span class="kw">_</span>| infcx.fresh_infer_var(sort, mode));
 
-        infcx
+        <span class="kw">let </span>obligations = infcx
             .at(ConstrReason::Ret)
             .subtyping(rcx, <span class="kw-2">&amp;</span>ret_place_ty, <span class="kw-2">&amp;</span>output.ret)
             .with_span(span)<span class="question-mark">?</span>;
@@ -2341,12 +2339,10 @@
             }
         }
 
-        <span class="kw">let </span>clauses = infcx.take_obligations();
-
         <span class="kw">let </span>evars_sol = infcx.solve().with_span(span)<span class="question-mark">?</span>;
         rcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
 
-        <span class="self">self</span>.check_closure_clauses(rcx, rcx.snapshot(), <span class="kw-2">&amp;</span>clauses)
+        <span class="self">self</span>.check_closure_clauses(rcx, rcx.snapshot(), <span class="kw-2">&amp;</span>obligations)
     }
 
     <span class="attr">#[allow(clippy::too_many_arguments)]
