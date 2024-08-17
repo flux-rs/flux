@@ -4,7 +4,6 @@ use std::{iter, ops::ControlFlow};
 
 use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug};
 use flux_middle::{
-    global_env::GlobalEnv,
     intern::List,
     rty::{
         canonicalize::Hoister,
@@ -76,11 +75,11 @@ impl TypeEnv<'_> {
 
     pub(crate) fn lookup_place(
         &mut self,
-        genv: GlobalEnv,
         rcx: &mut RefineCtxt,
+        infcx: &InferCtxt,
         place: &Place,
     ) -> Result<Ty> {
-        Ok(self.bindings.lookup_unfolding(genv, rcx, place)?.ty)
+        Ok(self.bindings.lookup_unfolding(rcx, infcx, place)?.ty)
     }
 
     pub(crate) fn get(&self, path: &Path) -> Ty {
@@ -96,13 +95,13 @@ impl TypeEnv<'_> {
     /// and then replaced by the region in the type of `x` after the assignment. See [`TypeEnv::assign`]
     pub(crate) fn borrow(
         &mut self,
-        genv: GlobalEnv,
         rcx: &mut RefineCtxt,
+        infcx: &InferCtxt,
         re: Region,
         mutbl: Mutability,
         place: &Place,
     ) -> Result<Ty> {
-        let result = self.bindings.lookup_unfolding(genv, rcx, place)?;
+        let result = self.bindings.lookup_unfolding(rcx, infcx, place)?;
         if result.is_strg && mutbl == Mutability::Mut {
             Ok(Ty::ptr(PtrKind::Mut(re), result.path()))
         } else {
@@ -219,7 +218,7 @@ impl TypeEnv<'_> {
     ) -> Result {
         let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
         let new_ty = subst::match_regions(&new_ty, &rustc_ty);
-        let result = self.bindings.lookup_unfolding(infcx.genv, rcx, place)?;
+        let result = self.bindings.lookup_unfolding(rcx, infcx, place)?;
 
         infcx.push_scope(rcx);
         if result.is_strg {
@@ -236,11 +235,11 @@ impl TypeEnv<'_> {
 
     pub(crate) fn move_place(
         &mut self,
-        genv: GlobalEnv,
         rcx: &mut RefineCtxt,
+        infcx: &InferCtxt,
         place: &Place,
     ) -> Result<Ty> {
-        let result = self.bindings.lookup_unfolding(genv, rcx, place)?;
+        let result = self.bindings.lookup_unfolding(rcx, infcx, place)?;
         if result.is_strg {
             let uninit = Ty::uninit();
             Ok(result.update(uninit))
@@ -302,17 +301,17 @@ impl TypeEnv<'_> {
 
     pub(crate) fn unfold(
         &mut self,
-        genv: GlobalEnv,
+        infcx: &InferCtxt,
         rcx: &mut RefineCtxt,
         place: &Place,
         checker_conf: CheckerConfig,
     ) -> Result {
-        self.bindings.unfold(genv, rcx, place, checker_conf)
+        self.bindings.unfold(infcx, rcx, place, checker_conf)
     }
 
     pub(crate) fn downcast(
         &mut self,
-        genv: GlobalEnv,
+        infcx: &InferCtxt,
         rcx: &mut RefineCtxt,
         place: &Place,
         variant_idx: VariantIdx,
@@ -323,7 +322,7 @@ impl TypeEnv<'_> {
             .projection
             .push(PlaceElem::Downcast(None, variant_idx));
         self.bindings
-            .unfold(genv, rcx, &down_place, checker_config)?;
+            .unfold(infcx, rcx, &down_place, checker_config)?;
         Ok(())
     }
 

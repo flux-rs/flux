@@ -43,7 +43,7 @@ pub(super) fn decode_crate_metadata(
         .unwrap_or_else(|err| sess.emit_fatal(errors::DecodeFileError::new(path, err)));
 
     if !buf.starts_with(METADATA_HEADER) {
-        bug!("incompatible metadata version")
+        bug!("incompatible metadata version");
     }
 
     let mut decoder =

@@ -612,6 +612,9 @@ impl Expr {
                 let val = const_eval::scalar_int_to_rty_constant2(tcx, *scalar, ty).unwrap();
                 Expr::constant(val)
             }
+            // We should have normalized away the unevaluated constants
+            ConstKind::Unevaluated(_) => bug!("unexpected `ConstKind::Unevaluated`"),
+
             ConstKind::Infer(_) => bug!("unexpected `ConstKind::Infer`"),
         }
     }
