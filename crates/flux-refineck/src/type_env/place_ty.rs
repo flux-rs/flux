@@ -201,10 +201,10 @@ impl PlacesTree {
         Ok(LookupResult { ty, is_strg, cursor, bindings: self })
     }
 
-    pub(crate) fn lookup_unfolding<'genv, 'tcx>(
+    pub(crate) fn lookup_unfolding(
         &mut self,
         rcx: &mut RefineCtxt,
-        infcx: &InferCtxt<'_, 'genv, 'tcx>,
+        infcx: &InferCtxt,
         key: &impl LookupKey,
     ) -> CheckerResult<LookupResult> {
         self.lookup_inner(key, Unfold(rcx, infcx))
