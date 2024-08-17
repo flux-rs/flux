@@ -513,7 +513,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .output
             .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
 
-        infcx
+        let obligations = infcx
             .at(ConstrReason::Ret)
             .subtyping(rcx, &ret_place_ty, &output.ret)
             .with_span(span)?;
@@ -533,12 +533,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         }
 
-        let clauses = infcx.take_obligations();
-
         let evars_sol = infcx.solve().with_span(span)?;
         rcx.replace_evars(&evars_sol);
 
-        self.check_closure_clauses(rcx, rcx.snapshot(), &clauses)
+        self.check_closure_clauses(rcx, rcx.snapshot(), &obligations)
     }
 
     #[allow(clippy::too_many_arguments)]
