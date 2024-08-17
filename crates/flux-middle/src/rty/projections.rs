@@ -13,8 +13,8 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
-    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, Expr, ExprKind,
-    GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
+    AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind, Expr,
+    ExprKind, GenericArg, ProjectionPredicate, RefineArgs, Region, SubsetTy, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -278,7 +278,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
         if let Some((ty, scalar_int)) = rc.try_eval_scalar_int(self.tcx(), param_env)
             && let Ok(ty) = lower_ty(self.tcx(), ty)
         {
-            Ok(Const::from_scalar_int(scalar_int, ty))
+            Ok(Const { kind: ConstKind::Value(ty, scalar_int) })
         } else {
             Ok(c.clone())
         }

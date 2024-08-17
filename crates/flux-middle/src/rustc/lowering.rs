@@ -664,6 +664,7 @@ fn lower_const<'tcx>(
             ConstKind::Value(lower_ty(tcx, ty)?, scalar_int)
         }
         rustc_type_ir::ConstKind::Unevaluated(c) => {
+            // TODO: raise unsupported if c.args is not empty?
             let args = lower_generic_args(tcx, c.args)?;
             ConstKind::Unevaluated(UnevaluatedConst { def: c.def, args })
         }
