@@ -1,6 +1,5 @@
 // https://github.com/flux-rs/flux/issues/625
 
-// #[flux::constant] Add this line if you want to refer to `BUFLEN` in *refinement* specifications
 const BUFLEN: usize = 100;
 
 pub struct Blob {
