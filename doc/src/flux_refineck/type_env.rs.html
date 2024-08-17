@@ -1398,7 +1398,7 @@
 
         <span class="kw">let </span>outter_sorts = vars.to_sort_list();
 
-        <span class="kw">let </span>kvar = kvar_store.fresh(<span class="kw-2">&amp;</span>[outter_sorts.clone()], <span class="kw-2">&amp;</span><span class="self">self</span>.scope, KVarEncoding::Conj);
+        <span class="kw">let </span>kvar = kvar_store.fresh(<span class="kw-2">&amp;</span>[outter_sorts.clone()], <span class="self">self</span>.scope.iter(), KVarEncoding::Conj);
         constrs.push(kvar);
 
         <span class="comment">// Replace remaning holes by fresh kvars
@@ -1407,7 +1407,7 @@
             <span class="kw">let </span>sorts = std::iter::once(outter_sorts.clone())
                 .chain(sorts.iter().cloned())
                 .collect_vec();
-            kvar_store.fresh(<span class="kw-2">&amp;</span>sorts, <span class="kw-2">&amp;</span><span class="self">self</span>.scope, KVarEncoding::Conj)
+            kvar_store.fresh(<span class="kw-2">&amp;</span>sorts, <span class="self">self</span>.scope.iter(), KVarEncoding::Conj)
         };
         bindings.fmap_mut(|binding| binding.replace_holes(<span class="kw-2">&amp;mut </span>kvar_gen));
 

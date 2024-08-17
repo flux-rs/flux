@@ -1260,11 +1260,6 @@
 <a href="#1260" id="1260">1260</a>
 <a href="#1261" id="1261">1261</a>
 <a href="#1262" id="1262">1262</a>
-<a href="#1263" id="1263">1263</a>
-<a href="#1264" id="1264">1264</a>
-<a href="#1265" id="1265">1265</a>
-<a href="#1266" id="1266">1266</a>
-<a href="#1267" id="1267">1267</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter, ops::ControlFlow};
@@ -1303,8 +1298,6 @@
 <span class="kw">use </span>rustc_index::newtype_index;
 <span class="kw">use </span>rustc_span::{Span, Symbol};
 <span class="kw">use </span>rustc_type_ir::{BoundVar, DebruijnIndex};
-
-<span class="kw">use crate</span>::{refine_tree::Scope, CheckerConfig};
 
 <span class="macro">newtype_index!</span> {
     <span class="attr">#[debug_format = <span class="string">"TagIdx({})"</span>]
@@ -1497,7 +1490,7 @@
 </span><span class="kw">struct </span>KVarEncodingCtxt {
     <span class="doccomment">/// List of all kvars that need to be defined in fixpoint
     </span>kvars: IndexVec&lt;fixpoint::KVid, FixpointKVar&gt;,
-    <span class="doccomment">/// A mapping from [`rty::KVid`] to the list of [`fixpoint::KVid`]s that encode the kvar.
+    <span class="doccomment">/// A mapping from [`rty::KVid`] to the list of [`fixpoint::KVid`]s encoding the kvar.
     </span>map: UnordMap&lt;rty::KVid, Vec&lt;fixpoint::KVid&gt;&gt;,
 }
 
@@ -1618,23 +1611,6 @@
     val: <span class="prelude-ty">Option</span>&lt;Constant&gt;,
 }
 
-<span class="doccomment">/// An alias for additional bindings introduced when ANF-ing index expressions
-/// in the course of encoding into fixpoint.
-</span><span class="kw">pub type </span>Bindings = Vec&lt;(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)&gt;;
-
-<span class="kw">pub fn </span>stitch(bindings: Bindings, c: fixpoint::Constraint) -&gt; fixpoint::Constraint {
-    bindings.into_iter().rev().fold(c, |c, (name, sort, e)| {
-        fixpoint::Constraint::ForAll(
-            fixpoint::Bind {
-                name: fixpoint::Var::Local(name),
-                sort,
-                pred: fixpoint::Pred::Expr(e),
-            },
-            Box::new(c),
-        )
-    })
-}
-
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, Tag&gt; FixpointCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, Tag&gt;
 <span class="kw">where
     </span>Tag: std::hash::Hash + Eq + Copy,
@@ -1732,7 +1708,7 @@
         <span class="kw-2">mut </span><span class="self">self</span>,
         cache: <span class="kw-2">&amp;mut </span>QueryCache,
         constraint: fixpoint::Constraint,
-        config: <span class="kw-2">&amp;</span>CheckerConfig,
+        scrape_quals: bool,
     ) -&gt; QueryResult&lt;Vec&lt;Tag&gt;&gt; {
         <span class="kw">if </span>!constraint.is_concrete() {
             <span class="comment">// skip checking trivial constraints
@@ -1793,7 +1769,7 @@
             kvars,
             constraint,
             qualifiers,
-            scrape_quals: config.scrape_quals,
+            scrape_quals,
             data_decls: <span class="self">self</span>.sorts.into_data_decls(),
         };
         <span class="kw">if </span>config::dump_constraint() {
@@ -1827,7 +1803,8 @@
         })
     }
 
-    <span class="doccomment">/// Encodes an expression in head position as a constraint "peeling out" implications and foralls.
+    <span class="doccomment">/// Encodes an expression in head position as a [`fixpoint::Constraint`] "peeling out"
+    /// implications and foralls.
     </span><span class="kw">pub fn </span>head_to_fixpoint(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         expr: <span class="kw-2">&amp;</span>rty::Expr,
@@ -1849,12 +1826,12 @@
             rty::ExprKind::BinaryOp(rty::BinOp::Imp, e1, e2) =&gt; {
                 <span class="kw">let </span>(bindings, assumption) = <span class="self">self</span>.assumption_to_fixpoint(e1)<span class="question-mark">?</span>;
                 <span class="kw">let </span>cstr = <span class="self">self</span>.head_to_fixpoint(e2, mk_tag)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(stitch(bindings, mk_implies(assumption, cstr)))
+                <span class="prelude-val">Ok</span>(fixpoint::Constraint::foralls(bindings, mk_implies(assumption, cstr)))
             }
             rty::ExprKind::KVar(kvar) =&gt; {
                 <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
                 <span class="kw">let </span>pred = <span class="self">self</span>.kvar_to_fixpoint(kvar, <span class="kw-2">&amp;mut </span>bindings)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(stitch(bindings, fixpoint::Constraint::Pred(pred, <span class="prelude-val">None</span>)))
+                <span class="prelude-val">Ok</span>(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, <span class="prelude-val">None</span>)))
             }
             rty::ExprKind::ForAll(pred) =&gt; {
                 <span class="self">self</span>.env.push_layer_with_fresh_names(pred.vars().len());
@@ -1862,10 +1839,16 @@
                 <span class="kw">let </span>vars = <span class="self">self</span>.env.pop_layer();
 
                 <span class="kw">let </span>bindings = iter::zip(vars, <span class="kw-2">&amp;</span>pred.vars().to_sort_list())
-                    .map(|(var, sort)| (var, sort_to_fixpoint(sort), fixpoint::Expr::TRUE))
+                    .map(|(var, sort)| {
+                        fixpoint::Bind {
+                            name: var.into(),
+                            sort: sort_to_fixpoint(sort),
+                            pred: fixpoint::Pred::TRUE,
+                        }
+                    })
                     .collect_vec();
 
-                <span class="prelude-val">Ok</span>(stitch(bindings, cstr))
+                <span class="prelude-val">Ok</span>(fixpoint::Constraint::foralls(bindings, cstr))
             }
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">let </span>tag_idx = <span class="self">self</span>.tag_idx(mk_tag(expr.span()));
@@ -1882,7 +1865,7 @@
     </span><span class="kw">pub fn </span>assumption_to_fixpoint(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         pred: <span class="kw-2">&amp;</span>rty::Expr,
-    ) -&gt; QueryResult&lt;(Bindings, fixpoint::Pred)&gt; {
+    ) -&gt; QueryResult&lt;(Vec&lt;fixpoint::Bind&gt;, fixpoint::Pred)&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
         <span class="kw">let </span><span class="kw-2">mut </span>preds = <span class="macro">vec!</span>[];
         <span class="self">self</span>.assumption_to_fixpoint_aux(pred, <span class="kw-2">&amp;mut </span>bindings, <span class="kw-2">&amp;mut </span>preds)<span class="question-mark">?</span>;
@@ -1893,7 +1876,7 @@
     </span><span class="kw">fn </span>assumption_to_fixpoint_aux(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         expr: <span class="kw-2">&amp;</span>rty::Expr,
-        bindings: <span class="kw-2">&amp;mut </span>Bindings,
+        bindings: <span class="kw-2">&amp;mut </span>Vec&lt;fixpoint::Bind&gt;,
         preds: <span class="kw-2">&amp;mut </span>Vec&lt;fixpoint::Pred&gt;,
     ) -&gt; QueryResult {
         <span class="kw">match </span>expr.kind() {
@@ -1922,7 +1905,7 @@
     <span class="kw">fn </span>kvar_to_fixpoint(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         kvar: <span class="kw-2">&amp;</span>rty::KVar,
-        bindings: <span class="kw-2">&amp;mut </span>Bindings,
+        bindings: <span class="kw-2">&amp;mut </span>Vec&lt;fixpoint::Bind&gt;,
     ) -&gt; QueryResult&lt;fixpoint::Pred&gt; {
         <span class="kw">let </span>decl = <span class="self">self</span>.kvars.get(kvar.kvid);
         <span class="kw">let </span>kvids = <span class="self">self</span>.kcx.encode(kvar.kvid, decl);
@@ -1939,11 +1922,14 @@
         </span><span class="kw">if </span>all_args.is_empty() {
             <span class="kw">let </span>fresh = <span class="self">self</span>.env.fresh_name();
             <span class="kw">let </span>var = fixpoint::Var::Local(fresh);
-            bindings.push((
-                fresh,
-                fixpoint::Sort::Int,
-                fixpoint::Expr::eq(fixpoint::Expr::Var(var), fixpoint::Expr::ZERO),
-            ));
+            bindings.push(fixpoint::Bind {
+                name: fresh.into(),
+                sort: fixpoint::Sort::Int,
+                pred: fixpoint::Pred::Expr(fixpoint::Expr::eq(
+                    fixpoint::Expr::Var(var),
+                    fixpoint::Expr::ZERO,
+                )),
+            });
             <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Pred::KVar(kvids[<span class="number">0</span>], <span class="macro">vec!</span>[var]));
         }
 
@@ -1991,7 +1977,7 @@
     </span><span class="kw">pub fn </span>fresh(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         binders: <span class="kw-2">&amp;</span>[List&lt;rty::Sort&gt;],
-        scope: <span class="kw-2">&amp;</span>Scope,
+        scope: <span class="kw">impl </span>IntoIterator&lt;Item = (rty::Var, rty::Sort)&gt;,
         encoding: KVarEncoding,
     ) -&gt; rty::Expr {
         <span class="kw">if </span>binders.is_empty() {
@@ -2008,7 +1994,7 @@
                     (rty::Var::Bound(debruijn, var), sort)
                 })
             }),
-            scope.iter(),
+            scope,
         );
         <span class="self">self</span>.fresh_inner(binders.last().unwrap().len(), args, encoding)
     }
@@ -2395,7 +2381,7 @@
         arg: <span class="kw-2">&amp;</span>rty::Expr,
         sort: <span class="kw-2">&amp;</span>rty::Sort,
         env: <span class="kw-2">&amp;mut </span>Env,
-        bindings: <span class="kw-2">&amp;mut </span>Vec&lt;(fixpoint::LocalVar, fixpoint::Sort, fixpoint::Expr)&gt;,
+        bindings: <span class="kw-2">&amp;mut </span>Vec&lt;fixpoint::Bind&gt;,
     ) -&gt; QueryResult&lt;fixpoint::Var&gt; {
         <span class="kw">match </span>arg.kind() {
             rty::ExprKind::Var(var) =&gt; <span class="prelude-val">Ok</span>(env.get_var(var, <span class="self">self</span>.def_span)),
@@ -2405,7 +2391,11 @@
                     fixpoint::Expr::Var(fresh.into()),
                     <span class="self">self</span>.expr_to_fixpoint(arg, env)<span class="question-mark">?</span>,
                 );
-                bindings.push((fresh, sort_to_fixpoint(sort), pred));
+                bindings.push(fixpoint::Bind {
+                    name: fresh.into(),
+                    sort: sort_to_fixpoint(sort),
+                    pred: fixpoint::Pred::Expr(pred),
+                });
                 <span class="prelude-val">Ok</span>(fresh.into())
             }
         }

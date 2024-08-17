@@ -3401,7 +3401,7 @@
                         .mode
                         .kvars
                         .borrow_mut()
-                        .fresh(sorts, <span class="kw-2">&amp;</span>scope, encoding)
+                        .fresh(sorts, scope.iter(), encoding)
                 }
             },
             span,
