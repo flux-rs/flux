@@ -513,7 +513,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .output
             .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
 
-        infcx
+        let obligations = infcx
             .at(ConstrReason::Ret)
             .subtyping(rcx, &ret_place_ty, &output.ret)
             .with_span(span)?;
@@ -533,12 +533,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         }
 
-        let clauses = infcx.take_obligations();
-
         let evars_sol = infcx.solve().with_span(span)?;
         rcx.replace_evars(&evars_sol);
 
-        self.check_closure_clauses(rcx, rcx.snapshot(), &clauses)
+        self.check_closure_clauses(rcx, rcx.snapshot(), &obligations)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -882,13 +880,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         match rvalue {
             Rvalue::Use(operand) => self.check_operand(rcx, env, stmt_span, operand),
-            Rvalue::BinaryOp(bin_op, op1, op2) => {
-                self.check_binary_op(rcx, env, stmt_span, *bin_op, op1, op2)
-            }
-            Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {
-                // TODO(nilehmann) should we somehow connect the result of the operation with the bool?
-                let ty = self.check_binary_op(rcx, env, stmt_span, *bin_op, op1, op2)?;
-                Ok(Ty::tuple(vec![ty, Ty::bool()]))
+            Rvalue::Repeat(operand, c) => {
+                let ty = self.check_operand(rcx, env, stmt_span, operand)?;
+                Ok(Ty::array(ty, c.clone()))
             }
             Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
                 env.borrow(self.genv, rcx, *r, Mutability::Mut, place)
@@ -898,7 +892,23 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 env.borrow(self.genv, rcx, *r, Mutability::Not, place)
                     .with_span(stmt_span)
             }
+            Rvalue::Len(place) => self.check_len(rcx, env, stmt_span, place),
+            Rvalue::Cast(kind, op, to) => {
+                let from = self.check_operand(rcx, env, stmt_span, op)?;
+                self.check_cast(rcx, env, stmt_span, *kind, &from, to)
+            }
+            Rvalue::BinaryOp(bin_op, op1, op2) => {
+                self.check_binary_op(rcx, env, stmt_span, *bin_op, op1, op2)
+            }
+            Rvalue::NullaryOp(null_op, ty) => Ok(self.check_nullary_op(*null_op, ty)),
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
+            Rvalue::Discriminant(place) => {
+                let ty = env
+                    .lookup_place(self.genv, rcx, place)
+                    .with_span(stmt_span)?;
+                let (adt_def, ..) = ty.expect_adt();
+                Ok(Ty::discr(adt_def.clone(), place.clone()))
+            }
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _), operands) => {
                 let actuals = self.check_operands(rcx, env, stmt_span, operands)?;
                 let sig = genv
@@ -936,21 +946,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let upvar_tys = self.check_operands(rcx, env, stmt_span, ops)?;
                 Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into()))
             }
-            Rvalue::Discriminant(place) => {
-                let ty = env
-                    .lookup_place(self.genv, rcx, place)
-                    .with_span(stmt_span)?;
-                let (adt_def, ..) = ty.expect_adt();
-                Ok(Ty::discr(adt_def.clone(), place.clone()))
-            }
-            Rvalue::Len(place) => self.check_len(rcx, env, stmt_span, place),
-            Rvalue::Cast(kind, op, to) => {
-                let from = self.check_operand(rcx, env, stmt_span, op)?;
-                self.check_cast(rcx, env, stmt_span, *kind, &from, to)
-            }
-            Rvalue::Repeat(operand, c) => {
-                let ty = self.check_operand(rcx, env, stmt_span, operand)?;
-                Ok(Ty::array(ty, c.clone()))
+            Rvalue::ShallowInitBox(operand, _) => {
+                self.check_operand(rcx, env, stmt_span, operand)?;
+                Ty::mk_box_with_default_alloc(self.genv, Ty::uninit()).with_span(stmt_span)
             }
         }
     }
@@ -959,12 +957,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        source_span: Span,
+        smt_span: Span,
         place: &Place,
     ) -> Result<Ty> {
         let ty = env
             .lookup_place(self.genv, rcx, place)
-            .with_span(source_span)?;
+            .with_span(smt_span)?;
 
         let idx = match ty.kind() {
             TyKind::Indexed(BaseTy::Array(_, len), _) => Expr::from_const(self.genv.tcx(), len),
@@ -979,20 +977,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        source_span: Span,
+        stmt_span: Span,
         bin_op: mir::BinOp,
         op1: &Operand,
         op2: &Operand,
     ) -> Result<Ty> {
         let check_overflow = self.check_overflow();
-        let ty1 = self.check_operand(rcx, env, source_span, op1)?;
-        let ty2 = self.check_operand(rcx, env, source_span, op2)?;
+        let ty1 = self.check_operand(rcx, env, stmt_span, op1)?;
+        let ty2 = self.check_operand(rcx, env, stmt_span, op2)?;
 
         match (ty1.kind(), ty2.kind()) {
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 let rule = primops::match_bin_op(bin_op, bty1, idx1, bty2, idx2, check_overflow);
                 if let Some(pre) = rule.precondition {
-                    self.infcx(rcx, source_span)
+                    self.infcx(rcx, stmt_span)
                         .at(pre.reason)
                         .check_pred(rcx, pre.pred);
                 }
@@ -1003,20 +1001,30 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
+    fn check_nullary_op(&self, null_op: mir::NullOp, _ty: &rustc::ty::Ty) -> Ty {
+        match null_op {
+            mir::NullOp::SizeOf | mir::NullOp::AlignOf => {
+                // We could try to get the layout of type to index this with the actual value, but
+                // this enough for now. Revisit if we ever need the precision.
+                Ty::uint(UintTy::Usize)
+            }
+        }
+    }
+
     fn check_unary_op(
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        source_span: Span,
+        stmt_span: Span,
         un_op: mir::UnOp,
         op: &Operand,
     ) -> Result<Ty> {
-        let ty = self.check_operand(rcx, env, source_span, op)?;
+        let ty = self.check_operand(rcx, env, stmt_span, op)?;
         match ty.kind() {
             TyKind::Indexed(bty, idx) => {
                 let rule = primops::match_un_op(un_op, bty, idx, self.check_overflow());
                 if let Some(pre) = rule.precondition {
-                    self.infcx(rcx, source_span)
+                    self.infcx(rcx, stmt_span)
                         .at(pre.reason)
                         .check_pred(rcx, pre.pred);
                 }
@@ -1030,11 +1038,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        span: Span,
+        stmt_span: Span,
         args: &[Ty],
         arr_ty: Ty,
     ) -> Result<Ty> {
-        let mut infcx = self.infcx(rcx, span);
+        let mut infcx = self.infcx(rcx, stmt_span);
         let arr_ty =
             arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
@@ -1052,17 +1060,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         path,
                         PtrToRefBound::Ty(bound.clone()),
                     )
-                    .with_span(span)?;
+                    .with_span(stmt_span)?;
                 }
                 _ => {
                     infcx
                         .at(ConstrReason::Other)
                         .subtyping(rcx, ty, &arr_ty)
-                        .with_span(span)?;
+                        .with_span(stmt_span)?;
                 }
             }
         }
-        rcx.replace_evars(&infcx.solve().with_span(span)?);
+        rcx.replace_evars(&infcx.solve().with_span(stmt_span)?);
 
         Ok(Ty::array(arr_ty, rty::Const::from_usize(self.genv.tcx(), args.len())))
     }
@@ -1071,7 +1079,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &self,
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
-        span: Span,
+        stmt_span: Span,
         kind: CastKind,
         from: &Ty,
         to: &rustc::ty::Ty,
@@ -1105,7 +1113,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
             }
             CastKind::Pointer(mir::PointerCast::Unsize) => {
-                self.check_unsize_cast(rcx, env, span, from, to)?
+                self.check_unsize_cast(rcx, env, stmt_span, from, to)?
             }
             CastKind::FloatToInt
             | CastKind::IntToFloat
@@ -1125,41 +1133,49 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         rcx: &mut RefineCtxt,
         env: &mut TypeEnv,
         span: Span,
-        from: &Ty,
-        to: &rustc::ty::Ty,
+        src: &Ty,
+        dst: &rustc::ty::Ty,
     ) -> Result<Ty> {
-        // Convert ptr to ref
-        let from = if let TyKind::Ptr(PtrKind::Mut(re), path) = from.kind() {
+        // Convert `ptr` to `&mut`
+        let src = if let TyKind::Ptr(PtrKind::Mut(re), path) = src.kind() {
             let mut infcx = self.infcx(rcx, span);
             env.ptr_to_ref(rcx, &mut infcx, ConstrReason::Other, *re, path, PtrToRefBound::Identity)
                 .with_span(span)?
         } else {
-            from.clone()
+            src.clone()
         };
 
-        if let TyKind::Indexed(BaseTy::Ref(_, src_ty, src_mut), _) = from.kind()
-            && let TyKind::Indexed(src_base_ty, _) = src_ty.kind()
-            && let rustc::ty::TyKind::Ref(dst_re, dst_ty, dst_mut) = to.kind()
+        if let rustc::ty::TyKind::Ref(_, deref_ty, _) = dst.kind()
+            && let rustc::ty::TyKind::Dynamic(..) = deref_ty.kind()
         {
-            // &mut [T; n] -> &mut [T][n] and &[T; n] -> &[T][n]
-            if let rustc::ty::TyKind::Slice(_) = dst_ty.kind()
-                && let BaseTy::Array(src_arr_ty, src_n) = src_base_ty
-                && src_mut == dst_mut
-            {
-                let idx = Expr::from_const(self.genv.tcx(), src_n);
-                let dst_slice = Ty::indexed(BaseTy::Slice(src_arr_ty.clone()), idx);
-                Ok(Ty::mk_ref(*dst_re, dst_slice, *dst_mut))
-            } else
-            // &T  -> & dyn U
-            if let rustc::ty::TyKind::Dynamic(_, _) = dst_ty.kind() {
-                self.genv
-                    .refine_default(&self.generics, to)
-                    .with_span(self.body.span())
-            } else {
-                tracked_span_bug!("unsupported Unsize cast: from {from:?} to {to:?}")
-            }
+            return self
+                .genv
+                .refine_default(&self.generics, dst)
+                .with_span(self.body.span());
+        }
+
+        // `&mut [T; n] -> &mut [T]` or `&[T; n] -> &[T]`
+        if let TyKind::Indexed(BaseTy::Ref(_, deref_ty, _), _) = src.kind()
+            && let TyKind::Indexed(BaseTy::Array(arr_ty, arr_len), _) = deref_ty.kind()
+            && let rustc::ty::TyKind::Ref(re, _, mutbl) = dst.kind()
+        {
+            let idx = Expr::from_const(self.genv.tcx(), arr_len);
+            Ok(Ty::mk_ref(*re, Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx), *mutbl))
+
+        // `Box<[T; n]> -> Box<[T]>`
+        } else if let TyKind::Indexed(BaseTy::Adt(adt_def, args), _) = src.kind()
+            && adt_def.is_box()
+            && let (deref_ty, alloc_ty) = args.box_args()
+            && let TyKind::Indexed(BaseTy::Array(arr_ty, arr_len), _) = deref_ty.kind()
+        {
+            let idx = Expr::from_const(self.genv.tcx(), arr_len);
+            Ty::mk_box(self.genv, Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx), alloc_ty.clone())
+                .with_span(span)
         } else {
-            tracked_span_bug!("unsupported Unsize cast: from {from:?} to {to:?}")
+            Err(CheckerError::bug(
+                format!("unsupported unsize cast from `{src:?}` to `{dst:?}`",),
+                span,
+            ))
         }
     }
 
@@ -1579,7 +1595,7 @@ impl Mode for RefineMode {
                         .mode
                         .kvars
                         .borrow_mut()
-                        .fresh(sorts, &scope, encoding)
+                        .fresh(sorts, scope.iter(), encoding)
                 }
             },
             span,
@@ -1702,6 +1718,17 @@ pub(crate) mod errors {
         span: Span,
     }
 
+    impl CheckerError {
+        pub fn opaque_struct(def_id: DefId, span: Span) -> Self {
+            Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
+        }
+
+        #[track_caller]
+        pub fn bug(msg: impl ToString, span: Span) -> Self {
+            CheckerErrKind::bug(msg).at(span)
+        }
+    }
+
     #[derive(Debug)]
     pub enum CheckerErrKind {
         Inference,
@@ -1709,9 +1736,14 @@ pub(crate) mod errors {
         Query(QueryErr),
     }
 
-    impl CheckerError {
-        pub fn opaque_struct(def_id: DefId, span: Span) -> Self {
-            Self { kind: CheckerErrKind::OpaqueStruct(def_id), span }
+    impl CheckerErrKind {
+        #[track_caller]
+        pub fn bug(msg: impl ToString) -> Self {
+            Self::Query(QueryErr::bug(msg))
+        }
+
+        pub fn at(self, span: Span) -> CheckerError {
+            CheckerError { kind: self, span }
         }
     }
 
@@ -1764,11 +1796,11 @@ pub(crate) mod errors {
         E: Into<CheckerErrKind>,
     {
         fn with_span(self, span: Span) -> Result<T, CheckerError> {
-            self.map_err(|kind| CheckerError { kind: kind.into(), span })
+            self.map_err(|kind| kind.into().at(span))
         }
 
         fn with_src_info(self, src_info: SourceInfo) -> Result<T, CheckerError> {
-            self.map_err(|kind| CheckerError { kind: kind.into(), span: src_info.span })
+            self.map_err(|kind| kind.into().at(src_info.span))
         }
     }
 }

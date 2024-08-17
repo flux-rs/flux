@@ -25,7 +25,7 @@ use fold::TypeFolder;
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
-use rustc_hir::def_id::DefId;
+use rustc_hir::{def_id::DefId, LangItem};
 use rustc_index::{newtype_index, IndexSlice};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::{ParamConst, TyCtxt};
@@ -834,6 +834,30 @@ impl Ty {
         BaseTy::Slice(ty).to_ty()
     }
 
+    pub fn mk_box(genv: GlobalEnv, deref_ty: Ty, alloc_ty: Ty) -> QueryResult<Ty> {
+        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
+        let adt_def = genv.adt_def(def_id)?;
+
+        let args = vec![GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)];
+
+        let bty = BaseTy::adt(adt_def, args);
+        Ok(Ty::indexed(bty, Expr::unit_adt(def_id)))
+    }
+
+    pub fn mk_box_with_default_alloc(genv: GlobalEnv, deref_ty: Ty) -> QueryResult<Ty> {
+        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
+
+        let generics = genv.generics_of(def_id)?;
+        let alloc_ty = genv.refine_default(
+            &generics,
+            &genv
+                .lower_type_of(generics.own_params[1].def_id)?
+                .skip_binder(),
+        )?;
+
+        Ty::mk_box(genv, deref_ty, alloc_ty)
+    }
+
     pub fn tuple(tys: impl Into<List<Ty>>) -> Ty {
         BaseTy::Tuple(tys.into()).to_ty()
     }
@@ -1188,6 +1212,16 @@ impl BaseTy {
         matches!(self, BaseTy::Adt(adt_def, _) if adt_def.is_box())
     }
 
+    pub fn unpack_box(&self) -> Option<(&Ty, &Ty)> {
+        if let BaseTy::Adt(adt_def, args) = self
+            && adt_def.is_box()
+        {
+            Some(args.box_args())
+        } else {
+            None
+        }
+    }
+
     pub fn invariants(&self, overflow_checking: bool) -> &[Invariant] {
         match self {
             BaseTy::Adt(adt_def, _) => adt_def.invariants(),
@@ -1462,6 +1496,15 @@ impl GenericArg {
 pub type GenericArgs = List<GenericArg>;
 
 impl GenericArgs {
+    #[track_caller]
+    pub fn box_args(&self) -> (&Ty, &Ty) {
+        if let [GenericArg::Ty(deref), GenericArg::Ty(alloc)] = &self[..] {
+            (deref, alloc)
+        } else {
+            bug!("invalid generic arguments for box");
+        }
+    }
+
     pub fn identity_for_item(genv: GlobalEnv, def_id: impl Into<DefId>) -> QueryResult<Self> {
         let mut args = vec![];
         let generics = genv.generics_of(def_id)?;
@@ -2095,15 +2138,6 @@ impl Binder<Expr> {
     /// See [`Expr::is_trivially_true`]
     pub fn is_trivially_true(&self) -> bool {
         self.value.is_trivially_true()
-    }
-}
-
-#[track_caller]
-pub fn box_args(args: &GenericArgs) -> (&Ty, &Ty) {
-    if let [GenericArg::Ty(boxed), GenericArg::Ty(alloc)] = &args[..] {
-        (boxed, alloc)
-    } else {
-        bug!("invalid generic arguments for box");
     }
 }
 

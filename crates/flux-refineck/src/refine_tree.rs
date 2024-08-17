@@ -12,7 +12,6 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{
-        box_args,
         evars::EVarSol,
         fold::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
@@ -25,13 +24,13 @@ use itertools::Itertools;
 use rustc_middle::ty::ParamConst;
 
 use crate::{
-    fixpoint_encoding::{fixpoint, sort_to_fixpoint, stitch, FixpointCtxt},
+    fixpoint_encoding::{fixpoint, sort_to_fixpoint, FixpointCtxt},
     infer::Tag,
 };
 
 /// A *refine*ment *tree* tracks the "tree-like structure" of refinement variables and predicates
-/// generated during type-checking. After type-checking, the tree can be converted into a fixpoint
-/// constraint which implies the safety of a function.
+/// generated during refinement type-checking. This tree can be encoded as a fixpoint constraint
+/// whose satisfiability implies the safety of a function.
 ///
 /// We try to hide the representation of the tree as much as possible and only a couple of operations
 /// can be used to manipulate the structure of the tree explicitly. Instead, the tree is mostly constructed
@@ -474,8 +473,8 @@ impl TypeFolder for Unpacker<'_, '_> {
             return bty.clone();
         }
         match bty {
-            BaseTy::Adt(adt_def, substs) if adt_def.is_box() => {
-                let (boxed, alloc) = box_args(substs);
+            BaseTy::Adt(adt_def, args) if adt_def.is_box() => {
+                let (boxed, alloc) = args.box_args();
                 let boxed = boxed.fold_with(self);
                 BaseTy::adt(
                     adt_def.clone(),
@@ -604,19 +603,16 @@ impl Node {
             }
             NodeKind::Assumption(pred) => {
                 let (bindings, pred) = cx.assumption_to_fixpoint(pred)?;
-                let Some(children) = children_to_fixpoint(cx, &self.children)? else {
+                let Some(cstr) = children_to_fixpoint(cx, &self.children)? else {
                     return Ok(None);
                 };
-                Some(stitch(
-                    bindings,
-                    fixpoint::Constraint::ForAll(
-                        fixpoint::Bind {
-                            name: fixpoint::Var::Underscore,
-                            sort: fixpoint::Sort::Int,
-                            pred,
-                        },
-                        Box::new(children),
-                    ),
+                Some(fixpoint::Constraint::ForAll(
+                    fixpoint::Bind {
+                        name: fixpoint::Var::Underscore,
+                        sort: fixpoint::Sort::Int,
+                        pred,
+                    },
+                    Box::new(fixpoint::Constraint::foralls(bindings, cstr)),
                 ))
             }
             NodeKind::Head(pred, tag) => {
