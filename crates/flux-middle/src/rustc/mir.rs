@@ -184,15 +184,16 @@ pub enum StatementKind {
 
 pub enum Rvalue {
     Use(Operand),
+    Repeat(Operand, Const),
     Ref(Region, BorrowKind, Place),
-    BinaryOp(BinOp, Operand, Operand),
-    CheckedBinaryOp(BinOp, Operand, Operand),
-    UnaryOp(UnOp, Operand),
-    Aggregate(AggregateKind, Vec<Operand>),
-    Discriminant(Place),
     Len(Place),
     Cast(CastKind, Operand, Ty),
-    Repeat(Operand, Const),
+    BinaryOp(BinOp, Operand, Operand),
+    NullaryOp(NullOp, Ty),
+    UnaryOp(UnOp, Operand),
+    Discriminant(Place),
+    Aggregate(AggregateKind, Vec<Operand>),
+    ShallowInitBox(Operand, Ty),
 }
 
 #[derive(Copy, Clone)]
@@ -239,6 +240,12 @@ pub enum BinOp {
     BitXor,
     Shl,
     Shr,
+}
+
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+pub enum NullOp {
+    SizeOf,
+    AlignOf,
 }
 
 pub enum Operand {
@@ -645,9 +652,7 @@ impl fmt::Debug for Rvalue {
             }
             Rvalue::Discriminant(place) => write!(f, "discriminant({place:?})"),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
-            Rvalue::CheckedBinaryOp(bin_op, op1, op2) => {
-                write!(f, "Checked{bin_op:?}({op1:?}, {op2:?})")
-            }
+            Rvalue::NullaryOp(null_op, ty) => write!(f, "{null_op:?}({ty:?})"),
             Rvalue::UnaryOp(un_op, op) => write!(f, "{un_op:?}({op:?})"),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _), operands) => {
                 let (fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {
@@ -689,6 +694,7 @@ impl fmt::Debug for Rvalue {
             Rvalue::Len(place) => write!(f, "Len({place:?})"),
             Rvalue::Cast(kind, op, ty) => write!(f, "{op:?} as {ty:?} [{kind:?}]"),
             Rvalue::Repeat(op, c) => write!(f, "[{op:?}; {c:?}]"),
+            Rvalue::ShallowInitBox(op, ty) => write!(f, "ShallowInitBox({op:?}, {ty:?})"),
         }
     }
 }

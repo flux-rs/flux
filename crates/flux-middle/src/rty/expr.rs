@@ -31,7 +31,8 @@ use crate::{
     rustc::ty::{Const, ConstKind},
 };
 
-/// A lambda abstraction with an elaborated output sort
+/// A lambda abstraction with an elaborated output sort. We need the output sort of lambdas for
+/// encoding into fixpoint
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct Lambda {
     pub(super) body: Binder<Expr>,

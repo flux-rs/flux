@@ -283,6 +283,14 @@ pub enum GenericArg {
 pub type GenericArgs = List<GenericArg>;
 
 impl GenericArgs {
+    pub fn box_args(&self) -> (&Ty, &Ty) {
+        if let [GenericArg::Ty(deref), GenericArg::Ty(alloc)] = &self[..] {
+            (deref, alloc)
+        } else {
+            bug!("invalid generic arguments for box");
+        }
+    }
+
     pub fn as_closure(&self) -> ClosureArgs {
         ClosureArgs { args: self.clone() }
     }

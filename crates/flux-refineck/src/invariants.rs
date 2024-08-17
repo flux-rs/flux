@@ -66,7 +66,9 @@ fn check_invariant(
     }
 
     let cstr = refine_tree.into_fixpoint(&mut fcx).emit(&genv)?;
-    let errors = fcx.check(cache, cstr, &checker_config).emit(&genv)?;
+    let errors = fcx
+        .check(cache, cstr, checker_config.scrape_quals)
+        .emit(&genv)?;
     if errors.is_empty() {
         Ok(())
     } else {
