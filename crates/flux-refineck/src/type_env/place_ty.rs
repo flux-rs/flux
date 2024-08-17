@@ -90,17 +90,13 @@ pub(crate) trait LookupMode {
     ) -> Result<Vec<Ty>, Self::Error>;
 }
 
-struct Unfold<'a, 'b, 'genv, 'rcx, 'tcx>(
-    GlobalEnv<'genv, 'tcx>,
-    &'a mut RefineCtxt<'rcx>,
-    &'a InferCtxt<'b, 'genv, 'tcx>,
-);
+struct Unfold<'a, 'b, 'genv, 'rcx, 'tcx>(&'a mut RefineCtxt<'rcx>, &'a InferCtxt<'b, 'genv, 'tcx>);
 
 impl LookupMode for Unfold<'_, '_, '_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.1.unpacker().shallow(true).unpack(ty)
+        self.0.unpacker().shallow(true).unpack(ty)
     }
 
     fn downcast_struct(
@@ -109,7 +105,7 @@ impl LookupMode for Unfold<'_, '_, '_, '_, '_> {
         args: &[GenericArg],
         idx: &Expr,
     ) -> Result<Vec<Ty>, Self::Error> {
-        downcast_struct(self.2, adt, args, idx)
+        downcast_struct(self.1, adt, args, idx)
     }
 }
 
@@ -207,12 +203,11 @@ impl PlacesTree {
 
     pub(crate) fn lookup_unfolding<'genv, 'tcx>(
         &mut self,
-        genv: GlobalEnv<'genv, 'tcx>,
         rcx: &mut RefineCtxt,
         infcx: &InferCtxt<'_, 'genv, 'tcx>,
         key: &impl LookupKey,
     ) -> CheckerResult<LookupResult> {
-        self.lookup_inner(key, Unfold(genv, rcx, infcx))
+        self.lookup_inner(key, Unfold(rcx, infcx))
     }
 
     pub(crate) fn lookup(&mut self, key: &impl LookupKey) -> LookupResult {

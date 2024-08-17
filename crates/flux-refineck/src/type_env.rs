@@ -4,7 +4,6 @@ use std::{iter, ops::ControlFlow};
 
 use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug};
 use flux_middle::{
-    global_env::GlobalEnv,
     intern::List,
     rty::{
         canonicalize::Hoister,
@@ -76,12 +75,11 @@ impl TypeEnv<'_> {
 
     pub(crate) fn lookup_place<'genv, 'tcx>(
         &mut self,
-        genv: GlobalEnv<'genv, 'tcx>,
         rcx: &mut RefineCtxt,
         infcx: &InferCtxt<'_, 'genv, 'tcx>,
         place: &Place,
     ) -> Result<Ty> {
-        Ok(self.bindings.lookup_unfolding(genv, rcx, infcx, place)?.ty)
+        Ok(self.bindings.lookup_unfolding(rcx, infcx, place)?.ty)
     }
 
     pub(crate) fn get(&self, path: &Path) -> Ty {
@@ -97,14 +95,13 @@ impl TypeEnv<'_> {
     /// and then replaced by the region in the type of `x` after the assignment. See [`TypeEnv::assign`]
     pub(crate) fn borrow<'genv, 'tcx>(
         &mut self,
-        genv: GlobalEnv<'genv, 'tcx>,
         rcx: &mut RefineCtxt,
         infcx: &InferCtxt<'_, 'genv, 'tcx>,
         re: Region,
         mutbl: Mutability,
         place: &Place,
     ) -> Result<Ty> {
-        let result = self.bindings.lookup_unfolding(genv, rcx, infcx, place)?;
+        let result = self.bindings.lookup_unfolding(rcx, infcx, place)?;
         if result.is_strg && mutbl == Mutability::Mut {
             Ok(Ty::ptr(PtrKind::Mut(re), result.path()))
         } else {
@@ -221,9 +218,7 @@ impl TypeEnv<'_> {
     ) -> Result {
         let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
         let new_ty = subst::match_regions(&new_ty, &rustc_ty);
-        let result = self
-            .bindings
-            .lookup_unfolding(infcx.genv, rcx, infcx, place)?;
+        let result = self.bindings.lookup_unfolding(rcx, infcx, place)?;
 
         infcx.push_scope(rcx);
         if result.is_strg {
@@ -240,12 +235,11 @@ impl TypeEnv<'_> {
 
     pub(crate) fn move_place<'genv, 'tcx>(
         &mut self,
-        genv: GlobalEnv<'genv, 'tcx>,
         rcx: &mut RefineCtxt,
         infcx: &InferCtxt<'_, 'genv, 'tcx>,
         place: &Place,
     ) -> Result<Ty> {
-        let result = self.bindings.lookup_unfolding(genv, rcx, infcx, place)?;
+        let result = self.bindings.lookup_unfolding(rcx, infcx, place)?;
         if result.is_strg {
             let uninit = Ty::uninit();
             Ok(result.update(uninit))
