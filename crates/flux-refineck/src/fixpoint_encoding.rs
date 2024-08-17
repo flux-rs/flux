@@ -37,8 +37,6 @@ use rustc_index::newtype_index;
 use rustc_span::{Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 
-use crate::refine_tree::Scope;
-
 newtype_index! {
     #[debug_format = "TagIdx({})"]
     pub struct TagIdx {}
@@ -717,7 +715,7 @@ impl KVarStore {
     pub fn fresh(
         &mut self,
         binders: &[List<rty::Sort>],
-        scope: &Scope,
+        scope: impl IntoIterator<Item = (rty::Var, rty::Sort)>,
         encoding: KVarEncoding,
     ) -> rty::Expr {
         if binders.is_empty() {
@@ -734,7 +732,7 @@ impl KVarStore {
                     (rty::Var::Bound(debruijn, var), sort)
                 })
             }),
-            scope.iter(),
+            scope,
         );
         self.fresh_inner(binders.last().unwrap().len(), args, encoding)
     }

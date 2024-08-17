@@ -1595,7 +1595,7 @@ impl Mode for RefineMode {
                         .mode
                         .kvars
                         .borrow_mut()
-                        .fresh(sorts, &scope, encoding)
+                        .fresh(sorts, scope.iter(), encoding)
                 }
             },
             span,
