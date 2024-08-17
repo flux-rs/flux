@@ -73,10 +73,10 @@ impl TypeEnv<'_> {
         BasicBlockEnvShape::new(scope, self)
     }
 
-    pub(crate) fn lookup_place<'genv, 'tcx>(
+    pub(crate) fn lookup_place(
         &mut self,
         rcx: &mut RefineCtxt,
-        infcx: &InferCtxt<'_, 'genv, 'tcx>,
+        infcx: &InferCtxt,
         place: &Place,
     ) -> Result<Ty> {
         Ok(self.bindings.lookup_unfolding(rcx, infcx, place)?.ty)
@@ -93,10 +93,10 @@ impl TypeEnv<'_> {
     /// When checking a borrow in the right hand side of an assignment `x = &'?n p`, we use the
     /// annotated region `'?n` in the type of the result. This region will only be used temporarily
     /// and then replaced by the region in the type of `x` after the assignment. See [`TypeEnv::assign`]
-    pub(crate) fn borrow<'genv, 'tcx>(
+    pub(crate) fn borrow(
         &mut self,
         rcx: &mut RefineCtxt,
-        infcx: &InferCtxt<'_, 'genv, 'tcx>,
+        infcx: &InferCtxt,
         re: Region,
         mutbl: Mutability,
         place: &Place,
@@ -233,10 +233,10 @@ impl TypeEnv<'_> {
         Ok(())
     }
 
-    pub(crate) fn move_place<'genv, 'tcx>(
+    pub(crate) fn move_place(
         &mut self,
         rcx: &mut RefineCtxt,
-        infcx: &InferCtxt<'_, 'genv, 'tcx>,
+        infcx: &InferCtxt,
         place: &Place,
     ) -> Result<Ty> {
         let result = self.bindings.lookup_unfolding(rcx, infcx, place)?;

@@ -611,13 +611,9 @@ impl Expr {
                 let val = const_eval::scalar_int_to_rty_constant2(tcx, *scalar, ty).unwrap();
                 Expr::constant(val)
             }
-            ConstKind::Unevaluated(ue) => {
-                // TODO: We should have normalized away the unevaluated
-                // constants but for field accesses still doesn't work
-                // so leaving this in, but should ideally be gone.
-                let val = const_eval::unevaluated_to_constant(tcx, ue).unwrap();
-                Expr::constant(val)
-            }
+            // We should have normalized away the unevaluated constants
+            ConstKind::Unevaluated(_) => bug!("unexpected `ConstKind::Unevaluated`"),
+
             ConstKind::Infer(_) => bug!("unexpected `ConstKind::Infer`"),
         }
     }
