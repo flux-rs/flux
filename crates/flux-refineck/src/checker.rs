@@ -832,7 +832,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     rcx.assume_pred(&expr);
                 }
                 Guard::Match(place, variant_idx) => {
-                    env.downcast(self.genv, &mut rcx, &place, variant_idx, self.config())
+                    let infcx = self.infcx(&rcx, terminator_span);
+                    env.downcast(&infcx, &mut rcx, &place, variant_idx, self.config())
                         .with_span(terminator_span)?;
                 }
             }
@@ -1272,7 +1273,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 env.fold(rcx, infcx, place).with_span(span)?;
             }
             GhostStatement::Unfold(place) => {
-                env.unfold(self.genv, rcx, place, self.config())
+                let infcx = self.infcx(rcx, span);
+                env.unfold(&infcx, rcx, place, self.config())
                     .with_span(span)?;
             }
             GhostStatement::Unblock(place) => env.unblock(rcx, place, self.check_overflow()),

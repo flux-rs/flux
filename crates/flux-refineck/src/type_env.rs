@@ -307,17 +307,17 @@ impl TypeEnv<'_> {
 
     pub(crate) fn unfold(
         &mut self,
-        genv: GlobalEnv,
+        infcx: &InferCtxt,
         rcx: &mut RefineCtxt,
         place: &Place,
         checker_conf: CheckerConfig,
     ) -> Result {
-        self.bindings.unfold(genv, rcx, place, checker_conf)
+        self.bindings.unfold(infcx, rcx, place, checker_conf)
     }
 
     pub(crate) fn downcast(
         &mut self,
-        genv: GlobalEnv,
+        infcx: &InferCtxt,
         rcx: &mut RefineCtxt,
         place: &Place,
         variant_idx: VariantIdx,
@@ -328,7 +328,7 @@ impl TypeEnv<'_> {
             .projection
             .push(PlaceElem::Downcast(None, variant_idx));
         self.bindings
-            .unfold(genv, rcx, &down_place, checker_config)?;
+            .unfold(infcx, rcx, &down_place, checker_config)?;
         Ok(())
     }
 

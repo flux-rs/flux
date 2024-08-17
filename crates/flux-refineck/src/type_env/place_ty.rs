@@ -109,7 +109,7 @@ impl LookupMode for Unfold<'_, '_, '_, '_, '_> {
         args: &[GenericArg],
         idx: &Expr,
     ) -> Result<Vec<Ty>, Self::Error> {
-        downcast_struct(self.0, adt, args, idx)
+        downcast_struct(self.2, adt, args, idx)
     }
 }
 
@@ -128,13 +128,13 @@ impl LookupMode for NoUnfold {
 impl PlacesTree {
     pub(crate) fn unfold(
         &mut self,
-        genv: GlobalEnv,
+        infcx: &InferCtxt,
         rcx: &mut RefineCtxt,
         key: &impl LookupKey,
         checker_conf: CheckerConfig,
     ) -> CheckerResult {
         let cursor = self.cursor_for(key);
-        Unfolder::new(genv, rcx, cursor, checker_conf).run(self)
+        Unfolder::new(infcx, rcx, cursor, checker_conf).run(self)
     }
 
     fn lookup_inner<M: LookupMode>(
@@ -372,8 +372,8 @@ impl LookupResult<'_> {
     }
 }
 
-struct Unfolder<'a, 'rcx, 'genv, 'tcx> {
-    genv: GlobalEnv<'genv, 'tcx>,
+struct Unfolder<'a, 'b, 'rcx, 'genv, 'tcx> {
+    infcx: &'a InferCtxt<'b, 'genv, 'tcx>,
     rcx: &'a mut RefineCtxt<'rcx>,
     insertions: Vec<(Loc, Place, Binding)>,
     cursor: Cursor,
@@ -382,7 +382,7 @@ struct Unfolder<'a, 'rcx, 'genv, 'tcx> {
     has_work: bool,
 }
 
-impl FallibleTypeFolder for Unfolder<'_, '_, '_, '_> {
+impl FallibleTypeFolder for Unfolder<'_, '_, '_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn try_fold_ty(&mut self, ty: &Ty) -> CheckerResult<Ty> {
@@ -402,15 +402,15 @@ impl FallibleTypeFolder for Unfolder<'_, '_, '_, '_> {
     }
 }
 
-impl<'a, 'rcx, 'genv, 'tcx> Unfolder<'a, 'rcx, 'genv, 'tcx> {
+impl<'a, 'b, 'rcx, 'genv, 'tcx> Unfolder<'a, 'b, 'rcx, 'genv, 'tcx> {
     fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
+        infcx: &'a InferCtxt<'b, 'genv, 'tcx>,
         rcx: &'a mut RefineCtxt<'rcx>,
         cursor: Cursor,
         checker_conf: CheckerConfig,
     ) -> Self {
         Unfolder {
-            genv,
+            infcx,
             rcx,
             cursor,
             insertions: vec![],
@@ -536,7 +536,7 @@ impl<'a, 'rcx, 'genv, 'tcx> Unfolder<'a, 'rcx, 'genv, 'tcx> {
                 )
             }
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) => {
-                let mut fields = downcast_struct(self.genv, adt, args, idx)?
+                let mut fields = downcast_struct(self.infcx, adt, args, idx)?
                     .into_iter()
                     .map(|ty| self.unpack_for_downcast(&ty))
                     .collect_vec();
@@ -557,7 +557,7 @@ impl<'a, 'rcx, 'genv, 'tcx> Unfolder<'a, 'rcx, 'genv, 'tcx> {
     fn downcast(&mut self, ty: &Ty, variant: VariantIdx) -> CheckerResult<Ty> {
         let ty = match ty.kind() {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) => {
-                let fields = downcast(self.genv, self.rcx, adt, args, variant, idx)?
+                let fields = downcast(self.infcx, self.rcx, adt, args, variant, idx)?
                     .into_iter()
                     .map(|ty| self.unpack_for_downcast(&ty))
                     .collect_vec();
@@ -786,7 +786,7 @@ impl fmt::Debug for Cursor {
 }
 
 fn downcast(
-    genv: GlobalEnv,
+    infcx: &InferCtxt,
     rcx: &mut RefineCtxt,
     adt: &AdtDef,
     args: &[GenericArg],
@@ -795,9 +795,9 @@ fn downcast(
 ) -> CheckerResult<Vec<Ty>> {
     if adt.is_struct() {
         debug_assert_eq!(variant_idx.as_u32(), 0);
-        downcast_struct(genv, adt, args, idx)
+        downcast_struct(infcx, adt, args, idx)
     } else if adt.is_enum() {
-        downcast_enum(genv, rcx, adt, variant_idx, args, idx)
+        downcast_enum(infcx, rcx, adt, variant_idx, args, idx)
     } else {
         tracked_span_bug!("Downcast without struct or enum!")
     }
@@ -812,18 +812,18 @@ fn downcast(
 ///     * `x.fld : T[A := t ..][i := e...]`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
 fn downcast_struct(
-    genv: GlobalEnv,
+    infcx: &InferCtxt,
     adt: &AdtDef,
     args: &[GenericArg],
     idx: &Expr,
 ) -> CheckerResult<Vec<Ty>> {
-    let tcx = genv.tcx();
+    let tcx = infcx.genv.tcx();
     let flds = adt
         .sort_def()
         .projections()
         .map(|proj| idx.proj_and_reduce(proj))
         .collect_vec();
-    Ok(struct_variant(genv, adt.did())?
+    Ok(struct_variant(infcx.genv, adt.did())?
         .instantiate(tcx, args, &[])
         .replace_bound_refts(&flds)
         .fields
@@ -848,15 +848,16 @@ fn struct_variant(
 ///     2. *Unpack* the fields using `y:t'...`
 ///     3. *Assert* the constraint `i == j'...`
 fn downcast_enum(
-    genv: GlobalEnv,
+    infcx: &InferCtxt,
     rcx: &mut RefineCtxt,
     adt: &AdtDef,
     variant_idx: VariantIdx,
     args: &[GenericArg],
     idx1: &Expr,
 ) -> CheckerResult<Vec<Ty>> {
-    let tcx = genv.tcx();
-    let variant_def = genv
+    let tcx = infcx.genv.tcx();
+    let variant_def = infcx
+        .genv
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
         .instantiate(tcx, args, &[])
