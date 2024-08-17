@@ -1145,6 +1145,9 @@
 <a href="#1145" id="1145">1145</a>
 <a href="#1146" id="1146">1146</a>
 <a href="#1147" id="1147">1147</a>
+<a href="#1148" id="1148">1148</a>
+<a href="#1149" id="1149">1149</a>
+<a href="#1150" id="1150">1150</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{fmt, sync::OnceLock};
 
 <span class="kw">use </span>flux_common::bug;
@@ -1759,6 +1762,9 @@
                 <span class="kw">let </span>val = const_eval::scalar_int_to_rty_constant2(tcx, <span class="kw-2">*</span>scalar, ty).unwrap();
                 Expr::constant(val)
             }
+            <span class="comment">// We should have normalized away the unevaluated constants
+            </span>ConstKind::Unevaluated(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected `ConstKind::Unevaluated`"</span>),
+
             ConstKind::Infer(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"unexpected `ConstKind::Infer`"</span>),
         }
     }

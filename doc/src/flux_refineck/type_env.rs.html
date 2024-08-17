@@ -756,14 +756,12 @@
 <a href="#756" id="756">756</a>
 <a href="#757" id="757">757</a>
 <a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug};
 <span class="kw">use </span>flux_middle::{
-    global_env::GlobalEnv,
     intern::List,
     rty::{
         canonicalize::Hoister,
@@ -835,11 +833,11 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookup_place(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: GlobalEnv,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
+        infcx: <span class="kw-2">&amp;</span>InferCtxt,
         place: <span class="kw-2">&amp;</span>Place,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.bindings.lookup_unfolding(genv, rcx, place)<span class="question-mark">?</span>.ty)
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.bindings.lookup_unfolding(rcx, infcx, place)<span class="question-mark">?</span>.ty)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; Ty {
@@ -855,13 +853,13 @@
     /// and then replaced by the region in the type of `x` after the assignment. See [`TypeEnv::assign`]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>borrow(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: GlobalEnv,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
+        infcx: <span class="kw-2">&amp;</span>InferCtxt,
         re: Region,
         mutbl: Mutability,
         place: <span class="kw-2">&amp;</span>Place,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
-        <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(genv, rcx, place)<span class="question-mark">?</span>;
+        <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(rcx, infcx, place)<span class="question-mark">?</span>;
         <span class="kw">if </span>result.is_strg &amp;&amp; mutbl == Mutability::Mut {
             <span class="prelude-val">Ok</span>(Ty::ptr(PtrKind::Mut(re), result.path()))
         } <span class="kw">else </span>{
@@ -978,7 +976,7 @@
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span>rustc_ty = place.ty(infcx.genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
         <span class="kw">let </span>new_ty = subst::match_regions(<span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>rustc_ty);
-        <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(infcx.genv, rcx, place)<span class="question-mark">?</span>;
+        <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(rcx, infcx, place)<span class="question-mark">?</span>;
 
         infcx.push_scope(rcx);
         <span class="kw">if </span>result.is_strg {
@@ -995,11 +993,11 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>move_place(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: GlobalEnv,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
+        infcx: <span class="kw-2">&amp;</span>InferCtxt,
         place: <span class="kw-2">&amp;</span>Place,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
-        <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(genv, rcx, place)<span class="question-mark">?</span>;
+        <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(rcx, infcx, place)<span class="question-mark">?</span>;
         <span class="kw">if </span>result.is_strg {
             <span class="kw">let </span>uninit = Ty::uninit();
             <span class="prelude-val">Ok</span>(result.update(uninit))
@@ -1061,17 +1059,17 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unfold(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: GlobalEnv,
+        infcx: <span class="kw-2">&amp;</span>InferCtxt,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         place: <span class="kw-2">&amp;</span>Place,
         checker_conf: CheckerConfig,
     ) -&gt; <span class="prelude-ty">Result </span>{
-        <span class="self">self</span>.bindings.unfold(genv, rcx, place, checker_conf)
+        <span class="self">self</span>.bindings.unfold(infcx, rcx, place, checker_conf)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>downcast(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: GlobalEnv,
+        infcx: <span class="kw-2">&amp;</span>InferCtxt,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         place: <span class="kw-2">&amp;</span>Place,
         variant_idx: VariantIdx,
@@ -1082,7 +1080,7 @@
             .projection
             .push(PlaceElem::Downcast(<span class="prelude-val">None</span>, variant_idx));
         <span class="self">self</span>.bindings
-            .unfold(genv, rcx, <span class="kw-2">&amp;</span>down_place, checker_config)<span class="question-mark">?</span>;
+            .unfold(infcx, rcx, <span class="kw-2">&amp;</span>down_place, checker_config)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 

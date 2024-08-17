@@ -991,6 +991,9 @@
 <a href="#991" id="991">991</a>
 <a href="#992" id="992">992</a>
 <a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
@@ -1082,13 +1085,13 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Ty&gt;, <span class="self">Self</span>::Error&gt;;
 }
 
-<span class="kw">struct </span>Unfold&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'tcx</span>&gt;(GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;);
+<span class="kw">struct </span>Unfold&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>InferCtxt&lt;<span class="lifetime">'b</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;);
 
-<span class="kw">impl </span>LookupMode <span class="kw">for </span>Unfold&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<span class="kw">impl </span>LookupMode <span class="kw">for </span>Unfold&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">type </span>Error = CheckerErrKind;
 
     <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-        <span class="self">self</span>.<span class="number">1</span>.unpacker().shallow(<span class="bool-val">true</span>).unpack(ty)
+        <span class="self">self</span>.<span class="number">0</span>.unpacker().shallow(<span class="bool-val">true</span>).unpack(ty)
     }
 
     <span class="kw">fn </span>downcast_struct(
@@ -1097,7 +1100,7 @@
         args: <span class="kw-2">&amp;</span>[GenericArg],
         idx: <span class="kw-2">&amp;</span>Expr,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Ty&gt;, <span class="self">Self</span>::Error&gt; {
-        downcast_struct(<span class="self">self</span>.<span class="number">0</span>, adt, args, idx)
+        downcast_struct(<span class="self">self</span>.<span class="number">1</span>, adt, args, idx)
     }
 }
 
@@ -1116,13 +1119,13 @@
 <span class="kw">impl </span>PlacesTree {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unfold(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: GlobalEnv,
+        infcx: <span class="kw-2">&amp;</span>InferCtxt,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         key: <span class="kw-2">&amp;</span><span class="kw">impl </span>LookupKey,
         checker_conf: CheckerConfig,
     ) -&gt; CheckerResult {
         <span class="kw">let </span>cursor = <span class="self">self</span>.cursor_for(key);
-        Unfolder::new(genv, rcx, cursor, checker_conf).run(<span class="self">self</span>)
+        Unfolder::new(infcx, rcx, cursor, checker_conf).run(<span class="self">self</span>)
     }
 
     <span class="kw">fn </span>lookup_inner&lt;M: LookupMode&gt;(
@@ -1195,11 +1198,11 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookup_unfolding(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        genv: GlobalEnv,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
+        infcx: <span class="kw-2">&amp;</span>InferCtxt,
         key: <span class="kw-2">&amp;</span><span class="kw">impl </span>LookupKey,
     ) -&gt; CheckerResult&lt;LookupResult&gt; {
-        <span class="self">self</span>.lookup_inner(key, Unfold(genv, rcx))
+        <span class="self">self</span>.lookup_inner(key, Unfold(rcx, infcx))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookup(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: <span class="kw-2">&amp;</span><span class="kw">impl </span>LookupKey) -&gt; LookupResult {
@@ -1359,8 +1362,8 @@
     }
 }
 
-<span class="kw">struct </span>Unfolder&lt;<span class="lifetime">'a</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+<span class="kw">struct </span>Unfolder&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>InferCtxt&lt;<span class="lifetime">'b</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     rcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;,
     insertions: Vec&lt;(Loc, Place, Binding)&gt;,
     cursor: Cursor,
@@ -1369,7 +1372,7 @@
     has_work: bool,
 }
 
-<span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>Unfolder&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>Unfolder&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">type </span>Error = CheckerErrKind;
 
     <span class="kw">fn </span>try_fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; CheckerResult&lt;Ty&gt; {
@@ -1389,15 +1392,15 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Unfolder&lt;<span class="lifetime">'a</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Unfolder&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">fn </span>new(
-        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>InferCtxt&lt;<span class="lifetime">'b</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         rcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;,
         cursor: Cursor,
         checker_conf: CheckerConfig,
     ) -&gt; <span class="self">Self </span>{
         Unfolder {
-            genv,
+            infcx,
             rcx,
             cursor,
             insertions: <span class="macro">vec!</span>[],
@@ -1523,7 +1526,7 @@
                 )
             }
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) =&gt; {
-                <span class="kw">let </span><span class="kw-2">mut </span>fields = downcast_struct(<span class="self">self</span>.genv, adt, args, idx)<span class="question-mark">?
+                <span class="kw">let </span><span class="kw-2">mut </span>fields = downcast_struct(<span class="self">self</span>.infcx, adt, args, idx)<span class="question-mark">?
                     </span>.into_iter()
                     .map(|ty| <span class="self">self</span>.unpack_for_downcast(<span class="kw-2">&amp;</span>ty))
                     .collect_vec();
@@ -1544,7 +1547,7 @@
     <span class="kw">fn </span>downcast(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, variant: VariantIdx) -&gt; CheckerResult&lt;Ty&gt; {
         <span class="kw">let </span>ty = <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) =&gt; {
-                <span class="kw">let </span>fields = downcast(<span class="self">self</span>.genv, <span class="self">self</span>.rcx, adt, args, variant, idx)<span class="question-mark">?
+                <span class="kw">let </span>fields = downcast(<span class="self">self</span>.infcx, <span class="self">self</span>.rcx, adt, args, variant, idx)<span class="question-mark">?
                     </span>.into_iter()
                     .map(|ty| <span class="self">self</span>.unpack_for_downcast(<span class="kw-2">&amp;</span>ty))
                     .collect_vec();
@@ -1773,7 +1776,7 @@
 }
 
 <span class="kw">fn </span>downcast(
-    genv: GlobalEnv,
+    infcx: <span class="kw-2">&amp;</span>InferCtxt,
     rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
     adt: <span class="kw-2">&amp;</span>AdtDef,
     args: <span class="kw-2">&amp;</span>[GenericArg],
@@ -1782,9 +1785,9 @@
 ) -&gt; CheckerResult&lt;Vec&lt;Ty&gt;&gt; {
     <span class="kw">if </span>adt.is_struct() {
         <span class="macro">debug_assert_eq!</span>(variant_idx.as_u32(), <span class="number">0</span>);
-        downcast_struct(genv, adt, args, idx)
+        downcast_struct(infcx, adt, args, idx)
     } <span class="kw">else if </span>adt.is_enum() {
-        downcast_enum(genv, rcx, adt, variant_idx, args, idx)
+        downcast_enum(infcx, rcx, adt, variant_idx, args, idx)
     } <span class="kw">else </span>{
         <span class="macro">tracked_span_bug!</span>(<span class="string">"Downcast without struct or enum!"</span>)
     }
@@ -1799,21 +1802,22 @@
 ///     * `x.fld : T[A := t ..][i := e...]`
 /// i.e. by substituting the type and value indices using the types and values from `x`.
 </span><span class="kw">fn </span>downcast_struct(
-    genv: GlobalEnv,
+    infcx: <span class="kw-2">&amp;</span>InferCtxt,
     adt: <span class="kw-2">&amp;</span>AdtDef,
     args: <span class="kw-2">&amp;</span>[GenericArg],
     idx: <span class="kw-2">&amp;</span>Expr,
 ) -&gt; CheckerResult&lt;Vec&lt;Ty&gt;&gt; {
-    <span class="kw">let </span>tcx = genv.tcx();
+    <span class="kw">let </span>tcx = infcx.genv.tcx();
     <span class="kw">let </span>flds = adt
         .sort_def()
         .projections()
         .map(|proj| idx.proj_and_reduce(proj))
         .collect_vec();
-    <span class="prelude-val">Ok</span>(struct_variant(genv, adt.did())<span class="question-mark">?
+    <span class="prelude-val">Ok</span>(struct_variant(infcx.genv, adt.did())<span class="question-mark">?
         </span>.instantiate(tcx, args, <span class="kw-2">&amp;</span>[])
         .replace_bound_refts(<span class="kw-2">&amp;</span>flds)
-        .fields
+        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id, infcx.refparams)<span class="question-mark">?
+        </span>.fields
         .to_vec())
 }
 
@@ -1835,19 +1839,21 @@
 ///     2. *Unpack* the fields using `y:t'...`
 ///     3. *Assert* the constraint `i == j'...`
 </span><span class="kw">fn </span>downcast_enum(
-    genv: GlobalEnv,
+    infcx: <span class="kw-2">&amp;</span>InferCtxt,
     rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
     adt: <span class="kw-2">&amp;</span>AdtDef,
     variant_idx: VariantIdx,
     args: <span class="kw-2">&amp;</span>[GenericArg],
     idx1: <span class="kw-2">&amp;</span>Expr,
 ) -&gt; CheckerResult&lt;Vec&lt;Ty&gt;&gt; {
-    <span class="kw">let </span>tcx = genv.tcx();
-    <span class="kw">let </span>variant_def = genv
+    <span class="kw">let </span>tcx = infcx.genv.tcx();
+    <span class="kw">let </span>variant_def = infcx
+        .genv
         .variant_sig(adt.did(), variant_idx)<span class="question-mark">?
         </span>.expect(<span class="string">"enums cannot be opaque"</span>)
         .instantiate(tcx, args, <span class="kw-2">&amp;</span>[])
-        .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| rcx.define_vars(sort));
+        .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| rcx.define_vars(sort))
+        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id, infcx.refparams)<span class="question-mark">?</span>;
 
     <span class="comment">// FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there
     // are currently two problems.

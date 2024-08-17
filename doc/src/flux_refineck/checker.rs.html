@@ -1804,6 +1804,15 @@
 <a href="#1804" id="1804">1804</a>
 <a href="#1805" id="1805">1805</a>
 <a href="#1806" id="1806">1806</a>
+<a href="#1807" id="1807">1807</a>
+<a href="#1808" id="1808">1808</a>
+<a href="#1809" id="1809">1809</a>
+<a href="#1810" id="1810">1810</a>
+<a href="#1811" id="1811">1811</a>
+<a href="#1812" id="1812">1812</a>
+<a href="#1813" id="1813">1813</a>
+<a href="#1814" id="1814">1814</a>
+<a href="#1815" id="1815">1815</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -2297,7 +2306,8 @@
                 )])
             }
             TerminatorKind::Drop { place, target, .. } =&gt; {
-                <span class="kw">let _ </span>= env.move_place(<span class="self">self</span>.genv, rcx, place);
+                <span class="kw">let </span>infcx = <span class="self">self</span>.infcx(rcx, terminator_span);
+                <span class="kw">let _ </span>= env.move_place(rcx, <span class="kw-2">&amp;</span>infcx, place);
                 <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[(<span class="kw-2">*</span>target, Guard::None)])
             }
             TerminatorKind::FalseEdge { real_target, .. } =&gt; <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[(<span class="kw-2">*</span>real_target, Guard::None)]),
@@ -2312,7 +2322,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, span);
 
         <span class="kw">let </span>ret_place_ty = env
-            .lookup_place(<span class="self">self</span>.genv, rcx, Place::RETURN)
+            .lookup_place(rcx, <span class="kw-2">&amp;</span>infcx, Place::RETURN)
             .with_span(span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>output = <span class="self">self
@@ -2635,7 +2645,8 @@
                     rcx.assume_pred(<span class="kw-2">&amp;</span>expr);
                 }
                 Guard::Match(place, variant_idx) =&gt; {
-                    env.downcast(<span class="self">self</span>.genv, <span class="kw-2">&amp;mut </span>rcx, <span class="kw-2">&amp;</span>place, variant_idx, <span class="self">self</span>.config())
+                    <span class="kw">let </span>infcx = <span class="self">self</span>.infcx(<span class="kw-2">&amp;</span>rcx, terminator_span);
+                    env.downcast(<span class="kw-2">&amp;</span>infcx, <span class="kw-2">&amp;mut </span>rcx, <span class="kw-2">&amp;</span>place, variant_idx, <span class="self">self</span>.config())
                         .with_span(terminator_span)<span class="question-mark">?</span>;
                 }
             }
@@ -2691,11 +2702,13 @@
                 <span class="prelude-val">Ok</span>(Ty::array(ty, c.clone()))
             }
             Rvalue::Ref(r, BorrowKind::Mut { .. }, place) =&gt; {
-                env.borrow(<span class="self">self</span>.genv, rcx, <span class="kw-2">*</span>r, Mutability::Mut, place)
+                <span class="kw">let </span>infcx = <span class="self">self</span>.infcx(rcx, stmt_span);
+                env.borrow(rcx, <span class="kw-2">&amp;</span>infcx, <span class="kw-2">*</span>r, Mutability::Mut, place)
                     .with_span(stmt_span)
             }
             Rvalue::Ref(r, BorrowKind::Shared | BorrowKind::Fake(..), place) =&gt; {
-                env.borrow(<span class="self">self</span>.genv, rcx, <span class="kw-2">*</span>r, Mutability::Not, place)
+                <span class="kw">let </span>infcx = <span class="self">self</span>.infcx(rcx, stmt_span);
+                env.borrow(rcx, <span class="kw-2">&amp;</span>infcx, <span class="kw-2">*</span>r, Mutability::Not, place)
                     .with_span(stmt_span)
             }
             Rvalue::Len(place) =&gt; <span class="self">self</span>.check_len(rcx, env, stmt_span, place),
@@ -2709,9 +2722,8 @@
             Rvalue::NullaryOp(null_op, ty) =&gt; <span class="prelude-val">Ok</span>(<span class="self">self</span>.check_nullary_op(<span class="kw-2">*</span>null_op, ty)),
             Rvalue::UnaryOp(un_op, op) =&gt; <span class="self">self</span>.check_unary_op(rcx, env, stmt_span, <span class="kw-2">*</span>un_op, op),
             Rvalue::Discriminant(place) =&gt; {
-                <span class="kw">let </span>ty = env
-                    .lookup_place(<span class="self">self</span>.genv, rcx, place)
-                    .with_span(stmt_span)<span class="question-mark">?</span>;
+                <span class="kw">let </span>infcx = <span class="self">self</span>.infcx(rcx, stmt_span);
+                <span class="kw">let </span>ty = env.lookup_place(rcx, <span class="kw-2">&amp;</span>infcx, place).with_span(stmt_span)<span class="question-mark">?</span>;
                 <span class="kw">let </span>(adt_def, ..) = ty.expect_adt();
                 <span class="prelude-val">Ok</span>(Ty::discr(adt_def.clone(), place.clone()))
             }
@@ -2763,12 +2775,11 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
         env: <span class="kw-2">&amp;mut </span>TypeEnv,
-        smt_span: Span,
+        stmt_span: Span,
         place: <span class="kw-2">&amp;</span>Place,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
-        <span class="kw">let </span>ty = env
-            .lookup_place(<span class="self">self</span>.genv, rcx, place)
-            .with_span(smt_span)<span class="question-mark">?</span>;
+        <span class="kw">let </span>infcx = <span class="self">self</span>.infcx(rcx, stmt_span);
+        <span class="kw">let </span>ty = env.lookup_place(rcx, <span class="kw-2">&amp;</span>infcx, place).with_span(stmt_span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>idx = <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(BaseTy::Array(<span class="kw">_</span>, len), <span class="kw">_</span>) =&gt; Expr::from_const(<span class="self">self</span>.genv.tcx(), len),
@@ -3006,8 +3017,14 @@
         operand: <span class="kw-2">&amp;</span>Operand,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
         <span class="kw">let </span>ty = <span class="kw">match </span>operand {
-            Operand::Copy(p) =&gt; env.lookup_place(<span class="self">self</span>.genv, rcx, p).with_span(source_span)<span class="question-mark">?</span>,
-            Operand::Move(p) =&gt; env.move_place(<span class="self">self</span>.genv, rcx, p).with_span(source_span)<span class="question-mark">?</span>,
+            Operand::Copy(p) =&gt; {
+                <span class="kw">let </span>infcx = <span class="self">self</span>.infcx(rcx, source_span);
+                env.lookup_place(rcx, <span class="kw-2">&amp;</span>infcx, p).with_span(source_span)<span class="question-mark">?
+            </span>}
+            Operand::Move(p) =&gt; {
+                <span class="kw">let </span>infcx = <span class="self">self</span>.infcx(rcx, source_span);
+                env.move_place(rcx, <span class="kw-2">&amp;</span>infcx, p).with_span(source_span)<span class="question-mark">?
+            </span>}
             Operand::Constant(c) =&gt; <span class="self">self</span>.check_constant(c)<span class="question-mark">?</span>,
         };
         <span class="prelude-val">Ok</span>(rcx
@@ -3081,7 +3098,8 @@
                 env.fold(rcx, infcx, place).with_span(span)<span class="question-mark">?</span>;
             }
             GhostStatement::Unfold(place) =&gt; {
-                env.unfold(<span class="self">self</span>.genv, rcx, place, <span class="self">self</span>.config())
+                <span class="kw">let </span>infcx = <span class="self">self</span>.infcx(rcx, span);
+                env.unfold(<span class="kw-2">&amp;</span>infcx, rcx, place, <span class="self">self</span>.config())
                     .with_span(span)<span class="question-mark">?</span>;
             }
             GhostStatement::Unblock(place) =&gt; env.unblock(rcx, place, <span class="self">self</span>.check_overflow()),

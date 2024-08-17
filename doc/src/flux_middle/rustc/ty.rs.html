@@ -897,6 +897,24 @@
 <a href="#897" id="897">897</a>
 <a href="#898" id="898">898</a>
 <a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust types.
 
 </span><span class="kw">mod </span>subst;
@@ -1123,6 +1141,13 @@
     <span class="kw">pub </span>kind: ConstKind,
 }
 
+<span class="kw">impl </span>UnevaluatedConst {
+    <span class="kw">pub fn </span>to_rustc&lt;<span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; rustc_ty::UnevaluatedConst&lt;<span class="lifetime">'tcx</span>&gt; {
+        <span class="kw">let </span>args = tcx.mk_args_from_iter(<span class="self">self</span>.args.iter().map(|arg| arg.to_rustc(tcx)));
+        rustc_ty::UnevaluatedConst::new(<span class="self">self</span>.def, args)
+    }
+}
+
 <span class="kw">impl </span>Const {
     <span class="kw">pub fn </span>from_usize(tcx: TyCtxt, v: usize) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
@@ -1143,9 +1168,18 @@
                 )
             }
             ConstKind::Infer(infer_const) =&gt; rustc_ty::ConstKind::Infer(<span class="kw-2">*</span>infer_const),
+            ConstKind::Unevaluated(uneval_const) =&gt; {
+                rustc_ty::ConstKind::Unevaluated(uneval_const.to_rustc(tcx))
+            }
         };
         rustc_ty::Const::new(tcx, kind)
     }
+}
+
+<span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+</span><span class="kw">pub struct </span>UnevaluatedConst {
+    <span class="kw">pub </span>def: DefId,
+    <span class="kw">pub </span>args: GenericArgs,
 }
 
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -1153,6 +1187,7 @@
     Param(ParamConst),
     Value(Ty, ScalarInt),
     Infer(InferConst),
+    Unevaluated(UnevaluatedConst),
 }
 
 <span class="attr">#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -1181,6 +1216,7 @@
         CoroutineArgs { args: <span class="self">self</span>.clone() }
     }
 }
+
 <span class="kw">pub struct </span>CoroutineArgs {
     <span class="kw">pub </span>args: GenericArgs,
 }

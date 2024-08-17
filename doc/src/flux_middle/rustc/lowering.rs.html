@@ -1021,6 +1021,11 @@
 <a href="#1021" id="1021">1021</a>
 <a href="#1022" id="1022">1022</a>
 <a href="#1023" id="1023">1023</a>
+<a href="#1024" id="1024">1024</a>
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1050,7 +1055,7 @@
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
         Const, ConstKind, ExistentialPredicate, FieldDef, FnSig, GenericArg, GenericParamDef,
         GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate, PolyFnSig,
-        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, VariantDef,
+        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, UnevaluatedConst, VariantDef,
     },
 };
 <span class="kw">use crate</span>::{
@@ -1699,6 +1704,11 @@
         }
         rustc_type_ir::ConstKind::Value(ty, ValTree::Leaf(scalar_int)) =&gt; {
             ConstKind::Value(lower_ty(tcx, ty)<span class="question-mark">?</span>, scalar_int)
+        }
+        rustc_type_ir::ConstKind::Unevaluated(c) =&gt; {
+            <span class="comment">// TODO: raise unsupported if c.args is not empty?
+            </span><span class="kw">let </span>args = lower_generic_args(tcx, c.args)<span class="question-mark">?</span>;
+            ConstKind::Unevaluated(UnevaluatedConst { def: c.def, args })
         }
         <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported const {c:?}"</span>))),
     };

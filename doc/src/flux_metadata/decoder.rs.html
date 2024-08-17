@@ -228,7 +228,7 @@
         .unwrap_or_else(|err| sess.emit_fatal(errors::DecodeFileError::new(path, err)));
 
     <span class="kw">if </span>!buf.starts_with(METADATA_HEADER) {
-        <span class="macro">bug!</span>(<span class="string">"incompatible metadata version"</span>)
+        <span class="macro">bug!</span>(<span class="string">"incompatible metadata version"</span>);
     }
 
     <span class="kw">let </span><span class="kw-2">mut </span>decoder =
