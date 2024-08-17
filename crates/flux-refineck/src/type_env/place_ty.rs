@@ -90,9 +90,13 @@ pub(crate) trait LookupMode {
     ) -> Result<Vec<Ty>, Self::Error>;
 }
 
-struct Unfold<'a, 'genv, 'rcx, 'tcx>(GlobalEnv<'genv, 'tcx>, &'a mut RefineCtxt<'rcx>);
+struct Unfold<'a, 'b, 'genv, 'rcx, 'tcx>(
+    GlobalEnv<'genv, 'tcx>,
+    &'a mut RefineCtxt<'rcx>,
+    &'a InferCtxt<'b, 'genv, 'tcx>,
+);
 
-impl LookupMode for Unfold<'_, '_, '_, '_> {
+impl LookupMode for Unfold<'_, '_, '_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
@@ -201,13 +205,14 @@ impl PlacesTree {
         Ok(LookupResult { ty, is_strg, cursor, bindings: self })
     }
 
-    pub(crate) fn lookup_unfolding(
+    pub(crate) fn lookup_unfolding<'genv, 'tcx>(
         &mut self,
-        genv: GlobalEnv,
+        genv: GlobalEnv<'genv, 'tcx>,
         rcx: &mut RefineCtxt,
+        infcx: &InferCtxt<'_, 'genv, 'tcx>,
         key: &impl LookupKey,
     ) -> CheckerResult<LookupResult> {
-        self.lookup_inner(key, Unfold(genv, rcx))
+        self.lookup_inner(key, Unfold(genv, rcx, infcx))
     }
 
     pub(crate) fn lookup(&mut self, key: &impl LookupKey) -> LookupResult {

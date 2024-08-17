@@ -491,7 +491,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 )])
             }
             TerminatorKind::Drop { place, target, .. } => {
-                let _ = env.move_place(self.genv, rcx, place);
+                let infcx = self.infcx(rcx, terminator_span);
+                let _ = env.move_place(self.genv, rcx, &infcx, place);
                 Ok(vec![(*target, Guard::None)])
             }
             TerminatorKind::FalseEdge { real_target, .. } => Ok(vec![(*real_target, Guard::None)]),
@@ -506,7 +507,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let mut infcx = self.infcx(rcx, span);
 
         let ret_place_ty = env
-            .lookup_place(self.genv, rcx, Place::RETURN)
+            .lookup_place(self.genv, rcx, &infcx, Place::RETURN)
             .with_span(span)?;
 
         let output = self
@@ -891,11 +892,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(Ty::tuple(vec![ty, Ty::bool()]))
             }
             Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
-                env.borrow(self.genv, rcx, *r, Mutability::Mut, place)
+                let infcx = self.infcx(rcx, stmt_span);
+                env.borrow(self.genv, rcx, &infcx, *r, Mutability::Mut, place)
                     .with_span(stmt_span)
             }
             Rvalue::Ref(r, BorrowKind::Shared | BorrowKind::Fake(..), place) => {
-                env.borrow(self.genv, rcx, *r, Mutability::Not, place)
+                let infcx = self.infcx(rcx, stmt_span);
+                env.borrow(self.genv, rcx, &infcx, *r, Mutability::Not, place)
                     .with_span(stmt_span)
             }
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
@@ -937,8 +940,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into()))
             }
             Rvalue::Discriminant(place) => {
+                let infcx = self.infcx(rcx, stmt_span);
                 let ty = env
-                    .lookup_place(self.genv, rcx, place)
+                    .lookup_place(self.genv, rcx, &infcx, place)
                     .with_span(stmt_span)?;
                 let (adt_def, ..) = ty.expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
@@ -962,8 +966,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         source_span: Span,
         place: &Place,
     ) -> Result<Ty> {
+        let infcx = self.infcx(rcx, source_span);
         let ty = env
-            .lookup_place(self.genv, rcx, place)
+            .lookup_place(self.genv, rcx, &infcx, place)
             .with_span(source_span)?;
 
         let idx = match ty.kind() {
@@ -1184,8 +1189,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         operand: &Operand,
     ) -> Result<Ty> {
         let ty = match operand {
-            Operand::Copy(p) => env.lookup_place(self.genv, rcx, p).with_span(source_span)?,
-            Operand::Move(p) => env.move_place(self.genv, rcx, p).with_span(source_span)?,
+            Operand::Copy(p) => {
+                let infcx = self.infcx(rcx, source_span);
+                env.lookup_place(self.genv, rcx, &infcx, p)
+                    .with_span(source_span)?
+            }
+            Operand::Move(p) => {
+                let infcx = self.infcx(rcx, source_span);
+                env.move_place(self.genv, rcx, &infcx, p)
+                    .with_span(source_span)?
+            }
             Operand::Constant(c) => self.check_constant(c)?,
         };
         Ok(rcx
