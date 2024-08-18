@@ -4,7 +4,7 @@ use std::{iter, ops::ControlFlow};
 
 use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug};
 use flux_infer::{
-    fixpoint_encoding::{KVarEncoding, KVarStore},
+    fixpoint_encoding::{KVarEncoding, KVarGen},
     infer::{ConstrReason, InferCtxt},
     refine_tree::{RefineCtxt, Scope},
 };
@@ -618,7 +618,7 @@ impl BasicBlockEnvShape {
         }
     }
 
-    pub fn into_bb_env(self, kvar_store: &mut KVarStore) -> BasicBlockEnv {
+    pub fn into_bb_env(self, kvar_gen: &mut KVarGen) -> BasicBlockEnv {
         let mut bindings = self.bindings;
 
         let mut hoister = Hoister::default()
@@ -636,7 +636,7 @@ impl BasicBlockEnvShape {
 
         let outter_sorts = vars.to_sort_list();
 
-        let kvar = kvar_store.fresh(&[outter_sorts.clone()], self.scope.iter(), KVarEncoding::Conj);
+        let kvar = kvar_gen.fresh(&[outter_sorts.clone()], self.scope.iter(), KVarEncoding::Conj);
         constrs.push(kvar);
 
         // Replace remaning holes by fresh kvars
@@ -645,7 +645,7 @@ impl BasicBlockEnvShape {
             let sorts = std::iter::once(outter_sorts.clone())
                 .chain(sorts.iter().cloned())
                 .collect_vec();
-            kvar_store.fresh(&sorts, self.scope.iter(), KVarEncoding::Conj)
+            kvar_gen.fresh(&sorts, self.scope.iter(), KVarEncoding::Conj)
         };
         bindings.fmap_mut(|binding| binding.replace_holes(&mut kvar_gen));
 

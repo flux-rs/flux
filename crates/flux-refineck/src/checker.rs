@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::hash_map::Entry, iter};
 use flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{self, KVarStore},
+    fixpoint_encoding::{self, KVarGen},
     infer::{ConstrReason, InferCtxt},
     refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
 };
@@ -14,8 +14,8 @@ use flux_middle::{
     rty::{
         self, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnSig, FnTraitPredicate,
-        GenericArg, Generics, HoleKind, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref,
-        Region::ReStatic, Ty, TyKind, Uint, UintTy, VariantIdx,
+        GenericArg, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref, Region::ReStatic,
+        Ty, TyKind, Uint, UintTy, VariantIdx,
     },
     rustc::{
         self,
@@ -83,7 +83,7 @@ struct Inherited<'ck, M> {
     refine_params: List<Expr>,
     ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
     mode: &'ck mut M,
-    kvars: &'ck RefCell<KVarStore>,
+    kvars: &'ck RefCell<KVarGen>,
     config: CheckerConfig,
 }
 
@@ -93,7 +93,7 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
         rcx: &mut RefineCtxt,
         def_id: LocalDefId,
         mode: &'ck mut M,
-        kvars: &'ck RefCell<KVarStore>,
+        kvars: &'ck RefCell<KVarGen>,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
         config: CheckerConfig,
     ) -> Result<Self> {
@@ -175,7 +175,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             let const_params = generics.const_params(genv).with_span(span)?;
             let mut refine_tree = RefineTree::new(const_params);
             let mut rcx = refine_tree.refine_ctxt_at_root();
-            let kvars = RefCell::new(KVarStore::dummy());
+            let kvars = RefCell::new(KVarGen::dummy());
             let inherited =
                 Inherited::new(genv, &mut rcx, def_id, &mut mode, &kvars, ghost_stmts, config)?;
 
@@ -200,11 +200,11 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
         bb_env_shapes: ShapeResult,
         config: CheckerConfig,
-    ) -> Result<(RefineTree, KVarStore)> {
+    ) -> Result<(RefineTree, KVarGen)> {
         let span = genv.tcx().def_span(def_id);
         let fn_sig = genv.fn_sig(def_id).with_span(span)?;
 
-        let mut kvars = fixpoint_encoding::KVarStore::new();
+        let mut kvars = fixpoint_encoding::KVarGen::new();
         let generics = genv.generics_of(def_id).with_span(span)?;
         let const_params = generics.const_params(genv).with_span(span)?;
         let mut refine_tree = RefineTree::new(const_params);
@@ -364,7 +364,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .unpacker()
             .assume_invariants(self.check_overflow())
             .unpack(&ty);
-        let infcx = &mut self.infcx(rcx, source_info.span);
+        let infcx = &mut self.infcx(source_info.span);
         env.assign(rcx, infcx, place, ty).with_src_info(source_info)
     }
 
@@ -476,7 +476,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
                 let ret = rcx.unpack(&ret);
                 rcx.assume_invariants(&ret, self.check_overflow());
-                let mut infcx = self.infcx(rcx, terminator_span);
+                let mut infcx = self.infcx(terminator_span);
                 env.assign(rcx, &mut infcx, destination, ret)
                     .with_span(terminator_span)?;
 
@@ -493,7 +493,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 )])
             }
             TerminatorKind::Drop { place, target, .. } => {
-                let infcx = self.infcx(rcx, terminator_span);
+                let infcx = self.infcx(terminator_span);
                 let _ = env.move_place(rcx, &infcx, place);
                 Ok(vec![(*target, Guard::None)])
             }
@@ -506,7 +506,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     fn check_ret(&mut self, rcx: &mut RefineCtxt, env: &mut TypeEnv, span: Span) -> Result {
-        let mut infcx = self.infcx(rcx, span);
+        let mut infcx = self.infcx(span);
         infcx.push_scope(rcx);
 
         let ret_place_ty = env
@@ -560,7 +560,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let actuals = infer_under_mut_ref_hack(rcx, actuals, fn_sig.as_ref());
 
-        let mut infcx = self.infcx(rcx, span);
+        let mut infcx = self.infcx(span);
         infcx.push_scope(rcx);
         let snapshot = rcx.snapshot();
 
@@ -760,7 +760,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             AssertKind::Overflow(mir::BinOp::Rem) => "possible reminder with overflow",
             AssertKind::Overflow(_) => return Ok(Guard::Pred(pred)),
         };
-        self.infcx(rcx, terminator_span)
+        self.infcx(terminator_span)
             .at(ConstrReason::Assert(msg))
             .check_pred(rcx, &pred);
         Ok(Guard::Pred(pred))
@@ -836,7 +836,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     rcx.assume_pred(&expr);
                 }
                 Guard::Match(place, variant_idx) => {
-                    let infcx = self.infcx(&rcx, terminator_span);
+                    let infcx = self.infcx(terminator_span);
                     env.downcast(&infcx, &mut rcx, &place, variant_idx, self.config())
                         .with_span(terminator_span)?;
                 }
@@ -893,12 +893,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(Ty::array(ty, c.clone()))
             }
             Rvalue::Ref(r, BorrowKind::Mut { .. }, place) => {
-                let infcx = self.infcx(rcx, stmt_span);
+                let infcx = self.infcx(stmt_span);
                 env.borrow(rcx, &infcx, *r, Mutability::Mut, place)
                     .with_span(stmt_span)
             }
             Rvalue::Ref(r, BorrowKind::Shared | BorrowKind::Fake(..), place) => {
-                let infcx = self.infcx(rcx, stmt_span);
+                let infcx = self.infcx(stmt_span);
                 env.borrow(rcx, &infcx, *r, Mutability::Not, place)
                     .with_span(stmt_span)
             }
@@ -913,7 +913,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Rvalue::NullaryOp(null_op, ty) => Ok(self.check_nullary_op(*null_op, ty)),
             Rvalue::UnaryOp(un_op, op) => self.check_unary_op(rcx, env, stmt_span, *un_op, op),
             Rvalue::Discriminant(place) => {
-                let infcx = self.infcx(rcx, stmt_span);
+                let infcx = self.infcx(stmt_span);
                 let ty = env.lookup_place(rcx, &infcx, place).with_span(stmt_span)?;
                 let (adt_def, ..) = ty.expect_adt();
                 Ok(Ty::discr(adt_def.clone(), place.clone()))
@@ -969,7 +969,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         stmt_span: Span,
         place: &Place,
     ) -> Result<Ty> {
-        let infcx = self.infcx(rcx, stmt_span);
+        let infcx = self.infcx(stmt_span);
         let ty = env.lookup_place(rcx, &infcx, place).with_span(stmt_span)?;
 
         let idx = match ty.kind() {
@@ -998,7 +998,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 let rule = primops::match_bin_op(bin_op, bty1, idx1, bty2, idx2, check_overflow);
                 if let Some(pre) = rule.precondition {
-                    self.infcx(rcx, stmt_span)
+                    self.infcx(stmt_span)
                         .at(pre.reason)
                         .check_pred(rcx, pre.pred);
                 }
@@ -1032,7 +1032,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             TyKind::Indexed(bty, idx) => {
                 let rule = primops::match_un_op(un_op, bty, idx, self.check_overflow());
                 if let Some(pre) = rule.precondition {
-                    self.infcx(rcx, stmt_span)
+                    self.infcx(stmt_span)
                         .at(pre.reason)
                         .check_pred(rcx, pre.pred);
                 }
@@ -1050,7 +1050,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         args: &[Ty],
         arr_ty: Ty,
     ) -> Result<Ty> {
-        let mut infcx = self.infcx(rcx, stmt_span);
+        let mut infcx = self.infcx(stmt_span);
         infcx.push_scope(rcx);
         let arr_ty =
             arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
@@ -1147,7 +1147,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<Ty> {
         // Convert `ptr` to `&mut`
         let src = if let TyKind::Ptr(PtrKind::Mut(re), path) = src.kind() {
-            let mut infcx = self.infcx(rcx, span);
+            let mut infcx = self.infcx(span);
             env.ptr_to_ref(rcx, &mut infcx, ConstrReason::Other, *re, path, PtrToRefBound::Identity)
                 .with_span(span)?
         } else {
@@ -1210,11 +1210,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<Ty> {
         let ty = match operand {
             Operand::Copy(p) => {
-                let infcx = self.infcx(rcx, source_span);
+                let infcx = self.infcx(source_span);
                 env.lookup_place(rcx, &infcx, p).with_span(source_span)?
             }
             Operand::Move(p) => {
-                let infcx = self.infcx(rcx, source_span);
+                let infcx = self.infcx(source_span);
                 env.move_place(rcx, &infcx, p).with_span(source_span)?
             }
             Operand::Constant(c) => self.check_constant(c)?,
@@ -1286,17 +1286,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         dbg::statement!("start", stmt, rcx, env);
         match stmt {
             GhostStatement::Fold(place) => {
-                let infcx = &mut self.infcx(rcx, span);
+                let infcx = &mut self.infcx(span);
                 env.fold(rcx, infcx, place).with_span(span)?;
             }
             GhostStatement::Unfold(place) => {
-                let infcx = self.infcx(rcx, span);
+                let infcx = self.infcx(span);
                 env.unfold(&infcx, rcx, place, self.config())
                     .with_span(span)?;
             }
             GhostStatement::Unblock(place) => env.unblock(rcx, place, self.check_overflow()),
             GhostStatement::PtrToRef(place) => {
-                let infcx = &mut self.infcx(rcx, span);
+                let infcx = &mut self.infcx(span);
                 env.ptr_to_ref_at_place(rcx, infcx, place).with_span(span)?;
             }
         }
@@ -1304,21 +1304,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(())
     }
 
-    fn infcx(&self, rcx: &RefineCtxt, span: Span) -> InferCtxt<'_, 'genv, 'tcx> {
+    fn infcx(&self, span: Span) -> InferCtxt<'_, 'genv, 'tcx> {
         InferCtxt::new(
             self.genv,
             &self.body.infcx,
             self.def_id.into(),
             &self.inherited.refine_params,
-            {
-                let scope = rcx.scope();
-                move |sorts: &[_], encoding| {
-                    self.inherited
-                        .kvars
-                        .borrow_mut()
-                        .fresh(sorts, scope.iter(), encoding)
-                }
-            },
+            &self.inherited.kvars,
             span,
         )
     }
@@ -1612,7 +1604,7 @@ impl Mode for RefineMode {
 
         dbg::refine_goto!(target, rcx, env, bb_env);
 
-        let mut infcx = ck.infcx(&rcx, terminator_span);
+        let mut infcx = ck.infcx(terminator_span);
         env.check_goto(&mut rcx, &mut infcx, bb_env, target)
             .with_span(terminator_span)?;
 
@@ -1671,14 +1663,14 @@ fn int_bit_width(int_ty: IntTy) -> u64 {
 impl ShapeResult {
     fn into_bb_envs(
         self,
-        kvar_store: &mut KVarStore,
+        kvar_gen: &mut KVarGen,
     ) -> FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> {
         self.0
             .into_iter()
             .map(|(def_id, shapes)| {
                 let bb_envs = shapes
                     .into_iter()
-                    .map(|(bb, shape)| (bb, shape.into_bb_env(kvar_store)))
+                    .map(|(bb, shape)| (bb, shape.into_bb_env(kvar_gen)))
                     .collect();
                 (def_id, bb_envs)
             })

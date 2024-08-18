@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
-use flux_common::index::IndexVec;
+use flux_common::{bug, index::IndexVec};
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_hash::FxHashMap;
@@ -127,6 +127,15 @@ impl<T> EVarGen<T> {
             .get(&cxid)
             .or_else(|| self.pending.get(&cxid))
             .unwrap()
+            .data
+    }
+
+    pub fn current_data(&self) -> &T {
+        &self
+            .stack
+            .last()
+            .unwrap_or_else(|| bug!("no context"))
+            .1
             .data
     }
 

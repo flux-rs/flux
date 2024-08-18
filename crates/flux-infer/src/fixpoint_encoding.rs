@@ -265,7 +265,7 @@ enum Key<'tcx> {
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: GlobalEnv<'genv, 'tcx>,
-    kvars: KVarStore,
+    kvars: KVarGen,
     scx: SortEncodingCtxt,
     kcx: KVarEncodingCtxt,
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
@@ -280,7 +280,7 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: LocalDefId, kvars: KVarStore) -> Self {
+    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: LocalDefId, kvars: KVarGen) -> Self {
         let def_span = genv.tcx().def_span(def_id);
         Self {
             comments: vec![],
@@ -722,12 +722,12 @@ impl FixpointKVar {
 }
 
 #[derive(Default)]
-pub struct KVarStore {
+pub struct KVarGen {
     kvars: IndexVec<rty::KVid, KVarDecl>,
     dummy: bool,
 }
 
-impl KVarStore {
+impl KVarGen {
     pub fn new() -> Self {
         Self { kvars: IndexVec::new(), dummy: false }
     }
