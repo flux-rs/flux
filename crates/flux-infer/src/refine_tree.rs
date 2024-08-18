@@ -24,7 +24,7 @@ use itertools::Itertools;
 use rustc_middle::ty::ParamConst;
 
 use crate::{
-    fixpoint_encoding::{fixpoint, sort_to_fixpoint, FixpointCtxt},
+    fixpoint_encoding::{fixpoint, FixpointCtxt},
     infer::Tag,
 };
 
@@ -575,7 +575,7 @@ impl Node {
                     constr = fixpoint::Constraint::ForAll(
                         fixpoint::Bind {
                             name: fixpoint::Var::ConstGeneric(*param_const),
-                            sort: sort_to_fixpoint(sort),
+                            sort: cx.sort_to_fixpoint(sort),
                             pred: fixpoint::Pred::TRUE,
                         },
                         Box::new(constr),
@@ -591,7 +591,7 @@ impl Node {
                     Ok(Some(fixpoint::Constraint::ForAll(
                         fixpoint::Bind {
                             name: fixpoint::Var::Local(fresh),
-                            sort: sort_to_fixpoint(sort),
+                            sort: cx.sort_to_fixpoint(sort),
                             pred: fixpoint::Pred::TRUE,
                         },
                         Box::new(children),
@@ -671,32 +671,6 @@ impl Iterator for ParentsIter {
         } else {
             None
         }
-    }
-}
-
-impl TypeVisitable for RefineTree {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.root.visit_with(visitor)
-    }
-}
-
-impl TypeVisitable for NodePtr {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        let node = self.borrow();
-        match &node.kind {
-            NodeKind::Comment(_) | NodeKind::True => {}
-            NodeKind::Assumption(pred) | NodeKind::Head(pred, _) => pred.visit_with(visitor)?,
-            NodeKind::ForAll(_, sort) => sort.visit_with(visitor)?,
-            NodeKind::Root(param_const_sorts) => {
-                for (_, sort) in param_const_sorts {
-                    sort.visit_with(visitor)?;
-                }
-            }
-        }
-        for child in &node.children {
-            child.visit_with(visitor)?;
-        }
-        ControlFlow::Continue(())
     }
 }
 
