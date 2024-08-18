@@ -1,6 +1,10 @@
 use std::{clone::Clone, fmt, ops::ControlFlow};
 
 use flux_common::{iter::IterExt, tracked_span_bug};
+use flux_infer::{
+    infer::{ConstrReason, InferCtxt},
+    refine_tree::RefineCtxt,
+};
 use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
@@ -15,12 +19,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 
-use crate::{
-    checker::errors::CheckerErrKind,
-    infer::{ConstrReason, InferCtxt},
-    refine_tree::RefineCtxt,
-    CheckerConfig,
-};
+use crate::{checker::errors::CheckerErrKind, CheckerConfig};
 
 type CheckerResult<T = ()> = std::result::Result<T, CheckerErrKind>;
 

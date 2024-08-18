@@ -24,26 +24,26 @@ extern crate rustc_span;
 extern crate rustc_type_ir;
 
 mod checker;
-mod fixpoint_encoding;
 mod ghost_statements;
-mod infer;
 pub mod invariants;
 mod primops;
 mod queue;
-mod refine_tree;
 mod type_env;
 
 use checker::Checker;
 pub use checker::CheckerConfig;
 use flux_common::{cache::QueryCache, dbg, result::ResultExt as _};
 use flux_config as config;
+use flux_infer::{
+    fixpoint_encoding::FixpointCtxt,
+    infer::{ConstrReason, Tag},
+};
 use flux_macros::fluent_messages;
 use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, ESpan},
 };
-use infer::{ConstrReason, Tag};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::LocalDefId;
@@ -100,7 +100,7 @@ pub fn check_fn(
         if config::dump_constraint() {
             dbg::dump_item_info(genv.tcx(), def_id, "simp.fluxc", &refine_tree).unwrap();
         }
-        let mut fcx = fixpoint_encoding::FixpointCtxt::new(genv, def_id, kvars);
+        let mut fcx = FixpointCtxt::new(genv, def_id, kvars);
         fcx.collect_sorts(&refine_tree).emit(&genv)?;
         let cstr = refine_tree.into_fixpoint(&mut fcx).emit(&genv)?;
         let errors = fcx.check(cache, cstr, config.scrape_quals).emit(&genv)?;

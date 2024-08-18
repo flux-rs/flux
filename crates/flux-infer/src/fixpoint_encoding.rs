@@ -370,7 +370,7 @@ where
     }
 
     /// Collect all the sorts that need to be defined in fixpoint to encode `t`
-    pub(crate) fn collect_sorts<T: TypeVisitable>(&mut self, t: &T) -> QueryResult {
+    pub fn collect_sorts<T: TypeVisitable>(&mut self, t: &T) -> QueryResult {
         struct Visitor<'a, 'genv, 'tcx> {
             genv: GlobalEnv<'genv, 'tcx>,
             sorts: &'a mut SortStore,

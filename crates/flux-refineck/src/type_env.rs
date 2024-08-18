@@ -3,6 +3,11 @@ mod place_ty;
 use std::{iter, ops::ControlFlow};
 
 use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug};
+use flux_infer::{
+    fixpoint_encoding::{KVarEncoding, KVarStore},
+    infer::{ConstrReason, InferCtxt},
+    refine_tree::{RefineCtxt, Scope},
+};
 use flux_middle::{
     intern::List,
     rty::{
@@ -20,14 +25,7 @@ use rustc_type_ir::BoundVar;
 
 use self::place_ty::{LocKind, PlacesTree};
 use super::rty::Sort;
-use crate::{
-    checker::errors::CheckerErrKind,
-    fixpoint_encoding::{KVarEncoding, KVarStore},
-    infer::{ConstrReason, InferCtxt},
-    refine_tree::{RefineCtxt, Scope},
-    rty::VariantIdx,
-    CheckerConfig,
-};
+use crate::{checker::errors::CheckerErrKind, rty::VariantIdx, CheckerConfig};
 
 type Result<T = ()> = std::result::Result<T, CheckerErrKind>;
 

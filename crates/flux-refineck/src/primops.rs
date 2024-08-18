@@ -1,5 +1,6 @@
 use std::{hash::Hash, sync::LazyLock};
 
+use flux_infer::infer::ConstrReason;
 use flux_macros::primop_rules;
 use flux_middle::{
     rty::{self, BaseTy, Expr},
@@ -7,8 +8,6 @@ use flux_middle::{
 };
 use rty::{BinOp::Mod, Expr as E};
 use rustc_data_structures::unord::UnordMap;
-
-use crate::infer::ConstrReason;
 
 pub(crate) struct MatchedRule {
     pub precondition: Option<Pre>,

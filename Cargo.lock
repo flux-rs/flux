@@ -515,6 +515,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "flux-infer"
+version = "0.1.0"
+dependencies = [
+ "flux-common",
+ "flux-config",
+ "flux-errors",
+ "flux-fixpoint",
+ "flux-middle",
+ "itertools 0.13.0",
+]
+
+[[package]]
 name = "flux-macros"
 version = "0.1.0"
 dependencies = [
@@ -566,6 +578,7 @@ dependencies = [
  "flux-config",
  "flux-errors",
  "flux-fixpoint",
+ "flux-infer",
  "flux-macros",
  "flux-middle",
  "itertools 0.13.0",
