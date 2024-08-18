@@ -1372,6 +1372,7 @@
 
     <span class="kw">use </span>rustc_index::newtype_index;
     <span class="kw">use </span>rustc_middle::ty::ParamConst;
+    <span class="kw">use </span>rustc_span::Symbol;
     <span class="macro">newtype_index!</span> {
         <span class="kw">pub struct </span>KVid {}
     }
@@ -1451,7 +1452,6 @@
         <span class="kw">type </span>Tag = <span class="kw">super</span>::TagIdx;
     }
     <span class="kw">pub use </span>fixpoint_generated::<span class="kw-2">*</span>;
-    <span class="kw">use </span>rustc_span::Symbol;
 }
 
 <span class="kw">type </span>ConstMap&lt;<span class="lifetime">'tcx</span>&gt; = FxIndexMap&lt;Key&lt;<span class="lifetime">'tcx</span>&gt;, ConstInfo&gt;;

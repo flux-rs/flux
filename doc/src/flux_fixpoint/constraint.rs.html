@@ -651,21 +651,6 @@
 <a href="#651" id="651">651</a>
 <a href="#652" id="652">652</a>
 <a href="#653" id="653">653</a>
-<a href="#654" id="654">654</a>
-<a href="#655" id="655">655</a>
-<a href="#656" id="656">656</a>
-<a href="#657" id="657">657</a>
-<a href="#658" id="658">658</a>
-<a href="#659" id="659">659</a>
-<a href="#660" id="660">660</a>
-<a href="#661" id="661">661</a>
-<a href="#662" id="662">662</a>
-<a href="#663" id="663">663</a>
-<a href="#664" id="664">664</a>
-<a href="#665" id="665">665</a>
-<a href="#666" id="666">666</a>
-<a href="#667" id="667">667</a>
-<a href="#668" id="668">668</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     fmt::{<span class="self">self</span>, Write},
     sync::LazyLock,
@@ -1015,55 +1000,40 @@
     }
 }
 
-<span class="kw">struct </span>FmtParens&lt;<span class="lifetime">'a</span>, T: Types&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Expr&lt;T&gt;);
-
-<span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>FmtParens&lt;<span class="lifetime">'_</span>, T&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="comment">// Avoid some obvious unnecesary parentheses
-        </span><span class="kw">let </span>should_parenthesize =
-            !<span class="macro">matches!</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, Expr::Var(<span class="kw">_</span>) | Expr::Constant(<span class="kw">_</span>) | Expr::App(..));
-        <span class="kw">if </span>should_parenthesize {
-            <span class="macro">write!</span>(f, <span class="string">"({})"</span>, <span class="self">self</span>.<span class="number">0</span>)
-        } <span class="kw">else </span>{
-            <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.<span class="number">0</span>)
-        }
-    }
-}
-
 <span class="kw">impl</span>&lt;T: Types&gt; fmt::Display <span class="kw">for </span>Expr&lt;T&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
             Expr::Constant(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"{c}"</span>),
             Expr::Var(x) =&gt; <span class="macro">write!</span>(f, <span class="string">"{x}"</span>),
             Expr::App(func, args) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"({func} {})"</span>, args.iter().map(FmtParens).format(<span class="string">" "</span>),)
+                <span class="macro">write!</span>(f, <span class="string">"({func} {})"</span>, args.iter().format(<span class="string">" "</span>))
             }
             Expr::Neg(e) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"(- {})"</span>, FmtParens(e))
+                <span class="macro">write!</span>(f, <span class="string">"(- {e})"</span>)
             }
             Expr::BinaryOp(op, <span class="kw">box </span>[e1, e2]) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"({op} {} {})"</span>, FmtParens(e1), FmtParens(e2))
+                <span class="macro">write!</span>(f, <span class="string">"({op} {e1} {e2})"</span>)
             }
             Expr::IfThenElse(<span class="kw">box </span>[p, e1, e2]) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"(if {} {} {})"</span>, FmtParens(p), FmtParens(e1), FmtParens(e2))
+                <span class="macro">write!</span>(f, <span class="string">"(if {p} {e1} {e2})"</span>)
             }
             Expr::And(exprs) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"(and {})"</span>, exprs.iter().map(FmtParens).format(<span class="string">" "</span>))
+                <span class="macro">write!</span>(f, <span class="string">"(and {})"</span>, exprs.iter().format(<span class="string">" "</span>))
             }
             Expr::Or(exprs) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"(or {})"</span>, exprs.iter().map(FmtParens).format(<span class="string">" "</span>))
+                <span class="macro">write!</span>(f, <span class="string">"(or {})"</span>, exprs.iter().format(<span class="string">" "</span>))
             }
             Expr::Not(e) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"(not {})"</span>, FmtParens(e))
+                <span class="macro">write!</span>(f, <span class="string">"(not {e})"</span>)
             }
             Expr::Imp(<span class="kw">box </span>[e1, e2]) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"(=&gt; {} {})"</span>, FmtParens(e1), FmtParens(e2))
+                <span class="macro">write!</span>(f, <span class="string">"(=&gt; {e1} {e2})"</span>)
             }
             Expr::Iff(<span class="kw">box </span>[e1, e2]) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"(&lt;=&gt; {} {})"</span>, FmtParens(e1), FmtParens(e2))
+                <span class="macro">write!</span>(f, <span class="string">"(&lt;=&gt; {e1} {e2})"</span>)
             }
             Expr::Atom(rel, <span class="kw">box </span>[e1, e2]) =&gt; {
-                <span class="macro">write!</span>(f, <span class="string">"({rel} {} {})"</span>, FmtParens(e1), FmtParens(e2))
+                <span class="macro">write!</span>(f, <span class="string">"({rel} {e1} {e2})"</span>)
             }
         }
     }
