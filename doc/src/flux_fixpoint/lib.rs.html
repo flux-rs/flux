@@ -297,12 +297,12 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::constraint::DEFAULT_QUALIFIERS;
 
-<span class="kw">pub trait </span>Symbol: fmt::Display + Hash + Clone {}
+<span class="kw">pub trait </span>Symbol: fmt::Display + Hash {}
 
-<span class="kw">impl</span>&lt;T: fmt::Display + Hash + Clone&gt; Symbol <span class="kw">for </span>T {}
+<span class="kw">impl</span>&lt;T: fmt::Display + Hash&gt; Symbol <span class="kw">for </span>T {}
 
 <span class="kw">pub trait </span>Types {
-    <span class="kw">type </span>Sort: Symbol;
+    <span class="kw">type </span>Sort: Symbol + Clone;
     <span class="kw">type </span>KVar: Symbol;
     <span class="kw">type </span>Var: Symbol;
     <span class="kw">type </span>Tag: fmt::Display + Hash + FromStr;

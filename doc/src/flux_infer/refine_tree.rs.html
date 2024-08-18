@@ -893,32 +893,6 @@
 <a href="#893" id="893">893</a>
 <a href="#894" id="894">894</a>
 <a href="#895" id="895">895</a>
-<a href="#896" id="896">896</a>
-<a href="#897" id="897">897</a>
-<a href="#898" id="898">898</a>
-<a href="#899" id="899">899</a>
-<a href="#900" id="900">900</a>
-<a href="#901" id="901">901</a>
-<a href="#902" id="902">902</a>
-<a href="#903" id="903">903</a>
-<a href="#904" id="904">904</a>
-<a href="#905" id="905">905</a>
-<a href="#906" id="906">906</a>
-<a href="#907" id="907">907</a>
-<a href="#908" id="908">908</a>
-<a href="#909" id="909">909</a>
-<a href="#910" id="910">910</a>
-<a href="#911" id="911">911</a>
-<a href="#912" id="912">912</a>
-<a href="#913" id="913">913</a>
-<a href="#914" id="914">914</a>
-<a href="#915" id="915">915</a>
-<a href="#916" id="916">916</a>
-<a href="#917" id="917">917</a>
-<a href="#918" id="918">918</a>
-<a href="#919" id="919">919</a>
-<a href="#920" id="920">920</a>
-<a href="#921" id="921">921</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
@@ -945,7 +919,7 @@
 <span class="kw">use </span>rustc_middle::ty::ParamConst;
 
 <span class="kw">use crate</span>::{
-    fixpoint_encoding::{fixpoint, sort_to_fixpoint, FixpointCtxt},
+    fixpoint_encoding::{fixpoint, FixpointCtxt},
     infer::Tag,
 };
 
@@ -1496,7 +1470,7 @@
                     constr = fixpoint::Constraint::ForAll(
                         fixpoint::Bind {
                             name: fixpoint::Var::ConstGeneric(<span class="kw-2">*</span>param_const),
-                            sort: sort_to_fixpoint(sort),
+                            sort: cx.sort_to_fixpoint(sort),
                             pred: fixpoint::Pred::TRUE,
                         },
                         Box::new(constr),
@@ -1512,7 +1486,7 @@
                     <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(fixpoint::Constraint::ForAll(
                         fixpoint::Bind {
                             name: fixpoint::Var::Local(fresh),
-                            sort: sort_to_fixpoint(sort),
+                            sort: cx.sort_to_fixpoint(sort),
                             pred: fixpoint::Pred::TRUE,
                         },
                         Box::new(children),
@@ -1592,32 +1566,6 @@
         } <span class="kw">else </span>{
             <span class="prelude-val">None
         </span>}
-    }
-}
-
-<span class="kw">impl </span>TypeVisitable <span class="kw">for </span>RefineTree {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
-        <span class="self">self</span>.root.visit_with(visitor)
-    }
-}
-
-<span class="kw">impl </span>TypeVisitable <span class="kw">for </span>NodePtr {
-    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
-        <span class="kw">let </span>node = <span class="self">self</span>.borrow();
-        <span class="kw">match </span><span class="kw-2">&amp;</span>node.kind {
-            NodeKind::Comment(<span class="kw">_</span>) | NodeKind::True =&gt; {}
-            NodeKind::Assumption(pred) | NodeKind::Head(pred, <span class="kw">_</span>) =&gt; pred.visit_with(visitor)<span class="question-mark">?</span>,
-            NodeKind::ForAll(<span class="kw">_</span>, sort) =&gt; sort.visit_with(visitor)<span class="question-mark">?</span>,
-            NodeKind::Root(param_const_sorts) =&gt; {
-                <span class="kw">for </span>(<span class="kw">_</span>, sort) <span class="kw">in </span>param_const_sorts {
-                    sort.visit_with(visitor)<span class="question-mark">?</span>;
-                }
-            }
-        }
-        <span class="kw">for </span>child <span class="kw">in </span><span class="kw-2">&amp;</span>node.children {
-            child.visit_with(visitor)<span class="question-mark">?</span>;
-        }
-        ControlFlow::Continue(())
     }
 }
 
