@@ -110,6 +110,7 @@ pub mod fixpoint {
 
     use rustc_index::newtype_index;
     use rustc_middle::ty::ParamConst;
+    use rustc_span::Symbol;
     newtype_index! {
         pub struct KVid {}
     }
@@ -189,7 +190,6 @@ pub mod fixpoint {
         type Tag = super::TagIdx;
     }
     pub use fixpoint_generated::*;
-    use rustc_span::Symbol;
 }
 
 type ConstMap<'tcx> = FxIndexMap<Key<'tcx>, ConstInfo>;
