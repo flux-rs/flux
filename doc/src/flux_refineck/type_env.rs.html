@@ -754,13 +754,16 @@
 <a href="#754" id="754">754</a>
 <a href="#755" id="755">755</a>
 <a href="#756" id="756">756</a>
-<a href="#757" id="757">757</a>
-<a href="#758" id="758">758</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug};
+<span class="kw">use </span>flux_infer::{
+    fixpoint_encoding::{KVarEncoding, KVarStore},
+    infer::{ConstrReason, InferCtxt},
+    refine_tree::{RefineCtxt, Scope},
+};
 <span class="kw">use </span>flux_middle::{
     intern::List,
     rty::{
@@ -778,14 +781,7 @@
 
 <span class="kw">use </span><span class="self">self</span>::place_ty::{LocKind, PlacesTree};
 <span class="kw">use </span><span class="kw">super</span>::rty::Sort;
-<span class="kw">use crate</span>::{
-    checker::errors::CheckerErrKind,
-    fixpoint_encoding::{KVarEncoding, KVarStore},
-    infer::{ConstrReason, InferCtxt},
-    refine_tree::{RefineCtxt, Scope},
-    rty::VariantIdx,
-    CheckerConfig,
-};
+<span class="kw">use crate</span>::{checker::errors::CheckerErrKind, rty::VariantIdx, CheckerConfig};
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, CheckerErrKind&gt;;
 

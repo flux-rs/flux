@@ -388,9 +388,9 @@
 <a href="#388" id="388">388</a>
 <a href="#389" id="389">389</a>
 <a href="#390" id="390">390</a>
-<a href="#391" id="391">391</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{hash::Hash, sync::LazyLock};
 
+<span class="kw">use </span>flux_infer::infer::ConstrReason;
 <span class="kw">use </span>flux_macros::primop_rules;
 <span class="kw">use </span>flux_middle::{
     rty::{<span class="self">self</span>, BaseTy, Expr},
@@ -398,8 +398,6 @@
 };
 <span class="kw">use </span>rty::{BinOp::Mod, Expr <span class="kw">as </span>E};
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-
-<span class="kw">use </span><span class="kw">crate</span>::infer::ConstrReason;
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>MatchedRule {
     <span class="kw">pub </span>precondition: <span class="prelude-ty">Option</span>&lt;Pre&gt;,

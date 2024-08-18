@@ -1,5 +1,5 @@
 (function() {var implementors = {
 "flux_fhir_analysis":[["impl <a class=\"trait\" href=\"flux_middle/rty/fold/trait.TypeFolder.html\" title=\"trait flux_middle::rty::fold::TypeFolder\">TypeFolder</a> for <a class=\"struct\" href=\"flux_fhir_analysis/wf/sortck/struct.OpportunisticResolver.html\" title=\"struct flux_fhir_analysis::wf::sortck::OpportunisticResolver\">OpportunisticResolver</a>&lt;'_, '_, '_&gt;"],["impl <a class=\"trait\" href=\"flux_middle/rty/fold/trait.TypeFolder.html\" title=\"trait flux_middle::rty::fold::TypeFolder\">TypeFolder</a> for <a class=\"struct\" href=\"flux_fhir_analysis/wf/sortck/struct.ShallowResolver.html\" title=\"struct flux_fhir_analysis::wf::sortck::ShallowResolver\">ShallowResolver</a>&lt;'_, '_, '_&gt;"]],
-"flux_middle":[],
-"flux_refineck":[["impl <a class=\"trait\" href=\"flux_middle/rty/fold/trait.TypeFolder.html\" title=\"trait flux_middle::rty::fold::TypeFolder\">TypeFolder</a> for <a class=\"struct\" href=\"flux_refineck/refine_tree/struct.Unpacker.html\" title=\"struct flux_refineck::refine_tree::Unpacker\">Unpacker</a>&lt;'_, '_&gt;"]]
+"flux_infer":[["impl <a class=\"trait\" href=\"flux_middle/rty/fold/trait.TypeFolder.html\" title=\"trait flux_middle::rty::fold::TypeFolder\">TypeFolder</a> for <a class=\"struct\" href=\"flux_infer/refine_tree/struct.Unpacker.html\" title=\"struct flux_infer::refine_tree::Unpacker\">Unpacker</a>&lt;'_, '_&gt;"]],
+"flux_middle":[]
 };if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

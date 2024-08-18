@@ -993,10 +993,13 @@
 <a href="#993" id="993">993</a>
 <a href="#994" id="994">994</a>
 <a href="#995" id="995">995</a>
-<a href="#996" id="996">996</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
+<span class="kw">use </span>flux_infer::{
+    infer::{ConstrReason, InferCtxt},
+    refine_tree::RefineCtxt,
+};
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     intern::List,
@@ -1011,12 +1014,7 @@
 <span class="kw">use </span>rustc_hash::FxHashMap;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 
-<span class="kw">use crate</span>::{
-    checker::errors::CheckerErrKind,
-    infer::{ConstrReason, InferCtxt},
-    refine_tree::RefineCtxt,
-    CheckerConfig,
-};
+<span class="kw">use crate</span>::{checker::errors::CheckerErrKind, CheckerConfig};
 
 <span class="kw">type </span>CheckerResult&lt;T = ()&gt; = std::result::Result&lt;T, CheckerErrKind&gt;;
 
