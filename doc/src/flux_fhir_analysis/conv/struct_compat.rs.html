@@ -700,9 +700,6 @@
 <a href="#700" id="700">700</a>
 <a href="#701" id="701">701</a>
 <a href="#702" id="702">702</a>
-<a href="#703" id="703">703</a>
-<a href="#704" id="704">704</a>
-<a href="#705" id="705">705</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
@@ -756,17 +753,13 @@
     fn_sig: <span class="kw-2">&amp;</span>rty::PolyFnSig,
     def_id: LocalDefId,
 ) -&gt; QueryResult&lt;rty::PolyFnSig&gt; {
-    <span class="comment">// FIXME(nilehmann) we should call `genv.lower_fn_sig`, but that function normalizes the
-    // signature to evaluate constants before lowering it. This also normalizes projections which
-    // we don't want here because we need the signatures to match syntactically.
-    // FIXME(nilehmann) we should check against the extern signature if this is an extern spec.
-    // Unfortunately, doing this makes `neg/vec01.rs` fail because checking against the real
-    // signature of `&lt;Vec as Index&lt;usize&gt;&gt;::index` requires deep normalization.
-    </span><span class="kw">let </span>rust_fn_sig = genv.lower_fn_sig(def_id)<span class="question-mark">?</span>.skip_binder();
+    <span class="kw">let </span>def_id = genv.resolve_maybe_extern_id(def_id.to_def_id());
+
+    <span class="kw">let </span>rust_fn_sig = genv.lower_fn_sig(def_id)<span class="question-mark">?</span>.skip_binder();
     <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>expected = Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_poly_fn_sig(<span class="kw-2">&amp;</span>rust_fn_sig)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, def_id.to_def_id());
+    <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, def_id);
     zipper.enter_binders(fn_sig, <span class="kw-2">&amp;</span>expected, |zipper, fn_sig, expected| {
         zipper.zip_fn_sig(decl, fn_sig, expected);
     });
@@ -782,6 +775,7 @@
     adt_def_id: LocalDefId,
 ) -&gt; QueryResult&lt;Vec&lt;rty::PolyVariant&gt;&gt; {
     <span class="kw">let </span>adt_def_id = genv.resolve_maybe_extern_id(adt_def_id.to_def_id());
+
     <span class="kw">let </span>generics = genv.generics_of(adt_def_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>refiner = Refiner::default(genv, <span class="kw-2">&amp;</span>generics);
     <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, adt_def_id);
