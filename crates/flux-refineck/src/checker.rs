@@ -1312,7 +1312,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             &self.body.infcx,
             self.def_id.into(),
             &self.inherited.refine_params,
-            &self.inherited.kvars,
+            self.inherited.kvars,
             span,
         )
     }
