@@ -724,6 +724,10 @@ impl FixpointKVar {
 #[derive(Default)]
 pub struct KVarGen {
     kvars: IndexVec<rty::KVid, KVarDecl>,
+    /// If true generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
+    /// unnecessary kvars.
+    ///
+    /// [holes]: rty::ExprKind::Hole
     dummy: bool,
 }
 
@@ -747,8 +751,11 @@ impl KVarGen {
     /// Note that the returned expression will have escaping variables and it is up to the caller to
     /// put it under an appropriate number of binders.
     ///
+    /// Prefer using [`InferCtxt::fresh_kvar`] when possible.
+    ///
     /// [binders]: rty::Binder
     /// [kvar]: rty::KVar
+    /// [`InferCtxt::fresh_kvar`]: crate::infer::InferCtxt::fresh_kvar
     pub fn fresh(
         &mut self,
         binders: &[List<rty::Sort>],

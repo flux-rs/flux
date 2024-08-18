@@ -175,6 +175,8 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             let const_params = generics.const_params(genv).with_span(span)?;
             let mut refine_tree = RefineTree::new(const_params);
             let mut rcx = refine_tree.refine_ctxt_at_root();
+
+            // In shape mode we don't care about kvars
             let kvars = RefCell::new(KVarGen::dummy());
             let inherited =
                 Inherited::new(genv, &mut rcx, def_id, &mut mode, &kvars, ghost_stmts, config)?;
