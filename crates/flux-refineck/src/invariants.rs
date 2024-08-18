@@ -2,7 +2,7 @@ use flux_common::{cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::ErrorGuaranteed;
 use flux_infer::{
-    fixpoint_encoding::{FixpointCtxt, KVarStore},
+    fixpoint_encoding::{FixpointCtxt, KVarGen},
     infer::{ConstrReason, Tag},
     refine_tree::RefineTree,
 };
@@ -60,7 +60,7 @@ fn check_invariant(
         let pred = invariant.apply(&variant.idx);
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
-    let mut fcx = FixpointCtxt::new(genv, def_id, KVarStore::default());
+    let mut fcx = FixpointCtxt::new(genv, def_id, KVarGen::default());
     if config::dump_constraint() {
         dbg::dump_item_info(genv.tcx(), def_id, "fluxc", &refine_tree).unwrap();
     }

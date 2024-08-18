@@ -21,22 +21,18 @@ use rustc_middle::ty::{BoundRegionKind, Variance};
 use rustc_span::Span;
 
 use crate::{
-    fixpoint_encoding::KVarEncoding,
+    fixpoint_encoding::{KVarEncoding, KVarGen},
     refine_tree::{RefineCtxt, Scope},
 };
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
-
-pub trait KVarGen {
-    fn fresh(&self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr;
-}
 
 pub struct InferCtxt<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
     pub def_id: DefId,
     pub refparams: &'a [Expr],
-    kvar_gen: Box<(dyn KVarGen + 'a)>,
+    kvar_gen: &'a RefCell<KVarGen>,
     evar_gen: RefCell<EVarGen<Scope>>,
     /// The span at which this inference context was created in `Checker`
     span: Span,
@@ -79,7 +75,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         def_id: DefId,
         refparams: &'a [Expr],
-        kvar_gen: impl KVarGen + 'a,
+        kvar_gen: &'a RefCell<KVarGen>,
         span: Span,
     ) -> Self {
         Self {
@@ -87,7 +83,7 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
             region_infcx,
             def_id,
             refparams,
-            kvar_gen: Box::new(kvar_gen),
+            kvar_gen,
             evar_gen: RefCell::new(EVarGen::default()),
             span,
         }
@@ -145,8 +141,12 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         }
     }
 
+    /// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
     pub fn fresh_kvar(&self, sorts: &[List<Sort>], encoding: KVarEncoding) -> Expr {
-        self.kvar_gen.fresh(sorts, encoding)
+        let evar_gen = self.evar_gen.borrow();
+        self.kvar_gen
+            .borrow_mut()
+            .fresh(sorts, evar_gen.current_data().iter(), encoding)
     }
 
     fn fresh_evars(&self, sort: &Sort) -> Expr {
@@ -594,15 +594,6 @@ impl From<UnsolvedEvar> for InferErr {
 impl From<QueryErr> for InferErr {
     fn from(v: QueryErr) -> Self {
         Self::Query(v)
-    }
-}
-
-impl<F> KVarGen for F
-where
-    F: Fn(&[List<Sort>], KVarEncoding) -> Expr,
-{
-    fn fresh(&self, binders: &[List<Sort>], kind: KVarEncoding) -> Expr {
-        (self)(binders, kind)
     }
 }
 

@@ -265,7 +265,7 @@ enum Key<'tcx> {
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: GlobalEnv<'genv, 'tcx>,
-    kvars: KVarStore,
+    kvars: KVarGen,
     scx: SortEncodingCtxt,
     kcx: KVarEncodingCtxt,
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
@@ -280,7 +280,7 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: LocalDefId, kvars: KVarStore) -> Self {
+    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: LocalDefId, kvars: KVarGen) -> Self {
         let def_span = genv.tcx().def_span(def_id);
         Self {
             comments: vec![],
@@ -433,6 +433,8 @@ where
 
     /// Encodes an expression in head position as a [`fixpoint::Constraint`] "peeling out"
     /// implications and foralls.
+    ///
+    /// [`fixpoint::Constraint`]: flux_fixpoint::Constraint
     pub(crate) fn head_to_fixpoint(
         &mut self,
         expr: &rty::Expr,
@@ -720,13 +722,22 @@ impl FixpointKVar {
 }
 
 #[derive(Default)]
-pub struct KVarStore {
+pub struct KVarGen {
     kvars: IndexVec<rty::KVid, KVarDecl>,
+    /// If true generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
+    /// unnecessary kvars.
+    ///
+    /// [holes]: rty::ExprKind::Hole
+    dummy: bool,
 }
 
-impl KVarStore {
+impl KVarGen {
     pub fn new() -> Self {
-        Self { kvars: IndexVec::new() }
+        Self { kvars: IndexVec::new(), dummy: false }
+    }
+
+    pub fn dummy() -> Self {
+        Self { kvars: IndexVec::new(), dummy: true }
     }
 
     fn get(&self, kvid: rty::KVid) -> &KVarDecl {
@@ -740,14 +751,21 @@ impl KVarStore {
     /// Note that the returned expression will have escaping variables and it is up to the caller to
     /// put it under an appropriate number of binders.
     ///
+    /// Prefer using [`InferCtxt::fresh_kvar`] when possible.
+    ///
     /// [binders]: rty::Binder
     /// [kvar]: rty::KVar
+    /// [`InferCtxt::fresh_kvar`]: crate::infer::InferCtxt::fresh_kvar
     pub fn fresh(
         &mut self,
         binders: &[List<rty::Sort>],
         scope: impl IntoIterator<Item = (rty::Var, rty::Sort)>,
         encoding: KVarEncoding,
     ) -> rty::Expr {
+        if self.dummy {
+            return rty::Expr::hole(rty::HoleKind::Pred);
+        }
+
         if binders.is_empty() {
             return self.fresh_inner(0, [], encoding);
         }
