@@ -12,10 +12,8 @@ use rustc_hir::{
     def::DefKind,
     def_id::{DefId, LocalDefId},
 };
-use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{Decodable, Encodable};
 use rustc_span::{Span, Symbol};
-use rustc_trait_selection::traits::NormalizeExt;
 
 use crate::{
     fhir::{self, FluxLocalDefId},
@@ -340,16 +338,9 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<ty::EarlyBinder<ty::PolyFnSig>> {
         run_with_cache(&self.lower_fn_sig, def_id, || {
-            let fn_sig = genv.tcx().fn_sig(def_id);
-            let param_env = genv.tcx().param_env(def_id);
-            let result = genv
-                .tcx()
-                .infer_ctxt()
-                .build()
-                .at(&rustc_middle::traits::ObligationCause::dummy(), param_env)
-                .normalize(fn_sig.instantiate_identity());
+            let fn_sig = genv.tcx().fn_sig(def_id).instantiate_identity();
             Ok(ty::EarlyBinder(
-                lowering::lower_fn_sig(genv.tcx(), result.value)
+                lowering::lower_fn_sig(genv.tcx(), fn_sig)
                     .map_err(UnsupportedReason::into_err)
                     .map_err(|err| QueryErr::unsupported(def_id, err))?,
             ))

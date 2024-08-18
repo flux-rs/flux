@@ -10,16 +10,13 @@ use flux_errors::Errors;
 use flux_middle::{
     fhir,
     global_env::GlobalEnv,
-    queries::{QueryErr, QueryResult},
+    queries::QueryResult,
     rty::{
         self,
         fold::{BottomUpFolder, TypeFoldable},
         refining::Refiner,
     },
-    rustc::{
-        lowering::{self, UnsupportedReason},
-        ty::{self, FieldIdx, VariantIdx},
-    },
+    rustc::ty::{self, FieldIdx, VariantIdx},
 };
 use rustc_ast::Mutability;
 use rustc_data_structures::unord::UnordMap;
@@ -60,9 +57,7 @@ pub(crate) fn fn_sig(
     // FIXME(nilehmann) we should check against the extern signature if this is an extern spec.
     // Unfortunately, doing this makes `neg/vec01.rs` fail because checking against the real
     // signature of `<Vec as Index<usize>>::index` requires deep normalization.
-    let rust_fn_sig = lowering::lower_fn_sig(genv.tcx(), genv.tcx().fn_sig(def_id).skip_binder())
-        .map_err(UnsupportedReason::into_err)
-        .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err))?;
+    let rust_fn_sig = genv.lower_fn_sig(def_id)?.skip_binder();
     let generics = genv.generics_of(def_id)?;
     let expected = Refiner::default(genv, &generics).refine_poly_fn_sig(&rust_fn_sig)?;
 
