@@ -489,7 +489,7 @@ where
     }
 
     /// Encodes an expression in assumptive position as a [`fixpoint::Pred`]. Returns the encoded
-    /// predicate and a possible list of bindings produced by ANF-fing kvars.
+    /// predicate and a list of bindings produced by ANF-fing kvars.
     ///
     /// [`fixpoint::Pred`]: flux_fixpoint::Pred
     pub(crate) fn assumption_to_fixpoint(
