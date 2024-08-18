@@ -760,7 +760,7 @@
 
 <span class="kw">use </span>flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug};
 <span class="kw">use </span>flux_infer::{
-    fixpoint_encoding::{KVarEncoding, KVarStore},
+    fixpoint_encoding::{KVarEncoding, KVarGen},
     infer::{ConstrReason, InferCtxt},
     refine_tree::{RefineCtxt, Scope},
 };
@@ -1374,7 +1374,7 @@
         }
     }
 
-    <span class="kw">pub fn </span>into_bb_env(<span class="self">self</span>, kvar_store: <span class="kw-2">&amp;mut </span>KVarStore) -&gt; BasicBlockEnv {
+    <span class="kw">pub fn </span>into_bb_env(<span class="self">self</span>, kvar_gen: <span class="kw-2">&amp;mut </span>KVarGen) -&gt; BasicBlockEnv {
         <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="self">self</span>.bindings;
 
         <span class="kw">let </span><span class="kw-2">mut </span>hoister = Hoister::default()
@@ -1392,7 +1392,7 @@
 
         <span class="kw">let </span>outter_sorts = vars.to_sort_list();
 
-        <span class="kw">let </span>kvar = kvar_store.fresh(<span class="kw-2">&amp;</span>[outter_sorts.clone()], <span class="self">self</span>.scope.iter(), KVarEncoding::Conj);
+        <span class="kw">let </span>kvar = kvar_gen.fresh(<span class="kw-2">&amp;</span>[outter_sorts.clone()], <span class="self">self</span>.scope.iter(), KVarEncoding::Conj);
         constrs.push(kvar);
 
         <span class="comment">// Replace remaning holes by fresh kvars
@@ -1401,7 +1401,7 @@
             <span class="kw">let </span>sorts = std::iter::once(outter_sorts.clone())
                 .chain(sorts.iter().cloned())
                 .collect_vec();
-            kvar_store.fresh(<span class="kw-2">&amp;</span>sorts, <span class="self">self</span>.scope.iter(), KVarEncoding::Conj)
+            kvar_gen.fresh(<span class="kw-2">&amp;</span>sorts, <span class="self">self</span>.scope.iter(), KVarEncoding::Conj)
         };
         bindings.fmap_mut(|binding| binding.replace_holes(<span class="kw-2">&amp;mut </span>kvar_gen));
 

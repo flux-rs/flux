@@ -1267,6 +1267,24 @@
 <a href="#1267" id="1267">1267</a>
 <a href="#1268" id="1268">1268</a>
 <a href="#1269" id="1269">1269</a>
+<a href="#1270" id="1270">1270</a>
+<a href="#1271" id="1271">1271</a>
+<a href="#1272" id="1272">1272</a>
+<a href="#1273" id="1273">1273</a>
+<a href="#1274" id="1274">1274</a>
+<a href="#1275" id="1275">1275</a>
+<a href="#1276" id="1276">1276</a>
+<a href="#1277" id="1277">1277</a>
+<a href="#1278" id="1278">1278</a>
+<a href="#1279" id="1279">1279</a>
+<a href="#1280" id="1280">1280</a>
+<a href="#1281" id="1281">1281</a>
+<a href="#1282" id="1282">1282</a>
+<a href="#1283" id="1283">1283</a>
+<a href="#1284" id="1284">1284</a>
+<a href="#1285" id="1285">1285</a>
+<a href="#1286" id="1286">1286</a>
+<a href="#1287" id="1287">1287</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
@@ -1534,7 +1552,7 @@
 <span class="kw">pub struct </span>FixpointCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, T: Eq + Hash&gt; {
     comments: Vec&lt;String&gt;,
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    kvars: KVarStore,
+    kvars: KVarGen,
     scx: SortEncodingCtxt,
     kcx: KVarEncodingCtxt,
     ecx: ExprEncodingCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
@@ -1549,7 +1567,7 @@
 <span class="kw">where
     </span>Tag: std::hash::Hash + Eq + Copy,
 {
-    <span class="kw">pub fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, def_id: LocalDefId, kvars: KVarStore) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, def_id: LocalDefId, kvars: KVarGen) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>def_span = genv.tcx().def_span(def_id);
         <span class="self">Self </span>{
             comments: <span class="macro">vec!</span>[],
@@ -1702,6 +1720,8 @@
 
     <span class="doccomment">/// Encodes an expression in head position as a [`fixpoint::Constraint`] "peeling out"
     /// implications and foralls.
+    ///
+    /// [`fixpoint::Constraint`]: flux_fixpoint::Constraint
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>head_to_fixpoint(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         expr: <span class="kw-2">&amp;</span>rty::Expr,
@@ -1989,13 +2009,22 @@
 }
 
 <span class="attr">#[derive(Default)]
-</span><span class="kw">pub struct </span>KVarStore {
+</span><span class="kw">pub struct </span>KVarGen {
     kvars: IndexVec&lt;rty::KVid, KVarDecl&gt;,
+    <span class="doccomment">/// If true generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
+    /// unnecessary kvars.
+    ///
+    /// [holes]: rty::ExprKind::Hole
+    </span>dummy: bool,
 }
 
-<span class="kw">impl </span>KVarStore {
+<span class="kw">impl </span>KVarGen {
     <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ kvars: IndexVec::new() }
+        <span class="self">Self </span>{ kvars: IndexVec::new(), dummy: <span class="bool-val">false </span>}
+    }
+
+    <span class="kw">pub fn </span>dummy() -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ kvars: IndexVec::new(), dummy: <span class="bool-val">true </span>}
     }
 
     <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, kvid: rty::KVid) -&gt; <span class="kw-2">&amp;</span>KVarDecl {
@@ -2009,14 +2038,21 @@
     /// Note that the returned expression will have escaping variables and it is up to the caller to
     /// put it under an appropriate number of binders.
     ///
+    /// Prefer using [`InferCtxt::fresh_kvar`] when possible.
+    ///
     /// [binders]: rty::Binder
     /// [kvar]: rty::KVar
+    /// [`InferCtxt::fresh_kvar`]: crate::infer::InferCtxt::fresh_kvar
     </span><span class="kw">pub fn </span>fresh(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         binders: <span class="kw-2">&amp;</span>[List&lt;rty::Sort&gt;],
         scope: <span class="kw">impl </span>IntoIterator&lt;Item = (rty::Var, rty::Sort)&gt;,
         encoding: KVarEncoding,
     ) -&gt; rty::Expr {
+        <span class="kw">if </span><span class="self">self</span>.dummy {
+            <span class="kw">return </span>rty::Expr::hole(rty::HoleKind::Pred);
+        }
+
         <span class="kw">if </span>binders.is_empty() {
             <span class="kw">return </span><span class="self">self</span>.fresh_inner(<span class="number">0</span>, [], encoding);
         }

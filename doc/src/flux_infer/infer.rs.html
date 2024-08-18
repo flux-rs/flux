@@ -613,15 +613,6 @@
 <a href="#613" id="613">613</a>
 <a href="#614" id="614">614</a>
 <a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a>
-<a href="#618" id="618">618</a>
-<a href="#619" id="619">619</a>
-<a href="#620" id="620">620</a>
-<a href="#621" id="621">621</a>
-<a href="#622" id="622">622</a>
-<a href="#623" id="623">623</a>
-<a href="#624" id="624">624</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, iter};
 
 <span class="kw">use </span>flux_common::bug;
@@ -645,22 +636,18 @@
 <span class="kw">use </span>rustc_span::Span;
 
 <span class="kw">use crate</span>::{
-    fixpoint_encoding::KVarEncoding,
+    fixpoint_encoding::{KVarEncoding, KVarGen},
     refine_tree::{RefineCtxt, Scope},
 };
 
 <span class="kw">pub type </span>InferResult&lt;T = ()&gt; = std::result::Result&lt;T, InferErr&gt;;
-
-<span class="kw">pub trait </span>KVarGen {
-    <span class="kw">fn </span>fresh(<span class="kw-2">&amp;</span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], kind: KVarEncoding) -&gt; Expr;
-}
 
 <span class="kw">pub struct </span>InferCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub </span>genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     <span class="kw">pub </span>region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     <span class="kw">pub </span>def_id: DefId,
     <span class="kw">pub </span>refparams: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Expr],
-    kvar_gen: Box&lt;(<span class="kw">dyn </span>KVarGen + <span class="lifetime">'a</span>)&gt;,
+    kvar_gen: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>RefCell&lt;KVarGen&gt;,
     evar_gen: RefCell&lt;EVarGen&lt;Scope&gt;&gt;,
     <span class="doccomment">/// The span at which this inference context was created in `Checker`
     </span>span: Span,
@@ -703,7 +690,7 @@
         region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
         def_id: DefId,
         refparams: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Expr],
-        kvar_gen: <span class="kw">impl </span>KVarGen + <span class="lifetime">'a</span>,
+        kvar_gen: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>RefCell&lt;KVarGen&gt;,
         span: Span,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
@@ -711,7 +698,7 @@
             region_infcx,
             def_id,
             refparams,
-            kvar_gen: Box::new(kvar_gen),
+            kvar_gen,
             evar_gen: RefCell::new(EVarGen::default()),
             span,
         }
@@ -769,8 +756,12 @@
         }
     }
 
-    <span class="kw">pub fn </span>fresh_kvar(<span class="kw-2">&amp;</span><span class="self">self</span>, sorts: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], encoding: KVarEncoding) -&gt; Expr {
-        <span class="self">self</span>.kvar_gen.fresh(sorts, encoding)
+    <span class="doccomment">/// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
+    </span><span class="kw">pub fn </span>fresh_kvar(<span class="kw-2">&amp;</span><span class="self">self</span>, sorts: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], encoding: KVarEncoding) -&gt; Expr {
+        <span class="kw">let </span>evar_gen = <span class="self">self</span>.evar_gen.borrow();
+        <span class="self">self</span>.kvar_gen
+            .borrow_mut()
+            .fresh(sorts, evar_gen.current_data().iter(), encoding)
     }
 
     <span class="kw">fn </span>fresh_evars(<span class="kw-2">&amp;</span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; Expr {
@@ -1218,15 +1209,6 @@
 <span class="kw">impl </span>From&lt;QueryErr&gt; <span class="kw">for </span>InferErr {
     <span class="kw">fn </span>from(v: QueryErr) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::Query(v)
-    }
-}
-
-<span class="kw">impl</span>&lt;F&gt; KVarGen <span class="kw">for </span>F
-<span class="kw">where
-    </span>F: Fn(<span class="kw-2">&amp;</span>[List&lt;Sort&gt;], KVarEncoding) -&gt; Expr,
-{
-    <span class="kw">fn </span>fresh(<span class="kw-2">&amp;</span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>[List&lt;Sort&gt;], kind: KVarEncoding) -&gt; Expr {
-        (<span class="self">self</span>)(binders, kind)
     }
 }
 

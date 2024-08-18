@@ -218,9 +218,18 @@
 <a href="#218" id="218">218</a>
 <a href="#219" id="219">219</a>
 <a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
-<span class="kw">use </span>flux_common::index::IndexVec;
+<span class="kw">use </span>flux_common::{bug, index::IndexVec};
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::fx::FxIndexMap;
 <span class="kw">use </span>rustc_hash::FxHashMap;
@@ -348,6 +357,15 @@
             .or_else(|| <span class="self">self</span>.pending.get(<span class="kw-2">&amp;</span>cxid))
             .unwrap()
             .data
+    }
+
+    <span class="kw">pub fn </span>current_data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>T {
+        <span class="kw-2">&amp;</span><span class="self">self
+            </span>.stack
+            .last()
+            .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"no context"</span>))
+            .<span class="number">1
+            </span>.data
     }
 
     <span class="kw">pub fn </span>unify(<span class="kw-2">&amp;mut </span><span class="self">self</span>, evar: EVar, arg: <span class="kw">impl </span>Into&lt;Expr&gt;, replace: bool) {
