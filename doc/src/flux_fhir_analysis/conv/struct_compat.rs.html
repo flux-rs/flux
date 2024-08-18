@@ -703,11 +703,6 @@
 <a href="#703" id="703">703</a>
 <a href="#704" id="704">704</a>
 <a href="#705" id="705">705</a>
-<a href="#706" id="706">706</a>
-<a href="#707" id="707">707</a>
-<a href="#708" id="708">708</a>
-<a href="#709" id="709">709</a>
-<a href="#710" id="710">710</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
@@ -720,16 +715,13 @@
 <span class="kw">use </span>flux_middle::{
     fhir,
     global_env::GlobalEnv,
-    queries::{QueryErr, QueryResult},
+    queries::QueryResult,
     rty::{
         <span class="self">self</span>,
         fold::{BottomUpFolder, TypeFoldable},
         refining::Refiner,
     },
-    rustc::{
-        lowering::{<span class="self">self</span>, UnsupportedReason},
-        ty::{<span class="self">self</span>, FieldIdx, VariantIdx},
-    },
+    rustc::ty::{<span class="self">self</span>, FieldIdx, VariantIdx},
 };
 <span class="kw">use </span>rustc_ast::Mutability;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
@@ -770,9 +762,7 @@
     // FIXME(nilehmann) we should check against the extern signature if this is an extern spec.
     // Unfortunately, doing this makes `neg/vec01.rs` fail because checking against the real
     // signature of `&lt;Vec as Index&lt;usize&gt;&gt;::index` requires deep normalization.
-    </span><span class="kw">let </span>rust_fn_sig = lowering::lower_fn_sig(genv.tcx(), genv.tcx().fn_sig(def_id).skip_binder())
-        .map_err(UnsupportedReason::into_err)
-        .map_err(|err| QueryErr::unsupported(def_id.to_def_id(), err))<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>rust_fn_sig = genv.lower_fn_sig(def_id)<span class="question-mark">?</span>.skip_binder();
     <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
     <span class="kw">let </span>expected = Refiner::default(genv, <span class="kw-2">&amp;</span>generics).refine_poly_fn_sig(<span class="kw-2">&amp;</span>rust_fn_sig)<span class="question-mark">?</span>;
 

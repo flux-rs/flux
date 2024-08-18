@@ -760,15 +760,6 @@
 <a href="#760" id="760">760</a>
 <a href="#761" id="761">761</a>
 <a href="#762" id="762">762</a>
-<a href="#763" id="763">763</a>
-<a href="#764" id="764">764</a>
-<a href="#765" id="765">765</a>
-<a href="#766" id="766">766</a>
-<a href="#767" id="767">767</a>
-<a href="#768" id="768">768</a>
-<a href="#769" id="769">769</a>
-<a href="#770" id="770">770</a>
-<a href="#771" id="771">771</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -783,10 +774,8 @@
     def::DefKind,
     def_id::{DefId, LocalDefId},
 };
-<span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable};
 <span class="kw">use </span>rustc_span::{Span, Symbol};
-<span class="kw">use </span>rustc_trait_selection::traits::NormalizeExt;
 
 <span class="kw">use crate</span>::{
     fhir::{<span class="self">self</span>, FluxLocalDefId},
@@ -1111,16 +1100,9 @@
         def_id: DefId,
     ) -&gt; QueryResult&lt;ty::EarlyBinder&lt;ty::PolyFnSig&gt;&gt; {
         run_with_cache(<span class="kw-2">&amp;</span><span class="self">self</span>.lower_fn_sig, def_id, || {
-            <span class="kw">let </span>fn_sig = genv.tcx().fn_sig(def_id);
-            <span class="kw">let </span>param_env = genv.tcx().param_env(def_id);
-            <span class="kw">let </span>result = genv
-                .tcx()
-                .infer_ctxt()
-                .build()
-                .at(<span class="kw-2">&amp;</span>rustc_middle::traits::ObligationCause::dummy(), param_env)
-                .normalize(fn_sig.instantiate_identity());
+            <span class="kw">let </span>fn_sig = genv.tcx().fn_sig(def_id).instantiate_identity();
             <span class="prelude-val">Ok</span>(ty::EarlyBinder(
-                lowering::lower_fn_sig(genv.tcx(), result.value)
+                lowering::lower_fn_sig(genv.tcx(), fn_sig)
                     .map_err(UnsupportedReason::into_err)
                     .map_err(|err| QueryErr::unsupported(def_id, err))<span class="question-mark">?</span>,
             ))
