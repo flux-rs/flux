@@ -433,6 +433,8 @@ where
 
     /// Encodes an expression in head position as a [`fixpoint::Constraint`] "peeling out"
     /// implications and foralls.
+    ///
+    /// [`fixpoint::Constraint`]: flux_fixpoint::Constraint
     pub(crate) fn head_to_fixpoint(
         &mut self,
         expr: &rty::Expr,
@@ -722,11 +724,16 @@ impl FixpointKVar {
 #[derive(Default)]
 pub struct KVarStore {
     kvars: IndexVec<rty::KVid, KVarDecl>,
+    dummy: bool,
 }
 
 impl KVarStore {
     pub fn new() -> Self {
-        Self { kvars: IndexVec::new() }
+        Self { kvars: IndexVec::new(), dummy: false }
+    }
+
+    pub fn dummy() -> Self {
+        Self { kvars: IndexVec::new(), dummy: true }
     }
 
     fn get(&self, kvid: rty::KVid) -> &KVarDecl {
@@ -748,6 +755,10 @@ impl KVarStore {
         scope: impl IntoIterator<Item = (rty::Var, rty::Sort)>,
         encoding: KVarEncoding,
     ) -> rty::Expr {
+        if self.dummy {
+            return rty::Expr::hole(rty::HoleKind::Pred);
+        }
+
         if binders.is_empty() {
             return self.fresh_inner(0, [], encoding);
         }

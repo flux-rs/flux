@@ -83,6 +83,7 @@ struct Inherited<'ck, M> {
     refine_params: List<Expr>,
     ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
     mode: &'ck mut M,
+    kvars: &'ck RefCell<KVarStore>,
     config: CheckerConfig,
 }
 
@@ -92,6 +93,7 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
         rcx: &mut RefineCtxt,
         def_id: LocalDefId,
         mode: &'ck mut M,
+        kvars: &'ck RefCell<KVarStore>,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
         config: CheckerConfig,
     ) -> Result<Self> {
@@ -103,7 +105,7 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
             .collect_all_params(genv, |param| rcx.define_vars(&param.sort))
             .with_span(span)?;
 
-        Ok(Self { refine_params, ghost_stmts, mode, config })
+        Ok(Self { refine_params, ghost_stmts, mode, kvars, config })
     }
 
     fn reborrow(&mut self) -> Inherited<M> {
@@ -111,6 +113,7 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
             refine_params: self.refine_params.clone(),
             ghost_stmts: self.ghost_stmts,
             mode: &mut *self.mode,
+            kvars: self.kvars,
             config: self.config,
         }
     }
@@ -119,12 +122,6 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
 pub(crate) trait Mode: Sized {
     #[allow(dead_code)] // used for debugging
     const NAME: &str;
-
-    fn infcx<'a, 'genv, 'tcx>(
-        ck: &'a Checker<'_, 'genv, 'tcx, Self>,
-        rcx: &RefineCtxt,
-        span: Span,
-    ) -> InferCtxt<'a, 'genv, 'tcx>;
 
     fn enter_basic_block<'ck>(
         ck: &mut Checker<'ck, '_, '_, Self>,
@@ -149,7 +146,6 @@ pub(crate) struct ShapeMode {
 
 pub(crate) struct RefineMode {
     bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>>,
-    kvars: RefCell<KVarStore>,
 }
 
 /// The result of running the shape phase.
@@ -179,7 +175,9 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             let const_params = generics.const_params(genv).with_span(span)?;
             let mut refine_tree = RefineTree::new(const_params);
             let mut rcx = refine_tree.refine_ctxt_at_root();
-            let inherited = Inherited::new(genv, &mut rcx, def_id, &mut mode, ghost_stmts, config)?;
+            let kvars = RefCell::new(KVarStore::dummy());
+            let inherited =
+                Inherited::new(genv, &mut rcx, def_id, &mut mode, &kvars, ghost_stmts, config)?;
 
             let body = genv.mir(def_id).with_span(span)?;
             let poly_sig = instantiate_and_normalize_fn_sig(
@@ -213,16 +211,18 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
-            let mut mode = RefineMode { bb_envs, kvars: RefCell::new(kvars) };
+            let mut mode = RefineMode { bb_envs };
+            let kvars = RefCell::new(kvars);
             let mut rcx = refine_tree.refine_ctxt_at_root();
-            let inherited = Inherited::new(genv, &mut rcx, def_id, &mut mode, ghost_stmts, config)?;
+            let inherited =
+                Inherited::new(genv, &mut rcx, def_id, &mut mode, &kvars, ghost_stmts, config)?;
 
             let body = genv.mir(def_id).with_span(span)?;
             let poly_sig = instantiate_and_normalize_fn_sig(genv, &inherited, &body, fn_sig)?;
 
             Checker::run(genv, rcx.as_subtree(), def_id, inherited, poly_sig)?;
 
-            Ok((refine_tree, mode.kvars.into_inner()))
+            Ok((refine_tree, kvars.into_inner()))
         })
     }
 }
@@ -1305,7 +1305,22 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     fn infcx(&self, rcx: &RefineCtxt, span: Span) -> InferCtxt<'_, 'genv, 'tcx> {
-        M::infcx(self, rcx, span)
+        InferCtxt::new(
+            self.genv,
+            &self.body.infcx,
+            self.def_id.into(),
+            &self.inherited.refine_params,
+            {
+                let scope = rcx.scope();
+                move |sorts: &[_], encoding| {
+                    self.inherited
+                        .kvars
+                        .borrow_mut()
+                        .fresh(sorts, scope.iter(), encoding)
+                }
+            },
+            span,
+        )
     }
 
     #[track_caller]
@@ -1524,21 +1539,6 @@ fn infer_under_mut_ref_hack(
 impl Mode for ShapeMode {
     const NAME: &str = "shape";
 
-    fn infcx<'a, 'genv, 'tcx>(
-        ck: &'a Checker<'_, 'genv, 'tcx, Self>,
-        _rcx: &RefineCtxt,
-        span: Span,
-    ) -> InferCtxt<'a, 'genv, 'tcx> {
-        InferCtxt::new(
-            ck.genv,
-            &ck.body.infcx,
-            ck.def_id.into(),
-            &ck.inherited.refine_params,
-            |_: &[_], _| Expr::hole(HoleKind::Pred),
-            span,
-        )
-    }
-
     fn enter_basic_block<'a>(
         ck: &mut Checker<'a, '_, '_, ShapeMode>,
         _rcx: &mut RefineCtxt,
@@ -1591,30 +1591,6 @@ impl Mode for ShapeMode {
 
 impl Mode for RefineMode {
     const NAME: &str = "refine";
-
-    fn infcx<'a, 'genv, 'tcx>(
-        ck: &'a Checker<'_, 'genv, 'tcx, Self>,
-        rcx: &RefineCtxt,
-        span: Span,
-    ) -> InferCtxt<'a, 'genv, 'tcx> {
-        InferCtxt::new(
-            ck.genv,
-            &ck.body.infcx,
-            ck.def_id.into(),
-            &ck.inherited.refine_params,
-            {
-                let scope = rcx.scope();
-                move |sorts: &[_], encoding| {
-                    ck.inherited
-                        .mode
-                        .kvars
-                        .borrow_mut()
-                        .fresh(sorts, scope.iter(), encoding)
-                }
-            },
-            span,
-        )
-    }
 
     fn enter_basic_block<'ck>(
         ck: &mut Checker<'ck, '_, '_, RefineMode>,
