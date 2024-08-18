@@ -28,12 +28,12 @@ use serde::{de, Deserialize};
 
 use crate::constraint::DEFAULT_QUALIFIERS;
 
-pub trait Symbol: fmt::Display + Hash + Clone {}
+pub trait Symbol: fmt::Display + Hash {}
 
-impl<T: fmt::Display + Hash + Clone> Symbol for T {}
+impl<T: fmt::Display + Hash> Symbol for T {}
 
 pub trait Types {
-    type Sort: Symbol;
+    type Sort: Symbol + Clone;
     type KVar: Symbol;
     type Var: Symbol;
     type Tag: fmt::Display + Hash + FromStr;

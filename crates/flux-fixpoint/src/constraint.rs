@@ -44,7 +44,7 @@ pub struct DataField<T: Types> {
     pub sort: Sort<T>,
 }
 
-#[derive_where(Clone, Hash)]
+#[derive_where(Hash, Clone)]
 pub enum Sort<T: Types> {
     Int,
     Bool,
@@ -86,7 +86,7 @@ impl<T: Types> Sort<T> {
     }
 }
 
-#[derive_where(Clone, Hash)]
+#[derive_where(Hash, Clone)]
 pub enum SortCtor<T: Types> {
     Set,
     Map,

@@ -101,7 +101,6 @@ pub fn check_fn(
             dbg::dump_item_info(genv.tcx(), def_id, "simp.fluxc", &refine_tree).unwrap();
         }
         let mut fcx = FixpointCtxt::new(genv, def_id, kvars);
-        fcx.collect_sorts(&refine_tree).emit(&genv)?;
         let cstr = refine_tree.into_fixpoint(&mut fcx).emit(&genv)?;
         let errors = fcx.check(cache, cstr, config.scrape_quals).emit(&genv)?;
 
