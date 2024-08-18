@@ -507,6 +507,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn check_ret(&mut self, rcx: &mut RefineCtxt, env: &mut TypeEnv, span: Span) -> Result {
         let mut infcx = self.infcx(rcx, span);
+        infcx.push_scope(rcx);
 
         let ret_place_ty = env
             .lookup_place(rcx, &infcx, Place::RETURN)
@@ -536,8 +537,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         }
 
-        let evars_sol = infcx.solve().with_span(span)?;
+        let evars_sol = infcx.pop_scope().with_span(span)?;
         rcx.replace_evars(&evars_sol);
+        drop(infcx);
 
         self.check_closure_clauses(rcx, rcx.snapshot(), &obligations)
     }
@@ -559,6 +561,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let actuals = infer_under_mut_ref_hack(rcx, actuals, fn_sig.as_ref());
 
         let mut infcx = self.infcx(rcx, span);
+        infcx.push_scope(rcx);
         let snapshot = rcx.snapshot();
 
         // Replace holes in generic arguments with fresh inference variables
@@ -630,9 +633,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .with_span(span)?;
 
         // Replace evars
-        let evars_sol = infcx.solve().with_span(span)?;
+        let evars_sol = infcx.pop_scope().with_span(span)?;
         env.replace_evars(&evars_sol);
         rcx.replace_evars(&evars_sol);
+        drop(infcx);
 
         let output = fn_sig
             .output()
@@ -1047,6 +1051,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         arr_ty: Ty,
     ) -> Result<Ty> {
         let mut infcx = self.infcx(rcx, stmt_span);
+        infcx.push_scope(rcx);
         let arr_ty =
             arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
@@ -1074,7 +1079,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
             }
         }
-        rcx.replace_evars(&infcx.solve().with_span(stmt_span)?);
+        rcx.replace_evars(&infcx.pop_scope().with_span(stmt_span)?);
 
         Ok(Ty::array(arr_ty, rty::Const::from_usize(self.genv.tcx(), args.len())))
     }
@@ -1521,7 +1526,7 @@ impl Mode for ShapeMode {
 
     fn infcx<'a, 'genv, 'tcx>(
         ck: &'a Checker<'_, 'genv, 'tcx, Self>,
-        rcx: &RefineCtxt,
+        _rcx: &RefineCtxt,
         span: Span,
     ) -> InferCtxt<'a, 'genv, 'tcx> {
         InferCtxt::new(
@@ -1529,7 +1534,6 @@ impl Mode for ShapeMode {
             &ck.body.infcx,
             ck.def_id.into(),
             &ck.inherited.refine_params,
-            rcx,
             |_: &[_], _| Expr::hole(HoleKind::Pred),
             span,
         )
@@ -1598,7 +1602,6 @@ impl Mode for RefineMode {
             &ck.body.infcx,
             ck.def_id.into(),
             &ck.inherited.refine_params,
-            rcx,
             {
                 let scope = rcx.scope();
                 move |sorts: &[_], encoding| {

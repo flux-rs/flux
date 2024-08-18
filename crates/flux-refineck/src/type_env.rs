@@ -191,7 +191,7 @@ impl TypeEnv<'_> {
         // ℓ: †t2
         self.bindings.lookup(path).block_with(t2.clone());
 
-        let evar_sol = infcx.pop_scope_solving_pending().unwrap();
+        let evar_sol = infcx.pop_scope().unwrap();
         rcx.replace_evars(&evar_sol);
         self.replace_evars(&evar_sol);
 
@@ -226,7 +226,7 @@ impl TypeEnv<'_> {
                 .at(ConstrReason::Assign)
                 .subtyping(rcx, &new_ty, &result.ty)?;
         }
-        rcx.replace_evars(&infcx.pop_scope_solving_pending()?);
+        rcx.replace_evars(&infcx.pop_scope()?);
 
         Ok(())
     }
@@ -282,7 +282,7 @@ impl TypeEnv<'_> {
             at.subtyping(rcx, &ty1.unblocked(), &ty2.unblocked())?;
         }
 
-        rcx.replace_evars(&infcx.pop_scope_solving_pending().unwrap());
+        rcx.replace_evars(&infcx.pop_scope().unwrap());
 
         Ok(())
     }
