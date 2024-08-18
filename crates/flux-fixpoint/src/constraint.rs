@@ -347,55 +347,40 @@ impl<T: Types> Expr<T> {
     }
 }
 
-struct FmtParens<'a, T: Types>(&'a Expr<T>);
-
-impl<T: Types> fmt::Display for FmtParens<'_, T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Avoid some obvious unnecesary parentheses
-        let should_parenthesize =
-            !matches!(&self.0, Expr::Var(_) | Expr::Constant(_) | Expr::App(..));
-        if should_parenthesize {
-            write!(f, "({})", self.0)
-        } else {
-            write!(f, "{}", self.0)
-        }
-    }
-}
-
 impl<T: Types> fmt::Display for Expr<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Constant(c) => write!(f, "{c}"),
             Expr::Var(x) => write!(f, "{x}"),
             Expr::App(func, args) => {
-                write!(f, "({func} {})", args.iter().map(FmtParens).format(" "),)
+                write!(f, "({func} {})", args.iter().format(" "))
             }
             Expr::Neg(e) => {
-                write!(f, "(- {})", FmtParens(e))
+                write!(f, "(- {e})")
             }
             Expr::BinaryOp(op, box [e1, e2]) => {
-                write!(f, "({op} {} {})", FmtParens(e1), FmtParens(e2))
+                write!(f, "({op} {e1} {e2})")
             }
             Expr::IfThenElse(box [p, e1, e2]) => {
-                write!(f, "(if {} {} {})", FmtParens(p), FmtParens(e1), FmtParens(e2))
+                write!(f, "(if {p} {e1} {e2})")
             }
             Expr::And(exprs) => {
-                write!(f, "(and {})", exprs.iter().map(FmtParens).format(" "))
+                write!(f, "(and {})", exprs.iter().format(" "))
             }
             Expr::Or(exprs) => {
-                write!(f, "(or {})", exprs.iter().map(FmtParens).format(" "))
+                write!(f, "(or {})", exprs.iter().format(" "))
             }
             Expr::Not(e) => {
-                write!(f, "(not {})", FmtParens(e))
+                write!(f, "(not {e})")
             }
             Expr::Imp(box [e1, e2]) => {
-                write!(f, "(=> {} {})", FmtParens(e1), FmtParens(e2))
+                write!(f, "(=> {e1} {e2})")
             }
             Expr::Iff(box [e1, e2]) => {
-                write!(f, "(<=> {} {})", FmtParens(e1), FmtParens(e2))
+                write!(f, "(<=> {e1} {e2})")
             }
             Expr::Atom(rel, box [e1, e2]) => {
-                write!(f, "({rel} {} {})", FmtParens(e1), FmtParens(e2))
+                write!(f, "({rel} {e1} {e2})")
             }
         }
     }

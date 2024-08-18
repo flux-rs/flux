@@ -232,7 +232,7 @@ impl<T: Types> fmt::Display for Task<T> {
 
 impl<T: Types> fmt::Display for KVar<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "(var ${} ({})) ;; {}", self.kvid, self.sorts.iter().join(" "), self.comment)
+        write!(f, "(var ${} ({})) ;; {}", self.kvid, self.sorts.iter().format(" "), self.comment)
     }
 }
 
