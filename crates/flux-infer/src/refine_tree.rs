@@ -45,14 +45,14 @@ use crate::{
 ///
 /// [`UnsafeCell`]: std::cell::UnsafeCell
 /// [`GhostCell`]: https://docs.rs/ghost-cell/0.2.3/ghost_cell/ghost_cell/struct.GhostCell.html
-pub(crate) struct RefineTree {
+pub struct RefineTree {
     root: NodePtr,
 }
 
 /// A reference to a subtree rooted at a particular node in a [refinement tree].
 ///
 /// [refinement tree]: RefineTree
-pub(crate) struct RefineSubtree<'a> {
+pub struct RefineSubtree<'a> {
     /// We keep a reference to the underlying [`RefineTree`] to prove statically there's a single
     /// writer.
     tree: &'a mut RefineTree,
@@ -77,7 +77,7 @@ pub(crate) struct RefineSubtree<'a> {
 /// [refinement tree].
 ///
 /// [refinement tree]: RefineTree
-pub(crate) struct RefineCtxt<'a> {
+pub struct RefineCtxt<'a> {
     tree: &'a mut RefineTree,
     ptr: NodePtr,
 }
@@ -88,7 +88,7 @@ pub(crate) struct RefineCtxt<'a> {
 ///
 /// [`cleared`]: RefineSubtree::clear_children
 /// [refinement tree]: RefineTree
-pub(crate) struct Snapshot {
+pub struct Snapshot {
     ptr: WeakNodePtr,
 }
 
@@ -96,7 +96,7 @@ impl Snapshot {
     /// Returns the [`scope`] at the snapshot if it is still valid or [`None`] otherwise.
     ///
     /// [`scope`]: Scope
-    pub(crate) fn scope(&self) -> Option<Scope> {
+    pub fn scope(&self) -> Option<Scope> {
         let parents = ParentsIter::new(self.ptr.upgrade()?);
         let bindings = parents
             .filter_map(|node| {
@@ -126,13 +126,13 @@ impl Snapshot {
 
 /// A list of refinement variables and their sorts.
 #[derive(PartialEq, Eq)]
-pub(crate) struct Scope {
+pub struct Scope {
     bindings: IndexVec<Name, Sort>,
     reftgenerics: List<(ParamConst, Sort)>,
 }
 
 impl Scope {
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (Var, Sort)> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = (Var, Sort)> + '_ {
         let iter_param_consts = self
             .reftgenerics
             .iter()
@@ -145,7 +145,7 @@ impl Scope {
     }
 
     /// Whether `t` has any free variables not in this scope
-    pub(crate) fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
+    pub fn has_free_vars<T: TypeFoldable>(&self, t: &T) -> bool {
         !self.contains_all(t.fvars())
     }
 
@@ -223,7 +223,7 @@ enum NodeKind {
 }
 
 impl RefineTree {
-    pub(crate) fn new(const_params: List<(ParamConst, Sort)>) -> RefineTree {
+    pub fn new(const_params: List<(ParamConst, Sort)>) -> RefineTree {
         let root = Node {
             kind: NodeKind::Root(const_params),
             nbindings: 0,
@@ -234,14 +234,11 @@ impl RefineTree {
         RefineTree { root }
     }
 
-    pub(crate) fn simplify(&mut self) {
+    pub fn simplify(&mut self) {
         self.root.borrow_mut().simplify();
     }
 
-    pub(crate) fn into_fixpoint(
-        self,
-        cx: &mut FixpointCtxt<Tag>,
-    ) -> QueryResult<fixpoint::Constraint> {
+    pub fn into_fixpoint(self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<fixpoint::Constraint> {
         Ok(self
             .root
             .borrow()
@@ -249,23 +246,23 @@ impl RefineTree {
             .unwrap_or(fixpoint::Constraint::TRUE))
     }
 
-    pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
+    pub fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
         RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
     }
 }
 
 impl<'a> RefineSubtree<'a> {
-    pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
+    pub fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
         RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self.tree }
     }
 
-    pub(crate) fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
+    pub fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
         Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
     }
 
     #[allow(clippy::unused_self)]
     // We take a mutable reference to the subtree to prove statically that there's only one writer.
-    pub(crate) fn clear_children(&mut self, snapshot: &Snapshot) {
+    pub fn clear_children(&mut self, snapshot: &Snapshot) {
         if let Some(ptr) = snapshot.ptr.upgrade() {
             ptr.borrow_mut().children.clear();
         }
@@ -274,7 +271,7 @@ impl<'a> RefineSubtree<'a> {
 
 impl<'rcx> RefineCtxt<'rcx> {
     #[allow(unused)]
-    pub(crate) fn as_subtree(&mut self) -> RefineSubtree {
+    pub fn as_subtree(&mut self) -> RefineSubtree {
         RefineSubtree { root: NodePtr(Rc::clone(&self.ptr)), tree: self.tree }
     }
 
@@ -282,16 +279,16 @@ impl<'rcx> RefineCtxt<'rcx> {
         Some(RefineSubtree { root: snapshot.ptr.upgrade()?, tree: self.tree })
     }
 
-    pub(crate) fn snapshot(&self) -> Snapshot {
+    pub fn snapshot(&self) -> Snapshot {
         Snapshot { ptr: NodePtr::downgrade(&self.ptr) }
     }
 
     #[must_use]
-    pub(crate) fn branch(&mut self) -> RefineCtxt {
+    pub fn branch(&mut self) -> RefineCtxt {
         RefineCtxt { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
-    pub(crate) fn scope(&self) -> Scope {
+    pub fn scope(&self) -> Scope {
         self.snapshot().scope().unwrap()
     }
 
@@ -305,7 +302,7 @@ impl<'rcx> RefineCtxt<'rcx> {
 
     /// Defines a fresh refinement variable with the given `sort`. It returns the freshly generated
     /// name for the variable.
-    pub(crate) fn define_var(&mut self, sort: &Sort) -> Name {
+    pub fn define_var(&mut self, sort: &Sort) -> Name {
         let fresh = self.ptr.name_gen().fresh();
         self.ptr = self.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
         fresh
@@ -322,15 +319,15 @@ impl<'rcx> RefineCtxt<'rcx> {
     /// [`sort`]: Sort
     /// [tuple]: Sort::Tuple
     /// [adt]: flux_middle::rty::SortCtor::Adt
-    pub(crate) fn define_vars(&mut self, sort: &Sort) -> Expr {
+    pub fn define_vars(&mut self, sort: &Sort) -> Expr {
         Expr::fold_sort(sort, |sort| Expr::fvar(self.define_var(sort)))
     }
 
-    pub(crate) fn assume_pred(&mut self, pred: impl Into<Expr>) {
+    pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
         self.ptr.push_guard(pred);
     }
 
-    pub(crate) fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
+    pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
         let pred = pred.into();
         if !pred.is_trivially_true() {
             self.ptr.push_node(NodeKind::Head(pred, tag));
@@ -343,15 +340,15 @@ impl<'rcx> RefineCtxt<'rcx> {
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    pub(crate) fn unpack(&mut self, ty: &Ty) -> Ty {
+    pub fn unpack(&mut self, ty: &Ty) -> Ty {
         self.unpacker().unpack(ty)
     }
 
-    pub(crate) fn unpacker(&mut self) -> Unpacker<'_, 'rcx> {
+    pub fn unpacker(&mut self) -> Unpacker<'_, 'rcx> {
         Unpacker::new(self)
     }
 
-    pub(crate) fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
+    pub fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
         struct Visitor<'a, 'rcx> {
             rcx: &'a mut RefineCtxt<'rcx>,
             overflow_checking: bool,
@@ -381,7 +378,7 @@ impl<'rcx> RefineCtxt<'rcx> {
         ty.visit_with(&mut Visitor { rcx: self, overflow_checking });
     }
 
-    pub(crate) fn replace_evars(&mut self, evars: &EVarSol) {
+    pub fn replace_evars(&mut self, evars: &EVarSol) {
         self.ptr.borrow_mut().replace_evars(evars);
     }
 }
@@ -391,7 +388,7 @@ enum AssumeInvariants {
     No,
 }
 
-pub(crate) struct Unpacker<'a, 'rcx> {
+pub struct Unpacker<'a, 'rcx> {
     rcx: &'a mut RefineCtxt<'rcx>,
     in_mut_ref: bool,
     unpack_inside_mut_ref: bool,
@@ -412,27 +409,27 @@ impl<'a, 'rcx> Unpacker<'a, 'rcx> {
         }
     }
 
-    pub(crate) fn assume_invariants(mut self, check_overflow: bool) -> Self {
+    pub fn assume_invariants(mut self, check_overflow: bool) -> Self {
         self.assume_invariants = AssumeInvariants::Yes { check_overflow };
         self
     }
 
-    pub(crate) fn unpack_inside_mut_ref(mut self, unpack_inside_mut_ref: bool) -> Self {
+    pub fn unpack_inside_mut_ref(mut self, unpack_inside_mut_ref: bool) -> Self {
         self.unpack_inside_mut_ref = unpack_inside_mut_ref;
         self
     }
 
-    pub(crate) fn shallow(mut self, shallow: bool) -> Self {
+    pub fn shallow(mut self, shallow: bool) -> Self {
         self.shallow = shallow;
         self
     }
 
-    pub(crate) fn unpack_exists(mut self, unpack_exists: bool) -> Self {
+    pub fn unpack_exists(mut self, unpack_exists: bool) -> Self {
         self.unpack_exists = unpack_exists;
         self
     }
 
-    pub(crate) fn unpack(mut self, ty: &Ty) -> Ty {
+    pub fn unpack(mut self, ty: &Ty) -> Ty {
         ty.fold_with(&mut self)
     }
 }

@@ -2,6 +2,11 @@ use std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 use flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
 use flux_config as config;
+use flux_infer::{
+    fixpoint_encoding::{self, KVarStore},
+    infer::{ConstrReason, InferCtxt},
+    refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
+};
 use flux_middle::{
     global_env::GlobalEnv,
     intern::List,
@@ -39,12 +44,9 @@ use rustc_span::{sym, Span};
 
 use self::errors::{CheckerError, ResultExt};
 use crate::{
-    fixpoint_encoding::{self, KVarStore},
     ghost_statements::{GhostStatement, GhostStatements, Point},
-    infer::{ConstrReason, InferCtxt},
     primops,
     queue::WorkQueue,
-    refine_tree::{RefineCtxt, RefineSubtree, RefineTree, Snapshot},
     type_env::{BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, TypeEnv},
 };
 
@@ -1716,7 +1718,8 @@ fn snapshot_at_dominator<'a>(
 
 pub(crate) mod errors {
     use flux_errors::{ErrorGuaranteed, E0999};
-    use flux_middle::{pretty, queries::QueryErr, rty::evars::UnsolvedEvar};
+    use flux_infer::infer::InferErr;
+    use flux_middle::{pretty, queries::QueryErr};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::DefId;
     use rustc_middle::mir::SourceInfo;
@@ -1789,9 +1792,12 @@ pub(crate) mod errors {
         }
     }
 
-    impl From<UnsolvedEvar> for CheckerErrKind {
-        fn from(_: UnsolvedEvar) -> Self {
-            CheckerErrKind::Inference
+    impl From<InferErr> for CheckerErrKind {
+        fn from(err: InferErr) -> Self {
+            match err {
+                InferErr::Inference => CheckerErrKind::Inference,
+                InferErr::Query(err) => CheckerErrKind::Query(err),
+            }
         }
     }
 

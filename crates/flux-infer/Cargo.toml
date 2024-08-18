@@ -1,0 +1,19 @@
+[package]
+edition.workspace = true
+name = "flux-infer"
+version = "0.1.0"
+
+[dependencies]
+itertools.workspace = true
+
+flux-common.workspace = true
+flux-config.workspace = true
+flux-errors.workspace = true
+flux-fixpoint.workspace = true
+flux-middle.workspace = true
+
+[lints]
+workspace = true
+
+[package.metadata.rust-analyzer]
+rustc_private = true
