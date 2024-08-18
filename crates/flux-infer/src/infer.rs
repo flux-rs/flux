@@ -79,19 +79,16 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         def_id: DefId,
         refparams: &'a [Expr],
-        rcx: &RefineCtxt,
         kvar_gen: impl KVarGen + 'a,
         span: Span,
     ) -> Self {
-        let mut evar_gen = EVarGen::default();
-        evar_gen.enter_context(rcx.scope());
         Self {
             genv,
             region_infcx,
             def_id,
             refparams,
             kvar_gen: Box::new(kvar_gen),
-            evar_gen: RefCell::new(evar_gen),
+            evar_gen: RefCell::new(EVarGen::default()),
             span,
         }
     }
@@ -171,18 +168,14 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         self.evar_gen.borrow_mut().enter_context(rcx.scope());
     }
 
-    fn pop_scope(&mut self) {
-        self.evar_gen.borrow_mut().exit_context();
-    }
-
-    pub fn pop_scope_solving_pending(&mut self) -> InferResult<EVarSol> {
+    pub fn pop_scope(&mut self) -> InferResult<EVarSol> {
         let mut evar_gen = self.evar_gen.borrow_mut();
         evar_gen.exit_context();
         Ok(evar_gen.try_solve_pending()?)
     }
 
-    pub fn solve(mut self) -> InferResult<EVarSol> {
-        self.pop_scope_solving_pending()
+    fn pop_scope_without_solving_evars(&mut self) {
+        self.evar_gen.borrow_mut().exit_context();
     }
 }
 
@@ -268,7 +261,7 @@ impl<'a, 'b, 'genv, 'tcx> InferCtxtAt<'a, 'b, 'genv, 'tcx> {
         }
 
         // Replace evars
-        let evars_sol = self.infcx.pop_scope_solving_pending()?;
+        let evars_sol = self.infcx.pop_scope()?;
         rcx.replace_evars(&evars_sol);
 
         Ok(variant.ret().replace_evars(&evars_sol))
@@ -312,7 +305,7 @@ impl<'a, 'b, 'genv, 'tcx> Sub<'a, 'b, 'genv, 'tcx> {
                     self.infcx.fresh_infer_var(sort, mode)
                 });
                 self.tys(rcx, &ty1, &ty2)?;
-                self.infcx.pop_scope();
+                self.infcx.pop_scope_without_solving_evars();
                 Ok(())
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
