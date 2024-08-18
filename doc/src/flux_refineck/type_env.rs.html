@@ -947,7 +947,7 @@
         <span class="comment">// ℓ: †t2
         </span><span class="self">self</span>.bindings.lookup(path).block_with(t2.clone());
 
-        <span class="kw">let </span>evar_sol = infcx.pop_scope_solving_pending().unwrap();
+        <span class="kw">let </span>evar_sol = infcx.pop_scope().unwrap();
         rcx.replace_evars(<span class="kw-2">&amp;</span>evar_sol);
         <span class="self">self</span>.replace_evars(<span class="kw-2">&amp;</span>evar_sol);
 
@@ -982,7 +982,7 @@
                 .at(ConstrReason::Assign)
                 .subtyping(rcx, <span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>result.ty)<span class="question-mark">?</span>;
         }
-        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.pop_scope_solving_pending()<span class="question-mark">?</span>);
+        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.pop_scope()<span class="question-mark">?</span>);
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -1038,7 +1038,7 @@
             at.subtyping(rcx, <span class="kw-2">&amp;</span>ty1.unblocked(), <span class="kw-2">&amp;</span>ty2.unblocked())<span class="question-mark">?</span>;
         }
 
-        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.pop_scope_solving_pending().unwrap());
+        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.pop_scope().unwrap());
 
         <span class="prelude-val">Ok</span>(())
     }

@@ -622,13 +622,6 @@
 <a href="#622" id="622">622</a>
 <a href="#623" id="623">623</a>
 <a href="#624" id="624">624</a>
-<a href="#625" id="625">625</a>
-<a href="#626" id="626">626</a>
-<a href="#627" id="627">627</a>
-<a href="#628" id="628">628</a>
-<a href="#629" id="629">629</a>
-<a href="#630" id="630">630</a>
-<a href="#631" id="631">631</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, iter};
 
 <span class="kw">use </span>flux_common::bug;
@@ -710,19 +703,16 @@
         region_infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
         def_id: DefId,
         refparams: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Expr],
-        rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         kvar_gen: <span class="kw">impl </span>KVarGen + <span class="lifetime">'a</span>,
         span: Span,
     ) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>evar_gen = EVarGen::default();
-        evar_gen.enter_context(rcx.scope());
         <span class="self">Self </span>{
             genv,
             region_infcx,
             def_id,
             refparams,
             kvar_gen: Box::new(kvar_gen),
-            evar_gen: RefCell::new(evar_gen),
+            evar_gen: RefCell::new(EVarGen::default()),
             span,
         }
     }
@@ -802,18 +792,14 @@
         <span class="self">self</span>.evar_gen.borrow_mut().enter_context(rcx.scope());
     }
 
-    <span class="kw">fn </span>pop_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.evar_gen.borrow_mut().exit_context();
-    }
-
-    <span class="kw">pub fn </span>pop_scope_solving_pending(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; InferResult&lt;EVarSol&gt; {
+    <span class="kw">pub fn </span>pop_scope(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; InferResult&lt;EVarSol&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>evar_gen = <span class="self">self</span>.evar_gen.borrow_mut();
         evar_gen.exit_context();
         <span class="prelude-val">Ok</span>(evar_gen.try_solve_pending()<span class="question-mark">?</span>)
     }
 
-    <span class="kw">pub fn </span>solve(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; InferResult&lt;EVarSol&gt; {
-        <span class="self">self</span>.pop_scope_solving_pending()
+    <span class="kw">fn </span>pop_scope_without_solving_evars(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.evar_gen.borrow_mut().exit_context();
     }
 }
 
@@ -899,7 +885,7 @@
         }
 
         <span class="comment">// Replace evars
-        </span><span class="kw">let </span>evars_sol = <span class="self">self</span>.infcx.pop_scope_solving_pending()<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>evars_sol = <span class="self">self</span>.infcx.pop_scope()<span class="question-mark">?</span>;
         rcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
 
         <span class="prelude-val">Ok</span>(variant.ret().replace_evars(<span class="kw-2">&amp;</span>evars_sol))
@@ -943,7 +929,7 @@
                     <span class="self">self</span>.infcx.fresh_infer_var(sort, mode)
                 });
                 <span class="self">self</span>.tys(rcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2)<span class="question-mark">?</span>;
-                <span class="self">self</span>.infcx.pop_scope();
+                <span class="self">self</span>.infcx.pop_scope_without_solving_evars();
                 <span class="prelude-val">Ok</span>(())
             }
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) =&gt; {

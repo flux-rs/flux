@@ -1819,6 +1819,9 @@
 <a href="#1819" id="1819">1819</a>
 <a href="#1820" id="1820">1820</a>
 <a href="#1821" id="1821">1821</a>
+<a href="#1822" id="1822">1822</a>
+<a href="#1823" id="1823">1823</a>
+<a href="#1824" id="1824">1824</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
@@ -2328,6 +2331,7 @@
 
     <span class="kw">fn </span>check_ret(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, env: <span class="kw-2">&amp;mut </span>TypeEnv, span: Span) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, span);
+        infcx.push_scope(rcx);
 
         <span class="kw">let </span>ret_place_ty = env
             .lookup_place(rcx, <span class="kw-2">&amp;</span>infcx, Place::RETURN)
@@ -2357,8 +2361,9 @@
             }
         }
 
-        <span class="kw">let </span>evars_sol = infcx.solve().with_span(span)<span class="question-mark">?</span>;
+        <span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
         rcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
+        drop(infcx);
 
         <span class="self">self</span>.check_closure_clauses(rcx, rcx.snapshot(), <span class="kw-2">&amp;</span>obligations)
     }
@@ -2380,6 +2385,7 @@
         <span class="kw">let </span>actuals = infer_under_mut_ref_hack(rcx, actuals, fn_sig.as_ref());
 
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, span);
+        infcx.push_scope(rcx);
         <span class="kw">let </span>snapshot = rcx.snapshot();
 
         <span class="comment">// Replace holes in generic arguments with fresh inference variables
@@ -2451,9 +2457,10 @@
             .with_span(span)<span class="question-mark">?</span>;
 
         <span class="comment">// Replace evars
-        </span><span class="kw">let </span>evars_sol = infcx.solve().with_span(span)<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>evars_sol = infcx.pop_scope().with_span(span)<span class="question-mark">?</span>;
         env.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
         rcx.replace_evars(<span class="kw-2">&amp;</span>evars_sol);
+        drop(infcx);
 
         <span class="kw">let </span>output = fn_sig
             .output()
@@ -2868,6 +2875,7 @@
         arr_ty: Ty,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(rcx, stmt_span);
+        infcx.push_scope(rcx);
         <span class="kw">let </span>arr_ty =
             arr_ty.replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
@@ -2895,7 +2903,7 @@
                 }
             }
         }
-        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.solve().with_span(stmt_span)<span class="question-mark">?</span>);
+        rcx.replace_evars(<span class="kw-2">&amp;</span>infcx.pop_scope().with_span(stmt_span)<span class="question-mark">?</span>);
 
         <span class="prelude-val">Ok</span>(Ty::array(arr_ty, rty::Const::from_usize(<span class="self">self</span>.genv.tcx(), args.len())))
     }
@@ -3342,7 +3350,7 @@
 
     <span class="kw">fn </span>infcx&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(
         ck: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Checker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, <span class="self">Self</span>&gt;,
-        rcx: <span class="kw-2">&amp;</span>RefineCtxt,
+        _rcx: <span class="kw-2">&amp;</span>RefineCtxt,
         span: Span,
     ) -&gt; InferCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
         InferCtxt::new(
@@ -3350,7 +3358,6 @@
             <span class="kw-2">&amp;</span>ck.body.infcx,
             ck.def_id.into(),
             <span class="kw-2">&amp;</span>ck.inherited.refine_params,
-            rcx,
             |<span class="kw">_</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], <span class="kw">_</span>| Expr::hole(HoleKind::Pred),
             span,
         )
@@ -3419,7 +3426,6 @@
             <span class="kw-2">&amp;</span>ck.body.infcx,
             ck.def_id.into(),
             <span class="kw-2">&amp;</span>ck.inherited.refine_params,
-            rcx,
             {
                 <span class="kw">let </span>scope = rcx.scope();
                 <span class="kw">move </span>|sorts: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], encoding| {

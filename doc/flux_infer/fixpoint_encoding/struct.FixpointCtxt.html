@@ -40,7 +40,7 @@ implications and foralls.</p>
     &amp;mut self,
     pred: &amp;<a class="type" href="../../flux_middle/rty/expr/type.Expr.html" title="type flux_middle::rty::expr::Expr">Expr</a>,
 ) -&gt; <a class="type" href="../../flux_middle/queries/type.QueryResult.html" title="type flux_middle::queries::QueryResult">QueryResult</a>&lt;(<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="type" href="fixpoint/fixpoint_generated/type.Bind.html" title="type flux_infer::fixpoint_encoding::fixpoint::fixpoint_generated::Bind">Bind</a>&gt;, <a class="type" href="fixpoint/fixpoint_generated/type.Pred.html" title="type flux_infer::fixpoint_encoding::fixpoint::fixpoint_generated::Pred">Pred</a>)&gt;</h4></section></summary><div class="docblock"><p>Encodes an expression in assumptive position as a <a href="../../flux_fixpoint/constraint/enum.Pred.html" title="enum flux_fixpoint::constraint::Pred"><code>fixpoint::Pred</code></a>. Returns the encoded
-predicate and a possible list of bindings produced by ANF-fing kvars.</p>
+predicate and a list of bindings produced by ANF-fing kvars.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.assumption_to_fixpoint_aux" class="method"><a class="src rightside" href="../../src/flux_infer/fixpoint_encoding.rs.html#506-533">source</a><h4 class="code-header">fn <a href="#method.assumption_to_fixpoint_aux" class="fn">assumption_to_fixpoint_aux</a>(
     &amp;mut self,
     expr: &amp;<a class="type" href="../../flux_middle/rty/expr/type.Expr.html" title="type flux_middle::rty::expr::Expr">Expr</a>,
