@@ -306,6 +306,7 @@ impl PrettyCx<'_> {
 
     pub fn fmt_bound_vars(
         &self,
+        print_infer_mode: bool,
         left: &str,
         vars: &[BoundVariableKind],
         right: &str,
@@ -320,11 +321,15 @@ impl PrettyCx<'_> {
             match var {
                 BoundVariableKind::Region(re) => w!("{:?}", re)?,
                 BoundVariableKind::Refine(_, mode, BoundReftKind::Named(name)) => {
-                    w!("{}", ^mode.prefix_str())?;
+                    if print_infer_mode {
+                        w!("{}", ^mode.prefix_str())?;
+                    }
                     w!("{}", ^name)?;
                 }
                 BoundVariableKind::Refine(_, mode, BoundReftKind::Annon) => {
-                    w!("{}", ^mode.prefix_str())?;
+                    if print_infer_mode {
+                        w!("{}", ^mode.prefix_str())?;
+                    }
                     if let Some(name) = self.env.borrow().lookup(INNERMOST, BoundVar::from_usize(i))
                     {
                         w!("{:?}", ^name)?;

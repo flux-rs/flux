@@ -1032,7 +1032,7 @@ mod pretty {
                     let vars = expr.vars();
                     cx.with_bound_vars(vars, || {
                         if !vars.is_empty() {
-                            cx.fmt_bound_vars("∀", vars, ". ", f)?;
+                            cx.fmt_bound_vars(false, "∀", vars, ". ", f)?;
                         }
                         w!("{:?}", expr.as_ref().skip_binder())
                     })
@@ -1058,7 +1058,7 @@ mod pretty {
             define_scoped!(cx, f);
             let vars = self.body.vars();
             cx.with_bound_vars(vars, || {
-                cx.fmt_bound_vars("λ", vars, ". ", f)?;
+                cx.fmt_bound_vars(false, "λ", vars, ". ", f)?;
                 w!("{:?}", self.body.as_ref().skip_binder())
             })
         }

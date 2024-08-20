@@ -730,7 +730,7 @@ mod pretty {
             let vars = self.data.vars();
             cx.with_bound_vars(vars, || {
                 if !vars.is_empty() {
-                    cx.fmt_bound_vars("for<", vars, "> ", f)?;
+                    cx.fmt_bound_vars(true, "for<", vars, "> ", f)?;
                 }
                 let data = self.data.as_ref().skip_binder();
                 if !data.constrs.is_empty() {

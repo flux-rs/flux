@@ -37,7 +37,7 @@ where
     default fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
         cx.with_bound_vars(&self.vars, || {
-            cx.fmt_bound_vars("for<", &self.vars, "> ", f)?;
+            cx.fmt_bound_vars(true, "for<", &self.vars, "> ", f)?;
             w!("{:?}", &self.value)
         })
     }
@@ -55,7 +55,7 @@ impl Pretty for PolyFnSig {
         let vars = &self.vars;
         cx.with_bound_vars(vars, || {
             if !vars.is_empty() {
-                cx.fmt_bound_vars("for<", vars, "> ", f)?;
+                cx.fmt_bound_vars(true, "for<", vars, "> ", f)?;
             }
             w!("{:?}", &self.value)
         })
@@ -193,7 +193,7 @@ impl Pretty for Binder<FnOutput> {
         let vars = &self.vars;
         cx.with_bound_vars(vars, || {
             if !vars.is_empty() {
-                cx.fmt_bound_vars("exists<", vars, "> ", f)?;
+                cx.fmt_bound_vars(true, "exists<", vars, "> ", f)?;
             }
             w!("{:?}", &self.value)
         })
@@ -255,7 +255,7 @@ impl Pretty for TyS {
                     if cx.hide_refinements {
                         w!("{:?}", ty)
                     } else {
-                        cx.fmt_bound_vars("∃", vars, ". ", f)?;
+                        cx.fmt_bound_vars(false, "∃", vars, ". ", f)?;
                         w!("{:?}", ty)
                     }
                 })
@@ -447,7 +447,7 @@ impl Pretty for GenericArg {
             GenericArg::Ty(ty) => w!("{:?}", ty),
             GenericArg::Base(ctor) => {
                 cx.with_bound_vars(ctor.vars(), || {
-                    cx.fmt_bound_vars("λ", ctor.vars(), ". ", f)?;
+                    cx.fmt_bound_vars(false, "λ", ctor.vars(), ". ", f)?;
                     w!("{:?}", &ctor.value)
                 })
             }

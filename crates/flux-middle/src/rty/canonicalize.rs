@@ -208,7 +208,7 @@ mod pretty {
                 CanonicalTy::Constr(constr) => w!("{:?}", constr),
                 CanonicalTy::Exists(poly_constr) => {
                     cx.with_bound_vars(poly_constr.vars(), || {
-                        cx.fmt_bound_vars("∃", poly_constr.vars(), ". ", f)?;
+                        cx.fmt_bound_vars(false, "∃", poly_constr.vars(), ". ", f)?;
                         w!("{:?}", poly_constr.as_ref().skip_binder())
                     })
                 }
