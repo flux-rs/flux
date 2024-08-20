@@ -94,8 +94,10 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         }
     }
 
+    // TODO: This is a temporary implementation that uses rustc's trait selection when FLUX fails;
+    //       The correct thing, e.g for `trait09.rs` is to make sure FLUX's param_env mirrors RUSTC,
+    //       by suitably chasing down the super-trait predicates.
     fn normalize_projection_ty_with_rustc(&mut self, obligation: &AliasTy) -> QueryResult<Ty> {
-        let mut obligations = vec![];
         let projection_ty = obligation.to_rustc(self.tcx());
         let cause = ObligationCause::dummy();
         let param_env = self.tcx().param_env(self.def_id);
@@ -106,22 +108,13 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
             projection_ty,
             cause,
             10,
-            &mut obligations,
+            &mut vec![],
         )
         .expect_type();
         let rustc_ty = lower_ty(self.tcx(), ty).unwrap();
         let generics = self.genv.generics_of(self.def_id)?;
         let ty = self.genv.refine_default(&generics, &rustc_ty)?;
         Ok(ty)
-
-        // pub fn normalize_projection_ty<'a, 'b, 'tcx>(
-        //     selcx: &'a mut SelectionContext<'b, 'tcx>,
-        //     param_env: ParamEnv<'tcx>,
-        //     projection_ty: AliasTy<'tcx>,
-        //     cause: ObligationCause<'tcx>,
-        //     depth: usize,
-        //     obligations: &mut Vec<PredicateObligation<'tcx>>,
-        // ) -> Term<'tcx>
     }
 
     fn normalize_projection_ty(&mut self, obligation: &AliasTy) -> QueryResult<(bool, Ty)> {
@@ -133,11 +126,7 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         if candidates.is_empty() {
             let orig_ty = Ty::alias(AliasKind::Projection, obligation.clone());
             let ty = self.normalize_projection_ty_with_rustc(obligation)?;
-            if ty != orig_ty {
-                return Ok((true, ty));
-            } else {
-                return Ok((false, orig_ty));
-            }
+            return Ok((ty != orig_ty, ty));
         }
         if candidates.len() > 1 {
             bug!("ambiguity when resolving `{obligation:?}` in {:?}", self.def_id);
