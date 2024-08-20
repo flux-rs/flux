@@ -105,6 +105,9 @@
 <a href="#105" id="105">105</a>
 <a href="#106" id="106">106</a>
 <a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::Cell,
     fmt,
@@ -171,7 +174,7 @@
 <span class="attr">#[track_caller]
 </span><span class="kw">pub fn </span>tracked_span_bug_fmt(args: fmt::Arguments&lt;<span class="lifetime">'_</span>&gt;) -&gt; ! {
     <span class="kw">let </span>location = Location::caller();
-    TRACKED_SPAN.with(|span| opt_span_bug_fmt(span.get(), args, location))
+    opt_span_bug_fmt(TRACKED_SPAN.get(), args, location);
 }
 
 <span class="attr">#[track_caller]
@@ -180,14 +183,17 @@
     args: fmt::Arguments&lt;<span class="lifetime">'_</span>&gt;,
     location: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>Location&lt;<span class="lifetime">'static</span>&gt;,
 ) -&gt; ! {
-    tls::with_opt(<span class="kw">move </span>|tcx| {
-        <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{location}: {args}"</span>);
-        <span class="kw">match </span>(tcx, span) {
-            (<span class="prelude-val">Some</span>(tcx), <span class="prelude-val">Some</span>(span)) =&gt; tcx.dcx().span_bug(span, msg),
-            (<span class="prelude-val">Some</span>(tcx), <span class="prelude-val">None</span>) =&gt; tcx.dcx().bug(msg),
-            (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; std::panic::panic_any(msg),
-        }
-    })
+    tls::with_opt(
+        <span class="attr">#[track_caller]
+        </span><span class="kw">move </span>|tcx| {
+            <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{location}: {args}"</span>);
+            <span class="kw">match </span>(tcx, span) {
+                (<span class="prelude-val">Some</span>(tcx), <span class="prelude-val">Some</span>(span)) =&gt; tcx.dcx().span_bug(span, msg),
+                (<span class="prelude-val">Some</span>(tcx), <span class="prelude-val">None</span>) =&gt; tcx.dcx().bug(msg),
+                (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; std::panic::panic_any(msg),
+            }
+        },
+    )
 }
 
 <span class="kw">pub fn </span>catch_bugs&lt;R&gt;(msg: <span class="kw-2">&amp;</span>str, f: <span class="kw">impl </span>FnOnce() -&gt; R + UnwindSafe) -&gt; <span class="prelude-ty">Result</span>&lt;R, ErrorGuaranteed&gt; {
