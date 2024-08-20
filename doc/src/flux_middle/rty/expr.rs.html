@@ -2182,7 +2182,7 @@
                     <span class="kw">let </span>vars = expr.vars();
                     cx.with_bound_vars(vars, || {
                         <span class="kw">if </span>!vars.is_empty() {
-                            cx.fmt_bound_vars(<span class="string">"∀"</span>, vars, <span class="string">". "</span>, f)<span class="question-mark">?</span>;
+                            cx.fmt_bound_vars(<span class="bool-val">false</span>, <span class="string">"∀"</span>, vars, <span class="string">". "</span>, f)<span class="question-mark">?</span>;
                         }
                         <span class="macro">w!</span>(<span class="string">"{:?}"</span>, expr.as_ref().skip_binder())
                     })
@@ -2208,7 +2208,7 @@
             <span class="macro">define_scoped!</span>(cx, f);
             <span class="kw">let </span>vars = <span class="self">self</span>.body.vars();
             cx.with_bound_vars(vars, || {
-                cx.fmt_bound_vars(<span class="string">"λ"</span>, vars, <span class="string">". "</span>, f)<span class="question-mark">?</span>;
+                cx.fmt_bound_vars(<span class="bool-val">false</span>, <span class="string">"λ"</span>, vars, <span class="string">". "</span>, f)<span class="question-mark">?</span>;
                 <span class="macro">w!</span>(<span class="string">"{:?}"</span>, <span class="self">self</span>.body.as_ref().skip_binder())
             })
         }

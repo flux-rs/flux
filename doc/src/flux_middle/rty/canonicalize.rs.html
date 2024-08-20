@@ -428,7 +428,7 @@
                 CanonicalTy::Constr(constr) =&gt; <span class="macro">w!</span>(<span class="string">"{:?}"</span>, constr),
                 CanonicalTy::Exists(poly_constr) =&gt; {
                     cx.with_bound_vars(poly_constr.vars(), || {
-                        cx.fmt_bound_vars(<span class="string">"∃"</span>, poly_constr.vars(), <span class="string">". "</span>, f)<span class="question-mark">?</span>;
+                        cx.fmt_bound_vars(<span class="bool-val">false</span>, <span class="string">"∃"</span>, poly_constr.vars(), <span class="string">". "</span>, f)<span class="question-mark">?</span>;
                         <span class="macro">w!</span>(<span class="string">"{:?}"</span>, poly_constr.as_ref().skip_binder())
                     })
                 }

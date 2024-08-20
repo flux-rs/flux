@@ -1486,7 +1486,7 @@
             <span class="kw">let </span>vars = <span class="self">self</span>.data.vars();
             cx.with_bound_vars(vars, || {
                 <span class="kw">if </span>!vars.is_empty() {
-                    cx.fmt_bound_vars(<span class="string">"for&lt;"</span>, vars, <span class="string">"&gt; "</span>, f)<span class="question-mark">?</span>;
+                    cx.fmt_bound_vars(<span class="bool-val">true</span>, <span class="string">"for&lt;"</span>, vars, <span class="string">"&gt; "</span>, f)<span class="question-mark">?</span>;
                 }
                 <span class="kw">let </span>data = <span class="self">self</span>.data.as_ref().skip_binder();
                 <span class="kw">if </span>!data.constrs.is_empty() {
