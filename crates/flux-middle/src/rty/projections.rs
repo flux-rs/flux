@@ -94,6 +94,36 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         }
     }
 
+    fn normalize_projection_ty_with_rustc(&mut self, obligation: &AliasTy) -> QueryResult<Ty> {
+        let mut obligations = vec![];
+        let projection_ty = obligation.to_rustc(self.tcx());
+        let cause = ObligationCause::dummy();
+        let param_env = self.tcx().param_env(self.def_id);
+
+        let ty = rustc_trait_selection::traits::normalize_projection_ty(
+            &mut self.selcx,
+            param_env,
+            projection_ty,
+            cause,
+            10,
+            &mut obligations,
+        )
+        .expect_type();
+        let rustc_ty = lower_ty(self.tcx(), ty).unwrap();
+        let generics = self.genv.generics_of(self.def_id)?;
+        let ty = self.genv.refine_default(&generics, &rustc_ty)?;
+        Ok(ty)
+
+        // pub fn normalize_projection_ty<'a, 'b, 'tcx>(
+        //     selcx: &'a mut SelectionContext<'b, 'tcx>,
+        //     param_env: ParamEnv<'tcx>,
+        //     projection_ty: AliasTy<'tcx>,
+        //     cause: ObligationCause<'tcx>,
+        //     depth: usize,
+        //     obligations: &mut Vec<PredicateObligation<'tcx>>,
+        // ) -> Term<'tcx>
+    }
+
     fn normalize_projection_ty(&mut self, obligation: &AliasTy) -> QueryResult<(bool, Ty)> {
         let mut candidates = vec![];
         self.assemble_candidates_from_param_env(obligation, &mut candidates);
@@ -101,7 +131,13 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         self.assemble_candidates_from_impls(obligation, &mut candidates)?;
 
         if candidates.is_empty() {
-            return Ok((false, Ty::alias(AliasKind::Projection, obligation.clone())));
+            let orig_ty = Ty::alias(AliasKind::Projection, obligation.clone());
+            let ty = self.normalize_projection_ty_with_rustc(obligation)?;
+            if ty != orig_ty {
+                return Ok((true, ty));
+            } else {
+                return Ok((false, orig_ty));
+            }
         }
         if candidates.len() > 1 {
             bug!("ambiguity when resolving `{obligation:?}` in {:?}", self.def_id);
@@ -178,13 +214,11 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         if let GenericArg::Ty(ty) = &obligation.args[0]
             && let TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind()
         {
-            let tcx = self.tcx();
             let bounds = self.genv.item_bounds(alias_ty.def_id)?.instantiate(
-                tcx,
+                self.tcx(),
                 &alias_ty.args,
                 &alias_ty.refine_args,
             );
-
             assemble_candidates_from_predicates(
                 &bounds,
                 obligation,

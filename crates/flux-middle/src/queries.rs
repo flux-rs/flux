@@ -141,6 +141,8 @@ pub struct Providers {
     pub assoc_refinement_def:
         fn(GlobalEnv, LocalDefId, Symbol) -> QueryResult<rty::EarlyBinder<rty::Lambda>>,
     pub item_bounds: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
+    pub item_super_predicates:
+        fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
 }
 
 macro_rules! empty_query {
@@ -172,6 +174,7 @@ impl Default for Providers {
             assoc_refinement_def: |_, _, _| empty_query!(),
             sort_of_assoc_reft: |_, _, _| empty_query!(),
             item_bounds: |_, _| empty_query!(),
+            item_super_predicates: |_, _| empty_query!(),
         }
     }
 }
@@ -201,6 +204,7 @@ pub struct Queries<'genv, 'tcx> {
     sort_of_assoc_reft:
         Cache<(DefId, Symbol), QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>>>,
     item_bounds: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
+    item_super_predicates: Cache<DefId, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
     type_of: Cache<DefId, QueryResult<rty::EarlyBinder<rty::TyCtor>>>,
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
@@ -233,6 +237,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             assoc_refinement_def: Default::default(),
             sort_of_assoc_reft: Default::default(),
             item_bounds: Default::default(),
+            item_super_predicates: Default::default(),
             type_of: Default::default(),
             variants_of: Default::default(),
             fn_sig: Default::default(),
@@ -455,6 +460,34 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
+    pub(crate) fn item_super_predicates(
+        &self,
+        genv: GlobalEnv<'genv, 'tcx>,
+        def_id: DefId,
+    ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
+        run_with_cache(&self.item_super_predicates, def_id, || {
+            let def_id = lookup_extern(genv, def_id).unwrap_or(def_id);
+
+            /*
+            if let Some(local_id) = def_id.as_local() {
+                (self.providers.item_super_predicates)(genv, local_id)
+            } else
+            */
+            if let Some(bounds) = genv.cstore().item_super_predicates(def_id) {
+                bounds
+            } else {
+                let bounds = genv.tcx().item_super_predicates(def_id).skip_binder();
+                let clauses = lowering::lower_clauses(genv.tcx(), bounds)
+                    .map_err(|err| QueryErr::unsupported(def_id, err))?;
+
+                let clauses =
+                    Refiner::default(genv, &genv.generics_of(def_id)?).refine_clauses(&clauses)?;
+
+                Ok(rty::EarlyBinder(clauses))
+            }
+        })
+    }
+
     pub(crate) fn item_bounds(
         &self,
         genv: GlobalEnv<'genv, 'tcx>,
@@ -469,7 +502,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 bounds
             } else {
                 let bounds = genv.tcx().item_bounds(def_id).skip_binder();
-                let clauses = lowering::lower_item_bounds(genv.tcx(), bounds)
+                let clauses = lowering::lower_clauses(genv.tcx(), bounds)
                     .map_err(|err| QueryErr::unsupported(def_id, err))?;
 
                 let clauses =

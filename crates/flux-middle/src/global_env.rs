@@ -266,6 +266,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.item_bounds(self, def_id)
     }
 
+    pub fn item_super_predicates(
+        self,
+        def_id: DefId,
+    ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
+        self.inner.queries.item_super_predicates(self, def_id)
+    }
     pub fn type_of(self, def_id: impl Into<DefId>) -> QueryResult<rty::EarlyBinder<rty::TyCtor>> {
         self.inner.queries.type_of(self, def_id.into())
     }

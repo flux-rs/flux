@@ -11,6 +11,10 @@ pub trait CrateStore {
     fn generics_of(&self, def_id: DefId) -> OptResult<rty::Generics>;
     fn refinement_generics_of(&self, def_id: DefId) -> OptResult<rty::RefinementGenerics>;
     fn item_bounds(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<List<rty::Clause>>>;
+    fn item_super_predicates(
+        &self,
+        def_id: DefId,
+    ) -> OptResult<rty::EarlyBinder<List<rty::Clause>>>;
     fn predicates_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::GenericPredicates>>;
     fn assoc_refinements_of(&self, def_id: DefId) -> OptResult<rty::AssocRefinements>;
     fn assoc_refinements_def(

@@ -59,6 +59,7 @@ pub struct CrateMetadata {
     refinement_generics_of: FxHashMap<DefIndex, QueryResult<rty::RefinementGenerics>>,
     predicates_of: FxHashMap<DefIndex, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     item_bounds: FxHashMap<DefIndex, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
+    item_super_predicates: FxHashMap<DefIndex, QueryResult<rty::EarlyBinder<List<rty::Clause>>>>,
     assoc_refinements_of: FxHashMap<DefIndex, QueryResult<rty::AssocRefinements>>,
     assoc_refinements_def:
         FxHashMap<(DefIndex, Symbol), QueryResult<rty::EarlyBinder<rty::Lambda>>>,
@@ -151,6 +152,17 @@ impl CrateStore for CStore {
         self.meta
             .get(&def_id.krate)?
             .item_bounds
+            .get(&def_id.index)
+            .cloned()
+    }
+
+    fn item_super_predicates(
+        &self,
+        def_id: DefId,
+    ) -> OptResult<rty::EarlyBinder<List<rty::Clause>>> {
+        self.meta
+            .get(&def_id.krate)?
+            .item_super_predicates
             .get(&def_id.index)
             .cloned()
     }
