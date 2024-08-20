@@ -64,7 +64,7 @@ pub fn span_bug_fmt<S: Into<MultiSpan>>(span: S, args: fmt::Arguments<'_>) -> ! 
 #[track_caller]
 pub fn tracked_span_bug_fmt(args: fmt::Arguments<'_>) -> ! {
     let location = Location::caller();
-    TRACKED_SPAN.with(|span| opt_span_bug_fmt(span.get(), args, location))
+    opt_span_bug_fmt(TRACKED_SPAN.get(), args, location);
 }
 
 #[track_caller]
@@ -73,14 +73,17 @@ fn opt_span_bug_fmt<S: Into<MultiSpan>>(
     args: fmt::Arguments<'_>,
     location: &'static Location<'static>,
 ) -> ! {
-    tls::with_opt(move |tcx| {
-        let msg = format!("{location}: {args}");
-        match (tcx, span) {
-            (Some(tcx), Some(span)) => tcx.dcx().span_bug(span, msg),
-            (Some(tcx), None) => tcx.dcx().bug(msg),
-            (None, _) => std::panic::panic_any(msg),
-        }
-    })
+    tls::with_opt(
+        #[track_caller]
+        move |tcx| {
+            let msg = format!("{location}: {args}");
+            match (tcx, span) {
+                (Some(tcx), Some(span)) => tcx.dcx().span_bug(span, msg),
+                (Some(tcx), None) => tcx.dcx().bug(msg),
+                (None, _) => std::panic::panic_any(msg),
+            }
+        },
+    )
 }
 
 pub fn catch_bugs<R>(msg: &str, f: impl FnOnce() -> R + UnwindSafe) -> Result<R, ErrorGuaranteed> {
