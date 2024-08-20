@@ -425,7 +425,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 Ok(Rvalue::ShallowInitBox(self.lower_operand(op)?, lower_ty(self.tcx, *ty)?))
             }
             rustc_mir::Rvalue::ThreadLocalRef(_)
-            | rustc_mir::Rvalue::AddressOf(_, _)
+            | rustc_mir::Rvalue::RawPtr(_, _)
             | rustc_mir::Rvalue::CopyForDeref(_) => {
                 Err(UnsupportedReason::new(format!("unsupported rvalue `{rvalue:?}`")))
             }
@@ -717,8 +717,16 @@ pub(crate) fn lower_ty<'tcx>(
             let ty = lower_ty(tcx, *ty)?;
             Ok(Ty::mk_raw_ptr(ty, *mutbl))
         }
-        rustc_ty::FnPtr(fn_sig) => {
-            let fn_sig = lower_fn_sig(tcx, *fn_sig)?;
+        rustc_ty::FnPtr(fn_sig_tys, header) => {
+            let fn_sig = fn_sig_tys.map_bound(|fn_sig_tys| {
+                rustc_ty::FnSig {
+                    inputs_and_output: fn_sig_tys.inputs_and_output,
+                    c_variadic: header.c_variadic,
+                    safety: header.safety,
+                    abi: header.abi,
+                }
+            });
+            let fn_sig = lower_fn_sig(tcx, fn_sig)?;
             Ok(Ty::mk_fn_ptr(fn_sig))
         }
         rustc_ty::Closure(did, args) => {
