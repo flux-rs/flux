@@ -83,14 +83,13 @@ fn emitter(
     let track_diagnostics = opts.unstable_opts.track_diagnostics;
 
     match opts.error_format {
-        ErrorOutputType::HumanReadable(kind) => {
-            let (short, color_config) = kind.unzip();
-            if let HumanReadableErrorType::AnnotateSnippet(_) = kind {
+        ErrorOutputType::HumanReadable(err_type, color_config) => {
+            if let HumanReadableErrorType::AnnotateSnippet = err_type {
                 let emitter = AnnotateSnippetEmitter::new(
                     Some(source_map),
                     None,
                     fallback_bundle,
-                    short,
+                    false,
                     false,
                 );
                 Box::new(emitter)
@@ -98,14 +97,14 @@ fn emitter(
                 let dst = stderr_destination(color_config);
                 let emitter = HumanEmitter::new(dst, fallback_bundle)
                     .sm(Some(source_map))
-                    .short_message(short)
+                    .short_message(err_type.short())
                     .diagnostic_width(opts.diagnostic_width)
                     .track_diagnostics(track_diagnostics)
                     .terminal_url(opts.unstable_opts.terminal_urls);
                 Box::new(emitter)
             }
         }
-        ErrorOutputType::Json { pretty, json_rendered } => {
+        ErrorOutputType::Json { pretty, json_rendered, color_config } => {
             Box::new(
                 JsonEmitter::new(
                     Box::new(io::BufWriter::new(io::stderr())),
@@ -113,6 +112,7 @@ fn emitter(
                     fallback_bundle,
                     pretty,
                     json_rendered,
+                    color_config,
                 )
                 .registry(Some(Registry::new(&[])))
                 .fluent_bundle(bundle)

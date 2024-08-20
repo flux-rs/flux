@@ -614,7 +614,6 @@ fn map_res(res: hir::def::Res<!>) -> hir::def::Res {
         hir::def::Res::ToolMod => hir::def::Res::ToolMod,
         hir::def::Res::NonMacroAttr(nma) => hir::def::Res::NonMacroAttr(nma),
         hir::def::Res::Err => hir::def::Res::Err,
-        hir::def::Res::Local(_) => unreachable!(),
     }
 }
 
@@ -798,7 +797,7 @@ fn extern_crates_rib(tcx: TyCtxt) -> Rib {
     let mut rib = Rib::new();
     for cnum in tcx.crates(()) {
         let name = tcx.crate_name(*cnum);
-        if let Some(extern_crate) = tcx.extern_crate(cnum.as_def_id())
+        if let Some(extern_crate) = tcx.extern_crate(*cnum)
             && extern_crate.is_direct()
         {
             rib.bindings
