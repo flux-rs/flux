@@ -944,7 +944,25 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(Ty::tuple(tys))
             }
             Rvalue::Aggregate(AggregateKind::Closure(did, _), operands) => {
-                let upvar_tys = self.check_operands(rcx, env, stmt_span, operands)?;
+                let operand_tys = self.check_operands(rcx, env, stmt_span, operands)?;
+                let mut infcx = self.infcx(stmt_span);
+                let mut upvar_tys = vec![];
+                for ty in operand_tys.iter() {
+                    let ref_ty = if let TyKind::Ptr(PtrKind::Mut(re), path) = ty.kind() {
+                        env.ptr_to_ref(
+                            rcx,
+                            &mut infcx,
+                            ConstrReason::Other,
+                            *re,
+                            &path,
+                            PtrToRefBound::Identity,
+                        )
+                        .with_span(stmt_span)?
+                    } else {
+                        ty.clone()
+                    };
+                    upvar_tys.push(ref_ty);
+                }
                 let res = Ty::closure(*did, upvar_tys);
                 Ok(res)
             }
