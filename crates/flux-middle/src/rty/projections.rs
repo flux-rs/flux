@@ -94,6 +94,30 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         }
     }
 
+    // TODO: This is a temporary implementation that uses rustc's trait selection when FLUX fails;
+    //       The correct thing, e.g for `trait09.rs` is to make sure FLUX's param_env mirrors RUSTC,
+    //       by suitably chasing down the super-trait predicates,
+    //       see https://github.com/flux-rs/flux/issues/737
+    fn normalize_projection_ty_with_rustc(&mut self, obligation: &AliasTy) -> QueryResult<Ty> {
+        let projection_ty = obligation.to_rustc(self.tcx());
+        let cause = ObligationCause::dummy();
+        let param_env = self.tcx().param_env(self.def_id);
+
+        let ty = rustc_trait_selection::traits::normalize_projection_ty(
+            &mut self.selcx,
+            param_env,
+            projection_ty,
+            cause,
+            10,
+            &mut vec![],
+        )
+        .expect_type();
+        let rustc_ty = lower_ty(self.tcx(), ty).unwrap();
+        let generics = self.genv.generics_of(self.def_id)?;
+        let ty = self.genv.refine_default(&generics, &rustc_ty)?;
+        Ok(ty)
+    }
+
     fn normalize_projection_ty(&mut self, obligation: &AliasTy) -> QueryResult<(bool, Ty)> {
         let mut candidates = vec![];
         self.assemble_candidates_from_param_env(obligation, &mut candidates);
@@ -101,7 +125,9 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         self.assemble_candidates_from_impls(obligation, &mut candidates)?;
 
         if candidates.is_empty() {
-            return Ok((false, Ty::alias(AliasKind::Projection, obligation.clone())));
+            let orig_ty = Ty::alias(AliasKind::Projection, obligation.clone());
+            let ty = self.normalize_projection_ty_with_rustc(obligation)?;
+            return Ok((ty != orig_ty, ty));
         }
         if candidates.len() > 1 {
             bug!("ambiguity when resolving `{obligation:?}` in {:?}", self.def_id);
@@ -178,13 +204,11 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
         if let GenericArg::Ty(ty) = &obligation.args[0]
             && let TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind()
         {
-            let tcx = self.tcx();
             let bounds = self.genv.item_bounds(alias_ty.def_id)?.instantiate(
-                tcx,
+                self.tcx(),
                 &alias_ty.args,
                 &alias_ty.refine_args,
             );
-
             assemble_candidates_from_predicates(
                 &bounds,
                 obligation,

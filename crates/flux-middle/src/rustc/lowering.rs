@@ -892,7 +892,7 @@ pub(crate) fn lower_generic_predicates<'tcx>(
     Ok(GenericPredicates { parent: generics.parent, predicates })
 }
 
-pub(crate) fn lower_item_bounds<'tcx>(
+pub(crate) fn lower_clauses<'tcx>(
     tcx: TyCtxt<'tcx>,
     bounds: &[rustc_ty::Clause<'tcx>],
 ) -> Result<List<Clause>, UnsupportedErr> {

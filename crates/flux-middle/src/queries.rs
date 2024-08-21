@@ -460,7 +460,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 bounds
             } else {
                 let bounds = genv.tcx().item_bounds(def_id).skip_binder();
-                let clauses = lowering::lower_item_bounds(genv.tcx(), bounds)
+                let clauses = lowering::lower_clauses(genv.tcx(), bounds)
                     .map_err(|err| QueryErr::unsupported(def_id, err))?;
 
                 let clauses =
