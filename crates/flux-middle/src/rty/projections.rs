@@ -96,7 +96,8 @@ impl<'genv, 'tcx, 'cx> Normalizer<'genv, 'tcx, 'cx> {
 
     // TODO: This is a temporary implementation that uses rustc's trait selection when FLUX fails;
     //       The correct thing, e.g for `trait09.rs` is to make sure FLUX's param_env mirrors RUSTC,
-    //       by suitably chasing down the super-trait predicates.
+    //       by suitably chasing down the super-trait predicates,
+    //       see https://github.com/flux-rs/flux/issues/737
     fn normalize_projection_ty_with_rustc(&mut self, obligation: &AliasTy) -> QueryResult<Ty> {
         let projection_ty = obligation.to_rustc(self.tcx());
         let cause = ObligationCause::dummy();
