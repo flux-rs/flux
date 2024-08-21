@@ -63,19 +63,3 @@ pub fn test_is_empty() {
 //         assert(0 <= *x)
 //     }
 // }
-
-// // #[flux::sig(fn (vec: &mut Vec<i32>{v: v > 0}))]
-// fn push_non_empty(vec: &mut Vec<i32>) {
-//     vec.push(0);
-// }
-
-#[flux::sig(fn (dest: &strg [u8], src: &[std::cell::Cell<u8>]) ensures dest: [u8] )]
-pub fn copy_to_slice(dest: &mut [u8], src: &[std::cell::Cell<u8>]) {
-    if src.len() != dest.len() {
-        return;
-    } else {
-        for (i, b) in src.iter().enumerate() {
-            dest[i] = b.get();
-        }
-    }
-}

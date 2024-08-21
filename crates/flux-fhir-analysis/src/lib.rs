@@ -55,7 +55,6 @@ pub fn provide(providers: &mut Providers) {
     providers.sort_of_assoc_reft = sort_of_assoc_reft;
     providers.assoc_refinement_def = assoc_refinement_def;
     providers.item_bounds = item_bounds;
-    // TODO (providers.item_super_predicates) = item_super_predicates;
 }
 
 fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtSortDef> {
