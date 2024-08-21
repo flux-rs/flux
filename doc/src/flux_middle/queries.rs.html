@@ -1222,7 +1222,7 @@
                 bounds
             } <span class="kw">else </span>{
                 <span class="kw">let </span>bounds = genv.tcx().item_bounds(def_id).skip_binder();
-                <span class="kw">let </span>clauses = lowering::lower_item_bounds(genv.tcx(), bounds)
+                <span class="kw">let </span>clauses = lowering::lower_clauses(genv.tcx(), bounds)
                     .map_err(|err| QueryErr::unsupported(def_id, err))<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>clauses =

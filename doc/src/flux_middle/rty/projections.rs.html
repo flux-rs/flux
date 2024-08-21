@@ -402,6 +402,30 @@
 <a href="#402" id="402">402</a>
 <a href="#403" id="403">403</a>
 <a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="attr">#[allow(unused_imports)]
@@ -498,6 +522,30 @@
         }
     }
 
+    <span class="comment">// TODO: This is a temporary implementation that uses rustc's trait selection when FLUX fails;
+    //       The correct thing, e.g for `trait09.rs` is to make sure FLUX's param_env mirrors RUSTC,
+    //       by suitably chasing down the super-trait predicates,
+    //       see https://github.com/flux-rs/flux/issues/737
+    </span><span class="kw">fn </span>normalize_projection_ty_with_rustc(<span class="kw-2">&amp;mut </span><span class="self">self</span>, obligation: <span class="kw-2">&amp;</span>AliasTy) -&gt; QueryResult&lt;Ty&gt; {
+        <span class="kw">let </span>projection_ty = obligation.to_rustc(<span class="self">self</span>.tcx());
+        <span class="kw">let </span>cause = ObligationCause::dummy();
+        <span class="kw">let </span>param_env = <span class="self">self</span>.tcx().param_env(<span class="self">self</span>.def_id);
+
+        <span class="kw">let </span>ty = rustc_trait_selection::traits::normalize_projection_ty(
+            <span class="kw-2">&amp;mut </span><span class="self">self</span>.selcx,
+            param_env,
+            projection_ty,
+            cause,
+            <span class="number">10</span>,
+            <span class="kw-2">&amp;mut </span><span class="macro">vec!</span>[],
+        )
+        .expect_type();
+        <span class="kw">let </span>rustc_ty = lower_ty(<span class="self">self</span>.tcx(), ty).unwrap();
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(<span class="self">self</span>.def_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>ty = <span class="self">self</span>.genv.refine_default(<span class="kw-2">&amp;</span>generics, <span class="kw-2">&amp;</span>rustc_ty)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(ty)
+    }
+
     <span class="kw">fn </span>normalize_projection_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, obligation: <span class="kw-2">&amp;</span>AliasTy) -&gt; QueryResult&lt;(bool, Ty)&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>candidates = <span class="macro">vec!</span>[];
         <span class="self">self</span>.assemble_candidates_from_param_env(obligation, <span class="kw-2">&amp;mut </span>candidates);
@@ -505,7 +553,9 @@
         <span class="self">self</span>.assemble_candidates_from_impls(obligation, <span class="kw-2">&amp;mut </span>candidates)<span class="question-mark">?</span>;
 
         <span class="kw">if </span>candidates.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>((<span class="bool-val">false</span>, Ty::alias(AliasKind::Projection, obligation.clone())));
+            <span class="kw">let </span>orig_ty = Ty::alias(AliasKind::Projection, obligation.clone());
+            <span class="kw">let </span>ty = <span class="self">self</span>.normalize_projection_ty_with_rustc(obligation)<span class="question-mark">?</span>;
+            <span class="kw">return </span><span class="prelude-val">Ok</span>((ty != orig_ty, ty));
         }
         <span class="kw">if </span>candidates.len() &gt; <span class="number">1 </span>{
             <span class="macro">bug!</span>(<span class="string">"ambiguity when resolving `{obligation:?}` in {:?}"</span>, <span class="self">self</span>.def_id);
@@ -582,13 +632,11 @@
         <span class="kw">if let </span>GenericArg::Ty(ty) = <span class="kw-2">&amp;</span>obligation.args[<span class="number">0</span>]
             &amp;&amp; <span class="kw">let </span>TyKind::Alias(AliasKind::Opaque, alias_ty) = ty.kind()
         {
-            <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
             <span class="kw">let </span>bounds = <span class="self">self</span>.genv.item_bounds(alias_ty.def_id)<span class="question-mark">?</span>.instantiate(
-                tcx,
+                <span class="self">self</span>.tcx(),
                 <span class="kw-2">&amp;</span>alias_ty.args,
                 <span class="kw-2">&amp;</span>alias_ty.refine_args,
             );
-
             assemble_candidates_from_predicates(
                 <span class="kw-2">&amp;</span>bounds,
                 obligation,

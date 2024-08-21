@@ -1928,7 +1928,7 @@
     <span class="prelude-val">Ok</span>(GenericPredicates { parent: generics.parent, predicates })
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_item_bounds&lt;<span class="lifetime">'tcx</span>&gt;(
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lower_clauses&lt;<span class="lifetime">'tcx</span>&gt;(
     tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     bounds: <span class="kw-2">&amp;</span>[rustc_ty::Clause&lt;<span class="lifetime">'tcx</span>&gt;],
 ) -&gt; <span class="prelude-ty">Result</span>&lt;List&lt;Clause&gt;, UnsupportedErr&gt; {
