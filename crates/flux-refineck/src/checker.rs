@@ -21,8 +21,8 @@ use flux_middle::{
         self,
         mir::{
             self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-            Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
-            RETURN_PLACE, START_BLOCK,
+            Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
+            Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
         },
         ty,
     },
@@ -398,6 +398,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // otherwise be optimized away.
             }
             StatementKind::Nop => {}
+            StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(_op)) => {
+                // Currently, we only have the `assume` intrinsic, which if we're to trust rustc should be a NOP.
+                // TODO: There may be a use-case to actually "assume" the bool index associated with the operand,
+                // i.e. to strengthen the `rcx` / `env` with the assumption that the bool-index is in fact `true`...
+            }
         }
         Ok(())
     }
@@ -1136,8 +1141,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         uint_int_cast(idx, *uint_ty, *int_ty)
                     }
                     (Int!(_, _), RustTy::Uint(uint_ty)) => Ty::uint(*uint_ty),
+                    (TyKind::Discr(_, _), RustTy::Int(int_ty)) => Ty::int(*int_ty),
+                    (TyKind::Discr(_, _), RustTy::Uint(uint_ty)) => Ty::uint(*uint_ty),
                     _ => {
-                        tracked_span_bug!("invalid int to int cast")
+                        tracked_span_bug!("invalid int to int cast {from:?} --> {to:?}")
                     }
                 }
             }

@@ -20,8 +20,8 @@ use rustc_trait_selection::traits::SelectionContext;
 use super::{
     mir::{
         replicate_infer_ctxt, AggregateKind, AssertKind, BasicBlockData, BinOp, Body, CallArgs,
-        CastKind, Constant, LocalDecl, NullOp, Operand, Place, PlaceElem, PointerCast, Rvalue,
-        Statement, StatementKind, Terminator, TerminatorKind,
+        CastKind, Constant, LocalDecl, NonDivergingIntrinsic, NullOp, Operand, Place, PlaceElem,
+        PointerCast, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
@@ -243,11 +243,25 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                     *variance,
                 )
             }
+            rustc_mir::StatementKind::Intrinsic(ndi) => {
+                match ndi.as_ref() {
+                    rustc_mir::NonDivergingIntrinsic::Assume(op) => {
+                        let op = self
+                            .lower_operand(&op)
+                            .map_err(|reason| errors::UnsupportedMir::statement(span, reason))
+                            .emit(self.sess)?;
+                        StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op))
+                    }
+                    rustc_mir::NonDivergingIntrinsic::CopyNonOverlapping(_) => {
+                        return Err(errors::UnsupportedMir::from(stmt)).emit(self.sess);
+                    }
+                }
+            }
+
             rustc_mir::StatementKind::Retag(_, _)
             | rustc_mir::StatementKind::Deinit(_)
             | rustc_mir::StatementKind::AscribeUserType(..)
             | rustc_mir::StatementKind::Coverage(_)
-            | rustc_mir::StatementKind::Intrinsic(_)
             | rustc_mir::StatementKind::ConstEvalCounter => {
                 return Err(errors::UnsupportedMir::from(stmt)).emit(self.sess);
             }
