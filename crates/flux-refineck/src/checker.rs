@@ -947,14 +947,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let operand_tys = self.check_operands(rcx, env, stmt_span, operands)?;
                 let mut infcx = self.infcx(stmt_span);
                 let mut upvar_tys = vec![];
-                for ty in operand_tys.iter() {
+                for ty in &operand_tys {
                     let ref_ty = if let TyKind::Ptr(PtrKind::Mut(re), path) = ty.kind() {
                         env.ptr_to_ref(
                             rcx,
                             &mut infcx,
                             ConstrReason::Other,
                             *re,
-                            &path,
+                            path,
                             PtrToRefBound::Identity,
                         )
                         .with_span(stmt_span)?
