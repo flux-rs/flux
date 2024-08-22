@@ -249,14 +249,18 @@ impl RefineTree {
     pub fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
         RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
     }
+
+    pub(crate) fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
+        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self })
+    }
 }
 
 impl<'a> RefineSubtree<'a> {
-    pub fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
+    pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
         RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self.tree }
     }
 
-    pub fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
+    pub(crate) fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
         Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
     }
 
@@ -275,8 +279,8 @@ impl<'rcx> RefineCtxt<'rcx> {
         RefineSubtree { root: NodePtr(Rc::clone(&self.ptr)), tree: self.tree }
     }
 
-    pub fn subtree_at(&mut self, snapshot: &Snapshot) -> Option<RefineSubtree> {
-        Some(RefineSubtree { root: snapshot.ptr.upgrade()?, tree: self.tree })
+    pub fn change_root(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
+        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
     }
 
     pub fn snapshot(&self) -> Snapshot {
