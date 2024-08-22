@@ -166,13 +166,6 @@ impl NodePtr {
         WeakNodePtr(Rc::downgrade(&this.0))
     }
 
-    fn push_guard(&mut self, pred: impl Into<Expr>) {
-        let pred = pred.into();
-        if !pred.is_trivially_true() {
-            *self = self.push_node(NodeKind::Assumption(pred));
-        }
-    }
-
     fn name_gen(&self) -> IndexGen<Name> {
         IndexGen::skipping(self.next_name_idx())
     }
@@ -254,7 +247,7 @@ impl<'rcx> RefineCtxt<'rcx> {
         }
     }
 
-    pub fn change_root(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
+    pub(crate) fn change_root(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
         Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
     }
 
@@ -303,7 +296,10 @@ impl<'rcx> RefineCtxt<'rcx> {
     }
 
     pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
-        self.ptr.push_guard(pred);
+        let pred = pred.into();
+        if !pred.is_trivially_true() {
+            self.ptr = self.ptr.push_node(NodeKind::Assumption(pred));
+        }
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
