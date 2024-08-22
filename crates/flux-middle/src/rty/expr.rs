@@ -333,22 +333,11 @@ impl Expr {
             .clone()
     }
 
-    pub fn and_iter(exprs: impl IntoIterator<Item = Expr>) -> Expr {
+    pub fn and_from_iter(exprs: impl IntoIterator<Item = Expr>) -> Expr {
         exprs
             .into_iter()
             .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e, None))
             .unwrap_or_else(Expr::tt)
-    }
-
-    pub fn or_iter(exprs: impl IntoIterator<Item = Expr>) -> Expr {
-        exprs
-            .into_iter()
-            .reduce(|acc, e| Expr::binary_op(BinOp::Or, acc, e, None))
-            .unwrap_or_else(Expr::ff)
-    }
-
-    pub fn and(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        Expr::and_iter([e1.into(), e2.into()])
     }
 
     pub fn or_from_iter(exprs: impl IntoIterator<Item = Expr>) -> Expr {
@@ -356,6 +345,10 @@ impl Expr {
             .into_iter()
             .reduce(|acc, e| Expr::binary_op(BinOp::Or, acc, e, None))
             .unwrap_or_else(Expr::ff)
+    }
+
+    pub fn and(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        Expr::and_from_iter([e1.into(), e2.into()])
     }
 
     pub fn or(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {

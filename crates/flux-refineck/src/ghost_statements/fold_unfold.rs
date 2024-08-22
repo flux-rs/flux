@@ -337,11 +337,13 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                 }
                 M::projection(self, env, place, ProjKind::Other)?;
             }
+            StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op)) => {
+                self.operand(op, env)?;
+            }
             StatementKind::SetDiscriminant(_, _)
             | StatementKind::FakeRead(_)
             | StatementKind::AscribeUserType(_, _)
             | StatementKind::PlaceMention(_)
-            | StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(_))
             | StatementKind::Nop => {}
         }
         Ok(())

@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::hash_map::Entry, iter};
 
-use flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
+use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
@@ -795,7 +795,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         for (bits, bb) in targets.iter() {
             successors.push((bb, Guard::Pred(mk(bits))));
         }
-        let otherwise = Expr::and_iter(targets.iter().map(|(bits, _)| mk(bits).not()));
+        let otherwise = Expr::and_from_iter(targets.iter().map(|(bits, _)| mk(bits).not()));
         successors.push((targets.otherwise(), Guard::Pred(otherwise)));
 
         successors
@@ -951,25 +951,25 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Rvalue::Aggregate(AggregateKind::Closure(did, _), operands) => {
                 let operand_tys = self.check_operands(rcx, env, stmt_span, operands)?;
                 let mut infcx = self.infcx(stmt_span);
-                let mut upvar_tys = vec![];
-                for ty in &operand_tys {
-                    let ref_ty = if let TyKind::Ptr(PtrKind::Mut(re), path) = ty.kind() {
-                        env.ptr_to_ref(
-                            rcx,
-                            &mut infcx,
-                            ConstrReason::Other,
-                            *re,
-                            path,
-                            PtrToRefBound::Identity,
-                        )
-                        .with_span(stmt_span)?
-                    } else {
-                        ty.clone()
-                    };
-                    upvar_tys.push(ref_ty);
-                }
-                let res = Ty::closure(*did, upvar_tys);
-                Ok(res)
+                let upvar_tys = operand_tys
+                    .into_iter()
+                    .map(|ty| {
+                        if let TyKind::Ptr(PtrKind::Mut(re), path) = ty.kind() {
+                            env.ptr_to_ref(
+                                rcx,
+                                &mut infcx,
+                                ConstrReason::Other,
+                                *re,
+                                path,
+                                PtrToRefBound::Infer,
+                            )
+                        } else {
+                            Ok(ty.clone())
+                        }
+                    })
+                    .try_collect_vec()
+                    .with_span(stmt_span)?;
+                Ok(Ty::closure(*did, upvar_tys))
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
                 let args = args.as_coroutine();
@@ -1169,11 +1169,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     fn discr_to_int_cast(adt_def: &AdtDef, bty: BaseTy) -> Ty {
+        // TODO: This could be a giant disjunction, maybe better (if less precise) to use the interval?
         let vals = adt_def
             .discriminants()
             .map(|(_, idx)| Expr::eq(Expr::nu(), Expr::from_bits(&bty, idx)))
             .collect_vec();
-        Ty::exists_with_constr(bty, Expr::or_iter(vals))
+        Ty::exists_with_constr(bty, Expr::or_from_iter(vals))
     }
 
     fn check_unsize_cast(

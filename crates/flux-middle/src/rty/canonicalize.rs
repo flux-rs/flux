@@ -113,7 +113,7 @@ impl Ty {
         let mut hoister = Hoister::default();
         let ty = hoister.hoist(self);
         let (vars, preds) = hoister.into_parts();
-        let pred = Expr::and_iter(preds);
+        let pred = Expr::and_from_iter(preds);
         let constr_ty = CanonicalConstrTy { ty, pred };
         if vars.is_empty() {
             CanonicalTy::Constr(constr_ty)
