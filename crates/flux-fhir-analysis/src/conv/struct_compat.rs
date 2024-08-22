@@ -284,7 +284,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             ) => {
                 bug!("unexpected type {a:?}");
             }
-            _ => Err(Error::Incompatible),
+            (_a_kind, _b_kind) => Err(Error::Incompatible),
         }
     }
 
@@ -382,7 +382,10 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 assert_eq_or_incompatible(ty_a, ty_b)?;
                 assert_eq_or_incompatible(val_a, val_b)
             }
-            _ => Err(Error::Incompatible),
+            (rty::ConstKind::Unevaluated(c1), ty::ConstKind::Unevaluated(c2)) => {
+                assert_eq_or_incompatible(c1, c2)
+            }
+            (_, _) => Err(Error::Incompatible),
         }
     }
 
