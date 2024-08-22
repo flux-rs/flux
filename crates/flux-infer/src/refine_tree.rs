@@ -49,16 +49,6 @@ pub struct RefineTree {
     root: NodePtr,
 }
 
-/// A reference to a subtree rooted at a particular node in a [refinement tree].
-///
-/// [refinement tree]: RefineTree
-pub struct RefineSubtree<'a> {
-    /// We keep a reference to the underlying [`RefineTree`] to prove statically there's a single
-    /// writer.
-    tree: &'a mut RefineTree,
-    root: NodePtr,
-}
-
 /// A *refine*ment *c*on*t*e*xt* tracks all the refinement parameters and predicates
 /// available in a particular path during type-checking. For example, consider the following
 /// program:
@@ -255,30 +245,7 @@ impl RefineTree {
     }
 }
 
-impl<'a> RefineSubtree<'a> {
-    pub(crate) fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
-        RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self.tree }
-    }
-
-    pub(crate) fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
-        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
-    }
-
-    #[allow(clippy::unused_self)]
-    // We take a mutable reference to the subtree to prove statically that there's only one writer.
-    pub fn clear_children(&mut self, snapshot: &Snapshot) {
-        if let Some(ptr) = snapshot.ptr.upgrade() {
-            ptr.borrow_mut().children.clear();
-        }
-    }
-}
-
 impl<'rcx> RefineCtxt<'rcx> {
-    #[allow(unused)]
-    pub fn as_subtree(&mut self) -> RefineSubtree {
-        RefineSubtree { root: NodePtr(Rc::clone(&self.ptr)), tree: self.tree }
-    }
-
     pub fn change_root(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
         Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
     }
@@ -747,13 +714,6 @@ mod pretty {
         }
     }
 
-    impl Pretty for RefineSubtree<'_> {
-        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("{:?}", &self.root)
-        }
-    }
-
     impl Pretty for NodePtr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -892,7 +852,6 @@ mod pretty {
 
     impl_debug_with_default_cx!(
         RefineTree => "refine_tree",
-        RefineSubtree<'_> => "refine_subtree",
         RefineCtxt<'_> => "refine_ctxt",
         Scope,
     );
