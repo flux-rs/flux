@@ -131,6 +131,7 @@ pub(crate) struct RefineMode {
 pub(crate) struct ShapeResult(FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnvShape>>);
 
 /// A `Guard` describes extra "control" information that holds at the start of a successor basic block
+#[derive(Debug)]
 enum Guard {
     /// No extra information holds, e.g., for a plain goto.
     None,

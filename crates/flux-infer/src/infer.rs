@@ -111,13 +111,13 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
     }
 }
 
-pub struct InferCtxt<'a, 'genv, 'tcx> {
+pub struct InferCtxt<'infcx, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
-    pub region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
+    pub region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
     pub def_id: DefId,
-    pub refparams: &'a [Expr],
-    rcx: RefineCtxt<'a>,
-    inner: &'a RefCell<InferCtxtInner>,
+    pub refparams: &'infcx [Expr],
+    rcx: RefineCtxt<'infcx>,
+    inner: &'infcx RefCell<InferCtxtInner>,
 }
 
 struct InferCtxtInner {
@@ -131,20 +131,20 @@ impl InferCtxtInner {
     }
 }
 
-impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
+impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     fn new(
         genv: GlobalEnv<'genv, 'tcx>,
-        region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
+        region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
         def_id: DefId,
-        refparams: &'a [Expr],
-        rcx: RefineCtxt<'a>,
-        inner: &'a RefCell<InferCtxtInner>,
+        refparams: &'infcx [Expr],
+        rcx: RefineCtxt<'infcx>,
+        inner: &'infcx RefCell<InferCtxtInner>,
     ) -> Self {
         Self { genv, region_infcx, def_id, refparams, rcx, inner }
     }
 
     pub fn clean_subtree(&mut self, snapshot: &Snapshot) {
-        todo!()
+        self.rcx.clear_children(snapshot);
     }
 
     pub fn change_root(
@@ -163,8 +163,8 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         InferCtxt { rcx: self.rcx.branch(), ..*self }
     }
 
-    pub fn at(&mut self, span: Span) -> InferCtxtAt<'_, 'genv, 'tcx> {
-        InferCtxtAt { infcx: self.branch(), span }
+    pub fn at(&mut self, span: Span) -> InferCtxtAt<'_, 'infcx, 'genv, 'tcx> {
+        InferCtxtAt { infcx: self, span }
     }
 
     pub fn instantiate_refine_args(&mut self, callee_def_id: DefId) -> InferResult<Vec<Expr>> {
@@ -256,12 +256,12 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
 
 impl std::fmt::Debug for InferCtxt<'_, '_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        std::fmt::Debug::fmt(&self.rcx, f)
     }
 }
 
-impl<'a> std::ops::Deref for InferCtxt<'a, '_, '_> {
-    type Target = RefineCtxt<'a>;
+impl<'infcx> std::ops::Deref for InferCtxt<'infcx, '_, '_> {
+    type Target = RefineCtxt<'infcx>;
 
     fn deref(&self) -> &Self::Target {
         &self.rcx
@@ -274,12 +274,12 @@ impl std::ops::DerefMut for InferCtxt<'_, '_, '_> {
     }
 }
 
-pub struct InferCtxtAt<'a, 'genv, 'tcx> {
-    pub infcx: InferCtxt<'a, 'genv, 'tcx>,
+pub struct InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
+    pub infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
     pub span: Span,
 }
 
-impl<'a, 'genv, 'tcx> InferCtxtAt<'a, 'genv, 'tcx> {
+impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
     fn tag(&self, reason: ConstrReason) -> Tag {
         Tag::new(reason, self.span)
     }
@@ -363,7 +363,7 @@ impl<'a, 'genv, 'tcx> InferCtxtAt<'a, 'genv, 'tcx> {
     }
 }
 
-impl<'a, 'genv, 'tcx> std::ops::Deref for InferCtxtAt<'a, 'genv, 'tcx> {
+impl<'a, 'genv, 'tcx> std::ops::Deref for InferCtxtAt<'_, 'a, 'genv, 'tcx> {
     type Target = InferCtxt<'a, 'genv, 'tcx>;
 
     fn deref(&self) -> &Self::Target {
@@ -371,7 +371,7 @@ impl<'a, 'genv, 'tcx> std::ops::Deref for InferCtxtAt<'a, 'genv, 'tcx> {
     }
 }
 
-impl std::ops::DerefMut for InferCtxtAt<'_, '_, '_> {
+impl std::ops::DerefMut for InferCtxtAt<'_, '_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.infcx
     }

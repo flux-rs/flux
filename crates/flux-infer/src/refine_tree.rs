@@ -246,6 +246,14 @@ impl RefineTree {
 }
 
 impl<'rcx> RefineCtxt<'rcx> {
+    #[allow(clippy::unused_self)]
+    // We take a mutable reference to the subtree to prove statically that there's only one writer.
+    pub(crate) fn clear_children(&mut self, snapshot: &Snapshot) {
+        if let Some(ptr) = snapshot.ptr.upgrade() {
+            ptr.borrow_mut().children.clear();
+        }
+    }
+
     pub fn change_root(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
         Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
     }
