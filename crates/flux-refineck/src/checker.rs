@@ -205,12 +205,12 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
 #[allow(clippy::too_many_arguments)]
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn run(
-        mut root: InferCtxt<'_, 'genv, 'tcx>,
+        mut infcx: InferCtxt<'_, 'genv, 'tcx>,
         def_id: LocalDefId,
         inherited: Inherited<'ck, M>,
         poly_sig: PolyFnSig,
     ) -> Result {
-        let genv = root.genv;
+        let genv = infcx.genv;
         let span = genv.tcx().def_span(def_id);
 
         let body = genv.mir(def_id).with_span(span)?;
@@ -221,15 +221,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let fn_sig = poly_sig.replace_bound_vars(
             |_| {
                 rty::ReVar(
-                    root.region_infcx
+                    infcx
+                        .region_infcx
                         .next_nll_region_var(NllRegionVariableOrigin::FreeRegion)
                         .as_var(),
                 )
             },
-            |sort, _| root.define_vars(sort),
+            |sort, _| infcx.define_vars(sort),
         );
 
-        let mut env = init_env(&mut root, &body, &fn_sig, inherited.config);
+        let mut env = init_env(&mut infcx, &body, &fn_sig, inherited.config);
 
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
@@ -251,18 +252,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             snapshots: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), body.dominators()),
         };
-        ck.check_ghost_statements_at(&mut root, &mut env, Point::FunEntry, body.span())?;
+        ck.check_ghost_statements_at(&mut infcx, &mut env, Point::FunEntry, body.span())?;
 
-        ck.check_goto(root.branch(), env, body.span(), START_BLOCK)?;
+        ck.check_goto(infcx.branch(), env, body.span(), START_BLOCK)?;
         while let Some(bb) = ck.queue.pop() {
             if ck.visited.contains(bb) {
                 let snapshot = ck.snapshot_at_dominator(bb);
-                root.clean_subtree(snapshot);
+                infcx.clean_subtree(snapshot);
                 M::clear(&mut ck, bb);
             }
 
             let snapshot = ck.snapshot_at_dominator(bb);
-            let mut infcx = root.change_root(def_id, snapshot);
+            let mut infcx = infcx.change_root(def_id, snapshot);
             let mut env = M::enter_basic_block(&mut ck, &mut infcx, bb);
             env.unpack(&mut infcx, ck.config().check_overflow);
             ck.check_basic_block(infcx, env, bb)?;
