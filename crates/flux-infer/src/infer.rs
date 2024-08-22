@@ -18,7 +18,7 @@ use itertools::{izip, Itertools};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_infer::infer::{BoundRegionConversionTime, RegionVariableOrigin};
 use rustc_middle::ty::{BoundRegionKind, Variance};
-use rustc_span::{Span, DUMMY_SP};
+use rustc_span::Span;
 
 use crate::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
@@ -60,15 +60,18 @@ pub enum ConstrReason {
 
 pub struct InferCtxtRoot<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
-    kvar_gen: RefCell<KVarGen>,
-    evar_gen: RefCell<EVarGen<Scope>>,
+    inner: RefCell<InferCtxtInner>,
     refine_tree: RefineTree,
     root: Snapshot,
     refine_params: List<Expr>,
 }
 
 impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
-    pub fn new(genv: GlobalEnv<'genv, 'tcx>, root_id: LocalDefId) -> QueryResult<Self> {
+    pub fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        root_id: LocalDefId,
+        kvar_gen: KVarGen,
+    ) -> QueryResult<Self> {
         let generics = genv.generics_of(root_id)?;
         let const_params = generics.const_params(genv)?;
         let mut refine_tree = RefineTree::new(const_params);
@@ -81,8 +84,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
         Ok(Self {
             genv,
-            kvar_gen: RefCell::new(Default::default()),
-            evar_gen: RefCell::new(Default::default()),
+            inner: RefCell::new(InferCtxtInner::new(kvar_gen)),
             refine_tree,
             root,
             refine_params,
@@ -100,10 +102,12 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             def_id.to_def_id(),
             &self.refine_params,
             self.refine_tree.refine_ctxt_at(&self.root).unwrap(),
-            &self.kvar_gen,
-            &self.evar_gen,
-            DUMMY_SP,
+            &self.inner,
         )
+    }
+
+    pub fn split(self) -> (RefineTree, KVarGen) {
+        (self.refine_tree, self.inner.into_inner().kvars)
     }
 }
 
@@ -113,24 +117,30 @@ pub struct InferCtxt<'a, 'genv, 'tcx> {
     pub def_id: DefId,
     pub refparams: &'a [Expr],
     rcx: RefineCtxt<'a>,
-    kvar_gen: &'a RefCell<KVarGen>,
-    evar_gen: &'a RefCell<EVarGen<Scope>>,
-    /// The span at which this inference context was created in `Checker`
-    span: Span,
+    inner: &'a RefCell<InferCtxtInner>,
+}
+
+struct InferCtxtInner {
+    kvars: KVarGen,
+    evars: EVarGen<Scope>,
+}
+
+impl InferCtxtInner {
+    fn new(kvars: KVarGen) -> Self {
+        Self { kvars, evars: Default::default() }
+    }
 }
 
 impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
-    pub fn new(
+    fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         def_id: DefId,
         refparams: &'a [Expr],
         rcx: RefineCtxt<'a>,
-        kvar_gen: &'a RefCell<KVarGen>,
-        evar_gen: &'a RefCell<EVarGen<Scope>>,
-        span: Span,
+        inner: &'a RefCell<InferCtxtInner>,
     ) -> Self {
-        Self { genv, region_infcx, def_id, refparams, rcx, kvar_gen, evar_gen, span }
+        Self { genv, region_infcx, def_id, refparams, rcx, inner }
     }
 
     pub fn clean_subtree(&mut self, snapshot: &Snapshot) {
@@ -143,14 +153,9 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
         snapshot: &Snapshot,
     ) -> InferCtxt<'_, 'genv, 'tcx> {
         InferCtxt {
-            genv: self.genv,
-            region_infcx: self.region_infcx,
             def_id: def_id.to_def_id(),
-            refparams: self.refparams,
             rcx: self.rcx.change_root(snapshot).unwrap(),
-            kvar_gen: self.kvar_gen,
-            evar_gen: self.evar_gen,
-            span: DUMMY_SP,
+            ..*self
         }
     }
 
@@ -212,41 +217,40 @@ impl<'a, 'genv, 'tcx> InferCtxt<'a, 'genv, 'tcx> {
 
     /// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
     pub fn fresh_kvar(&self, sorts: &[List<Sort>], encoding: KVarEncoding) -> Expr {
-        let evar_gen = self.evar_gen.borrow();
-        self.kvar_gen
-            .borrow_mut()
-            .fresh(sorts, evar_gen.current_data().iter(), encoding)
+        let inner = &mut *self.inner.borrow_mut();
+        inner
+            .kvars
+            .fresh(sorts, inner.evars.current_data().iter(), encoding)
     }
 
     fn fresh_evars(&self, sort: &Sort) -> Expr {
-        let mut evar_gen = self.evar_gen.borrow_mut();
-        Expr::fold_sort(sort, |_| Expr::evar(evar_gen.fresh_in_current()))
+        let evars = &mut self.inner.borrow_mut().evars;
+        Expr::fold_sort(sort, |_| Expr::evar(evars.fresh_in_current()))
     }
 
     pub fn unify_exprs(&self, e1: &Expr, e2: &Expr) {
-        let mut evar_gen = self.evar_gen.borrow_mut();
+        let evars = &mut self.inner.borrow_mut().evars;
         if let ExprKind::Var(Var::EVar(evar)) = e2.kind()
-            && let scope = &evar_gen.data(evar.cx())
+            && let scope = &evars.data(evar.cx())
             && !scope.has_free_vars(e1)
         {
-            evar_gen.unify(*evar, e1, false);
+            evars.unify(*evar, e1, false);
         }
     }
 
     pub fn push_scope(&mut self) {
-        let a = 1;
-        todo!()
-        // self.evar_gen.borrow_mut().enter_context(rcx.scope());
+        let scope = self.scope();
+        self.inner.borrow_mut().evars.enter_context(scope);
     }
 
     pub fn pop_scope(&mut self) -> InferResult<EVarSol> {
-        let mut evar_gen = self.evar_gen.borrow_mut();
-        evar_gen.exit_context();
-        Ok(evar_gen.try_solve_pending()?)
+        let evars = &mut self.inner.borrow_mut().evars;
+        evars.exit_context();
+        Ok(evars.try_solve_pending()?)
     }
 
     fn pop_scope_without_solving_evars(&mut self) {
-        self.evar_gen.borrow_mut().exit_context();
+        self.inner.borrow_mut().evars.exit_context();
     }
 }
 
@@ -260,13 +264,13 @@ impl<'a> std::ops::Deref for InferCtxt<'a, '_, '_> {
     type Target = RefineCtxt<'a>;
 
     fn deref(&self) -> &Self::Target {
-        todo!()
+        &self.rcx
     }
 }
 
-impl<'a> std::ops::DerefMut for InferCtxt<'a, '_, '_> {
+impl std::ops::DerefMut for InferCtxt<'_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        todo!()
+        &mut self.rcx
     }
 }
 
@@ -321,7 +325,7 @@ impl<'a, 'genv, 'tcx> InferCtxtAt<'a, 'genv, 'tcx> {
         ty2: &Ty,
         reason: ConstrReason,
     ) -> InferResult<Vec<rty::Clause>> {
-        let mut sub = Sub { span: self.infcx.span, reason, obligations: vec![] };
+        let mut sub = Sub { span: self.span, reason, obligations: vec![] };
         sub.tys(&mut self.infcx, ty1, ty2)?;
         Ok(sub.obligations)
     }

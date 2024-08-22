@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::hash_map::Entry, iter};
+use std::{collections::hash_map::Entry, iter};
 
 use flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
 use flux_config as config;
@@ -81,27 +81,20 @@ struct Inherited<'ck, M> {
     /// signature
     ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
     mode: &'ck mut M,
-    kvars: &'ck RefCell<KVarGen>,
     config: CheckerConfig,
 }
 
 impl<'ck, M: Mode> Inherited<'ck, M> {
     fn new(
         mode: &'ck mut M,
-        kvars: &'ck RefCell<KVarGen>,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
         config: CheckerConfig,
     ) -> Result<Self> {
-        Ok(Self { ghost_stmts, mode, kvars, config })
+        Ok(Self { ghost_stmts, mode, config })
     }
 
     fn reborrow(&mut self) -> Inherited<M> {
-        Inherited {
-            ghost_stmts: self.ghost_stmts,
-            mode: &mut *self.mode,
-            kvars: self.kvars,
-            config: self.config,
-        }
+        Inherited { ghost_stmts: self.ghost_stmts, mode: &mut *self.mode, config: self.config }
     }
 }
 
@@ -158,11 +151,11 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             let span = genv.tcx().def_span(def_id);
             let mut mode = ShapeMode { bb_envs: FxHashMap::default() };
 
-            let mut root_ctxt = InferCtxtRoot::new(genv, def_id).with_span(span)?;
-
             // In shape mode we don't care about kvars
-            let kvars = RefCell::new(KVarGen::dummy());
-            let inherited = Inherited::new(&mut mode, &kvars, ghost_stmts, config)?;
+            let kvars = KVarGen::dummy();
+            let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars).with_span(span)?;
+
+            let inherited = Inherited::new(&mut mode, ghost_stmts, config)?;
 
             let body = genv.mir(def_id).with_span(span)?;
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
@@ -189,17 +182,14 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         let span = genv.tcx().def_span(def_id);
         let fn_sig = genv.fn_sig(def_id).with_span(span)?;
 
-        let mut root_ctxt = InferCtxtRoot::new(genv, def_id).with_span(span)?;
         let mut kvars = fixpoint_encoding::KVarGen::new();
-        let generics = genv.generics_of(def_id).with_span(span)?;
-        let const_params = generics.const_params(genv).with_span(span)?;
-        let mut refine_tree = RefineTree::new(const_params);
         let bb_envs = bb_env_shapes.into_bb_envs(&mut kvars);
+
+        let mut root_ctxt = InferCtxtRoot::new(genv, def_id, kvars).with_span(span)?;
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             let mut mode = RefineMode { bb_envs };
-            let kvars = RefCell::new(kvars);
-            let inherited = Inherited::new(&mut mode, &kvars, ghost_stmts, config)?;
+            let inherited = Inherited::new(&mut mode, ghost_stmts, config)?;
 
             let body = genv.mir(def_id).with_span(span)?;
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
@@ -207,7 +197,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
 
             Checker::run(infcx, def_id, inherited, poly_sig)?;
 
-            Ok((refine_tree, kvars.into_inner()))
+            Ok(root_ctxt.split())
         })
     }
 }
