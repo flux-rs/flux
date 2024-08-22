@@ -961,7 +961,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             ConstrReason::Other,
                             *re,
                             path,
-                            PtrToRefBound::Identity,
+                            PtrToRefBound::Infer,
                         )
                         .with_span(stmt_span)?
                     } else {
