@@ -911,7 +911,7 @@ impl Ty {
             }
         }
         let mut preds = vec![];
-        (go(self, &mut preds), Expr::and_iter(preds))
+        (go(self, &mut preds), Expr::and_from_iter(preds))
     }
 
     pub fn unblocked(&self) -> Ty {

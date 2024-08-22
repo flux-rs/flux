@@ -9,9 +9,9 @@ use flux_middle::{
     rty,
     rustc::{
         mir::{
-            BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, Operand, Place, PlaceElem,
-            Rvalue, Statement, StatementKind, Terminator, TerminatorKind, VariantIdx,
-            FIRST_VARIANT,
+            BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, NonDivergingIntrinsic,
+            Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
+            TerminatorKind, VariantIdx, FIRST_VARIANT,
         },
         ty::{AdtDef, GenericArgs, Ty, TyKind},
     },
@@ -336,6 +336,9 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                     Rvalue::NullaryOp(_, _) => {}
                 }
                 M::projection(self, env, place, ProjKind::Other)?;
+            }
+            StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op)) => {
+                self.operand(op, env)?;
             }
             StatementKind::SetDiscriminant(_, _)
             | StatementKind::FakeRead(_)
