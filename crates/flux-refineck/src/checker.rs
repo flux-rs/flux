@@ -398,10 +398,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // otherwise be optimized away.
             }
             StatementKind::Nop => {}
-            StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(_op)) => {
+            StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op)) => {
                 // Currently, we only have the `assume` intrinsic, which if we're to trust rustc should be a NOP.
                 // TODO: There may be a use-case to actually "assume" the bool index associated with the operand,
                 // i.e. to strengthen the `rcx` / `env` with the assumption that the bool-index is in fact `true`...
+                let _ = self.check_operand(rcx, env, stmt_span, op)?;
             }
         }
         Ok(())
