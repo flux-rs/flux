@@ -103,7 +103,7 @@ fhir_analysis_refined_unrefinable_type =
 fhir_analysis_incompatible_refinement =
     {$def_descr} has an incompatible refinement annotation
     .label = expected a refinement of `{$expected_ty}`
-    .expected_label = corresponding unrefined definition
+    .expected_label = corresponding to the unrefined definition
 
 fhir_analysis_incompatible_param_count =
     {$def_descr} has an incompatible refinement annotation
@@ -144,7 +144,7 @@ fhir_analysis_field_count_mismatch =
         [one] field
         *[other] fields
      }, found {$fields}
-    .expected_label = corresponding unrefined definition
+    .expected_label = corresponding to the unrefined definition
 
 # Definition cycle
 

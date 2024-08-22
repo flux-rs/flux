@@ -382,6 +382,9 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 assert_eq_or_incompatible(ty_a, ty_b)?;
                 assert_eq_or_incompatible(val_a, val_b)
             }
+            (rty::ConstKind::Unevaluated(c1), ty::ConstKind::Unevaluated(c2)) => {
+                assert_eq_or_incompatible(c1, c2)
+            }
             _ => Err(Error::Incompatible),
         }
     }
