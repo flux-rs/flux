@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::hash_map::Entry, iter};
 
-use flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
+use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{self, KVarGen},
@@ -12,7 +12,7 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{
-        self, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, Clause,
+        self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnSig, FnTraitPredicate,
         GenericArg, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref, Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
@@ -21,8 +21,8 @@ use flux_middle::{
         self,
         mir::{
             self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-            Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
-            RETURN_PLACE, START_BLOCK,
+            Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
+            Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
         },
         ty,
     },
@@ -398,6 +398,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // otherwise be optimized away.
             }
             StatementKind::Nop => {}
+            StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op)) => {
+                // Currently, we only have the `assume` intrinsic, which if we're to trust rustc should be a NOP.
+                // TODO: There may be a use-case to actually "assume" the bool index associated with the operand,
+                // i.e. to strengthen the `rcx` / `env` with the assumption that the bool-index is in fact `true`...
+                let _ = self.check_operand(rcx, env, stmt_span, op)?;
+            }
         }
         Ok(())
     }
@@ -790,7 +796,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         for (bits, bb) in targets.iter() {
             successors.push((bb, Guard::Pred(mk(bits))));
         }
-        let otherwise = Expr::and_iter(targets.iter().map(|(bits, _)| mk(bits).not()));
+        let otherwise = Expr::and_from_iter(targets.iter().map(|(bits, _)| mk(bits).not()));
         successors.push((targets.otherwise(), Guard::Pred(otherwise)));
 
         successors
@@ -944,9 +950,27 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(Ty::tuple(tys))
             }
             Rvalue::Aggregate(AggregateKind::Closure(did, _), operands) => {
-                let upvar_tys = self.check_operands(rcx, env, stmt_span, operands)?;
-                let res = Ty::closure(*did, upvar_tys);
-                Ok(res)
+                let operand_tys = self.check_operands(rcx, env, stmt_span, operands)?;
+                let mut infcx = self.infcx(stmt_span);
+                let upvar_tys = operand_tys
+                    .into_iter()
+                    .map(|ty| {
+                        if let TyKind::Ptr(PtrKind::Mut(re), path) = ty.kind() {
+                            env.ptr_to_ref(
+                                rcx,
+                                &mut infcx,
+                                ConstrReason::Other,
+                                *re,
+                                path,
+                                PtrToRefBound::Infer,
+                            )
+                        } else {
+                            Ok(ty.clone())
+                        }
+                    })
+                    .try_collect_vec()
+                    .with_span(stmt_span)?;
+                Ok(Ty::closure(*did, upvar_tys))
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
                 let args = args.as_coroutine();
@@ -1118,8 +1142,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         uint_int_cast(idx, *uint_ty, *int_ty)
                     }
                     (Int!(_, _), RustTy::Uint(uint_ty)) => Ty::uint(*uint_ty),
+                    (TyKind::Discr(adt_def, _), RustTy::Int(int_ty)) => {
+                        Self::discr_to_int_cast(adt_def, BaseTy::Int(*int_ty))
+                    }
+                    (TyKind::Discr(adt_def, _place), RustTy::Uint(uint_ty)) => {
+                        Self::discr_to_int_cast(adt_def, BaseTy::Uint(*uint_ty))
+                    }
                     _ => {
-                        tracked_span_bug!("invalid int to int cast")
+                        tracked_span_bug!("invalid int to int cast {from:?} --> {to:?}")
                     }
                 }
             }
@@ -1137,6 +1167,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         };
         Ok(ty)
+    }
+
+    fn discr_to_int_cast(adt_def: &AdtDef, bty: BaseTy) -> Ty {
+        // TODO: This could be a giant disjunction, maybe better (if less precise) to use the interval?
+        let vals = adt_def
+            .discriminants()
+            .map(|(_, idx)| Expr::eq(Expr::nu(), Expr::from_bits(&bty, idx)))
+            .collect_vec();
+        Ty::exists_with_constr(bty, Expr::or_from_iter(vals))
     }
 
     fn check_unsize_cast(

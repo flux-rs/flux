@@ -15,7 +15,7 @@ use rustc_index::IndexSlice;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
-    mir,
+    mir::{self},
     ty::{FloatTy, IntTy, ParamConst, TyCtxt, UintTy},
 };
 pub use rustc_middle::{
@@ -173,11 +173,17 @@ pub struct Statement {
 }
 
 #[derive(Debug)]
+pub enum NonDivergingIntrinsic {
+    Assume(Operand),
+}
+
+#[derive(Debug)]
 pub enum StatementKind {
     Assign(Place, Rvalue),
     SetDiscriminant(Place, VariantIdx),
     FakeRead(Box<(FakeReadCause, Place)>),
     AscribeUserType(Place, Variance),
+    Intrinsic(NonDivergingIntrinsic),
     PlaceMention(Place),
     Nop,
 }
@@ -529,6 +535,9 @@ impl fmt::Debug for Statement {
             }
             StatementKind::AscribeUserType(place, variance) => {
                 write!(f, "AscribeUserType({place:?}, {variance:?})")
+            }
+            StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op)) => {
+                write!(f, "Assume({op:?})")
             }
         }
     }

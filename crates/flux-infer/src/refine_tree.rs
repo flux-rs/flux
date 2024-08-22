@@ -793,7 +793,7 @@ mod pretty {
                     } else {
                         (vec![pred.clone()], node.children.clone())
                     };
-                    let guard = Expr::and_iter(preds).simplify();
+                    let guard = Expr::and_from_iter(preds).simplify();
                     w!("{:?} =>", parens!(guard, !guard.is_atom()))?;
                     fmt_children(&children, cx, f)
                 }
