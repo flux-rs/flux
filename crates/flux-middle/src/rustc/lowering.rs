@@ -247,7 +247,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
                 match ndi.as_ref() {
                     rustc_mir::NonDivergingIntrinsic::Assume(op) => {
                         let op = self
-                            .lower_operand(&op)
+                            .lower_operand(op)
                             .map_err(|reason| errors::UnsupportedMir::statement(span, reason))
                             .emit(self.sess)?;
                         StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op))
