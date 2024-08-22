@@ -3253,7 +3253,7 @@
             }
         }
         <span class="kw">let </span><span class="kw-2">mut </span>preds = <span class="macro">vec!</span>[];
-        (go(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>preds), Expr::and_iter(preds))
+        (go(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>preds), Expr::and_from_iter(preds))
     }
 
     <span class="kw">pub fn </span>unblocked(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {

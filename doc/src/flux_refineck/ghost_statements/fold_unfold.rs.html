@@ -874,6 +874,9 @@
 <a href="#874" id="874">874</a>
 <a href="#875" id="875">875</a>
 <a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, fmt, iter};
 
 <span class="kw">use </span>flux_common::tracked_span_bug;
@@ -885,9 +888,9 @@
     rty,
     rustc::{
         mir::{
-            BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, Operand, Place, PlaceElem,
-            Rvalue, Statement, StatementKind, Terminator, TerminatorKind, VariantIdx,
-            FIRST_VARIANT,
+            BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, NonDivergingIntrinsic,
+            Operand, Place, PlaceElem, Rvalue, Statement, StatementKind, Terminator,
+            TerminatorKind, VariantIdx, FIRST_VARIANT,
         },
         ty::{AdtDef, GenericArgs, Ty, TyKind},
     },
@@ -1212,6 +1215,9 @@
                     Rvalue::NullaryOp(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {}
                 }
                 M::projection(<span class="self">self</span>, env, place, ProjKind::Other)<span class="question-mark">?</span>;
+            }
+            StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op)) =&gt; {
+                <span class="self">self</span>.operand(op, env)<span class="question-mark">?</span>;
             }
             StatementKind::SetDiscriminant(<span class="kw">_</span>, <span class="kw">_</span>)
             | StatementKind::FakeRead(<span class="kw">_</span>)

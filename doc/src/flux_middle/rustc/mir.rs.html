@@ -754,6 +754,15 @@
 <a href="#754" id="754">754</a>
 <a href="#755" id="755">755</a>
 <a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
@@ -771,7 +780,7 @@
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable};
 <span class="kw">use </span>rustc_middle::{
-    mir,
+    mir::{<span class="self">self</span>},
     ty::{FloatTy, IntTy, ParamConst, TyCtxt, UintTy},
 };
 <span class="kw">pub use </span>rustc_middle::{
@@ -929,11 +938,17 @@
 }
 
 <span class="attr">#[derive(Debug)]
+</span><span class="kw">pub enum </span>NonDivergingIntrinsic {
+    Assume(Operand),
+}
+
+<span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>StatementKind {
     Assign(Place, Rvalue),
     SetDiscriminant(Place, VariantIdx),
     FakeRead(Box&lt;(FakeReadCause, Place)&gt;),
     AscribeUserType(Place, Variance),
+    Intrinsic(NonDivergingIntrinsic),
     PlaceMention(Place),
     Nop,
 }
@@ -1285,6 +1300,9 @@
             }
             StatementKind::AscribeUserType(place, variance) =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">"AscribeUserType({place:?}, {variance:?})"</span>)
+            }
+            StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op)) =&gt; {
+                <span class="macro">write!</span>(f, <span class="string">"Assume({op:?})"</span>)
             }
         }
     }

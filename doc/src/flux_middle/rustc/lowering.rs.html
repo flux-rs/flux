@@ -1034,6 +1034,20 @@
 <a href="#1034" id="1034">1034</a>
 <a href="#1035" id="1035">1035</a>
 <a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a>
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
+<a href="#1040" id="1040">1040</a>
+<a href="#1041" id="1041">1041</a>
+<a href="#1042" id="1042">1042</a>
+<a href="#1043" id="1043">1043</a>
+<a href="#1044" id="1044">1044</a>
+<a href="#1045" id="1045">1045</a>
+<a href="#1046" id="1046">1046</a>
+<a href="#1047" id="1047">1047</a>
+<a href="#1048" id="1048">1048</a>
+<a href="#1049" id="1049">1049</a>
+<a href="#1050" id="1050">1050</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1056,8 +1070,8 @@
 <span class="kw">use super</span>::{
     mir::{
         replicate_infer_ctxt, AggregateKind, AssertKind, BasicBlockData, BinOp, Body, CallArgs,
-        CastKind, Constant, LocalDecl, NullOp, Operand, Place, PlaceElem, PointerCast, Rvalue,
-        Statement, StatementKind, Terminator, TerminatorKind,
+        CastKind, Constant, LocalDecl, NonDivergingIntrinsic, NullOp, Operand, Place, PlaceElem,
+        PointerCast, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
@@ -1279,11 +1293,25 @@
                     <span class="kw-2">*</span>variance,
                 )
             }
+            rustc_mir::StatementKind::Intrinsic(ndi) =&gt; {
+                <span class="kw">match </span>ndi.as_ref() {
+                    rustc_mir::NonDivergingIntrinsic::Assume(op) =&gt; {
+                        <span class="kw">let </span>op = <span class="self">self
+                            </span>.lower_operand(op)
+                            .map_err(|reason| errors::UnsupportedMir::statement(span, reason))
+                            .emit(<span class="self">self</span>.sess)<span class="question-mark">?</span>;
+                        StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op))
+                    }
+                    rustc_mir::NonDivergingIntrinsic::CopyNonOverlapping(<span class="kw">_</span>) =&gt; {
+                        <span class="kw">return </span><span class="prelude-val">Err</span>(errors::UnsupportedMir::from(stmt)).emit(<span class="self">self</span>.sess);
+                    }
+                }
+            }
+
             rustc_mir::StatementKind::Retag(<span class="kw">_</span>, <span class="kw">_</span>)
             | rustc_mir::StatementKind::Deinit(<span class="kw">_</span>)
             | rustc_mir::StatementKind::AscribeUserType(..)
             | rustc_mir::StatementKind::Coverage(<span class="kw">_</span>)
-            | rustc_mir::StatementKind::Intrinsic(<span class="kw">_</span>)
             | rustc_mir::StatementKind::ConstEvalCounter =&gt; {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(errors::UnsupportedMir::from(stmt)).emit(<span class="self">self</span>.sess);
             }

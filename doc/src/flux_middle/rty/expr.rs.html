@@ -1483,15 +1483,11 @@
             .clone()
     }
 
-    <span class="kw">pub fn </span>and_iter(exprs: <span class="kw">impl </span>IntoIterator&lt;Item = Expr&gt;) -&gt; Expr {
+    <span class="kw">pub fn </span>and_from_iter(exprs: <span class="kw">impl </span>IntoIterator&lt;Item = Expr&gt;) -&gt; Expr {
         exprs
             .into_iter()
             .reduce(|acc, e| Expr::binary_op(BinOp::And, acc, e, <span class="prelude-val">None</span>))
             .unwrap_or_else(Expr::tt)
-    }
-
-    <span class="kw">pub fn </span>and(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
-        Expr::and_iter([e1.into(), e2.into()])
     }
 
     <span class="kw">pub fn </span>or_from_iter(exprs: <span class="kw">impl </span>IntoIterator&lt;Item = Expr&gt;) -&gt; Expr {
@@ -1499,6 +1495,10 @@
             .into_iter()
             .reduce(|acc, e| Expr::binary_op(BinOp::Or, acc, e, <span class="prelude-val">None</span>))
             .unwrap_or_else(Expr::ff)
+    }
+
+    <span class="kw">pub fn </span>and(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {
+        Expr::and_from_iter([e1.into(), e2.into()])
     }
 
     <span class="kw">pub fn </span>or(e1: <span class="kw">impl </span>Into&lt;Expr&gt;, e2: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; Expr {

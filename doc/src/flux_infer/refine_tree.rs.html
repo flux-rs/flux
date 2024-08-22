@@ -1688,7 +1688,7 @@
                     } <span class="kw">else </span>{
                         (<span class="macro">vec!</span>[pred.clone()], node.children.clone())
                     };
-                    <span class="kw">let </span>guard = Expr::and_iter(preds).simplify();
+                    <span class="kw">let </span>guard = Expr::and_from_iter(preds).simplify();
                     <span class="macro">w!</span>(<span class="string">"{:?} =&gt;"</span>, <span class="macro">parens!</span>(guard, !guard.is_atom()))<span class="question-mark">?</span>;
                     fmt_children(<span class="kw-2">&amp;</span>children, cx, f)
                 }

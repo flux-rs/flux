@@ -1792,9 +1792,48 @@
 <a href="#1792" id="1792">1792</a>
 <a href="#1793" id="1793">1793</a>
 <a href="#1794" id="1794">1794</a>
+<a href="#1795" id="1795">1795</a>
+<a href="#1796" id="1796">1796</a>
+<a href="#1797" id="1797">1797</a>
+<a href="#1798" id="1798">1798</a>
+<a href="#1799" id="1799">1799</a>
+<a href="#1800" id="1800">1800</a>
+<a href="#1801" id="1801">1801</a>
+<a href="#1802" id="1802">1802</a>
+<a href="#1803" id="1803">1803</a>
+<a href="#1804" id="1804">1804</a>
+<a href="#1805" id="1805">1805</a>
+<a href="#1806" id="1806">1806</a>
+<a href="#1807" id="1807">1807</a>
+<a href="#1808" id="1808">1808</a>
+<a href="#1809" id="1809">1809</a>
+<a href="#1810" id="1810">1810</a>
+<a href="#1811" id="1811">1811</a>
+<a href="#1812" id="1812">1812</a>
+<a href="#1813" id="1813">1813</a>
+<a href="#1814" id="1814">1814</a>
+<a href="#1815" id="1815">1815</a>
+<a href="#1816" id="1816">1816</a>
+<a href="#1817" id="1817">1817</a>
+<a href="#1818" id="1818">1818</a>
+<a href="#1819" id="1819">1819</a>
+<a href="#1820" id="1820">1820</a>
+<a href="#1821" id="1821">1821</a>
+<a href="#1822" id="1822">1822</a>
+<a href="#1823" id="1823">1823</a>
+<a href="#1824" id="1824">1824</a>
+<a href="#1825" id="1825">1825</a>
+<a href="#1826" id="1826">1826</a>
+<a href="#1827" id="1827">1827</a>
+<a href="#1828" id="1828">1828</a>
+<a href="#1829" id="1829">1829</a>
+<a href="#1830" id="1830">1830</a>
+<a href="#1831" id="1831">1831</a>
+<a href="#1832" id="1832">1832</a>
+<a href="#1833" id="1833">1833</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, collections::hash_map::Entry, iter};
 
-<span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, tracked_span_bug};
+<span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::{<span class="self">self</span>, KVarGen},
@@ -1806,7 +1845,7 @@
     intern::List,
     queries::QueryResult,
     rty::{
-        <span class="self">self</span>, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, Clause,
+        <span class="self">self</span>, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnSig, FnTraitPredicate,
         GenericArg, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref, Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
@@ -1815,8 +1854,8 @@
         <span class="self">self</span>,
         mir::{
             <span class="self">self</span>, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-            Location, Operand, Place, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
-            RETURN_PLACE, START_BLOCK,
+            Location, NonDivergingIntrinsic, Operand, Place, Rvalue, Statement, StatementKind,
+            Terminator, TerminatorKind, RETURN_PLACE, START_BLOCK,
         },
         ty,
     },
@@ -2192,6 +2231,12 @@
                 // otherwise be optimized away.
             </span>}
             StatementKind::Nop =&gt; {}
+            StatementKind::Intrinsic(NonDivergingIntrinsic::Assume(op)) =&gt; {
+                <span class="comment">// Currently, we only have the `assume` intrinsic, which if we're to trust rustc should be a NOP.
+                // TODO: There may be a use-case to actually "assume" the bool index associated with the operand,
+                // i.e. to strengthen the `rcx` / `env` with the assumption that the bool-index is in fact `true`...
+                </span><span class="kw">let _ </span>= <span class="self">self</span>.check_operand(rcx, env, stmt_span, op)<span class="question-mark">?</span>;
+            }
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -2584,7 +2629,7 @@
         <span class="kw">for </span>(bits, bb) <span class="kw">in </span>targets.iter() {
             successors.push((bb, Guard::Pred(mk(bits))));
         }
-        <span class="kw">let </span>otherwise = Expr::and_iter(targets.iter().map(|(bits, <span class="kw">_</span>)| mk(bits).not()));
+        <span class="kw">let </span>otherwise = Expr::and_from_iter(targets.iter().map(|(bits, <span class="kw">_</span>)| mk(bits).not()));
         successors.push((targets.otherwise(), Guard::Pred(otherwise)));
 
         successors
@@ -2738,9 +2783,27 @@
                 <span class="prelude-val">Ok</span>(Ty::tuple(tys))
             }
             Rvalue::Aggregate(AggregateKind::Closure(did, <span class="kw">_</span>), operands) =&gt; {
-                <span class="kw">let </span>upvar_tys = <span class="self">self</span>.check_operands(rcx, env, stmt_span, operands)<span class="question-mark">?</span>;
-                <span class="kw">let </span>res = Ty::closure(<span class="kw-2">*</span>did, upvar_tys);
-                <span class="prelude-val">Ok</span>(res)
+                <span class="kw">let </span>operand_tys = <span class="self">self</span>.check_operands(rcx, env, stmt_span, operands)<span class="question-mark">?</span>;
+                <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx(stmt_span);
+                <span class="kw">let </span>upvar_tys = operand_tys
+                    .into_iter()
+                    .map(|ty| {
+                        <span class="kw">if let </span>TyKind::Ptr(PtrKind::Mut(re), path) = ty.kind() {
+                            env.ptr_to_ref(
+                                rcx,
+                                <span class="kw-2">&amp;mut </span>infcx,
+                                ConstrReason::Other,
+                                <span class="kw-2">*</span>re,
+                                path,
+                                PtrToRefBound::Infer,
+                            )
+                        } <span class="kw">else </span>{
+                            <span class="prelude-val">Ok</span>(ty.clone())
+                        }
+                    })
+                    .try_collect_vec()
+                    .with_span(stmt_span)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(Ty::closure(<span class="kw-2">*</span>did, upvar_tys))
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) =&gt; {
                 <span class="kw">let </span>args = args.as_coroutine();
@@ -2912,8 +2975,14 @@
                         uint_int_cast(idx, <span class="kw-2">*</span>uint_ty, <span class="kw-2">*</span>int_ty)
                     }
                     (<span class="macro">Int!</span>(<span class="kw">_</span>, <span class="kw">_</span>), RustTy::Uint(uint_ty)) =&gt; Ty::uint(<span class="kw-2">*</span>uint_ty),
+                    (TyKind::Discr(adt_def, <span class="kw">_</span>), RustTy::Int(int_ty)) =&gt; {
+                        <span class="self">Self</span>::discr_to_int_cast(adt_def, BaseTy::Int(<span class="kw-2">*</span>int_ty))
+                    }
+                    (TyKind::Discr(adt_def, _place), RustTy::Uint(uint_ty)) =&gt; {
+                        <span class="self">Self</span>::discr_to_int_cast(adt_def, BaseTy::Uint(<span class="kw-2">*</span>uint_ty))
+                    }
                     <span class="kw">_ </span>=&gt; {
-                        <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid int to int cast"</span>)
+                        <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid int to int cast {from:?} --&gt; {to:?}"</span>)
                     }
                 }
             }
@@ -2931,6 +3000,15 @@
             </span>}
         };
         <span class="prelude-val">Ok</span>(ty)
+    }
+
+    <span class="kw">fn </span>discr_to_int_cast(adt_def: <span class="kw-2">&amp;</span>AdtDef, bty: BaseTy) -&gt; Ty {
+        <span class="comment">// TODO: This could be a giant disjunction, maybe better (if less precise) to use the interval?
+        </span><span class="kw">let </span>vals = adt_def
+            .discriminants()
+            .map(|(<span class="kw">_</span>, idx)| Expr::eq(Expr::nu(), Expr::from_bits(<span class="kw-2">&amp;</span>bty, idx)))
+            .collect_vec();
+        Ty::exists_with_constr(bty, Expr::or_from_iter(vals))
     }
 
     <span class="kw">fn </span>check_unsize_cast(

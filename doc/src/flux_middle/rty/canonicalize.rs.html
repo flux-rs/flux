@@ -333,7 +333,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>hoister = Hoister::default();
         <span class="kw">let </span>ty = hoister.hoist(<span class="self">self</span>);
         <span class="kw">let </span>(vars, preds) = hoister.into_parts();
-        <span class="kw">let </span>pred = Expr::and_iter(preds);
+        <span class="kw">let </span>pred = Expr::and_from_iter(preds);
         <span class="kw">let </span>constr_ty = CanonicalConstrTy { ty, pred };
         <span class="kw">if </span>vars.is_empty() {
             CanonicalTy::Constr(constr_ty)
