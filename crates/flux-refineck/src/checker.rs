@@ -12,7 +12,7 @@ use flux_middle::{
     intern::List,
     queries::QueryResult,
     rty::{
-        self, fold::TypeFoldable, refining::Refiner, BaseTy, Binder, Bool, Clause,
+        self, fold::TypeFoldable, refining::Refiner, AdtDef, BaseTy, Binder, Bool, Clause,
         CoroutineObligPredicate, EarlyBinder, Ensures, Expr, FnOutput, FnSig, FnTraitPredicate,
         GenericArg, Generics, Int, IntTy, Mutability, PolyFnSig, PtrKind, Ref, Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
@@ -1141,8 +1141,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         uint_int_cast(idx, *uint_ty, *int_ty)
                     }
                     (Int!(_, _), RustTy::Uint(uint_ty)) => Ty::uint(*uint_ty),
-                    (TyKind::Discr(_, _), RustTy::Int(int_ty)) => Ty::int(*int_ty),
-                    (TyKind::Discr(_, _), RustTy::Uint(uint_ty)) => Ty::uint(*uint_ty),
+                    (TyKind::Discr(adt_def, _), RustTy::Int(int_ty)) => {
+                        Self::discr_to_int_cast(adt_def, BaseTy::Int(*int_ty))
+                    }
+                    (TyKind::Discr(adt_def, _place), RustTy::Uint(uint_ty)) => {
+                        Self::discr_to_int_cast(adt_def, BaseTy::Uint(*uint_ty))
+                    }
                     _ => {
                         tracked_span_bug!("invalid int to int cast {from:?} --> {to:?}")
                     }
@@ -1162,6 +1166,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         };
         Ok(ty)
+    }
+
+    fn discr_to_int_cast(adt_def: &AdtDef, bty: BaseTy) -> Ty {
+        let vals = adt_def
+            .discriminants()
+            .map(|(_, idx)| Expr::eq(Expr::nu(), Expr::from_bits(&bty, idx)))
+            .collect_vec();
+        Ty::exists_with_constr(bty, Expr::or_iter(vals))
     }
 
     fn check_unsize_cast(
