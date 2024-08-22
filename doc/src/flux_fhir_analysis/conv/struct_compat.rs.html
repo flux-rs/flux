@@ -700,6 +700,9 @@
 <a href="#700" id="700">700</a>
 <a href="#701" id="701">701</a>
 <a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
 //!
 //! Used to check if a user spec is compatible with the underlying rust type. The code also
@@ -1083,6 +1086,9 @@
             (rty::ConstKind::Value(ty_a, val_a), ty::ConstKind::Value(ty_b, val_b)) =&gt; {
                 assert_eq_or_incompatible(ty_a, ty_b)<span class="question-mark">?</span>;
                 assert_eq_or_incompatible(val_a, val_b)
+            }
+            (rty::ConstKind::Unevaluated(c1), ty::ConstKind::Unevaluated(c2)) =&gt; {
+                assert_eq_or_incompatible(c1, c2)
             }
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Error::Incompatible),
         }
