@@ -259,7 +259,7 @@ pub enum ExistentialPredicate {
 }
 
 impl ExistentialPredicate {
-    /// See [`rustc_middle::ty::predicate::ExistentialPredicateStableCmpExt`]
+    /// See [`rustc_middle::ty::ExistentialPredicateStableCmpExt`]
     pub fn stable_cmp(&self, tcx: TyCtxt, other: &Self) -> Ordering {
         match (self, other) {
             (ExistentialPredicate::Trait(_), ExistentialPredicate::Trait(_)) => Ordering::Equal,

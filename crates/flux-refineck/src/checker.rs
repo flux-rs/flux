@@ -1346,8 +1346,8 @@ fn instantiate_and_normalize_fn_sig(
     fn_sig: EarlyBinder<PolyFnSig>,
 ) -> QueryResult<PolyFnSig> {
     fn_sig
-        .instantiate_identity(&infcx.refparams)
-        .normalize_projections(infcx.genv, &infcx.region_infcx, infcx.def_id, &infcx.refparams)
+        .instantiate_identity(infcx.refparams)
+        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id, infcx.refparams)
 }
 
 fn init_env<'a>(

@@ -332,7 +332,7 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
         reason: ConstrReason,
     ) -> InferResult<Vec<rty::Clause>> {
         let mut sub = Sub { span: self.span, reason, obligations: vec![] };
-        sub.tys(&mut self.infcx, ty1, ty2)?;
+        sub.tys(self.infcx, ty1, ty2)?;
         Ok(sub.obligations)
     }
 
@@ -373,13 +373,13 @@ impl<'a, 'genv, 'tcx> std::ops::Deref for InferCtxtAt<'_, 'a, 'genv, 'tcx> {
     type Target = InferCtxt<'a, 'genv, 'tcx>;
 
     fn deref(&self) -> &Self::Target {
-        &self.infcx
+        self.infcx
     }
 }
 
 impl std::ops::DerefMut for InferCtxtAt<'_, '_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.infcx
+        self.infcx
     }
 }
 
