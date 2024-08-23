@@ -284,7 +284,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         let fhir::QPath::Resolved(None, path) = self.desugar_qpath(None, &trait_ref.path)? else {
             span_bug!(trait_ref.path.span, "desugar_alias_reft: unexpected qpath")
         };
-        Ok(fhir::PolyTraitRef { bound_generic_params: &[], trait_ref: path })
+        let span = path.span;
+        Ok(fhir::PolyTraitRef { bound_generic_params: &[], trait_ref: path, span })
     }
 
     fn desugar_refined_by(
@@ -658,21 +659,19 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         returns: &surface::FnRetTy,
     ) -> Result<fhir::OpaqueTy<'genv>> {
         let output = self.desugar_fn_ret_ty(returns)?;
-        // Does this opaque type has any generics?
+        // Does this opaque type have any generics?
         let generics = self.as_lift_cx().lift_generics()?;
+        let trait_ref = self.make_lang_item_path(
+            hir::LangItem::Future,
+            DUMMY_SP,
+            &[],
+            self.genv.alloc_slice(&[fhir::TypeBinding {
+                ident: surface::Ident::with_dummy_span(sym::Output),
+                term: output,
+            }]),
+        );
         let bound = fhir::GenericBound::Trait(
-            fhir::PolyTraitRef {
-                bound_generic_params: &[],
-                trait_ref: self.make_lang_item_path(
-                    hir::LangItem::Future,
-                    DUMMY_SP,
-                    &[],
-                    self.genv.alloc_slice(&[fhir::TypeBinding {
-                        ident: surface::Ident::with_dummy_span(sym::Output),
-                        term: output,
-                    }]),
-                ),
-            },
+            fhir::PolyTraitRef { bound_generic_params: &[], trait_ref, span: trait_ref.span },
             fhir::TraitBoundModifier::None,
         );
         Ok(fhir::OpaqueTy { generics, bounds: self.genv.alloc_slice(&[bound]) })
