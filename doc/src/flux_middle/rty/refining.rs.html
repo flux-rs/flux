@@ -486,6 +486,20 @@
 <a href="#486" id="486">486</a>
 <a href="#487" id="487">487</a>
 <a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`rustc::ty`] to types in [`rty`].
@@ -670,32 +684,46 @@
     ) -&gt; QueryResult&lt;rty::Binder&lt;rty::ExistentialPredicate&gt;&gt; {
         <span class="macro">assert!</span>(exi_pred.vars().is_empty());
         <span class="kw">let </span>exi_pred = <span class="kw">match </span>exi_pred.as_ref().skip_binder() {
-            rustc::ty::ExistentialPredicate::Trait(exi_trait_ref) =&gt; {
-                rty::ExistentialPredicate::Trait(<span class="self">self</span>.refine_exi_trait_ref(exi_trait_ref)<span class="question-mark">?</span>)
+            rustc::ty::ExistentialPredicate::Trait(trait_ref) =&gt; {
+                rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
+                    def_id: trait_ref.def_id,
+                    args: <span class="self">self</span>.refine_existential_predicate_generic_args(
+                        trait_ref.def_id,
+                        <span class="kw-2">&amp;</span>trait_ref.args,
+                    )<span class="question-mark">?</span>,
+                })
+            }
+            rustc::ty::ExistentialPredicate::Projection(projection) =&gt; {
+                rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
+                    def_id: projection.def_id,
+                    args: <span class="self">self</span>.refine_existential_predicate_generic_args(
+                        projection.def_id,
+                        <span class="kw-2">&amp;</span>projection.args,
+                    )<span class="question-mark">?</span>,
+                    term: <span class="self">self</span>.refine_ty(<span class="kw-2">&amp;</span>projection.term)<span class="question-mark">?</span>,
+                })
+            }
+            rustc::ty::ExistentialPredicate::AutoTrait(def_id) =&gt; {
+                rty::ExistentialPredicate::AutoTrait(<span class="kw-2">*</span>def_id)
             }
         };
         <span class="prelude-val">Ok</span>(rty::Binder::new(exi_pred, List::empty()))
     }
 
-    <span class="kw">pub fn </span>refine_exi_trait_ref(
+    <span class="kw">pub fn </span>refine_existential_predicate_generic_args(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        exi_trait_ref: <span class="kw-2">&amp;</span>rustc::ty::ExistentialTraitRef,
-    ) -&gt; QueryResult&lt;rty::ExistentialTraitRef&gt; {
-        <span class="kw">let </span>trait_generics = <span class="self">self</span>.generics_of(exi_trait_ref.def_id)<span class="question-mark">?</span>;
-        <span class="kw">let </span>exi_trait_ref = rty::ExistentialTraitRef {
-            def_id: exi_trait_ref.def_id,
-            args: exi_trait_ref
-                .args
-                .iter()
-                .enumerate()
-                .map(|(idx, arg)| {
-                    <span class="comment">// We need to skip the generic for Self
-                    </span><span class="kw">let </span>param = trait_generics.param_at(idx + <span class="number">1</span>, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
-                    <span class="self">self</span>.refine_generic_arg(<span class="kw-2">&amp;</span>param, arg)
-                })
-                .try_collect()<span class="question-mark">?</span>,
-        };
-        <span class="prelude-val">Ok</span>(exi_trait_ref)
+        def_id: DefId,
+        args: <span class="kw-2">&amp;</span>rustc::ty::GenericArgs,
+    ) -&gt; QueryResult&lt;rty::GenericArgs&gt; {
+        <span class="kw">let </span>generics = <span class="self">self</span>.generics_of(def_id)<span class="question-mark">?</span>;
+        args.iter()
+            .enumerate()
+            .map(|(idx, arg)| {
+                <span class="comment">// We need to skip the generic for Self
+                </span><span class="kw">let </span>param = generics.param_at(idx + <span class="number">1</span>, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
+                <span class="self">self</span>.refine_generic_arg(<span class="kw-2">&amp;</span>param, arg)
+            })
+            .try_collect()
     }
 
     <span class="kw">pub fn </span>refine_trait_ref(<span class="kw-2">&amp;</span><span class="self">self</span>, trait_ref: <span class="kw-2">&amp;</span>rustc::ty::TraitRef) -&gt; QueryResult&lt;rty::TraitRef&gt; {

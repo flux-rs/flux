@@ -2349,6 +2349,67 @@
 <a href="#2349" id="2349">2349</a>
 <a href="#2350" id="2350">2350</a>
 <a href="#2351" id="2351">2351</a>
+<a href="#2352" id="2352">2352</a>
+<a href="#2353" id="2353">2353</a>
+<a href="#2354" id="2354">2354</a>
+<a href="#2355" id="2355">2355</a>
+<a href="#2356" id="2356">2356</a>
+<a href="#2357" id="2357">2357</a>
+<a href="#2358" id="2358">2358</a>
+<a href="#2359" id="2359">2359</a>
+<a href="#2360" id="2360">2360</a>
+<a href="#2361" id="2361">2361</a>
+<a href="#2362" id="2362">2362</a>
+<a href="#2363" id="2363">2363</a>
+<a href="#2364" id="2364">2364</a>
+<a href="#2365" id="2365">2365</a>
+<a href="#2366" id="2366">2366</a>
+<a href="#2367" id="2367">2367</a>
+<a href="#2368" id="2368">2368</a>
+<a href="#2369" id="2369">2369</a>
+<a href="#2370" id="2370">2370</a>
+<a href="#2371" id="2371">2371</a>
+<a href="#2372" id="2372">2372</a>
+<a href="#2373" id="2373">2373</a>
+<a href="#2374" id="2374">2374</a>
+<a href="#2375" id="2375">2375</a>
+<a href="#2376" id="2376">2376</a>
+<a href="#2377" id="2377">2377</a>
+<a href="#2378" id="2378">2378</a>
+<a href="#2379" id="2379">2379</a>
+<a href="#2380" id="2380">2380</a>
+<a href="#2381" id="2381">2381</a>
+<a href="#2382" id="2382">2382</a>
+<a href="#2383" id="2383">2383</a>
+<a href="#2384" id="2384">2384</a>
+<a href="#2385" id="2385">2385</a>
+<a href="#2386" id="2386">2386</a>
+<a href="#2387" id="2387">2387</a>
+<a href="#2388" id="2388">2388</a>
+<a href="#2389" id="2389">2389</a>
+<a href="#2390" id="2390">2390</a>
+<a href="#2391" id="2391">2391</a>
+<a href="#2392" id="2392">2392</a>
+<a href="#2393" id="2393">2393</a>
+<a href="#2394" id="2394">2394</a>
+<a href="#2395" id="2395">2395</a>
+<a href="#2396" id="2396">2396</a>
+<a href="#2397" id="2397">2397</a>
+<a href="#2398" id="2398">2398</a>
+<a href="#2399" id="2399">2399</a>
+<a href="#2400" id="2400">2400</a>
+<a href="#2401" id="2401">2401</a>
+<a href="#2402" id="2402">2402</a>
+<a href="#2403" id="2403">2403</a>
+<a href="#2404" id="2404">2404</a>
+<a href="#2405" id="2405">2405</a>
+<a href="#2406" id="2406">2406</a>
+<a href="#2407" id="2407">2407</a>
+<a href="#2408" id="2408">2408</a>
+<a href="#2409" id="2409">2409</a>
+<a href="#2410" id="2410">2410</a>
+<a href="#2411" id="2411">2411</a>
+<a href="#2412" id="2412">2412</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2364,7 +2425,7 @@
 <span class="kw">pub mod </span>projections;
 <span class="kw">pub mod </span>refining;
 <span class="kw">pub mod </span>subst;
-<span class="kw">use </span>std::{borrow::Cow, hash::Hash, iter, slice, sync::LazyLock};
+<span class="kw">use </span>std::{borrow::Cow, cmp::Ordering, hash::Hash, iter, slice, sync::LazyLock};
 
 <span class="kw">pub use </span>evars::{EVar, EVarGen};
 <span class="kw">pub use </span>expr::{
@@ -2594,9 +2655,41 @@
     }
 }
 
+<span class="kw">pub type </span>PolyTraitRef = Binder&lt;TraitRef&gt;;
+
+<span class="kw">impl </span>PolyTraitRef {
+    <span class="kw">pub fn </span>def_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DefId {
+        <span class="self">self</span>.as_ref().skip_binder().def_id
+    }
+}
+
 <span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 </span><span class="kw">pub enum </span>ExistentialPredicate {
     Trait(ExistentialTraitRef),
+    Projection(ExistentialProjection),
+    AutoTrait(DefId),
+}
+
+<span class="kw">impl </span>ExistentialPredicate {
+    <span class="doccomment">/// See [`rustc_middle::ty::ExistentialPredicateStableCmpExt`]
+    </span><span class="kw">pub fn </span>stable_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, tcx: TyCtxt, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; Ordering {
+        <span class="kw">match </span>(<span class="self">self</span>, other) {
+            (ExistentialPredicate::Trait(<span class="kw">_</span>), ExistentialPredicate::Trait(<span class="kw">_</span>)) =&gt; Ordering::Equal,
+            (ExistentialPredicate::Projection(a), ExistentialPredicate::Projection(b)) =&gt; {
+                tcx.def_path_hash(a.def_id)
+                    .cmp(<span class="kw-2">&amp;</span>tcx.def_path_hash(b.def_id))
+            }
+            (ExistentialPredicate::AutoTrait(a), ExistentialPredicate::AutoTrait(b)) =&gt; {
+                tcx.def_path_hash(<span class="kw-2">*</span>a).cmp(<span class="kw-2">&amp;</span>tcx.def_path_hash(<span class="kw-2">*</span>b))
+            }
+            (ExistentialPredicate::Trait(<span class="kw">_</span>), <span class="kw">_</span>) =&gt; Ordering::Less,
+            (ExistentialPredicate::Projection(<span class="kw">_</span>), ExistentialPredicate::Trait(<span class="kw">_</span>)) =&gt; {
+                Ordering::Greater
+            }
+            (ExistentialPredicate::Projection(<span class="kw">_</span>), <span class="kw">_</span>) =&gt; Ordering::Less,
+            (ExistentialPredicate::AutoTrait(<span class="kw">_</span>), <span class="kw">_</span>) =&gt; Ordering::Greater,
+        }
+    }
 }
 
 <span class="kw">impl </span>Binder&lt;ExistentialPredicate&gt; {
@@ -2605,16 +2698,28 @@
         tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; rustc_middle::ty::Binder&lt;<span class="lifetime">'tcx</span>, rustc_middle::ty::ExistentialPredicate&lt;<span class="lifetime">'tcx</span>&gt;&gt; {
         <span class="macro">assert!</span>(<span class="self">self</span>.vars.is_empty());
-        <span class="kw">match </span><span class="self">self</span>.value {
-            ExistentialPredicate::Trait(<span class="kw-2">ref </span>exi_trait_ref) =&gt; {
-                <span class="kw">let </span>exi_trait_ref = rustc_middle::ty::ExistentialTraitRef {
-                    def_id: exi_trait_ref.def_id,
-                    args: exi_trait_ref.args.to_rustc(tcx),
+        <span class="kw">let </span>pred = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.value {
+            ExistentialPredicate::Trait(trait_ref) =&gt; {
+                <span class="kw">let </span>trait_ref = rustc_middle::ty::ExistentialTraitRef {
+                    def_id: trait_ref.def_id,
+                    args: trait_ref.args.to_rustc(tcx),
                 };
-                <span class="kw">let </span>exi_pred = rustc_middle::ty::ExistentialPredicate::Trait(exi_trait_ref);
-                rustc_middle::ty::Binder::bind_with_vars(exi_pred, rustc_middle::ty::List::empty())
+                rustc_middle::ty::ExistentialPredicate::Trait(trait_ref)
             }
-        }
+            ExistentialPredicate::Projection(projection) =&gt; {
+                rustc_middle::ty::ExistentialPredicate::Projection(
+                    rustc_middle::ty::ExistentialProjection {
+                        def_id: projection.def_id,
+                        args: projection.args.to_rustc(tcx),
+                        term: projection.term.to_rustc(tcx).into(),
+                    },
+                )
+            }
+            ExistentialPredicate::AutoTrait(def_id) =&gt; {
+                rustc_middle::ty::ExistentialPredicate::AutoTrait(<span class="kw-2">*</span>def_id)
+            }
+        };
+        rustc_middle::ty::Binder::dummy(pred)
     }
 }
 
@@ -2622,6 +2727,13 @@
 </span><span class="kw">pub struct </span>ExistentialTraitRef {
     <span class="kw">pub </span>def_id: DefId,
     <span class="kw">pub </span>args: GenericArgs,
+}
+
+<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+</span><span class="kw">pub struct </span>ExistentialProjection {
+    <span class="kw">pub </span>def_id: DefId,
+    <span class="kw">pub </span>args: GenericArgs,
+    <span class="kw">pub </span>term: Ty,
 }
 
 <span class="attr">#[derive(PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable)]
@@ -2636,6 +2748,44 @@
     <span class="kw">pub </span>tupled_args: Ty,
     <span class="kw">pub </span>output: Ty,
     <span class="kw">pub </span>kind: ClosureKind,
+}
+
+<span class="kw">impl </span>FnTraitPredicate {
+    <span class="kw">pub fn </span>to_poly_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, closure_id: DefId, tys: List&lt;Ty&gt;) -&gt; PolyFnSig {
+        <span class="kw">let </span><span class="kw-2">mut </span>vars = <span class="macro">vec!</span>[];
+
+        <span class="kw">let </span>closure_ty = Ty::closure(closure_id, tys);
+        <span class="kw">let </span>env_ty = <span class="kw">match </span><span class="self">self</span>.kind {
+            ClosureKind::Fn =&gt; {
+                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
+                <span class="kw">let </span>br = BoundRegion {
+                    var: BoundVar::from_usize(vars.len() - <span class="number">1</span>),
+                    kind: BoundRegionKind::BrEnv,
+                };
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
+            }
+            ClosureKind::FnMut =&gt; {
+                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
+                <span class="kw">let </span>br = BoundRegion {
+                    var: BoundVar::from_usize(vars.len() - <span class="number">1</span>),
+                    kind: BoundRegionKind::BrEnv,
+                };
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
+            }
+            ClosureKind::FnOnce =&gt; closure_ty,
+        };
+        <span class="kw">let </span>inputs = std::iter::once(env_ty)
+            .chain(<span class="self">self</span>.tupled_args.expect_tuple().iter().cloned())
+            .collect();
+
+        <span class="kw">let </span>fn_sig = FnSig::new(
+            List::empty(),
+            inputs,
+            Binder::new(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty()),
+        );
+
+        PolyFnSig::new(fn_sig, List::from(vars))
+    }
 }
 
 <span class="attr">#[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
@@ -3000,6 +3150,61 @@
     value: T,
 }
 
+<span class="kw">impl</span>&lt;T&gt; Binder&lt;T&gt; {
+    <span class="kw">pub fn </span>new(value: T, vars: List&lt;BoundVariableKind&gt;) -&gt; Binder&lt;T&gt; {
+        Binder { vars, value }
+    }
+
+    <span class="kw">pub fn </span>dummy(value: T) -&gt; Binder&lt;T&gt; {
+        Binder::new(value, List::empty())
+    }
+
+    <span class="kw">pub fn </span>with_sorts(value: T, sorts: <span class="kw-2">&amp;</span>[Sort]) -&gt; Binder&lt;T&gt; {
+        <span class="kw">let </span>vars = sorts
+            .iter()
+            .cloned()
+            .map(|sort| BoundVariableKind::Refine(sort, InferMode::EVar, BoundReftKind::Annon))
+            .collect();
+        Binder { vars, value }
+    }
+
+    <span class="kw">pub fn </span>with_sort(value: T, sort: Sort) -&gt; Binder&lt;T&gt; {
+        Binder::with_sorts(value, <span class="kw-2">&amp;</span>[sort])
+    }
+
+    <span class="kw">pub fn </span>vars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>List&lt;BoundVariableKind&gt; {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.vars
+    }
+
+    <span class="kw">pub fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Binder&lt;<span class="kw-2">&amp;</span>T&gt; {
+        Binder { vars: <span class="self">self</span>.vars.clone(), value: <span class="kw-2">&amp;</span><span class="self">self</span>.value }
+    }
+
+    <span class="kw">pub fn </span>skip_binder(<span class="self">self</span>) -&gt; T {
+        <span class="self">self</span>.value
+    }
+
+    <span class="kw">pub fn </span>rebind&lt;U&gt;(<span class="self">self</span>, value: U) -&gt; Binder&lt;U&gt; {
+        Binder { vars: <span class="self">self</span>.vars, value }
+    }
+
+    <span class="kw">pub fn </span>map&lt;U&gt;(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(T) -&gt; U) -&gt; Binder&lt;U&gt; {
+        Binder { vars: <span class="self">self</span>.vars, value: f(<span class="self">self</span>.value) }
+    }
+
+    <span class="kw">pub fn </span>try_map&lt;U, E&gt;(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(T) -&gt; <span class="prelude-ty">Result</span>&lt;U, E&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Binder&lt;U&gt;, E&gt; {
+        <span class="prelude-val">Ok</span>(Binder { vars: <span class="self">self</span>.vars, value: f(<span class="self">self</span>.value)<span class="question-mark">? </span>})
+    }
+
+    <span class="attr">#[track_caller]
+    </span><span class="kw">pub fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Sort {
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.vars[..] {
+            [BoundVariableKind::Refine(sort, ..)] =&gt; sort.clone(),
+            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected single-sorted binder"</span>),
+        }
+    }
+}
+
 <span class="attr">#[derive(Clone, Debug, TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>EarlyBinder&lt;T&gt;(<span class="kw">pub </span>T);
 
@@ -3072,12 +3277,13 @@
 <span class="kw">pub type </span>Ty = Interned&lt;TyS&gt;;
 
 <span class="kw">impl </span>Ty {
-    <span class="doccomment">/// Dummy type used for the `Self` of a `TraitRef` created for converting
-    /// a trait object, and which gets removed in `ExistentialTraitRef`.
-    /// This type must not appear anywhere in other converted types.
-    /// `Ty::uninit` does the job, because it cannot appear in the surface.
+    <span class="doccomment">/// Dummy type used for the `Self` of a `TraitRef` created when converting a trait object, and
+    /// which gets removed in `ExistentialTraitRef`. This type must not appear anywhere in other
+    /// converted types and must be a valid `rustc` type (i.e., we must be able to call `to_rustc`
+    /// on it). `TyKind::Infer(TyVid(0))` does the job, with the caveat that we must skip 0 when
+    /// generating `TyKind::Infer` for "type holes".
     </span><span class="kw">pub fn </span>trait_object_dummy_self() -&gt; Ty {
-        Ty::uninit()
+        Ty::infer(TyVid::from_u32(<span class="number">0</span>))
     }
 
     <span class="kw">pub fn </span>alias(kind: AliasKind, alias_ty: AliasTy) -&gt; Ty {
@@ -3289,12 +3495,12 @@
                     Mutability::Mut,
                 )
             }
+            TyKind::Infer(vid) =&gt; rustc_middle::ty::Ty::new_var(tcx, <span class="kw-2">*</span>vid),
             TyKind::Uninit
             | TyKind::Ptr(<span class="kw">_</span>, <span class="kw">_</span>)
             | TyKind::Discr(<span class="kw">_</span>, <span class="kw">_</span>)
             | TyKind::Downcast(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
-            | TyKind::Blocked(<span class="kw">_</span>)
-            | TyKind::Infer(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(),
+            | TyKind::Blocked(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(),
         }
     }
 
@@ -3905,47 +4111,14 @@
         Clause { kind: Binder::new(kind, vars.into()) }
     }
 
-    <span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ClauseKind {
-        <span class="comment">// FIXME(nilehmann) we should deal with the binder in all the places this is used instead of blindly skipping it here
-        </span><span class="self">self</span>.kind.clone().skip_binder()
+    <span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Binder&lt;ClauseKind&gt; {
+        <span class="self">self</span>.kind.clone()
     }
-}
 
-<span class="kw">impl </span>FnTraitPredicate {
-    <span class="kw">pub fn </span>to_poly_fn_sig(<span class="kw-2">&amp;</span><span class="self">self</span>, closure_id: DefId, tys: List&lt;Ty&gt;) -&gt; PolyFnSig {
-        <span class="kw">let </span><span class="kw-2">mut </span>vars = <span class="macro">vec!</span>[];
-
-        <span class="kw">let </span>closure_ty = Ty::closure(closure_id, tys);
-        <span class="kw">let </span>env_ty = <span class="kw">match </span><span class="self">self</span>.kind {
-            ClosureKind::Fn =&gt; {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
-                <span class="kw">let </span>br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - <span class="number">1</span>),
-                    kind: BoundRegionKind::BrEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
-            }
-            ClosureKind::FnMut =&gt; {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
-                <span class="kw">let </span>br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - <span class="number">1</span>),
-                    kind: BoundRegionKind::BrEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
-            }
-            ClosureKind::FnOnce =&gt; closure_ty,
-        };
-        <span class="kw">let </span>inputs = std::iter::once(env_ty)
-            .chain(<span class="self">self</span>.tupled_args.expect_tuple().iter().cloned())
-            .collect();
-
-        <span class="kw">let </span>fn_sig = FnSig::new(
-            List::empty(),
-            inputs,
-            Binder::new(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty()),
-        );
-
-        PolyFnSig::new(fn_sig, List::from(vars))
+    <span class="comment">// FIXME(nilehmann) we should deal with the binder in all the places this is used instead of
+    // blindly skipping it here
+    </span><span class="kw">pub fn </span>kind_skipping_binder(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ClauseKind {
+        <span class="self">self</span>.kind.clone().skip_binder()
     }
 }
 
@@ -4084,57 +4257,6 @@
     <span class="kw">pub fn </span>expect_sort(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Sort {
         <span class="self">self</span>.expect_refine().<span class="number">0
     </span>}
-}
-
-<span class="kw">impl</span>&lt;T&gt; Binder&lt;T&gt; {
-    <span class="kw">pub fn </span>new(value: T, vars: List&lt;BoundVariableKind&gt;) -&gt; Binder&lt;T&gt; {
-        Binder { vars, value }
-    }
-
-    <span class="kw">pub fn </span>with_sorts(value: T, sorts: <span class="kw-2">&amp;</span>[Sort]) -&gt; Binder&lt;T&gt; {
-        <span class="kw">let </span>vars = sorts
-            .iter()
-            .cloned()
-            .map(|sort| BoundVariableKind::Refine(sort, InferMode::EVar, BoundReftKind::Annon))
-            .collect();
-        Binder { vars, value }
-    }
-
-    <span class="kw">pub fn </span>with_sort(value: T, sort: Sort) -&gt; Binder&lt;T&gt; {
-        Binder::with_sorts(value, <span class="kw-2">&amp;</span>[sort])
-    }
-
-    <span class="kw">pub fn </span>vars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>List&lt;BoundVariableKind&gt; {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.vars
-    }
-
-    <span class="kw">pub fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Binder&lt;<span class="kw-2">&amp;</span>T&gt; {
-        Binder { vars: <span class="self">self</span>.vars.clone(), value: <span class="kw-2">&amp;</span><span class="self">self</span>.value }
-    }
-
-    <span class="kw">pub fn </span>skip_binder(<span class="self">self</span>) -&gt; T {
-        <span class="self">self</span>.value
-    }
-
-    <span class="kw">pub fn </span>rebind&lt;U&gt;(<span class="self">self</span>, value: U) -&gt; Binder&lt;U&gt; {
-        Binder { vars: <span class="self">self</span>.vars, value }
-    }
-
-    <span class="kw">pub fn </span>map&lt;U&gt;(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(T) -&gt; U) -&gt; Binder&lt;U&gt; {
-        Binder { vars: <span class="self">self</span>.vars, value: f(<span class="self">self</span>.value) }
-    }
-
-    <span class="kw">pub fn </span>try_map&lt;U, E&gt;(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(T) -&gt; <span class="prelude-ty">Result</span>&lt;U, E&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Binder&lt;U&gt;, E&gt; {
-        <span class="prelude-val">Ok</span>(Binder { vars: <span class="self">self</span>.vars, value: f(<span class="self">self</span>.value)<span class="question-mark">? </span>})
-    }
-
-    <span class="attr">#[track_caller]
-    </span><span class="kw">pub fn </span>sort(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Sort {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.vars[..] {
-            [BoundVariableKind::Refine(sort, ..)] =&gt; sort.clone(),
-            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"expected single-sorted binder"</span>),
-        }
-    }
 }
 
 <span class="kw">impl </span>List&lt;BoundVariableKind&gt; {

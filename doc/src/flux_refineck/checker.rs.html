@@ -2485,7 +2485,7 @@
         clauses: <span class="kw-2">&amp;</span>[Clause],
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">for </span>clause <span class="kw">in </span>clauses {
-            <span class="kw">match </span>clause.kind() {
+            <span class="kw">match </span>clause.kind_skipping_binder() {
                 rty::ClauseKind::FnTrait(fn_trait_pred) =&gt; {
                     <span class="self">self</span>.check_oblig_fn_trait_pred(infcx, <span class="kw-2">&amp;</span>snapshot, fn_trait_pred)<span class="question-mark">?</span>;
                 }
@@ -3138,8 +3138,8 @@
     fn_sig: EarlyBinder&lt;PolyFnSig&gt;,
 ) -&gt; QueryResult&lt;PolyFnSig&gt; {
     fn_sig
-        .instantiate_identity(<span class="kw-2">&amp;</span>infcx.refparams)
-        .normalize_projections(infcx.genv, <span class="kw-2">&amp;</span>infcx.region_infcx, infcx.def_id, <span class="kw-2">&amp;</span>infcx.refparams)
+        .instantiate_identity(infcx.refparams)
+        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id, infcx.refparams)
 }
 
 <span class="kw">fn </span>init_env&lt;<span class="lifetime">'a</span>&gt;(

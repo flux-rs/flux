@@ -1949,6 +1949,77 @@
 <a href="#1949" id="1949">1949</a>
 <a href="#1950" id="1950">1950</a>
 <a href="#1951" id="1951">1951</a>
+<a href="#1952" id="1952">1952</a>
+<a href="#1953" id="1953">1953</a>
+<a href="#1954" id="1954">1954</a>
+<a href="#1955" id="1955">1955</a>
+<a href="#1956" id="1956">1956</a>
+<a href="#1957" id="1957">1957</a>
+<a href="#1958" id="1958">1958</a>
+<a href="#1959" id="1959">1959</a>
+<a href="#1960" id="1960">1960</a>
+<a href="#1961" id="1961">1961</a>
+<a href="#1962" id="1962">1962</a>
+<a href="#1963" id="1963">1963</a>
+<a href="#1964" id="1964">1964</a>
+<a href="#1965" id="1965">1965</a>
+<a href="#1966" id="1966">1966</a>
+<a href="#1967" id="1967">1967</a>
+<a href="#1968" id="1968">1968</a>
+<a href="#1969" id="1969">1969</a>
+<a href="#1970" id="1970">1970</a>
+<a href="#1971" id="1971">1971</a>
+<a href="#1972" id="1972">1972</a>
+<a href="#1973" id="1973">1973</a>
+<a href="#1974" id="1974">1974</a>
+<a href="#1975" id="1975">1975</a>
+<a href="#1976" id="1976">1976</a>
+<a href="#1977" id="1977">1977</a>
+<a href="#1978" id="1978">1978</a>
+<a href="#1979" id="1979">1979</a>
+<a href="#1980" id="1980">1980</a>
+<a href="#1981" id="1981">1981</a>
+<a href="#1982" id="1982">1982</a>
+<a href="#1983" id="1983">1983</a>
+<a href="#1984" id="1984">1984</a>
+<a href="#1985" id="1985">1985</a>
+<a href="#1986" id="1986">1986</a>
+<a href="#1987" id="1987">1987</a>
+<a href="#1988" id="1988">1988</a>
+<a href="#1989" id="1989">1989</a>
+<a href="#1990" id="1990">1990</a>
+<a href="#1991" id="1991">1991</a>
+<a href="#1992" id="1992">1992</a>
+<a href="#1993" id="1993">1993</a>
+<a href="#1994" id="1994">1994</a>
+<a href="#1995" id="1995">1995</a>
+<a href="#1996" id="1996">1996</a>
+<a href="#1997" id="1997">1997</a>
+<a href="#1998" id="1998">1998</a>
+<a href="#1999" id="1999">1999</a>
+<a href="#2000" id="2000">2000</a>
+<a href="#2001" id="2001">2001</a>
+<a href="#2002" id="2002">2002</a>
+<a href="#2003" id="2003">2003</a>
+<a href="#2004" id="2004">2004</a>
+<a href="#2005" id="2005">2005</a>
+<a href="#2006" id="2006">2006</a>
+<a href="#2007" id="2007">2007</a>
+<a href="#2008" id="2008">2008</a>
+<a href="#2009" id="2009">2009</a>
+<a href="#2010" id="2010">2010</a>
+<a href="#2011" id="2011">2011</a>
+<a href="#2012" id="2012">2012</a>
+<a href="#2013" id="2013">2013</a>
+<a href="#2014" id="2014">2014</a>
+<a href="#2015" id="2015">2015</a>
+<a href="#2016" id="2016">2016</a>
+<a href="#2017" id="2017">2017</a>
+<a href="#2018" id="2018">2018</a>
+<a href="#2019" id="2019">2019</a>
+<a href="#2020" id="2020">2020</a>
+<a href="#2021" id="2021">2021</a>
+<a href="#2022" id="2022">2022</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -1979,6 +2050,7 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::fx::FxIndexMap;
 <span class="kw">use </span>rustc_errors::Diagnostic;
+<span class="kw">use </span>rustc_hash::FxHashSet;
 <span class="kw">use </span>rustc_hir::{
     <span class="self">self </span><span class="kw">as </span>hir,
     def::DefKind,
@@ -2340,7 +2412,15 @@
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; ConvCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, wfckresults: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>WfckResults) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ genv, wfckresults, next_type_index: <span class="number">0</span>, next_region_index: <span class="number">0</span>, next_const_index: <span class="number">0 </span>}
+        <span class="self">Self </span>{
+            genv,
+            wfckresults,
+            <span class="comment">// We start from 1 to skip the trait object dummy self type.
+            // See [`rty::Ty::trait_object_dummy_self`]
+            </span>next_type_index: <span class="number">1</span>,
+            next_region_index: <span class="number">0</span>,
+            next_const_index: <span class="number">0</span>,
+        }
     }
 
     <span class="kw">fn </span>conv_generic_bounds(
@@ -2393,38 +2473,11 @@
         <span class="prelude-val">Ok</span>(clauses)
     }
 
-    <span class="kw">fn </span>conv_poly_trait_ref_dyn(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        env: <span class="kw-2">&amp;mut </span>Env,
-        poly_trait_ref: <span class="kw-2">&amp;</span>fhir::PolyTraitRef,
-    ) -&gt; QueryResult&lt;rty::Binder&lt;rty::ExistentialPredicate&gt;&gt; {
-        <span class="kw">let </span>trait_segment = poly_trait_ref.trait_ref.last_segment();
-
-        <span class="kw">if </span>!poly_trait_ref.bound_generic_params.is_empty() {
-            <span class="macro">bug!</span>(
-                <span class="string">"unexpected! conv_poly_dyn_trait_ref bound_generic_params={:?}"</span>,
-                poly_trait_ref.bound_generic_params
-            );
-        }
-
-        <span class="kw">let </span>def_id = poly_trait_ref.trait_def_id();
-        <span class="kw">let </span>dummy_self = rty::GenericArg::Ty(rty::Ty::trait_object_dummy_self());
-        <span class="kw">let </span><span class="kw-2">mut </span>into = <span class="macro">vec!</span>[dummy_self];
-        <span class="self">self</span>.conv_generic_args_into(env, def_id, trait_segment, <span class="kw-2">&amp;mut </span>into)<span class="question-mark">?</span>;
-
-        <span class="comment">// Remove dummy `Self`
-        </span>into.remove(<span class="number">0</span>);
-
-        <span class="kw">let </span>exi_trait_ref = rty::ExistentialTraitRef { def_id, args: into.into() };
-        <span class="kw">let </span>exi_pred = rty::ExistentialPredicate::Trait(exi_trait_ref);
-        <span class="prelude-val">Ok</span>(rty::Binder::new(exi_pred, List::empty()))
-    }
-
     <span class="doccomment">/// Converts a `T: Trait&lt;T0, ..., A0 = S0, ...&gt;` bound
     </span><span class="kw">fn </span>conv_poly_trait_ref(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         env: <span class="kw-2">&amp;mut </span>Env,
-        bounded_ty_span: Span,
+        span: Span,
         bounded_ty: <span class="kw-2">&amp;</span>rty::Ty,
         poly_trait_ref: <span class="kw-2">&amp;</span>fhir::PolyTraitRef,
         clauses: <span class="kw-2">&amp;mut </span>Vec&lt;rty::Clause&gt;,
@@ -2434,8 +2487,7 @@
         <span class="kw">let </span>trait_segment = poly_trait_ref.trait_ref.last_segment();
 
         <span class="kw">let </span>self_param = generics.param_at(<span class="number">0</span>, <span class="self">self</span>.genv)<span class="question-mark">?</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>args =
-            <span class="macro">vec!</span>[<span class="self">self</span>.ty_to_generic_arg(self_param.kind, bounded_ty_span, bounded_ty)<span class="question-mark">?</span>];
+        <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[<span class="self">self</span>.ty_to_generic_arg(self_param.kind, span, bounded_ty)<span class="question-mark">?</span>];
         <span class="self">self</span>.conv_generic_args_into(env, trait_id, trait_segment, <span class="kw-2">&amp;mut </span>args)<span class="question-mark">?</span>;
         <span class="kw">let </span>trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
 
@@ -2767,14 +2819,9 @@
             fhir::TyKind::OpaqueDef(item_id, lifetimes, reft_args, _in_trait) =&gt; {
                 <span class="self">self</span>.conv_opaque_ty(env, <span class="kw-2">*</span>item_id, lifetimes, reft_args)
             }
-            fhir::TyKind::TraitObject(poly_traits, lft, syn) =&gt; {
-                <span class="kw">let </span>exi_preds: List&lt;<span class="kw">_</span>&gt; = poly_traits
-                    .iter()
-                    .map(|poly_trait| <span class="self">self</span>.conv_poly_trait_ref_dyn(env, poly_trait))
-                    .try_collect()<span class="question-mark">?</span>;
-                <span class="kw">let </span>region = <span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft);
+            fhir::TyKind::TraitObject(trait_bounds, lft, syn) =&gt; {
                 <span class="kw">if </span><span class="macro">matches!</span>(syn, rustc_ast::TraitObjectSyntax::Dyn) {
-                    <span class="prelude-val">Ok</span>(rty::Ty::dynamic(exi_preds, region))
+                    <span class="self">self</span>.conv_trait_object(env, trait_bounds, <span class="kw-2">*</span>lft)
                 } <span class="kw">else </span>{
                     <span class="macro">span_bug!</span>(ty.span, <span class="string">"dyn* traits not supported yet"</span>)
                 }
@@ -2783,7 +2830,7 @@
         }
     }
 
-    <span class="doccomment">/// Code adapted from [https://github.com/rust-lang/rust/blob/b5723af3457b9cd3795eeb97e9af2d34964854f2/compiler/rustc_hir_analysis/src/hir_ty_lowering/mod.rs#L2099]
+    <span class="doccomment">/// Code adapted from &lt;https://github.com/rust-lang/rust/blob/b5723af3457b9cd3795eeb97e9af2d34964854f2/compiler/rustc_hir_analysis/src/hir_ty_lowering/mod.rs#L2099&gt;
     </span><span class="kw">fn </span>conv_opaque_ty(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         env: <span class="kw-2">&amp;mut </span>Env,
@@ -2821,6 +2868,101 @@
             .try_collect()<span class="question-mark">?</span>;
         <span class="kw">let </span>alias_ty = rty::AliasTy::new(def_id, args, reft_args);
         <span class="prelude-val">Ok</span>(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
+    }
+
+    <span class="kw">fn </span>conv_trait_object(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        env: <span class="kw-2">&amp;mut </span>Env,
+        trait_bounds: <span class="kw-2">&amp;</span>[fhir::PolyTraitRef],
+        lifetime: fhir::Lifetime,
+    ) -&gt; QueryResult&lt;rty::Ty&gt; {
+        <span class="comment">// We convert all the trait bounds into existential predicates. Some combinations won't yield
+        // valid rust types (e.g., only one regular (non-auto) trait is allowed). We don't detect those
+        // errors here, but that's fine because we should catch them when we check structural
+        // compatibility with the unrefined rust type. We must be careful with producing predicates
+        // in the same order that rustc does.
+
+        </span><span class="kw">let </span><span class="kw-2">mut </span>bounds = <span class="macro">vec!</span>[];
+        <span class="kw">let </span>dummy_self = rty::Ty::trait_object_dummy_self();
+        <span class="kw">for </span>trait_bound <span class="kw">in </span>trait_bounds.iter().rev() {
+            <span class="self">self</span>.conv_poly_trait_ref(env, trait_bound.span, <span class="kw-2">&amp;</span>dummy_self, trait_bound, <span class="kw-2">&amp;mut </span>bounds)<span class="question-mark">?</span>;
+        }
+
+        <span class="comment">// Separate trait bounds and projections bounds
+        </span><span class="kw">let </span><span class="kw-2">mut </span>trait_bounds = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>projection_bounds = <span class="macro">vec!</span>[];
+        <span class="kw">for </span>pred <span class="kw">in </span>bounds {
+            <span class="kw">let </span>bound_pred = pred.kind();
+            <span class="kw">let </span>vars = bound_pred.vars().clone();
+            <span class="kw">match </span>bound_pred.skip_binder() {
+                rty::ClauseKind::Trait(trait_pred) =&gt; {
+                    trait_bounds.push(rty::Binder::new(trait_pred.trait_ref, vars));
+                }
+                rty::ClauseKind::Projection(proj) =&gt; {
+                    projection_bounds.push(rty::Binder::new(proj, vars));
+                }
+                rty::ClauseKind::TypeOutlives(<span class="kw">_</span>) =&gt; {}
+                rty::ClauseKind::FnTrait(..)
+                | rty::ClauseKind::ConstArgHasType(..)
+                | rty::ClauseKind::CoroutineOblig(..) =&gt; {
+                    <span class="macro">bug!</span>(<span class="string">"did not expect {pred:?} clause in object bounds"</span>);
+                }
+            }
+        }
+
+        <span class="comment">// Separate between regular from auto traits
+        </span><span class="kw">let </span>(<span class="kw-2">mut </span>auto_traits, regular_traits): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) = trait_bounds
+            .into_iter()
+            .partition(|trait_ref| <span class="self">self</span>.genv.tcx().trait_is_auto(trait_ref.def_id()));
+
+        <span class="comment">// De-duplicate auto traits preserving order
+        </span>{
+            <span class="kw">let </span><span class="kw-2">mut </span>duplicates = FxHashSet::default();
+            auto_traits.retain(|trait_ref| duplicates.insert(trait_ref.def_id()));
+        }
+
+        <span class="kw">let </span>regular_trait_predicates = regular_traits.into_iter().map(|poly_trait_ref| {
+            poly_trait_ref.map(|trait_ref| {
+                <span class="comment">// Remove dummy self
+                </span><span class="kw">let </span>args = trait_ref.args.iter().skip(<span class="number">1</span>).cloned().collect();
+                rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
+                    def_id: trait_ref.def_id,
+                    args,
+                })
+            })
+        });
+
+        <span class="kw">let </span>auto_trait_predicates = auto_traits.into_iter().map(|trait_def| {
+            rty::Binder::dummy(rty::ExistentialPredicate::AutoTrait(trait_def.def_id()))
+        });
+
+        <span class="kw">let </span>existential_projections = projection_bounds.into_iter().map(|bound| {
+            bound.map(|proj| {
+                <span class="comment">// Remove dummy self
+                </span><span class="kw">let </span>args = proj.projection_ty.args.iter().skip(<span class="number">1</span>).cloned().collect();
+                rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
+                    def_id: proj.projection_ty.def_id,
+                    args,
+                    term: proj.term.clone(),
+                })
+            })
+        });
+
+        <span class="kw">let </span>existential_predicates = {
+            <span class="kw">let </span><span class="kw-2">mut </span>v = regular_trait_predicates
+                .chain(existential_projections)
+                .chain(auto_trait_predicates)
+                .collect_vec();
+            v.sort_by(|a, b| {
+                a.as_ref()
+                    .skip_binder()
+                    .stable_cmp(<span class="self">self</span>.genv.tcx(), b.as_ref().skip_binder())
+            });
+            List::from_vec(v)
+        };
+
+        <span class="kw">let </span>region = <span class="self">self</span>.conv_lifetime(env, lifetime);
+        <span class="prelude-val">Ok</span>(rty::Ty::dynamic(existential_predicates, region))
     }
 
     <span class="kw">fn </span>conv_base_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, bty: <span class="kw-2">&amp;</span>fhir::BaseTy) -&gt; QueryResult&lt;rty::Ty&gt; {
@@ -3247,26 +3389,26 @@
     <span class="kw">fn </span>ty_to_generic_arg(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         kind: rty::GenericParamDefKind,
-        ty_span: Span,
+        span: Span,
         ty: <span class="kw-2">&amp;</span>rty::Ty,
     ) -&gt; QueryResult&lt;rty::GenericArg&gt; {
         <span class="kw">match </span>kind {
             rty::GenericParamDefKind::Type { .. } =&gt; <span class="prelude-val">Ok</span>(rty::GenericArg::Ty(ty.clone())),
-            rty::GenericParamDefKind::Base =&gt; <span class="self">self</span>.ty_to_base_generic(ty_span, ty),
-            <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"unexpected param kind `{kind:?}`"</span>),
+            rty::GenericParamDefKind::Base =&gt; <span class="self">self</span>.ty_to_base_generic(span, ty),
+            <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(span, <span class="string">"unexpected param kind `{kind:?}`"</span>),
         }
     }
 
     <span class="doccomment">/// Convert an [`rty::Ty`] into a [`rty::GenericArg::Base`] if possible or raise an error
     /// if the type cannot be converted into a [`rty::SubsetTy`].
-    </span><span class="kw">fn </span>ty_to_base_generic(<span class="kw-2">&amp;</span><span class="self">self</span>, ty_span: Span, ty: <span class="kw-2">&amp;</span>rty::Ty) -&gt; QueryResult&lt;rty::GenericArg&gt; {
+    </span><span class="kw">fn </span>ty_to_base_generic(<span class="kw-2">&amp;</span><span class="self">self</span>, span: Span, ty: <span class="kw-2">&amp;</span>rty::Ty) -&gt; QueryResult&lt;rty::GenericArg&gt; {
         <span class="kw">let </span>ctor = ty
             .shallow_canonicalize()
             .to_subset_ty_ctor()
             .ok_or_else(|| {
                 <span class="self">self</span>.genv
                     .sess()
-                    .emit_err(errors::InvalidBaseInstance::new(ty_span))
+                    .emit_err(errors::InvalidBaseInstance::new(span))
             })<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(rty::GenericArg::Base(ctor))
     }

@@ -1032,7 +1032,7 @@
         reason: ConstrReason,
     ) -&gt; InferResult {
         <span class="kw">for </span>clause <span class="kw">in </span>clauses {
-            <span class="kw">if let </span>rty::ClauseKind::Projection(projection_pred) = clause.kind() {
+            <span class="kw">if let </span>rty::ClauseKind::Projection(projection_pred) = clause.kind_skipping_binder() {
                 <span class="kw">let </span>impl_elem = Ty::projection(projection_pred.projection_ty)
                     .normalize_projections(
                         <span class="self">self</span>.infcx.genv,
@@ -1064,7 +1064,7 @@
         reason: ConstrReason,
     ) -&gt; InferResult&lt;Vec&lt;rty::Clause&gt;&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>sub = Sub { span: <span class="self">self</span>.span, reason, obligations: <span class="macro">vec!</span>[] };
-        sub.tys(<span class="kw-2">&amp;mut </span><span class="self">self</span>.infcx, ty1, ty2)<span class="question-mark">?</span>;
+        sub.tys(<span class="self">self</span>.infcx, ty1, ty2)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(sub.obligations)
     }
 
@@ -1105,13 +1105,13 @@
     <span class="kw">type </span>Target = InferCtxt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;;
 
     <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.infcx
+        <span class="self">self</span>.infcx
     }
 }
 
 <span class="kw">impl </span>std::ops::DerefMut <span class="kw">for </span>InferCtxtAt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>deref_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self</span>::Target {
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>.infcx
+        <span class="self">self</span>.infcx
     }
 }
 
@@ -1382,7 +1382,7 @@
                 .item_bounds(alias_ty.def_id)<span class="question-mark">?
                 </span>.instantiate_identity(infcx.refparams);
             <span class="kw">for </span>clause <span class="kw">in </span><span class="kw-2">&amp;</span>bounds {
-                <span class="kw">if let </span>rty::ClauseKind::Projection(pred) = clause.kind() {
+                <span class="kw">if let </span>rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
                     <span class="kw">let </span>ty1 = <span class="self">Self</span>::project_bty(infcx, ty, pred.projection_ty.def_id)<span class="question-mark">?</span>;
                     <span class="kw">let </span>ty2 = pred.term;
                     <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2)<span class="question-mark">?</span>;
@@ -1413,7 +1413,7 @@
 ) -&gt; InferResult&lt;Vec&lt;rty::Clause&gt;&gt; {
     <span class="kw">let </span>bounds = genv.item_bounds(<span class="kw-2">*</span>opaque_def_id)<span class="question-mark">?</span>.skip_binder();
     <span class="kw">for </span>bound <span class="kw">in </span><span class="kw-2">&amp;</span>bounds {
-        <span class="kw">if let </span>rty::ClauseKind::Projection(proj) = bound.kind() {
+        <span class="kw">if let </span>rty::ClauseKind::Projection(proj) = bound.kind_skipping_binder() {
             <span class="kw">let </span>output = proj.term;
             <span class="kw">let </span>pred = CoroutineObligPredicate {
                 def_id: <span class="kw-2">*</span>generator_did,

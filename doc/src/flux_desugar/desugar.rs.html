@@ -1448,7 +1448,6 @@
 <a href="#1448" id="1448">1448</a>
 <a href="#1449" id="1449">1449</a>
 <a href="#1450" id="1450">1450</a>
-<a href="#1451" id="1451">1451</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -1735,7 +1734,8 @@
         <span class="kw">let </span>fhir::QPath::Resolved(<span class="prelude-val">None</span>, path) = <span class="self">self</span>.desugar_qpath(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>trait_ref.path)<span class="question-mark">? </span><span class="kw">else </span>{
             <span class="macro">span_bug!</span>(trait_ref.path.span, <span class="string">"desugar_alias_reft: unexpected qpath"</span>)
         };
-        <span class="prelude-val">Ok</span>(fhir::PolyTraitRef { bound_generic_params: <span class="kw-2">&amp;</span>[], trait_ref: path })
+        <span class="kw">let </span>span = path.span;
+        <span class="prelude-val">Ok</span>(fhir::PolyTraitRef { bound_generic_params: <span class="kw-2">&amp;</span>[], trait_ref: path, span })
     }
 
     <span class="kw">fn </span>desugar_refined_by(
@@ -2109,21 +2109,19 @@
         returns: <span class="kw-2">&amp;</span>surface::FnRetTy,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt; {
         <span class="kw">let </span>output = <span class="self">self</span>.desugar_fn_ret_ty(returns)<span class="question-mark">?</span>;
-        <span class="comment">// Does this opaque type has any generics?
+        <span class="comment">// Does this opaque type have any generics?
         </span><span class="kw">let </span>generics = <span class="self">self</span>.as_lift_cx().lift_generics()<span class="question-mark">?</span>;
+        <span class="kw">let </span>trait_ref = <span class="self">self</span>.make_lang_item_path(
+            hir::LangItem::Future,
+            DUMMY_SP,
+            <span class="kw-2">&amp;</span>[],
+            <span class="self">self</span>.genv.alloc_slice(<span class="kw-2">&amp;</span>[fhir::TypeBinding {
+                ident: surface::Ident::with_dummy_span(sym::Output),
+                term: output,
+            }]),
+        );
         <span class="kw">let </span>bound = fhir::GenericBound::Trait(
-            fhir::PolyTraitRef {
-                bound_generic_params: <span class="kw-2">&amp;</span>[],
-                trait_ref: <span class="self">self</span>.make_lang_item_path(
-                    hir::LangItem::Future,
-                    DUMMY_SP,
-                    <span class="kw-2">&amp;</span>[],
-                    <span class="self">self</span>.genv.alloc_slice(<span class="kw-2">&amp;</span>[fhir::TypeBinding {
-                        ident: surface::Ident::with_dummy_span(sym::Output),
-                        term: output,
-                    }]),
-                ),
-            },
+            fhir::PolyTraitRef { bound_generic_params: <span class="kw-2">&amp;</span>[], trait_ref, span: trait_ref.span },
             fhir::TraitBoundModifier::None,
         );
         <span class="prelude-val">Ok</span>(fhir::OpaqueTy { generics, bounds: <span class="self">self</span>.genv.alloc_slice(<span class="kw-2">&amp;</span>[bound]) })

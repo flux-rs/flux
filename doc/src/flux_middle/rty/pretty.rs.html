@@ -493,6 +493,8 @@
 <a href="#493" id="493">493</a>
 <a href="#494" id="494">494</a>
 <a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>rustc_type_ir::DebruijnIndex;
@@ -858,9 +860,11 @@
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">define_scoped!</span>(_cx, f);
         <span class="kw">match </span><span class="self">self </span>{
-            ExistentialPredicate::Trait(exi_trait_ref) =&gt; {
-                <span class="macro">w!</span>(<span class="string">"{exi_trait_ref:?}"</span>)
+            ExistentialPredicate::Trait(trait_ref) =&gt; {
+                <span class="macro">w!</span>(<span class="string">"{trait_ref:?}"</span>)
             }
+            ExistentialPredicate::Projection(projection) =&gt; <span class="macro">w!</span>(<span class="string">"{projection:?}"</span>),
+            ExistentialPredicate::AutoTrait(def_id) =&gt; <span class="macro">w!</span>(<span class="string">"AutoTrait({def_id:?})"</span>),
         }
     }
 }

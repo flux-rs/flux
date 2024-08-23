@@ -1059,6 +1059,26 @@
 <a href="#1059" id="1059">1059</a>
 <a href="#1060" id="1060">1060</a>
 <a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1086,9 +1106,10 @@
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
-        Const, ConstKind, ExistentialPredicate, FieldDef, FnSig, GenericArg, GenericParamDef,
-        GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate, PolyFnSig,
-        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, UnevaluatedConst, VariantDef,
+        Const, ConstKind, ExistentialPredicate, ExistentialProjection, FieldDef, FnSig, GenericArg,
+        GenericParamDef, GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate,
+        PolyFnSig, TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, UnevaluatedConst,
+        VariantDef,
     },
 };
 <span class="kw">use crate</span>::{
@@ -1879,19 +1900,38 @@
 
 <span class="kw">pub fn </span>lower_existential_predicate&lt;<span class="lifetime">'tcx</span>&gt;(
     tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-    pred: rustc_ty::Binder&lt;rustc_ty::ExistentialPredicate&lt;<span class="lifetime">'tcx</span>&gt;&gt;,
+    pred: rustc_ty::PolyExistentialPredicate&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Binder&lt;ExistentialPredicate&gt;, UnsupportedReason&gt; {
-    <span class="kw">if </span>pred.bound_vars().is_empty()
-        &amp;&amp; <span class="kw">let </span>pred = pred.skip_binder()
-        &amp;&amp; <span class="kw">let </span>rustc_ty::ExistentialPredicate::Trait(exi_trait_ref) = pred
-    {
-        <span class="kw">let </span>def_id = exi_trait_ref.def_id;
-        <span class="kw">let </span>args = lower_generic_args(tcx, exi_trait_ref.args)<span class="question-mark">?</span>;
-        <span class="kw">let </span>exi_trait_ref = ExistentialTraitRef { def_id, args };
-        <span class="prelude-val">Ok</span>(Binder::bind_with_vars(ExistentialPredicate::Trait(exi_trait_ref), List::empty()))
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"Unsupported existential predicate `{pred:?}`"</span>)))
-    }
+    <span class="kw">if </span>!pred.bound_vars().is_empty() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(
+            <span class="string">"unsupported existential predicate `{pred:?}`"
+        </span>)));
+    };
+    <span class="kw">let </span>pred = pred.skip_binder();
+    <span class="kw">let </span>exi_pred = <span class="kw">match </span>pred {
+        rustc_type_ir::ExistentialPredicate::Trait(exi_trait_ref) =&gt; {
+            ExistentialPredicate::Trait(ExistentialTraitRef {
+                def_id: exi_trait_ref.def_id,
+                args: lower_generic_args(tcx, exi_trait_ref.args)<span class="question-mark">?</span>,
+            })
+        }
+        rustc_type_ir::ExistentialPredicate::Projection(exi_proj_pred) =&gt; {
+            <span class="kw">let </span><span class="prelude-val">Some</span>(term) = exi_proj_pred.term.as_type() <span class="kw">else </span>{
+                <span class="kw">return </span><span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(
+                    <span class="string">"unsupported existential predicate `{pred:?}`"
+                </span>)));
+            };
+            ExistentialPredicate::Projection(ExistentialProjection {
+                def_id: exi_proj_pred.def_id,
+                args: lower_generic_args(tcx, exi_proj_pred.args)<span class="question-mark">?</span>,
+                term: lower_ty(tcx, term)<span class="question-mark">?</span>,
+            })
+        }
+        rustc_type_ir::ExistentialPredicate::AutoTrait(def_id) =&gt; {
+            ExistentialPredicate::AutoTrait(def_id)
+        }
+    };
+    <span class="prelude-val">Ok</span>(Binder::dummy(exi_pred))
 }
 
 <span class="kw">pub fn </span>lower_generic_args&lt;<span class="lifetime">'tcx</span>&gt;(

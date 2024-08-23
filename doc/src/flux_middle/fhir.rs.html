@@ -1501,6 +1501,7 @@
 <a href="#1501" id="1501">1501</a>
 <a href="#1502" id="1502">1502</a>
 <a href="#1503" id="1503">1503</a>
+<a href="#1504" id="1504">1504</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1814,6 +1815,7 @@
 </span><span class="kw">pub struct </span>PolyTraitRef&lt;<span class="lifetime">'fhir</span>&gt; {
     <span class="kw">pub </span>bound_generic_params: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[GenericParam&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>trait_ref: Path&lt;<span class="lifetime">'fhir</span>&gt;,
+    <span class="kw">pub </span>span: Span,
 }
 
 <span class="attr">#[derive(Debug, Copy, Clone)]

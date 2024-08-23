@@ -706,7 +706,7 @@
                 <span class="self">self</span>.lift_generic_param(param)
             })<span class="question-mark">?</span>;
         <span class="kw">let </span>trait_ref = <span class="self">self</span>.lift_path(poly_trait_ref.trait_ref.path)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::PolyTraitRef { bound_generic_params, trait_ref })
+        <span class="prelude-val">Ok</span>(fhir::PolyTraitRef { bound_generic_params, trait_ref, span: poly_trait_ref.span })
     }
 
     <span class="kw">fn </span>lift_opaque_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;&gt; {
