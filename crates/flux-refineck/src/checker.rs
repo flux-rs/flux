@@ -264,7 +264,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
 
             let snapshot = ck.snapshot_at_dominator(bb);
-            let mut infcx = infcx.change_root(def_id, snapshot);
+            let mut infcx = infcx.change_root(snapshot);
             let mut env = M::enter_basic_block(&mut ck, &mut infcx, bb);
             env.unpack(&mut infcx, ck.config().check_overflow);
             ck.check_basic_block(infcx, env, bb)?;
@@ -485,7 +485,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
-    fn check_ret(&mut self, infcx: &mut InferCtxt, env: &mut TypeEnv, span: Span) -> Result {
+    fn check_ret(
+        &mut self,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        env: &mut TypeEnv,
+        span: Span,
+    ) -> Result {
         infcx.push_scope();
 
         let mut at = infcx.at(span);
@@ -628,7 +633,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn check_oblig_generator_pred(
         &mut self,
-        infcx: &mut InferCtxt,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         snapshot: &Snapshot,
         gen_pred: CoroutineObligPredicate,
     ) -> Result {
@@ -636,8 +641,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let poly_sig =
             instantiate_and_normalize_fn_sig(infcx, EarlyBinder(gen_pred.to_poly_fn_sig()))
                 .with_span(self.body.span())?;
+        let def_id = gen_pred.def_id;
+        let span = self.genv.tcx().def_span(def_id);
+        let body = self.genv.mir(def_id.expect_local()).with_span(span)?;
         Checker::run(
-            infcx.change_root(gen_pred.def_id.expect_local(), snapshot),
+            infcx.change_item(def_id.expect_local(), &body.infcx, snapshot),
             gen_pred.def_id.expect_local(),
             self.inherited.reborrow(),
             poly_sig,
@@ -646,7 +654,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn check_oblig_fn_trait_pred(
         &mut self,
-        infcx: &mut InferCtxt,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         snapshot: &Snapshot,
         fn_trait_pred: FnTraitPredicate,
     ) -> Result {
@@ -664,9 +672,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let fn_sig = EarlyBinder(fn_trait_pred.to_poly_fn_sig(*def_id, tys.clone()));
             let poly_sig =
                 instantiate_and_normalize_fn_sig(infcx, fn_sig).with_span(self.body.span())?;
-
+            let span = self.genv.tcx().def_span(def_id);
+            let body = self.genv.mir(def_id.expect_local()).with_span(span)?;
             Checker::run(
-                infcx.change_root(def_id.expect_local(), snapshot),
+                infcx.change_item(def_id.expect_local(), &body.infcx, snapshot),
                 def_id.expect_local(),
                 self.inherited.reborrow(),
                 poly_sig,
@@ -679,7 +688,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn check_closure_clauses(
         &mut self,
-        infcx: &mut InferCtxt,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         snapshot: Snapshot,
         clauses: &[Clause],
     ) -> Result {

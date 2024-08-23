@@ -147,16 +147,22 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.rcx.clear_children(snapshot);
     }
 
-    pub fn change_root(
-        &mut self,
+    pub fn change_item<'a>(
+        &'a mut self,
         def_id: LocalDefId,
+        region_infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
         snapshot: &Snapshot,
-    ) -> InferCtxt<'_, 'genv, 'tcx> {
+    ) -> InferCtxt<'a, 'genv, 'tcx> {
         InferCtxt {
             def_id: def_id.to_def_id(),
             rcx: self.rcx.change_root(snapshot).unwrap(),
+            region_infcx,
             ..*self
         }
+    }
+
+    pub fn change_root(&mut self, snapshot: &Snapshot) -> InferCtxt<'_, 'genv, 'tcx> {
+        InferCtxt { rcx: self.rcx.change_root(snapshot).unwrap(), ..*self }
     }
 
     pub fn branch(&mut self) -> InferCtxt<'_, 'genv, 'tcx> {
