@@ -1048,6 +1048,17 @@
 <a href="#1048" id="1048">1048</a>
 <a href="#1049" id="1049">1049</a>
 <a href="#1050" id="1050">1050</a>
+<a href="#1051" id="1051">1051</a>
+<a href="#1052" id="1052">1052</a>
+<a href="#1053" id="1053">1053</a>
+<a href="#1054" id="1054">1054</a>
+<a href="#1055" id="1055">1055</a>
+<a href="#1056" id="1056">1056</a>
+<a href="#1057" id="1057">1057</a>
+<a href="#1058" id="1058">1058</a>
+<a href="#1059" id="1059">1059</a>
+<a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1327,14 +1338,25 @@
         <span class="kw">let </span>kind = <span class="kw">match </span><span class="kw-2">&amp;</span>terminator.kind {
             rustc_mir::TerminatorKind::Return =&gt; TerminatorKind::Return,
             rustc_mir::TerminatorKind::Call { func, args, destination, target, unwind, .. } =&gt; {
-                <span class="kw">let </span>(func, generic_args) = <span class="kw">match </span>func.ty(<span class="self">self</span>.rustc_mir, <span class="self">self</span>.tcx).kind() {
-                    rustc_middle::ty::TyKind::FnDef(fn_def, args) =&gt; {
-                        <span class="kw">let </span>lowered = lower_generic_args(<span class="self">self</span>.tcx, args)
-                            .map_err(|_err| errors::UnsupportedMir::from(terminator))
-                            .emit(<span class="self">self</span>.sess)<span class="question-mark">?</span>;
-                        (<span class="kw-2">*</span>fn_def, CallArgs { orig: args, lowered })
+                <span class="kw">let </span>(func, generic_args) = {
+                    <span class="kw">let </span>func_ty = func.ty(<span class="self">self</span>.rustc_mir, <span class="self">self</span>.tcx);
+                    <span class="kw">match </span>func_ty.kind() {
+                        rustc_middle::ty::TyKind::FnDef(fn_def, args) =&gt; {
+                            <span class="kw">let </span>lowered = lower_generic_args(<span class="self">self</span>.tcx, args)
+                                .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
+                                .emit(<span class="self">self</span>.sess)<span class="question-mark">?</span>;
+                            (<span class="kw-2">*</span>fn_def, CallArgs { orig: args, lowered })
+                        }
+                        <span class="kw">_ </span>=&gt; {
+                            <span class="prelude-val">Err</span>(errors::UnsupportedMir::terminator(
+                                span,
+                                UnsupportedReason::new(<span class="macro">format!</span>(
+                                    <span class="string">"unsupported callee type `{func_ty:?}`"
+                                </span>)),
+                            ))
+                            .emit(<span class="self">self</span>.sess)<span class="question-mark">?
+                        </span>}
                     }
-                    <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(errors::UnsupportedMir::from(terminator)).emit(<span class="self">self</span>.sess)<span class="question-mark">?</span>,
                 };
 
                 <span class="kw">let </span>destination = lower_place(destination)
