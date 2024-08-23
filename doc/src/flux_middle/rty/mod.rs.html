@@ -3803,8 +3803,8 @@
             BaseTy::Bool =&gt; Sort::Bool,
             BaseTy::Adt(adt_def, args) =&gt; adt_def.sort(args),
             BaseTy::Param(param_ty) =&gt; Sort::Param(<span class="kw-2">*</span>param_ty),
+            BaseTy::Str =&gt; Sort::Str,
             BaseTy::Float(<span class="kw">_</span>)
-            | BaseTy::Str
             | BaseTy::Char
             | BaseTy::RawPtr(..)
             | BaseTy::Ref(..)
