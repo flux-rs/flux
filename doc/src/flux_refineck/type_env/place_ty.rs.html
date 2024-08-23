@@ -977,27 +977,11 @@
 <a href="#977" id="977">977</a>
 <a href="#978" id="978">978</a>
 <a href="#979" id="979">979</a>
-<a href="#980" id="980">980</a>
-<a href="#981" id="981">981</a>
-<a href="#982" id="982">982</a>
-<a href="#983" id="983">983</a>
-<a href="#984" id="984">984</a>
-<a href="#985" id="985">985</a>
-<a href="#986" id="986">986</a>
-<a href="#987" id="987">987</a>
-<a href="#988" id="988">988</a>
-<a href="#989" id="989">989</a>
-<a href="#990" id="990">990</a>
-<a href="#991" id="991">991</a>
-<a href="#992" id="992">992</a>
-<a href="#993" id="993">993</a>
-<a href="#994" id="994">994</a>
-<a href="#995" id="995">995</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{clone::Clone, fmt, ops::ControlFlow};
 
 <span class="kw">use </span>flux_common::{iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_infer::{
-    infer::{ConstrReason, InferCtxt},
+    infer::{ConstrReason, InferCtxt, InferCtxtAt},
     refine_tree::RefineCtxt,
 };
 <span class="kw">use </span>flux_middle::{
@@ -1083,9 +1067,9 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Ty&gt;, <span class="self">Self</span>::Error&gt;;
 }
 
-<span class="kw">struct </span>Unfold&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>InferCtxt&lt;<span class="lifetime">'b</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;);
+<span class="kw">struct </span>Unfold&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;);
 
-<span class="kw">impl </span>LookupMode <span class="kw">for </span>Unfold&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<span class="kw">impl </span>LookupMode <span class="kw">for </span>Unfold&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">type </span>Error = CheckerErrKind;
 
     <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
@@ -1098,7 +1082,7 @@
         args: <span class="kw-2">&amp;</span>[GenericArg],
         idx: <span class="kw-2">&amp;</span>Expr,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Ty&gt;, <span class="self">Self</span>::Error&gt; {
-        downcast_struct(<span class="self">self</span>.<span class="number">1</span>, adt, args, idx)
+        downcast_struct(<span class="self">self</span>.<span class="number">0</span>, adt, args, idx)
     }
 }
 
@@ -1117,13 +1101,12 @@
 <span class="kw">impl </span>PlacesTree {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unfold(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        infcx: <span class="kw-2">&amp;</span>InferCtxt,
-        rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
         key: <span class="kw-2">&amp;</span><span class="kw">impl </span>LookupKey,
         checker_conf: CheckerConfig,
     ) -&gt; CheckerResult {
         <span class="kw">let </span>cursor = <span class="self">self</span>.cursor_for(key);
-        Unfolder::new(infcx, rcx, cursor, checker_conf).run(<span class="self">self</span>)
+        Unfolder::new(infcx, cursor, checker_conf).run(<span class="self">self</span>)
     }
 
     <span class="kw">fn </span>lookup_inner&lt;M: LookupMode&gt;(
@@ -1196,11 +1179,10 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookup_unfolding(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
-        infcx: <span class="kw-2">&amp;</span>InferCtxt,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
         key: <span class="kw-2">&amp;</span><span class="kw">impl </span>LookupKey,
     ) -&gt; CheckerResult&lt;LookupResult&gt; {
-        <span class="self">self</span>.lookup_inner(key, Unfold(rcx, infcx))
+        <span class="self">self</span>.lookup_inner(key, Unfold(infcx))
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>lookup(<span class="kw-2">&amp;mut </span><span class="self">self</span>, key: <span class="kw-2">&amp;</span><span class="kw">impl </span>LookupKey) -&gt; LookupResult {
@@ -1349,8 +1331,8 @@
         <span class="self">self</span>.update(Ty::blocked(new_ty))
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold(<span class="self">self</span>, rcx: <span class="kw-2">&amp;mut </span>RefineCtxt, infcx: <span class="kw-2">&amp;mut </span>InferCtxt) -&gt; CheckerResult&lt;Ty&gt; {
-        <span class="kw">let </span>ty = fold(<span class="self">self</span>.bindings, rcx, infcx, <span class="kw-2">&amp;</span><span class="self">self</span>.ty, <span class="self">self</span>.is_strg)<span class="question-mark">?</span>;
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold(<span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt) -&gt; CheckerResult&lt;Ty&gt; {
+        <span class="kw">let </span>ty = fold(<span class="self">self</span>.bindings, infcx, <span class="kw-2">&amp;</span><span class="self">self</span>.ty, <span class="self">self</span>.is_strg)<span class="question-mark">?</span>;
         <span class="self">self</span>.update(ty.clone());
         <span class="prelude-val">Ok</span>(ty)
     }
@@ -1360,9 +1342,8 @@
     }
 }
 
-<span class="kw">struct </span>Unfolder&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>InferCtxt&lt;<span class="lifetime">'b</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    rcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;,
+<span class="kw">struct </span>Unfolder&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     insertions: Vec&lt;(Loc, Place, Binding)&gt;,
     cursor: Cursor,
     in_ref: <span class="prelude-ty">Option</span>&lt;Mutability&gt;,
@@ -1370,7 +1351,7 @@
     has_work: bool,
 }
 
-<span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>Unfolder&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>Unfolder&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">type </span>Error = CheckerErrKind;
 
     <span class="kw">fn </span>try_fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; CheckerResult&lt;Ty&gt; {
@@ -1390,22 +1371,13 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Unfolder&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, <span class="lifetime">'rcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Unfolder&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">fn </span>new(
-        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>InferCtxt&lt;<span class="lifetime">'b</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        rcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>RefineCtxt&lt;<span class="lifetime">'rcx</span>&gt;,
+        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         cursor: Cursor,
         checker_conf: CheckerConfig,
     ) -&gt; <span class="self">Self </span>{
-        Unfolder {
-            infcx,
-            rcx,
-            cursor,
-            insertions: <span class="macro">vec!</span>[],
-            in_ref: <span class="prelude-val">None</span>,
-            checker_conf,
-            has_work: <span class="bool-val">true</span>,
-        }
+        Unfolder { infcx, cursor, insertions: <span class="macro">vec!</span>[], in_ref: <span class="prelude-val">None</span>, checker_conf, has_work: <span class="bool-val">true </span>}
     }
 
     <span class="kw">fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, bindings: <span class="kw-2">&amp;mut </span>PlacesTree) -&gt; CheckerResult {
@@ -1492,7 +1464,7 @@
     }
 
     <span class="kw">fn </span>unfold_box(<span class="kw-2">&amp;mut </span><span class="self">self</span>, deref_ty: <span class="kw-2">&amp;</span>Ty, alloc: <span class="kw-2">&amp;</span>Ty) -&gt; Loc {
-        <span class="kw">let </span>loc = Loc::from(<span class="self">self</span>.rcx.define_var(<span class="kw-2">&amp;</span>Sort::Loc));
+        <span class="kw">let </span>loc = Loc::from(<span class="self">self</span>.infcx.define_var(<span class="kw-2">&amp;</span>Sort::Loc));
         <span class="kw">let </span><span class="kw-2">mut </span>place = <span class="self">self</span>.cursor.to_place();
         place.projection.push(PlaceElem::Deref);
         <span class="self">self</span>.insertions.push((
@@ -1545,7 +1517,7 @@
     <span class="kw">fn </span>downcast(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, variant: VariantIdx) -&gt; CheckerResult&lt;Ty&gt; {
         <span class="kw">let </span>ty = <span class="kw">match </span>ty.kind() {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) =&gt; {
-                <span class="kw">let </span>fields = downcast(<span class="self">self</span>.infcx, <span class="self">self</span>.rcx, adt, args, variant, idx)<span class="question-mark">?
+                <span class="kw">let </span>fields = downcast(<span class="self">self</span>.infcx, adt, args, variant, idx)<span class="question-mark">?
                     </span>.into_iter()
                     .map(|ty| <span class="self">self</span>.unpack_for_downcast(<span class="kw-2">&amp;</span>ty))
                     .collect_vec();
@@ -1574,7 +1546,7 @@
     }
 
     <span class="kw">fn </span>unpack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-        <span class="self">self</span>.rcx
+        <span class="self">self</span>.infcx
             .unpacker()
             .assume_invariants(<span class="self">self</span>.checker_conf.check_overflow)
             .shallow(<span class="bool-val">true</span>)
@@ -1582,12 +1554,12 @@
     }
 
     <span class="kw">fn </span>unpack_for_downcast(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) -&gt; Ty {
-        <span class="kw">let </span><span class="kw-2">mut </span>unpacker = <span class="self">self</span>.rcx.unpacker().shallow(<span class="bool-val">true</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>unpacker = <span class="self">self</span>.infcx.unpacker().shallow(<span class="bool-val">true</span>);
         <span class="kw">if </span><span class="self">self</span>.in_ref == <span class="prelude-val">Some</span>(Mutability::Mut) {
             unpacker = unpacker.unpack_exists(<span class="bool-val">false</span>);
         }
         <span class="kw">let </span>ty = unpacker.unpack(ty);
-        <span class="self">self</span>.rcx
+        <span class="self">self</span>.infcx
             .assume_invariants(<span class="kw-2">&amp;</span>ty, <span class="self">self</span>.checker_conf.check_overflow);
         ty
     }
@@ -1774,8 +1746,7 @@
 }
 
 <span class="kw">fn </span>downcast(
-    infcx: <span class="kw-2">&amp;</span>InferCtxt,
-    rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
+    infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
     adt: <span class="kw-2">&amp;</span>AdtDef,
     args: <span class="kw-2">&amp;</span>[GenericArg],
     variant_idx: VariantIdx,
@@ -1785,7 +1756,7 @@
         <span class="macro">debug_assert_eq!</span>(variant_idx.as_u32(), <span class="number">0</span>);
         downcast_struct(infcx, adt, args, idx)
     } <span class="kw">else if </span>adt.is_enum() {
-        downcast_enum(infcx, rcx, adt, variant_idx, args, idx)
+        downcast_enum(infcx, adt, variant_idx, args, idx)
     } <span class="kw">else </span>{
         <span class="macro">tracked_span_bug!</span>(<span class="string">"Downcast without struct or enum!"</span>)
     }
@@ -1837,8 +1808,7 @@
 ///     2. *Unpack* the fields using `y:t'...`
 ///     3. *Assert* the constraint `i == j'...`
 </span><span class="kw">fn </span>downcast_enum(
-    infcx: <span class="kw-2">&amp;</span>InferCtxt,
-    rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
+    infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
     adt: <span class="kw-2">&amp;</span>AdtDef,
     variant_idx: VariantIdx,
     args: <span class="kw-2">&amp;</span>[GenericArg],
@@ -1850,7 +1820,7 @@
         .variant_sig(adt.did(), variant_idx)<span class="question-mark">?
         </span>.expect(<span class="string">"enums cannot be opaque"</span>)
         .instantiate(tcx, args, <span class="kw-2">&amp;</span>[])
-        .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| rcx.define_vars(sort))
+        .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| infcx.define_vars(sort))
         .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id, infcx.refparams)<span class="question-mark">?</span>;
 
     <span class="comment">// FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there
@@ -1864,15 +1834,14 @@
         <span class="kw">let </span>e2 = variant_def.idx.proj_and_reduce(proj);
         Expr::eq(e1, e2)
     }));
-    rcx.assume_pred(<span class="kw-2">&amp;</span>constr);
+    infcx.assume_pred(<span class="kw-2">&amp;</span>constr);
 
     <span class="prelude-val">Ok</span>(variant_def.fields.to_vec())
 }
 
 <span class="kw">fn </span>fold(
     bindings: <span class="kw-2">&amp;mut </span>PlacesTree,
-    rcx: <span class="kw-2">&amp;mut </span>RefineCtxt,
-    infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
+    infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt,
     ty: <span class="kw-2">&amp;</span>Ty,
     is_strg: bool,
 ) -&gt; CheckerResult&lt;Ty&gt; {
@@ -1883,11 +1852,11 @@
             <span class="kw">let </span>LocKind::Box(alloc) = binding.kind <span class="kw">else </span>{
                 <span class="macro">tracked_span_bug!</span>(<span class="string">"box pointer to non-box loc"</span>);
             };
-            <span class="kw">let </span>deref_ty = fold(bindings, rcx, infcx, <span class="kw-2">&amp;</span>binding.ty, is_strg)<span class="question-mark">?</span>;
+            <span class="kw">let </span>deref_ty = fold(bindings, infcx, <span class="kw-2">&amp;</span>binding.ty, is_strg)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(Ty::mk_box(infcx.genv, deref_ty, alloc)<span class="question-mark">?</span>)
         }
         <span class="macro">Ref!</span>(re, deref_ty, mutbl) =&gt; {
-            <span class="kw">let </span>deref_ty = fold(bindings, rcx, infcx, deref_ty, is_strg)<span class="question-mark">?</span>;
+            <span class="kw">let </span>deref_ty = fold(bindings, infcx, deref_ty, is_strg)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(Ty::mk_ref(<span class="kw-2">*</span>re, deref_ty, <span class="kw-2">*</span>mutbl))
         }
         TyKind::Downcast(adt, args, ty_, variant_idx, fields) =&gt; {
@@ -1899,7 +1868,7 @@
 
                 <span class="kw">let </span>fields = fields
                     .iter()
-                    .map(|ty| fold(bindings, rcx, infcx, ty, is_strg))
+                    .map(|ty| fold(bindings, infcx, ty, is_strg))
                     .try_collect_vec()<span class="question-mark">?</span>;
 
                 <span class="kw">let </span>partially_moved = fields.iter().any(Ty::is_uninit);
@@ -1907,8 +1876,7 @@
                     Ty::uninit()
                 } <span class="kw">else </span>{
                     infcx
-                        .at(ConstrReason::Fold)
-                        .check_constructor(rcx, variant_sig, args, <span class="kw-2">&amp;</span>fields)
+                        .check_constructor(variant_sig, args, <span class="kw-2">&amp;</span>fields, ConstrReason::Fold)
                         .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"{err:?}"</span>))
                 };
 
@@ -1922,7 +1890,7 @@
 
             <span class="kw">let </span>fields = fields
                 .iter()
-                .map(|ty| fold(bindings, rcx, infcx, ty, is_strg))
+                .map(|ty| fold(bindings, infcx, ty, is_strg))
                 .try_collect_vec()<span class="question-mark">?</span>;
 
             <span class="kw">let </span>partially_moved = fields.iter().any(Ty::is_uninit);

@@ -1284,7 +1284,6 @@
 <a href="#1284" id="1284">1284</a>
 <a href="#1285" id="1285">1285</a>
 <a href="#1286" id="1286">1286</a>
-<a href="#1287" id="1287">1287</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
@@ -2008,8 +2007,7 @@
     }
 }
 
-<span class="attr">#[derive(Default)]
-</span><span class="kw">pub struct </span>KVarGen {
+<span class="kw">pub struct </span>KVarGen {
     kvars: IndexVec&lt;rty::KVid, KVarDecl&gt;,
     <span class="doccomment">/// If true generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
     /// unnecessary kvars.
