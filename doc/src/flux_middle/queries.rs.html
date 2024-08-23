@@ -760,6 +760,12 @@
 <a href="#760" id="760">760</a>
 <a href="#761" id="761">761</a>
 <a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -1417,56 +1423,62 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Diagnostic&lt;<span class="lifetime">'a</span>&gt; <span class="kw">for </span>QueryErr {
-    <span class="kw">fn </span>into_diag(
+    <span class="attr">#[track_caller]
+    </span><span class="kw">fn </span>into_diag(
         <span class="self">self</span>,
         dcx: rustc_errors::DiagCtxtHandle&lt;<span class="lifetime">'a</span>&gt;,
         _level: rustc_errors::Level,
     ) -&gt; rustc_errors::Diag&lt;<span class="lifetime">'a</span>, ErrorGuaranteed&gt; {
         <span class="kw">use </span><span class="kw">crate</span>::fluent_generated <span class="kw">as </span>fluent;
 
-        rustc_middle::ty::tls::with(|tcx| {
-            <span class="kw">match </span><span class="self">self </span>{
-                QueryErr::Unsupported { def_id, err } =&gt; {
-                    <span class="kw">let </span>span = err.span.unwrap_or_else(|| tcx.def_span(def_id));
-                    <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_span_err(span, fluent::middle_query_unsupported);
-                    diag.code(E0999);
-                    diag.note(err.descr);
-                    diag
+        rustc_middle::ty::tls::with_opt(
+            <span class="attr">#[track_caller]
+            </span>|tcx| {
+                <span class="kw">let </span>tcx = tcx.expect(<span class="string">"no TyCtxt stored in tls"</span>);
+                <span class="kw">match </span><span class="self">self </span>{
+                    QueryErr::Unsupported { def_id, err } =&gt; {
+                        <span class="kw">let </span>span = err.span.unwrap_or_else(|| tcx.def_span(def_id));
+                        <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_span_err(span, fluent::middle_query_unsupported);
+                        diag.code(E0999);
+                        diag.note(err.descr);
+                        diag
+                    }
+                    QueryErr::Ignored { def_id } =&gt; {
+                        <span class="kw">let </span>def_span = tcx.def_span(def_id);
+                        <span class="kw">let </span><span class="kw-2">mut </span>diag =
+                            dcx.struct_span_err(def_span, fluent::middle_query_ignored_item);
+                        diag.code(E0999);
+                        diag
+                    }
+                    QueryErr::InvalidGenericArg { def_id } =&gt; {
+                        <span class="kw">let </span>def_span = tcx.def_span(def_id);
+                        <span class="kw">let </span><span class="kw-2">mut </span>diag =
+                            dcx.struct_span_err(def_span, fluent::middle_query_invalid_generic_arg);
+                        diag.code(E0999);
+                        diag
+                    }
+                    QueryErr::InvalidAssocReft { impl_id, name } =&gt; {
+                        <span class="kw">let </span>def_span = tcx.def_span(impl_id);
+                        <span class="kw">let </span><span class="kw-2">mut </span>diag =
+                            dcx.struct_span_err(def_span, fluent::middle_query_invalid_assoc_reft);
+                        diag.arg(<span class="string">"name"</span>, name);
+                        diag.code(E0999);
+                        diag
+                    }
+                    QueryErr::Bug { location, msg } =&gt; {
+                        <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_err(fluent::middle_query_bug);
+                        diag.arg(<span class="string">"location"</span>, location);
+                        diag.note(msg);
+                        diag
+                    }
+                    QueryErr::Emitted(<span class="kw">_</span>) =&gt; {
+                        <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_err(<span class="string">"QueryErr::Emitted should be emitted"</span>);
+                        diag.downgrade_to_delayed_bug();
+                        diag
+                    }
                 }
-                QueryErr::Ignored { def_id } =&gt; {
-                    <span class="kw">let </span>def_span = tcx.def_span(def_id);
-                    <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_span_err(def_span, fluent::middle_query_ignored_item);
-                    diag.code(E0999);
-                    diag
-                }
-                QueryErr::InvalidGenericArg { def_id } =&gt; {
-                    <span class="kw">let </span>def_span = tcx.def_span(def_id);
-                    <span class="kw">let </span><span class="kw-2">mut </span>diag =
-                        dcx.struct_span_err(def_span, fluent::middle_query_invalid_generic_arg);
-                    diag.code(E0999);
-                    diag
-                }
-                QueryErr::InvalidAssocReft { impl_id, name } =&gt; {
-                    <span class="kw">let </span>def_span = tcx.def_span(impl_id);
-                    <span class="kw">let </span><span class="kw-2">mut </span>diag =
-                        dcx.struct_span_err(def_span, fluent::middle_query_invalid_assoc_reft);
-                    diag.arg(<span class="string">"name"</span>, name);
-                    diag.code(E0999);
-                    diag
-                }
-                QueryErr::Bug { location, msg } =&gt; {
-                    <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_err(fluent::middle_query_bug);
-                    diag.arg(<span class="string">"location"</span>, location);
-                    diag.note(msg);
-                    diag
-                }
-                QueryErr::Emitted(<span class="kw">_</span>) =&gt; {
-                    <span class="kw">let </span><span class="kw-2">mut </span>diag = dcx.struct_err(<span class="string">"QueryErr::Emitted should be emitted"</span>);
-                    diag.downgrade_to_delayed_bug();
-                    diag
-                }
-            }
-        })
+            },
+        )
     }
 }
 
