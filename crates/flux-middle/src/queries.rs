@@ -655,6 +655,7 @@ where
 }
 
 impl<'a> Diagnostic<'a> for QueryErr {
+    #[track_caller]
     fn into_diag(
         self,
         dcx: rustc_errors::DiagCtxtHandle<'a>,
@@ -662,49 +663,54 @@ impl<'a> Diagnostic<'a> for QueryErr {
     ) -> rustc_errors::Diag<'a, ErrorGuaranteed> {
         use crate::fluent_generated as fluent;
 
-        rustc_middle::ty::tls::with(|tcx| {
-            match self {
-                QueryErr::Unsupported { def_id, err } => {
-                    let span = err.span.unwrap_or_else(|| tcx.def_span(def_id));
-                    let mut diag = dcx.struct_span_err(span, fluent::middle_query_unsupported);
-                    diag.code(E0999);
-                    diag.note(err.descr);
-                    diag
+        rustc_middle::ty::tls::with_opt(
+            #[track_caller]
+            |tcx| {
+                let tcx = tcx.expect("no TyCtxt stored in tls");
+                match self {
+                    QueryErr::Unsupported { def_id, err } => {
+                        let span = err.span.unwrap_or_else(|| tcx.def_span(def_id));
+                        let mut diag = dcx.struct_span_err(span, fluent::middle_query_unsupported);
+                        diag.code(E0999);
+                        diag.note(err.descr);
+                        diag
+                    }
+                    QueryErr::Ignored { def_id } => {
+                        let def_span = tcx.def_span(def_id);
+                        let mut diag =
+                            dcx.struct_span_err(def_span, fluent::middle_query_ignored_item);
+                        diag.code(E0999);
+                        diag
+                    }
+                    QueryErr::InvalidGenericArg { def_id } => {
+                        let def_span = tcx.def_span(def_id);
+                        let mut diag =
+                            dcx.struct_span_err(def_span, fluent::middle_query_invalid_generic_arg);
+                        diag.code(E0999);
+                        diag
+                    }
+                    QueryErr::InvalidAssocReft { impl_id, name } => {
+                        let def_span = tcx.def_span(impl_id);
+                        let mut diag =
+                            dcx.struct_span_err(def_span, fluent::middle_query_invalid_assoc_reft);
+                        diag.arg("name", name);
+                        diag.code(E0999);
+                        diag
+                    }
+                    QueryErr::Bug { location, msg } => {
+                        let mut diag = dcx.struct_err(fluent::middle_query_bug);
+                        diag.arg("location", location);
+                        diag.note(msg);
+                        diag
+                    }
+                    QueryErr::Emitted(_) => {
+                        let mut diag = dcx.struct_err("QueryErr::Emitted should be emitted");
+                        diag.downgrade_to_delayed_bug();
+                        diag
+                    }
                 }
-                QueryErr::Ignored { def_id } => {
-                    let def_span = tcx.def_span(def_id);
-                    let mut diag = dcx.struct_span_err(def_span, fluent::middle_query_ignored_item);
-                    diag.code(E0999);
-                    diag
-                }
-                QueryErr::InvalidGenericArg { def_id } => {
-                    let def_span = tcx.def_span(def_id);
-                    let mut diag =
-                        dcx.struct_span_err(def_span, fluent::middle_query_invalid_generic_arg);
-                    diag.code(E0999);
-                    diag
-                }
-                QueryErr::InvalidAssocReft { impl_id, name } => {
-                    let def_span = tcx.def_span(impl_id);
-                    let mut diag =
-                        dcx.struct_span_err(def_span, fluent::middle_query_invalid_assoc_reft);
-                    diag.arg("name", name);
-                    diag.code(E0999);
-                    diag
-                }
-                QueryErr::Bug { location, msg } => {
-                    let mut diag = dcx.struct_err(fluent::middle_query_bug);
-                    diag.arg("location", location);
-                    diag.note(msg);
-                    diag
-                }
-                QueryErr::Emitted(_) => {
-                    let mut diag = dcx.struct_err("QueryErr::Emitted should be emitted");
-                    diag.downgrade_to_delayed_bug();
-                    diag
-                }
-            }
-        })
+            },
+        )
     }
 }
 

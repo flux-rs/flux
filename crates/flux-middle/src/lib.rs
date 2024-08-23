@@ -1,6 +1,7 @@
 #![feature(
     associated_type_defaults,
     box_patterns,
+    closure_track_caller,
     if_let_guard,
     let_chains,
     min_specialization,
