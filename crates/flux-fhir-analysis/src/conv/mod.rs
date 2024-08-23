@@ -832,6 +832,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
+    /// Code adapted from [https://github.com/rust-lang/rust/blob/b5723af3457b9cd3795eeb97e9af2d34964854f2/compiler/rustc_hir_analysis/src/hir_ty_lowering/mod.rs#L2099]
     fn conv_opaque_ty(
         &mut self,
         env: &mut Env,
@@ -840,15 +841,29 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         reft_args: &[fhir::RefineArg],
     ) -> QueryResult<rty::Ty> {
         let def_id = item_id.owner_id.to_def_id();
-        let args = lifetimes
-            .iter()
-            .map(|arg| {
-                let fhir::GenericArg::Lifetime(lft) = arg else {
-                    bug!("only lifetimes supported for opaque types")
+        let generics = self.genv.generics_of(def_id)?;
+        let args = rty::GenericArgs::for_item(self.genv, def_id, |param, _| {
+            if let Some(i) = (param.index as usize).checked_sub(generics.count() - lifetimes.len())
+            {
+                // Resolve our own lifetime parameters.
+                let rty::GenericParamDefKind::Lifetime { .. } = param.kind else {
+                    span_bug!(
+                        self.genv.tcx().def_span(param.def_id),
+                        "only expected lifetime for opaque's own generics, got {:?}",
+                        param.kind
+                    );
+                };
+                let fhir::GenericArg::Lifetime(lft) = &lifetimes[i] else {
+                    bug!(
+                        "expected lifetime argument for param {param:?}, found {:?}",
+                        &lifetimes[i]
+                    )
                 };
                 rty::GenericArg::Lifetime(self.conv_lifetime(env, *lft))
-            })
-            .collect();
+            } else {
+                rty::GenericArg::from_param_def(param)
+            }
+        })?;
         let reft_args = reft_args
             .iter()
             .map(|arg| self.conv_refine_arg(env, arg))
