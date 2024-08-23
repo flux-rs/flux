@@ -5,7 +5,7 @@ use std::{iter, ops::ControlFlow};
 use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug};
 use flux_infer::{
     fixpoint_encoding::{KVarEncoding, KVarGen},
-    infer::{ConstrReason, InferCtxt},
+    infer::{ConstrReason, InferCtxt, InferCtxtAt},
     refine_tree::{RefineCtxt, Scope},
 };
 use flux_middle::{
@@ -71,13 +71,8 @@ impl TypeEnv<'_> {
         BasicBlockEnvShape::new(scope, self)
     }
 
-    pub(crate) fn lookup_place(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        infcx: &InferCtxt,
-        place: &Place,
-    ) -> Result<Ty> {
-        Ok(self.bindings.lookup_unfolding(rcx, infcx, place)?.ty)
+    pub(crate) fn lookup_place(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> Result<Ty> {
+        Ok(self.bindings.lookup_unfolding(infcx, place)?.ty)
     }
 
     pub(crate) fn get(&self, path: &Path) -> Ty {
@@ -93,13 +88,12 @@ impl TypeEnv<'_> {
     /// and then replaced by the region in the type of `x` after the assignment. See [`TypeEnv::assign`]
     pub(crate) fn borrow(
         &mut self,
-        rcx: &mut RefineCtxt,
-        infcx: &InferCtxt,
+        infcx: &mut InferCtxtAt,
         re: Region,
         mutbl: Mutability,
         place: &Place,
     ) -> Result<Ty> {
-        let result = self.bindings.lookup_unfolding(rcx, infcx, place)?;
+        let result = self.bindings.lookup_unfolding(infcx, place)?;
         if result.is_strg && mutbl == Mutability::Mut {
             Ok(Ty::ptr(PtrKind::Mut(re), result.path()))
         } else {
@@ -112,19 +106,14 @@ impl TypeEnv<'_> {
 
     // FIXME(nilehmann) this is only used in a single place and we have it because [`TypeEnv`]
     // doesn't expose a lookup without unfolding
-    pub(crate) fn ptr_to_ref_at_place(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        infcx: &mut InferCtxt,
-        place: &Place,
-    ) -> Result {
+    pub(crate) fn ptr_to_ref_at_place(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> Result {
         let lookup = self.bindings.lookup(place);
         let TyKind::Ptr(PtrKind::Mut(re), path) = lookup.ty.kind() else {
             tracked_span_bug!("ptr_to_borrow called on non mutable pointer type")
         };
 
         let ref_ty =
-            self.ptr_to_ref(rcx, infcx, ConstrReason::Other, *re, path, PtrToRefBound::Infer)?;
+            self.ptr_to_ref(infcx, ConstrReason::Other, *re, path, PtrToRefBound::Infer)?;
 
         self.bindings.lookup(place).update(ref_ty);
 
@@ -154,17 +143,16 @@ impl TypeEnv<'_> {
     /// ```
     pub(crate) fn ptr_to_ref(
         &mut self,
-        rcx: &mut RefineCtxt,
-        infcx: &mut InferCtxt,
+        infcx: &mut InferCtxtAt,
         reason: ConstrReason,
         re: Region,
         path: &Path,
         bound: PtrToRefBound,
     ) -> Result<Ty> {
-        infcx.push_scope(rcx);
+        infcx.push_scope();
 
         // ℓ: t1
-        let t1 = self.bindings.lookup(path).fold(rcx, infcx)?;
+        let t1 = self.bindings.lookup(path).fold(infcx)?;
 
         // t1 <: t2
         let t2 = match bound {
@@ -174,7 +162,7 @@ impl TypeEnv<'_> {
                 let place = self.bindings.path_to_place(path);
                 let rust_ty = place.ty(infcx.genv, self.local_decls)?.ty;
                 let t2 = subst::match_regions(&t2, &rust_ty);
-                infcx.at(reason).subtyping(rcx, &t1, &t2)?;
+                infcx.subtyping(&t1, &t2, reason)?;
                 t2
             }
             PtrToRefBound::Infer => {
@@ -182,7 +170,7 @@ impl TypeEnv<'_> {
                     debug_assert_eq!(kind, HoleKind::Pred);
                     infcx.fresh_kvar(sorts, KVarEncoding::Conj)
                 });
-                infcx.at(reason).subtyping(rcx, &t1, &t2)?;
+                infcx.subtyping(&t1, &t2, reason)?;
                 t2
             }
             PtrToRefBound::Identity => t1.clone(),
@@ -192,7 +180,7 @@ impl TypeEnv<'_> {
         self.bindings.lookup(path).block_with(t2.clone());
 
         let evar_sol = infcx.pop_scope().unwrap();
-        rcx.replace_evars(&evar_sol);
+        infcx.replace_evars(&evar_sol);
         self.replace_evars(&evar_sol);
 
         Ok(Ty::mk_ref(re, t2, Mutability::Mut))
@@ -207,37 +195,25 @@ impl TypeEnv<'_> {
     /// substitution that maps the region `'?10` to `'?5`. After applying this substitution, the
     /// type of the place `x` is updated accordingly. This ensures that the lifetimes in the
     /// assigned type are consistent with those expected by the place's original type definition.
-    pub(crate) fn assign(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        infcx: &mut InferCtxt,
-        place: &Place,
-        new_ty: Ty,
-    ) -> Result {
+    pub(crate) fn assign(&mut self, infcx: &mut InferCtxtAt, place: &Place, new_ty: Ty) -> Result {
         let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
         let new_ty = subst::match_regions(&new_ty, &rustc_ty);
-        let result = self.bindings.lookup_unfolding(rcx, infcx, place)?;
+        let result = self.bindings.lookup_unfolding(infcx, place)?;
 
-        infcx.push_scope(rcx);
+        infcx.push_scope();
         if result.is_strg {
             result.update(new_ty);
         } else if !place.behind_raw_ptr(infcx.genv, self.local_decls)? {
-            infcx
-                .at(ConstrReason::Assign)
-                .subtyping(rcx, &new_ty, &result.ty)?;
+            infcx.subtyping(&new_ty, &result.ty, ConstrReason::Assign)?;
         }
-        rcx.replace_evars(&infcx.pop_scope()?);
+        let evars = &infcx.pop_scope()?;
+        infcx.replace_evars(evars);
 
         Ok(())
     }
 
-    pub(crate) fn move_place(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        infcx: &InferCtxt,
-        place: &Place,
-    ) -> Result<Ty> {
-        let result = self.bindings.lookup_unfolding(rcx, infcx, place)?;
+    pub(crate) fn move_place(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> Result<Ty> {
+        let result = self.bindings.lookup_unfolding(infcx, place)?;
         if result.is_strg {
             let uninit = Ty::uninit();
             Ok(result.update(uninit))
@@ -246,9 +222,13 @@ impl TypeEnv<'_> {
         }
     }
 
-    pub(crate) fn unpack(&mut self, rcx: &mut RefineCtxt, check_overflow: bool) {
-        self.bindings
-            .fmap_mut(|ty| rcx.unpacker().assume_invariants(check_overflow).unpack(ty));
+    pub(crate) fn unpack(&mut self, infcx: &mut InferCtxt, check_overflow: bool) {
+        self.bindings.fmap_mut(|ty| {
+            infcx
+                .unpacker()
+                .assume_invariants(check_overflow)
+                .unpack(ty)
+        });
     }
 
     pub(crate) fn unblock(&mut self, rcx: &mut RefineCtxt, place: &Place, check_overflow: bool) {
@@ -257,60 +237,51 @@ impl TypeEnv<'_> {
 
     pub(crate) fn check_goto(
         self,
-        rcx: &mut RefineCtxt,
-        infcx: &mut InferCtxt,
+        infcx: &mut InferCtxtAt,
         bb_env: &BasicBlockEnv,
         target: BasicBlock,
     ) -> Result {
-        infcx.push_scope(rcx);
+        infcx.push_scope();
 
         let bb_env = bb_env
             .data
             .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
 
-        let mut at = infcx.at(ConstrReason::Goto(target));
-
         // Check constraints
         for constr in &bb_env.constrs {
-            at.check_pred(rcx, constr);
+            infcx.check_pred(constr, ConstrReason::Goto(target));
         }
 
         // Check subtyping
         let bb_env = bb_env.bindings.flatten();
         for (path, _, ty2) in bb_env {
             let ty1 = self.bindings.get(&path);
-            at.subtyping(rcx, &ty1.unblocked(), &ty2.unblocked())?;
+            infcx.subtyping(&ty1.unblocked(), &ty2.unblocked(), ConstrReason::Goto(target))?;
         }
 
-        rcx.replace_evars(&infcx.pop_scope().unwrap());
+        let evars = &infcx.pop_scope().unwrap();
+        infcx.replace_evars(evars);
 
         Ok(())
     }
 
-    pub(crate) fn fold(
-        &mut self,
-        rcx: &mut RefineCtxt,
-        infcx: &mut InferCtxt,
-        place: &Place,
-    ) -> Result {
-        self.bindings.lookup(place).fold(rcx, infcx)?;
+    pub(crate) fn fold(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> Result {
+        self.bindings.lookup(place).fold(infcx)?;
         Ok(())
     }
 
     pub(crate) fn unfold(
         &mut self,
-        infcx: &InferCtxt,
-        rcx: &mut RefineCtxt,
+        infcx: &mut InferCtxt,
         place: &Place,
         checker_conf: CheckerConfig,
     ) -> Result {
-        self.bindings.unfold(infcx, rcx, place, checker_conf)
+        self.bindings.unfold(infcx, place, checker_conf)
     }
 
     pub(crate) fn downcast(
         &mut self,
-        infcx: &InferCtxt,
-        rcx: &mut RefineCtxt,
+        infcx: &mut InferCtxtAt,
         place: &Place,
         variant_idx: VariantIdx,
         checker_config: CheckerConfig,
@@ -319,8 +290,7 @@ impl TypeEnv<'_> {
         down_place
             .projection
             .push(PlaceElem::Downcast(None, variant_idx));
-        self.bindings
-            .unfold(infcx, rcx, &down_place, checker_config)?;
+        self.bindings.unfold(infcx, &down_place, checker_config)?;
         Ok(())
     }
 

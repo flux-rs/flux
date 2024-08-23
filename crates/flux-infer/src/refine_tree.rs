@@ -4,10 +4,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use flux_common::{
-    index::{IndexGen, IndexVec},
-    iter::IterExt,
-};
+use flux_common::{index::IndexVec, iter::IterExt};
 use flux_middle::{
     intern::List,
     queries::QueryResult,
@@ -46,16 +43,6 @@ use crate::{
 /// [`UnsafeCell`]: std::cell::UnsafeCell
 /// [`GhostCell`]: https://docs.rs/ghost-cell/0.2.3/ghost_cell/ghost_cell/struct.GhostCell.html
 pub struct RefineTree {
-    root: NodePtr,
-}
-
-/// A reference to a subtree rooted at a particular node in a [refinement tree].
-///
-/// [refinement tree]: RefineTree
-pub struct RefineSubtree<'a> {
-    /// We keep a reference to the underlying [`RefineTree`] to prove statically there's a single
-    /// writer.
-    tree: &'a mut RefineTree,
     root: NodePtr,
 }
 
@@ -176,17 +163,6 @@ impl NodePtr {
         WeakNodePtr(Rc::downgrade(&this.0))
     }
 
-    fn push_guard(&mut self, pred: impl Into<Expr>) {
-        let pred = pred.into();
-        if !pred.is_trivially_true() {
-            *self = self.push_node(NodeKind::Assumption(pred));
-        }
-    }
-
-    fn name_gen(&self) -> IndexGen<Name> {
-        IndexGen::skipping(self.next_name_idx())
-    }
-
     fn push_node(&mut self, kind: NodeKind) -> NodePtr {
         debug_assert!(!matches!(self.borrow().kind, NodeKind::Head(..)));
         let node = Node {
@@ -249,34 +225,23 @@ impl RefineTree {
     pub fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
         RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
     }
-}
 
-impl<'a> RefineSubtree<'a> {
-    pub fn refine_ctxt_at_root(&mut self) -> RefineCtxt {
-        RefineCtxt { ptr: NodePtr(Rc::clone(&self.root)), tree: self.tree }
-    }
-
-    pub fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
-        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
-    }
-
-    #[allow(clippy::unused_self)]
-    // We take a mutable reference to the subtree to prove statically that there's only one writer.
-    pub fn clear_children(&mut self, snapshot: &Snapshot) {
-        if let Some(ptr) = snapshot.ptr.upgrade() {
-            ptr.borrow_mut().children.clear();
-        }
+    pub(crate) fn refine_ctxt_at(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
+        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self })
     }
 }
 
 impl<'rcx> RefineCtxt<'rcx> {
-    #[allow(unused)]
-    pub fn as_subtree(&mut self) -> RefineSubtree {
-        RefineSubtree { root: NodePtr(Rc::clone(&self.ptr)), tree: self.tree }
+    #[allow(clippy::unused_self)]
+    // We take a mutable reference to the subtree to prove statically that there's only one writer.
+    pub(crate) fn clear_children(&mut self, snapshot: &Snapshot) {
+        if let Some(ptr) = snapshot.ptr.upgrade() {
+            ptr.borrow_mut().children.clear();
+        }
     }
 
-    pub fn subtree_at(&mut self, snapshot: &Snapshot) -> Option<RefineSubtree> {
-        Some(RefineSubtree { root: snapshot.ptr.upgrade()?, tree: self.tree })
+    pub(crate) fn change_root(&mut self, snapshot: &Snapshot) -> Option<RefineCtxt> {
+        Some(RefineCtxt { ptr: snapshot.ptr.upgrade()?, tree: self.tree })
     }
 
     pub fn snapshot(&self) -> Snapshot {
@@ -303,7 +268,7 @@ impl<'rcx> RefineCtxt<'rcx> {
     /// Defines a fresh refinement variable with the given `sort`. It returns the freshly generated
     /// name for the variable.
     pub fn define_var(&mut self, sort: &Sort) -> Name {
-        let fresh = self.ptr.name_gen().fresh();
+        let fresh = Name::from_usize(self.ptr.next_name_idx());
         self.ptr = self.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
         fresh
     }
@@ -324,7 +289,10 @@ impl<'rcx> RefineCtxt<'rcx> {
     }
 
     pub fn assume_pred(&mut self, pred: impl Into<Expr>) {
-        self.ptr.push_guard(pred);
+        let pred = pred.into();
+        if !pred.is_trivially_true() {
+            self.ptr = self.ptr.push_node(NodeKind::Assumption(pred));
+        }
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
@@ -743,13 +711,6 @@ mod pretty {
         }
     }
 
-    impl Pretty for RefineSubtree<'_> {
-        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            define_scoped!(cx, f);
-            w!("{:?}", &self.root)
-        }
-    }
-
     impl Pretty for NodePtr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             define_scoped!(cx, f);
@@ -888,7 +849,6 @@ mod pretty {
 
     impl_debug_with_default_cx!(
         RefineTree => "refine_tree",
-        RefineSubtree<'_> => "refine_subtree",
         RefineCtxt<'_> => "refine_ctxt",
         Scope,
     );

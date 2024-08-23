@@ -2,7 +2,7 @@ use std::{clone::Clone, fmt, ops::ControlFlow};
 
 use flux_common::{iter::IterExt, tracked_span_bug};
 use flux_infer::{
-    infer::{ConstrReason, InferCtxt},
+    infer::{ConstrReason, InferCtxt, InferCtxtAt},
     refine_tree::RefineCtxt,
 };
 use flux_middle::{
@@ -88,9 +88,9 @@ pub(crate) trait LookupMode {
     ) -> Result<Vec<Ty>, Self::Error>;
 }
 
-struct Unfold<'a, 'b, 'genv, 'rcx, 'tcx>(&'a mut RefineCtxt<'rcx>, &'a InferCtxt<'b, 'genv, 'tcx>);
+struct Unfold<'a, 'infcx, 'genv, 'tcx>(&'a mut InferCtxt<'infcx, 'genv, 'tcx>);
 
-impl LookupMode for Unfold<'_, '_, '_, '_, '_> {
+impl LookupMode for Unfold<'_, '_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
@@ -103,7 +103,7 @@ impl LookupMode for Unfold<'_, '_, '_, '_, '_> {
         args: &[GenericArg],
         idx: &Expr,
     ) -> Result<Vec<Ty>, Self::Error> {
-        downcast_struct(self.1, adt, args, idx)
+        downcast_struct(self.0, adt, args, idx)
     }
 }
 
@@ -122,13 +122,12 @@ impl LookupMode for NoUnfold {
 impl PlacesTree {
     pub(crate) fn unfold(
         &mut self,
-        infcx: &InferCtxt,
-        rcx: &mut RefineCtxt,
+        infcx: &mut InferCtxt,
         key: &impl LookupKey,
         checker_conf: CheckerConfig,
     ) -> CheckerResult {
         let cursor = self.cursor_for(key);
-        Unfolder::new(infcx, rcx, cursor, checker_conf).run(self)
+        Unfolder::new(infcx, cursor, checker_conf).run(self)
     }
 
     fn lookup_inner<M: LookupMode>(
@@ -201,11 +200,10 @@ impl PlacesTree {
 
     pub(crate) fn lookup_unfolding(
         &mut self,
-        rcx: &mut RefineCtxt,
-        infcx: &InferCtxt,
+        infcx: &mut InferCtxt,
         key: &impl LookupKey,
     ) -> CheckerResult<LookupResult> {
-        self.lookup_inner(key, Unfold(rcx, infcx))
+        self.lookup_inner(key, Unfold(infcx))
     }
 
     pub(crate) fn lookup(&mut self, key: &impl LookupKey) -> LookupResult {
@@ -354,8 +352,8 @@ impl LookupResult<'_> {
         self.update(Ty::blocked(new_ty))
     }
 
-    pub(crate) fn fold(self, rcx: &mut RefineCtxt, infcx: &mut InferCtxt) -> CheckerResult<Ty> {
-        let ty = fold(self.bindings, rcx, infcx, &self.ty, self.is_strg)?;
+    pub(crate) fn fold(self, infcx: &mut InferCtxtAt) -> CheckerResult<Ty> {
+        let ty = fold(self.bindings, infcx, &self.ty, self.is_strg)?;
         self.update(ty.clone());
         Ok(ty)
     }
@@ -365,9 +363,8 @@ impl LookupResult<'_> {
     }
 }
 
-struct Unfolder<'a, 'b, 'rcx, 'genv, 'tcx> {
-    infcx: &'a InferCtxt<'b, 'genv, 'tcx>,
-    rcx: &'a mut RefineCtxt<'rcx>,
+struct Unfolder<'a, 'infcx, 'genv, 'tcx> {
+    infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
     insertions: Vec<(Loc, Place, Binding)>,
     cursor: Cursor,
     in_ref: Option<Mutability>,
@@ -375,7 +372,7 @@ struct Unfolder<'a, 'b, 'rcx, 'genv, 'tcx> {
     has_work: bool,
 }
 
-impl FallibleTypeFolder for Unfolder<'_, '_, '_, '_, '_> {
+impl FallibleTypeFolder for Unfolder<'_, '_, '_, '_> {
     type Error = CheckerErrKind;
 
     fn try_fold_ty(&mut self, ty: &Ty) -> CheckerResult<Ty> {
@@ -395,22 +392,13 @@ impl FallibleTypeFolder for Unfolder<'_, '_, '_, '_, '_> {
     }
 }
 
-impl<'a, 'b, 'rcx, 'genv, 'tcx> Unfolder<'a, 'b, 'rcx, 'genv, 'tcx> {
+impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
     fn new(
-        infcx: &'a InferCtxt<'b, 'genv, 'tcx>,
-        rcx: &'a mut RefineCtxt<'rcx>,
+        infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
         cursor: Cursor,
         checker_conf: CheckerConfig,
     ) -> Self {
-        Unfolder {
-            infcx,
-            rcx,
-            cursor,
-            insertions: vec![],
-            in_ref: None,
-            checker_conf,
-            has_work: true,
-        }
+        Unfolder { infcx, cursor, insertions: vec![], in_ref: None, checker_conf, has_work: true }
     }
 
     fn run(mut self, bindings: &mut PlacesTree) -> CheckerResult {
@@ -497,7 +485,7 @@ impl<'a, 'b, 'rcx, 'genv, 'tcx> Unfolder<'a, 'b, 'rcx, 'genv, 'tcx> {
     }
 
     fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {
-        let loc = Loc::from(self.rcx.define_var(&Sort::Loc));
+        let loc = Loc::from(self.infcx.define_var(&Sort::Loc));
         let mut place = self.cursor.to_place();
         place.projection.push(PlaceElem::Deref);
         self.insertions.push((
@@ -550,7 +538,7 @@ impl<'a, 'b, 'rcx, 'genv, 'tcx> Unfolder<'a, 'b, 'rcx, 'genv, 'tcx> {
     fn downcast(&mut self, ty: &Ty, variant: VariantIdx) -> CheckerResult<Ty> {
         let ty = match ty.kind() {
             TyKind::Indexed(BaseTy::Adt(adt, args), idx) => {
-                let fields = downcast(self.infcx, self.rcx, adt, args, variant, idx)?
+                let fields = downcast(self.infcx, adt, args, variant, idx)?
                     .into_iter()
                     .map(|ty| self.unpack_for_downcast(&ty))
                     .collect_vec();
@@ -579,7 +567,7 @@ impl<'a, 'b, 'rcx, 'genv, 'tcx> Unfolder<'a, 'b, 'rcx, 'genv, 'tcx> {
     }
 
     fn unpack(&mut self, ty: &Ty) -> Ty {
-        self.rcx
+        self.infcx
             .unpacker()
             .assume_invariants(self.checker_conf.check_overflow)
             .shallow(true)
@@ -587,12 +575,12 @@ impl<'a, 'b, 'rcx, 'genv, 'tcx> Unfolder<'a, 'b, 'rcx, 'genv, 'tcx> {
     }
 
     fn unpack_for_downcast(&mut self, ty: &Ty) -> Ty {
-        let mut unpacker = self.rcx.unpacker().shallow(true);
+        let mut unpacker = self.infcx.unpacker().shallow(true);
         if self.in_ref == Some(Mutability::Mut) {
             unpacker = unpacker.unpack_exists(false);
         }
         let ty = unpacker.unpack(ty);
-        self.rcx
+        self.infcx
             .assume_invariants(&ty, self.checker_conf.check_overflow);
         ty
     }
@@ -779,8 +767,7 @@ impl fmt::Debug for Cursor {
 }
 
 fn downcast(
-    infcx: &InferCtxt,
-    rcx: &mut RefineCtxt,
+    infcx: &mut InferCtxt,
     adt: &AdtDef,
     args: &[GenericArg],
     variant_idx: VariantIdx,
@@ -790,7 +777,7 @@ fn downcast(
         debug_assert_eq!(variant_idx.as_u32(), 0);
         downcast_struct(infcx, adt, args, idx)
     } else if adt.is_enum() {
-        downcast_enum(infcx, rcx, adt, variant_idx, args, idx)
+        downcast_enum(infcx, adt, variant_idx, args, idx)
     } else {
         tracked_span_bug!("Downcast without struct or enum!")
     }
@@ -842,8 +829,7 @@ fn struct_variant(
 ///     2. *Unpack* the fields using `y:t'...`
 ///     3. *Assert* the constraint `i == j'...`
 fn downcast_enum(
-    infcx: &InferCtxt,
-    rcx: &mut RefineCtxt,
+    infcx: &mut InferCtxt,
     adt: &AdtDef,
     variant_idx: VariantIdx,
     args: &[GenericArg],
@@ -855,7 +841,7 @@ fn downcast_enum(
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
         .instantiate(tcx, args, &[])
-        .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort))
+        .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort))
         .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id, infcx.refparams)?;
 
     // FIXME(nilehmann) We could assert idx1 == variant_def.idx directly, but for aggregate sorts there
@@ -869,15 +855,14 @@ fn downcast_enum(
         let e2 = variant_def.idx.proj_and_reduce(proj);
         Expr::eq(e1, e2)
     }));
-    rcx.assume_pred(&constr);
+    infcx.assume_pred(&constr);
 
     Ok(variant_def.fields.to_vec())
 }
 
 fn fold(
     bindings: &mut PlacesTree,
-    rcx: &mut RefineCtxt,
-    infcx: &mut InferCtxt,
+    infcx: &mut InferCtxtAt,
     ty: &Ty,
     is_strg: bool,
 ) -> CheckerResult<Ty> {
@@ -888,11 +873,11 @@ fn fold(
             let LocKind::Box(alloc) = binding.kind else {
                 tracked_span_bug!("box pointer to non-box loc");
             };
-            let deref_ty = fold(bindings, rcx, infcx, &binding.ty, is_strg)?;
+            let deref_ty = fold(bindings, infcx, &binding.ty, is_strg)?;
             Ok(Ty::mk_box(infcx.genv, deref_ty, alloc)?)
         }
         Ref!(re, deref_ty, mutbl) => {
-            let deref_ty = fold(bindings, rcx, infcx, deref_ty, is_strg)?;
+            let deref_ty = fold(bindings, infcx, deref_ty, is_strg)?;
             Ok(Ty::mk_ref(*re, deref_ty, *mutbl))
         }
         TyKind::Downcast(adt, args, ty_, variant_idx, fields) => {
@@ -904,7 +889,7 @@ fn fold(
 
                 let fields = fields
                     .iter()
-                    .map(|ty| fold(bindings, rcx, infcx, ty, is_strg))
+                    .map(|ty| fold(bindings, infcx, ty, is_strg))
                     .try_collect_vec()?;
 
                 let partially_moved = fields.iter().any(Ty::is_uninit);
@@ -912,8 +897,7 @@ fn fold(
                     Ty::uninit()
                 } else {
                     infcx
-                        .at(ConstrReason::Fold)
-                        .check_constructor(rcx, variant_sig, args, &fields)
+                        .check_constructor(variant_sig, args, &fields, ConstrReason::Fold)
                         .unwrap_or_else(|err| tracked_span_bug!("{err:?}"))
                 };
 
@@ -927,7 +911,7 @@ fn fold(
 
             let fields = fields
                 .iter()
-                .map(|ty| fold(bindings, rcx, infcx, ty, is_strg))
+                .map(|ty| fold(bindings, infcx, ty, is_strg))
                 .try_collect_vec()?;
 
             let partially_moved = fields.iter().any(Ty::is_uninit);
