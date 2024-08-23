@@ -1454,7 +1454,7 @@ impl GenericArg {
         }
     }
 
-    fn from_param_def(param: &GenericParamDef) -> Self {
+    pub fn from_param_def(param: &GenericParamDef) -> Self {
         match param.kind {
             GenericParamDefKind::Type { .. } => {
                 let param_ty = ParamTy { index: param.index, name: param.name };
@@ -1505,13 +1505,22 @@ impl GenericArgs {
         }
     }
 
-    pub fn identity_for_item(genv: GlobalEnv, def_id: impl Into<DefId>) -> QueryResult<Self> {
-        let mut args = vec![];
-        let generics = genv.generics_of(def_id)?;
-        Self::fill_item(genv, &mut args, &generics, &mut |param, _| {
-            GenericArg::from_param_def(param)
-        })?;
+    /// Creates a `GenericArgs` from the definition of generic parameters, by calling a closure to
+    /// obtain arg. The closures get to observe the `GenericArgs` as they're being built, which can
+    /// be used to correctly replace defaults of generic parameters.
+    pub fn for_item<F>(genv: GlobalEnv, def_id: DefId, mut mk_kind: F) -> QueryResult<Self>
+    where
+        F: FnMut(&GenericParamDef, &[GenericArg]) -> GenericArg,
+    {
+        let defs = genv.generics_of(def_id)?;
+        let count = defs.count();
+        let mut args = Vec::with_capacity(count);
+        Self::fill_item(genv, &mut args, &defs, &mut mk_kind)?;
         Ok(List::from_vec(args))
+    }
+
+    pub fn identity_for_item(genv: GlobalEnv, def_id: impl Into<DefId>) -> QueryResult<Self> {
+        Self::for_item(genv, def_id.into(), |param, _| GenericArg::from_param_def(param))
     }
 
     fn fill_item<F>(
