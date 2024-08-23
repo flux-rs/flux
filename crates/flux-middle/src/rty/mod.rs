@@ -1391,8 +1391,8 @@ impl BaseTy {
             BaseTy::Bool => Sort::Bool,
             BaseTy::Adt(adt_def, args) => adt_def.sort(args),
             BaseTy::Param(param_ty) => Sort::Param(*param_ty),
+            BaseTy::Str => Sort::Str,
             BaseTy::Float(_)
-            | BaseTy::Str
             | BaseTy::Char
             | BaseTy::RawPtr(..)
             | BaseTy::Ref(..)
