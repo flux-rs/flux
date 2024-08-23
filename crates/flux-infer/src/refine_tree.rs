@@ -4,10 +4,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use flux_common::{
-    index::{IndexGen, IndexVec},
-    iter::IterExt,
-};
+use flux_common::{index::IndexVec, iter::IterExt};
 use flux_middle::{
     intern::List,
     queries::QueryResult,
@@ -166,10 +163,6 @@ impl NodePtr {
         WeakNodePtr(Rc::downgrade(&this.0))
     }
 
-    fn name_gen(&self) -> IndexGen<Name> {
-        IndexGen::skipping(self.next_name_idx())
-    }
-
     fn push_node(&mut self, kind: NodeKind) -> NodePtr {
         debug_assert!(!matches!(self.borrow().kind, NodeKind::Head(..)));
         let node = Node {
@@ -275,7 +268,7 @@ impl<'rcx> RefineCtxt<'rcx> {
     /// Defines a fresh refinement variable with the given `sort`. It returns the freshly generated
     /// name for the variable.
     pub fn define_var(&mut self, sort: &Sort) -> Name {
-        let fresh = self.ptr.name_gen().fresh();
+        let fresh = Name::from_usize(self.ptr.next_name_idx());
         self.ptr = self.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
         fresh
     }
