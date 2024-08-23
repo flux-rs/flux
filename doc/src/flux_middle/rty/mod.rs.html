@@ -2340,6 +2340,15 @@
 <a href="#2340" id="2340">2340</a>
 <a href="#2341" id="2341">2341</a>
 <a href="#2342" id="2342">2342</a>
+<a href="#2343" id="2343">2343</a>
+<a href="#2344" id="2344">2344</a>
+<a href="#2345" id="2345">2345</a>
+<a href="#2346" id="2346">2346</a>
+<a href="#2347" id="2347">2347</a>
+<a href="#2348" id="2348">2348</a>
+<a href="#2349" id="2349">2349</a>
+<a href="#2350" id="2350">2350</a>
+<a href="#2351" id="2351">2351</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -3796,7 +3805,7 @@
         }
     }
 
-    <span class="kw">fn </span>from_param_def(param: <span class="kw-2">&amp;</span>GenericParamDef) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>from_param_def(param: <span class="kw-2">&amp;</span>GenericParamDef) -&gt; <span class="self">Self </span>{
         <span class="kw">match </span>param.kind {
             GenericParamDefKind::Type { .. } =&gt; {
                 <span class="kw">let </span>param_ty = ParamTy { index: param.index, name: param.name };
@@ -3847,13 +3856,22 @@
         }
     }
 
-    <span class="kw">pub fn </span>identity_for_item(genv: GlobalEnv, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[];
-        <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
-        <span class="self">Self</span>::fill_item(genv, <span class="kw-2">&amp;mut </span>args, <span class="kw-2">&amp;</span>generics, <span class="kw-2">&amp;mut </span>|param, <span class="kw">_</span>| {
-            GenericArg::from_param_def(param)
-        })<span class="question-mark">?</span>;
+    <span class="doccomment">/// Creates a `GenericArgs` from the definition of generic parameters, by calling a closure to
+    /// obtain arg. The closures get to observe the `GenericArgs` as they're being built, which can
+    /// be used to correctly replace defaults of generic parameters.
+    </span><span class="kw">pub fn </span>for_item&lt;F&gt;(genv: GlobalEnv, def_id: DefId, <span class="kw-2">mut </span>mk_kind: F) -&gt; QueryResult&lt;<span class="self">Self</span>&gt;
+    <span class="kw">where
+        </span>F: FnMut(<span class="kw-2">&amp;</span>GenericParamDef, <span class="kw-2">&amp;</span>[GenericArg]) -&gt; GenericArg,
+    {
+        <span class="kw">let </span>defs = genv.generics_of(def_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>count = defs.count();
+        <span class="kw">let </span><span class="kw-2">mut </span>args = Vec::with_capacity(count);
+        <span class="self">Self</span>::fill_item(genv, <span class="kw-2">&amp;mut </span>args, <span class="kw-2">&amp;</span>defs, <span class="kw-2">&amp;mut </span>mk_kind)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(List::from_vec(args))
+    }
+
+    <span class="kw">pub fn </span>identity_for_item(genv: GlobalEnv, def_id: <span class="kw">impl </span>Into&lt;DefId&gt;) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
+        <span class="self">Self</span>::for_item(genv, def_id.into(), |param, <span class="kw">_</span>| GenericArg::from_param_def(param))
     }
 
     <span class="kw">fn </span>fill_item&lt;F&gt;(

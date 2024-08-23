@@ -1934,6 +1934,21 @@
 <a href="#1934" id="1934">1934</a>
 <a href="#1935" id="1935">1935</a>
 <a href="#1936" id="1936">1936</a>
+<a href="#1937" id="1937">1937</a>
+<a href="#1938" id="1938">1938</a>
+<a href="#1939" id="1939">1939</a>
+<a href="#1940" id="1940">1940</a>
+<a href="#1941" id="1941">1941</a>
+<a href="#1942" id="1942">1942</a>
+<a href="#1943" id="1943">1943</a>
+<a href="#1944" id="1944">1944</a>
+<a href="#1945" id="1945">1945</a>
+<a href="#1946" id="1946">1946</a>
+<a href="#1947" id="1947">1947</a>
+<a href="#1948" id="1948">1948</a>
+<a href="#1949" id="1949">1949</a>
+<a href="#1950" id="1950">1950</a>
+<a href="#1951" id="1951">1951</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
@@ -2768,7 +2783,8 @@
         }
     }
 
-    <span class="kw">fn </span>conv_opaque_ty(
+    <span class="doccomment">/// Code adapted from [https://github.com/rust-lang/rust/blob/b5723af3457b9cd3795eeb97e9af2d34964854f2/compiler/rustc_hir_analysis/src/hir_ty_lowering/mod.rs#L2099]
+    </span><span class="kw">fn </span>conv_opaque_ty(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         env: <span class="kw-2">&amp;mut </span>Env,
         item_id: hir::ItemId,
@@ -2776,15 +2792,29 @@
         reft_args: <span class="kw-2">&amp;</span>[fhir::RefineArg],
     ) -&gt; QueryResult&lt;rty::Ty&gt; {
         <span class="kw">let </span>def_id = item_id.owner_id.to_def_id();
-        <span class="kw">let </span>args = lifetimes
-            .iter()
-            .map(|arg| {
-                <span class="kw">let </span>fhir::GenericArg::Lifetime(lft) = arg <span class="kw">else </span>{
-                    <span class="macro">bug!</span>(<span class="string">"only lifetimes supported for opaque types"</span>)
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv.generics_of(def_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>args = rty::GenericArgs::for_item(<span class="self">self</span>.genv, def_id, |param, <span class="kw">_</span>| {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(i) = (param.index <span class="kw">as </span>usize).checked_sub(generics.count() - lifetimes.len())
+            {
+                <span class="comment">// Resolve our own lifetime parameters.
+                </span><span class="kw">let </span>rty::GenericParamDefKind::Lifetime { .. } = param.kind <span class="kw">else </span>{
+                    <span class="macro">span_bug!</span>(
+                        <span class="self">self</span>.genv.tcx().def_span(param.def_id),
+                        <span class="string">"only expected lifetime for opaque's own generics, got {:?}"</span>,
+                        param.kind
+                    );
+                };
+                <span class="kw">let </span>fhir::GenericArg::Lifetime(lft) = <span class="kw-2">&amp;</span>lifetimes[i] <span class="kw">else </span>{
+                    <span class="macro">bug!</span>(
+                        <span class="string">"expected lifetime argument for param {param:?}, found {:?}"</span>,
+                        <span class="kw-2">&amp;</span>lifetimes[i]
+                    )
                 };
                 rty::GenericArg::Lifetime(<span class="self">self</span>.conv_lifetime(env, <span class="kw-2">*</span>lft))
-            })
-            .collect();
+            } <span class="kw">else </span>{
+                rty::GenericArg::from_param_def(param)
+            }
+        })<span class="question-mark">?</span>;
         <span class="kw">let </span>reft_args = reft_args
             .iter()
             .map(|arg| <span class="self">self</span>.conv_refine_arg(env, arg))
