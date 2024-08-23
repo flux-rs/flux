@@ -189,12 +189,21 @@ pub enum TyKind {
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ExistentialPredicate {
     Trait(ExistentialTraitRef),
+    Projection(ExistentialProjection),
+    AutoTrait(DefId),
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
 pub struct ExistentialTraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct ExistentialProjection {
+    pub def_id: DefId,
+    pub args: GenericArgs,
+    pub term: Ty,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -402,6 +411,10 @@ impl EarlyBinder<Ty> {
 }
 
 impl<T> Binder<T> {
+    pub fn dummy(value: T) -> Binder<T> {
+        Binder(value, List::empty())
+    }
+
     pub fn bind_with_vars(value: T, vars: impl Into<List<BoundVariableKind>>) -> Binder<T> {
         Binder(value, vars.into())
     }

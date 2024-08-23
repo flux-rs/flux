@@ -363,9 +363,11 @@ impl Pretty for ExistentialPredicate {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(_cx, f);
         match self {
-            ExistentialPredicate::Trait(exi_trait_ref) => {
-                w!("{exi_trait_ref:?}")
+            ExistentialPredicate::Trait(trait_ref) => {
+                w!("{trait_ref:?}")
             }
+            ExistentialPredicate::Projection(projection) => w!("{projection:?}"),
+            ExistentialPredicate::AutoTrait(def_id) => w!("AutoTrait({def_id:?})"),
         }
     }
 }

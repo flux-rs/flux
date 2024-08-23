@@ -414,6 +414,22 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                     }
                     Ok(())
                 }
+                (
+                    rty::ExistentialPredicate::Projection(projection_a),
+                    rty::ExistentialPredicate::Projection(projection_b),
+                ) => {
+                    assert_eq_or_incompatible(projection_a.def_id, projection_b.def_id)?;
+                    assert_eq_or_incompatible(projection_a.args.len(), projection_b.args.len())?;
+                    for (arg_a, arg_b) in iter::zip(&projection_a.args, &projection_b.args) {
+                        this.zip_generic_arg(arg_a, arg_b)?;
+                    }
+                    this.zip_ty(&projection_a.term, &projection_b.term)
+                }
+                (
+                    rty::ExistentialPredicate::AutoTrait(def_id_a),
+                    rty::ExistentialPredicate::AutoTrait(def_id_b),
+                ) => assert_eq_or_incompatible(def_id_a, def_id_b),
+                _ => Err(Error::Incompatible),
             }
         })
     }

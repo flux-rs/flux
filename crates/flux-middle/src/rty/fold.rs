@@ -15,10 +15,11 @@ use super::{
     projections,
     subst::EVarSubstFolder,
     AliasReft, AliasTy, BaseTy, BinOp, Binder, BoundVariableKind, Clause, ClauseKind, Const,
-    CoroutineObligPredicate, Ensures, ExistentialPredicate, ExistentialTraitRef, Expr, ExprKind,
-    FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg, Invariant, KVar, Lambda, Name,
-    Opaqueness, OutlivesPredicate, PolyFuncSort, ProjectionPredicate, PtrKind, Qualifier, ReBound,
-    Region, Sort, SortArg, SubsetTy, TraitPredicate, TraitRef, Ty, TyKind,
+    CoroutineObligPredicate, Ensures, ExistentialPredicate, ExistentialProjection,
+    ExistentialTraitRef, Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, FuncSort, GenericArg,
+    Invariant, KVar, Lambda, Name, Opaqueness, OutlivesPredicate, PolyFuncSort,
+    ProjectionPredicate, PtrKind, Qualifier, ReBound, Region, Sort, SortArg, SubsetTy,
+    TraitPredicate, TraitRef, Ty, TyKind,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -504,10 +505,29 @@ impl TypeFoldable for ExistentialTraitRef {
     }
 }
 
+impl TypeVisitable for ExistentialProjection {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        self.args.visit_with(visitor)?;
+        self.term.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for ExistentialProjection {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(ExistentialProjection {
+            def_id: self.def_id,
+            args: self.args.try_fold_with(folder)?,
+            term: self.term.try_fold_with(folder)?,
+        })
+    }
+}
+
 impl TypeVisitable for ExistentialPredicate {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
-            ExistentialPredicate::Trait(exi_trait_ref) => exi_trait_ref.visit_with(visitor),
+            ExistentialPredicate::Trait(trait_ref) => trait_ref.visit_with(visitor),
+            ExistentialPredicate::Projection(projection) => projection.visit_with(visitor),
+            ExistentialPredicate::AutoTrait(_) => ControlFlow::Continue(()),
         }
     }
 }
@@ -515,10 +535,13 @@ impl TypeVisitable for ExistentialPredicate {
 impl TypeFoldable for ExistentialPredicate {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         match self {
-            ExistentialPredicate::Trait(exi_trait_ref) => {
-                let exi_trait_ref = exi_trait_ref.try_fold_with(folder)?;
-                Ok(ExistentialPredicate::Trait(exi_trait_ref))
+            ExistentialPredicate::Trait(trait_ref) => {
+                Ok(ExistentialPredicate::Trait(trait_ref.try_fold_with(folder)?))
             }
+            ExistentialPredicate::Projection(projection) => {
+                Ok(ExistentialPredicate::Projection(projection.try_fold_with(folder)?))
+            }
+            ExistentialPredicate::AutoTrait(def_id) => Ok(ExistentialPredicate::AutoTrait(*def_id)),
         }
     }
 }

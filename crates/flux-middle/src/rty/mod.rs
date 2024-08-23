@@ -246,6 +246,8 @@ impl TraitRef {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ExistentialPredicate {
     Trait(ExistentialTraitRef),
+    Projection(ExistentialProjection),
+    AutoTrait(DefId),
 }
 
 impl Binder<ExistentialPredicate> {
@@ -254,16 +256,28 @@ impl Binder<ExistentialPredicate> {
         tcx: TyCtxt<'tcx>,
     ) -> rustc_middle::ty::Binder<'tcx, rustc_middle::ty::ExistentialPredicate<'tcx>> {
         assert!(self.vars.is_empty());
-        match self.value {
-            ExistentialPredicate::Trait(ref exi_trait_ref) => {
-                let exi_trait_ref = rustc_middle::ty::ExistentialTraitRef {
-                    def_id: exi_trait_ref.def_id,
-                    args: exi_trait_ref.args.to_rustc(tcx),
+        let pred = match &self.value {
+            ExistentialPredicate::Trait(trait_ref) => {
+                let trait_ref = rustc_middle::ty::ExistentialTraitRef {
+                    def_id: trait_ref.def_id,
+                    args: trait_ref.args.to_rustc(tcx),
                 };
-                let exi_pred = rustc_middle::ty::ExistentialPredicate::Trait(exi_trait_ref);
-                rustc_middle::ty::Binder::bind_with_vars(exi_pred, rustc_middle::ty::List::empty())
+                rustc_middle::ty::ExistentialPredicate::Trait(trait_ref)
             }
-        }
+            ExistentialPredicate::Projection(projection) => {
+                rustc_middle::ty::ExistentialPredicate::Projection(
+                    rustc_middle::ty::ExistentialProjection {
+                        def_id: projection.def_id,
+                        args: projection.args.to_rustc(tcx),
+                        term: projection.term.to_rustc(tcx).into(),
+                    },
+                )
+            }
+            ExistentialPredicate::AutoTrait(def_id) => {
+                rustc_middle::ty::ExistentialPredicate::AutoTrait(*def_id)
+            }
+        };
+        rustc_middle::ty::Binder::dummy(pred)
     }
 }
 
@@ -271,6 +285,13 @@ impl Binder<ExistentialPredicate> {
 pub struct ExistentialTraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+pub struct ExistentialProjection {
+    pub def_id: DefId,
+    pub args: GenericArgs,
+    pub term: Ty,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, TyEncodable, TyDecodable)]
