@@ -73,7 +73,7 @@ pub struct RefineCtxt<'a> {
 /// snapshot correponds to a reference to a node in a [refinement tree]. Snapshots may become invalid
 /// if the underlying node is [`cleared`].
 ///
-/// [`cleared`]: RefineSubtree::clear_children
+/// [`cleared`]: RefineCtxt::clear_children
 /// [refinement tree]: RefineTree
 pub struct Snapshot {
     ptr: WeakNodePtr,

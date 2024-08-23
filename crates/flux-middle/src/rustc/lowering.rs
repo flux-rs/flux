@@ -25,9 +25,10 @@ use super::{
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
-        Const, ConstKind, ExistentialPredicate, FieldDef, FnSig, GenericArg, GenericParamDef,
-        GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate, PolyFnSig,
-        TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, UnevaluatedConst, VariantDef,
+        Const, ConstKind, ExistentialPredicate, ExistentialProjection, FieldDef, FnSig, GenericArg,
+        GenericParamDef, GenericParamDefKind, GenericPredicates, Generics, OutlivesPredicate,
+        PolyFnSig, TraitPredicate, TraitRef, Ty, TypeOutlivesPredicate, UnevaluatedConst,
+        VariantDef,
     },
 };
 use crate::{
@@ -818,19 +819,38 @@ fn lower_field(f: &rustc_ty::FieldDef) -> FieldDef {
 
 pub fn lower_existential_predicate<'tcx>(
     tcx: TyCtxt<'tcx>,
-    pred: rustc_ty::Binder<rustc_ty::ExistentialPredicate<'tcx>>,
+    pred: rustc_ty::PolyExistentialPredicate<'tcx>,
 ) -> Result<Binder<ExistentialPredicate>, UnsupportedReason> {
-    if pred.bound_vars().is_empty()
-        && let pred = pred.skip_binder()
-        && let rustc_ty::ExistentialPredicate::Trait(exi_trait_ref) = pred
-    {
-        let def_id = exi_trait_ref.def_id;
-        let args = lower_generic_args(tcx, exi_trait_ref.args)?;
-        let exi_trait_ref = ExistentialTraitRef { def_id, args };
-        Ok(Binder::bind_with_vars(ExistentialPredicate::Trait(exi_trait_ref), List::empty()))
-    } else {
-        Err(UnsupportedReason::new(format!("Unsupported existential predicate `{pred:?}`")))
-    }
+    if !pred.bound_vars().is_empty() {
+        return Err(UnsupportedReason::new(format!(
+            "unsupported existential predicate `{pred:?}`"
+        )));
+    };
+    let pred = pred.skip_binder();
+    let exi_pred = match pred {
+        rustc_type_ir::ExistentialPredicate::Trait(exi_trait_ref) => {
+            ExistentialPredicate::Trait(ExistentialTraitRef {
+                def_id: exi_trait_ref.def_id,
+                args: lower_generic_args(tcx, exi_trait_ref.args)?,
+            })
+        }
+        rustc_type_ir::ExistentialPredicate::Projection(exi_proj_pred) => {
+            let Some(term) = exi_proj_pred.term.as_type() else {
+                return Err(UnsupportedReason::new(format!(
+                    "unsupported existential predicate `{pred:?}`"
+                )));
+            };
+            ExistentialPredicate::Projection(ExistentialProjection {
+                def_id: exi_proj_pred.def_id,
+                args: lower_generic_args(tcx, exi_proj_pred.args)?,
+                term: lower_ty(tcx, term)?,
+            })
+        }
+        rustc_type_ir::ExistentialPredicate::AutoTrait(def_id) => {
+            ExistentialPredicate::AutoTrait(def_id)
+        }
+    };
+    Ok(Binder::dummy(exi_pred))
 }
 
 pub fn lower_generic_args<'tcx>(

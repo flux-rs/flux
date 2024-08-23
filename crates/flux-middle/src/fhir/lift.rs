@@ -160,7 +160,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
                 self.lift_generic_param(param)
             })?;
         let trait_ref = self.lift_path(poly_trait_ref.trait_ref.path)?;
-        Ok(fhir::PolyTraitRef { bound_generic_params, trait_ref })
+        Ok(fhir::PolyTraitRef { bound_generic_params, trait_ref, span: poly_trait_ref.span })
     }
 
     fn lift_opaque_ty(&mut self) -> Result<fhir::OpaqueTy<'genv>> {

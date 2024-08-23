@@ -693,7 +693,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         clauses: &[Clause],
     ) -> Result {
         for clause in clauses {
-            match clause.kind() {
+            match clause.kind_skipping_binder() {
                 rty::ClauseKind::FnTrait(fn_trait_pred) => {
                     self.check_oblig_fn_trait_pred(infcx, &snapshot, fn_trait_pred)?;
                 }
@@ -1346,8 +1346,8 @@ fn instantiate_and_normalize_fn_sig(
     fn_sig: EarlyBinder<PolyFnSig>,
 ) -> QueryResult<PolyFnSig> {
     fn_sig
-        .instantiate_identity(&infcx.refparams)
-        .normalize_projections(infcx.genv, &infcx.region_infcx, infcx.def_id, &infcx.refparams)
+        .instantiate_identity(infcx.refparams)
+        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id, infcx.refparams)
 }
 
 fn init_env<'a>(

@@ -300,7 +300,7 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
         reason: ConstrReason,
     ) -> InferResult {
         for clause in clauses {
-            if let rty::ClauseKind::Projection(projection_pred) = clause.kind() {
+            if let rty::ClauseKind::Projection(projection_pred) = clause.kind_skipping_binder() {
                 let impl_elem = Ty::projection(projection_pred.projection_ty)
                     .normalize_projections(
                         self.infcx.genv,
@@ -332,7 +332,7 @@ impl<'a, 'infcx, 'genv, 'tcx> InferCtxtAt<'a, 'infcx, 'genv, 'tcx> {
         reason: ConstrReason,
     ) -> InferResult<Vec<rty::Clause>> {
         let mut sub = Sub { span: self.span, reason, obligations: vec![] };
-        sub.tys(&mut self.infcx, ty1, ty2)?;
+        sub.tys(self.infcx, ty1, ty2)?;
         Ok(sub.obligations)
     }
 
@@ -373,13 +373,13 @@ impl<'a, 'genv, 'tcx> std::ops::Deref for InferCtxtAt<'_, 'a, 'genv, 'tcx> {
     type Target = InferCtxt<'a, 'genv, 'tcx>;
 
     fn deref(&self) -> &Self::Target {
-        &self.infcx
+        self.infcx
     }
 }
 
 impl std::ops::DerefMut for InferCtxtAt<'_, '_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.infcx
+        self.infcx
     }
 }
 
@@ -650,7 +650,7 @@ impl Sub {
                 .item_bounds(alias_ty.def_id)?
                 .instantiate_identity(infcx.refparams);
             for clause in &bounds {
-                if let rty::ClauseKind::Projection(pred) = clause.kind() {
+                if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
                     let ty1 = Self::project_bty(infcx, ty, pred.projection_ty.def_id)?;
                     let ty2 = pred.term;
                     self.tys(infcx, &ty1, &ty2)?;
@@ -681,7 +681,7 @@ fn mk_coroutine_obligations(
 ) -> InferResult<Vec<rty::Clause>> {
     let bounds = genv.item_bounds(*opaque_def_id)?.skip_binder();
     for bound in &bounds {
-        if let rty::ClauseKind::Projection(proj) = bound.kind() {
+        if let rty::ClauseKind::Projection(proj) = bound.kind_skipping_binder() {
             let output = proj.term;
             let pred = CoroutineObligPredicate {
                 def_id: *generator_did,
