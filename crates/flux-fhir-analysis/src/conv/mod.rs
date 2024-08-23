@@ -816,14 +816,9 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             fhir::TyKind::OpaqueDef(item_id, lifetimes, reft_args, _in_trait) => {
                 self.conv_opaque_ty(env, *item_id, lifetimes, reft_args)
             }
-            fhir::TyKind::TraitObject(poly_traits, lft, syn) => {
-                let exi_preds: List<_> = poly_traits
-                    .iter()
-                    .map(|poly_trait| self.conv_poly_trait_ref_dyn(env, poly_trait))
-                    .try_collect()?;
-                let region = self.conv_lifetime(env, *lft);
+            fhir::TyKind::TraitObject(trait_bounds, lft, syn) => {
                 if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
-                    Ok(rty::Ty::dynamic(exi_preds, region))
+                    self.conv_trait_object(env, trait_bounds, *lft)
                 } else {
                     span_bug!(ty.span, "dyn* traits not supported yet")
                 }
@@ -870,6 +865,20 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
             .try_collect()?;
         let alias_ty = rty::AliasTy::new(def_id, args, reft_args);
         Ok(rty::Ty::alias(rty::AliasKind::Opaque, alias_ty))
+    }
+
+    fn conv_trait_object(
+        &mut self,
+        env: &mut Env,
+        trait_bounds: &[fhir::PolyTraitRef],
+        lifetime: fhir::Lifetime,
+    ) -> QueryResult<rty::Ty> {
+        let exi_preds: List<_> = trait_bounds
+            .iter()
+            .map(|poly_trait| self.conv_poly_trait_ref_dyn(env, poly_trait))
+            .try_collect()?;
+        let region = self.conv_lifetime(env, lifetime);
+        Ok(rty::Ty::dynamic(exi_preds, region))
     }
 
     fn conv_base_ty(&mut self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
