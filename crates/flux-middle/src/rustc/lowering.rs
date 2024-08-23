@@ -277,14 +277,25 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
         let kind = match &terminator.kind {
             rustc_mir::TerminatorKind::Return => TerminatorKind::Return,
             rustc_mir::TerminatorKind::Call { func, args, destination, target, unwind, .. } => {
-                let (func, generic_args) = match func.ty(self.rustc_mir, self.tcx).kind() {
-                    rustc_middle::ty::TyKind::FnDef(fn_def, args) => {
-                        let lowered = lower_generic_args(self.tcx, args)
-                            .map_err(|_err| errors::UnsupportedMir::from(terminator))
-                            .emit(self.sess)?;
-                        (*fn_def, CallArgs { orig: args, lowered })
+                let (func, generic_args) = {
+                    let func_ty = func.ty(self.rustc_mir, self.tcx);
+                    match func_ty.kind() {
+                        rustc_middle::ty::TyKind::FnDef(fn_def, args) => {
+                            let lowered = lower_generic_args(self.tcx, args)
+                                .map_err(|reason| errors::UnsupportedMir::terminator(span, reason))
+                                .emit(self.sess)?;
+                            (*fn_def, CallArgs { orig: args, lowered })
+                        }
+                        _ => {
+                            Err(errors::UnsupportedMir::terminator(
+                                span,
+                                UnsupportedReason::new(format!(
+                                    "unsupported callee type `{func_ty:?}`"
+                                )),
+                            ))
+                            .emit(self.sess)?
+                        }
                     }
-                    _ => Err(errors::UnsupportedMir::from(terminator)).emit(self.sess)?,
                 };
 
                 let destination = lower_place(destination)
