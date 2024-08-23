@@ -821,11 +821,12 @@ pub fn lower_existential_predicate<'tcx>(
     tcx: TyCtxt<'tcx>,
     pred: rustc_ty::PolyExistentialPredicate<'tcx>,
 ) -> Result<Binder<ExistentialPredicate>, UnsupportedReason> {
-    let Some(pred) = pred.no_bound_vars() else {
+    if !pred.bound_vars().is_empty() {
         return Err(UnsupportedReason::new(format!(
             "unsupported existential predicate `{pred:?}`"
         )));
     };
+    let pred = pred.skip_binder();
     let exi_pred = match pred {
         rustc_type_ir::ExistentialPredicate::Trait(exi_trait_ref) => {
             ExistentialPredicate::Trait(ExistentialTraitRef {
