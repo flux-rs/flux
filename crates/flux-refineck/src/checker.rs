@@ -693,7 +693,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         clauses: &[Clause],
     ) -> Result {
         for clause in clauses {
-            match clause.kind() {
+            match clause.kind_skipping_binder() {
                 rty::ClauseKind::FnTrait(fn_trait_pred) => {
                     self.check_oblig_fn_trait_pred(infcx, &snapshot, fn_trait_pred)?;
                 }

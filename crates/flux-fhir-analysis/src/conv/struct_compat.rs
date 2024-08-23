@@ -239,7 +239,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
 
     fn zip_ty(&mut self, a: &rty::Ty, b: &rty::Ty) -> Result<(), Error> {
         match (a.kind(), b.kind()) {
-            (rty::TyKind::Infer(vid), _) => {
+            (rty::TyKind::Infer(vid), _) if a != &rty::Ty::trait_object_dummy_self() => {
                 let b = self.adjust_binders(b);
                 self.holes.types.insert(*vid, b);
                 Ok(())

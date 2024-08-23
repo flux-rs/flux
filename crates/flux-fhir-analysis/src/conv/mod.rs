@@ -28,6 +28,7 @@ use flux_middle::{
 use itertools::Itertools;
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::Diagnostic;
+use rustc_hash::FxHashSet;
 use rustc_hir::{
     self as hir,
     def::DefKind,
@@ -389,7 +390,15 @@ pub(crate) fn conv_ty(
 
 impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn new(genv: GlobalEnv<'genv, 'tcx>, wfckresults: &'a WfckResults) -> Self {
-        Self { genv, wfckresults, next_type_index: 0, next_region_index: 0, next_const_index: 0 }
+        Self {
+            genv,
+            wfckresults,
+            // We start from 1 to skip the trait object dummy self type.
+            // See [`rty::Ty::trait_object_dummy_self`]
+            next_type_index: 1,
+            next_region_index: 0,
+            next_const_index: 0,
+        }
     }
 
     fn conv_generic_bounds(
@@ -442,38 +451,11 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         Ok(clauses)
     }
 
-    fn conv_poly_trait_ref_dyn(
-        &mut self,
-        env: &mut Env,
-        poly_trait_ref: &fhir::PolyTraitRef,
-    ) -> QueryResult<rty::Binder<rty::ExistentialPredicate>> {
-        let trait_segment = poly_trait_ref.trait_ref.last_segment();
-
-        if !poly_trait_ref.bound_generic_params.is_empty() {
-            bug!(
-                "unexpected! conv_poly_dyn_trait_ref bound_generic_params={:?}",
-                poly_trait_ref.bound_generic_params
-            );
-        }
-
-        let def_id = poly_trait_ref.trait_def_id();
-        let dummy_self = rty::GenericArg::Ty(rty::Ty::trait_object_dummy_self());
-        let mut into = vec![dummy_self];
-        self.conv_generic_args_into(env, def_id, trait_segment, &mut into)?;
-
-        // Remove dummy `Self`
-        into.remove(0);
-
-        let exi_trait_ref = rty::ExistentialTraitRef { def_id, args: into.into() };
-        let exi_pred = rty::ExistentialPredicate::Trait(exi_trait_ref);
-        Ok(rty::Binder::new(exi_pred, List::empty()))
-    }
-
     /// Converts a `T: Trait<T0, ..., A0 = S0, ...>` bound
     fn conv_poly_trait_ref(
         &mut self,
         env: &mut Env,
-        bounded_ty_span: Span,
+        span: Span,
         bounded_ty: &rty::Ty,
         poly_trait_ref: &fhir::PolyTraitRef,
         clauses: &mut Vec<rty::Clause>,
@@ -483,8 +465,7 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         let trait_segment = poly_trait_ref.trait_ref.last_segment();
 
         let self_param = generics.param_at(0, self.genv)?;
-        let mut args =
-            vec![self.ty_to_generic_arg(self_param.kind, bounded_ty_span, bounded_ty)?];
+        let mut args = vec![self.ty_to_generic_arg(self_param.kind, span, bounded_ty)?];
         self.conv_generic_args_into(env, trait_id, trait_segment, &mut args)?;
         let trait_ref = rty::TraitRef { def_id: trait_id, args: args.into() };
 
@@ -873,12 +854,93 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         trait_bounds: &[fhir::PolyTraitRef],
         lifetime: fhir::Lifetime,
     ) -> QueryResult<rty::Ty> {
-        let exi_preds: List<_> = trait_bounds
-            .iter()
-            .map(|poly_trait| self.conv_poly_trait_ref_dyn(env, poly_trait))
-            .try_collect()?;
+        // We convert all the trait bounds into existential predicates. Some combinations won't yield
+        // valid rust types (e.g., only one regular (non-auto) trait is allowed). We don't detect those
+        // errors here, but that's fine because we should catch them when we check structural
+        // compatibility with the unrefined rust type. We must be careful with producing predicates
+        // in the same order that rustc does.
+
+        let mut bounds = vec![];
+        let dummy_self = rty::Ty::trait_object_dummy_self();
+        for trait_bound in trait_bounds.iter().rev() {
+            self.conv_poly_trait_ref(env, trait_bound.span, &dummy_self, trait_bound, &mut bounds)?;
+        }
+
+        // Separate trait bounds and projections bounds
+        let mut trait_bounds = vec![];
+        let mut projection_bounds = vec![];
+        for pred in bounds {
+            let bound_pred = pred.kind();
+            let vars = bound_pred.vars().clone();
+            match bound_pred.skip_binder() {
+                rty::ClauseKind::Trait(trait_pred) => {
+                    trait_bounds.push(rty::Binder::new(trait_pred.trait_ref, vars));
+                }
+                rty::ClauseKind::Projection(proj) => {
+                    projection_bounds.push(rty::Binder::new(proj, vars));
+                }
+                rty::ClauseKind::TypeOutlives(_) => {}
+                rty::ClauseKind::FnTrait(..)
+                | rty::ClauseKind::ConstArgHasType(..)
+                | rty::ClauseKind::CoroutineOblig(..) => {
+                    bug!("did not expect {pred:?} clause in object bounds");
+                }
+            }
+        }
+
+        // Separate between regular from auto traits
+        let (mut auto_traits, regular_traits): (Vec<_>, Vec<_>) = trait_bounds
+            .into_iter()
+            .partition(|trait_ref| self.genv.tcx().trait_is_auto(trait_ref.def_id()));
+
+        // De-duplicate auto traits preserving order
+        {
+            let mut duplicates = FxHashSet::default();
+            auto_traits.retain(|trait_ref| duplicates.insert(trait_ref.def_id()));
+        }
+
+        let regular_trait_predicates = regular_traits.into_iter().map(|poly_trait_ref| {
+            poly_trait_ref.map(|trait_ref| {
+                // Remove dummy self
+                let args = trait_ref.args.iter().skip(1).cloned().collect();
+                rty::ExistentialPredicate::Trait(rty::ExistentialTraitRef {
+                    def_id: trait_ref.def_id,
+                    args,
+                })
+            })
+        });
+
+        let auto_trait_predicates = auto_traits.into_iter().map(|trait_def| {
+            rty::Binder::dummy(rty::ExistentialPredicate::AutoTrait(trait_def.def_id()))
+        });
+
+        let existential_projections = projection_bounds.into_iter().map(|bound| {
+            bound.map(|proj| {
+                // Remove dummy self
+                let args = proj.projection_ty.args.iter().skip(1).cloned().collect();
+                rty::ExistentialPredicate::Projection(rty::ExistentialProjection {
+                    def_id: proj.projection_ty.def_id,
+                    args,
+                    term: proj.term.clone(),
+                })
+            })
+        });
+
+        let existential_predicates = {
+            let mut v = regular_trait_predicates
+                .chain(existential_projections)
+                .chain(auto_trait_predicates)
+                .collect_vec();
+            v.sort_by(|a, b| {
+                a.as_ref()
+                    .skip_binder()
+                    .stable_cmp(self.genv.tcx(), b.as_ref().skip_binder())
+            });
+            List::from_vec(v)
+        };
+
         let region = self.conv_lifetime(env, lifetime);
-        Ok(rty::Ty::dynamic(exi_preds, region))
+        Ok(rty::Ty::dynamic(existential_predicates, region))
     }
 
     fn conv_base_ty(&mut self, env: &mut Env, bty: &fhir::BaseTy) -> QueryResult<rty::Ty> {
@@ -1305,26 +1367,26 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
     fn ty_to_generic_arg(
         &self,
         kind: rty::GenericParamDefKind,
-        ty_span: Span,
+        span: Span,
         ty: &rty::Ty,
     ) -> QueryResult<rty::GenericArg> {
         match kind {
             rty::GenericParamDefKind::Type { .. } => Ok(rty::GenericArg::Ty(ty.clone())),
-            rty::GenericParamDefKind::Base => self.ty_to_base_generic(ty_span, ty),
-            _ => bug!("unexpected param kind `{kind:?}`"),
+            rty::GenericParamDefKind::Base => self.ty_to_base_generic(span, ty),
+            _ => span_bug!(span, "unexpected param kind `{kind:?}`"),
         }
     }
 
     /// Convert an [`rty::Ty`] into a [`rty::GenericArg::Base`] if possible or raise an error
     /// if the type cannot be converted into a [`rty::SubsetTy`].
-    fn ty_to_base_generic(&self, ty_span: Span, ty: &rty::Ty) -> QueryResult<rty::GenericArg> {
+    fn ty_to_base_generic(&self, span: Span, ty: &rty::Ty) -> QueryResult<rty::GenericArg> {
         let ctor = ty
             .shallow_canonicalize()
             .to_subset_ty_ctor()
             .ok_or_else(|| {
                 self.genv
                     .sess()
-                    .emit_err(errors::InvalidBaseInstance::new(ty_span))
+                    .emit_err(errors::InvalidBaseInstance::new(span))
             })?;
         Ok(rty::GenericArg::Base(ctor))
     }

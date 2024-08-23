@@ -256,7 +256,7 @@ fn assemble_candidates_from_predicates(
     candidates: &mut Vec<Candidate>,
 ) {
     for predicate in predicates {
-        if let ClauseKind::Projection(pred) = predicate.kind() {
+        if let ClauseKind::Projection(pred) = predicate.kind_skipping_binder() {
             if &pred.projection_ty == obligation {
                 candidates.push(ctor(pred.clone()));
             }

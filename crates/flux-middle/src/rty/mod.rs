@@ -13,7 +13,7 @@ mod pretty;
 pub mod projections;
 pub mod refining;
 pub mod subst;
-use std::{borrow::Cow, hash::Hash, iter, slice, sync::LazyLock};
+use std::{borrow::Cow, cmp::Ordering, hash::Hash, iter, slice, sync::LazyLock};
 
 pub use evars::{EVar, EVarGen};
 pub use expr::{
@@ -243,11 +243,41 @@ impl TraitRef {
     }
 }
 
+pub type PolyTraitRef = Binder<TraitRef>;
+
+impl PolyTraitRef {
+    pub fn def_id(&self) -> DefId {
+        self.as_ref().skip_binder().def_id
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ExistentialPredicate {
     Trait(ExistentialTraitRef),
     Projection(ExistentialProjection),
     AutoTrait(DefId),
+}
+
+impl ExistentialPredicate {
+    /// See [`rustc_middle::ty::predicate::ExistentialPredicateStableCmpExt`]
+    pub fn stable_cmp(&self, tcx: TyCtxt, other: &Self) -> Ordering {
+        match (self, other) {
+            (ExistentialPredicate::Trait(_), ExistentialPredicate::Trait(_)) => Ordering::Equal,
+            (ExistentialPredicate::Projection(a), ExistentialPredicate::Projection(b)) => {
+                tcx.def_path_hash(a.def_id)
+                    .cmp(&tcx.def_path_hash(b.def_id))
+            }
+            (ExistentialPredicate::AutoTrait(a), ExistentialPredicate::AutoTrait(b)) => {
+                tcx.def_path_hash(*a).cmp(&tcx.def_path_hash(*b))
+            }
+            (ExistentialPredicate::Trait(_), _) => Ordering::Less,
+            (ExistentialPredicate::Projection(_), ExistentialPredicate::Trait(_)) => {
+                Ordering::Greater
+            }
+            (ExistentialPredicate::Projection(_), _) => Ordering::Less,
+            (ExistentialPredicate::AutoTrait(_), _) => Ordering::Greater,
+        }
+    }
 }
 
 impl Binder<ExistentialPredicate> {
@@ -306,6 +336,44 @@ pub struct FnTraitPredicate {
     pub tupled_args: Ty,
     pub output: Ty,
     pub kind: ClosureKind,
+}
+
+impl FnTraitPredicate {
+    pub fn to_poly_fn_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
+        let mut vars = vec![];
+
+        let closure_ty = Ty::closure(closure_id, tys);
+        let env_ty = match self.kind {
+            ClosureKind::Fn => {
+                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
+                let br = BoundRegion {
+                    var: BoundVar::from_usize(vars.len() - 1),
+                    kind: BoundRegionKind::BrEnv,
+                };
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
+            }
+            ClosureKind::FnMut => {
+                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
+                let br = BoundRegion {
+                    var: BoundVar::from_usize(vars.len() - 1),
+                    kind: BoundRegionKind::BrEnv,
+                };
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
+            }
+            ClosureKind::FnOnce => closure_ty,
+        };
+        let inputs = std::iter::once(env_ty)
+            .chain(self.tupled_args.expect_tuple().iter().cloned())
+            .collect();
+
+        let fn_sig = FnSig::new(
+            List::empty(),
+            inputs,
+            Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
+        );
+
+        PolyFnSig::new(fn_sig, List::from(vars))
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
@@ -670,6 +738,61 @@ pub struct Binder<T> {
     value: T,
 }
 
+impl<T> Binder<T> {
+    pub fn new(value: T, vars: List<BoundVariableKind>) -> Binder<T> {
+        Binder { vars, value }
+    }
+
+    pub fn dummy(value: T) -> Binder<T> {
+        Binder::new(value, List::empty())
+    }
+
+    pub fn with_sorts(value: T, sorts: &[Sort]) -> Binder<T> {
+        let vars = sorts
+            .iter()
+            .cloned()
+            .map(|sort| BoundVariableKind::Refine(sort, InferMode::EVar, BoundReftKind::Annon))
+            .collect();
+        Binder { vars, value }
+    }
+
+    pub fn with_sort(value: T, sort: Sort) -> Binder<T> {
+        Binder::with_sorts(value, &[sort])
+    }
+
+    pub fn vars(&self) -> &List<BoundVariableKind> {
+        &self.vars
+    }
+
+    pub fn as_ref(&self) -> Binder<&T> {
+        Binder { vars: self.vars.clone(), value: &self.value }
+    }
+
+    pub fn skip_binder(self) -> T {
+        self.value
+    }
+
+    pub fn rebind<U>(self, value: U) -> Binder<U> {
+        Binder { vars: self.vars, value }
+    }
+
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Binder<U> {
+        Binder { vars: self.vars, value: f(self.value) }
+    }
+
+    pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<Binder<U>, E> {
+        Ok(Binder { vars: self.vars, value: f(self.value)? })
+    }
+
+    #[track_caller]
+    pub fn sort(&self) -> Sort {
+        match &self.vars[..] {
+            [BoundVariableKind::Refine(sort, ..)] => sort.clone(),
+            _ => bug!("expected single-sorted binder"),
+        }
+    }
+}
+
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
 pub struct EarlyBinder<T>(pub T);
 
@@ -742,12 +865,13 @@ impl TyCtor {
 pub type Ty = Interned<TyS>;
 
 impl Ty {
-    /// Dummy type used for the `Self` of a `TraitRef` created for converting
-    /// a trait object, and which gets removed in `ExistentialTraitRef`.
-    /// This type must not appear anywhere in other converted types.
-    /// `Ty::uninit` does the job, because it cannot appear in the surface.
+    /// Dummy type used for the `Self` of a `TraitRef` created when converting a trait object, and
+    /// which gets removed in `ExistentialTraitRef`. This type must not appear anywhere in other
+    /// converted types and must be a valid `rustc` type (i.e., we must be able to call `to_rustc`
+    /// on it). `TyKind::Infer(TyVid(0))` does the job, with the caveat that we must skip 0 when
+    /// generating `TyKind::Infer` for "type holes".
     pub fn trait_object_dummy_self() -> Ty {
-        Ty::uninit()
+        Ty::infer(TyVid::from_u32(0))
     }
 
     pub fn alias(kind: AliasKind, alias_ty: AliasTy) -> Ty {
@@ -959,12 +1083,12 @@ impl Ty {
                     Mutability::Mut,
                 )
             }
+            TyKind::Infer(vid) => rustc_middle::ty::Ty::new_var(tcx, *vid),
             TyKind::Uninit
             | TyKind::Ptr(_, _)
             | TyKind::Discr(_, _)
             | TyKind::Downcast(_, _, _, _, _)
-            | TyKind::Blocked(_)
-            | TyKind::Infer(_) => bug!(),
+            | TyKind::Blocked(_) => bug!(),
         }
     }
 
@@ -1575,47 +1699,14 @@ impl Clause {
         Clause { kind: Binder::new(kind, vars.into()) }
     }
 
-    pub fn kind(&self) -> ClauseKind {
-        // FIXME(nilehmann) we should deal with the binder in all the places this is used instead of blindly skipping it here
-        self.kind.clone().skip_binder()
+    pub fn kind(&self) -> Binder<ClauseKind> {
+        self.kind.clone()
     }
-}
 
-impl FnTraitPredicate {
-    pub fn to_poly_fn_sig(&self, closure_id: DefId, tys: List<Ty>) -> PolyFnSig {
-        let mut vars = vec![];
-
-        let closure_ty = Ty::closure(closure_id, tys);
-        let env_ty = match self.kind {
-            ClosureKind::Fn => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
-                let br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::BrEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
-            }
-            ClosureKind::FnMut => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
-                let br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::BrEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
-            }
-            ClosureKind::FnOnce => closure_ty,
-        };
-        let inputs = std::iter::once(env_ty)
-            .chain(self.tupled_args.expect_tuple().iter().cloned())
-            .collect();
-
-        let fn_sig = FnSig::new(
-            List::empty(),
-            inputs,
-            Binder::new(FnOutput::new(self.output.clone(), vec![]), List::empty()),
-        );
-
-        PolyFnSig::new(fn_sig, List::from(vars))
+    // FIXME(nilehmann) we should deal with the binder in all the places this is used instead of
+    // blindly skipping it here
+    pub fn kind_skipping_binder(&self) -> ClauseKind {
+        self.kind.clone().skip_binder()
     }
 }
 
@@ -1753,57 +1844,6 @@ impl BoundVariableKind {
 
     pub fn expect_sort(&self) -> &Sort {
         self.expect_refine().0
-    }
-}
-
-impl<T> Binder<T> {
-    pub fn new(value: T, vars: List<BoundVariableKind>) -> Binder<T> {
-        Binder { vars, value }
-    }
-
-    pub fn with_sorts(value: T, sorts: &[Sort]) -> Binder<T> {
-        let vars = sorts
-            .iter()
-            .cloned()
-            .map(|sort| BoundVariableKind::Refine(sort, InferMode::EVar, BoundReftKind::Annon))
-            .collect();
-        Binder { vars, value }
-    }
-
-    pub fn with_sort(value: T, sort: Sort) -> Binder<T> {
-        Binder::with_sorts(value, &[sort])
-    }
-
-    pub fn vars(&self) -> &List<BoundVariableKind> {
-        &self.vars
-    }
-
-    pub fn as_ref(&self) -> Binder<&T> {
-        Binder { vars: self.vars.clone(), value: &self.value }
-    }
-
-    pub fn skip_binder(self) -> T {
-        self.value
-    }
-
-    pub fn rebind<U>(self, value: U) -> Binder<U> {
-        Binder { vars: self.vars, value }
-    }
-
-    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Binder<U> {
-        Binder { vars: self.vars, value: f(self.value) }
-    }
-
-    pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<Binder<U>, E> {
-        Ok(Binder { vars: self.vars, value: f(self.value)? })
-    }
-
-    #[track_caller]
-    pub fn sort(&self) -> Sort {
-        match &self.vars[..] {
-            [BoundVariableKind::Refine(sort, ..)] => sort.clone(),
-            _ => bug!("expected single-sorted binder"),
-        }
     }
 }
 
