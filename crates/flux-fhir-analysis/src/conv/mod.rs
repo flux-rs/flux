@@ -1182,35 +1182,6 @@ impl<'a, 'genv, 'tcx> ConvCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    fn conv_refine_arg(&mut self, env: &mut Env, arg: &fhir::RefineArg) -> QueryResult<rty::Expr> {
-        match &arg.kind {
-            fhir::RefineArgKind::Expr(expr) => self.conv_expr(env, expr),
-            fhir::RefineArgKind::Abs(params, body) => {
-                let layer = Layer::list(self, 0, params)?;
-
-                env.push_layer(layer);
-                let pred = self.conv_expr(env, body)?;
-                let inputs = env.pop_layer().into_bound_vars(self.genv)?;
-                let output = self
-                    .wfckresults
-                    .node_sorts()
-                    .get(arg.fhir_id)
-                    .unwrap_or_else(|| bug!("lambda without elaborated sort"))
-                    .clone();
-                let lam = rty::Lambda::with_vars(pred, inputs, output);
-                Ok(self.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
-            }
-            fhir::RefineArgKind::Record(flds) => {
-                let def_id = self.wfckresults.record_ctors().get(arg.fhir_id).unwrap();
-                let flds = flds
-                    .iter()
-                    .map(|arg| self.conv_refine_arg(env, arg))
-                    .try_collect()?;
-                Ok(rty::Expr::adt(*def_id, flds))
-            }
-        }
-    }
-
     fn conv_ty_ctor(&mut self, env: &mut Env, path: &fhir::Path) -> QueryResult<rty::TyCtor> {
         let bty = match &path.res {
             fhir::Res::PrimTy(PrimTy::Bool) => rty::BaseTy::Bool,
@@ -1488,6 +1459,35 @@ impl Env {
 impl ConvCtxt<'_, '_, '_> {
     fn owner(&self) -> FluxOwnerId {
         self.wfckresults.owner
+    }
+
+    fn conv_refine_arg(&mut self, env: &mut Env, arg: &fhir::RefineArg) -> QueryResult<rty::Expr> {
+        match &arg.kind {
+            fhir::RefineArgKind::Expr(expr) => self.conv_expr(env, expr),
+            fhir::RefineArgKind::Abs(params, body) => {
+                let layer = Layer::list(self, 0, params)?;
+
+                env.push_layer(layer);
+                let pred = self.conv_expr(env, body)?;
+                let inputs = env.pop_layer().into_bound_vars(self.genv)?;
+                let output = self
+                    .wfckresults
+                    .node_sorts()
+                    .get(arg.fhir_id)
+                    .unwrap_or_else(|| bug!("lambda without elaborated sort"))
+                    .clone();
+                let lam = rty::Lambda::with_vars(pred, inputs, output);
+                Ok(self.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
+            }
+            fhir::RefineArgKind::Record(flds) => {
+                let def_id = self.wfckresults.record_ctors().get(arg.fhir_id).unwrap();
+                let flds = flds
+                    .iter()
+                    .map(|arg| self.conv_refine_arg(env, arg))
+                    .try_collect()?;
+                Ok(rty::Expr::adt(*def_id, flds))
+            }
+        }
     }
 
     fn conv_expr(&mut self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {

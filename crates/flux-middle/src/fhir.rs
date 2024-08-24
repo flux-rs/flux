@@ -455,6 +455,7 @@ pub struct VariantDef<'fhir> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct VariantRet<'fhir> {
+    pub enum_id: LocalDefId,
     pub bty: BaseTy<'fhir>,
     pub idx: RefineArg<'fhir>,
 }

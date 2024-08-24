@@ -174,7 +174,7 @@ impl SortEncodingCtxt {
                 self.declare_tuple(sort_def.fields());
                 let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sort_def.fields()));
                 let args = sort_def
-                    .sorts(args)
+                    .field_sorts(args)
                     .iter()
                     .map(|s| self.sort_to_fixpoint(s))
                     .collect_vec();
@@ -1075,7 +1075,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) => {
                 let def_id = sort_def.did();
-                let sorts = sort_def.sorts(args);
+                let sorts = sort_def.field_sorts(args);
                 self.apply_bin_rel_rec(&sorts, rel, e1, e2, scx, |field| {
                     rty::FieldProj::Adt { def_id, field }
                 })?

@@ -8,10 +8,7 @@ mod sortck;
 
 use std::iter;
 
-use flux_common::{
-    result::{ErrorCollector, ResultExt as _},
-    span_bug,
-};
+use flux_common::result::{ErrorCollector, ResultExt as _};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
     fhir::{self, visit::Visitor, FluxOwnerId},
@@ -176,17 +173,13 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     }
 
     fn visit_variant_ret(&mut self, ret: &fhir::VariantRet) {
-        let bty = &ret.bty;
-        let Ok(expected) = self
-            .infcx
-            .genv
-            .sort_of_bty(bty)
-            .emit(&self.errors)
-            .transpose()
-            .unwrap_or_else(|| span_bug!(bty.span, "unrefinable base type: `{bty:?}`"))
-        else {
+        let genv = self.infcx.genv;
+        let enum_id = ret.enum_id;
+        let Ok(adt_sort_def) = genv.adt_sort_def_of(enum_id).emit(&self.errors) else { return };
+        let Ok(args) = rty::GenericArgs::identity_for_item(genv, enum_id).emit(&self.errors) else {
             return;
         };
+        let expected = adt_sort_def.sort(&args);
         self.infcx
             .check_refine_arg(&ret.idx, &expected)
             .collect_err(&mut self.errors);

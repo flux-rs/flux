@@ -292,6 +292,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
         let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
         let kind = fhir::RefineArgKind::Record(&[]);
         fhir::VariantRet {
+            enum_id: item.owner_id.def_id,
             bty,
             idx: fhir::RefineArg {
                 kind,
