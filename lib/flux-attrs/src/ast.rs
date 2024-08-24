@@ -12,7 +12,7 @@ use syn::{
     Attribute, Ident, Result, Token, Visibility,
 };
 
-use crate::flux_tool_attrs;
+use crate::{flux_tool_attrs, FLUX_ATTRS};
 
 pub struct Items(Vec<Item>);
 
@@ -980,8 +980,6 @@ impl Parse for Items {
         Ok(Self(result))
     }
 }
-
-const FLUX_ATTRS: &[&str] = &["opaque", "invariant", "trusted", "generics", "assoc"];
 
 impl Parse for Item {
     fn parse(input: ParseStream) -> Result<Self> {
