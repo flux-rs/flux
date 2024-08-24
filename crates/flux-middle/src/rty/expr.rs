@@ -734,7 +734,7 @@ impl Expr {
             match sort {
                 Sort::Tuple(sorts) => Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect()),
                 Sort::App(SortCtor::Adt(adt_sort_def), args) => {
-                    let flds = adt_sort_def.sorts(args);
+                    let flds = adt_sort_def.field_sorts(args);
                     Expr::adt(adt_sort_def.did(), flds.iter().map(|sort| go(sort, f)).collect())
                 }
                 _ => f(sort),

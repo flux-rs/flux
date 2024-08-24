@@ -211,8 +211,7 @@ pub fn walk_field_def<'v, V: Visitor<'v>>(vis: &mut V, field: &FieldDef<'v>) {
 }
 
 pub fn walk_variant_ret<'v, V: Visitor<'v>>(vis: &mut V, ret: &VariantRet<'v>) {
-    let VariantRet { bty, idx } = ret;
-    vis.visit_bty(bty);
+    let VariantRet { idx, enum_id: _ } = ret;
     vis.visit_refine_arg(idx);
 }
 

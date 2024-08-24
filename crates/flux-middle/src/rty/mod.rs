@@ -99,8 +99,17 @@ impl AdtSortDef {
         Some(self.0.sorts[idx].fold_with(&mut SortSubst::new(args)))
     }
 
-    pub fn sorts(&self, args: &[Sort]) -> List<Sort> {
+    pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
         self.0.sorts.fold_with(&mut SortSubst::new(args))
+    }
+
+    pub fn sort(&self, args: &[GenericArg]) -> Sort {
+        let sorts = self
+            .filter_generic_args(args)
+            .map(|arg| arg.expect_base().sort())
+            .collect();
+
+        Sort::App(SortCtor::Adt(self.clone()), sorts)
     }
 
     /// Given a list of generic args, returns an iterator of the generic arguments that should be
@@ -1818,7 +1827,7 @@ impl Sort {
                     }
                 }
                 Sort::App(SortCtor::Adt(sort_def), args) => {
-                    for (i, sort) in sort_def.sorts(args).iter().enumerate() {
+                    for (i, sort) in sort_def.field_sorts(args).iter().enumerate() {
                         proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i as u32 });
                         go(sort, f, proj);
                         proj.pop();
@@ -2078,13 +2087,7 @@ impl AdtDef {
     }
 
     pub fn sort(&self, args: &[GenericArg]) -> Sort {
-        let sorts = self
-            .sort_def()
-            .filter_generic_args(args)
-            .map(|arg| arg.expect_base().sort())
-            .collect();
-
-        Sort::App(SortCtor::Adt(self.sort_def().clone()), sorts)
+        self.sort_def().sort(args)
     }
 
     pub fn is_box(&self) -> bool {

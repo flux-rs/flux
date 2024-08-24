@@ -723,9 +723,46 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         ret: &surface::VariantRet,
     ) -> Result<fhir::VariantRet<'genv>> {
-        let bty = self.desugar_path_to_bty(None, &ret.path)?;
+        let Some(enum_id) = self.check_variant_ret_path(&ret.path) else {
+            return Err(self.emit_err(errors::InvalidVariantRet::new(&ret.path)));
+        };
         let idx = self.desugar_indices(&ret.indices)?;
-        Ok(fhir::VariantRet { bty, idx })
+        Ok(fhir::VariantRet { enum_id, idx })
+    }
+
+    fn check_variant_ret_path(&mut self, path: &surface::Path) -> Option<DefId> {
+        let local_id = self.owner.def_id;
+        let maybe_extern_id = self.genv.resolve_maybe_extern_id(local_id.to_def_id());
+
+        match self.resolver_output().path_res_map[&path.node_id].full_res()? {
+            fhir::Res::Def(DefKind::Enum, def_id) if def_id == maybe_extern_id => {}
+            fhir::Res::SelfTyAlias { .. } => return Some(maybe_extern_id),
+            _ => return None,
+        }
+
+        let generics = self.genv.tcx().generics_of(local_id);
+        let args = &path.last().args;
+        if generics.own_counts().types != args.len() {
+            return None;
+        }
+        let mut i = 0;
+        for param in &generics.own_params {
+            let rustc_middle::ty::GenericParamDefKind::Type { .. } = param.kind else { continue };
+            let arg = &args[i];
+            if let surface::GenericArgKind::Type(arg_ty) = &arg.kind
+                && let surface::TyKind::Base(arg_bty) = &arg_ty.kind
+                && let surface::BaseTyKind::Path(None, arg_path) = &arg_bty.kind
+                && let fhir::Res::Def(DefKind::TyParam, def_id) =
+                    self.resolver_output().path_res_map[&arg_path.node_id].full_res()?
+                && def_id == param.def_id
+            {
+            } else {
+                return None;
+            }
+            i += 1;
+        }
+
+        Some(maybe_extern_id)
     }
 
     fn insert_opaque_ty(&mut self, def_id: LocalDefId, opaque_ty: fhir::OpaqueTy<'genv>) {

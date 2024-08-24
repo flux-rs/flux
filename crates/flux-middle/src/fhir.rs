@@ -8,10 +8,7 @@
 //!
 //! desugars to
 //!
-//! `for<n: int, l: loc> fn(l: i32[n]; ptr(l)) ensures l: i32[n + 1]`.
-//!
-//! The main analysis performed on the fhir is well-formedness, thus, the fhir keeps track of
-//! spans for refinement expressions to report errors.
+//! `for<n: int, l: loc> fn(&strg<l: i32[n]>) ensures l: i32[n + 1]`.
 //!
 //! The name fhir is borrowed (pun intended) from rustc's hir to refer to something a bit lower
 //! than the surface syntax.
@@ -455,7 +452,7 @@ pub struct VariantDef<'fhir> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct VariantRet<'fhir> {
-    pub bty: BaseTy<'fhir>,
+    pub enum_id: DefId,
     pub idx: RefineArg<'fhir>,
 }
 

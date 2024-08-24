@@ -261,7 +261,7 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
             self.lift_field_def(field)
         })?;
 
-        let ret = self.lift_variant_ret_inner(item, generics);
+        let ret = self.lift_variant_ret_inner(generics);
 
         Ok(fhir::VariantDef {
             def_id: variant.def_id,
@@ -276,23 +276,13 @@ impl<'a, 'genv, 'tcx> LiftCtxt<'a, 'genv, 'tcx> {
     pub fn lift_variant_ret(&mut self) -> fhir::VariantRet<'genv> {
         let item = self.genv.hir().expect_item(self.owner.def_id);
         let hir::ItemKind::Enum(_, generics) = &item.kind else { bug!("expected an enum") };
-        self.lift_variant_ret_inner(item, generics)
+        self.lift_variant_ret_inner(generics)
     }
 
-    fn lift_variant_ret_inner(
-        &mut self,
-        item: &hir::Item,
-        generics: &hir::Generics,
-    ) -> fhir::VariantRet<'genv> {
-        let span = item.ident.span.to(generics.span);
-        let res = fhir::Res::SelfTyAlias { alias_to: self.owner.to_def_id(), is_trait_impl: false };
-        let segment = fhir::PathSegment { res, ident: item.ident, args: &[], bindings: &[] };
-        let path =
-            fhir::Path { res, segments: self.genv.alloc_slice(&[segment]), refine: &[], span };
-        let bty = fhir::BaseTy::from(fhir::QPath::Resolved(None, path));
+    fn lift_variant_ret_inner(&mut self, generics: &hir::Generics) -> fhir::VariantRet<'genv> {
         let kind = fhir::RefineArgKind::Record(&[]);
         fhir::VariantRet {
-            bty,
+            enum_id: self.genv.resolve_maybe_extern_id(self.owner.to_def_id()),
             idx: fhir::RefineArg {
                 kind,
                 fhir_id: self.next_fhir_id(),

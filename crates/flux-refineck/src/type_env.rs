@@ -488,7 +488,7 @@ impl BasicBlockEnvShape {
                 ExprKind::Aggregate(_, flds2),
                 Sort::App(SortCtor::Adt(sort_def), args),
             ) => {
-                let sorts = sort_def.sorts(args);
+                let sorts = sort_def.field_sorts(args);
                 debug_assert_eq3!(flds1.len(), flds2.len(), sorts.len());
 
                 Expr::adt(
