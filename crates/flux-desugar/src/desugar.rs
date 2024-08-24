@@ -723,21 +723,20 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         ret: &surface::VariantRet,
     ) -> Result<fhir::VariantRet<'genv>> {
-        if self.check_variant_ret_path(&ret.path).is_none() {
+        let Some(enum_id) = self.check_variant_ret_path(&ret.path) else {
             return Err(self.emit_err(errors::InvalidVariantRet::new(&ret.path)));
-        }
-        let bty = self.desugar_path_to_bty(None, &ret.path)?;
+        };
         let idx = self.desugar_indices(&ret.indices)?;
-        Ok(fhir::VariantRet { enum_id: self.owner.def_id, bty, idx })
+        Ok(fhir::VariantRet { enum_id, idx })
     }
 
-    fn check_variant_ret_path(&mut self, path: &surface::Path) -> Option<()> {
+    fn check_variant_ret_path(&mut self, path: &surface::Path) -> Option<DefId> {
         let local_id = self.owner.def_id;
         let maybe_extern_id = self.genv.resolve_maybe_extern_id(local_id.to_def_id());
 
         match self.resolver_output().path_res_map[&path.node_id].full_res()? {
             fhir::Res::Def(DefKind::Enum, def_id) if def_id == maybe_extern_id => {}
-            fhir::Res::SelfTyAlias { .. } => return Some(()),
+            fhir::Res::SelfTyAlias { .. } => return Some(maybe_extern_id),
             _ => return None,
         }
 
@@ -763,7 +762,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             i += 1;
         }
 
-        Some(())
+        Some(maybe_extern_id)
     }
 
     fn insert_opaque_ty(&mut self, def_id: LocalDefId, opaque_ty: fhir::OpaqueTy<'genv>) {

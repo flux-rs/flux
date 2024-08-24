@@ -169,6 +169,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
                 .check_expr(invariant, &rty::Sort::Bool)
                 .collect_err(&mut self.errors);
         }
+
         fhir::visit::walk_enum_def(self, enum_def);
     }
 
