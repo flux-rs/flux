@@ -534,16 +534,6 @@
 <a href="#534" id="534">534</a>
 <a href="#535" id="535">535</a>
 <a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 //!
 </span><span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt};
@@ -807,7 +797,7 @@
             <span class="self">self</span>.lift_field_def(field)
         })<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>ret = <span class="self">self</span>.lift_variant_ret_inner(item, generics);
+        <span class="kw">let </span>ret = <span class="self">self</span>.lift_variant_ret_inner(generics);
 
         <span class="prelude-val">Ok</span>(fhir::VariantDef {
             def_id: variant.def_id,
@@ -822,23 +812,13 @@
     <span class="kw">pub fn </span>lift_variant_ret(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; fhir::VariantRet&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">let </span>item = <span class="self">self</span>.genv.hir().expect_item(<span class="self">self</span>.owner.def_id);
         <span class="kw">let </span>hir::ItemKind::Enum(<span class="kw">_</span>, generics) = <span class="kw-2">&amp;</span>item.kind <span class="kw">else </span>{ <span class="macro">bug!</span>(<span class="string">"expected an enum"</span>) };
-        <span class="self">self</span>.lift_variant_ret_inner(item, generics)
+        <span class="self">self</span>.lift_variant_ret_inner(generics)
     }
 
-    <span class="kw">fn </span>lift_variant_ret_inner(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        item: <span class="kw-2">&amp;</span>hir::Item,
-        generics: <span class="kw-2">&amp;</span>hir::Generics,
-    ) -&gt; fhir::VariantRet&lt;<span class="lifetime">'genv</span>&gt; {
-        <span class="kw">let </span>span = item.ident.span.to(generics.span);
-        <span class="kw">let </span>res = fhir::Res::SelfTyAlias { alias_to: <span class="self">self</span>.owner.to_def_id(), is_trait_impl: <span class="bool-val">false </span>};
-        <span class="kw">let </span>segment = fhir::PathSegment { res, ident: item.ident, args: <span class="kw-2">&amp;</span>[], bindings: <span class="kw-2">&amp;</span>[] };
-        <span class="kw">let </span>path =
-            fhir::Path { res, segments: <span class="self">self</span>.genv.alloc_slice(<span class="kw-2">&amp;</span>[segment]), refine: <span class="kw-2">&amp;</span>[], span };
-        <span class="kw">let </span>bty = fhir::BaseTy::from(fhir::QPath::Resolved(<span class="prelude-val">None</span>, path));
+    <span class="kw">fn </span>lift_variant_ret_inner(<span class="kw-2">&amp;mut </span><span class="self">self</span>, generics: <span class="kw-2">&amp;</span>hir::Generics) -&gt; fhir::VariantRet&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">let </span>kind = fhir::RefineArgKind::Record(<span class="kw-2">&amp;</span>[]);
         fhir::VariantRet {
-            bty,
+            enum_id: <span class="self">self</span>.genv.resolve_maybe_extern_id(<span class="self">self</span>.owner.to_def_id()),
             idx: fhir::RefineArg {
                 kind,
                 fhir_id: <span class="self">self</span>.next_fhir_id(),

@@ -3204,35 +3204,6 @@
         }
     }
 
-    <span class="kw">fn </span>conv_refine_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, arg: <span class="kw-2">&amp;</span>fhir::RefineArg) -&gt; QueryResult&lt;rty::Expr&gt; {
-        <span class="kw">match </span><span class="kw-2">&amp;</span>arg.kind {
-            fhir::RefineArgKind::Expr(expr) =&gt; <span class="self">self</span>.conv_expr(env, expr),
-            fhir::RefineArgKind::Abs(params, body) =&gt; {
-                <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, <span class="number">0</span>, params)<span class="question-mark">?</span>;
-
-                env.push_layer(layer);
-                <span class="kw">let </span>pred = <span class="self">self</span>.conv_expr(env, body)<span class="question-mark">?</span>;
-                <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
-                <span class="kw">let </span>output = <span class="self">self
-                    </span>.wfckresults
-                    .node_sorts()
-                    .get(arg.fhir_id)
-                    .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"lambda without elaborated sort"</span>))
-                    .clone();
-                <span class="kw">let </span>lam = rty::Lambda::with_vars(pred, inputs, output);
-                <span class="prelude-val">Ok</span>(<span class="self">self</span>.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
-            }
-            fhir::RefineArgKind::Record(flds) =&gt; {
-                <span class="kw">let </span>def_id = <span class="self">self</span>.wfckresults.record_ctors().get(arg.fhir_id).unwrap();
-                <span class="kw">let </span>flds = flds
-                    .iter()
-                    .map(|arg| <span class="self">self</span>.conv_refine_arg(env, arg))
-                    .try_collect()<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(rty::Expr::adt(<span class="kw-2">*</span>def_id, flds))
-            }
-        }
-    }
-
     <span class="kw">fn </span>conv_ty_ctor(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, path: <span class="kw-2">&amp;</span>fhir::Path) -&gt; QueryResult&lt;rty::TyCtor&gt; {
         <span class="kw">let </span>bty = <span class="kw">match </span><span class="kw-2">&amp;</span>path.res {
             fhir::Res::PrimTy(PrimTy::Bool) =&gt; rty::BaseTy::Bool,
@@ -3510,6 +3481,35 @@
 <span class="kw">impl </span>ConvCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>owner(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FluxOwnerId {
         <span class="self">self</span>.wfckresults.owner
+    }
+
+    <span class="kw">fn </span>conv_refine_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, arg: <span class="kw-2">&amp;</span>fhir::RefineArg) -&gt; QueryResult&lt;rty::Expr&gt; {
+        <span class="kw">match </span><span class="kw-2">&amp;</span>arg.kind {
+            fhir::RefineArgKind::Expr(expr) =&gt; <span class="self">self</span>.conv_expr(env, expr),
+            fhir::RefineArgKind::Abs(params, body) =&gt; {
+                <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>, <span class="number">0</span>, params)<span class="question-mark">?</span>;
+
+                env.push_layer(layer);
+                <span class="kw">let </span>pred = <span class="self">self</span>.conv_expr(env, body)<span class="question-mark">?</span>;
+                <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv)<span class="question-mark">?</span>;
+                <span class="kw">let </span>output = <span class="self">self
+                    </span>.wfckresults
+                    .node_sorts()
+                    .get(arg.fhir_id)
+                    .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"lambda without elaborated sort"</span>))
+                    .clone();
+                <span class="kw">let </span>lam = rty::Lambda::with_vars(pred, inputs, output);
+                <span class="prelude-val">Ok</span>(<span class="self">self</span>.add_coercions(rty::Expr::abs(lam), arg.fhir_id))
+            }
+            fhir::RefineArgKind::Record(flds) =&gt; {
+                <span class="kw">let </span>def_id = <span class="self">self</span>.wfckresults.record_ctors().get(arg.fhir_id).unwrap();
+                <span class="kw">let </span>flds = flds
+                    .iter()
+                    .map(|arg| <span class="self">self</span>.conv_refine_arg(env, arg))
+                    .try_collect()<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(rty::Expr::adt(<span class="kw-2">*</span>def_id, flds))
+            }
+        }
     }
 
     <span class="kw">fn </span>conv_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, expr: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; QueryResult&lt;rty::Expr&gt; {

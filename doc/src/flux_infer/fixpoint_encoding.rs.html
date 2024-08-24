@@ -1460,7 +1460,7 @@
                 <span class="self">self</span>.declare_tuple(sort_def.fields());
                 <span class="kw">let </span>ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sort_def.fields()));
                 <span class="kw">let </span>args = sort_def
-                    .sorts(args)
+                    .field_sorts(args)
                     .iter()
                     .map(|s| <span class="self">self</span>.sort_to_fixpoint(s))
                     .collect_vec();
@@ -2361,7 +2361,7 @@
             </span>}
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) =&gt; {
                 <span class="kw">let </span>def_id = sort_def.did();
-                <span class="kw">let </span>sorts = sort_def.sorts(args);
+                <span class="kw">let </span>sorts = sort_def.field_sorts(args);
                 <span class="self">self</span>.apply_bin_rel_rec(<span class="kw-2">&amp;</span>sorts, rel, e1, e2, scx, |field| {
                     rty::FieldProj::Adt { def_id, field }
                 })<span class="question-mark">?

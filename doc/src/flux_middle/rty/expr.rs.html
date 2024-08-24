@@ -1884,7 +1884,7 @@
             <span class="kw">match </span>sort {
                 Sort::Tuple(sorts) =&gt; Expr::tuple(sorts.iter().map(|sort| go(sort, f)).collect()),
                 Sort::App(SortCtor::Adt(adt_sort_def), args) =&gt; {
-                    <span class="kw">let </span>flds = adt_sort_def.sorts(args);
+                    <span class="kw">let </span>flds = adt_sort_def.field_sorts(args);
                     Expr::adt(adt_sort_def.did(), flds.iter().map(|sort| go(sort, f)).collect())
                 }
                 <span class="kw">_ </span>=&gt; f(sort),

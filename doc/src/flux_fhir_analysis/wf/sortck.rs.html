@@ -851,7 +851,7 @@
         expected: <span class="kw-2">&amp;</span>rty::Sort,
     ) -&gt; <span class="prelude-ty">Result </span>{
         <span class="kw">if let </span>rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
-            <span class="kw">let </span>sorts = sort_def.sorts(sort_args);
+            <span class="kw">let </span>sorts = sort_def.field_sorts(sort_args);
             <span class="kw">if </span>flds.len() != sorts.len() {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::ArgCountMismatch::new(
                     <span class="prelude-val">Some</span>(arg.span),
@@ -1310,7 +1310,7 @@
 
     <span class="kw">fn </span>is_single_field_record(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rty::Sort)&gt; {
         <span class="kw">if let </span>rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = sort
-            &amp;&amp; <span class="kw">let </span>[sort] = <span class="kw-2">&amp;</span>sort_def.sorts(sort_args)[..]
+            &amp;&amp; <span class="kw">let </span>[sort] = <span class="kw-2">&amp;</span>sort_def.field_sorts(sort_args)[..]
         {
             <span class="prelude-val">Some</span>((sort_def.did(), sort.clone()))
         } <span class="kw">else </span>{
@@ -1369,7 +1369,7 @@
             fhir::RefineArgKind::Abs(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; {}
             fhir::RefineArgKind::Record(flds) =&gt; {
                 <span class="kw">if let </span>rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
-                    <span class="kw">let </span>sorts = sort_def.sorts(sort_args);
+                    <span class="kw">let </span>sorts = sort_def.field_sorts(sort_args);
                     <span class="kw">if </span>flds.len() != sorts.len() {
                         <span class="self">self</span>.errors.emit(errors::ArgCountMismatch::new(
                             <span class="prelude-val">Some</span>(idx.span),

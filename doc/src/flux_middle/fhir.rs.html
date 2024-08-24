@@ -1499,9 +1499,6 @@
 <a href="#1499" id="1499">1499</a>
 <a href="#1500" id="1500">1500</a>
 <a href="#1501" id="1501">1501</a>
-<a href="#1502" id="1502">1502</a>
-<a href="#1503" id="1503">1503</a>
-<a href="#1504" id="1504">1504</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Repesentation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
@@ -1512,10 +1509,7 @@
 //!
 //! desugars to
 //!
-//! `for&lt;n: int, l: loc&gt; fn(l: i32[n]; ptr(l)) ensures l: i32[n + 1]`.
-//!
-//! The main analysis performed on the fhir is well-formedness, thus, the fhir keeps track of
-//! spans for refinement expressions to report errors.
+//! `for&lt;n: int, l: loc&gt; fn(&amp;strg&lt;l: i32[n]&gt;) ensures l: i32[n + 1]`.
 //!
 //! The name fhir is borrowed (pun intended) from rustc's hir to refer to something a bit lower
 //! than the surface syntax.
@@ -1959,7 +1953,7 @@
 
 <span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">pub struct </span>VariantRet&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>bty: BaseTy&lt;<span class="lifetime">'fhir</span>&gt;,
+    <span class="kw">pub </span>enum_id: DefId,
     <span class="kw">pub </span>idx: RefineArg&lt;<span class="lifetime">'fhir</span>&gt;,
 }
 

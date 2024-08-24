@@ -1448,6 +1448,43 @@
 <a href="#1448" id="1448">1448</a>
 <a href="#1449" id="1449">1449</a>
 <a href="#1450" id="1450">1450</a>
+<a href="#1451" id="1451">1451</a>
+<a href="#1452" id="1452">1452</a>
+<a href="#1453" id="1453">1453</a>
+<a href="#1454" id="1454">1454</a>
+<a href="#1455" id="1455">1455</a>
+<a href="#1456" id="1456">1456</a>
+<a href="#1457" id="1457">1457</a>
+<a href="#1458" id="1458">1458</a>
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
+<a href="#1468" id="1468">1468</a>
+<a href="#1469" id="1469">1469</a>
+<a href="#1470" id="1470">1470</a>
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
+<a href="#1477" id="1477">1477</a>
+<a href="#1478" id="1478">1478</a>
+<a href="#1479" id="1479">1479</a>
+<a href="#1480" id="1480">1480</a>
+<a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, index::IndexGen, iter::IterExt, span_bug};
@@ -2173,9 +2210,46 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         ret: <span class="kw-2">&amp;</span>surface::VariantRet,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::VariantRet&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="kw">let </span>bty = <span class="self">self</span>.desugar_path_to_bty(<span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>ret.path)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="prelude-val">Some</span>(enum_id) = <span class="self">self</span>.check_variant_ret_path(<span class="kw-2">&amp;</span>ret.path) <span class="kw">else </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self</span>.emit_err(errors::InvalidVariantRet::new(<span class="kw-2">&amp;</span>ret.path)));
+        };
         <span class="kw">let </span>idx = <span class="self">self</span>.desugar_indices(<span class="kw-2">&amp;</span>ret.indices)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(fhir::VariantRet { bty, idx })
+        <span class="prelude-val">Ok</span>(fhir::VariantRet { enum_id, idx })
+    }
+
+    <span class="kw">fn </span>check_variant_ret_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="prelude-ty">Option</span>&lt;DefId&gt; {
+        <span class="kw">let </span>local_id = <span class="self">self</span>.owner.def_id;
+        <span class="kw">let </span>maybe_extern_id = <span class="self">self</span>.genv.resolve_maybe_extern_id(local_id.to_def_id());
+
+        <span class="kw">match </span><span class="self">self</span>.resolver_output().path_res_map[<span class="kw-2">&amp;</span>path.node_id].full_res()<span class="question-mark">? </span>{
+            fhir::Res::Def(DefKind::Enum, def_id) <span class="kw">if </span>def_id == maybe_extern_id =&gt; {}
+            fhir::Res::SelfTyAlias { .. } =&gt; <span class="kw">return </span><span class="prelude-val">Some</span>(maybe_extern_id),
+            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
+        }
+
+        <span class="kw">let </span>generics = <span class="self">self</span>.genv.tcx().generics_of(local_id);
+        <span class="kw">let </span>args = <span class="kw-2">&amp;</span>path.last().args;
+        <span class="kw">if </span>generics.own_counts().types != args.len() {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+        <span class="kw">let </span><span class="kw-2">mut </span>i = <span class="number">0</span>;
+        <span class="kw">for </span>param <span class="kw">in </span><span class="kw-2">&amp;</span>generics.own_params {
+            <span class="kw">let </span>rustc_middle::ty::GenericParamDefKind::Type { .. } = param.kind <span class="kw">else </span>{ <span class="kw">continue </span>};
+            <span class="kw">let </span>arg = <span class="kw-2">&amp;</span>args[i];
+            <span class="kw">if let </span>surface::GenericArgKind::Type(arg_ty) = <span class="kw-2">&amp;</span>arg.kind
+                &amp;&amp; <span class="kw">let </span>surface::TyKind::Base(arg_bty) = <span class="kw-2">&amp;</span>arg_ty.kind
+                &amp;&amp; <span class="kw">let </span>surface::BaseTyKind::Path(<span class="prelude-val">None</span>, arg_path) = <span class="kw-2">&amp;</span>arg_bty.kind
+                &amp;&amp; <span class="kw">let </span>fhir::Res::Def(DefKind::TyParam, def_id) =
+                    <span class="self">self</span>.resolver_output().path_res_map[<span class="kw-2">&amp;</span>arg_path.node_id].full_res()<span class="question-mark">?
+                </span>&amp;&amp; def_id == param.def_id
+            {
+            } <span class="kw">else </span>{
+                <span class="kw">return </span><span class="prelude-val">None</span>;
+            }
+            i += <span class="number">1</span>;
+        }
+
+        <span class="prelude-val">Some</span>(maybe_extern_id)
     }
 
     <span class="kw">fn </span>insert_opaque_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId, opaque_ty: fhir::OpaqueTy&lt;<span class="lifetime">'genv</span>&gt;) {
