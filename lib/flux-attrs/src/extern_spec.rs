@@ -22,9 +22,9 @@ pub(crate) fn transform_extern_spec(
     let mod_path: Option<syn::Path> =
         if !attr.is_empty() { Some(syn::parse2(attr)?) } else { None };
     match syn::parse2::<ExternItem>(tokens)? {
-        ExternItem::Struct(item_struct) => create_dummy_struct(mod_path, item_struct),
-        ExternItem::Enum(item_enum) => create_dummy_enum(mod_path, item_enum),
-        ExternItem::Trait(item_trait) => create_dummy_trait(mod_path, item_trait),
+        ExternItem::Struct(item_struct) => extern_struct_spec(mod_path, item_struct),
+        ExternItem::Enum(item_enum) => extern_enum_spec(mod_path, item_enum),
+        ExternItem::Trait(item_trait) => extern_trait_spec(mod_path, item_trait),
         ExternItem::Fn(mut extern_fn) => {
             extern_fn.prepare(&mod_path, None, &None, true);
             Ok(extern_fn.into_token_stream())
@@ -403,11 +403,9 @@ fn strip_generics_defaults(params: &mut Punctuated<GenericParam, Comma>) {
 ///     #[flux::variant({T} -> Option<T>[true])]
 ///     Some(T),
 /// }
-/// ```
 ///
 /// =>
 ///
-/// ```ignore
 /// #[flux::extern_spec]
 /// #[allow(unused, dead_code)]
 /// #[flux::refined_by(b:bool)]
@@ -420,7 +418,7 @@ fn strip_generics_defaults(params: &mut Punctuated<GenericParam, Comma>) {
 ///     FluxExternEnumFake(Option<T>),
 /// }
 /// ```
-fn create_dummy_enum(
+fn extern_enum_spec(
     mod_path: Option<syn::Path>,
     item_enum: syn::ItemEnum,
 ) -> syn::Result<TokenStream> {
@@ -469,7 +467,7 @@ fn create_dummy_enum(
 /// #[flux::refined_by(n: int)]
 /// struct FluxExternStructVec<T>(std::vec::Vec<T>);
 /// ```
-fn create_dummy_struct(
+fn extern_struct_spec(
     mod_path: Option<syn::Path>,
     item_struct: syn::ItemStruct,
 ) -> syn::Result<TokenStream> {
@@ -495,10 +493,12 @@ fn create_dummy_struct(
     };
 
     Ok(quote_spanned! {item_struct_span =>
-        #[flux_tool::extern_spec]
-        #[allow(unused, dead_code)]
-        #(#attrs)*
-        struct #dummy_ident #generics (#field);
+        const _: () = {
+            #[flux_tool::extern_spec]
+            #[allow(unused, dead_code)]
+            #(#attrs)*
+            struct #dummy_ident #generics (#field);
+        };
     })
 }
 
@@ -520,7 +520,7 @@ fn create_dummy_struct(
 /// #[flux::assoc(fn f(self: Self) -> bool)]
 /// trait __FluxExternTraitMyTrait: MyTrait {}
 /// ```
-fn create_dummy_trait(
+fn extern_trait_spec(
     mod_path: Option<syn::Path>,
     item_trait: syn::ItemTrait,
 ) -> syn::Result<TokenStream> {
@@ -538,30 +538,32 @@ fn create_dummy_trait(
         ));
     }
 
-    let mut dummy_trait = item_trait.clone();
-    let ident = item_trait.ident;
-    let mut generics = item_trait.generics;
-    strip_generics_defaults(&mut generics.params);
+    let trait_ident = item_trait.ident;
+    let mut attrs = item_trait.attrs;
+    flux_tool_attrs(&mut attrs, FLUX_ATTRS);
 
-    dummy_trait.ident = format_ident!("__FluxExternTrait{}", ident);
-    dummy_trait.auto_token = None;
+    let generics = item_trait.generics;
+    let args = generic_params_to_args(&generics.params);
 
-    let dummy_super: syn::TypeParamBound = if let Some(mod_path) = mod_path {
-        parse_quote_spanned! {item_trait_span =>
-                              ( #mod_path :: #ident #generics )
+    let dummy_ident = format_ident!("__FluxExternTrait{}", trait_ident);
+
+    let super_trait = if let Some(mod_path) = mod_path {
+        quote_spanned! {item_trait_span =>
+            #mod_path :: #trait_ident < #args >
         }
     } else {
-        parse_quote_spanned! {item_trait_span =>
-                              ( #ident #generics )
+        quote_spanned! {item_trait_span =>
+            #trait_ident < # args >
         }
     };
-    dummy_trait.supertraits.push(dummy_super);
-    let dummy_trait_with_attrs: syn::ItemTrait = parse_quote_spanned! { item_trait_span =>
-        #[flux::extern_spec]
-        #[allow(unused, dead_code)]
-        #dummy_trait
-    };
-    Ok(dummy_trait_with_attrs.to_token_stream())
+    Ok(quote_spanned! {item_trait_span =>
+        const _: () = {
+            #[flux_tool::extern_spec]
+            #[allow(unused, dead_code)]
+            #(#attrs)*
+            trait #dummy_ident #generics: #super_trait {}
+        };
+    })
 }
 
 // Cribbed from Prusti's extern_spec_rewriter
