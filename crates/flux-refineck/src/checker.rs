@@ -877,6 +877,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)
             }
             Rvalue::RawPtr(mutbl, place) => {
+                // ignore any refinements on the type stored at place
                 let ty = self
                     .genv
                     .refine_default(

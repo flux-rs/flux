@@ -21,7 +21,6 @@ pub use expr::{
     HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
 use flux_common::bug;
-use fold::{FallibleTypeFolder, TypeSuperFoldable};
 use itertools::Itertools;
 pub use normalize::SpecFuncDefns;
 use rustc_data_structures::unord::UnordMap;
