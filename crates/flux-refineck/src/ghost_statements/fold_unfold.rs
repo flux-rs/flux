@@ -314,6 +314,9 @@ impl<'a, 'genv, 'tcx, M: Mode> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
                             M::projection(self, env, place, ProjKind::Other)?;
                         }
                     }
+                    Rvalue::RawPtr(_, place) => {
+                        M::projection(self, env, place, ProjKind::Other)?;
+                    }
                     Rvalue::BinaryOp(_, op1, op2) => {
                         self.operand(op1, env)?;
                         self.operand(op2, env)?;

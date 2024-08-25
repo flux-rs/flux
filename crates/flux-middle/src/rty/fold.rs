@@ -287,38 +287,25 @@ pub trait TypeFoldable: TypeVisitable {
         self.fold_with(&mut ReplaceHoles(f, vec![]))
     }
 
-    /// Turns each [`TyKind::Indexed`] into a [`TyKind::Exists`] with a [`TyKind::Constr`] and a
-    /// [`hole`]. It also replaces all existing predicates with a [`hole`].
-    /// For example, `Vec<{v. i32[v] | v > 0}>[n]` becomes `{n. Vec<{v. i32[v] | *}>[n] | *}`.
+    /// Remove all refinements and turn each underlying [`BaseTy`] into a [`TyKind::Exists`] with a
+    /// [`TyKind::Constr`] and a [`hole`]. For example, `Vec<{v. i32[v] | v > 0}>[n]` becomes
+    /// `{n. Vec<{v. i32[v] | *}>[n] | *}`.
     ///
     /// [`hole`]: ExprKind::Hole
     fn with_holes(&self) -> Self {
-        struct WithHoles {
-            in_exists: bool,
-        }
+        struct WithHoles;
 
         impl TypeFolder for WithHoles {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
-                match ty.kind() {
-                    TyKind::Indexed(bty, _) => {
-                        if self.in_exists {
-                            ty.super_fold_with(self)
-                        } else {
-                            Ty::exists_with_constr(bty.fold_with(self), Expr::hole(HoleKind::Pred))
-                        }
-                    }
-                    TyKind::Exists(ty) => {
-                        Ty::exists(ty.fold_with(&mut WithHoles { in_exists: true }))
-                    }
-                    TyKind::Constr(_, ty) => {
-                        Ty::constr(Expr::hole(HoleKind::Pred), ty.fold_with(self))
-                    }
-                    _ => ty.super_fold_with(self),
+                if let Some(bty) = ty.as_bty_skipping_existentials() {
+                    Ty::exists_with_constr(bty.fold_with(self), Expr::hole(HoleKind::Pred))
+                } else {
+                    ty.super_fold_with(self)
                 }
             }
         }
 
-        self.fold_with(&mut WithHoles { in_exists: false })
+        self.fold_with(&mut WithHoles)
     }
 
     fn replace_evars(&self, evars: &EVarSol) -> Self {

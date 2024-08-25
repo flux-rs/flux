@@ -876,6 +876,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 env.borrow(&mut infcx.at(stmt_span), *r, Mutability::Not, place)
                     .with_span(stmt_span)
             }
+            Rvalue::RawPtr(mutbl, place) => {
+                // ignore any refinements on the type stored at place
+                let ty = self
+                    .genv
+                    .refine_default(
+                        &self.generics,
+                        &env.lookup_rust_ty(genv, place).with_span(stmt_span)?,
+                    )
+                    .with_span(stmt_span)?;
+                Ok(BaseTy::RawPtr(ty, *mutbl).to_ty())
+            }
             Rvalue::Len(place) => self.check_len(infcx, env, stmt_span, place),
             Rvalue::Cast(kind, op, to) => {
                 let from = self.check_operand(infcx, env, stmt_span, op)?;
