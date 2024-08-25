@@ -24,7 +24,7 @@ pub use rustc_type_ir::InferConst;
 use self::subst::Subst;
 use crate::{
     intern::{impl_internable, impl_slice_internable, Interned, List},
-    pretty::def_id_to_string,
+    pretty::{self, def_id_to_string},
 };
 
 #[derive(Debug, Clone)]
@@ -186,20 +186,20 @@ pub enum TyKind {
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ExistentialPredicate {
     Trait(ExistentialTraitRef),
     Projection(ExistentialProjection),
     AutoTrait(DefId),
 }
 
-#[derive(PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
+#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct ExistentialTraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct ExistentialProjection {
     pub def_id: DefId,
     pub args: GenericArgs,
@@ -793,6 +793,38 @@ impl_slice_internable!(
     Binder<ExistentialPredicate>,
 );
 
+impl fmt::Debug for ExistentialPredicate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ExistentialPredicate::Trait(trait_ref) => write!(f, "{trait_ref:?}"),
+            ExistentialPredicate::Projection(proj) => write!(f, "({proj:?})"),
+            ExistentialPredicate::AutoTrait(def_id) => {
+                write!(f, "{}", pretty::def_id_to_string(*def_id))
+            }
+        }
+    }
+}
+
+impl fmt::Debug for ExistentialTraitRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", pretty::def_id_to_string(self.def_id))?;
+        if !self.args.is_empty() {
+            write!(f, "<{:?}>", self.args.iter().format(","))?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for ExistentialProjection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", pretty::def_id_to_string(self.def_id))?;
+        if !self.args.is_empty() {
+            write!(f, "<{:?}>", self.args.iter().format(","))?;
+        }
+        write!(f, " = {:?}", &self.term)
+    }
+}
+
 impl fmt::Debug for GenericArg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -900,8 +932,8 @@ impl fmt::Debug for Ty {
                 write!(f, ")")?;
                 Ok(())
             }
-            TyKind::Dynamic(exi_preds, _r) => {
-                write!(f, "dyn {exi_preds:?}")
+            TyKind::Dynamic(preds, r) => {
+                write!(f, "dyn {:?} + {r:?}", preds.iter().format(", "))
             }
         }
     }

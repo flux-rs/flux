@@ -259,7 +259,7 @@ impl PolyTraitRef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ExistentialPredicate {
     Trait(ExistentialTraitRef),
     Projection(ExistentialProjection),
@@ -323,6 +323,14 @@ impl Binder<ExistentialPredicate> {
 pub struct ExistentialTraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
+}
+
+pub type PolyExistentialTraitRef = Binder<ExistentialTraitRef>;
+
+impl PolyExistentialTraitRef {
+    pub fn def_id(&self) -> DefId {
+        self.as_ref().skip_binder().def_id
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
