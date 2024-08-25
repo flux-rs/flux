@@ -763,6 +763,9 @@
 <a href="#763" id="763">763</a>
 <a href="#764" id="764">764</a>
 <a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
@@ -772,6 +775,7 @@
     index::{Idx, IndexVec},
 };
 <span class="kw">use </span>itertools::Itertools;
+<span class="kw">use </span>rustc_ast::Mutability;
 <span class="kw">pub use </span>rustc_borrowck::borrow_set::BorrowData;
 <span class="kw">use </span>rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex};
 <span class="kw">use </span>rustc_data_structures::{fx::FxIndexMap, graph::dominators::Dominators};
@@ -957,6 +961,7 @@
     Use(Operand),
     Repeat(Operand, Const),
     Ref(Region, BorrowKind, Place),
+    RawPtr(Mutability, Place),
     Len(Place),
     Cast(CastKind, Operand, Ty),
     BinaryOp(BinOp, Operand, Operand),
@@ -1424,6 +1429,7 @@
             Rvalue::Ref(r, BorrowKind::Fake(FakeBorrowKind::Deep), place) =&gt; {
                 <span class="macro">write!</span>(f, <span class="string">"&amp;{} fake deep {place:?}"</span>, region_to_string(<span class="kw-2">*</span>r))
             }
+            Rvalue::RawPtr(mutbl, place) =&gt; <span class="macro">write!</span>(f, <span class="string">"&amp;raw {} {place:?}"</span>, mutbl.ptr_str()),
             Rvalue::Discriminant(place) =&gt; <span class="macro">write!</span>(f, <span class="string">"discriminant({place:?})"</span>),
             Rvalue::BinaryOp(bin_op, op1, op2) =&gt; <span class="macro">write!</span>(f, <span class="string">"{bin_op:?}({op1:?}, {op2:?})"</span>),
             Rvalue::NullaryOp(null_op, ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{null_op:?}({ty:?})"</span>),

@@ -2393,26 +2393,6 @@
 <a href="#2393" id="2393">2393</a>
 <a href="#2394" id="2394">2394</a>
 <a href="#2395" id="2395">2395</a>
-<a href="#2396" id="2396">2396</a>
-<a href="#2397" id="2397">2397</a>
-<a href="#2398" id="2398">2398</a>
-<a href="#2399" id="2399">2399</a>
-<a href="#2400" id="2400">2400</a>
-<a href="#2401" id="2401">2401</a>
-<a href="#2402" id="2402">2402</a>
-<a href="#2403" id="2403">2403</a>
-<a href="#2404" id="2404">2404</a>
-<a href="#2405" id="2405">2405</a>
-<a href="#2406" id="2406">2406</a>
-<a href="#2407" id="2407">2407</a>
-<a href="#2408" id="2408">2408</a>
-<a href="#2409" id="2409">2409</a>
-<a href="#2410" id="2410">2410</a>
-<a href="#2411" id="2411">2411</a>
-<a href="#2412" id="2412">2412</a>
-<a href="#2413" id="2413">2413</a>
-<a href="#2414" id="2414">2414</a>
-<a href="#2415" id="2415">2415</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
@@ -2436,7 +2416,6 @@
     HoleKind, KVar, KVid, Lambda, Loc, Name, Path, UnOp, Var,
 };
 <span class="kw">use </span>flux_common::bug;
-<span class="kw">use </span>fold::TypeFolder;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">pub use </span>normalize::SpecFuncDefns;
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
@@ -3449,25 +3428,6 @@
 
     <span class="kw">pub fn </span>infer(vid: TyVid) -&gt; Ty {
         TyKind::Infer(vid).intern()
-    }
-
-    <span class="doccomment">/// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
-    /// to have a unique identifier for each position such that we can infer a region substitution
-    /// when assigning a type to a place. This way we can recover the regions in the original rust
-    /// type. See `flux_refineck::type_env::TypeEnv::assign`
-    </span><span class="kw">pub fn </span>replace_regions_with_unique_vars(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Ty {
-        <span class="kw">struct </span>Replacer {
-            next_rvid: u32,
-        }
-        <span class="kw">impl </span>TypeFolder <span class="kw">for </span>Replacer {
-            <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span>Region) -&gt; Region {
-                <span class="kw">let </span>rvid = <span class="self">self</span>.next_rvid;
-                <span class="self">self</span>.next_rvid += <span class="number">1</span>;
-                Region::ReVar(RegionVid::from_u32(rvid))
-            }
-        }
-
-        <span class="self">self</span>.fold_with(<span class="kw-2">&amp;mut </span>Replacer { next_rvid: <span class="number">0 </span>})
     }
 
     <span class="kw">pub fn </span>unconstr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (Ty, Expr) {

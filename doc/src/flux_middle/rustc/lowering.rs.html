@@ -1079,6 +1079,7 @@
 <a href="#1079" id="1079">1079</a>
 <a href="#1080" id="1080">1080</a>
 <a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1500,6 +1501,9 @@
             rustc_mir::Rvalue::Ref(region, bk, p) =&gt; {
                 <span class="prelude-val">Ok</span>(Rvalue::Ref(lower_region(region)<span class="question-mark">?</span>, <span class="kw-2">*</span>bk, lower_place(p)<span class="question-mark">?</span>))
             }
+            rustc_mir::Rvalue::RawPtr(mutbl, place) =&gt; {
+                <span class="prelude-val">Ok</span>(Rvalue::RawPtr(<span class="kw-2">*</span>mutbl, lower_place(place)<span class="question-mark">?</span>))
+            }
             rustc_mir::Rvalue::Len(place) =&gt; <span class="prelude-val">Ok</span>(Rvalue::Len(lower_place(place)<span class="question-mark">?</span>)),
             rustc_mir::Rvalue::Cast(kind, op, ty) =&gt; {
                 <span class="kw">let </span>kind = <span class="self">self</span>.lower_cast_kind(<span class="kw-2">*</span>kind).ok_or_else(|| {
@@ -1531,9 +1535,7 @@
             rustc_mir::Rvalue::ShallowInitBox(op, ty) =&gt; {
                 <span class="prelude-val">Ok</span>(Rvalue::ShallowInitBox(<span class="self">self</span>.lower_operand(op)<span class="question-mark">?</span>, lower_ty(<span class="self">self</span>.tcx, <span class="kw-2">*</span>ty)<span class="question-mark">?</span>))
             }
-            rustc_mir::Rvalue::ThreadLocalRef(<span class="kw">_</span>)
-            | rustc_mir::Rvalue::RawPtr(<span class="kw">_</span>, <span class="kw">_</span>)
-            | rustc_mir::Rvalue::CopyForDeref(<span class="kw">_</span>) =&gt; {
+            rustc_mir::Rvalue::ThreadLocalRef(<span class="kw">_</span>) | rustc_mir::Rvalue::CopyForDeref(<span class="kw">_</span>) =&gt; {
                 <span class="prelude-val">Err</span>(UnsupportedReason::new(<span class="macro">format!</span>(<span class="string">"unsupported rvalue `{rvalue:?}`"</span>)))
             }
         }
