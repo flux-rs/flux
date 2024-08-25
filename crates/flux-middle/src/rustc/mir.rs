@@ -7,6 +7,7 @@ use flux_common::{
     index::{Idx, IndexVec},
 };
 use itertools::Itertools;
+use rustc_ast::Mutability;
 pub use rustc_borrowck::borrow_set::BorrowData;
 use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex};
 use rustc_data_structures::{fx::FxIndexMap, graph::dominators::Dominators};
@@ -192,6 +193,7 @@ pub enum Rvalue {
     Use(Operand),
     Repeat(Operand, Const),
     Ref(Region, BorrowKind, Place),
+    RawPtr(Mutability, Place),
     Len(Place),
     Cast(CastKind, Operand, Ty),
     BinaryOp(BinOp, Operand, Operand),
@@ -659,6 +661,7 @@ impl fmt::Debug for Rvalue {
             Rvalue::Ref(r, BorrowKind::Fake(FakeBorrowKind::Deep), place) => {
                 write!(f, "&{} fake deep {place:?}", region_to_string(*r))
             }
+            Rvalue::RawPtr(mutbl, place) => write!(f, "&raw {} {place:?}", mutbl.ptr_str()),
             Rvalue::Discriminant(place) => write!(f, "discriminant({place:?})"),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
             Rvalue::NullaryOp(null_op, ty) => write!(f, "{null_op:?}({ty:?})"),

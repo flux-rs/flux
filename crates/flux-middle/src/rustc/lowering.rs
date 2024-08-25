@@ -419,6 +419,9 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Rvalue::Ref(region, bk, p) => {
                 Ok(Rvalue::Ref(lower_region(region)?, *bk, lower_place(p)?))
             }
+            rustc_mir::Rvalue::RawPtr(mutbl, place) => {
+                Ok(Rvalue::RawPtr(*mutbl, lower_place(place)?))
+            }
             rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(lower_place(place)?)),
             rustc_mir::Rvalue::Cast(kind, op, ty) => {
                 let kind = self.lower_cast_kind(*kind).ok_or_else(|| {
@@ -450,9 +453,7 @@ impl<'sess, 'tcx> LoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Rvalue::ShallowInitBox(op, ty) => {
                 Ok(Rvalue::ShallowInitBox(self.lower_operand(op)?, lower_ty(self.tcx, *ty)?))
             }
-            rustc_mir::Rvalue::ThreadLocalRef(_)
-            | rustc_mir::Rvalue::RawPtr(_, _)
-            | rustc_mir::Rvalue::CopyForDeref(_) => {
+            rustc_mir::Rvalue::ThreadLocalRef(_) | rustc_mir::Rvalue::CopyForDeref(_) => {
                 Err(UnsupportedReason::new(format!("unsupported rvalue `{rvalue:?}`")))
             }
         }

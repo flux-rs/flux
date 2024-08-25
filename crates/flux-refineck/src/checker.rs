@@ -876,6 +876,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 env.borrow(&mut infcx.at(stmt_span), *r, Mutability::Not, place)
                     .with_span(stmt_span)
             }
+            Rvalue::RawPtr(mutbl, place) => {
+                let ty = env
+                    .lookup_place(&mut infcx.at(stmt_span), place)
+                    .with_span(stmt_span)?
+                    .unrefined()
+                    .map_err(|ty| {
+                        CheckerError::bug(format!("unexpected pointer type `{ty:?}`"), stmt_span)
+                    })?;
+
+                Ok(BaseTy::RawPtr(ty, *mutbl).to_ty())
+            }
             Rvalue::Len(place) => self.check_len(infcx, env, stmt_span, place),
             Rvalue::Cast(kind, op, to) => {
                 let from = self.check_operand(infcx, env, stmt_span, op)?;

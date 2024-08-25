@@ -293,32 +293,45 @@ pub trait TypeFoldable: TypeVisitable {
     ///
     /// [`hole`]: ExprKind::Hole
     fn with_holes(&self) -> Self {
-        struct WithHoles {
-            in_exists: bool,
-        }
+        struct WithHoles;
 
         impl TypeFolder for WithHoles {
             fn fold_ty(&mut self, ty: &Ty) -> Ty {
-                match ty.kind() {
-                    TyKind::Indexed(bty, _) => {
-                        if self.in_exists {
-                            ty.super_fold_with(self)
-                        } else {
-                            Ty::exists_with_constr(bty.fold_with(self), Expr::hole(HoleKind::Pred))
-                        }
-                    }
-                    TyKind::Exists(ty) => {
-                        Ty::exists(ty.fold_with(&mut WithHoles { in_exists: true }))
-                    }
-                    TyKind::Constr(_, ty) => {
-                        Ty::constr(Expr::hole(HoleKind::Pred), ty.fold_with(self))
-                    }
-                    _ => ty.super_fold_with(self),
+                if let Some(bty) = ty.as_bty_skipping_existentials() {
+                    Ty::exists_with_constr(bty.fold_with(self), Expr::hole(HoleKind::Pred))
+                } else {
+                    ty.super_fold_with(self)
                 }
             }
         }
 
-        self.fold_with(&mut WithHoles { in_exists: false })
+        self.fold_with(&mut WithHoles)
+    }
+
+    fn unrefined(&self) -> Result<Self, Ty> {
+        struct Unrefiner;
+        impl FallibleTypeFolder for Unrefiner {
+            type Error = Ty;
+
+            fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Ty> {
+                match ty.kind() {
+                    TyKind::Indexed(bty, _) => Ok(bty.try_fold_with(self)?.to_ty()),
+                    TyKind::Exists(ty_ctor) => ty_ctor.as_ref().skip_binder().try_fold_with(self),
+                    TyKind::Constr(_, ty) => ty.try_fold_with(self),
+                    TyKind::Param(_) | TyKind::Alias(..) | TyKind::Infer(_) => {
+                        ty.try_super_fold_with(self)
+                    }
+                    TyKind::Discr(..)
+                    | TyKind::Ptr(..)
+                    | TyKind::StrgRef(..)
+                    | TyKind::Downcast(..)
+                    | TyKind::Blocked(..)
+                    | TyKind::Uninit => Err(ty.clone()),
+                }
+            }
+        }
+
+        self.try_fold_with(&mut Unrefiner)
     }
 
     fn replace_evars(&self, evars: &EVarSol) -> Self {
