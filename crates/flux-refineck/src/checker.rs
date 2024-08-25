@@ -877,14 +877,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)
             }
             Rvalue::RawPtr(mutbl, place) => {
-                let ty = env
-                    .lookup_place(&mut infcx.at(stmt_span), place)
-                    .with_span(stmt_span)?
-                    .unrefined()
-                    .map_err(|ty| {
-                        CheckerError::bug(format!("unexpected pointer type `{ty:?}`"), stmt_span)
-                    })?;
-
+                let ty = self
+                    .genv
+                    .refine_default(
+                        &self.generics,
+                        &env.lookup_rust_ty(genv, place).with_span(stmt_span)?,
+                    )
+                    .with_span(stmt_span)?;
                 Ok(BaseTy::RawPtr(ty, *mutbl).to_ty())
             }
             Rvalue::Len(place) => self.check_len(infcx, env, stmt_span, place),

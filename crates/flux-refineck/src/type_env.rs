@@ -9,7 +9,9 @@ use flux_infer::{
     refine_tree::{RefineCtxt, Scope},
 };
 use flux_middle::{
+    global_env::GlobalEnv,
     intern::List,
+    queries::QueryResult,
     rty::{
         canonicalize::Hoister,
         evars::EVarSol,
@@ -17,7 +19,10 @@ use flux_middle::{
         subst, BaseTy, Binder, BoundReftKind, Expr, ExprKind, GenericArg, HoleKind, Lambda,
         Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind, INNERMOST,
     },
-    rustc::mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
+    rustc::{
+        self,
+        mir::{BasicBlock, Local, LocalDecls, Place, PlaceElem},
+    },
 };
 use itertools::{izip, Itertools};
 use rustc_middle::ty::TyCtxt;
@@ -69,6 +74,14 @@ impl TypeEnv<'_> {
 
     pub(crate) fn into_infer(self, scope: Scope) -> Result<BasicBlockEnvShape> {
         BasicBlockEnvShape::new(scope, self)
+    }
+
+    pub(crate) fn lookup_rust_ty(
+        &self,
+        genv: GlobalEnv,
+        place: &Place,
+    ) -> QueryResult<rustc::ty::Ty> {
+        Ok(place.ty(genv, self.local_decls)?.ty)
     }
 
     pub(crate) fn lookup_place(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> Result<Ty> {

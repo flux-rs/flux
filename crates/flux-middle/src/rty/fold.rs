@@ -287,9 +287,9 @@ pub trait TypeFoldable: TypeVisitable {
         self.fold_with(&mut ReplaceHoles(f, vec![]))
     }
 
-    /// Turns each [`TyKind::Indexed`] into a [`TyKind::Exists`] with a [`TyKind::Constr`] and a
-    /// [`hole`]. It also replaces all existing predicates with a [`hole`].
-    /// For example, `Vec<{v. i32[v] | v > 0}>[n]` becomes `{n. Vec<{v. i32[v] | *}>[n] | *}`.
+    /// Remove all refinements and turn each unredrlying [`BaseTy`] into a [`TyKind::Exists`] with a
+    /// [`TyKind::Constr`] and a [`hole`]. For example, `Vec<{v. i32[v] | v > 0}>[n]` becomes
+    /// `{n. Vec<{v. i32[v] | *}>[n] | *}`.
     ///
     /// [`hole`]: ExprKind::Hole
     fn with_holes(&self) -> Self {
@@ -306,32 +306,6 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         self.fold_with(&mut WithHoles)
-    }
-
-    fn unrefined(&self) -> Result<Self, Ty> {
-        struct Unrefiner;
-        impl FallibleTypeFolder for Unrefiner {
-            type Error = Ty;
-
-            fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Ty> {
-                match ty.kind() {
-                    TyKind::Indexed(bty, _) => Ok(bty.try_fold_with(self)?.to_ty()),
-                    TyKind::Exists(ty_ctor) => ty_ctor.as_ref().skip_binder().try_fold_with(self),
-                    TyKind::Constr(_, ty) => ty.try_fold_with(self),
-                    TyKind::Param(_) | TyKind::Alias(..) | TyKind::Infer(_) => {
-                        ty.try_super_fold_with(self)
-                    }
-                    TyKind::Discr(..)
-                    | TyKind::Ptr(..)
-                    | TyKind::StrgRef(..)
-                    | TyKind::Downcast(..)
-                    | TyKind::Blocked(..)
-                    | TyKind::Uninit => Err(ty.clone()),
-                }
-            }
-        }
-
-        self.try_fold_with(&mut Unrefiner)
     }
 
     fn replace_evars(&self, evars: &EVarSol) -> Self {

@@ -12,11 +12,29 @@ use super::{
 };
 use crate::rty::*;
 
+/// See `flux_refineck::type_env::TypeEnv::assign`
 pub fn match_regions(a: &Ty, b: &rustc::ty::Ty) -> Ty {
-    let a = a.replace_regions_with_unique_vars();
+    let a = replace_regions_with_unique_vars(a);
     let mut subst = RegionSubst::default();
     subst.infer_from_ty(&a, b);
     subst.apply(&a)
+}
+
+/// Replace all regions with a [`ReVar`] assigning each a unique [`RegionVid`]. This is used
+/// to have a unique identifier for each position such that we can infer a region substitution.
+fn replace_regions_with_unique_vars(ty: &Ty) -> Ty {
+    struct Replacer {
+        next_rvid: u32,
+    }
+    impl TypeFolder for Replacer {
+        fn fold_region(&mut self, _: &Region) -> Region {
+            let rvid = self.next_rvid;
+            self.next_rvid += 1;
+            Region::ReVar(RegionVid::from_u32(rvid))
+        }
+    }
+
+    ty.fold_with(&mut Replacer { next_rvid: 0 })
 }
 
 #[derive(Default, Debug)]
