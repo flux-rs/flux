@@ -287,7 +287,7 @@ pub trait TypeFoldable: TypeVisitable {
         self.fold_with(&mut ReplaceHoles(f, vec![]))
     }
 
-    /// Remove all refinements and turn each unredrlying [`BaseTy`] into a [`TyKind::Exists`] with a
+    /// Remove all refinements and turn each underlying [`BaseTy`] into a [`TyKind::Exists`] with a
     /// [`TyKind::Constr`] and a [`hole`]. For example, `Vec<{v. i32[v] | v > 0}>[n]` becomes
     /// `{n. Vec<{v. i32[v] | *}>[n] | *}`.
     ///
