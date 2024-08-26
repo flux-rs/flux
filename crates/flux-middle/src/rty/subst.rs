@@ -86,23 +86,60 @@ impl RegionSubst {
     fn infer_from_bty(&mut self, a: &BaseTy, ty: &rustc::ty::Ty) {
         use rustc::ty;
         match (a, ty.kind()) {
-            (BaseTy::Ref(r1, ty1, _), ty::TyKind::Ref(r2, ty2, _)) => {
-                self.infer_from_region(*r1, *r2);
-                self.infer_from_ty(ty1, ty2);
+            (BaseTy::Ref(re_a, ty_a, _), ty::TyKind::Ref(re_b, ty_b, _)) => {
+                self.infer_from_region(*re_a, *re_b);
+                self.infer_from_ty(ty_a, ty_b);
             }
             (BaseTy::Adt(_, args_a), ty::TyKind::Adt(_, args_b)) => {
-                debug_assert_eq!(args_a.len(), args_b.len());
-                for (arg_a, arg_b) in iter::zip(args_a, args_b) {
-                    self.infer_from_generic_arg(arg_a, arg_b);
+                self.infer_from_generic_args(args_a, args_b);
+            }
+            (BaseTy::Dynamic(preds_a, re_a), ty::TyKind::Dynamic(preds_b, re_b)) => {
+                debug_assert_eq!(preds_a.len(), preds_b.len());
+                self.infer_from_region(*re_a, *re_b);
+                for (pred_a, pred_b) in iter::zip(preds_a, preds_b) {
+                    self.infer_from_existential_pred(pred_a, pred_b);
                 }
             }
-            (BaseTy::Tuple(fields1), ty::TyKind::Tuple(fields2)) => {
-                debug_assert_eq!(fields1.len(), fields2.len());
-                for (ty1, ty2) in iter::zip(fields1, fields2) {
-                    self.infer_from_ty(ty1, ty2);
+            (BaseTy::Tuple(fields_a), ty::TyKind::Tuple(fields_b)) => {
+                debug_assert_eq!(fields_a.len(), fields_b.len());
+                for (ty_a, ty_b) in iter::zip(fields_a, fields_b) {
+                    self.infer_from_ty(ty_a, ty_b);
                 }
             }
             _ => {}
+        }
+    }
+
+    fn infer_from_existential_pred(
+        &mut self,
+        a: &PolyExistentialPredicate,
+        b: &rustc::ty::PolyExistentialPredicate,
+    ) {
+        use rustc::ty;
+        match (a.as_ref().skip_binder(), b.as_ref().skip_binder()) {
+            (
+                ExistentialPredicate::Trait(trait_ref_a),
+                ty::ExistentialPredicate::Trait(trait_ref_b),
+            ) => {
+                debug_assert_eq!(trait_ref_a.def_id, trait_ref_b.def_id);
+                self.infer_from_generic_args(&trait_ref_a.args, &trait_ref_b.args);
+            }
+            (
+                ExistentialPredicate::Projection(proj_a),
+                ty::ExistentialPredicate::Projection(proj_b),
+            ) => {
+                debug_assert_eq!(proj_a.def_id, proj_b.def_id);
+                self.infer_from_generic_args(&proj_a.args, &proj_b.args);
+                self.infer_from_ty(&proj_a.term, &proj_b.term);
+            }
+            _ => {}
+        }
+    }
+
+    fn infer_from_generic_args(&mut self, a: &GenericArgs, b: &rustc::ty::GenericArgs) {
+        debug_assert_eq!(a.len(), b.len());
+        for (arg_a, arg_b) in iter::zip(a, b) {
+            self.infer_from_generic_arg(arg_a, arg_b);
         }
     }
 

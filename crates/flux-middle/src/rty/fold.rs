@@ -1049,8 +1049,8 @@ impl TypeSuperFoldable for BaseTy {
                     args.try_fold_with(folder)?,
                 )
             }
-            BaseTy::Dynamic(exi_preds, region) => {
-                BaseTy::Dynamic(exi_preds.try_fold_with(folder)?, region.try_fold_with(folder)?)
+            BaseTy::Dynamic(preds, region) => {
+                BaseTy::Dynamic(preds.try_fold_with(folder)?, region.try_fold_with(folder)?)
             }
         };
         Ok(bty)

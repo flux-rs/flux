@@ -259,12 +259,14 @@ impl PolyTraitRef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum ExistentialPredicate {
     Trait(ExistentialTraitRef),
     Projection(ExistentialProjection),
     AutoTrait(DefId),
 }
+
+pub type PolyExistentialPredicate = Binder<ExistentialPredicate>;
 
 impl ExistentialPredicate {
     /// See [`rustc_middle::ty::ExistentialPredicateStableCmpExt`]
@@ -288,7 +290,7 @@ impl ExistentialPredicate {
     }
 }
 
-impl Binder<ExistentialPredicate> {
+impl PolyExistentialPredicate {
     fn to_rustc<'tcx>(
         &self,
         tcx: TyCtxt<'tcx>,
@@ -323,6 +325,14 @@ impl Binder<ExistentialPredicate> {
 pub struct ExistentialTraitRef {
     pub def_id: DefId,
     pub args: GenericArgs,
+}
+
+pub type PolyExistentialTraitRef = Binder<ExistentialTraitRef>;
+
+impl PolyExistentialTraitRef {
+    pub fn def_id(&self) -> DefId {
+        self.as_ref().skip_binder().def_id
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]

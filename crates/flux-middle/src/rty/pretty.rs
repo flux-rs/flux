@@ -37,7 +37,9 @@ where
     default fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(cx, f);
         cx.with_bound_vars(&self.vars, || {
-            cx.fmt_bound_vars(true, "for<", &self.vars, "> ", f)?;
+            if !self.vars.is_empty() {
+                cx.fmt_bound_vars(true, "for<", &self.vars, "> ", f)?;
+            }
             w!("{:?}", &self.value)
         })
     }
@@ -363,12 +365,34 @@ impl Pretty for ExistentialPredicate {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         define_scoped!(_cx, f);
         match self {
-            ExistentialPredicate::Trait(trait_ref) => {
-                w!("{trait_ref:?}")
-            }
-            ExistentialPredicate::Projection(projection) => w!("{projection:?}"),
-            ExistentialPredicate::AutoTrait(def_id) => w!("AutoTrait({def_id:?})"),
+            ExistentialPredicate::Trait(trait_ref) => w!("{:?}", trait_ref),
+            ExistentialPredicate::Projection(proj) => w!("({:?})", proj),
+            ExistentialPredicate::AutoTrait(def_id) => w!("{:?}", def_id),
         }
+    }
+}
+
+impl Pretty for ExistentialTraitRef {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(cx, f);
+
+        w!("{:?}", self.def_id)?;
+        if !self.args.is_empty() {
+            w!("<{:?}>", join!(", ", &self.args))?;
+        }
+        Ok(())
+    }
+}
+
+impl Pretty for ExistentialProjection {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        define_scoped!(cx, f);
+
+        w!("{:?}", self.def_id)?;
+        if !self.args.is_empty() {
+            w!("<{:?}>", join!(", ", &self.args))?;
+        }
+        w!(" = {:?}", &self.term)
     }
 }
 
@@ -423,8 +447,8 @@ impl Pretty for BaseTy {
                 }
                 Ok(())
             }
-            BaseTy::Dynamic(exi_preds, _) => {
-                w!("dyn {:?}", join!(", ", exi_preds))
+            BaseTy::Dynamic(preds, re) => {
+                w!("dyn {:?} + {:?}", join!(" + ", preds), re)
             }
         }
     }
